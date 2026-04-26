@@ -1,0 +1,49 @@
+import Link from "next/link";
+import { footerContent } from "@/content/site/footer";
+import { Logo } from "./Logo";
+
+export function SiteFooter() {
+  return (
+    <footer className="footer_component color-scheme-1">
+      <div className="padding-global">
+        <div className="container-large">
+          <div className="padding-vertical padding-xxlarge">
+            <div className="padding-bottom padding-xxlarge">
+              <div className="footer_top-wrapper">
+                <Logo size="footer" />
+                <div className="w-layout-grid footer_link-list">
+                  {footerContent.serviceLinks.map((item) => (
+                    <Link key={item.href} href={item.href} className="footer_link">
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="divider-horizontal" />
+
+            <div className="padding-top padding-medium">
+              <div className="footer_bottom-wrapper">
+                <div className="footer_credit-text">
+                  {footerContent.copyrightLine}
+                </div>
+                <div className="w-layout-grid footer_legal-list">
+                  {footerContent.legalLinks.map((item) => (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className="footer_legal-link"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

@@ -1,0 +1,26 @@
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "../styles/tokens.css";
+@import "tw-animate-css";
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+
+@source "../**/*.{ts,tsx}";
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -o-font-smoothing: antialiased;
+}
+
+@media screen and (min-width: 768px) {
+  .service-hero-content-lock {
+    min-height: 21.875rem;
+  }
+}
