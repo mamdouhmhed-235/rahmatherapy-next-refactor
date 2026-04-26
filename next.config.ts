@@ -5,10 +5,7 @@ import { fileURLToPath } from "node:url";
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  output: "export",
-  distDir: process.env.NEXT_DIST_DIR || "dist",
   images: {
-    unoptimized: true,
     localPatterns: [
       {
         pathname: "/images/**",
