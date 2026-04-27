@@ -41,20 +41,20 @@ export function BookingDialog({
             <header className={styles.header}>
               <div className={styles.headerContent}>
                 <div className={styles.brandLine}>
-                  <span className={styles.brandMark}>Z</span>
-                  <p className={styles.eyebrow}>Zam Therapy</p>
+                  <span className={styles.brandMark}>R</span>
+                  <p className={styles.eyebrow}>Rahma Therapy</p>
                 </div>
                 <div>
                   <Dialog.Title className={styles.title}>
                     Book a therapy visit
                   </Dialog.Title>
                   <Dialog.Description className={styles.description}>
-                    Choose your treatment, preferred time, and Barnet visit address.
-                    Zam Therapy will contact you to confirm availability.
+                    Choose your treatment, preferred time, and Luton visit address.
+                    Rahma Therapy will contact you to confirm availability.
                   </Dialog.Description>
                 </div>
                 <div className={styles.headerPills} aria-label="Booking highlights">
-                  <span>Service in Barnet</span>
+                  <span>Service in Luton</span>
                   <span>Personalised treatment plan</span>
                   <span>Confirmation by phone or email</span>
                 </div>

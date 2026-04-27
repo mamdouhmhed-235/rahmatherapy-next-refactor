@@ -12,7 +12,7 @@ export const hijamaPageContent = {
   key: "hijama",
   seo: pageSeoByKey.hijama,
   hero: {
-    title: "Hijama Cupping Therapy in Barnet",
+    title: "Hijama Cupping Therapy in Luton",
     subtitle: "Cleanse. Restore. Rebalance.",
     description:
       "Hijama (cupping therapy) is a traditional treatment that supports circulation, relieves chronic pain, and restores balance to body and mind.",

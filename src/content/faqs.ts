@@ -1,4 +1,6 @@
-import type { FaqItem, SiteRouteKey } from "@/types/content";
+import type { ExistingServiceRouteKey, FaqItem } from "@/types/content";
+
+type FaqPageKey = "home" | ExistingServiceRouteKey;
 
 export const faqsByPage = {
   home: [
@@ -104,4 +106,4 @@ export const faqsByPage = {
         "Drink plenty of water. For 24 hours, avoid exercise, caffeine, red meats and dairy products. Avoid hot temperatures, baths, saunas, hot tubs for 24 hours. Hijama scars heal in from 2/3 days up to a week – sometimes even up to 2 weeks. Apply olive oil and black seed oil.",
     },
   ],
-} as const satisfies Record<SiteRouteKey, readonly FaqItem[]>;
+} as const satisfies Record<FaqPageKey, readonly FaqItem[]>;

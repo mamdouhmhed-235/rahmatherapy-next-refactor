@@ -5,17 +5,12 @@ import { fileURLToPath } from "node:url";
 const ROOT_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   images: {
     localPatterns: [
       {
         pathname: "/images/**",
         search: "",
-      },
-    ],
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "cdn.prod.website-files.com",
       },
     ],
   },

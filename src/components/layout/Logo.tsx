@@ -10,8 +10,8 @@ interface LogoProps {
 }
 
 const logoSizes = {
-  header: 64,
-  footer: 96,
+  header: 168,
+  footer: 196,
 } as const;
 
 export function Logo({
@@ -25,15 +25,15 @@ export function Logo({
   return (
     <Link
       href="/"
-      aria-label="Zam Therapy home"
+      aria-label="Rahma Therapy home"
       className={cn(
         size === "footer" ? "footer_logo-link w-nav-brand" : "navbar31_logo-link w-nav-brand",
         className
       )}
       style={
         size === "footer"
-          ? { width: "6.375rem", height: "6.375rem" }
-          : { width: "4.375rem", height: "4.375rem" }
+          ? { width: "clamp(10rem, 18vw, 12.25rem)", height: "4.5rem" }
+          : { width: "clamp(7.25rem, 32vw, 10.5rem)", height: "3.875rem" }
       }
     >
       <BrandLogo
@@ -46,8 +46,8 @@ export function Logo({
         )}
         style={{
           display: "inline",
-          objectFit: "cover",
-          objectPosition: "top",
+          objectFit: "contain",
+          objectPosition: "left center",
         }}
         sizes={`${logoSize}px`}
       />

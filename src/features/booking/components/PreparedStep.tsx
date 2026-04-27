@@ -13,7 +13,7 @@ export function PreparedStep({ onStartOver }: { onStartOver: () => void }) {
       <h3 id="prepared-heading">Request details ready</h3>
       <p>
         Your preferred treatment, visit time, and contact details have been reviewed.
-        Zam Therapy will still need to confirm availability before the appointment is final.
+        Rahma Therapy will still need to confirm availability before the appointment is final.
       </p>
       <button type="button" className={styles.secondaryButton} onClick={onStartOver}>
         Start over

@@ -2,15 +2,26 @@ import type { StaticImageData } from "next/image";
 
 export const SITE_ROUTE_KEYS = [
   "home",
+  "services",
+  "about",
+  "faqs-aftercare",
   "physiotherapy",
   "sports-massage-barnet",
   "hijama",
 ] as const;
 
 export type SiteRouteKey = (typeof SITE_ROUTE_KEYS)[number];
+export type ExistingServiceRouteKey =
+  | "physiotherapy"
+  | "sports-massage-barnet"
+  | "hijama";
+export type RahmaPageRouteKey = "services" | "about" | "faqs-aftercare";
 
 export const SITE_ROUTE_PATHS = [
   "/",
+  "/services",
+  "/about",
+  "/faqs-aftercare",
   "/physiotherapy",
   "/sports-massage-barnet",
   "/hijama",
@@ -19,13 +30,12 @@ export const SITE_ROUTE_PATHS = [
 export type SiteRoutePath = (typeof SITE_ROUTE_PATHS)[number];
 
 export interface ImageAsset {
-  kind: "remote" | "local";
+  kind: "local";
   src: string | StaticImageData;
   alt: string;
   width?: number;
   height?: number;
   publicPath?: string;
-  sourceUrl?: string;
   sizes?: string;
   loading?: "eager" | "lazy";
   priority?: boolean;
@@ -106,10 +116,11 @@ export interface HeroSection<ImageKey extends string = string> {
   secondaryCta?: ActionLink;
   image?: ImageReference<ImageKey>;
   images?: readonly ImageReference<ImageKey>[];
+  trustChips?: readonly string[];
 }
 
 export interface ServiceSummary<ImageKey extends string = string> {
-  key: Exclude<SiteRouteKey, "home">;
+  key: ExistingServiceRouteKey;
   name: string;
   route: SiteRoutePath;
   summary: string;
@@ -175,6 +186,80 @@ export interface FaqItem {
   answer: string;
 }
 
+export interface LabeledText {
+  label?: string;
+  title: string;
+  description: string;
+}
+
+export interface StatCard {
+  value: string;
+  label: string;
+  description?: string;
+}
+
+export interface PackageCard<ImageKey extends string = string> {
+  id: string;
+  title: string;
+  priceLabel: string;
+  description: string;
+  suitableFor?: string;
+  includes: readonly string[];
+  cta: ActionLink;
+  badge?: string;
+  image?: ImageReference<ImageKey>;
+}
+
+export interface TreatmentCard<ImageKey extends string = string> {
+  title: string;
+  description: string;
+  image?: ImageReference<ImageKey>;
+  href?: SiteRoutePath;
+  ctaLabel?: string;
+}
+
+export interface TeamCard<ImageKey extends string = string> {
+  name: string;
+  role: string;
+  description: string;
+  image?: ImageReference<ImageKey>;
+  badges?: readonly string[];
+  notes?: readonly string[];
+}
+
+export interface TimelineItem {
+  date: string;
+  title: string;
+  description: string;
+}
+
+export interface AccordionItem {
+  title: string;
+  description: string;
+}
+
+export interface TabPanelContent {
+  id: string;
+  label: string;
+  title: string;
+  description: string;
+  items: readonly string[];
+}
+
+export type FaqCategory =
+  | "All"
+  | "Booking"
+  | "Treatments"
+  | "Therapist Options"
+  | "Safety"
+  | "Before"
+  | "Aftercare"
+  | "Pricing";
+
+export interface SearchableFaqItem extends FaqItem {
+  category: Exclude<FaqCategory, "All">;
+}
+
 export interface CtaSection<ImageKey extends string = string> {
   title: string;
   description: string;
@@ -219,7 +304,7 @@ export interface HomePageContent<ImageKey extends string = string> {
 }
 
 export interface ServicePageContent<ImageKey extends string = string> {
-  key: Exclude<SiteRouteKey, "home">;
+  key: ExistingServiceRouteKey;
   seo: PageSeo<ImageKey>;
   hero: HeroSection<ImageKey>;
   benefits: {
@@ -263,4 +348,131 @@ export interface ServicePageContent<ImageKey extends string = string> {
     title: string;
     items: readonly FaqItem[];
   };
+}
+
+export interface ServicesIndexPageContent<ImageKey extends string = string> {
+  key: "services";
+  seo: PageSeo<ImageKey>;
+  hero: HeroSection<ImageKey>;
+  intro: {
+    title: string;
+    description: string;
+    items: readonly LabeledText[];
+  };
+  popularPackages: {
+    title: string;
+    description: string;
+    packages: readonly PackageCard<ImageKey>[];
+  };
+  treatments: {
+    title: string;
+    description: string;
+    items: readonly TreatmentCard<ImageKey>[];
+  };
+  guidance: {
+    title: string;
+    description: string;
+    items: readonly LabeledText[];
+    cta: ActionLink;
+  };
+  visitIncludes: {
+    title: string;
+    description: string;
+    items: readonly LabeledText[];
+  };
+  pricing: {
+    title: string;
+    description: string;
+    packages: readonly PackageCard<ImageKey>[];
+    note: string;
+  };
+  trust: {
+    title: string;
+    description: string;
+    items: readonly LabeledText[];
+  };
+  cta: CtaSection<ImageKey>;
+}
+
+export interface AboutPageContent<ImageKey extends string = string> {
+  key: "about";
+  seo: PageSeo<ImageKey>;
+  hero: HeroSection<ImageKey>;
+  proof: {
+    items: readonly StatCard[];
+  };
+  whoWeAre: {
+    title: string;
+    description: string;
+    image?: ImageReference<ImageKey>;
+    cta?: ActionLink;
+    caption?: string;
+  };
+  team: {
+    title: string;
+    description: string;
+    items: readonly TeamCard<ImageKey>[];
+  };
+  comfort: {
+    title: string;
+    description: string;
+    items: readonly LabeledText[];
+  };
+  standards: {
+    title: string;
+    description: string;
+    items: readonly AccordionItem[];
+    image?: ImageReference<ImageKey>;
+    caption?: string;
+  };
+  timeline: {
+    title: string;
+    description: string;
+    items: readonly TimelineItem[];
+  };
+  appreciation: {
+    title: string;
+    description: string;
+    items: readonly LabeledText[];
+  };
+  process: {
+    title: string;
+    description: string;
+    items: readonly LabeledText[];
+  };
+  cta: CtaSection<ImageKey>;
+}
+
+export interface FaqsAftercarePageContent<ImageKey extends string = string> {
+  key: "faqs-aftercare";
+  seo: PageSeo<ImageKey>;
+  hero: HeroSection<ImageKey>;
+  reassurance: {
+    title: string;
+    items: readonly LabeledText[];
+  };
+  beforeAppointment: {
+    title: string;
+    description: string;
+    image?: ImageReference<ImageKey>;
+    items: readonly LabeledText[];
+  };
+  aftercare: {
+    title: string;
+    description: string;
+    tabs: readonly TabPanelContent[];
+  };
+  faq: {
+    title: string;
+    description: string;
+    categories: readonly FaqCategory[];
+    items: readonly SearchableFaqItem[];
+  };
+  safety: {
+    title: string;
+    description: string;
+    items: readonly LabeledText[];
+  };
+  unsureCta: CtaSection<ImageKey>;
+  cta: CtaSection<ImageKey>;
 }

@@ -29,8 +29,6 @@ function StarIcon() {
 
 export function FeaturedQuoteSection({ content }: FeaturedQuoteSectionProps) {
   if (content.author !== "Khayyam Butt") {
-    const needsReferenceLineWrap = content.author === "Ismael E Q";
-
     return (
       <section className="section_testimonial1 color-scheme-1">
         <div className="padding-global">
@@ -38,14 +36,7 @@ export function FeaturedQuoteSection({ content }: FeaturedQuoteSectionProps) {
             <div className="padding-section-x-large">
               <div className="max-width-xlarge align-center">
                 <div className="testimonial1_component">
-                  <div
-                    className="testimonial1_content"
-                    style={
-                      needsReferenceLineWrap
-                        ? { minHeight: "14.0625rem" }
-                        : undefined
-                    }
-                  >
+                  <div className="testimonial1_content">
                     <h3 className="heading-style-h3 text-balanced">
                       {content.quote}
                     </h3>

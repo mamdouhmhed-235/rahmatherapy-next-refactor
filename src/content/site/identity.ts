@@ -2,15 +2,15 @@ import type { SiteIdentity } from "@/types/content";
 import type { SiteImageKey } from "@/content/images";
 
 export const siteIdentity = {
-  name: "Zam Therapy",
-  legalName: "Zam Therapy",
-  tagline: "Physiotherapy, Sports Massage and Hijama in Barnet",
-  defaultDescription: "Expert massage, physiotherapy and hijama in Barnet and local areas.",
-  location: "Barnet",
-  serviceArea: "Barnet and the surrounding area",
+  name: "Rahma Therapy",
+  legalName: "Rahma Therapy",
+  tagline: "Mobile hijama, cupping and massage therapy in Luton",
+  defaultDescription: "Mobile hijama, cupping, massage and soft-tissue therapy in Luton and surrounding areas.",
+  location: "Luton",
+  serviceArea: "Luton and surrounding areas",
   footerCredit: "Website by Cotta Digital",
   logo: {
-    image: "zamTherapyMark",
-    alt: "Zam Therapy",
+    image: "rahmaLogoRefined",
+    alt: "Rahma Therapy",
   },
 } as const satisfies SiteIdentity<SiteImageKey>;

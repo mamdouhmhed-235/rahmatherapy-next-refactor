@@ -1,7 +1,19 @@
 import type { FooterContent } from "@/types/content";
 
-export const footerContent = {
+export const footerContent: FooterContent = {
   serviceLinks: [
+    {
+      label: "Services",
+      href: "/services",
+    },
+    {
+      label: "About",
+      href: "/about",
+    },
+    {
+      label: "FAQs & Aftercare",
+      href: "/faqs-aftercare",
+    },
     {
       label: "Physiotherapy",
       href: "/physiotherapy",
@@ -15,19 +27,6 @@ export const footerContent = {
       href: "/hijama",
     },
   ],
-  legalLinks: [
-    {
-      label: "Privacy policy",
-      href: "#",
-    },
-    {
-      label: "Terms of service",
-      href: "#",
-    },
-    {
-      label: "Cookies settings",
-      href: "#",
-    },
-  ],
-  copyrightLine: "© 2026 Zam Therapy. All rights reserved. Website by Cotta Digital",
-} as const satisfies FooterContent;
+  legalLinks: [],
+  copyrightLine: "Copyright 2026 Rahma Therapy. All rights reserved. Website by Cotta Digital",
+};

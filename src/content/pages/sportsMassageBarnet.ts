@@ -12,7 +12,7 @@ export const sportsMassageBarnetPageContent = {
   key: "sports-massage-barnet",
   seo: pageSeoByKey["sports-massage-barnet"],
   hero: {
-    title: "Sports Massage in Barnet",
+    title: "Sports Massage in Luton",
     subtitle: "Release tension. Relieve pain. Restore balance.",
     description:
       "Sports massage is designed to enhance athletic performance, speed up recovery, and prevent injuries by relieving muscle tension and improving circulation.",

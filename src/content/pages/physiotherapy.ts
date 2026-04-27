@@ -12,7 +12,7 @@ export const physiotherapyPageContent = {
   key: "physiotherapy",
   seo: pageSeoByKey.physiotherapy,
   hero: {
-    title: "Sports Massage & Physiotherapy in Barnet",
+    title: "Sports Massage & Physiotherapy in Luton",
     subtitle: "Restore movement. Recover faster. Live pain-free.",
     description:
       "Physiotherapy sessions designed to relieve pain, prevent injuries, and help you move with confidence again.",

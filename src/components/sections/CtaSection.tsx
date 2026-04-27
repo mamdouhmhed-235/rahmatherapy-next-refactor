@@ -10,6 +10,8 @@ interface CtaSectionProps {
 
 export function CtaSection({ content, variant = "service" }: CtaSectionProps) {
   const isHome = variant === "home";
+  const primaryOpensBooking = content.primary.href.includes("book");
+  const secondaryOpensBooking = content.secondary?.href.includes("book");
 
   return (
     <section
@@ -39,7 +41,7 @@ export function CtaSection({ content, variant = "service" }: CtaSectionProps) {
                     <Link
                       href={content.primary.href}
                       className="button is-alternate max-width-full-mobile-landscape w-button"
-                      data-booking-trigger="true"
+                      data-booking-trigger={primaryOpensBooking ? "true" : undefined}
                     >
                       {content.primary.label}
                     </Link>
@@ -47,6 +49,7 @@ export function CtaSection({ content, variant = "service" }: CtaSectionProps) {
                       <Link
                         href={content.secondary.href}
                         className="button is-secondary is-alternate max-width-full-mobile-landscape w-button"
+                        data-booking-trigger={secondaryOpensBooking ? "true" : undefined}
                       >
                         {content.secondary.label}
                       </Link>

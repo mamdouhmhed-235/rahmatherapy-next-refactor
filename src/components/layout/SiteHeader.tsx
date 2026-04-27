@@ -111,7 +111,7 @@ export function SiteHeader() {
                       href={item.href}
                       aria-current={isActive ? "page" : undefined}
                       className={`navbar31_link w-nav-link${isActive ? " w--current" : ""}`}
-                      style={{ color: isActive ? "#000" : "#405952" }}
+                      style={{ color: isActive ? "#000" : "var(--brand-deep)" }}
                       onClick={() => {
                         closeNavbarMenu();
                         setMenuOpen(false);
@@ -166,11 +166,10 @@ export function SiteHeader() {
             </div>
           </nav>
 
-          <div
+          <button
+            type="button"
             className="navbar31_menu-button w-nav-button"
             aria-label={menuOpen ? "Close navigation menu" : "Open navigation menu"}
-            role="button"
-            tabIndex={0}
             aria-haspopup="menu"
             aria-controls="site-navigation-menu"
             aria-expanded={menuOpen}
@@ -187,7 +186,7 @@ export function SiteHeader() {
                 <div className="menu-icon4_line-bottom" />
               </div>
             </div>
-          </div>
+          </button>
         </div>
       </div>
     </header>

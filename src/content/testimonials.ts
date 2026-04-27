@@ -16,7 +16,7 @@ export const homeTestimonials = [
   },
   {
     quote:
-      "\"Working 5 days in the office and weekly football caused back and knee pain. With a sports massage at ZAM Therapy I felt so much better. I noticed a difference from the first session.\"",
+      "\"Working 5 days in the office and weekly football caused back and knee pain. With a sports massage at Rahma Therapy I felt so much better. I noticed a difference from the first session.\"",
     author: "Saif S",
     role: "Accountant",
     rating: 5,

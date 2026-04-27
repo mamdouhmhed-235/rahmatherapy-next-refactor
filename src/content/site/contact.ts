@@ -14,7 +14,7 @@ export const contactLinks = {
   },
   email: {
     label: "Email",
-    value: "zaheer@zamtherapy.com",
-    href: "mailto:zaheer@zamtherapy.com",
+    value: "hello@rahmatherapy.co.uk",
+    href: "mailto:hello@rahmatherapy.co.uk",
   },
 } as const satisfies Record<"phone" | "email", ContactLink>;

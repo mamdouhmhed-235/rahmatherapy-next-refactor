@@ -13,10 +13,10 @@ export const homePageContent = {
   key: "home",
   seo: pageSeoByKey.home,
   hero: {
-    title: "Sports Massage & Physiotherapy in Barnet",
+    title: "Sports Massage & Physiotherapy in Luton",
     subtitle: "Relax, recharge, renew: Your wellness journey",
     description:
-      "Personalised massage and physiotherapy in Barnet. Eliminating pain, enhancing mobility and powering your performance to unlock your full potential",
+      "Personalised massage and physiotherapy in Luton. Eliminating pain, enhancing mobility and powering your performance to unlock your full potential",
     primaryCta: bookingLink,
     image: {
       image: "homeHero",
@@ -44,7 +44,7 @@ export const homePageContent = {
       },
       {
         eyebrow: "03",
-        title: "North London Studio",
+        title: "Luton mobile therapy",
         description:
           "Our services are available throughout London for your convenience. Enjoy professional massage therapy close to home or work.",
       },
@@ -59,7 +59,7 @@ export const homePageContent = {
   about: {
     title: "Expert therapists dedicated to wellness and recovery",
     description:
-      "At ZAM Therapy, we know what it’s like to struggle with pain and limited movement. Having recovered from sports injuries ourselves, we’ve experienced the power of expert therapy firsthand. That’s why our mission is simple: to help you heal, relax, and thrive through safe, skilled, and holistic treatments.",
+      "At Rahma Therapy, we know what it’s like to struggle with pain and limited movement. Having recovered from sports injuries ourselves, we’ve experienced the power of expert therapy firsthand. That’s why our mission is simple: to help you heal, relax, and thrive through safe, skilled, and holistic treatments.",
     image: {
       image: "aboutZaheer",
     },
@@ -88,7 +88,7 @@ export const homePageContent = {
         image: { image: "improvedPerformance" },
       },
     ],
-    asideTitle: "Serving clients across Barnet and the surrounding area",
+    asideTitle: "Serving clients across Luton and the surrounding area",
     asideDescription:
       "We help busy professionals, athletes, seniors, and anyone dealing with pain or stress.",
   },

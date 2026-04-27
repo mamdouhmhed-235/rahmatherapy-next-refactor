@@ -72,6 +72,16 @@ export function useBookingUrlState({
 
       event.preventDefault();
       lastTriggerRef.current = trigger;
+
+      if (trigger instanceof HTMLAnchorElement) {
+        const url = new URL(trigger.href, window.location.href);
+        const packageIds = getSafeUrlPackageIds(url.searchParams);
+
+        if (packageIds.length > 0) {
+          setSelectedPackageIds(packageIds);
+        }
+      }
+
       setOpen(true);
       if (currentStep === "prepared") {
         setCurrentStep("packages");
@@ -80,7 +90,7 @@ export function useBookingUrlState({
 
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
-  }, [currentStep, lastTriggerRef, setCurrentStep, setOpen]);
+  }, [currentStep, lastTriggerRef, setCurrentStep, setOpen, setSelectedPackageIds]);
 
   useEffect(() => {
     const url = new URL(window.location.href);

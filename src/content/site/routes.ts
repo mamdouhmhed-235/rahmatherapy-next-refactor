@@ -7,6 +7,24 @@ export const routeDefinitions = {
     label: "Home",
     navLabel: "Home",
   },
+  services: {
+    key: "services",
+    path: "/services",
+    label: "Services",
+    navLabel: "Services",
+  },
+  about: {
+    key: "about",
+    path: "/about",
+    label: "About",
+    navLabel: "About",
+  },
+  "faqs-aftercare": {
+    key: "faqs-aftercare",
+    path: "/faqs-aftercare",
+    label: "FAQs & Aftercare",
+    navLabel: "FAQs & Aftercare",
+  },
   physiotherapy: {
     key: "physiotherapy",
     path: "/physiotherapy",
@@ -29,6 +47,9 @@ export const routeDefinitions = {
 
 export const routeOrder = [
   routeDefinitions.home,
+  routeDefinitions.services,
+  routeDefinitions.about,
+  routeDefinitions["faqs-aftercare"],
   routeDefinitions.physiotherapy,
   routeDefinitions["sports-massage-barnet"],
   routeDefinitions.hijama,

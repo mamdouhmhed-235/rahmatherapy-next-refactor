@@ -5,16 +5,12 @@ import { siteSeo } from "@/content/site/seo";
 import type { PageSeo } from "@/types/content";
 
 function getSiteUrl() {
-  const value = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-
-  if (!value) {
-    return null;
-  }
+  const value = process.env.NEXT_PUBLIC_SITE_URL?.trim() || siteSeo.siteUrl;
 
   try {
     return new URL(value.endsWith("/") ? value : `${value}/`);
   } catch {
-    return null;
+    return new URL(siteSeo.siteUrl);
   }
 }
 
@@ -28,10 +24,6 @@ function getImageUrl(imageKey?: SiteImageKey) {
 
   if (siteUrl && "publicPath" in image && typeof image.publicPath === "string") {
     return new URL(image.publicPath, siteUrl).toString();
-  }
-
-  if (image.sourceUrl) {
-    return image.sourceUrl;
   }
 
   if (typeof image.src === "string") {
@@ -59,7 +51,7 @@ export function buildRootMetadata(): Metadata {
       siteName: siteSeo.siteName,
       type: "website",
       locale: "en_GB",
-      url: siteUrl ? "/" : undefined,
+      url: "/",
       images: defaultImageUrl
         ? [
             {
@@ -102,7 +94,7 @@ export function buildPageMetadata(
       siteName: siteSeo.siteName,
       type: "website",
       locale: "en_GB",
-      url: siteUrl ? seo.path : undefined,
+      url: seo.path,
       images: imageUrl
         ? [
             {

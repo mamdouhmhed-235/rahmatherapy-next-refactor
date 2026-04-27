@@ -1,6 +1,7 @@
 import { getSiteImage } from "@/content/images";
 import { contactLinks } from "@/content/site/contact";
 import { siteIdentity } from "@/content/site/identity";
+import { siteSeo } from "@/content/site/seo";
 import type {
   FaqItem,
   HomePageContent,
@@ -21,16 +22,12 @@ interface JsonLdObject {
 }
 
 function getSiteUrl(path = "/") {
-  const value = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-
-  if (!value) {
-    return undefined;
-  }
+  const value = process.env.NEXT_PUBLIC_SITE_URL?.trim() || siteSeo.siteUrl;
 
   try {
     return new URL(path, value.endsWith("/") ? value : `${value}/`).toString();
   } catch {
-    return undefined;
+    return new URL(path, siteSeo.siteUrl).toString();
   }
 }
 
@@ -42,7 +39,7 @@ function getLogoUrl() {
     return new URL(logo.publicPath, siteUrl).toString();
   }
 
-  return logo.sourceUrl;
+  return logo.publicPath;
 }
 
 export function serializeJsonLd(data: JsonLdObject | JsonLdObject[]) {

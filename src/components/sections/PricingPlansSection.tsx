@@ -32,7 +32,6 @@ export function PricingPlansSection({
                   <div
                     key={plan.title}
                     className="pricing18_plan"
-                    style={{ minHeight: "29.25rem" }}
                   >
                     <div className="pricing18_content-top">
                       <div className="text-align-center">
