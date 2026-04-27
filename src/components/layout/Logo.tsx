@@ -14,6 +14,11 @@ const logoSizes = {
   footer: 196,
 } as const;
 
+const logoIntrinsicSize = {
+  width: 1600,
+  height: 587,
+} as const;
+
 export function Logo({
   className,
   imageClassName,
@@ -37,15 +42,18 @@ export function Logo({
       }
     >
       <BrandLogo
-        width={logoSize}
-        height={logoSize}
+        width={logoIntrinsicSize.width}
+        height={logoIntrinsicSize.height}
         priority={priority}
         className={cn(
           size === "footer" ? "footer_logo" : "navbar31_logo",
           imageClassName
         )}
         style={{
-          display: "inline",
+          display: "block",
+          width: "100%",
+          height: "auto",
+          maxHeight: "100%",
           objectFit: "contain",
           objectPosition: "left center",
         }}

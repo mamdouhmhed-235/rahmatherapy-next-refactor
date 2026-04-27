@@ -11,13 +11,16 @@ export function SiteFooter() {
             <div className="padding-bottom padding-xxlarge">
               <div className="footer_top-wrapper">
                 <Logo size="footer" />
-                <div className="w-layout-grid footer_link-list">
+                <nav
+                  className="w-layout-grid footer_link-list"
+                  aria-label="Footer service navigation"
+                >
                   {footerContent.serviceLinks.map((item) => (
                     <Link key={item.href} href={item.href} className="footer_link">
                       {item.label}
                     </Link>
                   ))}
-                </div>
+                </nav>
               </div>
             </div>
 
@@ -28,17 +31,22 @@ export function SiteFooter() {
                 <div className="footer_credit-text">
                   {footerContent.copyrightLine}
                 </div>
-                <div className="w-layout-grid footer_legal-list">
-                  {footerContent.legalLinks.map((item) => (
-                    <Link
-                      key={item.label}
-                      href={item.href}
-                      className="footer_legal-link"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
+                {footerContent.legalLinks.length > 0 ? (
+                  <nav
+                    className="w-layout-grid footer_legal-list"
+                    aria-label="Footer legal navigation"
+                  >
+                    {footerContent.legalLinks.map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        className="footer_legal-link"
+                      >
+                        {item.label}
+                      </Link>
+                    ))}
+                  </nav>
+                ) : null}
               </div>
             </div>
           </div>

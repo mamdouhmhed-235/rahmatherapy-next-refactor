@@ -48,6 +48,7 @@ pnpm lint       # Run ESLint
 - Use **semantic HTML** and proper **ARIA attributes** for accessibility (WCAG 2.1 AA minimum).
 - Prioritise **visual quality, smooth animations, and polished UI** above all else.
 - Follow **industry best practices** for performance, responsiveness, and code quality.
+- For frontend work, follow `docs/frontend-design-system.md` to preserve the implemented Rahma Therapy design system.
 
 ---
 

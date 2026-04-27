@@ -35,14 +35,10 @@
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 24px;
   background:
-    radial-gradient(circle at 9% 8%, rgba(245, 164, 0, 0.18), transparent 30%),
-    radial-gradient(circle at 88% 4%, rgba(8, 120, 184, 0.11), transparent 28%),
-    linear-gradient(135deg, #fffdf7 0%, #ffffff 45%, #f4fbff 100%);
+    linear-gradient(135deg, color-mix(in oklab, var(--brand-warm-surface) 62%, #ffffff) 0%, #ffffff 48%, color-mix(in oklab, var(--brand-calm-surface) 72%, #ffffff) 100%);
   box-shadow: 0 28px 90px rgba(15, 23, 42, 0.34);
   color: #172026;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: var(--font-work-sans), Arial, sans-serif;
 }
 
 .header {
@@ -50,7 +46,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 24px 30px 18px;
+  padding: 26px 30px 18px;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 
@@ -73,17 +69,17 @@
   justify-content: center;
   border-radius: 10px;
   background: #ffffff;
-  color: #f59e0b;
+  color: var(--accent);
   font-family: Georgia, "Times New Roman", serif;
   font-size: 22px;
   line-height: 1;
-  box-shadow: 0 8px 22px rgba(245, 164, 0, 0.18);
+  box-shadow: 0 8px 22px color-mix(in oklab, var(--accent) 18%, transparent);
 }
 
 .eyebrow,
 .sectionKicker {
   margin: 0;
-  color: #0878b8;
+  color: var(--primary);
   font-size: 12px;
   font-weight: 800;
   letter-spacing: 0;
@@ -116,7 +112,7 @@
   display: inline-flex;
   min-height: 28px;
   align-items: center;
-  border: 1px solid rgba(8, 120, 184, 0.14);
+  border: 1px solid color-mix(in oklab, var(--primary) 14%, transparent);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.72);
   color: #40515d;
@@ -144,14 +140,28 @@
 }
 
 .closeButton:hover {
-  border-color: rgba(8, 120, 184, 0.35);
+  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
   background: #f7fbff;
   transform: translateY(-1px);
 }
 
 .closeButton:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 4px rgba(8, 120, 184, 0.16);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 16%, transparent);
+}
+
+.packageCard:focus-visible,
+.packageCardSelected:focus-visible,
+.segmentButton:focus-visible,
+.segmentButtonActive:focus-visible,
+.slot:focus-visible,
+.slotActive:focus-visible,
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.textButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  box-shadow: var(--focus-ring-token);
 }
 
 .steps {
@@ -163,6 +173,7 @@
   list-style: none;
   border-bottom: 1px solid rgba(15, 23, 42, 0.07);
   background: rgba(255, 255, 255, 0.48);
+  counter-reset: booking-step;
 }
 
 .step,
@@ -196,8 +207,9 @@
 }
 
 .stepActive span {
-  background: #0878b8;
+  background: var(--primary);
   color: #ffffff;
+  box-shadow: 0 8px 18px color-mix(in oklab, var(--primary) 20%, transparent);
 }
 
 .contentGrid {
@@ -205,7 +217,7 @@
   flex: 1;
   min-height: 0;
   grid-template-columns: minmax(0, 1fr) 334px;
-  gap: 24px;
+  gap: 26px;
   overflow: auto;
   overscroll-behavior: contain;
   padding: 24px 30px;
@@ -247,7 +259,7 @@
 .textButton {
   border: 0;
   background: transparent;
-  color: #0878b8;
+  color: var(--primary);
   cursor: pointer;
   font: inherit;
   font-size: 14px;
@@ -271,8 +283,7 @@
   border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 18px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.78)),
-    radial-gradient(circle at 100% 0%, rgba(245, 164, 0, 0.08), transparent 34%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), color-mix(in oklab, var(--brand-calm-surface) 36%, #ffffff));
   color: inherit;
   cursor: pointer;
   text-align: left;
@@ -285,16 +296,15 @@
 
 .packageCard:hover,
 .packageCardSelected {
-  border-color: rgba(8, 120, 184, 0.48);
-  box-shadow: 0 18px 48px rgba(8, 120, 184, 0.13);
+  border-color: color-mix(in oklab, var(--primary) 48%, transparent);
+  box-shadow: 0 18px 48px color-mix(in oklab, var(--primary) 13%, transparent);
   transform: translateY(-2px);
 }
 
 .packageCardSelected {
   background:
-    linear-gradient(180deg, #ffffff 0%, #eef8ff 100%),
-    radial-gradient(circle at 100% 0%, rgba(245, 164, 0, 0.14), transparent 36%);
-  box-shadow: 0 20px 54px rgba(8, 120, 184, 0.18);
+    linear-gradient(180deg, #ffffff 0%, color-mix(in oklab, var(--brand-calm-surface) 78%, #ffffff) 100%);
+  box-shadow: 0 20px 54px color-mix(in oklab, var(--primary) 18%, transparent);
 }
 
 .selectMark,
@@ -314,8 +324,8 @@
 }
 
 .selectMarkActive {
-  border-color: #0878b8;
-  background: #0878b8;
+  border-color: var(--primary);
+  background: var(--primary);
 }
 
 .packageTopline {
@@ -339,8 +349,8 @@
 
 .packageGroup {
   padding: 5px 9px;
-  background: rgba(8, 120, 184, 0.09);
-  color: #0878b8;
+  background: color-mix(in oklab, var(--primary) 9%, transparent);
+  color: var(--primary);
 }
 
 .packageDuration {
@@ -351,7 +361,7 @@
 
 .badge {
   padding: 5px 9px;
-  background: rgba(245, 164, 0, 0.14);
+  background: color-mix(in oklab, var(--accent) 14%, transparent);
   color: #a05d00;
 }
 
@@ -384,7 +394,7 @@
 .packageIncludes svg {
   margin-top: 2px;
   flex: 0 0 auto;
-  color: #0878b8;
+  color: var(--primary);
 }
 
 .packageFooter {
@@ -398,13 +408,13 @@
 }
 
 .packageFooter strong {
-  color: #f59e0b;
+  color: var(--accent);
   font-size: 26px;
   line-height: 1;
 }
 
 .packageFooter span {
-  color: #0878b8;
+  color: var(--primary);
   font-size: 13px;
   font-weight: 850;
 }
@@ -415,8 +425,8 @@
   gap: 10px;
   align-items: flex-start;
   padding: 11px 12px;
-  border: 1px solid rgba(8, 120, 184, 0.12);
-  border-left: 3px solid #0878b8;
+  border: 1px solid color-mix(in oklab, var(--primary) 12%, transparent);
+  border-left: 3px solid var(--primary);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.78);
   color: #40515d;
@@ -424,7 +434,7 @@
 
 .formNotice svg {
   flex: 0 0 auto;
-  color: #0878b8;
+  color: var(--primary);
 }
 
 .formNotice p {
@@ -459,7 +469,7 @@
 }
 
 .field svg {
-  color: #0878b8;
+  color: var(--primary);
 }
 
 .field input,
@@ -487,8 +497,14 @@
 
 .field input:focus,
 .field textarea:focus {
-  border-color: #0878b8;
-  box-shadow: 0 0 0 4px rgba(8, 120, 184, 0.12);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 12%, transparent);
+}
+
+.field input[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  border-color: #b42318;
+  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.1);
 }
 
 .fieldError {
@@ -542,14 +558,14 @@
 
 .segmentButton:hover,
 .slot:hover {
-  border-color: rgba(8, 120, 184, 0.48);
+  border-color: color-mix(in oklab, var(--primary) 48%, transparent);
   transform: translateY(-1px);
 }
 
 .segmentButtonActive,
 .slotActive {
-  border-color: #0878b8;
-  background: #0878b8;
+  border-color: var(--primary);
+  background: var(--primary);
   color: #ffffff;
 }
 
@@ -586,11 +602,11 @@
 }
 
 .cardHeaderLine svg {
-  color: #0878b8;
+  color: var(--primary);
 }
 
 .dayPicker {
-  --rdp-accent-color: #0878b8;
+  --rdp-accent-color: var(--primary);
   --rdp-day_button-border-radius: 10px;
   --rdp-selected-border: 0;
   margin: 0;
@@ -609,13 +625,13 @@
   margin-top: 14px;
   padding: 12px;
   border-radius: 14px;
-  background: rgba(245, 164, 0, 0.11);
+  background: color-mix(in oklab, var(--accent) 11%, transparent);
   color: #4c3a18;
 }
 
 .reassurance svg {
   flex: 0 0 auto;
-  color: #f59e0b;
+  color: var(--accent);
 }
 
 .reassurance p {
@@ -688,9 +704,9 @@
   align-items: flex-start;
   gap: 10px;
   padding: 14px;
-  border: 1px solid rgba(8, 120, 184, 0.2);
+  border: 1px solid color-mix(in oklab, var(--primary) 20%, transparent);
   border-radius: 16px;
-  background: rgba(8, 120, 184, 0.08);
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
   color: #172026;
   font-size: 14px;
   font-weight: 650;
@@ -702,7 +718,7 @@
   height: 18px;
   flex: 0 0 auto;
   margin-top: 1px;
-  accent-color: #0878b8;
+  accent-color: var(--primary);
 }
 
 .preparedStep {
@@ -725,8 +741,8 @@
   justify-content: center;
   margin-bottom: 12px;
   border-radius: 999px;
-  background: rgba(8, 120, 184, 0.1);
-  color: #0878b8;
+  background: color-mix(in oklab, var(--primary) 10%, transparent);
+  color: var(--primary);
 }
 
 .summary {
@@ -735,13 +751,14 @@
   align-self: start;
   overflow: hidden;
   padding: 18px;
+  box-shadow: var(--shadow-card-token);
 }
 
 .summaryAccent {
   position: absolute;
   inset: 0 0 auto;
   height: 4px;
-  background: linear-gradient(90deg, #f59e0b, #0878b8);
+  background: linear-gradient(90deg, var(--accent), var(--primary));
 }
 
 .summaryHeader {
@@ -752,7 +769,7 @@
 }
 
 .summaryHeader svg {
-  color: #0878b8;
+  color: var(--primary);
 }
 
 .summaryIntro {
@@ -775,7 +792,7 @@
 }
 
 .summaryTotal strong {
-  color: #f59e0b;
+  color: var(--accent);
   font-size: 28px;
 }
 
@@ -870,15 +887,21 @@
 }
 
 .primaryButton {
-  border: 1px solid #0878b8;
-  background: #0878b8;
+  border: 1px solid var(--primary);
+  background: var(--primary);
   color: #ffffff;
-  box-shadow: 0 14px 30px rgba(8, 120, 184, 0.22);
+  box-shadow: 0 14px 30px color-mix(in oklab, var(--primary) 22%, transparent);
 }
 
 .primaryButton:hover {
   transform: translateY(-1px);
-  box-shadow: 0 18px 36px rgba(8, 120, 184, 0.28);
+  box-shadow: 0 18px 36px color-mix(in oklab, var(--primary) 28%, transparent);
+}
+
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
 }
 
 .secondaryButton {
@@ -888,8 +911,22 @@
 }
 
 .secondaryButton:hover {
-  border-color: rgba(8, 120, 184, 0.42);
+  border-color: color-mix(in oklab, var(--primary) 42%, transparent);
   background: #f7fbff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .closeButton,
+  .packageCard,
+  .packageCardSelected,
+  .segmentButton,
+  .segmentButtonActive,
+  .slot,
+  .slotActive,
+  .primaryButton,
+  .secondaryButton {
+    transition-duration: 1ms;
+  }
 }
 
 @media (max-width: 900px) {
@@ -959,6 +996,7 @@
     align-items: stretch;
     padding: 12px 14px max(12px, env(safe-area-inset-bottom));
     box-shadow: 0 -14px 34px rgba(15, 23, 42, 0.1);
+    background: rgba(255, 255, 255, 0.98);
   }
 
   .footerSummary {

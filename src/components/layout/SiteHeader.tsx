@@ -74,7 +74,10 @@ export function SiteHeader() {
         <Logo priority />
 
         <div className="navbar31_wrapper">
-          <BookingTrigger className="is-navbar31-button whitespace-nowrap" />
+          <BookingTrigger
+            label="Book a visit"
+            className="is-navbar31-button whitespace-nowrap"
+          />
 
           <nav
             id="site-navigation-menu"
@@ -93,7 +96,7 @@ export function SiteHeader() {
                       href={item.href}
                       aria-current={isActive ? "page" : undefined}
                       className={`navbar31_link w-nav-link${isActive ? " w--current" : ""}`}
-                      style={{ color: isActive ? "#000" : "var(--brand-deep)" }}
+                      style={{ color: isActive ? "var(--foreground)" : "var(--brand-deep)" }}
                       onClick={() => setMenuOpen(false)}
                     >
                       {item.label}

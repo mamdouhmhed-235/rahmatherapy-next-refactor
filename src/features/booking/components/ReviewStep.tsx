@@ -79,6 +79,7 @@ export function ReviewStep({
         <input
           type="checkbox"
           checked={acknowledged}
+          aria-invalid={Boolean(acknowledgementError)}
           onChange={(event) => onAcknowledgedChange(event.target.checked)}
         />
         <span>
