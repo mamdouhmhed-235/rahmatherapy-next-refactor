@@ -99,6 +99,7 @@ export function VisitDetailsStep({
                     ? styles.segmentButtonActive
                     : styles.segmentButton
                 }
+                aria-pressed={clientGender === gender}
                 onClick={() =>
                   setValue("clientGender", gender, {
                     shouldDirty: true,

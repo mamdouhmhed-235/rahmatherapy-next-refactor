@@ -27,6 +27,7 @@ export function TimeSlotPicker({
             type="button"
             key={slot}
             className={selectedTime === slot ? styles.slotActive : styles.slot}
+            aria-pressed={selectedTime === slot}
             onClick={() => onSelect(slot)}
           >
             {slot}

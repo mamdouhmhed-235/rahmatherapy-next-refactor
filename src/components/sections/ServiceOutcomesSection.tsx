@@ -1,5 +1,4 @@
 import { Check } from "lucide-react";
-import { ResponsiveImage } from "@/components/media/ResponsiveImage";
 import type { FeatureCard, ImageReference } from "@/types/content";
 import type { SiteImageKey } from "@/content/images";
 
@@ -13,7 +12,6 @@ interface ServiceOutcomesSectionProps {
 export function ServiceOutcomesSection({
   title,
   description,
-  image,
   items,
 }: ServiceOutcomesSectionProps) {
   return (
@@ -22,16 +20,7 @@ export function ServiceOutcomesSection({
         <div className="container-large">
           <div className="padding-section-large">
             <div className="service_outcomes_component">
-              <div className="w-layout-grid service_outcomes_content">
-                {image ? (
-                  <div className="service_outcomes_image-wrapper">
-                    <ResponsiveImage
-                      image={image}
-                      className="service_outcomes_image"
-                      sizes="(max-width: 2048px) 100vw, 2048px"
-                    />
-                  </div>
-                ) : null}
+              <div className="w-layout-grid service_outcomes_content is-text-only">
                 <div
                   id="w-node-_46a05a7b-ea70-bc4f-7ee4-17a8fece68d4-fece68cc"
                   className="service_outcomes_content-right"

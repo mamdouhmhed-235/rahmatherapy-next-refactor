@@ -41,9 +41,6 @@ export function ServicesSection({ title, items }: ServicesSectionProps) {
                             sizes="(max-width: 768px) 100vw, 33vw"
                           />
                           <div className="service_info_overlay text-color-white">
-                            <div className="button is-secondary is-alternate is-small">
-                              {item.ctaLabel}
-                            </div>
                             <div className="service_card_info-wrap">
                               <div className="service_title-wrapper">
                                 <div className="service_title">{item.name}</div>
@@ -52,8 +49,14 @@ export function ServicesSection({ title, items }: ServicesSectionProps) {
                                   {item.summary}
                                 </div>
                               </div>
-                              <div className="service-card-price">
-                                {item.priceLabel}
+                              <div className="service_card_meta">
+                                <div className="service-card-price">
+                                  {item.priceLabel}
+                                </div>
+                                <div className="service_card_action">
+                                  {item.ctaLabel}
+                                  <span aria-hidden="true">&rarr;</span>
+                                </div>
                               </div>
                             </div>
                           </div>

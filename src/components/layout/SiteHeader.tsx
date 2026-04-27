@@ -74,6 +74,23 @@ export function SiteHeader() {
         <Logo priority />
 
         <div className="navbar31_wrapper">
+          <nav className="navbar31_desktop-links" aria-label="Primary navigation">
+            {primaryNavigation.map((item) => {
+              const isActive = isCurrentPath(pathname, item.href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`navbar31_desktop-link${isActive ? " is-active" : ""}`}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
           <BookingTrigger
             label="Book a visit"
             className="is-navbar31-button whitespace-nowrap"
@@ -96,7 +113,6 @@ export function SiteHeader() {
                       href={item.href}
                       aria-current={isActive ? "page" : undefined}
                       className={`navbar31_link w-nav-link${isActive ? " w--current" : ""}`}
-                      style={{ color: isActive ? "var(--foreground)" : "var(--brand-deep)" }}
                       onClick={() => setMenuOpen(false)}
                     >
                       {item.label}
@@ -126,21 +142,25 @@ export function SiteHeader() {
                 >
                   Book a visit
                 </Link>
-                <div className="spacer-medium" />
-                <div className="w-layout-grid navbar31_social-list">
-                  {socialLinks.map((link) => (
-                    <Link
-                      key={link.href}
-                      href={link.href}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={link.label}
-                      className="navbar31_social-link w-inline-block"
-                    >
-                      <InstagramIcon />
-                    </Link>
-                  ))}
-                </div>
+                {socialLinks.length > 0 ? (
+                  <>
+                    <div className="spacer-medium" />
+                    <div className="w-layout-grid navbar31_social-list">
+                      {socialLinks.map((link) => (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={link.label}
+                          className="navbar31_social-link w-inline-block"
+                        >
+                          <InstagramIcon />
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
               </div>
             </div>
           </nav>

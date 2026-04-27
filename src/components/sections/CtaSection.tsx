@@ -17,7 +17,7 @@ export function CtaSection({ content, variant = "service" }: CtaSectionProps) {
     <section
       className={`section_treatment_cta ${
         isHome ? "color-scheme-3" : "color-scheme-1"
-      }`}
+      }${isHome ? " is-home" : ""}`}
     >
       <div
         className={`service_cta_component${isHome ? "" : " color-scheme-3"}`}

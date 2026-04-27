@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ResponsiveImage } from "@/components/media/ResponsiveImage";
+import { Reveal } from "@/components/motion/Reveal";
 import type { HeroSection as HeroSectionContent } from "@/types/content";
 import type { SiteImageKey } from "@/content/images";
 
@@ -19,7 +20,7 @@ export function HeroSection({ content }: HeroSectionProps) {
           <div className="padding-section-hero">
             <div className="home_hero_component">
               <div className="home_hero_card text-color-white">
-                <div className="home_hero_card-content">
+                <Reveal className="home_hero_card-content">
                   <div className="max-width-large">
                     <p className="eyebrow-text">{content.title}</p>
                     <div className="spacer-xsmall" />
@@ -32,7 +33,7 @@ export function HeroSection({ content }: HeroSectionProps) {
                     </div>
                   </div>
                   <div className="spacer-medium" />
-                  <div className="button-group">
+                  <div className="button-group home_hero_actions">
                     <Link
                       href={content.primaryCta.href}
                       className="button is-alternate max-width-full-mobile-landscape w-inline-block"
@@ -56,7 +57,7 @@ export function HeroSection({ content }: HeroSectionProps) {
                       </div>
                     </Link>
                   </div>
-                </div>
+                </Reveal>
                 <div className="home_hero_background-image-wrapper">
                   <div className="image-overlay-layer" />
                   <ResponsiveImage

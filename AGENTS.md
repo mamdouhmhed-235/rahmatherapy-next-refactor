@@ -49,6 +49,7 @@ pnpm lint       # Run ESLint
 - Prioritise **visual quality, smooth animations, and polished UI** above all else.
 - Follow **industry best practices** for performance, responsiveness, and code quality.
 - For frontend work, follow `docs/frontend-design-system.md` to preserve the implemented Rahma Therapy design system.
+- `docs/frontend-design-system.md` is the source of truth for the current image-led clinical warmth direction and its do-not rules.
 
 ---
 
