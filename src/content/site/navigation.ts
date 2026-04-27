@@ -7,18 +7,6 @@ export const primaryNavigation = [
     href: "/",
   },
   {
-    label: "Services",
-    href: "/services",
-  },
-  {
-    label: "About",
-    href: "/about",
-  },
-  {
-    label: "FAQs & Aftercare",
-    href: "/faqs-aftercare",
-  },
-  {
     label: "Physiotherapy",
     href: "/physiotherapy",
   },

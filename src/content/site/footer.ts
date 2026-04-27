@@ -3,18 +3,6 @@ import type { FooterContent } from "@/types/content";
 export const footerContent: FooterContent = {
   serviceLinks: [
     {
-      label: "Services",
-      href: "/services",
-    },
-    {
-      label: "About",
-      href: "/about",
-    },
-    {
-      label: "FAQs & Aftercare",
-      href: "/faqs-aftercare",
-    },
-    {
       label: "Physiotherapy",
       href: "/physiotherapy",
     },

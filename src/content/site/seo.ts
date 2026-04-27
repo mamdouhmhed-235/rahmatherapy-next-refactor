@@ -22,27 +22,6 @@ export const pageSeoByKey = {
     path: "/",
     ogImage: "rahmaSocialPreview",
   },
-  services: {
-    title: "Services | Mobile Hijama, Cupping & Massage Therapy in Luton",
-    description:
-      "Explore Rahma Therapy's mobile hijama, cupping, massage, IASTM and therapy packages in Luton. Compare services, prices, therapist options, and book a mobile visit.",
-    path: "/services",
-    ogImage: "rahmaSocialPreview",
-  },
-  about: {
-    title: "About Rahma Therapy | Mobile Hijama, Cupping & Massage in Luton",
-    description:
-      "Learn about Rahma Therapy, a trusted mobile hijama, cupping and massage therapy service in Luton.",
-    path: "/about",
-    ogImage: "rahmaSocialPreview",
-  },
-  "faqs-aftercare": {
-    title: "FAQs & Aftercare | Mobile Hijama, Cupping & Massage in Luton",
-    description:
-      "Find answers about Rahma Therapy's mobile hijama, cupping, massage, booking process, home visits, and aftercare guidance in Luton.",
-    path: "/faqs-aftercare",
-    ogImage: "rahmaSocialPreview",
-  },
   physiotherapy: {
     title: "Physiotherapy in Luton | Injury Recovery & Pain Relief | Rahma Therapy",
     description:
