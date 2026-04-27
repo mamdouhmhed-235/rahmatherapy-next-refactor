@@ -15,7 +15,7 @@ export function HomeHero() {
       <div className="mx-auto max-w-[88rem]">
         <div className="relative min-h-[620px] overflow-hidden rounded-3xl bg-rahma-green shadow-elevated sm:min-h-[680px]">
           <PlannedHomeImage
-            src="/images/home/home-hero.webp"
+            src="/images/home/home-hero.avif"
             alt="Rahma Therapy mobile hijama cupping and massage treatment at home in Luton"
             imageType="Large premium home-treatment image: therapist providing massage or preparing cupping in a calm home setting. No blood. No unsafe flame."
             priority
