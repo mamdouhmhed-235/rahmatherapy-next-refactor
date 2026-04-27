@@ -15,14 +15,6 @@ function isCurrentPath(pathname: string, href: string) {
     : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function closeNavbarMenu() {
-  const button = document.querySelector<HTMLElement>(
-    ".navbar31_menu-button.w--open"
-  );
-
-  button?.click();
-}
-
 function InstagramIcon() {
   return (
     <div className="social-icon w-embed" aria-hidden="true">
@@ -49,13 +41,13 @@ export function SiteHeader() {
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   React.useEffect(() => {
-    closeNavbarMenu();
+    const timer = window.setTimeout(() => setMenuOpen(false), 0);
+    return () => window.clearTimeout(timer);
   }, [pathname]);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        closeNavbarMenu();
         setMenuOpen(false);
       }
     };
@@ -63,17 +55,6 @@ export function SiteHeader() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
-
-  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
-    if (event.key !== "Enter" && event.key !== " ") {
-      return;
-    }
-
-    event.preventDefault();
-    const button = event.currentTarget;
-
-    window.setTimeout(() => button.click(), 0);
-  };
 
   return (
     <header
@@ -84,6 +65,7 @@ export function SiteHeader() {
       data-easing2="ease"
       data-w-id="011b5816-f5e0-1888-2181-20f2abf1aa32"
       fs-scrolldisable-element="smart-nav"
+      data-menu-open={menuOpen ? "true" : undefined}
       className="navbar31_component color-scheme-1 w-nav"
       role="banner"
       style={{ bottom: "auto", height: "4.875rem" }}
@@ -112,10 +94,7 @@ export function SiteHeader() {
                       aria-current={isActive ? "page" : undefined}
                       className={`navbar31_link w-nav-link${isActive ? " w--current" : ""}`}
                       style={{ color: isActive ? "#000" : "var(--brand-deep)" }}
-                      onClick={() => {
-                        closeNavbarMenu();
-                        setMenuOpen(false);
-                      }}
+                      onClick={() => setMenuOpen(false)}
                     >
                       {item.label}
                     </Link>
@@ -140,10 +119,7 @@ export function SiteHeader() {
                   href="#book-now"
                   className="text-size-small"
                   data-booking-trigger="true"
-                  onClick={() => {
-                    closeNavbarMenu();
-                    setMenuOpen(false);
-                  }}
+                  onClick={() => setMenuOpen(false)}
                 >
                   Book a visit
                 </Link>
@@ -174,7 +150,6 @@ export function SiteHeader() {
             aria-controls="site-navigation-menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((current) => !current)}
-            onKeyDown={handleMenuKeyDown}
           >
             <div className="menu-icon4">
               <div className="menu-icon4_wrapper">

@@ -32,10 +32,11 @@ export function ServicesSection({ title, items }: ServicesSectionProps) {
                       <Link
                         href={item.route}
                         className="service_item-link w-inline-block"
+                        aria-label={`View ${item.name} treatment, ${item.priceLabel}`}
                       >
                         <div className="service_image-wrapper">
                           <ResponsiveImage
-                            image={item.image}
+                            image={{ ...item.image, alt: "" }}
                             className="service_image"
                             sizes="(max-width: 768px) 100vw, 33vw"
                           />

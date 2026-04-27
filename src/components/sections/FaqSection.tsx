@@ -6,8 +6,6 @@ interface FaqSectionProps {
 }
 
 export function FaqSection({ title, items }: FaqSectionProps) {
-  const useTallFaqRows = items.length > 4;
-
   return (
     <section className="section_faq color-scheme-1">
       <div className="padding-global">
@@ -19,15 +17,10 @@ export function FaqSection({ title, items }: FaqSectionProps) {
               </div>
               <div className="spacer-xxlarge" />
               <div className="faq_list">
-                {items.map((item, index) => (
+                {items.map((item) => (
                   <div
                     key={item.question}
                     className="faq_item"
-                    style={
-                      useTallFaqRows && (index === 2 || index === 3)
-                        ? { minHeight: index === 2 ? "10.539rem" : "9.039rem" }
-                        : undefined
-                    }
                   >
                     <div className="faq_question">
                       <div className="text-size-medium text-weight-bold">
