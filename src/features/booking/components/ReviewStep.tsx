@@ -32,12 +32,15 @@ export function ReviewStep({
         <div>
           <p className={styles.sectionKicker}>3 of 4</p>
           <h3 id="review-heading">Review your request</h3>
-          <p>Check the treatment, contact details, visit address, and preferred time.</p>
+          <p>
+            Check your package, contact details, home visit address and preferred
+            appointment time.
+          </p>
         </div>
       </div>
 
       <div className={styles.reviewGrid}>
-        <ReviewBlock title="Packages">
+        <ReviewBlock title="Selected package">
           {selectedPackages.map((item) => (
             <div className={styles.reviewLine} key={item.id}>
               <span>{item.name}</span>
@@ -45,24 +48,27 @@ export function ReviewStep({
             </div>
           ))}
           <div className={styles.reviewTotal}>
-            <span>Total</span>
+            <span>Estimated total</span>
             <strong>{formatPrice(total)}</strong>
           </div>
         </ReviewBlock>
 
-        <ReviewBlock title="Preferred visit">
+        <ReviewBlock title="Preferred appointment">
           <p>{formatDateLabel(preferredDate)}</p>
-          <p>{preferredTime || "Time not selected"}</p>
-          <p>This is a preferred date/time, not confirmed availability.</p>
+          <p>{preferredTime || "Time not chosen"}</p>
+          <p>
+            This is your preferred date and time. Rahma Therapy will confirm
+            availability before the appointment is final.
+          </p>
         </ReviewBlock>
 
-        <ReviewBlock title="Contact">
+        <ReviewBlock title="Contact & client">
           <p>{details.phone}</p>
           <p>{details.email}</p>
           <p>{details.clientGender === "male" ? "Male client" : "Female client"}</p>
         </ReviewBlock>
 
-        <ReviewBlock title="Location">
+        <ReviewBlock title="Home visit address">
           <p>{details.postcode}</p>
           <p>{details.address}</p>
         </ReviewBlock>
@@ -70,7 +76,7 @@ export function ReviewStep({
 
       {details.notes.trim() && (
         <div className={styles.notesReview}>
-          <strong>Booking notes</strong>
+          <strong>Treatment notes</strong>
           <p>{details.notes}</p>
         </div>
       )}
@@ -83,8 +89,8 @@ export function ReviewStep({
           onChange={(event) => onAcknowledgedChange(event.target.checked)}
         />
         <span>
-          I understand this request is not a confirmed appointment until the therapist
-          contacts me and confirms availability.
+          I understand this is a booking request, not a confirmed appointment,
+          and Rahma Therapy will contact me to confirm availability.
         </span>
       </label>
       {acknowledgementError && (

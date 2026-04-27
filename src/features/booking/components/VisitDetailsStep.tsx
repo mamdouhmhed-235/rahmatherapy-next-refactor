@@ -39,8 +39,11 @@ export function VisitDetailsStep({
       <div className={styles.sectionHeader}>
         <div>
           <p className={styles.sectionKicker}>2 of 4</p>
-          <h3 id="details-heading">Contact and visit details</h3>
-          <p>Share the details needed to arrange a respectful mobile appointment.</p>
+          <h3 id="details-heading">Your contact and home visit details</h3>
+          <p>
+            Tell us how to contact you, where to visit, and anything we should
+            know before treatment.
+          </p>
         </div>
       </div>
 
@@ -48,13 +51,13 @@ export function VisitDetailsStep({
         <div className={styles.formNotice}>
           <ShieldCheck aria-hidden="true" size={18} />
           <p>
-            Your appointment details are handled confidentially and used only to respond
-            to this request.
+            Your details are handled confidentially and used only to respond to
+            this booking request. Female clients are treated by a female therapist.
           </p>
         </div>
 
         <Field
-          label="Phone number"
+          label="Phone / WhatsApp number"
           error={errors.phone?.message}
           icon={<Phone size={16} />}
         >
@@ -67,7 +70,7 @@ export function VisitDetailsStep({
           />
         </Field>
 
-        <Field label="Email" error={errors.email?.message} icon={<Mail size={16} />}>
+        <Field label="Email address" error={errors.email?.message} icon={<Mail size={16} />}>
           <input
             type="email"
             autoComplete="email"
@@ -78,10 +81,10 @@ export function VisitDetailsStep({
         </Field>
 
         <div className={styles.fullWidth}>
-          <Field label="Reason for visit" icon={<ClipboardList size={16} />}>
+          <Field label="What would you like help with?" icon={<ClipboardList size={16} />}>
             <textarea
               rows={4}
-              placeholder="Briefly describe the treatment you need, any areas of concern, or preferences for the visit."
+              placeholder="E.g. back pain, neck and shoulder tension, hijama, massage, female therapist preference, gym recovery, or any health details we should know."
               {...register("notes")}
             />
           </Field>
@@ -119,13 +122,13 @@ export function VisitDetailsStep({
         </fieldset>
 
         <Field
-          label="Postcode"
+          label="Luton postcode"
           error={errors.postcode?.message}
           icon={<MapPin size={16} />}
         >
           <input
             autoComplete="postal-code"
-            placeholder="e.g. EN5 5AA"
+            placeholder="e.g. LU1 1AA"
             aria-invalid={Boolean(errors.postcode)}
             {...register("postcode")}
           />
@@ -133,7 +136,7 @@ export function VisitDetailsStep({
 
         <div className={styles.fullWidth}>
           <Field
-            label="Address"
+            label="Home visit address"
             error={errors.address?.message}
             icon={<MapPin size={16} />}
           >

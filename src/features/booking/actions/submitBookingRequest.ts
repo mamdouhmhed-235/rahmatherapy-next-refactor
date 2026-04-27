@@ -13,6 +13,6 @@ export async function submitBookingRequest(
     status: "prepared",
     payload,
     message:
-      "Booking request details are prepared locally. Backend submission is intentionally deferred.",
+      "Booking request details are prepared. Availability is confirmed separately by Rahma Therapy.",
   };
 }

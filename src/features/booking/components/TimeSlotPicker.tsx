@@ -19,7 +19,7 @@ export function TimeSlotPicker({
     <div className={styles.slotCard}>
       <div className={styles.cardHeaderLine}>
         <Clock3 aria-hidden="true" size={18} />
-        Preferred time
+        Preferred appointment time
       </div>
       <div className={styles.slotGrid}>
         {TIME_SLOTS.map((slot) => (
@@ -42,8 +42,8 @@ export function TimeSlotPicker({
       <div className={styles.reassurance}>
         <ShieldCheck aria-hidden="true" size={18} />
         <p>
-          Preferred dates and times are reviewed by the therapist before an
-          appointment is confirmed.
+          Preferred dates and times are requests only. Rahma Therapy will confirm
+          availability before the appointment is final.
         </p>
       </div>
     </div>

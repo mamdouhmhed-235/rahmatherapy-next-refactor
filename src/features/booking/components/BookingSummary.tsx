@@ -19,19 +19,19 @@ export function BookingSummary({
   preferredTime,
 }: BookingSummaryProps) {
   return (
-    <aside className={styles.summary} aria-label="Booking summary">
+    <aside className={styles.summary} aria-label="Booking request summary">
       <div className={styles.summaryAccent} aria-hidden="true" />
       <div className={styles.summaryHeader}>
         <PackageCheck aria-hidden="true" size={20} />
-        <h3>Your selection</h3>
+        <h3>Your booking request</h3>
       </div>
       <p className={styles.summaryIntro}>
-        Review the selected treatments and estimated total before continuing.
+        Check your selected package, estimated total and preferred home visit time.
       </p>
 
       <div className={styles.summaryList}>
         {selectedPackages.length === 0 ? (
-          <p className={styles.emptySummary}>Selected treatments will appear here.</p>
+          <p className={styles.emptySummary}>Selected packages will appear here.</p>
         ) : (
           selectedPackages.map((item) => (
             <div key={item.id} className={styles.summaryItem}>
@@ -49,7 +49,7 @@ export function BookingSummary({
 
       <dl className={styles.summaryMeta}>
         <div>
-          <dt>Treatments</dt>
+          <dt>Packages</dt>
           <dd>{selectedPackages.length}</dd>
         </div>
         <div>
@@ -58,7 +58,7 @@ export function BookingSummary({
         </div>
         <div>
           <dt>Time</dt>
-          <dd>{preferredTime || "Time not selected"}</dd>
+          <dd>{preferredTime || "Time not chosen"}</dd>
         </div>
       </dl>
     </aside>

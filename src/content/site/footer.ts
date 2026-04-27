@@ -3,16 +3,28 @@ import type { FooterContent } from "@/types/content";
 export const footerContent: FooterContent = {
   serviceLinks: [
     {
-      label: "Physiotherapy",
-      href: "/physiotherapy",
+      label: "Home",
+      href: "/",
     },
     {
-      label: "Sports Massage",
-      href: "/sports-massage-barnet",
+      label: "Planned Home",
+      href: "/home-planned",
     },
     {
-      label: "Hijama",
-      href: "/hijama",
+      label: "Services",
+      href: "/services",
+    },
+    {
+      label: "About",
+      href: "/about",
+    },
+    {
+      label: "Reviews",
+      href: "/reviews",
+    },
+    {
+      label: "FAQs & Aftercare",
+      href: "/faqs-aftercare",
     },
   ],
   legalLinks: [],

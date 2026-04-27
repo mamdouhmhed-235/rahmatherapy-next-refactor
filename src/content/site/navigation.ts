@@ -7,16 +7,24 @@ export const primaryNavigation = [
     href: "/",
   },
   {
-    label: "Physiotherapy",
-    href: "/physiotherapy",
+    label: "Planned Home",
+    href: "/home-planned",
   },
   {
-    label: "Sports Massage",
-    href: "/sports-massage-barnet",
+    label: "Services",
+    href: "/services",
   },
   {
-    label: "Hijama (Cupping)",
-    href: "/hijama",
+    label: "About",
+    href: "/about",
+  },
+  {
+    label: "Reviews",
+    href: "/reviews",
+  },
+  {
+    label: "FAQs & Aftercare",
+    href: "/faqs-aftercare",
   },
 ] as const satisfies readonly NavItem[];
 

@@ -41,27 +41,28 @@ export function BookingDialog({
             <header className={styles.header}>
               <div className={styles.headerContent}>
                 <div className={styles.brandLine}>
-                  <span className={styles.brandMark}>R</span>
+                  <span className={styles.brandMark}>RT</span>
                   <p className={styles.eyebrow}>Rahma Therapy</p>
                 </div>
                 <div>
                   <Dialog.Title className={styles.title}>
-                    Book a therapy visit
+                    Request a home appointment
                   </Dialog.Title>
                   <Dialog.Description className={styles.description}>
-                    Choose your treatment, preferred time, and Luton visit address.
-                    Rahma Therapy will contact you to confirm availability.
+                    Choose your package, share your Luton home-visit details and
+                    preferred time. Rahma Therapy will contact you to confirm
+                    availability.
                   </Dialog.Description>
                 </div>
                 <div className={styles.headerPills} aria-label="Booking highlights">
-                  <span>Service in Luton</span>
-                  <span>Personalised treatment plan</span>
-                  <span>Confirmation by phone or email</span>
+                  <span>Mobile across Luton</span>
+                  <span>CMA &amp; IPHM qualified</span>
+                  <span>Male &amp; female therapists</span>
                 </div>
               </div>
               <Dialog.Close
                 className={styles.closeButton}
-                aria-label="Close booking popup"
+                aria-label="Close booking form"
               >
                 <X aria-hidden="true" size={20} />
               </Dialog.Close>

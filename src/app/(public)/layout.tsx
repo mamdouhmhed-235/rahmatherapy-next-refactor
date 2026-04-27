@@ -10,7 +10,7 @@ export default function PublicLayout({
   return (
     <>
       <SiteHeader />
-      <main>{children}</main>
+      <main id="main-content">{children}</main>
       <SiteFooter />
       <BookingExperience />
     </>

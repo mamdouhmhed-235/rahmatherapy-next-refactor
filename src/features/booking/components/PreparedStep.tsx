@@ -10,13 +10,14 @@ export function PreparedStep({ onStartOver }: { onStartOver: () => void }) {
         <CheckCircle2 aria-hidden="true" size={44} />
       </div>
       <p className={styles.sectionKicker}>4 of 4</p>
-      <h3 id="prepared-heading">Request details ready</h3>
+      <h3 id="prepared-heading">Booking request ready</h3>
       <p>
-        Your preferred treatment, visit time, and contact details have been reviewed.
-        Rahma Therapy will still need to confirm availability before the appointment is final.
+        Your package, preferred home visit time and contact details have been
+        reviewed. Rahma Therapy will confirm availability before any appointment
+        is final.
       </p>
       <button type="button" className={styles.secondaryButton} onClick={onStartOver}>
-        Start over
+        Start a new request
       </button>
     </section>
   );

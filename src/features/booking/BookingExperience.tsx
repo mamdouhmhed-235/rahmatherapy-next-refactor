@@ -361,7 +361,7 @@ function BookingFooter({
         <span>
           <strong>{formatPrice(packageTotal)}</strong>
           <span>
-            {selectedCount} treatment{selectedCount === 1 ? "" : "s"}
+            {selectedCount} package{selectedCount === 1 ? "" : "s"}
           </span>
         </span>
       </div>
@@ -376,13 +376,13 @@ function BookingFooter({
 
         {currentStep === "packages" && (
           <button type="button" className={styles.primaryButton} onClick={onGoToDetails}>
-            Continue
+            Continue to details
           </button>
         )}
 
         {currentStep === "details" && (
           <button type="button" className={styles.primaryButton} onClick={onGoToReview}>
-            Review details
+            Review request
           </button>
         )}
 
@@ -393,12 +393,12 @@ function BookingFooter({
             disabled={submitting}
             onClick={onPrepareRequest}
           >
-            Finish request
+            Prepare request
           </button>
         )}
 
         {currentStep === "prepared" && (
-          <Dialog.Close className={styles.primaryButton}>Done</Dialog.Close>
+          <Dialog.Close className={styles.primaryButton}>Close</Dialog.Close>
         )}
       </div>
     </footer>

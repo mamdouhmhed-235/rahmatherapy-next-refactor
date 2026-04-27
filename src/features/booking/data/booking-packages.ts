@@ -1,6 +1,6 @@
 export const PACKAGE_GROUPS = {
-  cupping: "Cupping",
-  massage: "Massage",
+  cupping: "Hijama & cupping",
+  massage: "Massage therapy",
 } as const;
 
 export type PackageGroup = keyof typeof PACKAGE_GROUPS;
@@ -26,64 +26,82 @@ export interface BookingPackage {
 export const BOOKING_PACKAGES: readonly BookingPackage[] = [
   {
     id: "supreme-combo",
-    name: "Supreme Combo",
+    name: "Supreme Combo Package",
     group: "cupping",
     price: 55,
     summary:
-      "A complete cupping appointment combining preparation, IASTM, dry, fire, and wet cupping.",
-    badge: "Most requested",
+      "Our most complete home package, combining massage preparation, IASTM-style work, dry cupping, fire cupping and hijama.",
+    badge: "Full reset",
     includes: [
-      "Pre-treatment massage",
-      "IASTM / Graston therapy",
+      "Pre-cupping massage",
+      "IASTM / Graston-style therapy",
       "Dry cupping",
       "Fire cupping",
-      "Wet cupping (Hijama)",
+      "Wet cupping / hijama",
     ],
   },
   {
     id: "hijama-package",
-    name: "Hijama Treatment",
+    name: "Hijama Package",
     group: "cupping",
     price: 45,
-    summary: "Focused hijama care with preparation, dry cupping, and wet cupping.",
-    includes: ["Pre-treatment massage", "Dry cupping", "Wet cupping (Hijama)"],
+    summary:
+      "Focused wet cupping at home with pre-cupping massage and dry cupping included.",
+    badge: "Classic hijama",
+    includes: [
+      "Pre-cupping massage",
+      "Dry cupping",
+      "Wet cupping / hijama",
+      "Aftercare guidance",
+    ],
   },
   {
     id: "fire-package",
-    name: "Fire Cupping",
+    name: "Fire Package",
     group: "cupping",
     price: 40,
-    summary: "Fire or dry cupping supported by a short massage with essential oils.",
+    summary:
+      "A warming dry or fire cupping session with essential oils, without wet cupping.",
+    badge: "No wet cupping",
     includes: [
-      "Pre-treatment massage with essential oils",
+      "Pre-cupping massage with essential oils",
       "Dry or fire cupping",
+      "Non-wet cupping session",
+      "Aftercare guidance",
     ],
   },
   {
     id: "massage-30",
-    name: "30-minute Massage",
+    name: "30-Min Massage Therapy",
     group: "massage",
     durationLabel: "30 mins",
     price: 40,
-    summary: "A focused session for relaxation, tension relief, or recovery support.",
+    summary:
+      "A shorter focused session for one main area such as back, neck, shoulders or legs.",
+    badge: "Targeted",
     includes: [
       "Relaxing massage",
       "Deep tissue option",
-      "Cupping massage or Graston therapy option",
+      "Cupping massage option",
+      "IASTM-style option",
+      "Essential oil blend",
     ],
   },
   {
     id: "massage-60",
-    name: "60-minute Massage",
+    name: "1-Hour Massage Therapy",
     group: "massage",
     durationLabel: "1 hour",
     price: 60,
-    summary: "A longer session for deeper treatment, recovery work, and unhurried care.",
-    badge: "Extended session",
+    summary:
+      "A longer session for multiple areas, deeper work or a calmer full-body reset.",
+    badge: "Longer session",
     includes: [
       "Relaxing massage",
       "Deep tissue option",
-      "Cupping massage or Graston therapy option",
+      "Cupping massage option",
+      "IASTM-style option",
+      "Essential oil blend",
     ],
   },
 ] as const;
@@ -112,7 +130,7 @@ export function getPackageTotal(ids: BookingPackageId[]) {
 
 export function getPackageSelectionError(ids: BookingPackageId[]) {
   if (ids.length === 0) {
-    return "Select at least one treatment to continue.";
+    return "Choose at least one package to continue.";
   }
 
   const selected = getSelectedPackages(ids);
@@ -120,11 +138,11 @@ export function getPackageSelectionError(ids: BookingPackageId[]) {
   const massageCount = selected.filter((item) => item.group === "massage").length;
 
   if (cuppingCount > 1) {
-    return "Select one cupping treatment at a time so the request stays clear.";
+    return "Please choose one hijama or cupping package at a time so your request stays clear.";
   }
 
   if (massageCount > 1) {
-    return "Select one massage duration at a time.";
+    return "Please choose either the 30-minute or 1-hour massage option, not both.";
   }
 
   return null;

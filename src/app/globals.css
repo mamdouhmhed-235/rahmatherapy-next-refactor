@@ -11,6 +11,7 @@ html,
 body {
   margin: 0;
   padding: 0;
+  overflow-x: hidden;
 }
 
 * {
@@ -23,4 +24,14 @@ body {
   .service-hero-content-lock {
     min-height: 21.875rem;
   }
+}
+
+a[class*="bg-rahma-green"],
+a[class*="border-white/35"] {
+  color: #ffffff !important;
+}
+
+a[class*="bg-white"][class*="text-rahma-green"],
+a[class*="border-rahma-green/30"] {
+  color: var(--rahma-green) !important;
 }

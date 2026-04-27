@@ -18,7 +18,7 @@ export const physiotherapyPageContent = {
       "Physiotherapy sessions designed to relieve pain, prevent injuries, and help you move with confidence again.",
     primaryCta: {
       label: "Book a Physiotherapy Session",
-      href: "#book-now",
+      href: "?booking=1",
       variant: "primary",
     },
     images: [
@@ -90,7 +90,7 @@ export const physiotherapyPageContent = {
     ],
     cta: {
       label: "Book a Physiotherapy Session",
-      href: "#book-now",
+      href: "?booking=1",
       variant: "primary",
     },
     image: {
@@ -174,7 +174,7 @@ export const physiotherapyPageContent = {
         ],
         cta: {
           label: "Select a date",
-          href: "#book-now",
+          href: "?booking=1",
           variant: "secondary",
         },
       },
@@ -190,7 +190,7 @@ export const physiotherapyPageContent = {
         ],
         cta: {
           label: "Choose your sessions",
-          href: "#book-now",
+          href: "?booking=1",
           variant: "secondary",
         },
       },

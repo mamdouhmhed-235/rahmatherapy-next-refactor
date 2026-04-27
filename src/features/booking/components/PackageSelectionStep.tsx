@@ -27,11 +27,14 @@ export function PackageSelectionStep({
       <div className={styles.sectionHeader}>
         <div>
           <p className={styles.sectionKicker}>1 of 4</p>
-          <h3 id="packages-heading">Select your treatment</h3>
-          <p>Choose one cupping treatment, with the option to add one massage session.</p>
+          <h3 id="packages-heading">Choose your package</h3>
+          <p>
+            Choose one hijama or cupping package. You can also add one massage
+            session if you want extra hands-on support.
+          </p>
         </div>
         <button type="button" className={styles.textButton} onClick={onClear}>
-          Reset
+          Clear selection
         </button>
       </div>
 
@@ -70,7 +73,7 @@ export function PackageSelectionStep({
               </span>
               <span className={styles.packageFooter}>
                 <strong>{formatPrice(item.price)}</strong>
-                <span>{selected ? "Added to request" : "Add treatment"}</span>
+                <span>{selected ? "Selected" : "Add package"}</span>
               </span>
             </button>
           );

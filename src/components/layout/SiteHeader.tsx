@@ -92,7 +92,7 @@ export function SiteHeader() {
           </nav>
 
           <BookingTrigger
-            label="Book a visit"
+            label="Book Now"
             className="is-navbar31-button whitespace-nowrap"
           />
 
@@ -135,12 +135,12 @@ export function SiteHeader() {
                 </Link>
                 <div className="spacer-tiny" />
                 <Link
-                  href="#book-now"
+                  href="?booking=1"
                   className="text-size-small"
                   data-booking-trigger="true"
                   onClick={() => setMenuOpen(false)}
                 >
-                  Book a visit
+                  Book Now
                 </Link>
                 {socialLinks.length > 0 ? (
                   <>

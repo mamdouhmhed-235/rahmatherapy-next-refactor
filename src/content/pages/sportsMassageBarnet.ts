@@ -18,7 +18,7 @@ export const sportsMassageBarnetPageContent = {
       "Sports massage is designed to enhance athletic performance, speed up recovery, and prevent injuries by relieving muscle tension and improving circulation.",
     primaryCta: {
       label: "Book a Sports Massage",
-      href: "#book-now",
+      href: "?booking=1&services=massage-60",
       variant: "primary",
     },
     images: [
@@ -78,7 +78,7 @@ export const sportsMassageBarnetPageContent = {
     ],
     cta: {
       label: "Book a massage",
-      href: "#book-now",
+      href: "?booking=1&services=massage-60",
       variant: "primary",
     },
     image: {
@@ -162,7 +162,7 @@ export const sportsMassageBarnetPageContent = {
         ],
         cta: {
           label: "Select a date",
-          href: "#book-now",
+          href: "?booking=1&services=massage-60",
           variant: "secondary",
         },
       },
@@ -179,7 +179,7 @@ export const sportsMassageBarnetPageContent = {
         ],
         cta: {
           label: "Choose your sessions",
-          href: "#book-now",
+          href: "?booking=1&services=massage-60",
           variant: "secondary",
         },
       },
@@ -196,7 +196,7 @@ export const sportsMassageBarnetPageContent = {
         ],
         cta: {
           label: "Choose your sessions",
-          href: "#book-now",
+          href: "?booking=1&services=massage-60",
           variant: "secondary",
         },
       },

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { contactLinks } from "@/content/site/contact";
 import { footerContent } from "@/content/site/footer";
+import { socialLinks } from "@/content/site/social";
 import { BookingTrigger } from "./BookingTrigger";
 import { Logo } from "./Logo";
 
@@ -18,12 +19,12 @@ export function SiteFooter() {
                     Mobile hijama, massage, and physiotherapy across Luton and
                     surrounding areas.
                   </p>
-                  <BookingTrigger label="Book a visit" className="footer_cta" />
+                  <BookingTrigger label="Book Now" className="footer_cta" />
                 </div>
 
                 <div className="footer_nav-column">
                   <div>
-                    <h2 className="footer_heading">Treatments</h2>
+                    <h2 className="footer_heading">Explore</h2>
                     <nav
                       className="w-layout-grid footer_link-list"
                       aria-label="Footer service navigation"
@@ -42,9 +43,23 @@ export function SiteFooter() {
                       <Link href={contactLinks.phone.href} className="footer_link">
                         {contactLinks.phone.value}
                       </Link>
+                      <Link href={contactLinks.whatsapp.href} className="footer_link">
+                        WhatsApp
+                      </Link>
                       <Link href={contactLinks.email.href} className="footer_link">
                         {contactLinks.email.value}
                       </Link>
+                      {socialLinks.map((item) => (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="footer_link"
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
                     </div>
                   </div>
                 </div>

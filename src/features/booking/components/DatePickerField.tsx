@@ -17,7 +17,7 @@ export function DatePickerField({ selected, onSelect }: DatePickerFieldProps) {
     <div className={styles.calendarCard}>
       <div className={styles.cardHeaderLine}>
         <CalendarDays aria-hidden="true" size={18} />
-        Preferred date
+        Preferred appointment date
       </div>
       <DayPicker
         mode="single"

@@ -18,7 +18,7 @@ export const hijamaPageContent = {
       "Hijama (cupping therapy) is a traditional treatment that supports circulation, relieves chronic pain, and restores balance to body and mind.",
     primaryCta: {
       label: "Book a Hijama Session",
-      href: "#book-now",
+      href: "?booking=1&services=hijama-package",
       variant: "primary",
     },
     images: [
@@ -71,7 +71,7 @@ export const hijamaPageContent = {
     ],
     cta: {
       label: "Book a Hijama Session",
-      href: "#book-now",
+      href: "?booking=1&services=hijama-package",
       variant: "primary",
     },
     image: {
@@ -154,7 +154,7 @@ export const hijamaPageContent = {
         ],
         cta: {
           label: "Select a date",
-          href: "#book-now",
+          href: "?booking=1&services=hijama-package",
           variant: "secondary",
         },
       },
@@ -169,7 +169,7 @@ export const hijamaPageContent = {
         ],
         cta: {
           label: "Select a date",
-          href: "#book-now",
+          href: "?booking=1&services=hijama-package,massage-30",
           variant: "secondary",
         },
       },
@@ -184,7 +184,7 @@ export const hijamaPageContent = {
         ],
         cta: {
           label: "Select a date",
-          href: "#book-now",
+          href: "?booking=1&services=hijama-package,massage-60",
           variant: "secondary",
         },
       },

@@ -14,8 +14,8 @@ export const BOOKING_STEPS: BookingStep[] = [
 ];
 
 export const STEP_LABELS: Record<BookingStep, string> = {
-  packages: "Treatments",
-  details: "Visit details",
+  packages: "Package",
+  details: "Home visit",
   review: "Review",
   prepared: "Ready",
 };
