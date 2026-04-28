@@ -7,17 +7,10 @@ import {
 } from "../data/booking-packages";
 import type { BookingStep } from "../types";
 
-function uniquePackageIds(ids: BookingPackageId[]) {
-  return Array.from(new Set(ids));
-}
-
 function getSafeUrlPackageIds(searchParams: URLSearchParams) {
-  return uniquePackageIds(
-    (searchParams.get("services") || "")
-      .split(",")
-      .map((item) => item.trim())
-      .filter(isBookingPackageId)
-  );
+  const serviceId = searchParams.get("services")?.trim();
+
+  return serviceId && isBookingPackageId(serviceId) ? [serviceId] : [];
 }
 
 interface UseBookingUrlStateOptions {
@@ -42,15 +35,10 @@ export function useBookingUrlState({
   useEffect(() => {
     const url = new URL(window.location.href);
     const packageIds = getSafeUrlPackageIds(url.searchParams);
-
-    if (packageIds.length > 0) {
-      setSelectedPackageIds(packageIds);
-    }
-
-    const shouldOpen =
-      url.searchParams.get("booking") === "1" || url.hash === "#book-now";
+    const shouldOpen = url.searchParams.get("booking") === "1";
 
     if (shouldOpen) {
+      setSelectedPackageIds(packageIds);
       const timer = window.setTimeout(() => setOpen(true), 0);
       return () => window.clearTimeout(timer);
     }
@@ -77,9 +65,7 @@ export function useBookingUrlState({
         const url = new URL(trigger.href, window.location.href);
         const packageIds = getSafeUrlPackageIds(url.searchParams);
 
-        if (packageIds.length > 0) {
-          setSelectedPackageIds(packageIds);
-        }
+        setSelectedPackageIds(packageIds);
       }
 
       setOpen(true);
@@ -96,17 +82,13 @@ export function useBookingUrlState({
     const url = new URL(window.location.href);
 
     if (open) {
-      url.hash = "book-now";
       url.searchParams.set("booking", "1");
       if (selectedPackageIds.length > 0) {
-        url.searchParams.set("services", selectedPackageIds.join(","));
+        url.searchParams.set("services", selectedPackageIds[0]);
       } else {
         url.searchParams.delete("services");
       }
     } else {
-      if (url.hash === "#book-now") {
-        url.hash = "";
-      }
       url.searchParams.delete("booking");
       url.searchParams.delete("services");
     }

@@ -1,12 +1,3 @@
-.anchorTarget {
-  position: relative;
-  top: -96px;
-  display: block;
-  width: 1px;
-  height: 1px;
-  pointer-events: none;
-}
-
 .backdrop {
   position: fixed;
   inset: 0;
@@ -26,6 +17,7 @@
   align-items: center;
   justify-content: center;
   outline: none;
+  pointer-events: none;
 }
 
 .shell {
@@ -43,6 +35,7 @@
   color: var(--foreground);
   font-family: var(--font-work-sans), Arial, sans-serif;
   animation: bookingShellIn 220ms var(--ease-gentle) both;
+  pointer-events: auto;
 }
 
 @keyframes bookingBackdropIn {

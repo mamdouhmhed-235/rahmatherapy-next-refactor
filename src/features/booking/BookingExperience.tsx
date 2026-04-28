@@ -238,7 +238,6 @@ export function BookingExperience() {
 
   return (
     <>
-      <span id="book-now" className={styles.anchorTarget} aria-hidden="true" />
       <BookingDialog
         open={open}
         currentStep={currentStep}

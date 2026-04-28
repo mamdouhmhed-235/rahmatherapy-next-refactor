@@ -31,7 +31,10 @@ export function BookingDialog({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange} modal>
       <Dialog.Portal>
-        <Dialog.Backdrop className={styles.backdrop} />
+        <Dialog.Backdrop
+          className={styles.backdrop}
+          onClick={() => onOpenChange(false)}
+        />
         <Dialog.Popup
           className={styles.popup}
           aria-modal="true"

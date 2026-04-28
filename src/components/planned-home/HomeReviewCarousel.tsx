@@ -143,7 +143,7 @@ export function HomeReviewCarousel() {
         ref={scrollerRef}
         aria-label="Google review highlights"
         className={cn(
-          "mt-10 flex max-w-full cursor-grab gap-5 overflow-x-auto px-5 pb-4 pt-2 [scrollbar-width:none] sm:px-6 lg:px-[max(2rem,calc((100vw-80rem)/2))]",
+          "mt-10 flex max-w-full cursor-grab gap-5 overflow-x-auto px-5 pb-4 pt-2 [contain:paint] [scrollbar-width:none] sm:px-6 lg:px-[max(2rem,calc((100vw-80rem)/2))]",
           isDragging && "cursor-grabbing select-none"
         )}
         onMouseEnter={() => setIsHovering(true)}

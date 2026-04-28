@@ -8,7 +8,6 @@ interface BookingTriggerProps {
   className?: string;
   style?: CSSProperties;
   serviceId?: BookingPackageId;
-  serviceIds?: readonly BookingPackageId[];
 }
 
 export function BookingTrigger({
@@ -16,13 +15,8 @@ export function BookingTrigger({
   className,
   style,
   serviceId,
-  serviceIds,
 }: BookingTriggerProps) {
-  const selectedServiceIds = serviceIds ?? (serviceId ? [serviceId] : []);
-  const href =
-    selectedServiceIds.length > 0
-      ? `?booking=1&services=${selectedServiceIds.join(",")}`
-      : "?booking=1";
+  const href = serviceId ? `?booking=1&services=${serviceId}` : "?booking=1";
 
   return (
     <Link
