@@ -16,7 +16,7 @@ export function SiteFooter() {
                 <div className="footer_brand-column">
                   <Logo size="footer" />
                   <p className="footer_intro">
-                    Mobile hijama, massage, and physiotherapy across Luton and
+                    Mobile hijama, cupping, and massage across Luton and
                     surrounding areas.
                   </p>
                   <BookingTrigger label="Book Now" className="footer_cta" />

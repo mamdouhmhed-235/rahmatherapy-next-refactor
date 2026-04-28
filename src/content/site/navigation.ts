@@ -4,10 +4,6 @@ import { bookingLink } from "./contact";
 export const primaryNavigation = [
   {
     label: "Home",
-    href: "/",
-  },
-  {
-    label: "Planned Home",
     href: "/home-planned",
   },
   {

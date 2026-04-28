@@ -4,10 +4,6 @@ export const footerContent: FooterContent = {
   serviceLinks: [
     {
       label: "Home",
-      href: "/",
-    },
-    {
-      label: "Planned Home",
       href: "/home-planned",
     },
     {

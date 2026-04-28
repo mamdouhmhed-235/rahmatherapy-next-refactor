@@ -3,9 +3,27 @@ import { Urbanist, Work_Sans } from "next/font/google";
 import "react-day-picker/style.css";
 import "@/styles/site-parity.css";
 import "./globals.css";
-import { buildRootMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = buildRootMetadata();
+export const metadata: Metadata = {
+  metadataBase: new URL("https://rahmatherapy.co.uk"),
+  title: "Mobile Hijama, Cupping & Massage Therapy in Luton | Rahma Therapy",
+  description:
+    "Mobile hijama, cupping, massage and soft-tissue therapy in Luton and surrounding areas.",
+  openGraph: {
+    siteName: "Rahma Therapy",
+    title: "Mobile Hijama, Cupping & Massage Therapy in Luton | Rahma Therapy",
+    description:
+      "Mobile hijama, cupping, massage and soft-tissue therapy in Luton and surrounding areas.",
+    images: [
+      {
+        url: "/images/brand/rahma/social-preview.png",
+        width: 1200,
+        height: 630,
+        alt: "Rahma Therapy",
+      },
+    ],
+  },
+};
 
 const urbanist = Urbanist({
   subsets: ["latin"],

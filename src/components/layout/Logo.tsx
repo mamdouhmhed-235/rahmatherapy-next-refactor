@@ -29,7 +29,7 @@ export function Logo({
 
   return (
     <Link
-      href="/"
+      href="/home-planned"
       aria-label="Rahma Therapy home"
       className={cn(
         size === "footer" ? "footer_logo-link w-nav-brand" : "navbar31_logo-link w-nav-brand",
