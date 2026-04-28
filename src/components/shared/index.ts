@@ -1,4 +1,5 @@
 export { CTAButtons } from "./CTAButtons";
+export { CredentialLogos } from "./CredentialLogos";
 export { ImageOverlayCard } from "./ImageOverlayCard";
 export { ImagePlaceholder } from "./ImagePlaceholder";
 export { SectionContainer } from "./SectionContainer";

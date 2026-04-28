@@ -14,7 +14,14 @@ function LogoBadge({ src, label, placeholder }: { src: string; label: string; pl
   return (
     <article className="flex min-h-36 flex-col items-center justify-center rounded-3xl border border-rahma-border bg-white p-5 text-center shadow-sm">
       {exists ? (
-        <Image src={src} alt={label} width={130} height={64} className="max-h-14 w-auto" />
+        <Image
+          src={src}
+          alt={label}
+          width={130}
+          height={64}
+          unoptimized
+          className="max-h-14 w-auto"
+        />
       ) : (
         <div
           role="img"
@@ -40,7 +47,7 @@ export function CredentialsBand() {
       />
       <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <LogoBadge
-          src="/logos/cma-logo.svg"
+          src="/logos/cma-logo.jpg"
           label="CMA qualified"
           placeholder="CMA logo placeholder"
         />

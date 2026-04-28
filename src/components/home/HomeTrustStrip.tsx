@@ -1,4 +1,5 @@
 import { ClipboardCheck, Home, ShieldCheck, Users } from "lucide-react";
+import { CredentialLogos } from "@/components/shared";
 import { homeTrustItems } from "@/content/pages/home";
 
 const icons = {
@@ -19,9 +20,13 @@ export function HomeTrustStrip() {
               key={item.title}
               className="rounded-3xl border border-rahma-border bg-white p-6 shadow-soft"
             >
-              <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-rahma-ivory text-rahma-green">
-                <Icon aria-hidden="true" size={22} />
-              </div>
+              {item.title === "CMA & IPHM qualified" ? (
+                <CredentialLogos decorative />
+              ) : (
+                <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-rahma-ivory text-rahma-green">
+                  <Icon aria-hidden="true" size={22} />
+                </div>
+              )}
               <p className="text-lg font-semibold text-rahma-charcoal">{item.title}</p>
               <p className="mt-2 text-sm leading-6 text-rahma-muted">{item.body}</p>
             </article>
