@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FocusEvent } from "react";
+import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import type { RahmaReview } from "@/lib/content/reviews";
 import { cn } from "@/lib/utils";
@@ -29,27 +29,18 @@ function formatCategoryLabel(value: string) {
 export function ReviewCard({ review }: ReviewCardProps) {
   const [buttonExpanded, setButtonExpanded] = useState(false);
   const [hoverExpanded, setHoverExpanded] = useState(false);
-  const [focusExpanded, setFocusExpanded] = useState(false);
   const prefersReducedMotion = useReducedMotion();
-  const expanded = buttonExpanded || hoverExpanded || focusExpanded;
+  const expanded = buttonExpanded || hoverExpanded;
   const primaryCategory = review.categories[0] ?? "general";
   const text = expanded ? review.text : review.shortExcerpt || review.text;
-
-  function handleBlur(event: FocusEvent<HTMLElement>) {
-    if (!event.currentTarget.contains(event.relatedTarget)) {
-      setFocusExpanded(false);
-    }
-  }
+  const reviewTextId = `${review.id}-text`;
 
   return (
     <motion.article
       layout={!prefersReducedMotion}
-      tabIndex={0}
       onMouseEnter={() => setHoverExpanded(true)}
       onMouseLeave={() => setHoverExpanded(false)}
-      onFocus={() => setFocusExpanded(true)}
-      onBlur={handleBlur}
-      className="break-inside-avoid rounded-3xl border border-rahma-border bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:p-6"
+      className="break-inside-avoid rounded-3xl border border-rahma-border bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
         <StarRating rating={review.rating} />
@@ -67,6 +58,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
       </div>
 
       <motion.p
+        id={reviewTextId}
         layout={!prefersReducedMotion}
         className="mt-5 whitespace-pre-line text-base leading-7 text-rahma-charcoal"
       >
@@ -91,6 +83,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
         <button
           type="button"
           aria-expanded={expanded}
+          aria-controls={reviewTextId}
           onClick={() => setButtonExpanded((current) => !current)}
           className={cn(
             "rounded-full text-sm font-semibold text-rahma-green underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue",

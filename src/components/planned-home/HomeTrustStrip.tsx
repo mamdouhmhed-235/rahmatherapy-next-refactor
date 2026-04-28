@@ -22,7 +22,7 @@ export function HomeTrustStrip() {
               <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-rahma-ivory text-rahma-green">
                 <Icon aria-hidden="true" size={22} />
               </div>
-              <h2 className="text-lg font-semibold text-rahma-charcoal">{item.title}</h2>
+              <p className="text-lg font-semibold text-rahma-charcoal">{item.title}</p>
               <p className="mt-2 text-sm leading-6 text-rahma-muted">{item.body}</p>
             </article>
           );

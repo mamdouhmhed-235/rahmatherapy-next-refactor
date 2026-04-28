@@ -12,9 +12,49 @@ type AftercareTabId = (typeof aftercareTabs)[number]["id"];
 
 export function AftercareTabs() {
   const [activeTabId, setActiveTabId] = React.useState<AftercareTabId>(aftercareTabs[0].id);
+  const tabRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
   const reduceMotion = useReducedMotion();
   const activeTab =
     aftercareTabs.find((tab) => tab.id === activeTabId) ?? aftercareTabs[0];
+
+  function moveToTab(index: number) {
+    const tab = aftercareTabs[index];
+
+    if (!tab) {
+      return;
+    }
+
+    setActiveTabId(tab.id);
+    tabRefs.current[index]?.focus();
+  }
+
+  function handleTabKeyDown(
+    event: React.KeyboardEvent<HTMLButtonElement>,
+    currentIndex: number
+  ) {
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      moveToTab((currentIndex + 1) % aftercareTabs.length);
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      moveToTab((currentIndex - 1 + aftercareTabs.length) % aftercareTabs.length);
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      moveToTab(0);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      moveToTab(aftercareTabs.length - 1);
+    }
+  }
 
   return (
     <SectionContainer tone="surface" width="wide">
@@ -27,20 +67,26 @@ export function AftercareTabs() {
       <div
         role="tablist"
         aria-label="Aftercare treatment types"
+        aria-orientation="horizontal"
         className="mt-10 flex gap-3 overflow-x-auto pb-2"
       >
-        {aftercareTabs.map((tab) => {
+        {aftercareTabs.map((tab, index) => {
           const isActive = tab.id === activeTab.id;
 
           return (
             <button
               key={tab.id}
+              ref={(element) => {
+                tabRefs.current[index] = element;
+              }}
               id={`aftercare-tab-${tab.id}`}
               type="button"
               role="tab"
               aria-selected={isActive}
               aria-controls={`aftercare-panel-${tab.id}`}
+              tabIndex={isActive ? 0 : -1}
               onClick={() => setActiveTabId(tab.id)}
+              onKeyDown={(event) => handleTabKeyDown(event, index)}
               className={cn(
                 "min-h-11 shrink-0 rounded-full border px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue",
                 isActive

@@ -71,6 +71,9 @@ export function PackageFinder() {
             transition={{ duration: 0.25, ease: "easeOut" }}
             className="mt-8 rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-sm"
           >
+            <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+              Recommended package: {selectedOption.packageTitle}
+            </p>
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-rahma-green">
               Recommended package
             </p>
