@@ -72,11 +72,23 @@ Primary plan files:
 - Do not add or normalize customer review text.
 - Do not add unsupported medical claims.
 - Required disclaimer text must remain unchanged where required.
+- Important override: do not replace the homepage short disclaimer with the full disclaimer.
+- Important override: review excerpts are allowed in hero and featured sections if they are exact canonical excerpts or exact canonical `shortExcerpt` values.
+- Important override: `/images/home/home-hero.avif` is the approved working planned-home hero image unless a matching approved WebP is provided.
+- Important override: preserve dual-homepage navigation for now: `Home` -> `/` and `Planned Home` -> `/home-planned`.
+- Important override: do not reduce the initial Reviews wall below 24 visible reviews unless measured performance proves it necessary. Optimize animation cost first.
+- Important override: do not redesign the booking popup; fix only behavior/accessibility if needed.
 
-Required disclaimer:
+Required full disclaimer for Services, focused package pages, and FAQs/Aftercare:
 
 ```txt
 Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please speak to a healthcare professional before booking.
+```
+
+Approved homepage short disclaimer:
+
+```txt
+Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care.
 ```
 
 ## Booking Rules To Verify In Later Phases
@@ -127,4 +139,3 @@ Deployment behavior will be audited in a later phase. If a live deployment is st
 | Legacy visual/content scope excluded | Complete |
 | Runtime remediation prohibited | Complete |
 | Runtime files changed | No |
-

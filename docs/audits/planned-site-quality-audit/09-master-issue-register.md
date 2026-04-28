@@ -21,22 +21,22 @@
 | Severity | Canonical issue count |
 |---|---:|
 | Blocker | 0 |
-| High | 5 |
-| Medium | 14 |
+| High | 3 |
+| Medium | 13 |
 | Low | 3 |
 | Polish | 0 |
-| Total | 22 |
+| Total | 19 |
 
 ## Summary By Category
 
 | Category | Count | Issue IDs |
 |---|---:|---|
-| Plan compliance | 2 | PLAN-HOME-001, PLAN-SERVICES-001 |
+| Plan compliance | 1 | PLAN-SERVICES-001 |
 | Visual design | 1 | VISUAL-002 |
 | UX | 2 | UX-001, UX-002 |
 | Responsive layout | 3 | RESP-001, RESP-002, RESP-003 |
 | Accessibility | 5 | A11Y-001, A11Y-002, A11Y-003, A11Y-004, A11Y-005 |
-| Content/copy | 2 | PLAN-HOME-002, PLAN-REVIEWS-001 |
+| Content/copy | 1 | REVIEW-EXCERPT-VERIFY |
 | CTA/booking | 2 | CTA-001, INTERACTION-001 |
 | Navigation/routing | 1 | CTA-002 |
 | Performance | 1 | PERF-001 |
@@ -50,8 +50,8 @@
 
 | Route | Canonical issues |
 |---|---|
-| `/home-planned` | PLAN-HOME-001, PLAN-HOME-002, CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/home-planning` | Inherits `/home-planned`: PLAN-HOME-001, PLAN-HOME-002, CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/home-planned` | CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/home-planning` | Inherits `/home-planned`: CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
 | `/services` | PLAN-SERVICES-001, VISUAL-001, UX-001, RESP-001, A11Y-001, A11Y-002, A11Y-004, INTERACTION-001, CTA-002 decision note |
 | `/services/supreme-combo-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
 | `/services/hijama-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
@@ -59,7 +59,7 @@
 | `/services/massage-therapy-30-mins` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
 | `/services/massage-therapy-1-hour` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
 | `/about` | VISUAL-001, UX-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/reviews` | PLAN-REVIEWS-001, VISUAL-001, VISUAL-002, UX-001, A11Y-002, A11Y-005, INTERACTION-001, CTA-002 decision note, PERF-001 |
+| `/reviews` | REVIEW-EXCERPT-VERIFY, VISUAL-001, VISUAL-002, UX-001, A11Y-002, A11Y-005, INTERACTION-001, CTA-002 decision note, PERF-001 |
 | `/faqs-aftercare` | CTA-001, A11Y-003, PLAN-FAQS-002, VISUAL-001, UX-001, RESP-001, RESP-002, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
 | All planned routes/shared shell | UX-001, A11Y-002, INTERACTION-001, CTA-002 decision note, TOOLING-001 |
 
@@ -69,17 +69,17 @@
 |---|---:|---|
 | VISUAL-001 | Yes | Planned production imagery for hero, body media, credential, and final CTA areas across planned routes. |
 | VISUAL-002 | Yes | Planned reviews proof imagery/mosaic assets. |
-| PLAN-HOME-001 | Possible | Either provide `/images/home/home-hero.webp` or formally approve/update the `.avif` implementation path. |
+| Home hero AVIF | No | Current `/images/home/home-hero.avif` path is approved unless the developer provides a matching WebP. |
 | PLAN-FAQS-002 | Possible | Aftercare tab images must exist once the component is wired through `FaqsAftercareImage`; if missing, developer-provided assets are needed. |
 
 ## Alias And De-Duplication Map
 
 | Referenced issue ID | Canonical issue ID | Reason |
 |---|---|---|
-| CONTENT-001 | PLAN-HOME-002 | Same shortened required disclaimer issue on planned home safety section. |
+| CONTENT-001 | Approved home short disclaimer | The planned home short disclaimer is approved and must not be replaced with the full disclaimer. |
 | PLAN-HOME-003 | CTA-001 | Same forbidden "Book Now page" booking-copy concept on planned home FAQ. |
 | PLAN-FAQS-003 | CTA-001 | Same forbidden "Book Now page" booking-copy concept on FAQs/aftercare. |
-| CONTENT-002 | PLAN-REVIEWS-001 | Same customer review text integrity failure, broadened to both reviews hero and featured mosaic. |
+| CONTENT-002 | REVIEW-EXCERPT-VERIFY | Review excerpts are allowed if they are exact canonical excerpts or exact canonical `shortExcerpt` values. |
 | PLAN-REVIEWS-002 | VISUAL-002 | Same reviews proof/mosaic visual drift from planned trust-building treatment. |
 | PLAN-FAQS-001 | A11Y-003 | Same custom tab implementation drift that creates incomplete tab keyboard behavior. |
 | CTA-003 | INTERACTION-001 | Same booking popup runtime failure from allowed query strings and booking triggers. |
@@ -88,43 +88,13 @@ All alias IDs above remain traceable to their source audit files and should not 
 
 ## Canonical Issues
 
-### PLAN-HOME-001
+### Approved Home Decisions
 
-- Severity: Medium
-- Category: Plan compliance
 - Route: `/home-planned`, inherited by `/home-planning`
-- Viewport: All
-- Component/File: `src/components/planned-home/HomeHero.tsx`, `src/content/images.ts`
-- Plan Source: `01-page-build-plans/01-home-page-codex-implementation-plan.md`
-- Related Plan Section: HomeHero
-- Alias/Cross-Category IDs: None
-- Asset Dependency: Possible, if `/images/home/home-hero.webp` is required rather than approving `.avif`.
-- Observed: The implemented hero uses `/images/home/home-hero.avif`.
-- Expected: The plan specifies `/images/home/home-hero.webp` for the home hero image.
-- Why It Matters: The planned asset inventory and implementation are misaligned, which weakens visual QA and deployment asset checks.
-- Recommended Fix: Align implementation and manifest to the planned image path, or formally approve the `.avif` path and update planning documentation.
-- Verification Method: Inspect `HomeHero` and image manifest, then verify the rendered hero source in browser dev tools.
-- Likely Remediation Phase: Phase 1 visual/content alignment
-- Status: Open
-
-### PLAN-HOME-002
-
-- Severity: High
-- Category: Content/copy
-- Route: `/home-planned`, inherited by `/home-planning`
-- Viewport: All
-- Component/File: `src/components/planned-home/HomeSafetyAftercare.tsx`
-- Plan Source: `01-page-build-plans/01-home-page-codex-implementation-plan.md`, audit brief compliance rule
-- Related Plan Section: HomeSafetyAftercare
-- Alias/Cross-Category IDs: CONTENT-001
-- Asset Dependency: No
-- Observed: The safety note only includes the shortened sentence, "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care."
-- Expected: The required disclaimer must remain unchanged where required: "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please speak to a healthcare professional before booking."
-- Why It Matters: The shortened copy removes suitability guidance that the audit brief treats as fixed compliance language.
-- Recommended Fix: Replace the shortened safety note with the exact required disclaimer.
-- Verification Method: Static source inspection plus rendered text check on `/home-planned`.
-- Likely Remediation Phase: Phase 1 compliance copy alignment
-- Status: Open
+- Home hero image: `/images/home/home-hero.avif` is approved as the current working planned-home hero image. Do not force it to `/images/home/home-hero.webp` unless the developer provides a matching approved WebP.
+- Home safety disclaimer: the approved HomeSafetyAftercare disclaimer is "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care." Do not replace it with the full disclaimer.
+- Full disclaimer placement: keep the full disclaimer on Services, focused package pages, and FAQs/Aftercare where required.
+- Status: Approved override, not a remediation issue.
 
 ### CTA-001
 
@@ -164,9 +134,9 @@ All alias IDs above remain traceable to their source audit files and should not 
 - Likely Remediation Phase: Phase 1 visual asset alignment
 - Status: Open
 
-### PLAN-REVIEWS-001
+### REVIEW-EXCERPT-VERIFY
 
-- Severity: High
+- Severity: Medium until verified
 - Category: Content/copy
 - Route: `/reviews`
 - Viewport: All
@@ -175,12 +145,12 @@ All alias IDs above remain traceable to their source audit files and should not 
 - Related Plan Section: ReviewsHero, FeaturedReviewsMosaic
 - Alias/Cross-Category IDs: CONTENT-002
 - Asset Dependency: No
-- Observed: The reviews hero uses `heroExcerpts`, and the featured mosaic uses local `quote` strings instead of exact canonical review text.
-- Expected: Customer review text must not be rewritten, normalized, paraphrased, or excerpted as if it were original review text.
-- Why It Matters: Altering customer-supplied review wording creates compliance and content-integrity risk.
-- Recommended Fix: Source review proof text from `rahmaGoogleReviews` by stable review ID and render exact approved text, or avoid presenting shortened text as verbatim quotes.
-- Verification Method: Compare rendered reviews hero and featured mosaic text against `src/lib/content/reviews.ts`.
-- Likely Remediation Phase: Phase 1 content integrity alignment
+- Observed: The reviews hero and featured mosaic use curated excerpts.
+- Expected: Review excerpts are allowed if they are exact canonical excerpts or exact canonical `shortExcerpt` values. Do not paraphrase, rewrite, correct, or normalize customer reviews. Do not replace the planned curated review design with full long reviews unless the design still works.
+- Why It Matters: Incorrect excerpts create content-integrity risk; exact canonical excerpts preserve the planned design while staying compliant.
+- Recommended Fix: Verify each hero/featured excerpt against canonical review text and `shortExcerpt` values. Only change strings that are paraphrased, corrected, normalized, or non-canonical.
+- Verification Method: Compare rendered reviews hero and featured mosaic strings against `src/lib/content/reviews.ts` canonical text and `shortExcerpt` values.
+- Likely Remediation Phase: Phase 2 content verification
 - Status: Open
 
 ### VISUAL-002
@@ -510,11 +480,11 @@ All alias IDs above remain traceable to their source audit files and should not 
 
 | Source audit file | Referenced issue IDs | Covered in canonical register? |
 |---|---|---|
-| `02-plan-compliance-matrix.md` | PLAN-HOME-001, PLAN-HOME-002, PLAN-HOME-003, PLAN-SERVICES-001, PLAN-REVIEWS-001, PLAN-REVIEWS-002, PLAN-FAQS-001, PLAN-FAQS-002, PLAN-FAQS-003 | Yes, direct or alias |
+| `02-plan-compliance-matrix.md` | PLAN-HOME-003, PLAN-SERVICES-001, REVIEW-EXCERPT-VERIFY, PLAN-REVIEWS-002, PLAN-FAQS-001, PLAN-FAQS-002, PLAN-FAQS-003 | Yes, direct or alias |
 | `03-visual-ui-ux-audit.md` | VISUAL-001, VISUAL-002, UX-001, UX-002, RESP-001, RESP-002, RESP-003 | Yes |
 | `04-responsive-mobile-audit.md` | VISUAL-001, VISUAL-002, UX-001, UX-002, RESP-001, RESP-002, RESP-003 | Yes |
 | `05-accessibility-audit.md` | A11Y-001, A11Y-002, A11Y-003, A11Y-004, A11Y-005, INTERACTION-001, UX-001, VISUAL-001 | Yes |
-| `06-content-copy-compliance-audit.md` | CONTENT-001, CONTENT-002, CTA-001, PLAN-HOME-002, PLAN-HOME-003, PLAN-REVIEWS-001, PLAN-FAQS-003 | Yes, direct or alias |
+| `06-content-copy-compliance-audit.md` | REVIEW-EXCERPT-VERIFY, CTA-001, PLAN-HOME-003, PLAN-FAQS-003 | Yes, direct or alias |
 | `07-links-ctas-booking-audit.md` | CTA-001, CTA-002, CTA-003, INTERACTION-001, UX-001 | Yes, direct or alias |
 | `08-performance-seo-deployment-audit.md` | PLAN-SERVICES-001, PLAN-FAQS-002, PERF-001, TOOLING-001, VISUAL-001, A11Y-005 | Yes |
 

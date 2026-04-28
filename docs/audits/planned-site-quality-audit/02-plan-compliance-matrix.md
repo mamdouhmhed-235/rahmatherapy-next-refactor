@@ -26,12 +26,15 @@
 - `?booking=1` and `?booking=1&services=<service-id>` are treated as the expected booking CTA targets for planned pages.
 - Service IDs checked: `supreme-combo`, `hijama-package`, `fire-package`, `massage-30`, `massage-60`.
 - Out-of-scope legacy routes were not audited except where shared code affects planned pages.
+- Approved override: the planned home hero may use `/images/home/home-hero.avif`; do not force `/images/home/home-hero.webp` unless a matching approved WebP is provided.
+- Approved override: the planned home safety note uses the short disclaimer, "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care." Do not force the full disclaimer into the homepage.
+- Approved override: review hero and featured sections may use exact canonical excerpts or exact canonical `shortExcerpt` values, but must not paraphrase, rewrite, correct, or normalize customer reviews.
 
 ## `/home-planned`
 
 | Planned section | Implemented section/component | Present? | Correct order? | Content match? | Design match? | CTA/link match? | Interaction match? | Code/component match? | Issue IDs |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|
-| HomeHero | `src/components/planned-home/HomeHero.tsx` | Yes | Yes | Partial | Partial | Yes | N/A | Partial | PLAN-HOME-001 |
+| HomeHero | `src/components/planned-home/HomeHero.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | Approved AVIF path |
 | HomeTrustStrip | `src/components/planned-home/HomeTrustStrip.tsx` | Yes | Yes | Yes | Yes | N/A | N/A | Yes | None |
 | HomePainPoints | `src/components/planned-home/PainPointCards.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | None |
 | HomePackageCards | `src/components/planned-home/HomePackageCards.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | None |
@@ -39,7 +42,7 @@
 | HomeProcess | `src/components/planned-home/HomeAppointmentProcess.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | None |
 | HomeReviewCarousel | `src/components/planned-home/HomeReviewCarousel.tsx` | Yes | Yes | Yes | Yes | Yes | Yes | Yes | None |
 | HomeTeamPreview | `src/components/planned-home/HomeTeamPreview.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | None |
-| HomeSafetyAftercare | `src/components/planned-home/HomeSafetyAftercare.tsx` | Yes | Yes | Partial | Yes | Yes | N/A | Partial | PLAN-HOME-002 |
+| HomeSafetyAftercare | `src/components/planned-home/HomeSafetyAftercare.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | Approved short disclaimer |
 | HomeFAQPreview | `src/components/planned-home/HomeFAQPreview.tsx` | Yes | Yes | Partial | Yes | Partial | Yes | Yes | PLAN-HOME-003 |
 | HomeFinalCTA | `src/components/planned-home/HomeFinalCTA.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | None |
 
@@ -47,7 +50,7 @@
 
 | Planned section | Implemented section/component | Present? | Correct order? | Content match? | Design match? | CTA/link match? | Interaction match? | Code/component match? | Issue IDs |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|
-| Planned home alias | `src/app/(public)/home-planning/page.tsx` redirects to `/home-planned` | Yes | N/A | Yes | N/A | Yes | Yes | Yes | Inherits PLAN-HOME-001, PLAN-HOME-002, PLAN-HOME-003 |
+| Planned home alias | `src/app/(public)/home-planning/page.tsx` redirects to `/home-planned` | Yes | N/A | Yes | N/A | Yes | Yes | Yes | Inherits PLAN-HOME-003 only |
 
 ## `/services`
 
@@ -188,7 +191,7 @@ Focused package content cross-check status:
 |---|---|---:|---:|---:|---:|---:|---:|---:|---|
 | ReviewsHero | `src/components/reviews/ReviewsHero.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | None |
 | ReviewsStatsStrip | `src/components/reviews/ReviewsStatsStrip.tsx` | Yes | Yes | Yes | Yes | N/A | N/A | Yes | None |
-| FeaturedReviewsMosaic | `src/components/reviews/FeaturedReviewsMosaic.tsx` | Yes | Yes | Partial | Partial | N/A | Partial | Partial | PLAN-REVIEWS-001, PLAN-REVIEWS-002 |
+| FeaturedReviewsMosaic | `src/components/reviews/FeaturedReviewsMosaic.tsx` | Yes | Yes | Partial | Partial | N/A | Partial | Partial | PLAN-REVIEWS-002; verify excerpts are exact canonical text/shortExcerpt |
 | ReviewFilters and ReviewWall | `src/components/reviews/ReviewsExplorer.tsx` | Yes | Yes | Yes | Yes | N/A | Yes | Yes | None |
 | ReviewThemeHighlights | `src/components/reviews/ReviewThemeHighlights.tsx` | Yes | Yes | Yes | Yes | N/A | N/A | Yes | None |
 | LeaveReviewCTA | `src/components/reviews/LeaveReviewCTA.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | None |

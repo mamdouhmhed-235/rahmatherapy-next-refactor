@@ -10,18 +10,22 @@
 
 ## Required Disclaimer
 
-Required fixed disclaimer:
+Required full disclaimer for Services, focused package pages, and FAQs/Aftercare:
 
 > Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please speak to a healthcare professional before booking.
 
+Approved homepage short disclaimer:
+
+> Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care.
+
 | Route | Source checked | Result | Issue IDs |
 |---|---|---|---|
-| `/home-planned` | `src/components/planned-home/HomeSafetyAftercare.tsx` | Fails where the disclaimer is used: rendered copy only includes the first sentence and omits the healthcare-professional suitability guidance. | PLAN-HOME-002, CONTENT-001 |
-| `/home-planning` | Redirects to `/home-planned` | Inherits `/home-planned` disclaimer failure. | PLAN-HOME-002, CONTENT-001 |
+| `/home-planned` | `src/components/planned-home/HomeSafetyAftercare.tsx` | Pass by approved override: homepage uses the approved short disclaimer and must not be forced to use the full disclaimer. | None |
+| `/home-planning` | Redirects to `/home-planned` | Inherits `/home-planned` approved short disclaimer. | None |
 | `/services` | `src/content/pages/services.ts`, service components | No required fixed disclaimer mismatch found in this phase. Safety copy remains general and does not introduce the fixed disclaimer string in altered form. | None |
 | Focused package routes | `src/content/pages/packagePages.ts`, package components | Safety/suitability copy uses cautious complementary-care framing; no altered instance of the fixed disclaimer string found in this phase. | None |
 | `/about` | `src/content/pages/about.ts`, about components | No required fixed disclaimer mismatch found in this phase. | None |
-| `/reviews` | `src/components/reviews/*`, `src/lib/content/reviews.ts` | Reviews explorer disclaimer copy remains cautious, but review excerpts in hero/proof areas are not preserved exactly. | CONTENT-002, PLAN-REVIEWS-001 |
+| `/reviews` | `src/components/reviews/*`, `src/lib/content/reviews.ts` | Review excerpts are allowed in hero/proof areas if they are exact canonical excerpts or exact canonical `shortExcerpt` values. This requires verification before remediation, not automatic replacement with full reviews. | Review excerpt verification note |
 | `/faqs-aftercare` | `src/content/pages/faqsAftercare.ts`, FAQ components | No altered instance of the fixed disclaimer string found in this phase. | None |
 
 ## Banned Visible-Copy Scan
@@ -47,8 +51,8 @@ Result: no matches in scoped planned-page source.
 
 | Route | H1/content plan match | Package names/prices | FAQ text | Reviews text | Placeholder labels | Compliance status | Issue IDs |
 |---|---|---|---|---|---|---|---|
-| `/home-planned` | Mostly matches Phase 2 plan matrix; hero image path drift remains separate. | Package names/prices match the planned package data checked in Phase 2. | FAQ preview contains "Book Now page" language that conflicts with booking rules. | Home carousel uses planned home review snippets from `plannedHome.ts`; no new issue in this phase. | Placeholder labels are visible and useful but remain a production-polish issue from Phase 3. | Fails fixed disclaimer requirement where the safety note uses a shortened disclaimer. | CONTENT-001, CTA-001, PLAN-HOME-002, PLAN-HOME-003 |
-| `/home-planning` | Redirect alias; inherits `/home-planned`. | Inherits `/home-planned`. | Inherits `/home-planned`. | Inherits `/home-planned`. | Inherits `/home-planned`. | Inherits `/home-planned` content issues. | CONTENT-001, CTA-001 |
+| `/home-planned` | Matches Phase 2 plan matrix except FAQ booking wording issue. AVIF hero path and short disclaimer are approved overrides. | Package names/prices match the planned package data checked in Phase 2. | FAQ preview contains "Book Now page" language that conflicts with booking rules. | Home carousel uses planned home review snippets from `plannedHome.ts`; no new issue in this phase. | Placeholder labels are visible and useful but remain a production-polish issue from Phase 3. | Pass for approved short home disclaimer. | CTA-001, PLAN-HOME-003 |
+| `/home-planning` | Redirect alias; inherits `/home-planned`. | Inherits `/home-planned`. | Inherits `/home-planned`. | Inherits `/home-planned`. | Inherits `/home-planned`. | Inherits `/home-planned` approved short disclaimer and FAQ wording issue. | CTA-001 |
 | `/services` | Matches planned H1 and service-page content per Phase 2. | Package names/prices and service IDs match planned content. | Mini FAQ copy matches plan intent and avoids forbidden booking routes. | N/A | Placeholder labels are clear where fallbacks render. | Pass for banned phrase scan and package copy. | None |
 | `/services/supreme-combo-package` | Matches planned package content per Phase 2. | `Supreme Combo Package`, `GBP 55`, booking ID `supreme-combo`. | Package FAQ copy matches planned content. | N/A | Placeholder labels are clear where fallbacks render. | Pass for banned phrase scan. | None |
 | `/services/hijama-package` | Matches planned package content per Phase 2. | `Hijama Package`, `GBP 45`, booking ID `hijama-package`. | Package FAQ copy matches planned content. | N/A | Placeholder labels are clear where fallbacks render. | Pass for banned phrase scan. | None |
@@ -56,32 +60,20 @@ Result: no matches in scoped planned-page source.
 | `/services/massage-therapy-30-mins` | Matches planned package content per Phase 2. | `30-min Massage Therapy`, `GBP 40`, booking ID `massage-30`. | Package FAQ copy matches planned content. | N/A | Placeholder labels are clear where fallbacks render. | Pass for banned phrase scan. | None |
 | `/services/massage-therapy-1-hour` | Matches planned package content per Phase 2. | `1-hour Massage Therapy`, `GBP 60`, booking ID `massage-60`. | Package FAQ copy matches planned content. | N/A | Placeholder labels are clear where fallbacks render. | Pass for banned phrase scan. | None |
 | `/about` | Matches planned H1 and about-page content per Phase 2. | N/A | N/A | N/A | Placeholder labels are clear where fallbacks render. | Pass for banned phrase scan. | None |
-| `/reviews` | Matches planned H1/page structure, but trust-proof review text handling fails the no-rewrite rule. | N/A | N/A | `ReviewsHero` and `FeaturedReviewsMosaic` use hardcoded excerpts instead of exact canonical review text. | Placeholder labels are clear where fallbacks render. | Fails review text preservation rule. | CONTENT-002, PLAN-REVIEWS-001 |
+| `/reviews` | Matches planned H1/page structure. | N/A | N/A | Hero/featured excerpts are acceptable only if they exactly match canonical excerpt or `shortExcerpt` values; future remediation must verify before changing design. | Placeholder labels are clear where fallbacks render. | Pass if excerpts are exact canonical excerpts; verification note remains. | Review excerpt verification note |
 | `/faqs-aftercare` | Matches planned H1 and FAQ/aftercare structure per Phase 2. | N/A | FAQ category copy contains "Book Now page" language that conflicts with booking rules. | N/A | Placeholder labels are clear where fallbacks render. | Pass for banned phrase scan; booking copy issue remains. | CTA-001, PLAN-FAQS-003 |
 
 ## Content Findings Added This Phase
 
-### CONTENT-001
+### Review Excerpt Verification Note
 
-- Severity: High
-- Route: `/home-planned`, inherited by `/home-planning`
-- Source: `src/components/planned-home/HomeSafetyAftercare.tsx`
-- Observed: The safety note contains only the first sentence of the required disclaimer.
-- Expected: The exact required disclaimer must remain unchanged where required.
-- User impact: Users do not receive the full suitability guidance before booking.
-- Verification method: Static source inspection plus rendered safety note check.
-- Related existing issue: PLAN-HOME-002
-
-### CONTENT-002
-
-- Severity: High
+- Severity: Medium until verified
 - Route: `/reviews`
 - Source: `src/components/reviews/ReviewsHero.tsx`, `src/components/reviews/FeaturedReviewsMosaic.tsx`, `src/lib/content/reviews.ts`
-- Observed: The reviews hero uses `heroExcerpts`, and the featured mosaic uses local `quote` strings instead of rendering exact canonical review text.
-- Expected: Customer review text must not be rewritten, normalized, paraphrased, or excerpted as if it were the original review.
-- User impact: Alters customer-supplied review wording and creates compliance/content-integrity risk.
-- Verification method: Static comparison of hardcoded excerpt strings against `rahmaGoogleReviews`.
-- Related existing issue: PLAN-REVIEWS-001
+- Observed: The reviews hero and featured mosaic use curated excerpts.
+- Expected: Excerpts are allowed if each string is an exact canonical excerpt or exact canonical `shortExcerpt` value. Do not paraphrase, rewrite, correct, or normalize customer reviews. Do not replace the planned curated review design with full long reviews unless the design still works.
+- User impact: Incorrect excerpts create content-integrity risk; exact canonical excerpts preserve the planned design while staying compliant.
+- Verification method: Static comparison of hero/featured strings against canonical review text and `shortExcerpt` values.
 
 ## Phase 6 Content Gate
 

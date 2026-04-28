@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The planned Rahma Therapy pages are structurally complete and deployed, but the audit found 22 canonical issues or tracked decision/tooling items that must be remediated, deferred, or re-verified before the planned-site experience is production-polished. The highest-risk items are the booking popup failing to open, required compliance/review copy integrity failures, mobile horizontal overflow, and missing planned media assets.
+The planned Rahma Therapy pages are structurally complete and deployed, but the audit found 19 canonical issues or tracked decision/tooling items that must be remediated, deferred, or re-verified before the planned-site experience is production-polished. The highest-risk items are the booking popup failing to open, mobile horizontal overflow, missing planned media assets, and review excerpt verification.
 
 This plan deliberately separates remediation into small phases that can each be implemented, validated, committed, pushed, and checked on Vercel before the next phase starts. Asset-dependent work is isolated so future implementers do not invent imagery or alter the visual plan without approved assets.
 
@@ -30,13 +30,20 @@ Non-goals:
 - Do not invent or generate replacement assets without developer approval.
 - Do not edit planning bundle files unless a future task explicitly asks to update source-of-truth documentation.
 - Do not require screenshots as committed artifacts.
+- Do not replace the homepage short disclaimer with the full disclaimer. The approved HomeSafetyAftercare disclaimer is: "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care."
+- Keep the full disclaimer on Services, focused package pages, and FAQs/Aftercare where required.
+- Review excerpts are allowed in hero and featured sections if they are exact canonical excerpts or exact canonical `shortExcerpt` values.
+- Treat `/images/home/home-hero.avif` as the approved working home hero image unless the developer provides a matching WebP.
+- Keep 24 initial Reviews wall cards unless measured performance proves reduction is necessary.
+- Preserve dual-homepage navigation for now: `Home` -> `/` and `Planned Home` -> `/home-planned`.
+- Do not redesign the booking popup; fix only behavior/accessibility if needed.
 
 ## Prioritization Model
 
 Priority is based on:
 
 1. Conversion and route blockers: booking popup and broken core mobile behavior.
-2. Compliance risk: fixed disclaimer and customer review integrity.
+2. Compliance risk: forbidden booking-page wording and review excerpt integrity.
 3. Accessibility barriers: keyboard, headings, skip link, tab semantics.
 4. Responsive and navigation quality: mobile/tablet usability and shared shell clarity.
 5. Asset replacement and visual polish: high visual impact but blocked if assets are missing.
@@ -47,7 +54,7 @@ Priority is based on:
 | Phase | Rationale |
 |---|---|
 | 1. Critical CTA and mobile containment | Booking failure blocks conversion, and mobile overflow is a high-severity usability failure. |
-| 2. Content and plan-compliance restoration | Compliance copy and review integrity should be fixed before visual polish or performance work. |
+| 2. Content and plan-compliance restoration | Booking copy, review excerpt verification, and image-wrapper behavior should be fixed before visual polish or performance work. |
 | 3. Accessibility and interaction fixes | Once core content and booking behavior are correct, keyboard and semantic behavior can be verified accurately. |
 | 4. Responsive/mobile layout and navigation | Layout tuning should happen after semantic and content changes because content dimensions can change. |
 | 5. Asset replacement and visual polish | Requires approved assets; isolate so missing assets do not block non-asset fixes. |
@@ -60,10 +67,8 @@ Priority is based on:
 |---|---|---|
 | INTERACTION-001 | Phase 1 | Assigned |
 | RESP-003 | Phase 1 | Assigned |
-| PLAN-HOME-002 | Phase 2 | Assigned |
 | CTA-001 | Phase 2 | Assigned |
-| PLAN-REVIEWS-001 | Phase 2 | Assigned |
-| PLAN-HOME-001 | Phase 2 | Assigned, may need asset decision |
+| REVIEW-EXCERPT-VERIFY | Phase 2 | Assigned |
 | PLAN-SERVICES-001 | Phase 2 | Assigned |
 | PLAN-FAQS-002 | Phase 2 | Assigned, may need asset availability |
 | A11Y-001 | Phase 3 | Assigned |
@@ -222,10 +227,8 @@ Restore compliance-sensitive copy, review text integrity, booking copy, and plan
 
 ### Issue IDs Addressed
 
-- PLAN-HOME-002
 - CTA-001
-- PLAN-REVIEWS-001
-- PLAN-HOME-001
+- REVIEW-EXCERPT-VERIFY
 - PLAN-SERVICES-001
 - PLAN-FAQS-002
 
@@ -239,14 +242,11 @@ Restore compliance-sensitive copy, review text integrity, booking copy, and plan
 
 ### Files/Components Likely Touched
 
-- `src/components/planned-home/HomeSafetyAftercare.tsx`
 - `src/content/pages/plannedHome.ts`
 - `src/content/pages/faqsAftercare.ts`
 - `src/components/reviews/ReviewsHero.tsx`
 - `src/components/reviews/FeaturedReviewsMosaic.tsx`
 - `src/lib/content/reviews.ts`
-- `src/components/planned-home/HomeHero.tsx`
-- `src/content/images.ts`
 - `src/components/services/PackageFinder.tsx`
 - `src/components/services/ServicesImage.tsx`
 - `src/components/faqs-aftercare/AftercareTabs.tsx`
@@ -254,35 +254,33 @@ Restore compliance-sensitive copy, review text integrity, booking copy, and plan
 
 ### Constraints
 
-- Required disclaimer must be exact:
-
-```txt
-Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please speak to a healthcare professional before booking.
-```
-
-- Do not add or normalize customer review text.
+- Do not replace the homepage short disclaimer with the full disclaimer.
+- Keep the full disclaimer on Services, focused package pages, and FAQs/Aftercare where required.
+- Do not add, paraphrase, rewrite, correct, or normalize customer review text.
+- Review excerpts are allowed if they exactly match canonical review text or exact canonical `shortExcerpt` values.
 - Do not add unsupported medical claims.
-- Do not invent assets. If `/images/home/home-hero.webp` or aftercare assets are unavailable, either keep the existing approved path with documented rationale or mark asset replacement for Phase 5.
+- Do not force `HomeHero` from `.avif` to `.webp`; the current AVIF path is approved unless the developer provides a matching WebP.
+- Do not invent assets. If aftercare assets are unavailable, keep labelled placeholders and mark asset replacement for Phase 5.
 - Do not introduce forbidden booking URLs.
 
 ### Expected Outcome
 
-- Home safety section displays the exact required disclaimer.
+- Home safety section keeps the approved short disclaimer.
 - Home and FAQ copy no longer refer to a "Book Now page".
-- Reviews hero and featured mosaic source exact review text from canonical review data or stop presenting local excerpts as verbatim review quotes.
+- Reviews hero and featured mosaic use exact canonical review excerpts or exact canonical `shortExcerpt` values.
 - PackageFinder and AftercareTabs use route-owned image wrappers.
-- Home hero image path is aligned with plan or formally documented as an approved format difference.
+- Home hero keeps the approved `.avif` path unless an approved WebP replacement is provided later.
 
 ### Implementation Steps
 
-1. Replace the shortened home safety note with the exact required disclaimer.
+1. Verify the home safety note remains the approved short disclaimer and do not change it.
 2. Update the planned home and FAQs/aftercare FAQ answers to refer to the booking request flow or WhatsApp without mentioning a Book Now page.
-3. Refactor reviews proof components to avoid hardcoded review excerpts.
-4. Preserve exact canonical review text from `rahmaGoogleReviews` when rendering customer review quotations.
-5. Align `HomeHero` image path with `/images/home/home-hero.webp` if asset exists; otherwise record an asset decision and defer final asset replacement to Phase 5.
+3. Compare reviews hero and featured mosaic excerpts against canonical review text and `shortExcerpt` values.
+4. Change only non-canonical/paraphrased review excerpts. Do not replace the curated design with full long reviews unless the design still works.
+5. Verify `HomeHero` keeps the approved `.avif` path unless an approved WebP is supplied.
 6. Change `PackageFinder` to render its media through `ServicesImage`.
 7. Change `AftercareTabs` to render active tab imagery through `FaqsAftercareImage`.
-8. Run static scans for `Book Now page`, `/book-now`, `?package=`, and local review excerpt strings.
+8. Run static scans for `Book Now page`, `/book-now`, `?package=`, and non-canonical review excerpt strings.
 
 ### Validation Commands
 
@@ -300,9 +298,9 @@ Rahma Therapy provides complementary wellness treatments and does not diagnose o
 
 Check:
 
-- Exact disclaimer visible on home safety section.
+- Approved short disclaimer visible on home safety section.
 - No visible "Book Now page" copy.
-- Reviews proof text matches canonical review data exactly where quoted.
+- Reviews proof excerpts match canonical review text or exact canonical `shortExcerpt` values.
 - PackageFinder and aftercare tab media render through wrappers.
 
 ### Live Vercel Checks
@@ -660,11 +658,12 @@ Reduce review wall animation cost, resolve the standalone TypeScript command amb
 - Preserve reduced-motion support.
 - Do not add Review or AggregateRating schema.
 - Do not rewrite review text.
+- Do not reduce the initial Reviews wall below 24 visible reviews unless measured performance proves it necessary.
 - Do not change package scripts unless the TypeScript command still fails and the user approves a package.json validation-script fix.
 
 ### Expected Outcome
 
-- Fewer or lighter animated review cards render initially.
+- Lighter review-card animation renders initially while preserving the approved 24 visible reviews unless measured performance proves a lower count is necessary.
 - Review wall remains usable and accessible.
 - Standalone TypeScript validation is either working or documented with an approved equivalent command.
 - Metadata and JSON-LD remain valid, with no self-serving review schema.
@@ -672,13 +671,14 @@ Reduce review wall animation cost, resolve the standalone TypeScript command amb
 
 ### Implementation Steps
 
-1. Reduce initial visible review count or remove per-card layout animation.
+1. Reduce animation cost first by removing expensive per-card layout animation or limiting motion to small state changes.
 2. Keep reduced-motion behavior intact.
-3. Re-check search/filter/load-more behavior.
-4. Re-run static schema scan for `Review` and `AggregateRating`.
-5. Re-run `pnpm exec tsc --noEmit --incremental false`.
-6. If it still fails with command resolution, identify and document the project-approved equivalent command. Add a `typecheck` script only if the user approves that package.json change.
-7. Verify route metadata titles/descriptions still render.
+3. Keep the initial 24-review count unless profiling proves it should be reduced.
+4. Re-check search/filter/load-more behavior.
+5. Re-run static schema scan for `Review` and `AggregateRating`.
+6. Re-run `pnpm exec tsc --noEmit --incremental false`.
+7. If it still fails with command resolution, identify and document the project-approved equivalent command. Add a `typecheck` script only if the user approves that package.json change.
+8. Verify route metadata titles/descriptions still render.
 
 ### Validation Commands
 
@@ -813,7 +813,7 @@ No runtime rollback should be needed if this is verification-only. If a verifica
 | Booking popup | Opens from `?booking=1`, `?booking=1&services=<valid-id>`, and visible booking triggers. |
 | Forbidden URLs | No `?package=`, `/book-now`, or `/services/mobile-massage-therapy` in scoped planned source. |
 | Service IDs | Only `supreme-combo`, `hijama-package`, `fire-package`, `massage-30`, `massage-60` used for booking preselection. |
-| Required disclaimer | Exact disclaimer appears wherever required and is not shortened. |
+| Required disclaimer | Full disclaimer appears on Services, focused package pages, and FAQs/Aftercare; the homepage keeps its approved short disclaimer. |
 | Review text | Customer review text is exact where presented as review quotation. |
 | Accessibility | One H1 per page, logical headings, skip link, keyboard tabs, accessible review cards, package finder announcement. |
 | Responsive | No horizontal overflow at 390px; tablet heroes are not overlong; CTAs wrap cleanly. |

@@ -16,9 +16,9 @@
 | Every route has visual/responsive notes | Complete | Completed in `03-visual-ui-ux-audit.md` and `04-responsive-mobile-audit.md`. |
 | Every planned-page interactive component has accessibility notes | Complete | Completed in `05-accessibility-audit.md`. |
 | Content/copy/CTA/performance/deployment scans are documented | Complete | Completed in `06`, `07`, and `08` audit files. |
-| Every issue appears in the master register | Complete | `09-master-issue-register.md` consolidated 22 canonical issues, decision items, or tooling items with alias mapping. |
+| Every issue appears in the master register | Complete | `09-master-issue-register.md` consolidated the canonical issues, approved decisions, decision items, and tooling items with alias mapping. |
 | Remediation plan covers every canonical issue | Complete | `10-remediation-implementation-plan.md` assigns every canonical issue to a phase or explicitly defers it with rationale. |
-| Asset-dependent issues are isolated | Complete | VISUAL-001 and VISUAL-002 are in the asset replacement phase; PLAN-HOME-001 and PLAN-FAQS-002 have asset-decision notes. |
+| Asset-dependent issues are isolated | Complete | VISUAL-001 and VISUAL-002 are in the asset replacement phase; the home hero AVIF path is approved unless a matching WebP is provided. |
 | No runtime source files changed during planning | Complete | Phase 9 changed audit documentation only. |
 | No screenshots committed | Complete | Screenshots are not required artifacts. |
 
@@ -117,22 +117,21 @@ Proceed only if all checks pass.
 
 Issue IDs:
 
-- PLAN-HOME-002
 - CTA-001
-- PLAN-REVIEWS-001
-- PLAN-HOME-001
+- REVIEW-EXCERPT-VERIFY
 - PLAN-SERVICES-001
 - PLAN-FAQS-002
 
 Validation:
 
 - Required commands run and results recorded.
-- Exact required disclaimer appears on `/home-planned/`.
+- Approved short disclaimer remains on `/home-planned/`.
+- Full disclaimer remains on Services, focused package pages, and FAQs/Aftercare where required.
 - Static scan finds no `Book Now page`, `/book-now`, or `?package=` in scoped planned source.
-- Reviews hero and featured proof text match canonical review data where rendered as review quotes.
+- Reviews hero and featured proof text use exact canonical excerpts or exact canonical `shortExcerpt` values.
 - `PackageFinder` uses services image wrapper.
 - `AftercareTabs` uses FAQ/aftercare image wrapper.
-- Home hero image path decision is documented if asset is unavailable.
+- Home hero keeps the approved `.avif` path unless a matching approved WebP is provided.
 
 Deployment:
 
@@ -234,7 +233,8 @@ Issue IDs:
 Validation:
 
 - Required commands run and results recorded.
-- Review wall renders fewer/lighter animated cards or removes costly per-card layout animation.
+- Review wall renders lighter animations or removes costly per-card layout animation.
+- Initial review wall count remains 24 unless measured performance proves reduction is necessary.
 - Search, filters, load more, and review disclosure still work.
 - Reduced motion remains respected.
 - Static scan confirms no Review or AggregateRating schema was added.
@@ -296,7 +296,7 @@ For each remediation phase:
 | Route scope | Only planned pages and shared planned-page surfaces changed. |
 | Booking | `?booking=1` and `?booking=1&services=<valid-id>` work on planned pages. |
 | Forbidden routes | No `?package=`, `/book-now`, or `/services/mobile-massage-therapy` in scoped planned source. |
-| Content | Required disclaimer exact; review text preserved; no unsupported medical claims. |
+| Content | Full disclaimer exact where required; homepage short disclaimer preserved; review text preserved; no unsupported medical claims. |
 | Accessibility | Skip link, keyboard tabs, live recommendation, review disclosure, and heading hierarchy pass. |
 | Responsive | No horizontal overflow; tablet/mobile hero and tab layouts pass. |
 | Visual | Approved assets render; placeholders only remain where explicitly deferred. |

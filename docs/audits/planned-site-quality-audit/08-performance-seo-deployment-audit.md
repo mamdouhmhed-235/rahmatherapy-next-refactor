@@ -15,7 +15,7 @@
 | Planned images use `next/image` or placeholder wrappers | Mostly pass, with known wrapper bypasses | Route-owned wrappers exist, but `PackageFinder` and `AftercareTabs` render `ImagePlaceholder` directly as logged in Phase 2. | PLAN-SERVICES-001, PLAN-FAQS-002 |
 | No huge direct image imports | Pass | Static extension scan found image paths in strings/content, not direct JS/TS image module imports. | None |
 | Client components limited to real interaction needs | Pass with review-performance caveat | Client components are used for nav, booking, accordions, tabs, finder, carousel, timeline, and review filtering/cards. | PERF-001 |
-| Reviews wall does not animate every card heavily at once | Partial | `ReviewCard` wraps every visible review in Framer Motion; `ReviewsExplorer` starts with `pageSize = 24`. Reduced motion is respected, but default users can still receive many animated cards. | PERF-001 |
+| Reviews wall does not animate every card heavily at once | Partial | `ReviewCard` wraps every visible review in Framer Motion; `ReviewsExplorer` starts with `pageSize = 24`. The 24-review initial count is approved unless measured performance proves reduction is necessary. Optimize animation cost first. | PERF-001 |
 | Placeholder behavior remains production-safe | Partial | Placeholder labels are accessible and visible, but prominent fallback use is already tracked as visual production-polish debt. | VISUAL-001 |
 
 ## SEO And Structured Data
@@ -179,9 +179,10 @@ Alternate Vercel URLs: not checked because the primary deployment was available 
 - Route: `/reviews`
 - Source: `src/components/reviews/ReviewCard.tsx`, `src/components/reviews/ReviewWall.tsx`, `src/components/reviews/ReviewsExplorer.tsx`
 - Observed: Every visible review card is a Framer Motion article, and the initial review wall can render 24 animated cards before "Load more".
-- Expected: Reviews wall animation should remain lightweight, especially on mobile and lower-powered devices.
+- Expected: Reviews wall animation should remain lightweight, especially on mobile and lower-powered devices. Keep 24 initial reviews unless measured performance proves reduction is necessary.
 - User impact: The review wall may feel heavier than necessary and can increase client-side rendering/animation work on a high-card-count trust page.
-- Verification method: Static source inspection; follow-up remediation should profile `/reviews` on mobile hardware or Lighthouse.
+- Recommended fix: Optimize animation cost first, such as removing expensive per-card layout animation or limiting motion to small state changes while retaining reduced-motion support. Do not reduce below 24 initial reviews unless measured performance proves it necessary.
+- Verification method: Static source inspection; follow-up remediation should profile `/reviews` on mobile hardware or Lighthouse before reducing initial review count.
 - Related existing issue: A11Y-005 for focus semantics on the same cards.
 
 ## Phase 7 Gate
