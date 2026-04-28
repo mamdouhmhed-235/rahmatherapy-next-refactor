@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The planned Rahma Therapy pages are structurally complete and deployed, but the audit found 21 canonical issues that must be remediated before the planned-site experience is production-polished. The highest-risk items are the booking popup failing to open, required compliance/review copy integrity failures, mobile horizontal overflow, and missing planned media assets.
+The planned Rahma Therapy pages are structurally complete and deployed, but the audit found 22 canonical issues or tracked decision/tooling items that must be remediated, deferred, or re-verified before the planned-site experience is production-polished. The highest-risk items are the booking popup failing to open, required compliance/review copy integrity failures, mobile horizontal overflow, and missing planned media assets.
 
 This plan deliberately separates remediation into small phases that can each be implemented, validated, committed, pushed, and checked on Vercel before the next phase starts. Asset-dependent work is isolated so future implementers do not invent imagery or alter the visual plan without approved assets.
 
@@ -75,10 +75,11 @@ Priority is based on:
 | UX-002 | Phase 4 | Assigned |
 | RESP-001 | Phase 4 | Assigned |
 | RESP-002 | Phase 4 | Assigned |
-| CTA-002 | Phase 4 | Assigned |
+| CTA-002 | Deferred | Dual-homepage navigation is intentional until the user chooses the canonical homepage |
 | VISUAL-001 | Phase 5 | Assigned, blocked if approved assets are unavailable |
 | VISUAL-002 | Phase 5 | Assigned, blocked if approved assets are unavailable |
 | PERF-001 | Phase 6 | Assigned |
+| TOOLING-001 | Phase 6 | Assigned |
 
 ## Shared Validation Commands
 
@@ -96,7 +97,7 @@ If `package.json` gains a `test` script later, also run:
 pnpm test
 ```
 
-Known audit-time note: during Phase 7 audit, `pnpm exec tsc --noEmit --incremental false` failed in PowerShell because `tsc` was not recognized even though `node_modules\.bin\tsc` existed. A future remediation implementer should still run the required command, record its exact result, and use `pnpm build` as the build/type-check gate because Next.js successfully ran TypeScript during audit.
+Known audit-time note: during Phase 7 audit, `pnpm exec tsc --noEmit --incremental false` failed in PowerShell because `tsc` was not recognized even though `node_modules\.bin\tsc` existed. This is tracked as `TOOLING-001`. A future remediation implementer should still run the required command, record its exact result, and use `pnpm build` as the build/type-check gate because Next.js successfully ran TypeScript during audit.
 
 ## Shared Deployment Gate
 
@@ -431,11 +432,11 @@ Revert the phase commit if tab/focus behavior breaks core interaction. Re-check 
 - No new focus traps or unreachable controls.
 - Validation and deployment checks recorded.
 
-## Phase 4: Responsive Layout And Shared Navigation
+## Phase 4: Responsive Layout And Shared Header UX
 
 ### Goal
 
-Resolve tablet hero height, mobile tab discoverability, package hero first-viewport hierarchy, and planned-shell navigation/routing clarity.
+Resolve tablet hero height, mobile tab discoverability, package hero first-viewport hierarchy, and shared header breakpoint clarity.
 
 ### Issue IDs Addressed
 
@@ -443,11 +444,10 @@ Resolve tablet hero height, mobile tab discoverability, package hero first-viewp
 - UX-002
 - RESP-001
 - RESP-002
-- CTA-002
 
 ### Routes Affected
 
-- All planned routes for shared header/footer navigation.
+- All planned routes for shared header breakpoint behavior.
 - `/services`, focused package routes, `/faqs-aftercare` for tablet hero layout.
 - Focused package routes for mobile hero composition.
 - `/faqs-aftercare` for mobile tab discoverability.
@@ -468,13 +468,13 @@ Resolve tablet hero height, mobile tab discoverability, package hero first-viewp
 
 - Keep planned pages within their planning-bundle design system.
 - Do not redesign legacy routes.
-- If shared navigation changes affect legacy pages, record that shared-shell side effect.
+- Do not remove the intentional dual-homepage navigation (`Home` and `Planned Home`) unless the user explicitly changes that rule.
 - Do not remove required CTAs or treatment suitability copy.
 
 ### Expected Outcome
 
 - Desktop header has one clear navigation mode at 1024px and 1440px.
-- Planned-page header/footer do not unexpectedly route users into the legacy homepage unless that is intentionally retained and labelled.
+- Dual-homepage links remain intact while the comparison workflow is active.
 - Tablet heroes are not excessively tall.
 - Focused package mobile heroes balance value, CTA, and media/proof earlier.
 - FAQ/aftercare mobile tab rows clearly reveal hidden options or stack cleanly.
@@ -482,7 +482,7 @@ Resolve tablet hero height, mobile tab discoverability, package hero first-viewp
 ### Implementation Steps
 
 1. Define a header breakpoint strategy that avoids full nav plus hamburger at the same viewport.
-2. Decide and implement planned shell Home behavior: point to `/home-planned`, label legacy route explicitly, or remove legacy Home from planned shell navigation.
+2. Preserve the current dual-homepage nav/footer links unless the user explicitly requests homepage consolidation.
 3. Adjust tablet hero media sizing/min-height for services, package, and FAQs/aftercare hero components.
 4. Tighten package hero mobile layout without removing required copy.
 5. Add mobile tab overflow affordance or switch FAQ/aftercare tabs to a stacked/segmented mobile layout.
@@ -518,7 +518,7 @@ Check at 390px, 768px, 1024px, and 1440px.
 ### Commit Message
 
 ```txt
-improve planned responsive layout and navigation
+improve planned responsive layout and header
 ```
 
 ### Rollback Note
@@ -528,7 +528,7 @@ Revert the phase commit if shared navigation breaks planned-route access or if h
 ### Gate Before Next Phase
 
 - Header breakpoint behavior is clean.
-- Planned route navigation decision is verified.
+- Dual-homepage navigation is preserved or changed only with explicit user approval.
 - Tablet/mobile checks pass for affected routes.
 - Validation and live checks recorded.
 
@@ -633,22 +633,25 @@ If assets are incorrect or create visual regressions, revert only the asset/pres
 
 ### Goal
 
-Reduce review wall animation cost and confirm no SEO/deployment regressions after prior fixes.
+Reduce review wall animation cost, resolve the standalone TypeScript command ambiguity if still present, and confirm no SEO/deployment regressions after prior fixes.
 
 ### Issue IDs Addressed
 
 - PERF-001
+- TOOLING-001
 
 ### Routes Affected
 
 - `/reviews`
 - All planned routes for final metadata/schema spot checks.
+- All planned routes through the shared validation workflow.
 
 ### Files/Components Likely Touched
 
 - `src/components/reviews/ReviewCard.tsx`
 - `src/components/reviews/ReviewWall.tsx`
 - `src/components/reviews/ReviewsExplorer.tsx`
+- `package.json` only if the user approves adding an explicit `typecheck` script.
 - Metadata files only if a regression is found during verification.
 
 ### Constraints
@@ -657,11 +660,13 @@ Reduce review wall animation cost and confirm no SEO/deployment regressions afte
 - Preserve reduced-motion support.
 - Do not add Review or AggregateRating schema.
 - Do not rewrite review text.
+- Do not change package scripts unless the TypeScript command still fails and the user approves a package.json validation-script fix.
 
 ### Expected Outcome
 
 - Fewer or lighter animated review cards render initially.
 - Review wall remains usable and accessible.
+- Standalone TypeScript validation is either working or documented with an approved equivalent command.
 - Metadata and JSON-LD remain valid, with no self-serving review schema.
 - Deployment checks remain green.
 
@@ -671,7 +676,9 @@ Reduce review wall animation cost and confirm no SEO/deployment regressions afte
 2. Keep reduced-motion behavior intact.
 3. Re-check search/filter/load-more behavior.
 4. Re-run static schema scan for `Review` and `AggregateRating`.
-5. Verify route metadata titles/descriptions still render.
+5. Re-run `pnpm exec tsc --noEmit --incremental false`.
+6. If it still fails with command resolution, identify and document the project-approved equivalent command. Add a `typecheck` script only if the user approves that package.json change.
+7. Verify route metadata titles/descriptions still render.
 
 ### Validation Commands
 
@@ -692,6 +699,7 @@ Check:
 - Review filters/search/load more still work.
 - Reduced motion does not animate card layout.
 - No Review/AggregateRating schema added.
+- `TOOLING-001` outcome is recorded: command passes, approved equivalent documented, or package script added with approval.
 
 ### Live Vercel Checks
 

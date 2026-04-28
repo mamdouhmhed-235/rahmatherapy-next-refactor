@@ -16,8 +16,8 @@
 | Every route has visual/responsive notes | Complete | Completed in `03-visual-ui-ux-audit.md` and `04-responsive-mobile-audit.md`. |
 | Every planned-page interactive component has accessibility notes | Complete | Completed in `05-accessibility-audit.md`. |
 | Content/copy/CTA/performance/deployment scans are documented | Complete | Completed in `06`, `07`, and `08` audit files. |
-| Every issue appears in the master register | Complete | `09-master-issue-register.md` consolidated 21 canonical issues with alias mapping. |
-| Remediation plan covers every canonical issue | Complete | `10-remediation-implementation-plan.md` assigns every canonical issue to a phase. |
+| Every issue appears in the master register | Complete | `09-master-issue-register.md` consolidated 22 canonical issues, decision items, or tooling items with alias mapping. |
+| Remediation plan covers every canonical issue | Complete | `10-remediation-implementation-plan.md` assigns every canonical issue to a phase or explicitly defers it with rationale. |
 | Asset-dependent issues are isolated | Complete | VISUAL-001 and VISUAL-002 are in the asset replacement phase; PLAN-HOME-001 and PLAN-FAQS-002 have asset-decision notes. |
 | No runtime source files changed during planning | Complete | Phase 9 changed audit documentation only. |
 | No screenshots committed | Complete | Screenshots are not required artifacts. |
@@ -171,7 +171,7 @@ Deployment:
 
 Proceed only if keyboard checks pass.
 
-### Phase 4 Gate: Responsive Layout And Shared Navigation
+### Phase 4 Gate: Responsive Layout And Shared Header UX
 
 Issue IDs:
 
@@ -179,20 +179,19 @@ Issue IDs:
 - UX-002
 - RESP-001
 - RESP-002
-- CTA-002
 
 Validation:
 
 - Required commands run and results recorded.
 - Header shows one clear navigation mode at 1024px and 1440px.
-- Planned shell navigation decision for `Home` is implemented and verified.
+- Dual-homepage navigation remains intact unless the user explicitly approves homepage consolidation.
 - Services, package, and FAQs/aftercare tablet heroes are no longer overlong.
 - Package mobile heroes balance copy, CTA, and proof at 390px.
 - FAQ/aftercare mobile tabs are discoverable without guessing horizontal scroll.
 
 Deployment:
 
-- Commit message: `improve planned responsive layout and navigation`
+- Commit message: `improve planned responsive layout and header`
 - Push to default branch.
 - Wait for Vercel.
 - Check `/home-planned/`, `/services/`, `/services/supreme-combo-package/`, `/faqs-aftercare/`.
@@ -230,6 +229,7 @@ Proceed only if assets are approved and rendered. If assets are unavailable, mar
 Issue IDs:
 
 - PERF-001
+- TOOLING-001
 
 Validation:
 
@@ -238,6 +238,7 @@ Validation:
 - Search, filters, load more, and review disclosure still work.
 - Reduced motion remains respected.
 - Static scan confirms no Review or AggregateRating schema was added.
+- `pnpm exec tsc --noEmit --incremental false` passes, or the approved equivalent validation command is documented with exact output.
 - Metadata still renders on planned routes.
 
 Deployment:

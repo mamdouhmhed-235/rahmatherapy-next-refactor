@@ -22,10 +22,10 @@
 |---|---:|
 | Blocker | 0 |
 | High | 5 |
-| Medium | 15 |
-| Low | 1 |
+| Medium | 14 |
+| Low | 3 |
 | Polish | 0 |
-| Total | 21 |
+| Total | 22 |
 
 ## Summary By Category
 
@@ -40,6 +40,7 @@
 | CTA/booking | 2 | CTA-001, INTERACTION-001 |
 | Navigation/routing | 1 | CTA-002 |
 | Performance | 1 | PERF-001 |
+| Validation/tooling | 1 | TOOLING-001 |
 | SEO | 0 | None |
 | Deployment | 0 | None |
 | Asset replacement | 2 | VISUAL-001, PLAN-FAQS-002 |
@@ -49,18 +50,18 @@
 
 | Route | Canonical issues |
 |---|---|
-| `/home-planned` | PLAN-HOME-001, PLAN-HOME-002, CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 |
-| `/home-planning` | Inherits `/home-planned`: PLAN-HOME-001, PLAN-HOME-002, CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 |
-| `/services` | PLAN-SERVICES-001, VISUAL-001, UX-001, RESP-001, A11Y-001, A11Y-002, A11Y-004, INTERACTION-001, CTA-002 |
-| `/services/supreme-combo-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 |
-| `/services/hijama-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 |
-| `/services/fire-cupping-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 |
-| `/services/massage-therapy-30-mins` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 |
-| `/services/massage-therapy-1-hour` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 |
-| `/about` | VISUAL-001, UX-001, A11Y-002, INTERACTION-001, CTA-002 |
-| `/reviews` | PLAN-REVIEWS-001, VISUAL-001, VISUAL-002, UX-001, A11Y-002, A11Y-005, INTERACTION-001, CTA-002, PERF-001 |
-| `/faqs-aftercare` | CTA-001, A11Y-003, PLAN-FAQS-002, VISUAL-001, UX-001, RESP-001, RESP-002, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 |
-| All planned routes/shared shell | UX-001, A11Y-002, INTERACTION-001, CTA-002 |
+| `/home-planned` | PLAN-HOME-001, PLAN-HOME-002, CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/home-planning` | Inherits `/home-planned`: PLAN-HOME-001, PLAN-HOME-002, CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/services` | PLAN-SERVICES-001, VISUAL-001, UX-001, RESP-001, A11Y-001, A11Y-002, A11Y-004, INTERACTION-001, CTA-002 decision note |
+| `/services/supreme-combo-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/services/hijama-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/services/fire-cupping-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/services/massage-therapy-30-mins` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/services/massage-therapy-1-hour` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/about` | VISUAL-001, UX-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| `/reviews` | PLAN-REVIEWS-001, VISUAL-001, VISUAL-002, UX-001, A11Y-002, A11Y-005, INTERACTION-001, CTA-002 decision note, PERF-001 |
+| `/faqs-aftercare` | CTA-001, A11Y-003, PLAN-FAQS-002, VISUAL-001, UX-001, RESP-001, RESP-002, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
+| All planned routes/shared shell | UX-001, A11Y-002, INTERACTION-001, CTA-002 decision note, TOOLING-001 |
 
 ## Developer-Provided Asset Requirements
 
@@ -450,7 +451,7 @@ All alias IDs above remain traceable to their source audit files and should not 
 
 ### CTA-002
 
-- Severity: Medium
+- Severity: Low
 - Category: Navigation/routing
 - Route: All planned routes through shared header/footer
 - Viewport: All
@@ -459,13 +460,13 @@ All alias IDs above remain traceable to their source audit files and should not 
 - Related Plan Section: Shared planned-page navigation and footer
 - Alias/Cross-Category IDs: None
 - Asset Dependency: No
-- Observed: Shared planned-page navigation and footer include `Home` -> `/`, which routes users to the legacy homepage.
-- Expected: Planned-page navigation should keep users inside the planned-page experience unless a legacy route is intentionally retained.
-- Why It Matters: Users can leave the planned premium design system and land on an out-of-scope legacy page from the planned shell.
-- Recommended Fix: Decide whether planned-page navigation should point Home to `/home-planned`, label the legacy route explicitly, or remove the legacy Home link from planned shell navigation.
-- Verification Method: Static navigation/footer inspection and browser click smoke check after remediation.
-- Likely Remediation Phase: Phase 2 shared shell navigation alignment
-- Status: Open
+- Observed: Shared planned-page navigation and footer include `Home` -> `/` and `Planned Home` -> `/home-planned`.
+- Expected: This is intentional while the user is comparing the legacy homepage and planned homepage. Do not remove or rewrite the dual-homepage navigation unless a future instruction explicitly retires the legacy homepage or makes `/home-planned` the canonical home route.
+- Why It Matters: This is low risk during comparison, but it should remain visible as a future cleanup decision so the final production navigation does not accidentally retain comparison-only labels.
+- Recommended Fix: No remediation during planned-page audit cleanup. Revisit only when the user decides which homepage becomes canonical.
+- Verification Method: Static navigation/footer inspection and browser click smoke check if a future homepage consolidation task changes these links.
+- Likely Remediation Phase: Deferred decision item, not part of current remediation phases.
+- Status: Deferred by current dual-homepage rule
 
 ### PERF-001
 
@@ -486,6 +487,25 @@ All alias IDs above remain traceable to their source audit files and should not 
 - Likely Remediation Phase: Phase 3 performance polish
 - Status: Open
 
+### TOOLING-001
+
+- Severity: Low
+- Category: Validation/tooling
+- Route: All planned routes through shared validation workflow
+- Viewport: N/A
+- Component/File: `package.json`, `pnpm-lock.yaml`, local PowerShell validation environment
+- Plan Source: Phase 7 performance/deployment audit
+- Related Plan Section: Required validation commands
+- Alias/Cross-Category IDs: None
+- Asset Dependency: No
+- Observed: `pnpm exec tsc --noEmit --incremental false` failed in the audit environment with `'tsc' is not recognized as an internal or external command`, even though `node_modules\.bin\tsc`, `tsc.CMD`, and `tsc.ps1` existed. `pnpm build` still completed and ran the Next.js TypeScript phase successfully.
+- Expected: The required standalone TypeScript validation command should run consistently, or the project documentation should define the exact supported typecheck command for Windows/PowerShell.
+- Why It Matters: Future remediation phases may repeatedly hit the same command failure and misclassify it as a code regression instead of a tooling/environment command-resolution issue.
+- Recommended Fix: At the start of remediation Phase 6, re-run the command. If it still fails, document the supported equivalent command for this repo/environment or add a package script such as `typecheck` if the project owner approves that package.json change.
+- Verification Method: Run `pnpm exec tsc --noEmit --incremental false`; if it fails, run the approved equivalent and record both exact outputs.
+- Likely Remediation Phase: Phase 6 validation tooling follow-up
+- Status: Open
+
 ## Issue Coverage Checklist
 
 | Source audit file | Referenced issue IDs | Covered in canonical register? |
@@ -496,7 +516,7 @@ All alias IDs above remain traceable to their source audit files and should not 
 | `05-accessibility-audit.md` | A11Y-001, A11Y-002, A11Y-003, A11Y-004, A11Y-005, INTERACTION-001, UX-001, VISUAL-001 | Yes |
 | `06-content-copy-compliance-audit.md` | CONTENT-001, CONTENT-002, CTA-001, PLAN-HOME-002, PLAN-HOME-003, PLAN-REVIEWS-001, PLAN-FAQS-003 | Yes, direct or alias |
 | `07-links-ctas-booking-audit.md` | CTA-001, CTA-002, CTA-003, INTERACTION-001, UX-001 | Yes, direct or alias |
-| `08-performance-seo-deployment-audit.md` | PLAN-SERVICES-001, PLAN-FAQS-002, PERF-001, VISUAL-001, A11Y-005 | Yes |
+| `08-performance-seo-deployment-audit.md` | PLAN-SERVICES-001, PLAN-FAQS-002, PERF-001, TOOLING-001, VISUAL-001, A11Y-005 | Yes |
 
 ## Phase 8 Register Gate
 

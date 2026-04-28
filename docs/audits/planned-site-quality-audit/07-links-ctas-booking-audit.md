@@ -19,7 +19,7 @@
 | No `/book-now` path | Pass for literal path in scoped planned source; fail for visible "Book Now page" copy | No `/book-now` path found, but two planned FAQ answers imply a forbidden Book Now page. | CTA-001 |
 | No `/services/mobile-massage-therapy` | Pass in scoped planned source | Static scan returned no matches. | None |
 | WhatsApp links use `https://wa.me/447798897222` | Pass | Planned-page WhatsApp links use the required base number, with optional encoded `text` query strings. | None |
-| Header/footer links relevant to planned pages work | Partial | Header/footer include planned routes, but also expose legacy `/` as "Home" from planned pages. | CTA-002 |
+| Header/footer links relevant to planned pages work | Pass with decision note | Header/footer include planned routes and intentionally expose both `Home` -> `/` and `Planned Home` -> `/home-planned` for the current dual-homepage comparison workflow. | CTA-002 decision note |
 | Booking query behavior opens popup | Fail based on Phase 5 browser test | `?booking=1` and visible booking triggers updated URL but did not render the booking dialog locally. | INTERACTION-001, CTA-003 |
 
 ## Static Scan Results
@@ -61,8 +61,8 @@ Relevant scan hits:
 
 | Source | Planned links present | Observed issue | Issue IDs |
 |---|---|---|---|
-| `src/content/site/navigation.ts` | `/home-planned`, `/services`, `/about`, `/reviews`, `/faqs-aftercare` | Also includes `Home` -> `/`, which sends planned-page users to the legacy homepage that is explicitly out of audit scope. | CTA-002 |
-| `src/content/site/footer.ts` | `/home-planned`, `/services`, `/about`, `/reviews`, `/faqs-aftercare` | Also includes `Home` -> `/`, which sends planned-page users to the legacy homepage that is explicitly out of audit scope. | CTA-002 |
+| `src/content/site/navigation.ts` | `/`, `/home-planned`, `/services`, `/about`, `/reviews`, `/faqs-aftercare` | Dual-homepage exposure is intentional per user direction; keep both links unless a future task explicitly retires the legacy homepage. | CTA-002 decision note |
+| `src/content/site/footer.ts` | `/`, `/home-planned`, `/services`, `/about`, `/reviews`, `/faqs-aftercare` | Dual-homepage exposure is intentional per user direction; keep both links unless a future task explicitly retires the legacy homepage. | CTA-002 decision note |
 
 ## CTA Findings Added This Phase
 
@@ -79,12 +79,12 @@ Relevant scan hits:
 
 ### CTA-002
 
-- Severity: Medium
+- Severity: Low
 - Route: All planned routes through shared header/footer
 - Source: `src/content/site/navigation.ts`, `src/content/site/footer.ts`
-- Observed: Shared planned-page navigation and footer include `Home` -> `/`, which routes users to the legacy homepage.
-- Expected: Planned-page navigation should keep users inside the planned-page experience unless a legacy route is intentionally retained.
-- User impact: Users can leave the planned design system and land on an out-of-scope legacy page from the planned shell.
+- Observed: Shared planned-page navigation and footer include `Home` -> `/` and `Planned Home` -> `/home-planned`.
+- Expected: This is intentional under the current dual-homepage comparison rule. It should not be remediated unless the user later decides to retire or hide the legacy homepage.
+- User impact: Low while the comparison workflow is active. It can become confusing later if the planned homepage becomes the only intended experience and the legacy link remains.
 - Verification method: Static navigation/footer content inspection.
 - Related existing issue: UX-001
 

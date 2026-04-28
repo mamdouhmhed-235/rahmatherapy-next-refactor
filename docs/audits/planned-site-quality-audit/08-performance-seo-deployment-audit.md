@@ -54,7 +54,7 @@ Output:
 operable program or batch file.
 ```
 
-Note: `node_modules\.bin\tsc`, `tsc.CMD`, and `tsc.ps1` exist, but the requested command failed exactly as shown in this PowerShell environment. The build command below still ran the Next.js TypeScript phase successfully.
+Note: `node_modules\.bin\tsc`, `tsc.CMD`, and `tsc.ps1` exist, but the requested command failed exactly as shown in this PowerShell environment. The build command below still ran the Next.js TypeScript phase successfully. This validation tooling gap is tracked as `TOOLING-001` so future remediation phases do not repeatedly treat the same command failure as an unclassified build failure.
 
 ### `pnpm build`
 

@@ -145,6 +145,28 @@
 | PackageFinalCTA | `src/components/package-pages/PackageFinalCTA.tsx` | Yes | Yes | Yes | Yes | Yes | N/A | Yes | None |
 | 30 mins vs 1 hour comparison | `PackageBenefits` comparison data | Yes | Yes | Yes | Yes | N/A | N/A | Yes | None |
 
+## Focused Package Detail Checks
+
+The component-level matrix above confirms that each focused package route uses the required page sections in the correct order. This detail check records the package-specific facts that must also match the focused package plan from top to bottom.
+
+| Route | H1 | Price | Includes / offer checked | Booking href | Required related packages | Image paths checked | Disclaimer | Result |
+|---|---|---:|---|---|---|---|---|---|
+| `/services/supreme-combo-package` | `Supreme Combo Package in Luton` | GBP 55 | Pre-cupping massage; IASTM / Graston-style therapy; dry cupping; fire cupping; wet cupping / hijama | `?booking=1&services=supreme-combo` | Hijama, Fire, 1-hour Massage | `/images/packages/supreme-combo-hero.webp`; `/images/packages/supreme-combo-breakdown.webp` | Present through `PackageSafety` | Pass |
+| `/services/hijama-package` | `Private Hijama Package in Luton` | GBP 45 | Pre-cupping massage; dry cupping; wet cupping / hijama | `?booking=1&services=hijama-package` | Supreme, Fire, 1-hour Massage | `/images/packages/hijama-hero.webp`; `/images/packages/hijama-breakdown.webp` | Present through `PackageSafety` | Pass |
+| `/services/fire-cupping-package` | `Fire Cupping Package in Luton` | GBP 40 | Pre-cupping massage with essential oils; dry / fire cupping | `?booking=1&services=fire-package` | Supreme, Hijama, 30-min Massage | `/images/packages/fire-cupping-hero.webp`; `/images/packages/fire-cupping-breakdown.webp` | Present through `PackageSafety` | Pass |
+| `/services/massage-therapy-30-mins` | `30-Min Mobile Massage Therapy in Luton` | GBP 40 | Focused 30-minute massage option for one agreed area | `?booking=1&services=massage-30` | 1-hour Massage, Fire, Supreme | `/images/packages/massage-30-hero.webp`; `/images/packages/massage-30-breakdown.webp` | Present through `PackageSafety` | Pass |
+| `/services/massage-therapy-1-hour` | `1-Hour Mobile Massage Therapy in Luton` | GBP 60 | Longer massage option for more time, more areas, and calmer full-body session | `?booking=1&services=massage-60` | 30-min Massage, Supreme, Fire | `/images/packages/massage-60-hero.webp`; `/images/packages/massage-60-breakdown.webp` | Present through `PackageSafety` | Pass |
+
+Focused package content cross-check status:
+
+- H1s match the focused package plan.
+- Prices match the focused package plan and implemented package content.
+- Booking hrefs use only valid `?booking=1&services=<service-id>` values.
+- Massage routes use `/services/massage-therapy-30-mins` and `/services/massage-therapy-1-hour`.
+- No focused package route points to `/services/mobile-massage-therapy`.
+- Related package logic matches the user-approved focused package plan.
+- Remaining package-page issues are visual/responsive/accessibility issues tracked outside this plan-compliance table, not package fact mismatches.
+
 ## `/about`
 
 | Planned section | Implemented section/component | Present? | Correct order? | Content match? | Design match? | CTA/link match? | Interaction match? | Code/component match? | Issue IDs |
