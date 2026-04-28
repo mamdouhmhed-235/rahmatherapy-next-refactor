@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SectionContainer, SectionHeading } from "@/components/shared";
 import { Accordion } from "@/components/ui/accordion";
-import { homeFaqs } from "@/content/pages/plannedHome";
+import { homeFaqs } from "@/content/pages/home";
 
 export function HomeFAQPreview() {
   return (
@@ -13,7 +13,7 @@ export function HomeFAQPreview() {
         description="Here are the quick answers most clients want before choosing a package."
         className="mx-auto"
       />
-      <Accordion items={homeFaqs} className="mt-10 shadow-sm" />
+      <Accordion items={homeFaqs} className="mt-10" />
       <div className="mt-8 flex justify-center">
         <Link
           href="/faqs-aftercare"

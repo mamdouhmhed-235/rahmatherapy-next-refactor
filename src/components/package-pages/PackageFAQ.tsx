@@ -11,7 +11,7 @@ export function PackageFAQ({ page }: { page: PackagePage }) {
         description="Quick answers before you book this package."
         className="mx-auto"
       />
-      <Accordion items={page.faqs} className="mt-10 shadow-sm" />
+      <Accordion items={page.faqs} className="mt-10" />
     </SectionContainer>
   );
 }

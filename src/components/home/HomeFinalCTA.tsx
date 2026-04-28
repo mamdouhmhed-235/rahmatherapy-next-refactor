@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { ArrowRight, MessageCircle } from "lucide-react";
-import { PlannedHomeImage } from "./PlannedHomeImage";
+import { HomeImage } from "./HomeImage";
 
 export function HomeFinalCTA() {
   return (
     <section className="bg-rahma-ivory px-5 pb-16 sm:px-6 sm:pb-20 lg:px-8 lg:pb-24">
       <div className="mx-auto max-w-[88rem]">
         <div className="relative min-h-[460px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
-          <PlannedHomeImage
+          <HomeImage
             src="/images/home/home-final-cta.webp"
             alt="Private mobile therapy session with Rahma Therapy"
             imageType="Calm premium treatment/wellness image with space for dark overlay."

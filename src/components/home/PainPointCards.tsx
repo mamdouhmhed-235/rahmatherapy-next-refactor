@@ -1,6 +1,6 @@
 import { SectionContainer, SectionHeading } from "@/components/shared";
-import { homePainPoints } from "@/content/pages/plannedHome";
-import { PlannedHomeImage } from "./PlannedHomeImage";
+import { homePainPoints } from "@/content/pages/home";
+import { HomeImage } from "./HomeImage";
 
 export function PainPointCards() {
   return (
@@ -18,7 +18,7 @@ export function PainPointCards() {
             className="overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-soft"
           >
             <div className="relative h-52">
-              <PlannedHomeImage
+              <HomeImage
                 src={item.image}
                 alt={item.alt}
                 imageType={item.imageType}

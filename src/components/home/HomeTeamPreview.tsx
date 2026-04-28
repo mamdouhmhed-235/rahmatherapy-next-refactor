@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SectionContainer, SectionHeading } from "@/components/shared";
-import { homeTeamMembers } from "@/content/pages/plannedHome";
-import { PlannedHomeImage } from "./PlannedHomeImage";
+import { homeTeamMembers } from "@/content/pages/home";
+import { HomeImage } from "./HomeImage";
 
 export function HomeTeamPreview() {
   return (
@@ -20,7 +20,7 @@ export function HomeTeamPreview() {
             className="overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-sm"
           >
             <div className="relative h-72 overflow-hidden bg-rahma-green">
-              <PlannedHomeImage
+              <HomeImage
                 src={member.image}
                 alt={member.alt}
                 imageType={member.imageType}

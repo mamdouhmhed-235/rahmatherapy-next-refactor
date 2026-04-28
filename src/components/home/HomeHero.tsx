@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { PlannedHomeImage } from "./PlannedHomeImage";
+import { HomeImage } from "./HomeImage";
 
 const trustPills = [
   "Packages from £40",
@@ -14,7 +14,7 @@ export function HomeHero() {
     <section className="bg-rahma-ivory px-4 pb-14 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[88rem]">
         <div className="relative min-h-[620px] overflow-hidden rounded-3xl bg-rahma-green shadow-elevated sm:min-h-[680px]">
-          <PlannedHomeImage
+          <HomeImage
             src="/images/home/home-hero.avif"
             alt="Rahma Therapy mobile hijama cupping and massage treatment at home in Luton"
             imageType="Large premium home-treatment image: therapist providing massage or preparing cupping in a calm home setting. No blood. No unsafe flame."

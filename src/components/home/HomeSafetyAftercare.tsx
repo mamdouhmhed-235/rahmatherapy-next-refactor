@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { ArrowRight, Check } from "lucide-react";
 import { SectionContainer } from "@/components/shared";
-import { homeSafetyItems } from "@/content/pages/plannedHome";
-import { PlannedHomeImage } from "./PlannedHomeImage";
+import { homeSafetyItems } from "@/content/pages/home";
+import { HomeImage } from "./HomeImage";
 
 export function HomeSafetyAftercare() {
   return (
     <SectionContainer tone="surface" width="wide">
       <div className="grid gap-10 lg:grid-cols-[0.95fr_1fr] lg:items-center">
         <div className="relative min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
-          <PlannedHomeImage
+          <HomeImage
             src="/images/home/safety-home.webp"
             alt="Clean equipment for Rahma Therapy home treatment"
             imageType="Clean equipment, cups, towels, gloves. No graphic content."

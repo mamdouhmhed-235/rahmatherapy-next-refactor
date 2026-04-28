@@ -39,16 +39,92 @@ function InstagramIcon() {
 export function SiteHeader() {
   const pathname = usePathname() ?? "/";
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const [headerHidden, setHeaderHidden] = React.useState(false);
+  const lastScrollYRef = React.useRef(0);
+  const scrollFrameRef = React.useRef<number | null>(null);
 
   React.useEffect(() => {
-    const timer = window.setTimeout(() => setMenuOpen(false), 0);
+    const timer = window.setTimeout(() => {
+      setMenuOpen(false);
+      setHeaderHidden(false);
+    }, 0);
     return () => window.clearTimeout(timer);
   }, [pathname]);
+
+  React.useEffect(() => {
+    lastScrollYRef.current = window.scrollY;
+
+    const updateHeaderVisibility = () => {
+      scrollFrameRef.current = null;
+
+      if (menuOpen) {
+        setHeaderHidden(false);
+        lastScrollYRef.current = window.scrollY;
+        return;
+      }
+
+      const currentScrollY = window.scrollY;
+      const delta = currentScrollY - lastScrollYRef.current;
+
+      if (Math.abs(delta) < 6) {
+        return;
+      }
+
+      if (currentScrollY <= 16 || delta < 0) {
+        setHeaderHidden(false);
+      } else if (delta > 0 && currentScrollY > 96) {
+        setHeaderHidden(true);
+      }
+
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    const handleScroll = () => {
+      if (scrollFrameRef.current !== null) {
+        return;
+      }
+
+      scrollFrameRef.current = window.requestAnimationFrame(updateHeaderVisibility);
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(scrollFrameRef.current);
+      }
+    };
+  }, [menuOpen]);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      if (
+        target.closest(
+          'header, a, button, input, select, textarea, [role="button"], [role="link"], [role="dialog"], [data-booking-trigger="true"]'
+        )
+      ) {
+        return;
+      }
+
+      setHeaderHidden(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
 
   React.useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setMenuOpen(false);
+        setHeaderHidden(false);
       }
     };
 
@@ -66,9 +142,11 @@ export function SiteHeader() {
       data-w-id="011b5816-f5e0-1888-2181-20f2abf1aa32"
       fs-scrolldisable-element="smart-nav"
       data-menu-open={menuOpen ? "true" : undefined}
+      data-header-hidden={!menuOpen && headerHidden ? "true" : undefined}
       className="navbar31_component color-scheme-1 w-nav"
       role="banner"
       style={{ bottom: "auto", height: "4.875rem" }}
+      onFocusCapture={() => setHeaderHidden(false)}
     >
       <div className="navbar31_container" style={{ height: "4.875rem" }}>
         <Logo priority />
@@ -172,7 +250,10 @@ export function SiteHeader() {
             aria-haspopup="menu"
             aria-controls="site-navigation-menu"
             aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((current) => !current)}
+            onClick={() => {
+              setHeaderHidden(false);
+              setMenuOpen((current) => !current);
+            }}
           >
             <div className="menu-icon4">
               <div className="menu-icon4_wrapper">

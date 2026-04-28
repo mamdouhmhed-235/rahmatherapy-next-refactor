@@ -42,7 +42,7 @@ export function PackageFinder() {
             Pick what sounds closest to you and we’ll point you towards the best
             starting option.
           </p>
-          <div className="mt-7 flex flex-wrap gap-3" role="list" aria-label="Package needs">
+          <div className="mt-7 flex flex-wrap gap-3" role="group" aria-label="Package needs">
             {packageFinderOptions.map((option) => {
               const isSelected = selectedOption.id === option.id;
 

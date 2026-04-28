@@ -4,7 +4,7 @@ import Image from "next/image";
 import { ImagePlaceholder } from "@/components/shared";
 import { cn } from "@/lib/utils";
 
-interface PlannedHomeImageProps {
+interface HomeImageProps {
   src: string;
   alt: string;
   imageType: string;
@@ -16,13 +16,13 @@ function publicAssetExists(src: string) {
   return existsSync(path.join(process.cwd(), "public", src.replace(/^\//, "")));
 }
 
-export function PlannedHomeImage({
+export function HomeImage({
   src,
   alt,
   imageType,
   className,
   priority = false,
-}: PlannedHomeImageProps) {
+}: HomeImageProps) {
   if (!publicAssetExists(src)) {
     return (
       <div className={cn("absolute inset-0", className)}>

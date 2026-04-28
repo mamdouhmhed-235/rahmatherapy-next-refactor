@@ -109,7 +109,6 @@ export function FaqCategoryAccordions() {
           key={activeCategory.id}
           items={activeCategory.faqs}
           defaultOpenIndex={null}
-          className="shadow-sm"
         />
       </div>
     </SectionContainer>

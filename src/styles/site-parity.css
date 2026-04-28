@@ -385,7 +385,7 @@ h3 {
   z-index: 100;
   display: flex;
   width: 100%;
-  min-height: 4.5rem;
+  min-height: var(--site-header-height);
   flex-direction: column;
   justify-content: center;
   align-items: center;
@@ -395,6 +395,25 @@ h3 {
   background-color: color-mix(in oklab, var(--background) 88%, #ffffff 12%);
   box-shadow: 0 14px 42px -38px color-mix(in oklab, var(--brand-deep) 45%, transparent);
   backdrop-filter: blur(18px);
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease,
+    transform 220ms var(--ease-gentle);
+  will-change: transform;
+}
+
+.navbar31_component[data-header-hidden="true"] {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(calc(-100% - 0.75rem));
+}
+
+.navbar31_component[data-menu-open="true"],
+.navbar31_component:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .navbar31_container {
@@ -445,8 +464,10 @@ h3 {
 
 .navbar31_desktop-link {
   display: inline-flex;
-  min-height: 2.25rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   align-items: center;
+  justify-content: center;
   border-radius: 999px;
   color: var(--brand-deep);
   font-size: 0.875rem;
@@ -484,6 +505,8 @@ h3 {
   z-index: 101;
   width: 3rem;
   height: 3rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
   border: 0;
   background: color-mix(in oklab, var(--brand-elevated-surface) 76%, transparent);
   padding: 0;
@@ -570,7 +593,7 @@ h3 {
   overflow: auto;
   opacity: 0;
   pointer-events: none;
-  transform: translateX(102%);
+  transform: none;
   transition:
     opacity 220ms var(--ease-gentle),
     transform 260ms var(--ease-gentle),
@@ -645,6 +668,8 @@ h3 {
 
 .navbar31_menu-bottom a {
   display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
   color: var(--brand-deep);
   text-decoration: none;
 }
@@ -2076,6 +2101,9 @@ h3 {
 
 .footer_link,
 .footer_legal-link {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
   color: var(--brand-deep);
   transition: color 180ms ease, transform 180ms ease;
 }
@@ -2257,7 +2285,8 @@ h3 {
   }
 
   .navbar31_menu-button {
-    width: 2.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
   }
 
   .navbar31_menu-wrapper {
@@ -2446,8 +2475,8 @@ h3 {
   .service_benefits_card-large,
   .benefits_3grid_card {
     display: flex;
-    aspect-ratio: 1 / 1;
-    min-height: auto;
+    aspect-ratio: auto;
+    min-height: 16rem;
   }
 
   .benefits_3grid_row {
@@ -2462,8 +2491,8 @@ h3 {
   .layout525_card-small,
   .layout525_card-large {
     display: flex;
-    aspect-ratio: 1;
-    min-height: auto;
+    aspect-ratio: auto;
+    min-height: 16rem;
     padding: 1.5rem;
   }
 

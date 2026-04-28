@@ -34,14 +34,14 @@ export const homePainPoints = [
   {
     title: "Neck & shoulder tension",
     body: "For stress that sits in the upper back, traps and shoulders.",
-    image: "/images/home/pain-back-tension.webp",
+    image: "/images/home/pain-neck-shoulder-tension.webp",
     imageType: "Person with back or shoulder stiffness, or a calm therapeutic image.",
     alt: "Client with neck and shoulder tension",
   },
   {
     title: "Muscle tightness",
     body: "For stubborn areas that feel hard to loosen.",
-    image: "/images/home/pain-gym-recovery.webp",
+    image: "/images/home/pain-muscle-tightness.webp",
     imageType: "Gym or sports recovery style image.",
     alt: "Muscle tightness and recovery support",
   },

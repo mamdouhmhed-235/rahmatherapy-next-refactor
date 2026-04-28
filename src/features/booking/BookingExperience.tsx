@@ -30,7 +30,6 @@ import {
 } from "./schemas/booking-schema";
 import { useBookingDraftStore } from "./store/booking-store";
 import { BOOKING_STEPS, emptyBookingDetails } from "./types";
-import { formatPrice } from "./utils/format";
 import styles from "./BookingExperience.module.css";
 
 export function BookingExperience() {
@@ -250,21 +249,18 @@ export function BookingExperience() {
             packageTotal={packageTotal}
             preferredDate={preferredDate}
             preferredTime={preferredTime}
-          />
-        }
-        footer={
-          <BookingFooter
-            currentStep={currentStep}
-            stepIndex={stepIndex}
-            packageTotal={packageTotal}
-            selectedCount={selectedPackages.length}
-            submitting={submitting}
-            onBack={() =>
-              setCurrentStep(BOOKING_STEPS[Math.max(0, stepIndex - 1)])
+            actions={
+              <BookingSummaryActions
+                currentStep={currentStep}
+                submitting={submitting}
+                onBack={() =>
+                  setCurrentStep(BOOKING_STEPS[Math.max(0, stepIndex - 1)])
+                }
+                onGoToDetails={goToDetails}
+                onGoToReview={goToReview}
+                onPrepareRequest={prepareRequest}
+              />
             }
-            onGoToDetails={goToDetails}
-            onGoToReview={goToReview}
-            onPrepareRequest={prepareRequest}
           />
         }
       >
@@ -331,11 +327,8 @@ export function BookingExperience() {
   );
 }
 
-interface BookingFooterProps {
+interface BookingSummaryActionsProps {
   currentStep: (typeof BOOKING_STEPS)[number];
-  stepIndex: number;
-  packageTotal: number;
-  selectedCount: number;
   submitting: boolean;
   onBack: () => void;
   onGoToDetails: () => void;
@@ -343,63 +336,49 @@ interface BookingFooterProps {
   onPrepareRequest: () => void;
 }
 
-function BookingFooter({
+function BookingSummaryActions({
   currentStep,
-  packageTotal,
-  selectedCount,
   submitting,
   onBack,
   onGoToDetails,
   onGoToReview,
   onPrepareRequest,
-}: BookingFooterProps) {
+}: BookingSummaryActionsProps) {
   return (
-    <footer className={styles.footer}>
-      <div className={styles.footerSummary}>
-        <span className={styles.footerLabel}>Estimated total</span>
-        <span>
-          <strong>{formatPrice(packageTotal)}</strong>
-          <span>
-            {selectedCount} package{selectedCount === 1 ? "" : "s"}
-          </span>
-        </span>
-      </div>
+    <>
+      {currentStep !== "packages" && currentStep !== "prepared" && (
+        <button type="button" className={styles.secondaryButton} onClick={onBack}>
+          <ArrowLeft aria-hidden="true" size={17} />
+          Back
+        </button>
+      )}
 
-      <div className={styles.footerActions}>
-        {currentStep !== "packages" && currentStep !== "prepared" && (
-          <button type="button" className={styles.secondaryButton} onClick={onBack}>
-            <ArrowLeft aria-hidden="true" size={17} />
-            Back
-          </button>
-        )}
+      {currentStep === "packages" && (
+        <button type="button" className={styles.primaryButton} onClick={onGoToDetails}>
+          Continue to details
+        </button>
+      )}
 
-        {currentStep === "packages" && (
-          <button type="button" className={styles.primaryButton} onClick={onGoToDetails}>
-            Continue to details
-          </button>
-        )}
+      {currentStep === "details" && (
+        <button type="button" className={styles.primaryButton} onClick={onGoToReview}>
+          Review request
+        </button>
+      )}
 
-        {currentStep === "details" && (
-          <button type="button" className={styles.primaryButton} onClick={onGoToReview}>
-            Review request
-          </button>
-        )}
+      {currentStep === "review" && (
+        <button
+          type="button"
+          className={styles.primaryButton}
+          disabled={submitting}
+          onClick={onPrepareRequest}
+        >
+          Prepare request
+        </button>
+      )}
 
-        {currentStep === "review" && (
-          <button
-            type="button"
-            className={styles.primaryButton}
-            disabled={submitting}
-            onClick={onPrepareRequest}
-          >
-            Prepare request
-          </button>
-        )}
-
-        {currentStep === "prepared" && (
-          <Dialog.Close className={styles.primaryButton}>Close</Dialog.Close>
-        )}
-      </div>
-    </footer>
+      {currentStep === "prepared" && (
+        <Dialog.Close className={styles.primaryButton}>Close</Dialog.Close>
+      )}
+    </>
   );
 }

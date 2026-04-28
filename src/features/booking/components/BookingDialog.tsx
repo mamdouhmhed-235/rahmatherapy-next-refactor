@@ -14,7 +14,6 @@ interface BookingDialogProps {
   contentGridRef: RefObject<HTMLDivElement | null>;
   children: ReactNode;
   summary: ReactNode;
-  footer: ReactNode;
   onOpenChange: (open: boolean) => void;
 }
 
@@ -25,7 +24,6 @@ export function BookingDialog({
   contentGridRef,
   children,
   summary,
-  footer,
   onOpenChange,
 }: BookingDialogProps) {
   return (
@@ -42,26 +40,19 @@ export function BookingDialog({
         >
           <div className={styles.shell}>
             <header className={styles.header}>
+              <div className={styles.brandLine}>
+                <span className={styles.brandMark}>RT</span>
+                <p className={styles.eyebrow}>Rahma Therapy</p>
+              </div>
               <div className={styles.headerContent}>
-                <div className={styles.brandLine}>
-                  <span className={styles.brandMark}>RT</span>
-                  <p className={styles.eyebrow}>Rahma Therapy</p>
-                </div>
-                <div>
-                  <Dialog.Title className={styles.title}>
-                    Request a home appointment
-                  </Dialog.Title>
-                  <Dialog.Description className={styles.description}>
-                    Choose your package, share your Luton home-visit details and
-                    preferred time. Rahma Therapy will contact you to confirm
-                    availability.
-                  </Dialog.Description>
-                </div>
-                <div className={styles.headerPills} aria-label="Booking highlights">
-                  <span>Mobile across Luton</span>
-                  <span>CMA &amp; IPHM qualified</span>
-                  <span>Male &amp; female therapists</span>
-                </div>
+                <Dialog.Title className={styles.title}>
+                  Request a home appointment
+                </Dialog.Title>
+                <Dialog.Description className={styles.description}>
+                  Choose your package, share your Luton home-visit details and
+                  preferred time. Rahma Therapy will contact you to confirm
+                  availability.
+                </Dialog.Description>
               </div>
               <Dialog.Close
                 className={styles.closeButton}
@@ -77,8 +68,6 @@ export function BookingDialog({
               <main className={styles.mainPanel}>{children}</main>
               {summary}
             </div>
-
-            {footer}
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

@@ -3,7 +3,7 @@
   --rahma-surface: #ffffff;
   --rahma-green: #30463f;
   --rahma-charcoal: #1f2f2b;
-  --rahma-muted: #66736f;
+  --rahma-muted: #53615d;
   --rahma-gold: #f5a623;
   --rahma-blue: #1b82b8;
   --rahma-border: #e8ded1;
@@ -43,6 +43,7 @@
   --shadow-card-token: 0 20px 58px -38px color-mix(in oklab, var(--brand-deep) 34%, transparent);
   --focus-ring-token: 0 0 0 4px color-mix(in oklab, var(--ring) 22%, transparent);
   --hero-scrim-token: linear-gradient(90deg, rgba(7, 22, 28, 0.86) 0%, rgba(9, 37, 47, 0.62) 38%, rgba(9, 37, 47, 0.2) 70%, rgba(9, 37, 47, 0.34) 100%);
+  --site-header-height: 4.875rem;
   --image-card-scrim-token: linear-gradient(180deg, rgba(7, 22, 28, 0.02) 0%, rgba(7, 22, 28, 0.08) 34%, rgba(7, 22, 28, 0.58) 66%, rgba(7, 22, 28, 0.92) 100%);
   --section-space-xs: clamp(2.5rem, 2.2rem + 1vw, 3.5rem);
   --section-space-sm: clamp(3rem, 2.5rem + 1.2vw, 4.5rem);

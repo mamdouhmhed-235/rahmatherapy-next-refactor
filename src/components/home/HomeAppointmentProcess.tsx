@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SectionContainer, SectionHeading } from "@/components/shared";
-import { homeProcessSteps } from "@/content/pages/plannedHome";
-import { PlannedHomeImage } from "./PlannedHomeImage";
+import { homeProcessSteps } from "@/content/pages/home";
+import { HomeImage } from "./HomeImage";
 
 export function HomeAppointmentProcess() {
   return (
@@ -39,7 +39,7 @@ export function HomeAppointmentProcess() {
           </Link>
         </div>
         <div className="relative min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
-          <PlannedHomeImage
+          <HomeImage
             src="/images/home/home-session-process.webp"
             alt="Rahma Therapy home appointment setup"
             imageType="Therapist setting up couch/equipment in home."

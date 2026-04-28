@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
-import { HomeAppointmentProcess } from "@/components/planned-home/HomeAppointmentProcess";
-import { HomeFAQPreview } from "@/components/planned-home/HomeFAQPreview";
-import { HomeFinalCTA } from "@/components/planned-home/HomeFinalCTA";
-import { HomeHero } from "@/components/planned-home/HomeHero";
-import { HomePackageCards } from "@/components/planned-home/HomePackageCards";
-import { HomeReviewCarousel } from "@/components/planned-home/HomeReviewCarousel";
-import { HomeSafetyAftercare } from "@/components/planned-home/HomeSafetyAftercare";
-import { HomeTeamPreview } from "@/components/planned-home/HomeTeamPreview";
-import { HomeTrustStrip } from "@/components/planned-home/HomeTrustStrip";
-import { PainPointCards } from "@/components/planned-home/PainPointCards";
-import { WhyRahmaTherapy } from "@/components/planned-home/WhyRahmaTherapy";
+import { HomeAppointmentProcess } from "@/components/home/HomeAppointmentProcess";
+import { HomeFAQPreview } from "@/components/home/HomeFAQPreview";
+import { HomeFinalCTA } from "@/components/home/HomeFinalCTA";
+import { HomeHero } from "@/components/home/HomeHero";
+import { HomePackageCards } from "@/components/home/HomePackageCards";
+import { HomeReviewCarousel } from "@/components/home/HomeReviewCarousel";
+import { HomeSafetyAftercare } from "@/components/home/HomeSafetyAftercare";
+import { HomeTeamPreview } from "@/components/home/HomeTeamPreview";
+import { HomeTrustStrip } from "@/components/home/HomeTrustStrip";
+import { PainPointCards } from "@/components/home/PainPointCards";
+import { WhyRahmaTherapy } from "@/components/home/WhyRahmaTherapy";
 
 export const metadata: Metadata = {
   title: "Rahma Therapy | Mobile Hijama, Cupping & Massage in Luton",
@@ -29,7 +29,7 @@ const jsonLd = {
     "Mobile hijama, cupping and massage therapy at home in Luton with male and female therapists.",
 };
 
-export default function PlannedHomePage() {
+export default function HomePage() {
   return (
     <>
       <script

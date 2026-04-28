@@ -1,5 +1,5 @@
 import { ClipboardCheck, Home, ShieldCheck, Users } from "lucide-react";
-import { homeTrustItems } from "@/content/pages/plannedHome";
+import { homeTrustItems } from "@/content/pages/home";
 
 const icons = {
   ShieldCheck,

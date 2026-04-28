@@ -13,7 +13,7 @@ export function ServicesMiniFAQ() {
         description="Here are the quick answers most clients want before booking a package."
         className="mx-auto"
       />
-      <Accordion items={miniFaqs} className="mt-10 shadow-sm" />
+      <Accordion items={miniFaqs} className="mt-10" />
       <div className="mt-8 flex justify-center">
         <Link
           href="/faqs-aftercare"

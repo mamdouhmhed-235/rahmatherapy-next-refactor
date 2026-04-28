@@ -19,7 +19,7 @@ export function PackageCards() {
           <article
             key={service.id}
             className={cn(
-              "group relative min-h-[560px] overflow-hidden rounded-3xl bg-rahma-green shadow-card",
+              "group relative min-h-[700px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[640px] lg:min-h-[560px]",
               index < 2 ? "lg:col-span-6" : "lg:col-span-4"
             )}
           >
@@ -67,7 +67,7 @@ export function PackageCards() {
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href={service.href}
-                  className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-rahma-green transition hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-gold"
+                  className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-rahma-green transition hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-gold"
                 >
                   {service.cta}
                   <ArrowRight aria-hidden="true" size={16} />
@@ -75,7 +75,7 @@ export function PackageCards() {
                 <Link
                   href={service.bookingHref}
                   data-booking-trigger="true"
-                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-gold"
+                  className="inline-flex min-h-12 flex-1 items-center justify-center rounded-full border border-white/35 px-5 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rahma-gold"
                 >
                   {service.bookingCta}
                 </Link>

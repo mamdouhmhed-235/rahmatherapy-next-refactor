@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { SectionContainer, SectionHeading } from "@/components/shared";
-import { whyRahmaItems } from "@/content/pages/plannedHome";
+import { whyRahmaItems } from "@/content/pages/home";
 import { HomeIcon } from "./HomeIcon";
 
 export function WhyRahmaTherapy() {
