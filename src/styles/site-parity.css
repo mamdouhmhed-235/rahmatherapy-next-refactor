@@ -653,6 +653,18 @@ h3 {
   color: var(--primary);
 }
 
+@media screen and (max-width: 1279px) {
+  .navbar31_desktop-links {
+    display: none;
+  }
+}
+
+@media screen and (min-width: 1280px) {
+  .navbar31_menu-button {
+    display: none;
+  }
+}
+
 .navbar31_social-list {
   grid-template-columns: repeat(3, 1.5rem);
   gap: 1rem;

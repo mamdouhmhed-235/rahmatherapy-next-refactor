@@ -68,7 +68,7 @@ export function AftercareTabs() {
         role="tablist"
         aria-label="Aftercare treatment types"
         aria-orientation="horizontal"
-        className="mt-10 flex gap-3 overflow-x-auto pb-2"
+        className="mt-10 grid gap-2 sm:flex sm:gap-3 sm:overflow-x-auto sm:pb-2"
       >
         {aftercareTabs.map((tab, index) => {
           const isActive = tab.id === activeTab.id;
@@ -88,7 +88,7 @@ export function AftercareTabs() {
               onClick={() => setActiveTabId(tab.id)}
               onKeyDown={(event) => handleTabKeyDown(event, index)}
               className={cn(
-                "min-h-11 shrink-0 rounded-full border px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue",
+                "min-h-11 rounded-full border px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:shrink-0",
                 isActive
                   ? "border-rahma-gold bg-rahma-gold text-rahma-green"
                   : "border-rahma-border bg-white text-rahma-green hover:border-rahma-green"

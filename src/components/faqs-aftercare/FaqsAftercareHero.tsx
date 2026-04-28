@@ -11,13 +11,13 @@ const trustPills = [
 
 export function FaqsAftercareHero() {
   return (
-    <section className="bg-gradient-to-b from-rahma-ivory to-white px-5 py-14 sm:px-6 lg:px-8 lg:py-20">
-      <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+    <section className="bg-gradient-to-b from-rahma-ivory to-white px-5 py-12 sm:px-6 md:py-14 lg:px-8 lg:py-20">
+      <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-[0.95fr_1.05fr] md:items-center lg:gap-10">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
             FAQs & Aftercare
           </p>
-          <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl lg:text-6xl">
+          <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl md:text-4xl lg:text-6xl">
             Clear answers before and after your home session.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
@@ -51,7 +51,7 @@ export function FaqsAftercareHero() {
             ))}
           </div>
         </div>
-        <div className="relative min-h-[430px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[560px]">
+        <div className="relative min-h-[320px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[360px] lg:min-h-[560px]">
           <FaqsAftercareImage
             src="/images/faqs-aftercare/faqs-hero.webp"
             alt="Clean Rahma Therapy mobile hijama cupping and massage setup in Luton"

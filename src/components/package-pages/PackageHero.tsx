@@ -12,22 +12,22 @@ const trustPills = [
 
 export function PackageHero({ page }: { page: PackagePage }) {
   return (
-    <section className="bg-gradient-to-b from-rahma-ivory to-white px-5 py-14 sm:px-6 lg:px-8 lg:py-20">
-      <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+    <section className="bg-gradient-to-b from-rahma-ivory to-white px-5 py-10 sm:px-6 md:py-14 lg:px-8 lg:py-20">
+      <div className="mx-auto grid max-w-7xl gap-7 md:grid-cols-[0.95fr_1.05fr] md:items-center lg:gap-10">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
             {page.eyebrow}
           </p>
-          <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl lg:text-6xl">
+          <h1 className="mt-4 max-w-3xl font-display text-3xl font-medium leading-[1.06] text-rahma-charcoal sm:text-5xl md:text-4xl lg:mt-5 lg:text-6xl">
             {page.h1}
           </h1>
-          <p className="mt-6 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
+          <p className="mt-5 max-w-2xl text-base leading-7 text-rahma-muted sm:text-lg sm:leading-8">
             {page.subheading}
           </p>
-          <p className="mt-5 max-w-2xl text-base leading-8 text-rahma-muted">
+          <p className="mt-4 max-w-2xl text-base leading-7 text-rahma-muted sm:leading-8">
             {page.openingCopy}
           </p>
-          <div className="mt-7 flex flex-wrap items-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center gap-3 sm:mt-7">
             <span className="rounded-full bg-rahma-gold px-5 py-2 text-lg font-semibold text-rahma-charcoal">
               {page.price}
             </span>
@@ -37,7 +37,7 @@ export function PackageHero({ page }: { page: PackagePage }) {
               </span>
             ) : null}
           </div>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row lg:mt-8">
             <Link
               href={page.bookingHref}
               data-booking-trigger="true"
@@ -54,18 +54,8 @@ export function PackageHero({ page }: { page: PackagePage }) {
               {page.whatsappCta}
             </Link>
           </div>
-          <div className="mt-8 flex flex-wrap gap-3">
-            {trustPills.map((pill) => (
-              <span
-                key={pill}
-                className="rounded-full border border-rahma-border bg-white px-4 py-2 text-sm font-medium text-rahma-charcoal shadow-sm"
-              >
-                {pill}
-              </span>
-            ))}
-          </div>
         </div>
-        <div className="relative min-h-[430px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[560px]">
+        <div className="relative min-h-[280px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[360px] lg:min-h-[560px]">
           <PackageImage
             src={page.heroImage}
             alt={page.heroAlt}
@@ -81,6 +71,16 @@ export function PackageHero({ page }: { page: PackagePage }) {
               {page.heroOverlayText}
             </p>
           </div>
+        </div>
+        <div className="flex flex-wrap gap-3 md:col-span-2 lg:-mt-4">
+          {trustPills.map((pill) => (
+            <span
+              key={pill}
+              className="rounded-full border border-rahma-border bg-white px-4 py-2 text-sm font-medium text-rahma-charcoal shadow-sm"
+            >
+              {pill}
+            </span>
+          ))}
         </div>
       </div>
     </section>
