@@ -3,6 +3,7 @@
 import type { ReactNode, RefObject } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
+import { BrandLogo } from "@/components/media/BrandLogo";
 import type { BookingStep } from "../types";
 import { BookingProgress } from "./BookingProgress";
 import styles from "../BookingExperience.module.css";
@@ -41,8 +42,13 @@ export function BookingDialog({
           <div className={styles.shell}>
             <header className={styles.header}>
               <div className={styles.brandLine}>
-                <span className={styles.brandMark}>RT</span>
-                <p className={styles.eyebrow}>Rahma Therapy</p>
+                <BrandLogo
+                  width={1600}
+                  height={587}
+                  priority
+                  className={styles.bookingLogo}
+                  sizes="168px"
+                />
               </div>
               <div className={styles.headerContent}>
                 <Dialog.Title className={styles.title}>

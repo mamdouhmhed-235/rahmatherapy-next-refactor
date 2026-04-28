@@ -54,6 +54,7 @@
 .header {
   display: grid;
   grid-template-columns: minmax(44px, 1fr) minmax(0, 660px) minmax(44px, 1fr);
+  grid-template-areas: "brand content close";
   align-items: start;
   gap: 16px;
   padding: 20px 30px 16px;
@@ -62,6 +63,7 @@
 }
 
 .headerContent {
+  grid-area: content;
   display: grid;
   min-width: 0;
   justify-items: center;
@@ -70,26 +72,21 @@
 }
 
 .brandLine {
+  grid-area: brand;
   display: flex;
   align-items: center;
-  gap: 9px;
   justify-self: start;
+  width: clamp(7.25rem, 32vw, 10.5rem);
+  height: 3.875rem;
 }
 
-.brandMark {
-  display: inline-flex;
-  width: 30px;
-  height: 30px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in oklab, var(--accent) 20%, transparent);
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--brand-warm-surface) 82%, #ffffff);
-  color: var(--accent);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 22px;
-  line-height: 1;
-  box-shadow: 0 8px 22px color-mix(in oklab, var(--accent) 18%, transparent);
+.bookingLogo {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: left center;
 }
 
 .eyebrow,
@@ -121,6 +118,7 @@
 
 .closeButton {
   display: inline-flex;
+  grid-area: close;
   justify-self: end;
   width: 44px;
   height: 44px;
@@ -1080,20 +1078,23 @@
 
   .header {
     gap: 8px;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    grid-template-areas:
+      "brand close"
+      "content content";
   }
 
   .description {
     font-size: 13.5px;
   }
 
-  .eyebrow {
-    display: none;
+  .title {
+    font-size: 1.28rem;
   }
 
-  .brandMark {
-    width: 28px;
-    height: 28px;
-    font-size: 20px;
+  .brandLine {
+    width: clamp(10rem, 58vw, 13rem);
+    height: 4.75rem;
   }
 
   .steps {
