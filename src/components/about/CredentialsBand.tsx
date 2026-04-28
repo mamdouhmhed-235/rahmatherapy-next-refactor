@@ -10,18 +10,27 @@ function publicAssetExists(src: string) {
 
 function LogoBadge({ src, label, placeholder }: { src: string; label: string; placeholder: string }) {
   const exists = publicAssetExists(src);
+  const needsDarkSurface = src.includes("iphm-logo");
 
   return (
     <article className="flex min-h-36 flex-col items-center justify-center rounded-3xl border border-rahma-border bg-white p-5 text-center shadow-sm">
       {exists ? (
-        <Image
-          src={src}
-          alt={label}
-          width={130}
-          height={64}
-          unoptimized
-          className="max-h-14 w-auto"
-        />
+        <span
+          className={
+            needsDarkSurface
+              ? "inline-flex min-h-16 items-center rounded-2xl bg-rahma-green px-4 py-3"
+              : "inline-flex min-h-16 items-center"
+          }
+        >
+          <Image
+            src={src}
+            alt={label}
+            width={130}
+            height={64}
+            unoptimized
+            className="max-h-14 w-auto"
+          />
+        </span>
       ) : (
         <div
           role="img"
