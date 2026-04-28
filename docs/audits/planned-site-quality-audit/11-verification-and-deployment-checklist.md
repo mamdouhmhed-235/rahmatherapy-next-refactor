@@ -250,7 +250,32 @@ Deployment:
 
 Proceed only if review page interaction and performance behavior are both acceptable.
 
-### Phase 7 Gate: Final Cross-Page Verification
+### Phase 7 Gate: Legacy Cleanup And Strict Plan-Compliance Re-Audit
+
+Issue IDs:
+
+- LEGACY-001
+
+Validation:
+
+- Required commands run and results recorded.
+- Current canonical planned homepage route is documented.
+- Confirmed legacy routes such as `/home`, `/hijama`, `/physiotherapy`, `/sports-massage-barnet`, or any other old route found in the current route map do not render old page content.
+- Header/footer show only planned production navigation.
+- No dead legacy content/components/imports remain in scoped source.
+- Static scans find no `/book-now`, `?package=`, `/services/mobile-massage-therapy`, or forbidden medical-copy phrases.
+- Every planned page is checked top-to-bottom against its source plan file for section order, copy, CTAs, image handling, interactions, and design treatment.
+
+Deployment:
+
+- Commit message: `remove legacy routes and verify planned page compliance`
+- Push to default branch.
+- Wait for Vercel.
+- Check the canonical planned homepage route, `/services/`, `/about/`, `/reviews/`, `/faqs-aftercare/`, and removed/redirected legacy route behavior.
+
+Proceed only if planned routes still work and confirmed legacy pages no longer render old content.
+
+### Phase 8 Gate: Final Cross-Page Verification
 
 Issue IDs:
 

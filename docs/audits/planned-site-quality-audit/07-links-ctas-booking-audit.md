@@ -19,7 +19,7 @@
 | No `/book-now` path | Pass for literal path in scoped planned source; fail for visible "Book Now page" copy | No `/book-now` path found, but two planned FAQ answers imply a forbidden Book Now page. | CTA-001 |
 | No `/services/mobile-massage-therapy` | Pass in scoped planned source | Static scan returned no matches. | None |
 | WhatsApp links use `https://wa.me/447798897222` | Pass | Planned-page WhatsApp links use the required base number, with optional encoded `text` query strings. | None |
-| Header/footer links relevant to planned pages work | Pass with decision note | Header/footer include planned routes and intentionally expose both `Home` -> `/` and `Planned Home` -> `/home-planned` for the current dual-homepage comparison workflow. | CTA-002 decision note |
+| Header/footer links relevant to planned pages work | Superseded by cleanup override | Header/footer previously exposed both `Home` -> `/` and `Planned Home` -> `/home-planned` for comparison. The current remediation override retires confirmed legacy pages and keeps only planned-page navigation after the implementer verifies the current canonical planned-home route. | LEGACY-001 |
 | Booking query behavior opens popup | Fail based on Phase 5 browser test | `?booking=1` and visible booking triggers updated URL but did not render the booking dialog locally. | INTERACTION-001, CTA-003 |
 
 ## Static Scan Results
@@ -61,8 +61,8 @@ Relevant scan hits:
 
 | Source | Planned links present | Observed issue | Issue IDs |
 |---|---|---|---|
-| `src/content/site/navigation.ts` | `/`, `/home-planned`, `/services`, `/about`, `/reviews`, `/faqs-aftercare` | Dual-homepage exposure is intentional per user direction; keep both links unless a future task explicitly retires the legacy homepage. | CTA-002 decision note |
-| `src/content/site/footer.ts` | `/`, `/home-planned`, `/services`, `/about`, `/reviews`, `/faqs-aftercare` | Dual-homepage exposure is intentional per user direction; keep both links unless a future task explicitly retires the legacy homepage. | CTA-002 decision note |
+| `src/content/site/navigation.ts` | `/`, `/home-planned`, `/services`, `/about`, `/reviews`, `/faqs-aftercare` | Superseded: future remediation must remove confirmed legacy-home comparison links after identifying the canonical planned homepage route. | LEGACY-001 |
+| `src/content/site/footer.ts` | `/`, `/home-planned`, `/services`, `/about`, `/reviews`, `/faqs-aftercare` | Superseded: future remediation must remove confirmed legacy-home comparison links after identifying the canonical planned homepage route. | LEGACY-001 |
 
 ## CTA Findings Added This Phase
 
@@ -77,15 +77,15 @@ Relevant scan hits:
 - Verification method: Static source search for `Book Now page`.
 - Related existing issues: PLAN-HOME-003, PLAN-FAQS-003
 
-### CTA-002
+### LEGACY-001
 
-- Severity: Low
+- Severity: Medium
 - Route: All planned routes through shared header/footer
-- Source: `src/content/site/navigation.ts`, `src/content/site/footer.ts`
-- Observed: Shared planned-page navigation and footer include `Home` -> `/` and `Planned Home` -> `/home-planned`.
-- Expected: This is intentional under the current dual-homepage comparison rule. It should not be remediated unless the user later decides to retire or hide the legacy homepage.
-- User impact: Low while the comparison workflow is active. It can become confusing later if the planned homepage becomes the only intended experience and the legacy link remains.
-- Verification method: Static navigation/footer content inspection.
+- Source: `src/content/site/navigation.ts`, `src/content/site/footer.ts`, route files under `src/app`, unused legacy content/components
+- Observed: The previous comparison workflow kept legacy and planned home links side by side.
+- Expected: Future remediation must identify the current canonical planned homepage, remove confirmed legacy homepage/dead route links, and keep only planned-page navigation.
+- User impact: Keeping old routes after the planned site is selected makes the site feel unfinished and can send users into outdated content.
+- Verification method: Static navigation/footer inspection, build route list, route smoke checks, and static scans for removed legacy links/imports.
 - Related existing issue: UX-001
 
 ### CTA-003

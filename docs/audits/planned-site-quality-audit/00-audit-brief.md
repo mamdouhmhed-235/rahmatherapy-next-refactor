@@ -75,7 +75,9 @@ Primary plan files:
 - Important override: do not replace the homepage short disclaimer with the full disclaimer.
 - Important override: review excerpts are allowed in hero and featured sections if they are exact canonical excerpts or exact canonical `shortExcerpt` values.
 - Important override: `/images/home/home-hero.avif` is the approved working planned-home hero image unless a matching approved WebP is provided.
-- Important override: preserve dual-homepage navigation for now: `Home` -> `/` and `Planned Home` -> `/home-planned`.
+- Current override: retire the legacy homepage and other confirmed legacy/dead pages during remediation. The implementer must first inspect the current route map and identify the canonical planned homepage before deleting or redirecting anything.
+- Keep only the planned Rahma Therapy page set after cleanup. Remove confirmed legacy routes/dead code such as the old home route if it has been moved to `/home`, plus other old legacy pages, only after verifying they are not required by the planned experience.
+- After legacy cleanup, re-check every planned page against its original plan file from top to bottom for section order, copy, CTAs, design treatment, image handling, interactions, and code ownership.
 - Important override: do not reduce the initial Reviews wall below 24 visible reviews unless measured performance proves it necessary. Optimize animation cost first.
 - Important override: do not redesign the booking popup; fix only behavior/accessibility if needed.
 

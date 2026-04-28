@@ -5,7 +5,7 @@
 - Phase: 8 consolidation
 - Completion status: Complete for issue consolidation and de-duplication
 - Purpose: Single canonical issue register for future remediation planning.
-- Scope: Planned Rahma Therapy pages only; legacy pages are included only where shared shell behavior affects planned pages.
+- Scope: Planned Rahma Therapy pages plus cleanup of confirmed legacy/dead routes that conflict with the planned-only experience.
 - Runtime remediation: None.
 
 ## Consolidation Method
@@ -38,7 +38,7 @@
 | Accessibility | 5 | A11Y-001, A11Y-002, A11Y-003, A11Y-004, A11Y-005 |
 | Content/copy | 1 | REVIEW-EXCERPT-VERIFY |
 | CTA/booking | 2 | CTA-001, INTERACTION-001 |
-| Navigation/routing | 1 | CTA-002 |
+| Navigation/routing | 1 | LEGACY-001 |
 | Performance | 1 | PERF-001 |
 | Validation/tooling | 1 | TOOLING-001 |
 | SEO | 0 | None |
@@ -50,18 +50,18 @@
 
 | Route | Canonical issues |
 |---|---|
-| `/home-planned` | CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/home-planning` | Inherits `/home-planned`: CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/services` | PLAN-SERVICES-001, VISUAL-001, UX-001, RESP-001, A11Y-001, A11Y-002, A11Y-004, INTERACTION-001, CTA-002 decision note |
-| `/services/supreme-combo-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/services/hijama-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/services/fire-cupping-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/services/massage-therapy-30-mins` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/services/massage-therapy-1-hour` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/about` | VISUAL-001, UX-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| `/reviews` | REVIEW-EXCERPT-VERIFY, VISUAL-001, VISUAL-002, UX-001, A11Y-002, A11Y-005, INTERACTION-001, CTA-002 decision note, PERF-001 |
-| `/faqs-aftercare` | CTA-001, A11Y-003, PLAN-FAQS-002, VISUAL-001, UX-001, RESP-001, RESP-002, A11Y-001, A11Y-002, INTERACTION-001, CTA-002 decision note |
-| All planned routes/shared shell | UX-001, A11Y-002, INTERACTION-001, CTA-002 decision note, TOOLING-001 |
+| `/home-planned` | CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, LEGACY-001 route decision |
+| `/home-planning` | Inherits `/home-planned` until legacy cleanup decides whether this alias remains useful or should redirect to the canonical planned homepage: CTA-001, VISUAL-001, UX-001, RESP-003, A11Y-001, A11Y-002, INTERACTION-001, LEGACY-001 |
+| `/services` | PLAN-SERVICES-001, VISUAL-001, UX-001, RESP-001, A11Y-001, A11Y-002, A11Y-004, INTERACTION-001, LEGACY-001 |
+| `/services/supreme-combo-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, LEGACY-001 |
+| `/services/hijama-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, LEGACY-001 |
+| `/services/fire-cupping-package` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, LEGACY-001 |
+| `/services/massage-therapy-30-mins` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, LEGACY-001 |
+| `/services/massage-therapy-1-hour` | VISUAL-001, UX-001, UX-002, RESP-001, A11Y-002, INTERACTION-001, LEGACY-001 |
+| `/about` | VISUAL-001, UX-001, A11Y-002, INTERACTION-001, LEGACY-001 |
+| `/reviews` | REVIEW-EXCERPT-VERIFY, VISUAL-001, VISUAL-002, UX-001, A11Y-002, A11Y-005, INTERACTION-001, LEGACY-001, PERF-001 |
+| `/faqs-aftercare` | CTA-001, A11Y-003, PLAN-FAQS-002, VISUAL-001, UX-001, RESP-001, RESP-002, A11Y-001, A11Y-002, INTERACTION-001, LEGACY-001 |
+| All planned routes/shared shell | UX-001, A11Y-002, INTERACTION-001, LEGACY-001, TOOLING-001 |
 
 ## Developer-Provided Asset Requirements
 
@@ -83,6 +83,7 @@
 | PLAN-REVIEWS-002 | VISUAL-002 | Same reviews proof/mosaic visual drift from planned trust-building treatment. |
 | PLAN-FAQS-001 | A11Y-003 | Same custom tab implementation drift that creates incomplete tab keyboard behavior. |
 | CTA-003 | INTERACTION-001 | Same booking popup runtime failure from allowed query strings and booking triggers. |
+| CTA-002 | LEGACY-001 | Previous dual-homepage decision is superseded by the legacy cleanup override. |
 
 All alias IDs above remain traceable to their source audit files and should not be reused for unrelated future findings.
 
@@ -419,24 +420,24 @@ All alias IDs above remain traceable to their source audit files and should not 
 - Likely Remediation Phase: Phase 1 booking interaction fix
 - Status: Open
 
-### CTA-002
+### LEGACY-001
 
-- Severity: Low
+- Severity: Medium
 - Category: Navigation/routing
-- Route: All planned routes through shared header/footer
+- Route: Shared header/footer and confirmed legacy routes
 - Viewport: All
-- Component/File: `src/content/site/navigation.ts`, `src/content/site/footer.ts`
-- Plan Source: Audit brief planned-route scope, Phase 6 CTA audit
-- Related Plan Section: Shared planned-page navigation and footer
-- Alias/Cross-Category IDs: None
+- Component/File: `src/content/site/navigation.ts`, `src/content/site/footer.ts`, route files under `src/app`, unused legacy content/components
+- Plan Source: Current user override, audit brief planned-route scope, Phase 6 CTA audit
+- Related Plan Section: Shared planned-page navigation, footer, route ownership
+- Alias/Cross-Category IDs: CTA-002
 - Asset Dependency: No
-- Observed: Shared planned-page navigation and footer include `Home` -> `/` and `Planned Home` -> `/home-planned`.
-- Expected: This is intentional while the user is comparing the legacy homepage and planned homepage. Do not remove or rewrite the dual-homepage navigation unless a future instruction explicitly retires the legacy homepage or makes `/home-planned` the canonical home route.
-- Why It Matters: This is low risk during comparison, but it should remain visible as a future cleanup decision so the final production navigation does not accidentally retain comparison-only labels.
-- Recommended Fix: No remediation during planned-page audit cleanup. Revisit only when the user decides which homepage becomes canonical.
-- Verification Method: Static navigation/footer inspection and browser click smoke check if a future homepage consolidation task changes these links.
-- Likely Remediation Phase: Deferred decision item, not part of current remediation phases.
-- Status: Deferred by current dual-homepage rule
+- Observed: The previous comparison workflow kept legacy and planned home experiences side by side.
+- Expected: Future remediation should keep only the planned site experience, remove confirmed legacy-home/dead routes and navigation links, and preserve only useful redirects if they support users or SEO.
+- Why It Matters: Old pages and dead code make the production site harder to maintain and can expose outdated design/content.
+- Recommended Fix: Inspect the current route map first. Identify the canonical planned homepage route. Remove confirmed legacy route files/content/components/imports, update header/footer links, add intentional redirects only where needed, and re-run all planned-route checks.
+- Verification Method: Build route list, route smoke checks, static scans for removed legacy links/imports, and planned-page navigation checks.
+- Likely Remediation Phase: Legacy cleanup and strict plan-compliance phase
+- Status: Open
 
 ### PERF-001
 
@@ -485,10 +486,10 @@ All alias IDs above remain traceable to their source audit files and should not 
 | `04-responsive-mobile-audit.md` | VISUAL-001, VISUAL-002, UX-001, UX-002, RESP-001, RESP-002, RESP-003 | Yes |
 | `05-accessibility-audit.md` | A11Y-001, A11Y-002, A11Y-003, A11Y-004, A11Y-005, INTERACTION-001, UX-001, VISUAL-001 | Yes |
 | `06-content-copy-compliance-audit.md` | REVIEW-EXCERPT-VERIFY, CTA-001, PLAN-HOME-003, PLAN-FAQS-003 | Yes, direct or alias |
-| `07-links-ctas-booking-audit.md` | CTA-001, CTA-002, CTA-003, INTERACTION-001, UX-001 | Yes, direct or alias |
+| `07-links-ctas-booking-audit.md` | CTA-001, LEGACY-001, CTA-003, INTERACTION-001, UX-001 | Yes, direct or alias |
 | `08-performance-seo-deployment-audit.md` | PLAN-SERVICES-001, PLAN-FAQS-002, PERF-001, TOOLING-001, VISUAL-001, A11Y-005 | Yes |
 
-## Phase 8 Register Gate
+## Register Consolidation Gate
 
 | Check | Status |
 |---|---|

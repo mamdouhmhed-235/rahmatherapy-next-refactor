@@ -17,15 +17,16 @@ This plan deliberately separates remediation into small phases that can each be 
 
 In scope:
 
-- Planned routes only: `/home-planned`, `/home-planning`, `/services`, focused package pages, `/about`, `/reviews`, `/faqs-aftercare`.
-- Shared layout, navigation, footer, booking, and image wrappers only where they affect planned pages.
+- Planned routes and the final planned homepage route after cleanup.
+- Shared layout, navigation, footer, booking, image wrappers, and route ownership where they affect planned pages.
+- Removal of confirmed legacy/dead routes and old page code after the implementer identifies the current canonical planned homepage route.
 - Remediation of all canonical issue IDs in `09-master-issue-register.md`.
 - Local and live verification after each implementation phase.
 
 Non-goals:
 
 - Do not redesign the planned site outside targeted audit fixes.
-- Do not judge or refactor legacy pages except where shared shell behavior affects planned pages.
+- Do not keep legacy pages or dead old-page code once the planned-only experience is ready, but verify current route ownership before deleting anything.
 - Do not rewrite customer review text.
 - Do not invent or generate replacement assets without developer approval.
 - Do not edit planning bundle files unless a future task explicitly asks to update source-of-truth documentation.
@@ -35,7 +36,7 @@ Non-goals:
 - Review excerpts are allowed in hero and featured sections if they are exact canonical excerpts or exact canonical `shortExcerpt` values.
 - Treat `/images/home/home-hero.avif` as the approved working home hero image unless the developer provides a matching WebP.
 - Keep 24 initial Reviews wall cards unless measured performance proves reduction is necessary.
-- Preserve dual-homepage navigation for now: `Home` -> `/` and `Planned Home` -> `/home-planned`.
+- Retire the legacy homepage and other confirmed legacy/dead pages during remediation. First identify the current canonical planned homepage route, then remove legacy links/routes/code cleanly.
 - Do not redesign the booking popup; fix only behavior/accessibility if needed.
 
 ## Prioritization Model
@@ -59,7 +60,8 @@ Priority is based on:
 | 4. Responsive/mobile layout and navigation | Layout tuning should happen after semantic and content changes because content dimensions can change. |
 | 5. Asset replacement and visual polish | Requires approved assets; isolate so missing assets do not block non-asset fixes. |
 | 6. Performance, SEO, and deployment hardening | Performance checks are meaningful after UI behavior and review wall semantics are stable. |
-| 7. Final cross-page verification | Confirms the full planned-site experience after all targeted phases. |
+| 7. Legacy cleanup and strict plan-compliance re-audit | Removes old/dead routes only after planned behavior is stable, then verifies every planned page against its plan file. |
+| 8. Final cross-page verification | Confirms the full planned-site experience after all targeted phases. |
 
 ## Issue Assignment Matrix
 
@@ -80,7 +82,7 @@ Priority is based on:
 | UX-002 | Phase 4 | Assigned |
 | RESP-001 | Phase 4 | Assigned |
 | RESP-002 | Phase 4 | Assigned |
-| CTA-002 | Deferred | Dual-homepage navigation is intentional until the user chooses the canonical homepage |
+| LEGACY-001 | Phase 7 | Assigned |
 | VISUAL-001 | Phase 5 | Assigned, blocked if approved assets are unavailable |
 | VISUAL-002 | Phase 5 | Assigned, blocked if approved assets are unavailable |
 | PERF-001 | Phase 6 | Assigned |
@@ -465,14 +467,14 @@ Resolve tablet hero height, mobile tab discoverability, package hero first-viewp
 ### Constraints
 
 - Keep planned pages within their planning-bundle design system.
-- Do not redesign legacy routes.
-- Do not remove the intentional dual-homepage navigation (`Home` and `Planned Home`) unless the user explicitly changes that rule.
+- Do not redesign legacy routes in this phase; legacy cleanup is handled in Phase 7.
+- Do not remove planned navigation items in this phase unless required for the responsive header fix.
 - Do not remove required CTAs or treatment suitability copy.
 
 ### Expected Outcome
 
 - Desktop header has one clear navigation mode at 1024px and 1440px.
-- Dual-homepage links remain intact while the comparison workflow is active.
+- Broad legacy cleanup is deferred to Phase 7 so this phase can stay focused on responsive layout and header behavior.
 - Tablet heroes are not excessively tall.
 - Focused package mobile heroes balance value, CTA, and media/proof earlier.
 - FAQ/aftercare mobile tab rows clearly reveal hidden options or stack cleanly.
@@ -480,7 +482,7 @@ Resolve tablet hero height, mobile tab discoverability, package hero first-viewp
 ### Implementation Steps
 
 1. Define a header breakpoint strategy that avoids full nav plus hamburger at the same viewport.
-2. Preserve the current dual-homepage nav/footer links unless the user explicitly requests homepage consolidation.
+2. Avoid broad navigation cleanup in this phase; leave legacy retirement to Phase 7 unless a header breakpoint fix requires a small preparatory change.
 3. Adjust tablet hero media sizing/min-height for services, package, and FAQs/aftercare hero components.
 4. Tighten package hero mobile layout without removing required copy.
 5. Add mobile tab overflow affordance or switch FAQ/aftercare tabs to a stacked/segmented mobile layout.
@@ -724,7 +726,109 @@ Revert this phase if review exploration, accessibility, or reduced-motion behavi
 - Performance change does not create accessibility regression.
 - Validation and deployment checks recorded.
 
-## Phase 7: Final Cross-Page Verification
+## Phase 7: Legacy Cleanup And Strict Plan-Compliance Re-Audit
+
+### Goal
+
+Remove confirmed legacy homepage/dead route code and verify each remaining planned page is built from top to bottom according to its respective plan file.
+
+### Issue IDs Addressed
+
+- LEGACY-001
+
+### Routes Affected
+
+- Current canonical planned homepage route after inspection.
+- `/home-planned` and `/home-planning` if they remain as aliases or redirects.
+- `/services`
+- Focused package routes
+- `/about`
+- `/reviews`
+- `/faqs-aftercare`
+- Any confirmed legacy routes such as `/home`, `/hijama`, `/physiotherapy`, `/sports-massage-barnet`, or other old/dead routes found in the current route map.
+
+### Files/Components Likely Touched
+
+- `src/app/**`
+- `src/content/site/navigation.ts`
+- `src/content/site/footer.ts`
+- old legacy page content files under `src/content/pages/**`
+- old legacy component folders under `src/components/**`
+- route redirects or middleware only if the current architecture already uses them
+
+### Constraints
+
+- Do not delete anything until the current planned homepage route and legacy route ownership are confirmed.
+- Do not remove booking popup, shared shell, planned page content, package pages, therapist-gender wording, prices, or safety/suitability content.
+- Do not recreate `/book-now`, `?package=`, or `/services/mobile-massage-therapy`.
+- Preserve useful redirects only if they prevent broken user/SEO paths and do not expose legacy page content.
+- Keep approved assets only; do not invent imagery while cleaning dead code.
+
+### Expected Outcome
+
+- Confirmed old legacy page implementations are removed or redirected cleanly.
+- Header and footer expose only the planned production navigation.
+- No dead legacy content/components/imports remain.
+- Every planned page is rechecked against its source plan file for exact section order, copy, CTAs, design treatment, image handling, interactions, and code ownership.
+- Build route list no longer exposes unwanted legacy pages.
+
+### Implementation Steps
+
+1. Inspect the current route map and identify which route currently serves the planned homepage.
+2. Identify legacy/dead routes and their owning files. Treat `/home` as legacy if it contains the old homepage, and inspect `/hijama`, `/physiotherapy`, `/sports-massage-barnet`, and any other old routes.
+3. Decide whether each old route should be deleted, redirected, or retained as a planned route. Prefer removal unless a redirect is needed for users/SEO.
+4. Update header/footer navigation so only planned production pages are shown.
+5. Remove confirmed dead content/components/imports created only for legacy pages.
+6. Run static scans for legacy route names, old component imports, `/book-now`, `?package=`, `/services/mobile-massage-therapy`, and forbidden medical-copy phrases.
+7. Re-open the planning bundle files and compare each planned page top to bottom against its plan.
+8. Record or fix any remaining discrepancies that are in scope for this phase.
+
+### Validation Commands
+
+- `pnpm lint`
+- `pnpm exec tsc --noEmit --incremental false`
+- `pnpm build`
+- `pnpm test` if present.
+
+### Local Route Checks
+
+- Canonical planned homepage route.
+- `/services/`
+- all focused package routes
+- `/about/`
+- `/reviews/`
+- `/faqs-aftercare/`
+
+Also check removed/redirected legacy routes to confirm they do not render old page content.
+
+### Live Vercel Checks
+
+- Canonical planned homepage route.
+- `/services/`
+- `/about/`
+- `/reviews/`
+- `/faqs-aftercare/`
+- Removed/redirected legacy route behavior where relevant.
+
+### Commit Message
+
+```txt
+remove legacy routes and verify planned page compliance
+```
+
+### Rollback Note
+
+Revert this phase if planned routes are removed accidentally, redirects loop, or navigation no longer reaches required planned pages. After rollback, re-run build and route checks before retrying cleanup.
+
+### Gate Before Next Phase
+
+- Current planned homepage route is documented.
+- Confirmed legacy routes do not render old page content.
+- Header/footer show only planned production navigation.
+- Each planned page has been rechecked against its source plan file.
+- Validation and deployment checks recorded.
+
+## Phase 8: Final Cross-Page Verification
 
 ### Goal
 
