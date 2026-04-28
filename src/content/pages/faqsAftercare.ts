@@ -174,7 +174,7 @@ export const faqCategories = [
       {
         question: "How do I book a Rahma Therapy session?",
         answer:
-          "You can book through the Book Now page or message us on WhatsApp. Tell us your preferred package, location, therapist preference and any health details we should know.",
+          "You can use the booking request flow or message us on WhatsApp. Tell us your preferred package, location, therapist preference and any health details we should know.",
       },
       {
         question: "Do you come to my home?",

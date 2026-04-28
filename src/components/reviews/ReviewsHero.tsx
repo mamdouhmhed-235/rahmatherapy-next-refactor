@@ -8,12 +8,6 @@ import { StarRating } from "./StarRating";
 const heroReviewIds = ["review-002", "review-003", "review-014"] as const;
 type HeroReview = (typeof rahmaGoogleReviews)[number];
 
-const heroExcerpts: Record<(typeof heroReviewIds)[number], string> = {
-  "review-002": "Arrived in my house on time, will equipped, professional and knowledgeable.",
-  "review-003": "Everything was explained to me so that I knew what was happening.",
-  "review-014": "The female therapist was amazing. Friendly and professional.",
-};
-
 export function ReviewsHero() {
   const heroReviews = heroReviewIds
     .map((id) => rahmaGoogleReviews.find((review) => review.id === id))
@@ -83,7 +77,7 @@ export function ReviewsHero() {
                       {review.reviewerName}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-rahma-muted">
-                      “{heroExcerpts[review.id as (typeof heroReviewIds)[number]]}”
+                      “{review.shortExcerpt}”
                     </p>
                   </div>
                 </div>

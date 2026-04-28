@@ -337,6 +337,6 @@ export const homeFaqs = [
   {
     question: "How do I book?",
     answer:
-      "Use the Book Now page or message Rahma Therapy on WhatsApp with your preferred package, location and therapist preference.",
+      "Use the booking request flow or message Rahma Therapy on WhatsApp with your preferred package, location and therapist preference.",
   },
 ] as const;

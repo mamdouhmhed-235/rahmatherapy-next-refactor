@@ -4,9 +4,10 @@ import * as React from "react";
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import { ImagePlaceholder, SectionContainer } from "@/components/shared";
+import { SectionContainer } from "@/components/shared";
 import { packageFinderOptions } from "@/content/pages/services";
 import { cn } from "@/lib/utils";
+import { ServicesImage } from "./ServicesImage";
 
 type PackageFinderOptionId = (typeof packageFinderOptions)[number]["id"];
 
@@ -23,10 +24,10 @@ export function PackageFinder() {
     <SectionContainer tone="surface" width="wide">
       <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
         <div className="relative order-2 min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card lg:order-1">
-          <ImagePlaceholder
-            filePath="/images/services/package-finder.webp"
+          <ServicesImage
+            src="/images/services/package-finder.webp"
+            alt="Rahma Therapy consultation for choosing a treatment package"
             imageType="Therapist consultation or treatment planning image."
-            label="PLACEHOLDER IMAGE: Therapist consultation or treatment planning image."
             className="h-full min-h-full rounded-none border-0"
           />
         </div>

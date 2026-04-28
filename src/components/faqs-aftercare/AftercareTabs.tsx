@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ImagePlaceholder, SectionContainer, SectionHeading } from "@/components/shared";
+import { SectionContainer, SectionHeading } from "@/components/shared";
 import { aftercareTabs } from "@/content/pages/faqsAftercare";
 import { cn } from "@/lib/utils";
 import { FaqsAftercareIcon } from "./FaqsAftercareIcon";
+import { FaqsAftercareImage } from "./FaqsAftercareImage";
 
 type AftercareTabId = (typeof aftercareTabs)[number]["id"];
 
@@ -63,10 +64,10 @@ export function AftercareTabs() {
         className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start"
       >
         <div className="relative min-h-[400px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
-          <ImagePlaceholder
-            filePath={activeTab.image}
+          <FaqsAftercareImage
+            src={activeTab.image}
+            alt={activeTab.imageAlt}
             imageType={activeTab.imageType}
-            label={`PLACEHOLDER IMAGE: ${activeTab.imageType}`}
             className="h-full min-h-full rounded-none border-0"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/58 via-black/6 to-transparent" />

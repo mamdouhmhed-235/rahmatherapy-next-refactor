@@ -7,29 +7,22 @@ const featuredCards = [
   {
     id: "review-001",
     badge: "Home visit",
-    quote:
-      "Fantastic customer service… sessions planned around my timetable and from the comfort of my home was a huge benefit.",
   },
   {
     id: "review-002",
     badge: "Mobile therapist",
-    quote: "Arrived in my house on time, will equipped, professional and knowledgeable.",
   },
   {
     id: "review-003",
     badge: "Explained clearly",
-    quote: "Everything was explained to me so that I knew what was happening.",
   },
   {
     id: "review-008",
     badge: "First-time hijama",
-    quote:
-      "My first ever experience of Hijama with Rahma Therapy was excellent… knowledgeable, calm, and explained the whole process clearly.",
   },
   {
     id: "review-014",
     badge: "Female therapist",
-    quote: "The female therapist was amazing. Friendly and professional. Have used her a few times now.",
   },
 ] as const;
 
@@ -79,7 +72,7 @@ export function FeaturedReviewsMosaic() {
                     : "mt-6 text-lg font-semibold leading-8 text-rahma-charcoal"
                 }
               >
-                “{card.quote}”
+                “{review.shortExcerpt}”
               </blockquote>
               <div className="mt-8 flex items-center gap-4">
                 <ReviewerAvatar name={review.reviewerName} />

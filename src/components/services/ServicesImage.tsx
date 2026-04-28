@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
 import Image from "next/image";
 import { ImagePlaceholder } from "@/components/shared";
 import { cn } from "@/lib/utils";
@@ -13,9 +11,7 @@ interface ServicesImageProps {
   sizes?: string;
 }
 
-function publicAssetExists(src: string) {
-  return existsSync(path.join(process.cwd(), "public", src.replace(/^\//, "")));
-}
+const approvedServiceImagePaths = new Set<string>();
 
 export function ServicesImage({
   src,
@@ -25,7 +21,7 @@ export function ServicesImage({
   priority = false,
   sizes = "(max-width: 768px) 100vw, 50vw",
 }: ServicesImageProps) {
-  if (!publicAssetExists(src)) {
+  if (!approvedServiceImagePaths.has(src)) {
     return (
       <div className={cn("absolute inset-0", className)}>
         <ImagePlaceholder
