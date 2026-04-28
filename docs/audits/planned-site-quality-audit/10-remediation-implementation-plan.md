@@ -104,7 +104,7 @@ If `package.json` gains a `test` script later, also run:
 pnpm test
 ```
 
-Known audit-time note: during Phase 7 audit, `pnpm exec tsc --noEmit --incremental false` failed in PowerShell because `tsc` was not recognized even though `node_modules\.bin\tsc` existed. This is tracked as `TOOLING-001`. A future remediation implementer should still run the required command, record its exact result, and use `pnpm build` as the build/type-check gate because Next.js successfully ran TypeScript during audit.
+Known audit-time note: during the original audit validation, `pnpm exec tsc --noEmit --incremental false` failed in PowerShell because `tsc` was not recognized even though `node_modules\.bin\tsc` existed. This is tracked as `TOOLING-001`. A future remediation implementer should still run the required command, record its exact result, and use `pnpm build` as the build/type-check gate because Next.js successfully ran TypeScript during audit.
 
 ## Shared Deployment Gate
 

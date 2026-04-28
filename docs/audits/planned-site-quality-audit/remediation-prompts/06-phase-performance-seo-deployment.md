@@ -11,10 +11,13 @@ Use relevant skills:
 
 Read before editing:
 
+- `docs/audits/planned-site-quality-audit/remediation-prompts/00-start-here.md`
 - `docs/audits/planned-site-quality-audit/08-performance-seo-deployment-audit.md`
 - `docs/audits/planned-site-quality-audit/09-master-issue-register.md`
 - Phase 6 in `docs/audits/planned-site-quality-audit/10-remediation-implementation-plan.md`
 - Phase 6 gate in `docs/audits/planned-site-quality-audit/11-verification-and-deployment-checklist.md`
+
+The non-negotiable overrides in `00-start-here.md` apply to this phase.
 
 Goal:
 
@@ -104,4 +107,3 @@ Final response:
 - Whether Phase 7 is safe to start
 
 Do not start Phase 7.
-

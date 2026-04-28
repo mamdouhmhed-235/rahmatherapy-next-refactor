@@ -10,6 +10,20 @@ Use these prompts to guide Codex through the Rahma Therapy planned-site remediat
 4. Send the next numbered phase prompt only after the previous gate passes.
 5. If the session is compacted or Codex loses context, send `99-context-recovery.md` before continuing.
 
+## Prompt Order
+
+1. `00-start-here.md`
+2. `01-phase-critical-cta-mobile-containment.md`
+3. `02-phase-content-plan-compliance.md`
+4. `03-phase-accessibility-interactions.md`
+5. `04-phase-responsive-header-ux.md`
+6. `05-phase-assets-visual-polish.md`
+7. `06-phase-performance-seo-deployment.md`
+8. `07-phase-legacy-cleanup-plan-compliance.md`
+9. `08-phase-final-cross-page-verification.md`
+
+Use `99-context-recovery.md` only when context is lost or a new session needs to resume.
+
 ## Source Of Truth
 
 The active audit and remediation pack is:

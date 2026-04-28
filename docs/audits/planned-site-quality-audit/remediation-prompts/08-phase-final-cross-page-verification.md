@@ -11,10 +11,13 @@ Use relevant skills:
 
 Read before starting:
 
+- `docs/audits/planned-site-quality-audit/remediation-prompts/00-start-here.md`
 - `docs/audits/planned-site-quality-audit/00-audit-brief.md`
 - `docs/audits/planned-site-quality-audit/09-master-issue-register.md`
 - Phase 8 in `docs/audits/planned-site-quality-audit/10-remediation-implementation-plan.md`
 - Phase 8 gate and final acceptance checklist in `docs/audits/planned-site-quality-audit/11-verification-and-deployment-checklist.md`
+
+The non-negotiable overrides in `00-start-here.md` apply to this phase.
 
 Goal:
 
@@ -97,4 +100,3 @@ Final response:
 - Commit hash if a commit was created
 - Push result if applicable
 - Clear statement whether planned-site remediation is complete
-

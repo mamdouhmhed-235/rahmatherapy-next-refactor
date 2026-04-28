@@ -11,12 +11,15 @@ Use relevant skills:
 
 Read before editing:
 
+- `docs/audits/planned-site-quality-audit/remediation-prompts/00-start-here.md`
 - `docs/audits/planned-site-quality-audit/02-plan-compliance-matrix.md`
 - `docs/audits/planned-site-quality-audit/06-content-copy-compliance-audit.md`
 - `docs/audits/planned-site-quality-audit/07-links-ctas-booking-audit.md`
 - `docs/audits/planned-site-quality-audit/09-master-issue-register.md`
 - Phase 2 in `docs/audits/planned-site-quality-audit/10-remediation-implementation-plan.md`
 - Phase 2 gate in `docs/audits/planned-site-quality-audit/11-verification-and-deployment-checklist.md`
+
+The non-negotiable overrides in `00-start-here.md` apply to this phase.
 
 Goal:
 
@@ -114,4 +117,3 @@ Final response:
 - Whether Phase 3 is safe to start
 
 Do not start Phase 3.
-

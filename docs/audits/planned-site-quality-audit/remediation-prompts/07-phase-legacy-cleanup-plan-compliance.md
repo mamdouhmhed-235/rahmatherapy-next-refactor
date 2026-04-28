@@ -11,12 +11,15 @@ Use relevant skills:
 
 Read before editing:
 
+- `docs/audits/planned-site-quality-audit/remediation-prompts/00-start-here.md`
 - `docs/audits/planned-site-quality-audit/01-route-and-codebase-inventory.md`
 - `docs/audits/planned-site-quality-audit/02-plan-compliance-matrix.md`
 - `docs/audits/planned-site-quality-audit/07-links-ctas-booking-audit.md`
 - `docs/audits/planned-site-quality-audit/09-master-issue-register.md`
 - Phase 7 in `docs/audits/planned-site-quality-audit/10-remediation-implementation-plan.md`
 - Phase 7 gate in `docs/audits/planned-site-quality-audit/11-verification-and-deployment-checklist.md`
+
+The non-negotiable overrides in `00-start-here.md` apply to this phase.
 
 Also read the planning bundle files before deciding whether the planned implementation has drifted:
 
@@ -131,4 +134,3 @@ Final response:
 - Whether Phase 8 is safe to start
 
 Do not start Phase 8.
-

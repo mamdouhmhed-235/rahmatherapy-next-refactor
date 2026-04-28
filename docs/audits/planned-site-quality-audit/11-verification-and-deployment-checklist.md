@@ -2,7 +2,7 @@
 
 ## Status
 
-- Phase: 9 checklist update
+- Phase: checklist update
 - Completion status: Complete for remediation planning
 - Purpose: Provide reusable verification and deployment gates for future remediation implementation.
 - Runtime remediation performed in this phase: None
@@ -19,7 +19,7 @@
 | Every issue appears in the master register | Complete | `09-master-issue-register.md` consolidated the canonical issues, approved decisions, decision items, and tooling items with alias mapping. |
 | Remediation plan covers every canonical issue | Complete | `10-remediation-implementation-plan.md` assigns every canonical issue to a phase or explicitly defers it with rationale. |
 | Asset-dependent issues are isolated | Complete | VISUAL-001 and VISUAL-002 are in the asset replacement phase; the home hero AVIF path is approved unless a matching WebP is provided. |
-| No runtime source files changed during planning | Complete | Phase 9 changed audit documentation only. |
+| No runtime source files changed during planning | Complete | Audit planning changed documentation only. |
 | No screenshots committed | Complete | Screenshots are not required artifacts. |
 
 ## Required Validation Commands
@@ -330,7 +330,7 @@ For each remediation phase:
 | Validation | Lint, TypeScript command, build, and tests if present are recorded. |
 | Deployment | Vercel route checks recorded after every phase. |
 
-## Phase 9 Documentation Gate
+## Documentation Gate
 
 | Check | Status |
 |---|---|

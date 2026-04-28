@@ -22,8 +22,8 @@
 |---|---:|
 | Blocker | 0 |
 | High | 3 |
-| Medium | 13 |
-| Low | 3 |
+| Medium | 14 |
+| Low | 2 |
 | Polish | 0 |
 | Total | 19 |
 
