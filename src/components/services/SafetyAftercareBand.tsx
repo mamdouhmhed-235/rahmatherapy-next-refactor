@@ -37,7 +37,7 @@ export function SafetyAftercareBand() {
             ))}
           </div>
         </div>
-        <p className="rounded-3xl border border-white/15 bg-white/10 p-5 text-sm leading-7 text-white/76">
+        <p className="mx-auto w-full max-w-5xl justify-self-center rounded-3xl border border-white/15 bg-white/10 p-5 text-sm leading-7 text-white/76">
           {serviceSafetyDisclaimer}
         </p>
       </div>
