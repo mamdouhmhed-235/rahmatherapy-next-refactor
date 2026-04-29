@@ -32,7 +32,7 @@ export function MilestoneTimeline() {
           return (
             <li
               key={`${milestone.date}-${milestone.title}`}
-              className="relative pb-8 last:pb-0 md:grid md:grid-cols-[minmax(0,1fr)_8rem_minmax(0,1fr)] md:items-start md:gap-4"
+              className="relative pb-8 last:pb-0 md:grid md:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] md:items-start md:gap-6"
             >
               <span
                 aria-hidden="true"
@@ -45,7 +45,10 @@ export function MilestoneTimeline() {
               />
               <span
                 className={cn(
-                  "relative z-20 mb-3 ml-12 inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold transition duration-300 md:absolute md:left-1/2 md:top-6 md:mb-0 md:ml-0 md:-translate-x-1/2",
+                  "relative z-20 mb-3 ml-12 inline-flex w-36 justify-center rounded-full border px-3 py-1 text-xs font-semibold transition duration-300 md:row-start-1 md:mt-6 md:mb-0 md:ml-0",
+                  isLeft
+                    ? "md:col-start-3 md:justify-self-start"
+                    : "md:col-start-1 md:justify-self-end",
                   isActive
                     ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal shadow-[0_0_24px_rgba(245,176,0,0.42)]"
                     : "border-white/20 bg-rahma-green text-white/78"
@@ -65,7 +68,7 @@ export function MilestoneTimeline() {
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 className={cn(
-                  "ml-12 rounded-3xl border p-5 text-left text-white shadow-sm transition duration-300 sm:p-6 md:ml-0",
+                  "ml-12 rounded-3xl border p-5 text-left text-white shadow-sm transition duration-300 sm:p-6 md:row-start-1 md:ml-0",
                   isLeft ? "md:col-start-1" : "md:col-start-3",
                   isActive
                     ? "border-rahma-gold bg-white/[0.16] shadow-[0_24px_80px_rgba(0,0,0,0.28)] ring-1 ring-rahma-gold/55"
