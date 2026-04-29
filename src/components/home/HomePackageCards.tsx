@@ -35,20 +35,18 @@ export function HomePackageCards() {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent" />
               <div className="absolute inset-0 z-20 flex flex-col justify-end p-6 text-white sm:p-7">
+                <span className="absolute left-6 top-6 rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-rahma-charcoal sm:left-7 sm:top-7">
+                  {item.badge}
+                </span>
+                <strong className="absolute right-6 top-6 shrink-0 rounded-full bg-white px-4 py-2 text-lg font-semibold text-rahma-green shadow-sm sm:right-7 sm:top-7">
+                  {item.price}
+                </strong>
                 <div
                   className={cn(
                     "flex min-h-full flex-col justify-end",
                     isFeatured ? "lg:max-w-[92%]" : "lg:max-w-full"
                   )}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-rahma-charcoal">
-                      {item.badge}
-                    </span>
-                    <strong className="shrink-0 rounded-full bg-white px-4 py-2 text-lg font-semibold text-rahma-green shadow-sm">
-                      {item.price}
-                    </strong>
-                  </div>
                   <div
                     className={cn(
                       "mt-5",
