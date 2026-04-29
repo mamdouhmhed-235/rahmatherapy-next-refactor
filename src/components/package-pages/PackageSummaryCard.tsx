@@ -14,7 +14,7 @@ export function PackageSummaryCard({ page }: { page: PackagePage }) {
           <h2 className="mt-3 text-3xl font-semibold text-rahma-charcoal">
             {page.title}
           </h2>
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <span className="rounded-full bg-rahma-gold px-4 py-2 text-lg font-semibold text-rahma-charcoal">
               {page.summary.price}
             </span>
@@ -24,16 +24,22 @@ export function PackageSummaryCard({ page }: { page: PackagePage }) {
               </span>
             ) : null}
           </div>
-          <p className="mt-5 text-sm font-semibold text-rahma-charcoal">Best for</p>
-          <p className="mt-2 text-sm leading-7 text-rahma-muted">
-            {page.summary.bestFor}
-          </p>
-          <p className="mt-6 text-sm font-semibold text-rahma-charcoal">
-            Therapist option
-          </p>
-          <p className="mt-2 text-sm leading-7 text-rahma-muted">
-            {page.summary.therapistOption}
-          </p>
+          <div className="mt-10 space-y-7">
+            <div>
+              <p className="text-sm font-semibold text-rahma-charcoal">Best for</p>
+              <p className="mt-3 text-sm leading-7 text-rahma-muted">
+                {page.summary.bestFor}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-rahma-charcoal">
+                Therapist option
+              </p>
+              <p className="mt-3 text-sm leading-7 text-rahma-muted">
+                {page.summary.therapistOption}
+              </p>
+            </div>
+          </div>
         </div>
         <div className="lg:pt-1">
           <p className="text-sm font-semibold text-rahma-charcoal">
