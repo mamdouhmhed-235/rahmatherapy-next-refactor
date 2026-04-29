@@ -7,27 +7,27 @@ export function PackageSummaryCard({ page }: { page: PackagePage }) {
   return (
     <SectionContainer tone="ivory" className="py-10 sm:py-12 lg:py-14">
       <article className="grid gap-8 rounded-3xl border border-rahma-border bg-white p-6 shadow-sm sm:p-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-12 lg:p-10 xl:gap-16">
-        <div className="max-w-2xl">
+        <div className="max-w-2xl lg:pr-4">
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-rahma-green">
             Quick package summary
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-rahma-charcoal">
             {page.title}
           </h2>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <span className="rounded-full bg-rahma-gold px-4 py-2 text-lg font-semibold text-rahma-charcoal">
+          <div className="mt-7 flex flex-wrap items-center gap-4">
+            <span className="inline-flex min-h-14 items-center rounded-full bg-rahma-gold px-5 py-2 text-lg font-semibold text-rahma-charcoal">
               {page.summary.price}
             </span>
             {page.summary.duration ? (
-              <span className="rounded-full border border-rahma-border px-4 py-2 text-sm font-semibold text-rahma-green">
+              <span className="inline-flex min-h-14 items-center rounded-full border border-rahma-border px-5 py-2 text-sm font-semibold text-rahma-green">
                 {page.summary.duration}
               </span>
             ) : null}
           </div>
-          <div className="mt-10 space-y-7">
+          <div className="mt-8 space-y-8">
             <div>
               <p className="text-sm font-semibold text-rahma-charcoal">Best for</p>
-              <p className="mt-3 text-sm leading-7 text-rahma-muted">
+              <p className="mt-2.5 text-sm leading-7 text-rahma-muted">
                 {page.summary.bestFor}
               </p>
             </div>
@@ -35,7 +35,7 @@ export function PackageSummaryCard({ page }: { page: PackagePage }) {
               <p className="text-sm font-semibold text-rahma-charcoal">
                 Therapist option
               </p>
-              <p className="mt-3 text-sm leading-7 text-rahma-muted">
+              <p className="mt-2.5 text-sm leading-7 text-rahma-muted">
                 {page.summary.therapistOption}
               </p>
             </div>
