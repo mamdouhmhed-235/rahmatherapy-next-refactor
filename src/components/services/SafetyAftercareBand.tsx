@@ -18,11 +18,11 @@ export function SafetyAftercareBand() {
             is built around privacy, suitability and hygiene-led care.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2">
           {serviceSafetyItems.map((item) => (
             <div
               key={item}
-              className="flex items-start gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3"
+              className="flex h-full items-start gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3"
             >
               <CheckCircle2
                 aria-hidden="true"
@@ -34,7 +34,7 @@ export function SafetyAftercareBand() {
           ))}
         </div>
       </div>
-      <p className="mt-8 rounded-3xl border border-white/15 bg-white/10 p-5 text-sm leading-7 text-white/76">
+      <p className="mt-10 rounded-3xl border border-white/15 bg-white/10 p-5 text-sm leading-7 text-white/76 lg:mt-12">
         {serviceSafetyDisclaimer}
       </p>
     </SectionContainer>

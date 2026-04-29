@@ -30,25 +30,27 @@ export function HomeSafetyAftercare() {
             Before treatment begins, your therapist checks suitability, explains what will
             happen and gives aftercare guidance based on your session.
           </p>
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
-            {homeSafetyItems.map((item) => (
-              <div
-                key={item}
-                className="flex items-start gap-3 rounded-2xl border border-rahma-border bg-rahma-ivory px-4 py-3"
-              >
-                <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-rahma-green text-white">
-                  <Check aria-hidden="true" size={15} />
-                </span>
-                <span className="text-sm font-medium leading-6 text-rahma-charcoal">
-                  {item}
-                </span>
-              </div>
-            ))}
+          <div className="mt-7 grid gap-5">
+            <div className="grid gap-x-3 gap-y-4 sm:grid-cols-2">
+              {homeSafetyItems.map((item) => (
+                <div
+                  key={item}
+                  className="flex h-full items-start gap-3 rounded-2xl border border-rahma-border bg-rahma-ivory px-4 py-3"
+                >
+                  <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-rahma-green text-white">
+                    <Check aria-hidden="true" size={15} />
+                  </span>
+                  <span className="text-sm font-medium leading-6 text-rahma-charcoal">
+                    {item}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="rounded-2xl border border-rahma-border bg-white px-5 py-4 text-sm leading-6 text-rahma-muted">
+              Rahma Therapy provides complementary wellness treatments and does not diagnose
+              or replace medical care.
+            </p>
           </div>
-          <p className="mt-6 rounded-2xl border border-rahma-border bg-white px-5 py-4 text-sm leading-6 text-rahma-muted">
-            Rahma Therapy provides complementary wellness treatments and does not diagnose
-            or replace medical care.
-          </p>
           <Link
             href="/faqs-aftercare"
             className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:w-auto"
