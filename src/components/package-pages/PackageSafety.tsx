@@ -19,7 +19,7 @@ export function PackageSafety() {
             treatment and confirms you are comfortable. Because some treatments involve
             cupping or hijama, hygiene and aftercare are built into the process.
           </p>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          <div className="mt-8 grid gap-x-4 gap-y-5 sm:grid-cols-2">
             {packageSafetyItems.map((item) => (
               <div
                 key={item}
@@ -44,9 +44,11 @@ export function PackageSafety() {
           <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-black/10 to-transparent" />
         </div>
       </div>
-      <p className="mt-12 rounded-3xl border border-white/15 bg-white/10 p-5 text-sm leading-7 text-white/76">
-        {packageSafetyDisclaimer}
-      </p>
+      <div className="pt-14 lg:pt-16">
+        <p className="rounded-3xl border border-white/15 bg-white/10 p-5 text-sm leading-7 text-white/76">
+          {packageSafetyDisclaimer}
+        </p>
+      </div>
     </SectionContainer>
   );
 }
