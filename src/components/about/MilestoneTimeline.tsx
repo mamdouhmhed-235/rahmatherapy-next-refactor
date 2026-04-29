@@ -6,6 +6,10 @@ import { SectionContainer, SectionHeading } from "@/components/shared";
 import { milestones } from "@/content/pages/about";
 import { cn } from "@/lib/utils";
 
+function formatTimelineDate(date: string) {
+  return date.replace(/^[A-Za-z]+\s+/, "");
+}
+
 export function MilestoneTimeline() {
   const [activeIndex, setActiveIndex] = React.useState(0);
   const reduceMotion = useReducedMotion();
@@ -54,7 +58,7 @@ export function MilestoneTimeline() {
                     : "border-white/20 bg-rahma-green text-white/78"
                 )}
               >
-                {milestone.date}
+                {formatTimelineDate(milestone.date)}
               </span>
               <motion.article
                 aria-current={isActive ? "step" : undefined}
