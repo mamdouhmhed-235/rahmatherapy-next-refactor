@@ -19,26 +19,28 @@ export function SafetyStandards() {
             treatment, we ask about your needs and suitability, explain the treatment
             clearly, and confirm what will happen before we begin.
           </p>
-          <div className="mt-8 grid gap-3 sm:grid-cols-2">
-            {safetyItems.map((item) => (
-              <div
-                key={item}
-                className="flex items-start gap-3 rounded-2xl border border-rahma-border bg-rahma-ivory px-4 py-3"
-              >
-                <CheckCircle2
-                  aria-hidden="true"
-                  size={18}
-                  className="mt-0.5 shrink-0 text-rahma-green"
-                />
-                <span className="text-sm font-medium leading-6 text-rahma-charcoal">
-                  {item}
-                </span>
-              </div>
-            ))}
+          <div className="mt-8 grid gap-6">
+            <div className="grid gap-x-5 gap-y-6 sm:grid-cols-2">
+              {safetyItems.map((item) => (
+                <div
+                  key={item}
+                  className="flex h-full items-start gap-3 rounded-2xl border border-rahma-border bg-rahma-ivory px-4 py-3"
+                >
+                  <CheckCircle2
+                    aria-hidden="true"
+                    size={18}
+                    className="mt-0.5 shrink-0 text-rahma-green"
+                  />
+                  <span className="text-sm font-medium leading-6 text-rahma-charcoal">
+                    {item}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="rounded-3xl border border-rahma-border bg-white p-5 text-sm leading-7 text-rahma-muted shadow-sm">
+              {safetyDisclaimer}
+            </p>
           </div>
-          <p className="mt-6 rounded-3xl border border-rahma-border bg-white p-5 text-sm leading-7 text-rahma-muted shadow-sm">
-            {safetyDisclaimer}
-          </p>
         </div>
         <div className="relative min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <AboutImage
