@@ -123,25 +123,27 @@ export function AftercareTabs() {
         </div>
         <div>
           <p className="text-base leading-7 text-rahma-muted">{activeTab.intro}</p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            {activeTab.items.map((item) => (
-              <article
-                key={item.title}
-                className="rounded-3xl border border-rahma-border bg-white p-5 shadow-sm"
-              >
-                <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-rahma-ivory text-rahma-green">
-                  <FaqsAftercareIcon name={item.icon} />
-                </div>
-                <h3 className="text-lg font-semibold text-rahma-charcoal">
-                  {item.title}
-                </h3>
-                <p className="mt-2 text-sm leading-7 text-rahma-muted">{item.body}</p>
-              </article>
-            ))}
+          <div className="mt-6 grid gap-6">
+            <div className="grid gap-x-5 gap-y-6 sm:grid-cols-2">
+              {activeTab.items.map((item) => (
+                <article
+                  key={item.title}
+                  className="h-full rounded-3xl border border-rahma-border bg-white p-5 shadow-sm"
+                >
+                  <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-rahma-ivory text-rahma-green">
+                    <FaqsAftercareIcon name={item.icon} />
+                  </div>
+                  <h3 className="text-lg font-semibold text-rahma-charcoal">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-7 text-rahma-muted">{item.body}</p>
+                </article>
+              ))}
+            </div>
+            <p className="rounded-3xl border border-rahma-border bg-rahma-ivory p-5 text-sm leading-7 text-rahma-muted">
+              {activeTab.note}
+            </p>
           </div>
-          <p className="mt-6 rounded-3xl border border-rahma-border bg-rahma-ivory p-5 text-sm leading-7 text-rahma-muted">
-            {activeTab.note}
-          </p>
         </div>
       </motion.div>
     </SectionContainer>
