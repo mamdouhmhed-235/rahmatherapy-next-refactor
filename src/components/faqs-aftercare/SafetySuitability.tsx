@@ -4,6 +4,7 @@ import {
   suitabilityItems,
 } from "@/content/pages/faqsAftercare";
 import { SectionContainer } from "@/components/shared";
+import { cn } from "@/lib/utils";
 import { FaqsAftercareImage } from "./FaqsAftercareImage";
 
 export function SafetySuitability() {
@@ -43,19 +44,31 @@ export function SafetySuitability() {
               Tell us before booking if you:
             </p>
             <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
-              {suitabilityItems.map((item) => (
-                <div
-                  key={item}
-                  className="flex h-full items-start gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3"
-                >
-                  <CheckCircle2
-                    aria-hidden="true"
-                    size={18}
-                    className="mt-0.5 shrink-0 text-rahma-gold"
-                  />
-                  <span className="text-sm font-medium leading-6 text-white/84">{item}</span>
-                </div>
-              ))}
+              {suitabilityItems.map((item, index) => {
+                const isCenteredFinalCard =
+                  suitabilityItems.length % 2 === 1 &&
+                  index === suitabilityItems.length - 1;
+
+                return (
+                  <div
+                    key={item}
+                    className={cn(
+                      "flex h-full items-start gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3",
+                      isCenteredFinalCard &&
+                        "sm:col-span-2 sm:mx-auto sm:w-[calc((100%-1rem)/2)]"
+                    )}
+                  >
+                    <CheckCircle2
+                      aria-hidden="true"
+                      size={18}
+                      className="mt-0.5 shrink-0 text-rahma-gold"
+                    />
+                    <span className="text-sm font-medium leading-6 text-white/84">
+                      {item}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
