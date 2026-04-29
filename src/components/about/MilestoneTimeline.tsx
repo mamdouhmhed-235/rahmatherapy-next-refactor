@@ -19,53 +19,63 @@ export function MilestoneTimeline() {
         className="mx-auto"
         inverse
       />
-      <ol className="mx-auto mt-12 grid max-w-7xl gap-5 sm:grid-cols-2 xl:grid-cols-4">
+      <ol className="relative mx-auto mt-14 max-w-5xl pr-4 md:pr-0">
+        <span
+          aria-hidden="true"
+          className="absolute bottom-8 left-2 top-8 w-px bg-white/18 md:left-1/2 md:-translate-x-1/2"
+        />
         {milestones.map((milestone, index) => {
           const isActive = activeIndex === index;
+          const isLeft = index % 2 === 0;
+          const entranceX = isLeft ? -34 : 34;
 
           return (
-            <motion.li
+            <li
               key={`${milestone.date}-${milestone.title}`}
-              aria-current={isActive ? "step" : undefined}
-              onViewportEnter={() => setActiveIndex(index)}
-              initial={reduceMotion ? false : { opacity: 0, x: -18, y: 10 }}
-              animate={reduceMotion ? undefined : { scale: isActive ? 1.015 : 1 }}
-              whileInView={reduceMotion ? undefined : { opacity: 1, x: 0, y: 0 }}
-              viewport={{ amount: 0.45, once: false }}
-              transition={{
-                duration: 0.4,
-                delay: reduceMotion ? 0 : (index % 4) * 0.05,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              className={cn(
-                "relative flex h-full min-h-[270px] flex-col rounded-3xl border p-5 text-left text-white shadow-sm transition duration-300 sm:p-6",
-                isActive
-                  ? "border-rahma-gold bg-white/[0.16] shadow-[0_24px_80px_rgba(0,0,0,0.28)] ring-1 ring-rahma-gold/55"
-                  : "border-white/15 bg-white/10 hover:border-white/35"
-              )}
+              className="relative pb-8 last:pb-0 md:grid md:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] md:items-center md:gap-6"
             >
               <span
                 aria-hidden="true"
                 className={cn(
-                  "mb-5 inline-flex size-4 rounded-full border-2 transition duration-300",
+                  "absolute left-0 top-8 z-10 size-4 rounded-full border-2 transition duration-300 md:left-1/2 md:-translate-x-1/2",
                   isActive
-                    ? "border-rahma-gold bg-rahma-gold shadow-[0_0_24px_rgba(245,176,0,0.55)]"
-                    : "border-white/35 bg-rahma-green"
+                    ? "border-rahma-gold bg-rahma-gold shadow-[0_0_28px_rgba(245,176,0,0.62)]"
+                    : "border-white/40 bg-rahma-green"
                 )}
               />
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold text-rahma-charcoal">
-                  {milestone.category}
-                </span>
-                <span className="text-sm font-semibold text-white/70">
-                  {milestone.date}
-                </span>
-              </div>
-              <h3 className="mt-5 text-xl font-semibold">{milestone.title}</h3>
-              <p className="mt-3 text-sm leading-7 text-white/76">
-                {milestone.description}
-              </p>
-            </motion.li>
+              <motion.article
+                aria-current={isActive ? "step" : undefined}
+                onViewportEnter={() => setActiveIndex(index)}
+                initial={reduceMotion ? false : { opacity: 0, x: entranceX, y: 18 }}
+                animate={reduceMotion ? undefined : { scale: isActive ? 1.015 : 1 }}
+                whileInView={reduceMotion ? undefined : { opacity: 1, x: 0, y: 0 }}
+                viewport={{ amount: 0.55, once: false }}
+                transition={{
+                  duration: 0.46,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className={cn(
+                  "ml-12 rounded-3xl border p-5 text-left text-white shadow-sm transition duration-300 sm:p-6 md:ml-0",
+                  isLeft ? "md:col-start-1" : "md:col-start-3",
+                  isActive
+                    ? "border-rahma-gold bg-white/[0.16] shadow-[0_24px_80px_rgba(0,0,0,0.28)] ring-1 ring-rahma-gold/55"
+                    : "border-white/15 bg-white/10 hover:border-white/35"
+                )}
+              >
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold text-rahma-charcoal">
+                    {milestone.category}
+                  </span>
+                  <span className="text-sm font-semibold text-white/70">
+                    {milestone.date}
+                  </span>
+                </div>
+                <h3 className="mt-4 text-xl font-semibold">{milestone.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-white/76">
+                  {milestone.description}
+                </p>
+              </motion.article>
+            </li>
           );
         })}
       </ol>
