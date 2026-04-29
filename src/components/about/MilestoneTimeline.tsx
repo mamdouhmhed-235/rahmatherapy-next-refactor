@@ -19,7 +19,7 @@ export function MilestoneTimeline() {
         className="mx-auto"
         inverse
       />
-      <ol className="relative mx-auto mt-14 max-w-5xl pr-4 md:pr-0">
+      <ol className="relative mx-auto mt-14 max-w-5xl list-none pl-0 pr-4 md:pr-0">
         <span
           aria-hidden="true"
           className="absolute bottom-8 left-2 top-8 w-px bg-white/18 md:left-1/2 md:-translate-x-1/2"
@@ -32,7 +32,7 @@ export function MilestoneTimeline() {
           return (
             <li
               key={`${milestone.date}-${milestone.title}`}
-              className="relative pb-8 last:pb-0 md:grid md:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] md:items-center md:gap-6"
+              className="relative pb-8 last:pb-0 md:grid md:grid-cols-[minmax(0,1fr)_8rem_minmax(0,1fr)] md:items-start md:gap-4"
             >
               <span
                 aria-hidden="true"
@@ -43,6 +43,16 @@ export function MilestoneTimeline() {
                     : "border-white/40 bg-rahma-green"
                 )}
               />
+              <span
+                className={cn(
+                  "relative z-20 mb-3 ml-12 inline-flex w-fit rounded-full border px-3 py-1 text-xs font-semibold transition duration-300 md:absolute md:left-1/2 md:top-6 md:mb-0 md:ml-0 md:-translate-x-1/2",
+                  isActive
+                    ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal shadow-[0_0_24px_rgba(245,176,0,0.42)]"
+                    : "border-white/20 bg-rahma-green text-white/78"
+                )}
+              >
+                {milestone.date}
+              </span>
               <motion.article
                 aria-current={isActive ? "step" : undefined}
                 onViewportEnter={() => setActiveIndex(index)}
@@ -65,9 +75,6 @@ export function MilestoneTimeline() {
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold text-rahma-charcoal">
                     {milestone.category}
-                  </span>
-                  <span className="text-sm font-semibold text-white/70">
-                    {milestone.date}
                   </span>
                 </div>
                 <h3 className="mt-4 text-xl font-semibold">{milestone.title}</h3>
