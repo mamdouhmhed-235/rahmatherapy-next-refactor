@@ -16,6 +16,7 @@
 
 # next.js
 /.next/
+/.open-next/
 /out/
 /dist/
 /.dist-parity-dev/
@@ -40,9 +41,7 @@ phase*.err.log
 # env files (can opt-in for committing if needed)
 .env*
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+cloudflare-env.d.ts
