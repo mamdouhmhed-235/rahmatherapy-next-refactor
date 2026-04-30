@@ -35,7 +35,7 @@ export function CredentialLogos({ decorative = false }: { decorative?: boolean }
             width={logo.width}
             height={logo.height}
             unoptimized
-            className="max-h-10 w-auto object-contain"
+            className="h-auto max-h-10 w-auto object-contain"
           />
         </span>
       ))}

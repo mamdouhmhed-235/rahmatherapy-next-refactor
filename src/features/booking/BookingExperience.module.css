@@ -237,6 +237,7 @@
   overflow: auto;
   overscroll-behavior: contain;
   padding: 24px 30px;
+  background: color-mix(in oklab, var(--brand-calm-surface) 54%, #ffffff);
 }
 
 .mainPanel {
@@ -1052,9 +1053,12 @@
   .contentGrid {
     display: grid;
     flex: 1 1 auto;
+    min-height: 0;
     gap: 16px;
     padding: 16px;
     padding-bottom: max(16px, env(safe-area-inset-bottom));
+    background:
+      linear-gradient(180deg, #ffffff 0%, color-mix(in oklab, var(--brand-calm-surface) 62%, #ffffff) 100%);
   }
 
   .packageGrid,
@@ -1093,8 +1097,8 @@
   }
 
   .brandLine {
-    width: clamp(10rem, 58vw, 13rem);
-    height: 4.75rem;
+    width: clamp(8rem, 48vw, 11rem);
+    height: 3.75rem;
   }
 
   .steps {

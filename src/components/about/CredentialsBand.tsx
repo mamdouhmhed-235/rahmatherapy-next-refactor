@@ -28,7 +28,7 @@ function LogoBadge({ src, label, placeholder }: { src: string; label: string; pl
             width={130}
             height={64}
             unoptimized
-            className="max-h-14 w-auto"
+            className="h-auto max-h-14 w-auto"
           />
         </span>
       ) : (

@@ -11,9 +11,9 @@ const trustPills = [
 
 export function AboutHero() {
   return (
-    <section className="bg-gradient-to-b from-rahma-ivory to-white px-5 py-14 sm:px-6 lg:px-8 lg:py-20">
+    <section className="overflow-hidden bg-gradient-to-b from-rahma-ivory to-white px-5 py-14 sm:px-6 lg:px-8 lg:py-20">
       <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
             About Rahma Therapy
           </p>
@@ -42,11 +42,11 @@ export function AboutHero() {
               <ArrowRight aria-hidden="true" size={17} />
             </Link>
           </div>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex max-w-full flex-wrap gap-3">
             {trustPills.map((pill) => (
               <span
                 key={pill}
-                className="rounded-full border border-rahma-border bg-white px-4 py-2 text-sm font-medium text-rahma-charcoal shadow-sm"
+                className="max-w-full rounded-full border border-rahma-border bg-white px-4 py-2 text-sm font-medium text-rahma-charcoal shadow-sm"
               >
                 {pill}
               </span>

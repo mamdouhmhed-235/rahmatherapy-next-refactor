@@ -11,9 +11,9 @@ const trustPills = [
 
 export function FaqsAftercareHero() {
   return (
-    <section className="bg-gradient-to-b from-rahma-ivory to-white px-5 py-12 sm:px-6 md:py-14 lg:px-8 lg:py-20">
+    <section className="overflow-hidden bg-gradient-to-b from-rahma-ivory to-white px-5 py-12 sm:px-6 md:py-14 lg:px-8 lg:py-20">
       <div className="mx-auto grid max-w-7xl gap-8 md:grid-cols-[0.95fr_1.05fr] md:items-center lg:gap-10">
-        <div>
+        <div className="min-w-0">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
             FAQs & Aftercare
           </p>
@@ -40,11 +40,11 @@ export function FaqsAftercareHero() {
               Ask on WhatsApp
             </Link>
           </div>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex max-w-full flex-wrap gap-3">
             {trustPills.map((pill) => (
               <span
                 key={pill}
-                className="rounded-full border border-rahma-border bg-white px-4 py-2 text-sm font-medium text-rahma-charcoal shadow-sm"
+                className="max-w-full rounded-full border border-rahma-border bg-white px-4 py-2 text-sm font-medium text-rahma-charcoal shadow-sm"
               >
                 {pill}
               </span>

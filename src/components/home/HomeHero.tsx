@@ -11,7 +11,7 @@ const trustPills = [
 
 export function HomeHero() {
   return (
-    <section className="bg-rahma-ivory px-4 pb-14 pt-6 sm:px-6 lg:px-8">
+    <section className="overflow-hidden bg-rahma-ivory px-4 pb-14 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-[88rem]">
         <div className="relative min-h-[620px] overflow-hidden rounded-3xl bg-rahma-green shadow-elevated sm:min-h-[680px]">
           <HomeImage
@@ -22,7 +22,7 @@ export function HomeHero() {
           />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(31,47,43,0.92)_0%,rgba(31,47,43,0.74)_42%,rgba(31,47,43,0.24)_72%,rgba(31,47,43,0.42)_100%)]" />
           <div className="relative z-10 flex min-h-[620px] flex-col justify-end p-6 text-white sm:min-h-[680px] sm:p-10 lg:p-14">
-            <div className="max-w-3xl">
+            <div className="max-w-3xl min-w-0">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-gold">
                 Mobile hijama, cupping & massage in Luton
               </p>
@@ -51,11 +51,11 @@ export function HomeHero() {
                 </Link>
               </div>
             </div>
-            <div className="mt-10 flex flex-wrap gap-3">
+            <div className="mt-10 flex max-w-full flex-wrap gap-3">
               {trustPills.map((pill) => (
                 <span
                   key={pill}
-                  className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white"
+                  className="max-w-full rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white"
                 >
                   {pill}
                 </span>
