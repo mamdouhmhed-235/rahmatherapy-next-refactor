@@ -27,6 +27,8 @@ export interface BookingDetails {
   clientGender: "male" | "female" | "";
   postcode: string;
   address: string;
+  city: string;
+  area: string;
 }
 
 export const emptyBookingDetails: BookingDetails = {
@@ -36,6 +38,8 @@ export const emptyBookingDetails: BookingDetails = {
   clientGender: "",
   postcode: "",
   address: "",
+  city: "",
+  area: "",
 };
 
 export interface BookingRequestPayload {

@@ -19,11 +19,17 @@ export const bookingDetailsSchema = z.object({
     .refine((value) => value !== "", {
       error: "Select the client gender so we can arrange the right therapist.",
     }),
-  postcode: requiredString("Enter your Luton postcode.").min(3, {
-    error: "Enter your Luton postcode.",
+  postcode: requiredString("Enter your postcode.").min(3, {
+    error: "Enter your postcode.",
   }),
   address: requiredString("Enter the home visit address.").min(5, {
     error: "Enter the home visit address.",
+  }),
+  city: requiredString("Enter your city or town.").min(2, {
+    error: "Enter your city or town.",
+  }),
+  area: requiredString("Enter your area or county (e.g., Bedfordshire).").min(2, {
+    error: "Enter your area or county.",
   }),
 });
 

@@ -33,6 +33,15 @@ export function VisitDetailsStep({
     formState: { errors },
   } = form;
   const clientGender = watch("clientGender");
+  const city = watch("city");
+
+  // Temporary coverage check (will eventually fetch from backend allowed_cities)
+  const isOutsideCoverage =
+    city &&
+    city.length > 2 &&
+    !["luton", "dunstable", "houghton regis"].some((allowed) =>
+      city.toLowerCase().includes(allowed)
+    );
 
   return (
     <section className={styles.stepSection} aria-labelledby="details-heading">
@@ -122,7 +131,33 @@ export function VisitDetailsStep({
         </fieldset>
 
         <Field
-          label="Luton postcode"
+          label="City / Town"
+          error={errors.city?.message}
+          icon={<MapPin size={16} />}
+        >
+          <input
+            autoComplete="address-level2"
+            placeholder="e.g. Luton"
+            aria-invalid={Boolean(errors.city)}
+            {...register("city")}
+          />
+        </Field>
+
+        <Field
+          label="Area / County"
+          error={errors.area?.message}
+          icon={<MapPin size={16} />}
+        >
+          <input
+            autoComplete="address-level1"
+            placeholder="e.g. Bedfordshire"
+            aria-invalid={Boolean(errors.area)}
+            {...register("area")}
+          />
+        </Field>
+
+        <Field
+          label="Postcode"
           error={errors.postcode?.message}
           icon={<MapPin size={16} />}
         >
@@ -148,6 +183,15 @@ export function VisitDetailsStep({
             />
           </Field>
         </div>
+
+        {isOutsideCoverage && (
+          <div className={`${styles.fullWidth} ${styles.formNotice}`}>
+            <MapPin aria-hidden="true" size={18} />
+            <p>
+              <strong>Note:</strong> It looks like you are outside our standard coverage area. You may still submit a request, but we cannot guarantee availability and a travel fee may apply.
+            </p>
+          </div>
+        )}
       </div>
 
       <div className={styles.schedulerGrid}>
