@@ -10,7 +10,6 @@ import { HomeTeamPreview } from "@/components/home/HomeTeamPreview";
 import { HomeTrustStrip } from "@/components/home/HomeTrustStrip";
 import { PainPointCards } from "@/components/home/PainPointCards";
 import { WhyRahmaTherapy } from "@/components/home/WhyRahmaTherapy";
-import { SentryTestButton } from "@/components/home/SentryTestButton";
 
 export const metadata: Metadata = {
   title: "Rahma Therapy | Mobile Hijama, Cupping & Massage in Luton",
@@ -48,7 +47,6 @@ export default function HomePage() {
       <HomeSafetyAftercare />
       <HomeFAQPreview />
       <HomeFinalCTA />
-      <SentryTestButton />
     </>
   );
 }
