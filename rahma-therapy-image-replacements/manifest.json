@@ -1,0 +1,50 @@
+[
+  {
+    "slug": "01-back-pain-and-stiffness",
+    "title": "Back pain & stiffness",
+    "png": "01-back-pain-and-stiffness.png",
+    "webp": "01-back-pain-and-stiffness.webp",
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "slug": "02-neck-and-shoulder-tension",
+    "title": "Neck & shoulder tension",
+    "png": "02-neck-and-shoulder-tension.png",
+    "webp": "02-neck-and-shoulder-tension.webp",
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "slug": "03-muscle-tightness",
+    "title": "Muscle tightness",
+    "png": "03-muscle-tightness.png",
+    "webp": "03-muscle-tightness.webp",
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "slug": "04-stress-and-body-heaviness",
+    "title": "Stress & body heaviness",
+    "png": "04-stress-and-body-heaviness.png",
+    "webp": "04-stress-and-body-heaviness.webp",
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "slug": "05-gym-and-sports-recovery",
+    "title": "Gym & sports recovery",
+    "png": "05-gym-and-sports-recovery.png",
+    "webp": "05-gym-and-sports-recovery.webp",
+    "width": 1672,
+    "height": 941
+  },
+  {
+    "slug": "06-private-hijama-at-home",
+    "title": "Private hijama at home",
+    "png": "06-private-hijama-at-home.png",
+    "webp": "06-private-hijama-at-home.webp",
+    "width": 1672,
+    "height": 941
+  }
+]
