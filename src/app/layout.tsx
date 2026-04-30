@@ -3,6 +3,7 @@ import { Urbanist, Work_Sans } from "next/font/google";
 import "react-day-picker/style.css";
 import "@/styles/site-parity.css";
 import "./globals.css";
+import { SentryProvider } from "@/components/SentryProvider";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://rahmatherapy.co.uk"),
@@ -46,7 +47,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`${urbanist.variable} ${workSans.variable}`}>
-      <body>{children}</body>
+      <body>
+        <SentryProvider />
+        {children}
+      </body>
     </html>
   );
 }
