@@ -19,6 +19,9 @@ export const bookingDetailsSchema = z.object({
     .refine((value) => value !== "", {
       error: "Select the client gender so we can arrange the right therapist.",
     }),
+  numberOfPeople: z.coerce.number().int().min(1).max(10, {
+    error: "Maximum 10 people for group bookings.",
+  }),
   postcode: requiredString("Enter your postcode.").min(3, {
     error: "Enter your postcode.",
   }),

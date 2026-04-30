@@ -25,6 +25,7 @@ export interface BookingDetails {
   email: string;
   notes: string;
   clientGender: "male" | "female" | "";
+  numberOfPeople: number;
   postcode: string;
   address: string;
   city: string;
@@ -36,6 +37,7 @@ export const emptyBookingDetails: BookingDetails = {
   email: "",
   notes: "",
   clientGender: "",
+  numberOfPeople: 1,
   postcode: "",
   address: "",
   city: "",

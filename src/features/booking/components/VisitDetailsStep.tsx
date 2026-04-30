@@ -1,7 +1,7 @@
 "use client";
 
 import type { UseFormReturn } from "react-hook-form";
-import { ClipboardList, Mail, MapPin, Phone, ShieldCheck } from "lucide-react";
+import { ClipboardList, Mail, MapPin, Phone, ShieldCheck, Users } from "lucide-react";
 import type { BookingTimeSlot } from "../data/time-slots";
 import type { BookingDetailsFormValues } from "../schemas/booking-schema";
 import { DatePickerField } from "./DatePickerField";
@@ -129,6 +129,23 @@ export function VisitDetailsStep({
             </p>
           )}
         </fieldset>
+
+        <Field
+          label="Number of people"
+          error={errors.numberOfPeople?.message}
+          icon={<Users size={16} />}
+        >
+          <select
+            aria-invalid={Boolean(errors.numberOfPeople)}
+            {...register("numberOfPeople")}
+          >
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+              <option key={num} value={num}>
+                {num} {num === 1 ? "person" : "people"}
+              </option>
+            ))}
+          </select>
+        </Field>
 
         <Field
           label="City / Town"
