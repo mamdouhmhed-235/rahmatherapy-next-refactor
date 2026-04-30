@@ -29,7 +29,7 @@ import {
   type BookingDetailsFormValues,
 } from "./schemas/booking-schema";
 import { useBookingDraftStore } from "./store/booking-store";
-import { BOOKING_STEPS, emptyBookingDetails } from "./types";
+import { BOOKING_STEPS, emptyBookingDetails, type BookingDetails } from "./types";
 import styles from "./BookingExperience.module.css";
 
 export function BookingExperience() {
@@ -59,7 +59,7 @@ export function BookingExperience() {
   } = useBookingDraftStore();
 
   const form = useForm<BookingDetailsFormValues>({
-    defaultValues: emptyBookingDetails,
+    defaultValues: emptyBookingDetails as any,
     mode: "onSubmit",
   });
 
@@ -216,7 +216,7 @@ export function BookingExperience() {
       await submitBookingRequest({
         selectedPackageIds,
         selectedPackages,
-        details: form.getValues(),
+        details: form.getValues() as BookingDetailsFormValues,
         preferredDate: visitResult.data.preferredDate,
         preferredTime: visitResult.data.preferredTime,
         estimatedTotal: packageTotal,
@@ -230,7 +230,7 @@ export function BookingExperience() {
 
   const startOver = () => {
     resetDraft();
-    form.reset(emptyBookingDetails);
+    form.reset(emptyBookingDetails as any);
     setAcknowledged(false);
     clearStepErrors();
   };
@@ -301,7 +301,7 @@ export function BookingExperience() {
           {currentStep === "review" && (
             <MotionStep key="review">
               <ReviewStep
-                details={form.getValues()}
+                details={form.getValues() as BookingDetailsFormValues}
                 acknowledged={acknowledged}
                 acknowledgementError={acknowledgementError}
                 selectedPackages={selectedPackages}

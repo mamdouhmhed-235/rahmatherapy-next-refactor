@@ -36,7 +36,7 @@ export const emptyBookingDetails: BookingDetails = {
   phone: "",
   email: "",
   notes: "",
-  clientGender: "",
+  clientGender: "" as any,
   numberOfPeople: 1,
   postcode: "",
   address: "",

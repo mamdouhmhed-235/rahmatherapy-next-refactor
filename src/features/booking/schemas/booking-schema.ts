@@ -63,5 +63,5 @@ export const bookingAcknowledgementSchema = z.object({
   }),
 });
 
-export type BookingDetailsFormValues = z.input<typeof bookingDetailsSchema>;
+export type BookingDetailsFormValues = z.infer<typeof bookingDetailsSchema>;
 export type BookingVisitValues = z.output<typeof bookingVisitSchema>;

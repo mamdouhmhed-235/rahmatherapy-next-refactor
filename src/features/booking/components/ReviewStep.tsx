@@ -1,12 +1,12 @@
 "use client";
 
 import type { BookingPackage } from "../data/booking-packages";
-import type { BookingDetails } from "../types";
+import type { BookingDetailsFormValues } from "../schemas/booking-schema";
 import { formatDateLabel, formatPrice } from "../utils/format";
 import styles from "../BookingExperience.module.css";
 
 interface ReviewStepProps {
-  details: BookingDetails;
+  details: BookingDetailsFormValues;
   acknowledged: boolean;
   acknowledgementError?: string;
   selectedPackages: BookingPackage[];
@@ -66,6 +66,9 @@ export function ReviewStep({
           <p>{details.phone}</p>
           <p>{details.email}</p>
           <p>{details.clientGender === "male" ? "Male client" : "Female client"}</p>
+          <p>
+            {details.numberOfPeople} {details.numberOfPeople === 1 ? "person" : "people"}
+          </p>
         </ReviewBlock>
 
         <ReviewBlock title="Home visit address">
