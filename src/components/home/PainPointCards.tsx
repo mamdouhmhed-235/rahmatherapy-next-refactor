@@ -15,18 +15,20 @@ export function PainPointCards() {
         {homePainPoints.map((item) => (
           <article
             key={item.title}
-            className="overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-soft"
+            className="group relative flex min-h-[340px] overflow-hidden rounded-3xl border border-white/10 bg-rahma-charcoal shadow-soft sm:min-h-[360px]"
           >
-            <div className="relative h-52">
+            <div className="absolute inset-0">
               <HomeImage
                 src={item.image}
                 alt={item.alt}
                 imageType={item.imageType}
+                className="transition duration-500 group-hover:scale-[1.03]"
               />
             </div>
-            <div className="p-6">
-              <h3 className="text-xl font-semibold text-rahma-charcoal">{item.title}</h3>
-              <p className="mt-3 text-sm leading-7 text-rahma-muted">{item.body}</p>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/78 via-black/25 to-black/5" />
+            <div className="relative z-10 mt-auto p-6 text-white sm:p-7">
+              <h3 className="max-w-sm text-2xl font-semibold leading-tight">{item.title}</h3>
+              <p className="mt-3 max-w-sm text-sm leading-7 text-white/82">{item.body}</p>
             </div>
           </article>
         ))}
