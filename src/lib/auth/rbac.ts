@@ -18,7 +18,13 @@ export const PERMISSIONS = {
   VIEW_OWN_BOOKINGS: "view_own_bookings",
   VIEW_CLIENTS: "view_clients",
   VIEW_REPORTS: "view_reports",
+  VIEW_DASHBOARD: "view_dashboard",
+  CLAIM_BOOKINGS: "claim_bookings",
   CLAIM_ASSIGNMENTS: "claim_assignments",
+  REASSIGN_BOOKINGS: "reassign_bookings",
+  MANAGE_PAYMENTS: "manage_payments",
+  MANAGE_STAFF: "manage_staff",
+  MANAGE_EMAILS: "manage_emails",
   MANAGE_AUDIT_LOGS: "manage_audit_logs",
 } as const;
 

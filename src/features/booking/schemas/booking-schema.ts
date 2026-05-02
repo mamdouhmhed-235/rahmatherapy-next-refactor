@@ -1,6 +1,7 @@
 import { parseISO, startOfDay } from "date-fns";
 import { z } from "zod/v4";
 import { TIME_SLOTS } from "../data/time-slots";
+import type { BookingDetails } from "../types";
 
 const requiredString = (message: string) =>
   z.string().trim().min(1, { error: message });
@@ -63,5 +64,5 @@ export const bookingAcknowledgementSchema = z.object({
   }),
 });
 
-export type BookingDetailsFormValues = z.infer<typeof bookingDetailsSchema>;
+export type BookingDetailsFormValues = BookingDetails;
 export type BookingVisitValues = z.output<typeof bookingVisitSchema>;

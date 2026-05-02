@@ -22,7 +22,29 @@ export default async function RoleDetailPage({ params }: RoleDetailPageProps) {
   }
 
   if (!profile.permissions.has(PERMISSIONS.MANAGE_ROLES)) {
-    redirect("/admin/roles");
+    return (
+      <div>
+        <h1 className="mb-2 font-display text-2xl font-semibold text-[var(--rahma-charcoal)]">
+          Roles &amp; Permissions
+        </h1>
+        <div
+          className="mt-6 rounded-2xl border bg-white px-6 py-8 text-center"
+          style={{ borderColor: "var(--rahma-border)" }}
+        >
+          <ShieldCheck className="mx-auto mb-3 size-8 text-[var(--rahma-muted)]" />
+          <p className="font-medium text-[var(--rahma-charcoal)]">
+            Insufficient permissions
+          </p>
+          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
+            You need the{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              manage_roles
+            </code>{" "}
+            permission to access this page.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const { roleId } = await params;

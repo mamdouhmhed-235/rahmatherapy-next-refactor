@@ -21,7 +21,12 @@ export default async function AdminLoginPage({ searchParams }: LoginPageProps) {
   }
 
   const params = await searchParams;
-  const redirectTo = params.redirectTo ?? "/admin/dashboard";
+  const requestedRedirect = params.redirectTo;
+  const redirectTo =
+    requestedRedirect?.startsWith("/admin") &&
+    !requestedRedirect.startsWith("//")
+      ? requestedRedirect
+      : "/admin/dashboard";
   const inactiveReason = params.reason === "inactive";
 
   return (

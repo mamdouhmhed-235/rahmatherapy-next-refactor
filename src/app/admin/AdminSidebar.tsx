@@ -21,7 +21,7 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  permission?: string;
+  permissions?: string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -34,43 +34,43 @@ const NAV_ITEMS: NavItem[] = [
     label: "Bookings",
     href: "/admin/bookings",
     icon: CalendarCheck,
-    permission: PERMISSIONS.VIEW_ALL_BOOKINGS,
+    permissions: [PERMISSIONS.VIEW_ALL_BOOKINGS, PERMISSIONS.MANAGE_BOOKINGS_ALL],
   },
   {
     label: "Staff",
     href: "/admin/staff",
     icon: Users,
-    permission: PERMISSIONS.MANAGE_USERS,
+    permissions: [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_STAFF],
   },
   {
     label: "Services",
     href: "/admin/services",
     icon: Wrench,
-    permission: PERMISSIONS.MANAGE_SERVICES,
+    permissions: [PERMISSIONS.MANAGE_SERVICES],
   },
   {
     label: "Roles & Permissions",
     href: "/admin/roles",
     icon: ShieldCheck,
-    permission: PERMISSIONS.MANAGE_ROLES,
+    permissions: [PERMISSIONS.MANAGE_ROLES],
   },
   {
     label: "Availability",
     href: "/admin/availability",
     icon: Clock,
-    permission: PERMISSIONS.MANAGE_AVAILABILITY_GLOBAL,
+    permissions: [PERMISSIONS.MANAGE_AVAILABILITY_GLOBAL],
   },
   {
     label: "Clients",
     href: "/admin/clients",
     icon: UserSquare,
-    permission: PERMISSIONS.VIEW_CLIENTS,
+    permissions: [PERMISSIONS.VIEW_CLIENTS, PERMISSIONS.MANAGE_CLIENTS],
   },
   {
     label: "Settings",
     href: "/admin/settings",
     icon: Settings,
-    permission: PERMISSIONS.MANAGE_SETTINGS,
+    permissions: [PERMISSIONS.MANAGE_SETTINGS],
   },
 ];
 
@@ -82,7 +82,9 @@ export function AdminSidebar({ profile }: AdminSidebarProps) {
   const pathname = usePathname();
 
   const visibleItems = NAV_ITEMS.filter(
-    (item) => !item.permission || profile.permissions.has(item.permission)
+    (item) =>
+      !item.permissions ||
+      item.permissions.some((permission) => profile.permissions.has(permission))
   );
 
   return (

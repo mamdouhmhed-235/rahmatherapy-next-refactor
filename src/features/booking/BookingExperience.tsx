@@ -5,7 +5,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
 import { ArrowLeft } from "lucide-react";
-import { useForm, type DefaultValues, type FieldPath } from "react-hook-form";
+import { useForm, type FieldPath } from "react-hook-form";
 import { submitBookingRequest } from "./actions/submitBookingRequest";
 import { BookingDialog } from "./components/BookingDialog";
 import { getStepIndex } from "./components/BookingProgress";
@@ -29,7 +29,8 @@ import {
   type BookingDetailsFormValues,
 } from "./schemas/booking-schema";
 import { useBookingDraftStore } from "./store/booking-store";
-import { BOOKING_STEPS, emptyBookingDetails, type BookingDetails } from "./types";
+import { BOOKING_STEPS, emptyBookingDetails } from "./types";
+
 import styles from "./BookingExperience.module.css";
 
 export function BookingExperience() {
@@ -59,7 +60,7 @@ export function BookingExperience() {
   } = useBookingDraftStore();
 
   const form = useForm<BookingDetailsFormValues>({
-    defaultValues: emptyBookingDetails as DefaultValues<BookingDetailsFormValues>,
+    defaultValues: emptyBookingDetails,
     mode: "onSubmit",
   });
 
@@ -230,7 +231,7 @@ export function BookingExperience() {
 
   const startOver = () => {
     resetDraft();
-    form.reset(emptyBookingDetails as DefaultValues<BookingDetailsFormValues>);
+    form.reset(emptyBookingDetails);
     setAcknowledged(false);
     clearStepErrors();
   };
