@@ -5,7 +5,7 @@ import { Dialog } from "@base-ui/react/dialog";
 import { AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
 import { ArrowLeft } from "lucide-react";
-import { useForm, type FieldPath } from "react-hook-form";
+import { useForm, type DefaultValues, type FieldPath } from "react-hook-form";
 import { submitBookingRequest } from "./actions/submitBookingRequest";
 import { BookingDialog } from "./components/BookingDialog";
 import { getStepIndex } from "./components/BookingProgress";
@@ -59,7 +59,7 @@ export function BookingExperience() {
   } = useBookingDraftStore();
 
   const form = useForm<BookingDetailsFormValues>({
-    defaultValues: emptyBookingDetails as any,
+    defaultValues: emptyBookingDetails as DefaultValues<BookingDetailsFormValues>,
     mode: "onSubmit",
   });
 
@@ -230,7 +230,7 @@ export function BookingExperience() {
 
   const startOver = () => {
     resetDraft();
-    form.reset(emptyBookingDetails as any);
+    form.reset(emptyBookingDetails as DefaultValues<BookingDetailsFormValues>);
     setAcknowledged(false);
     clearStepErrors();
   };
