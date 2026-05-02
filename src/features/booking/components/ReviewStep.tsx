@@ -9,6 +9,7 @@ interface ReviewStepProps {
   details: BookingDetailsFormValues;
   acknowledged: boolean;
   acknowledgementError?: string;
+  submissionError?: string;
   selectedPackages: BookingPackage[];
   total: number;
   preferredDate: string | null;
@@ -20,27 +21,33 @@ export function ReviewStep({
   details,
   acknowledged,
   acknowledgementError,
+  submissionError,
   selectedPackages,
   total,
   preferredDate,
   preferredTime,
   onAcknowledgedChange,
 }: ReviewStepProps) {
+  const participantGenders =
+    details.numberOfPeople > 1
+      ? details.participantGenders.slice(0, details.numberOfPeople)
+      : [details.clientGender];
+
   return (
     <section className={styles.stepSection} aria-labelledby="review-heading">
       <div className={styles.sectionHeader}>
         <div>
-          <p className={styles.sectionKicker}>3 of 4</p>
+          <p className={styles.sectionKicker}>5 of 6</p>
           <h3 id="review-heading">Review your request</h3>
           <p>
-            Check your package, contact details, home visit address and preferred
-            appointment time.
+            Check your service, participant details, home visit address and
+            preferred appointment time.
           </p>
         </div>
       </div>
 
       <div className={styles.reviewGrid}>
-        <ReviewBlock title="Selected package">
+        <ReviewBlock title="Selected service">
           {selectedPackages.map((item) => (
             <div className={styles.reviewLine} key={item.id}>
               <span>{item.name}</span>
@@ -63,17 +70,25 @@ export function ReviewStep({
         </ReviewBlock>
 
         <ReviewBlock title="Contact & client">
+          <p>{details.fullName}</p>
           <p>{details.phone}</p>
           <p>{details.email}</p>
-          <p>{details.clientGender === "male" ? "Male client" : "Female client"}</p>
           <p>
-            {details.numberOfPeople} {details.numberOfPeople === 1 ? "person" : "people"}
+            {details.numberOfPeople}{" "}
+            {details.numberOfPeople === 1 ? "person" : "people"}
           </p>
+          {participantGenders.map((gender, index) => (
+            <p key={`${gender}-${index}`}>
+              Person {index + 1}: {gender === "male" ? "Male" : "Female"}
+            </p>
+          ))}
         </ReviewBlock>
 
         <ReviewBlock title="Home visit address">
-          <p>{details.postcode}</p>
+          <p>{details.city}</p>
+          <p>{details.area}</p>
           <p>{details.address}</p>
+          <p>{details.postcode}</p>
         </ReviewBlock>
       </div>
 
@@ -99,6 +114,11 @@ export function ReviewStep({
       {acknowledgementError && (
         <p className={styles.fieldError} role="alert" aria-live="polite">
           {acknowledgementError}
+        </p>
+      )}
+      {submissionError && (
+        <p className={styles.fieldError} role="alert" aria-live="polite">
+          {submissionError}
         </p>
       )}
     </section>

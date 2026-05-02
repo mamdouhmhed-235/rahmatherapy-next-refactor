@@ -55,9 +55,8 @@ export function BookingDialog({
                   Request a home appointment
                 </Dialog.Title>
                 <Dialog.Description className={styles.description}>
-                  Choose your package, share your Luton home-visit details and
-                  preferred time. Rahma Therapy will contact you to confirm
-                  availability.
+                  Choose your service, add participant details, confirm the
+                  visit area, then request a preferred date and time.
                 </Dialog.Description>
               </div>
               <Dialog.Close

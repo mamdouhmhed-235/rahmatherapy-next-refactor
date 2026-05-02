@@ -71,12 +71,10 @@ export const useBookingDraftStore = create<BookingDraftStore>()(
       resetDraft: () => set(initialState),
     }),
     {
-      name: "zam-therapy-booking-draft-v2",
+      name: "zam-therapy-booking-draft-v3",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         selectedPackageIds: state.selectedPackageIds,
-        preferredDate: state.preferredDate,
-        preferredTime: state.preferredTime,
       }),
     }
   )

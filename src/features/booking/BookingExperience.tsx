@@ -1,20 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
 import { ArrowLeft } from "lucide-react";
-import { useForm, type FieldPath } from "react-hook-form";
-import { submitBookingRequest } from "./actions/submitBookingRequest";
+import { useForm, useWatch, type FieldPath } from "react-hook-form";
+import { submitBookingRequest } from "./actions";
 import { BookingDialog } from "./components/BookingDialog";
 import { getStepIndex } from "./components/BookingProgress";
 import { BookingSummary } from "./components/BookingSummary";
+import { LocationDetailsStep } from "./components/LocationDetailsStep";
 import { MotionStep } from "./components/MotionStep";
 import { PackageSelectionStep } from "./components/PackageSelectionStep";
+import { ParticipantDetailsStep } from "./components/ParticipantDetailsStep";
 import { PreparedStep } from "./components/PreparedStep";
 import { ReviewStep } from "./components/ReviewStep";
-import { VisitDetailsStep } from "./components/VisitDetailsStep";
+import { ScheduleStep } from "./components/ScheduleStep";
 import {
   getPackageSelectionError,
   getPackageTotal,
@@ -25,11 +27,13 @@ import { useBookingUrlState } from "./hooks/useBookingUrlState";
 import {
   bookingAcknowledgementSchema,
   bookingDetailsSchema,
+  bookingLocationSchema,
+  bookingParticipantSchema,
   bookingVisitSchema,
   type BookingDetailsFormValues,
 } from "./schemas/booking-schema";
 import { useBookingDraftStore } from "./store/booking-store";
-import { BOOKING_STEPS, emptyBookingDetails } from "./types";
+import { BOOKING_STEPS, emptyBookingDetails, type BookingDetails } from "./types";
 
 import styles from "./BookingExperience.module.css";
 
@@ -41,6 +45,7 @@ export function BookingExperience() {
   const [acknowledgementError, setAcknowledgementError] = useState<
     string | undefined
   >();
+  const [submissionError, setSubmissionError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const lastTriggerRef = useRef<HTMLElement | null>(null);
   const contentGridRef = useRef<HTMLDivElement | null>(null);
@@ -74,6 +79,37 @@ export function BookingExperience() {
   );
   const selectedDate = preferredDate ? parseISO(preferredDate) : undefined;
   const stepIndex = getStepIndex(currentStep);
+  const watchedDetails = useWatch({ control: form.control });
+  const detailsPreview = useMemo<BookingDetails>(
+    () => ({
+      ...emptyBookingDetails,
+      ...watchedDetails,
+      numberOfPeople: Number(
+        watchedDetails.numberOfPeople ?? emptyBookingDetails.numberOfPeople
+      ),
+      participantGenders:
+        watchedDetails.participantGenders ??
+        emptyBookingDetails.participantGenders,
+    }),
+    [watchedDetails]
+  );
+  const availabilityParticipantGenders = useMemo(
+    () =>
+      (detailsPreview.numberOfPeople > 1
+        ? detailsPreview.participantGenders.slice(0, detailsPreview.numberOfPeople)
+        : [detailsPreview.clientGender]
+      ).filter((gender): gender is "male" | "female" =>
+        gender === "male" || gender === "female"
+      ),
+    [
+      detailsPreview.clientGender,
+      detailsPreview.numberOfPeople,
+      detailsPreview.participantGenders,
+    ]
+  );
+  const clearPreferredTime = useCallback(() => {
+    setPreferredTime(null);
+  }, [setPreferredTime]);
 
   useBookingUrlState({
     open,
@@ -123,14 +159,16 @@ export function BookingExperience() {
     setPackageError(undefined);
     setScheduleError(undefined);
     setAcknowledgementError(undefined);
+    setSubmissionError(undefined);
   };
 
   const handlePackageToggle = (id: (typeof selectedPackageIds)[number]) => {
     togglePackage(id);
+    setPreferredDate(null);
     clearStepErrors();
   };
 
-  const goToDetails = () => {
+  const goToParticipants = () => {
     const selectionError = getPackageSelectionError(selectedPackageIds);
 
     if (selectionError) {
@@ -139,18 +177,12 @@ export function BookingExperience() {
     }
 
     clearStepErrors();
-    setCurrentStep("details");
+    setCurrentStep("participants");
   };
 
-  const validateDetailsForm = () => {
-    const detailsResult = bookingDetailsSchema.safeParse(form.getValues());
-
+  const applyFormIssues = (issues: { path: PropertyKey[]; message: string }[]) => {
     form.clearErrors();
-    if (detailsResult.success) {
-      return true;
-    }
-
-    detailsResult.error.issues.forEach((issue) => {
+    issues.forEach((issue) => {
       const field = issue.path[0];
       if (
         typeof field === "string" &&
@@ -162,8 +194,60 @@ export function BookingExperience() {
         });
       }
     });
+  };
 
+  const validateParticipantsForm = () => {
+    const participantResult = bookingParticipantSchema.safeParse(form.getValues());
+
+    if (participantResult.success) {
+      form.clearErrors();
+      return true;
+    }
+
+    applyFormIssues(participantResult.error.issues);
     return false;
+  };
+
+  const validateLocationForm = () => {
+    const locationResult = bookingLocationSchema.safeParse(form.getValues());
+
+    if (locationResult.success) {
+      form.clearErrors();
+      return true;
+    }
+
+    applyFormIssues(locationResult.error.issues);
+    return false;
+  };
+
+  const validateDetailsForm = () => {
+    const detailsResult = bookingDetailsSchema.safeParse(form.getValues());
+
+    if (detailsResult.success) {
+      form.clearErrors();
+      return true;
+    }
+
+    applyFormIssues(detailsResult.error.issues);
+    return false;
+  };
+
+  const goToLocation = () => {
+    if (!validateParticipantsForm()) {
+      return;
+    }
+
+    clearStepErrors();
+    setCurrentStep("location");
+  };
+
+  const goToSchedule = () => {
+    if (!validateLocationForm()) {
+      return;
+    }
+
+    clearStepErrors();
+    setCurrentStep("schedule");
   };
 
   const goToReview = () => {
@@ -207,12 +291,13 @@ export function BookingExperience() {
     });
 
     if (!visitResult.success) {
-      setCurrentStep("details");
+      setCurrentStep("schedule");
       setScheduleError(visitResult.error.issues[0]?.message);
       return;
     }
 
     setSubmitting(true);
+    setSubmissionError(undefined);
     try {
       await submitBookingRequest({
         selectedPackageIds,
@@ -224,6 +309,12 @@ export function BookingExperience() {
       });
       clearStepErrors();
       setCurrentStep("prepared");
+    } catch (error) {
+      setSubmissionError(
+        error instanceof Error
+          ? error.message
+          : "Unable to submit booking request."
+      );
     } finally {
       setSubmitting(false);
     }
@@ -248,6 +339,7 @@ export function BookingExperience() {
           <BookingSummary
             selectedPackages={selectedPackages}
             packageTotal={packageTotal}
+            details={detailsPreview}
             preferredDate={preferredDate}
             preferredTime={preferredTime}
             actions={
@@ -257,7 +349,9 @@ export function BookingExperience() {
                 onBack={() =>
                   setCurrentStep(BOOKING_STEPS[Math.max(0, stepIndex - 1)])
                 }
-                onGoToDetails={goToDetails}
+                onGoToParticipants={goToParticipants}
+                onGoToLocation={goToLocation}
+                onGoToSchedule={goToSchedule}
                 onGoToReview={goToReview}
                 onPrepareRequest={prepareRequest}
               />
@@ -280,17 +374,33 @@ export function BookingExperience() {
             </MotionStep>
           )}
 
-          {currentStep === "details" && (
-            <MotionStep key="details">
-              <VisitDetailsStep
-                form={form}
+          {currentStep === "participants" && (
+            <MotionStep key="participants">
+              <ParticipantDetailsStep form={form} />
+            </MotionStep>
+          )}
+
+          {currentStep === "location" && (
+            <MotionStep key="location">
+              <LocationDetailsStep form={form} />
+            </MotionStep>
+          )}
+
+          {currentStep === "schedule" && (
+            <MotionStep key="schedule">
+              <ScheduleStep
                 preferredDate={selectedDate}
                 preferredTime={preferredTime}
                 scheduleError={scheduleError}
                 onDateChange={(date) => {
                   setPreferredDate(date ? format(date, "yyyy-MM-dd") : null);
+                  setPreferredTime(null);
                   clearStepErrors();
                 }}
+                serviceIds={selectedPackageIds}
+                participantGenders={availabilityParticipantGenders}
+                city={detailsPreview.city}
+                onTimeClear={clearPreferredTime}
                 onTimeChange={(time: BookingTimeSlot) => {
                   setPreferredTime(time);
                   clearStepErrors();
@@ -305,6 +415,7 @@ export function BookingExperience() {
                 details={form.getValues() as BookingDetailsFormValues}
                 acknowledged={acknowledged}
                 acknowledgementError={acknowledgementError}
+                submissionError={submissionError}
                 selectedPackages={selectedPackages}
                 total={packageTotal}
                 preferredDate={preferredDate}
@@ -332,7 +443,9 @@ interface BookingSummaryActionsProps {
   currentStep: (typeof BOOKING_STEPS)[number];
   submitting: boolean;
   onBack: () => void;
-  onGoToDetails: () => void;
+  onGoToParticipants: () => void;
+  onGoToLocation: () => void;
+  onGoToSchedule: () => void;
   onGoToReview: () => void;
   onPrepareRequest: () => void;
 }
@@ -341,7 +454,9 @@ function BookingSummaryActions({
   currentStep,
   submitting,
   onBack,
-  onGoToDetails,
+  onGoToParticipants,
+  onGoToLocation,
+  onGoToSchedule,
   onGoToReview,
   onPrepareRequest,
 }: BookingSummaryActionsProps) {
@@ -355,12 +470,24 @@ function BookingSummaryActions({
       )}
 
       {currentStep === "packages" && (
-        <button type="button" className={styles.primaryButton} onClick={onGoToDetails}>
-          Continue to details
+        <button type="button" className={styles.primaryButton} onClick={onGoToParticipants}>
+          Continue to clients
         </button>
       )}
 
-      {currentStep === "details" && (
+      {currentStep === "participants" && (
+        <button type="button" className={styles.primaryButton} onClick={onGoToLocation}>
+          Continue to location
+        </button>
+      )}
+
+      {currentStep === "location" && (
+        <button type="button" className={styles.primaryButton} onClick={onGoToSchedule}>
+          Continue to times
+        </button>
+      )}
+
+      {currentStep === "schedule" && (
         <button type="button" className={styles.primaryButton} onClick={onGoToReview}>
           Review request
         </button>
@@ -373,7 +500,7 @@ function BookingSummaryActions({
           disabled={submitting}
           onClick={onPrepareRequest}
         >
-          Prepare request
+          Submit booking request
         </button>
       )}
 

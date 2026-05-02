@@ -26,8 +26,8 @@ export function PackageSelectionStep({
     <section className={styles.stepSection} aria-labelledby="packages-heading">
       <div className={styles.sectionHeader}>
         <div>
-          <p className={styles.sectionKicker}>1 of 4</p>
-          <h3 id="packages-heading">Choose your package</h3>
+          <p className={styles.sectionKicker}>1 of 6</p>
+          <h3 id="packages-heading">Choose your service</h3>
           <p>
             Choose one hijama or cupping package. You can also add one massage
             session if you want extra hands-on support.

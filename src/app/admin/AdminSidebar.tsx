@@ -34,7 +34,11 @@ const NAV_ITEMS: NavItem[] = [
     label: "Bookings",
     href: "/admin/bookings",
     icon: CalendarCheck,
-    permissions: [PERMISSIONS.VIEW_ALL_BOOKINGS, PERMISSIONS.MANAGE_BOOKINGS_ALL],
+    permissions: [
+      PERMISSIONS.VIEW_ALL_BOOKINGS,
+      PERMISSIONS.MANAGE_BOOKINGS_ALL,
+      PERMISSIONS.MANAGE_BOOKINGS_OWN,
+    ],
   },
   {
     label: "Staff",

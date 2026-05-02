@@ -1,0 +1,98 @@
+insert into public.services (
+  slug,
+  name,
+  group_category,
+  short_description,
+  full_description,
+  suitable_for_notes,
+  gender_restrictions,
+  price,
+  duration_mins,
+  is_active,
+  is_visible_on_frontend,
+  display_order
+)
+values
+  (
+    'supreme-combo',
+    'Supreme Combo Package',
+    'cupping',
+    'Massage preparation, IASTM-style work, dry cupping, fire cupping and hijama.',
+    'Our most complete home package, combining massage preparation, IASTM-style work, dry cupping, fire cupping and hijama.',
+    'Best for clients who want several Rahma Therapy methods in one appointment.',
+    'any',
+    55,
+    90,
+    true,
+    true,
+    10
+  ),
+  (
+    'hijama-package',
+    'Hijama Package',
+    'cupping',
+    'Focused wet cupping at home with pre-cupping massage and dry cupping included.',
+    'Focused wet cupping at home with pre-cupping massage, dry cupping, wet cupping and aftercare guidance included.',
+    'Best for clients who mainly want wet cupping with a clear treatment structure.',
+    'any',
+    45,
+    60,
+    true,
+    true,
+    20
+  ),
+  (
+    'fire-package',
+    'Fire Package',
+    'cupping',
+    'A warming dry or fire cupping session without wet cupping.',
+    'A warming dry or fire cupping session with essential oils and aftercare guidance, without wet cupping.',
+    'Best for clients who want cupping support without wet cupping.',
+    'any',
+    40,
+    45,
+    true,
+    true,
+    30
+  ),
+  (
+    'massage-30',
+    '30-Min Massage Therapy',
+    'massage',
+    'A shorter focused session for one main area.',
+    'A 30-minute focused massage session for one main area such as back, neck, shoulders or legs.',
+    'Best for clients who want targeted support or a quicker appointment.',
+    'any',
+    40,
+    30,
+    true,
+    true,
+    40
+  ),
+  (
+    'massage-60',
+    '1-Hour Massage Therapy',
+    'massage',
+    'A longer massage session for multiple areas or a calmer full-body reset.',
+    'A 1-hour massage session for multiple areas, deeper work or a calmer full-body reset.',
+    'Best for clients who want more time for broader massage support.',
+    'any',
+    60,
+    60,
+    true,
+    true,
+    50
+  )
+on conflict (slug) do update
+set
+  name = excluded.name,
+  group_category = excluded.group_category,
+  short_description = excluded.short_description,
+  full_description = excluded.full_description,
+  suitable_for_notes = excluded.suitable_for_notes,
+  gender_restrictions = excluded.gender_restrictions,
+  price = excluded.price,
+  duration_mins = excluded.duration_mins,
+  is_active = excluded.is_active,
+  is_visible_on_frontend = excluded.is_visible_on_frontend,
+  display_order = excluded.display_order;

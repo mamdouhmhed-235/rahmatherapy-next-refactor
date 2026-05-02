@@ -4,28 +4,43 @@ import type {
 } from "./data/booking-packages";
 import type { BookingTimeSlot } from "./data/time-slots";
 
-export type BookingStep = "packages" | "details" | "review" | "prepared";
+export type BookingStep =
+  | "packages"
+  | "participants"
+  | "location"
+  | "schedule"
+  | "review"
+  | "prepared";
 
 export const BOOKING_STEPS: BookingStep[] = [
   "packages",
-  "details",
+  "participants",
+  "location",
+  "schedule",
   "review",
   "prepared",
 ];
 
 export const STEP_LABELS: Record<BookingStep, string> = {
-  packages: "Package",
-  details: "Home visit",
+  packages: "Service",
+  participants: "Clients",
+  location: "Location",
+  schedule: "Time",
   review: "Review",
   prepared: "Ready",
 };
 
+export type ParticipantGender = "male" | "female";
+export type ParticipantGenderInput = ParticipantGender | "";
+
 export interface BookingDetails {
+  fullName: string;
   phone: string;
   email: string;
   notes: string;
-  clientGender: "male" | "female" | "";
+  clientGender: ParticipantGenderInput;
   numberOfPeople: number;
+  participantGenders: ParticipantGenderInput[];
   postcode: string;
   address: string;
   city: string;
@@ -33,11 +48,13 @@ export interface BookingDetails {
 }
 
 export const emptyBookingDetails: BookingDetails = {
+  fullName: "",
   phone: "",
   email: "",
   notes: "",
   clientGender: "",
   numberOfPeople: 1,
+  participantGenders: [""],
   postcode: "",
   address: "",
   city: "",

@@ -10,4 +10,4 @@ export const TIME_SLOTS = [
   "18:00",
 ] as const;
 
-export type BookingTimeSlot = (typeof TIME_SLOTS)[number];
+export type BookingTimeSlot = string;
