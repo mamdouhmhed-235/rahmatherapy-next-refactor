@@ -32,8 +32,9 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
   const isAdminPath = pathname.startsWith("/admin");
-  const isLoginPath = pathname === "/admin/login";
-  const isSignoutPath = pathname === "/admin/signout";
+  const isLoginPath = pathname === "/admin/login" || pathname === "/admin/login/";
+  const isSignoutPath =
+    pathname === "/admin/signout" || pathname === "/admin/signout/";
 
   // Public admin paths that never require a session
   if (isLoginPath || isSignoutPath) {
