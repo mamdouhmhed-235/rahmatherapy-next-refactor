@@ -29,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Dashboard",
     href: "/admin/dashboard",
     icon: LayoutDashboard,
+    permissions: [PERMISSIONS.VIEW_DASHBOARD, PERMISSIONS.VIEW_REPORTS],
   },
   {
     label: "Bookings",
@@ -68,7 +69,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Clients",
     href: "/admin/clients",
     icon: UserSquare,
-    permissions: [PERMISSIONS.VIEW_CLIENTS, PERMISSIONS.MANAGE_CLIENTS],
+    permissions: [PERMISSIONS.MANAGE_CLIENTS],
   },
   {
     label: "Settings",

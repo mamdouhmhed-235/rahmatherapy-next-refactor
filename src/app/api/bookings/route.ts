@@ -5,6 +5,7 @@ import {
   BookingCreationError,
   createBookingTransaction,
 } from "./createBookingTransaction";
+import { sendBookingCreatedEmails } from "@/lib/email/notifications";
 
 const genderInputSchema = z.union([z.enum(["male", "female"]), z.literal("")]);
 
@@ -15,9 +16,11 @@ const bookingRequestSchema = z.object({
     phone: z.string().trim().min(1),
     email: z.email(),
     notes: z.string(),
+    healthNotes: z.string(),
     clientGender: genderInputSchema,
     numberOfPeople: z.coerce.number().int().min(1).max(10),
     participantGenders: z.array(genderInputSchema),
+    consentAcknowledged: z.literal(true),
     postcode: z.string().trim().min(3),
     address: z.string().trim().min(5),
     city: z.string().trim().min(2),
@@ -53,6 +56,10 @@ export async function POST(request: Request) {
   try {
     const supabase = createSupabaseAdminClient();
     const result = await createBookingTransaction(parsed.data, supabase);
+
+    await sendBookingCreatedEmails(result.bookingId, supabase).catch((error) => {
+      console.error("Unable to send booking creation emails.", error);
+    });
 
     return NextResponse.json({
       status: "submitted",

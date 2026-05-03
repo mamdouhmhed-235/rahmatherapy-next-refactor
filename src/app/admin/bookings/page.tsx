@@ -12,8 +12,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import {
+  canClaimAssignments,
   canManageAllBookings,
   canManageBookings,
+  hasClaimableAssignment,
   isOwnBooking,
 } from "./access";
 import { formatDate, formatLabel, formatMoney, formatTime } from "./format";
@@ -40,9 +42,12 @@ const BOOKING_SELECT = `
   service_city,
   service_postcode,
   access_notes,
+  consent_acknowledged,
   customer_notes,
+  health_notes,
   customer_manage_notes,
   admin_notes,
+  treatment_notes,
   created_at,
   clients(full_name, phone, email),
   booking_participants(id, participant_gender, required_therapist_gender, is_main_contact),
@@ -50,15 +55,30 @@ const BOOKING_SELECT = `
   booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
 `;
 
-async function getManageableBookingIds(staffId: string) {
+async function getManageableBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
   const adminClient = createSupabaseAdminClient();
-  const { data } = await adminClient
+  const { data: assignedRows } = await adminClient
     .from("booking_assignments")
     .select("booking_id")
-    .eq("assigned_staff_id", staffId);
+    .eq("assigned_staff_id", profile.id);
+
+  const claimableRows = canClaimAssignments(profile)
+    ? (
+        await adminClient
+          .from("booking_assignments")
+          .select("booking_id")
+          .eq("status", "unassigned")
+          .is("assigned_staff_id", null)
+          .eq("required_therapist_gender", profile.gender)
+      ).data ?? []
+    : [];
 
   return Array.from(
-    new Set((data ?? []).map((assignment) => assignment.booking_id as string))
+    new Set(
+      [...(assignedRows ?? []), ...claimableRows].map(
+        (assignment) => assignment.booking_id as string
+      )
+    )
   );
 }
 
@@ -78,7 +98,7 @@ export default async function BookingsPage() {
   const canViewAll = canManageAllBookings(profile);
   const manageableIds = canViewAll
     ? null
-    : await getManageableBookingIds(profile.id);
+    : await getManageableBookingIds(profile);
 
   const bookings =
     manageableIds?.length === 0
@@ -140,6 +160,7 @@ export default async function BookingsPage() {
               key={booking.id}
               booking={booking}
               ownBooking={isOwnBooking(booking, profile)}
+              claimableBooking={hasClaimableAssignment(booking, profile)}
             />
           ))}
         </div>
@@ -151,9 +172,11 @@ export default async function BookingsPage() {
 function BookingListCard({
   booking,
   ownBooking,
+  claimableBooking,
 }: {
   booking: BookingRecord;
   ownBooking: boolean;
+  claimableBooking: boolean;
 }) {
   const participantCount = booking.booking_participants.length;
   const serviceNames = Array.from(
@@ -180,6 +203,7 @@ function BookingListCard({
             <StatusBadge value={booking.status} />
             <StatusBadge value={booking.assignment_status} muted />
             {ownBooking ? <StatusBadge value="assigned to you" muted /> : null}
+            {claimableBooking ? <StatusBadge value="claimable" muted /> : null}
           </div>
           <p className="text-sm text-[var(--rahma-muted)]">
             {formatDate(booking.booking_date)} at {formatTime(booking.start_time)}

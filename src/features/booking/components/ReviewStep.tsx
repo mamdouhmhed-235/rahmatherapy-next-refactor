@@ -8,25 +8,31 @@ import styles from "../BookingExperience.module.css";
 interface ReviewStepProps {
   details: BookingDetailsFormValues;
   acknowledged: boolean;
+  consentAcknowledged: boolean;
   acknowledgementError?: string;
+  consentError?: string;
   submissionError?: string;
   selectedPackages: BookingPackage[];
   total: number;
   preferredDate: string | null;
   preferredTime: string | null;
   onAcknowledgedChange: (value: boolean) => void;
+  onConsentAcknowledgedChange: (value: boolean) => void;
 }
 
 export function ReviewStep({
   details,
   acknowledged,
+  consentAcknowledged,
   acknowledgementError,
+  consentError,
   submissionError,
   selectedPackages,
   total,
   preferredDate,
   preferredTime,
   onAcknowledgedChange,
+  onConsentAcknowledgedChange,
 }: ReviewStepProps) {
   const participantGenders =
     details.numberOfPeople > 1
@@ -99,6 +105,13 @@ export function ReviewStep({
         </div>
       )}
 
+      {details.healthNotes.trim() && (
+        <div className={styles.notesReview}>
+          <strong>Health notes</strong>
+          <p>{details.healthNotes}</p>
+        </div>
+      )}
+
       <label className={styles.acknowledgement}>
         <input
           type="checkbox"
@@ -114,6 +127,23 @@ export function ReviewStep({
       {acknowledgementError && (
         <p className={styles.fieldError} role="alert" aria-live="polite">
           {acknowledgementError}
+        </p>
+      )}
+      <label className={styles.acknowledgement}>
+        <input
+          type="checkbox"
+          checked={consentAcknowledged}
+          aria-invalid={Boolean(consentError)}
+          onChange={(event) => onConsentAcknowledgedChange(event.target.checked)}
+        />
+        <span>
+          I consent to treatment, understand Rahma Therapy may refuse or adapt
+          treatment for safety reasons, and have shared relevant health details.
+        </span>
+      </label>
+      {consentError && (
+        <p className={styles.fieldError} role="alert" aria-live="polite">
+          {consentError}
         </p>
       )}
       {submissionError && (

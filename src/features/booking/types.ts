@@ -38,9 +38,11 @@ export interface BookingDetails {
   phone: string;
   email: string;
   notes: string;
+  healthNotes: string;
   clientGender: ParticipantGenderInput;
   numberOfPeople: number;
   participantGenders: ParticipantGenderInput[];
+  consentAcknowledged: boolean;
   postcode: string;
   address: string;
   city: string;
@@ -52,9 +54,11 @@ export const emptyBookingDetails: BookingDetails = {
   phone: "",
   email: "",
   notes: "",
+  healthNotes: "",
   clientGender: "",
   numberOfPeople: 1,
   participantGenders: [""],
+  consentAcknowledged: false,
   postcode: "",
   address: "",
   city: "",

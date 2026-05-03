@@ -9,6 +9,15 @@ export function canManageBookings(profile: StaffProfile) {
   );
 }
 
+export function canClaimAssignments(profile: StaffProfile) {
+  return (
+    profile.active &&
+    profile.can_take_bookings &&
+    (profile.permissions.has(PERMISSIONS.CLAIM_ASSIGNMENTS) ||
+      profile.permissions.has(PERMISSIONS.CLAIM_BOOKINGS))
+  );
+}
+
 export function canManageAllBookings(profile: StaffProfile) {
   return profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL);
 }
@@ -16,6 +25,17 @@ export function canManageAllBookings(profile: StaffProfile) {
 export function isOwnBooking(booking: BookingRecord, profile: StaffProfile) {
   return booking.booking_assignments.some(
     (assignment) => assignment.assigned_staff_id === profile.id
+  );
+}
+
+export function hasClaimableAssignment(booking: BookingRecord, profile: StaffProfile) {
+  if (!canClaimAssignments(profile)) return false;
+
+  return booking.booking_assignments.some(
+    (assignment) =>
+      assignment.status === "unassigned" &&
+      !assignment.assigned_staff_id &&
+      assignment.required_therapist_gender === profile.gender
   );
 }
 

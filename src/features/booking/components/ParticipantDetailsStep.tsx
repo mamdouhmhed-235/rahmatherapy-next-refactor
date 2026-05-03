@@ -171,6 +171,19 @@ export function ParticipantDetailsStep({ form }: ParticipantDetailsStepProps) {
           </Field>
         </div>
 
+        <div className={styles.fullWidth}>
+          <Field
+            label="Health notes"
+            icon={<ClipboardList size={16} />}
+          >
+            <textarea
+              rows={3}
+              placeholder="Share allergies, medication, pregnancy, recent surgery, injuries, or other safety details relevant to treatment."
+              {...register("healthNotes")}
+            />
+          </Field>
+        </div>
+
         <Field
           label="Number of people"
           error={errors.numberOfPeople?.message}

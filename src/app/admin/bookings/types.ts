@@ -61,9 +61,12 @@ export interface BookingRecord {
   service_city: string | null;
   service_postcode: string | null;
   access_notes: string | null;
+  consent_acknowledged: boolean;
   customer_notes: string | null;
+  health_notes: string | null;
   customer_manage_notes: string | null;
   admin_notes: string | null;
+  treatment_notes: string | null;
   created_at: string;
   clients: BookingClient | null;
   booking_participants: BookingParticipant[];

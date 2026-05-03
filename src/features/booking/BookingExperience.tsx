@@ -42,9 +42,11 @@ export function BookingExperience() {
   const [packageError, setPackageError] = useState<string | undefined>();
   const [scheduleError, setScheduleError] = useState<string | undefined>();
   const [acknowledged, setAcknowledged] = useState(false);
+  const [consentAcknowledged, setConsentAcknowledged] = useState(false);
   const [acknowledgementError, setAcknowledgementError] = useState<
     string | undefined
   >();
+  const [consentError, setConsentError] = useState<string | undefined>();
   const [submissionError, setSubmissionError] = useState<string | undefined>();
   const [submitting, setSubmitting] = useState(false);
   const lastTriggerRef = useRef<HTMLElement | null>(null);
@@ -159,6 +161,7 @@ export function BookingExperience() {
     setPackageError(undefined);
     setScheduleError(undefined);
     setAcknowledgementError(undefined);
+    setConsentError(undefined);
     setSubmissionError(undefined);
   };
 
@@ -277,10 +280,18 @@ export function BookingExperience() {
   const prepareRequest = async () => {
     const acknowledgementResult = bookingAcknowledgementSchema.safeParse({
       acknowledged,
+      consentAcknowledged,
     });
 
     if (!acknowledgementResult.success) {
-      setAcknowledgementError(acknowledgementResult.error.issues[0]?.message);
+      const acknowledgementIssue = acknowledgementResult.error.issues.find(
+        (issue) => issue.path[0] === "acknowledged"
+      );
+      const consentIssue = acknowledgementResult.error.issues.find(
+        (issue) => issue.path[0] === "consentAcknowledged"
+      );
+      setAcknowledgementError(acknowledgementIssue?.message);
+      setConsentError(consentIssue?.message);
       return;
     }
 
@@ -302,7 +313,10 @@ export function BookingExperience() {
       await submitBookingRequest({
         selectedPackageIds,
         selectedPackages,
-        details: form.getValues() as BookingDetailsFormValues,
+        details: {
+          ...(form.getValues() as BookingDetailsFormValues),
+          consentAcknowledged,
+        },
         preferredDate: visitResult.data.preferredDate,
         preferredTime: visitResult.data.preferredTime,
         estimatedTotal: packageTotal,
@@ -324,6 +338,7 @@ export function BookingExperience() {
     resetDraft();
     form.reset(emptyBookingDetails);
     setAcknowledged(false);
+    setConsentAcknowledged(false);
     clearStepErrors();
   };
 
@@ -414,7 +429,9 @@ export function BookingExperience() {
               <ReviewStep
                 details={form.getValues() as BookingDetailsFormValues}
                 acknowledged={acknowledged}
+                consentAcknowledged={consentAcknowledged}
                 acknowledgementError={acknowledgementError}
+                consentError={consentError}
                 submissionError={submissionError}
                 selectedPackages={selectedPackages}
                 total={packageTotal}
@@ -423,6 +440,10 @@ export function BookingExperience() {
                 onAcknowledgedChange={(value) => {
                   setAcknowledged(value);
                   setAcknowledgementError(undefined);
+                }}
+                onConsentAcknowledgedChange={(value) => {
+                  setConsentAcknowledged(value);
+                  setConsentError(undefined);
                 }}
               />
             </MotionStep>

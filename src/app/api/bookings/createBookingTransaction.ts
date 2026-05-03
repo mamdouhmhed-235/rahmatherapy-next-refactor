@@ -10,9 +10,11 @@ interface CreateBookingTransactionInput {
     phone: string;
     email: string;
     notes: string;
+    healthNotes: string;
     clientGender: ParticipantGender | "";
     numberOfPeople: number;
     participantGenders: Array<ParticipantGender | "">;
+    consentAcknowledged: boolean;
     postcode: string;
     address: string;
     city: string;
@@ -201,6 +203,8 @@ export async function createBookingTransaction(
       service_postcode: input.details.postcode.trim(),
       access_notes: input.details.area.trim(),
       customer_notes: input.details.notes.trim() || null,
+      health_notes: input.details.healthNotes.trim() || null,
+      consent_acknowledged: input.details.consentAcknowledged,
     })
     .select("id")
     .single<IdRecord>();

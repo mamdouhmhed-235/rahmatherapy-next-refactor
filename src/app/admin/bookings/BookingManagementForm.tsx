@@ -112,6 +112,15 @@ export function BookingManagementForm({ booking }: BookingManagementFormProps) {
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <Field label="Treatment notes">
+          <Textarea
+            name="treatment_notes"
+            rows={5}
+            defaultValue={booking.treatment_notes ?? ""}
+            disabled={isPending}
+          />
+        </Field>
+
         <Field label="Admin notes">
           <Textarea
             name="admin_notes"

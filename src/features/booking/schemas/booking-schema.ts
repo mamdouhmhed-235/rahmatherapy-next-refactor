@@ -53,11 +53,13 @@ const bookingParticipantFieldsSchema = z.object({
     }),
   email: z.email({ error: "Enter a valid email address." }),
   notes: z.string(),
+  healthNotes: z.string(),
   clientGender: genderInputSchema,
   numberOfPeople: z.coerce.number().int().min(1).max(10, {
     error: "Maximum 10 people for group bookings.",
   }),
   participantGenders: z.array(genderInputSchema),
+  consentAcknowledged: z.boolean(),
 });
 
 export const bookingParticipantSchema =
@@ -104,6 +106,10 @@ export const bookingAcknowledgementSchema = z.object({
   acknowledged: z.literal(true, {
     error:
       "Please confirm you understand this is a booking request, not a confirmed appointment.",
+  }),
+  consentAcknowledged: z.literal(true, {
+    error:
+      "Please confirm you consent to treatment and have shared relevant health information.",
   }),
 });
 

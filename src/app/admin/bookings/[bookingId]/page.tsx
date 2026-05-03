@@ -15,11 +15,14 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import {
+  canClaimAssignments,
   canManageAllBookings,
   canManageBookings,
+  hasClaimableAssignment,
   isOwnBooking,
 } from "../access";
 import { BookingManagementForm } from "../BookingManagementForm";
+import { ClaimAssignmentButton } from "../ClaimAssignmentButton";
 import { formatDate, formatLabel, formatMoney, formatTime } from "../format";
 import type { BookingRecord } from "../types";
 
@@ -44,9 +47,12 @@ const BOOKING_DETAIL_SELECT = `
   service_city,
   service_postcode,
   access_notes,
+  consent_acknowledged,
   customer_notes,
+  health_notes,
   customer_manage_notes,
   admin_notes,
+  treatment_notes,
   created_at,
   clients(full_name, phone, email),
   booking_participants(id, participant_gender, required_therapist_gender, is_main_contact),
@@ -82,7 +88,11 @@ export default async function BookingDetailPage({
 
   if (!booking) notFound();
 
-  if (!canManageAllBookings(profile) && !isOwnBooking(booking, profile)) {
+  if (
+    !canManageAllBookings(profile) &&
+    !isOwnBooking(booking, profile) &&
+    !hasClaimableAssignment(booking, profile)
+  ) {
     return <InsufficientPermissions />;
   }
 
@@ -117,8 +127,9 @@ export default async function BookingDetailPage({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <div className="grid gap-6">
           <BookingManagementForm booking={booking} />
-          <ParticipantBreakdown booking={booking} />
+          <ParticipantBreakdown booking={booking} profile={profile} />
           <ServiceSnapshots booking={booking} />
+          <SafetyAndConsent booking={booking} />
           <Notes booking={booking} />
         </div>
 
@@ -183,7 +194,13 @@ function AddressCard({ booking }: { booking: BookingRecord }) {
   );
 }
 
-function ParticipantBreakdown({ booking }: { booking: BookingRecord }) {
+function ParticipantBreakdown({
+  booking,
+  profile,
+}: {
+  booking: BookingRecord;
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
+}) {
   return (
     <SectionCard
       title="Participants & Assignments"
@@ -197,6 +214,12 @@ function ParticipantBreakdown({ booking }: { booking: BookingRecord }) {
           const items = booking.booking_items.filter(
             (item) => item.booking_participant_id === participant.id
           );
+          const canClaim =
+            Boolean(assignment) &&
+            canClaimAssignments(profile) &&
+            assignment?.status === "unassigned" &&
+            !assignment.assigned_staff_id &&
+            assignment.required_therapist_gender === profile.gender;
 
           return (
             <article
@@ -225,6 +248,11 @@ function ParticipantBreakdown({ booking }: { booking: BookingRecord }) {
                   {assignment?.staff_profiles?.name ?? "Unassigned"}
                 </Row>
               </dl>
+              {canClaim && assignment ? (
+                <div className="mt-4">
+                  <ClaimAssignmentButton assignmentId={assignment.id} />
+                </div>
+              ) : null}
               <div className="mt-3 border-t border-[var(--rahma-border)] pt-3">
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
                   Service snapshots
@@ -283,11 +311,29 @@ function ServiceSnapshots({ booking }: { booking: BookingRecord }) {
   );
 }
 
+function SafetyAndConsent({ booking }: { booking: BookingRecord }) {
+  return (
+    <SectionCard
+      title="Safety & Consent"
+      icon={<ShieldCheck className="size-5" />}
+    >
+      <div className="grid gap-4 md:grid-cols-2">
+        <NoteBlock
+          title="Consent"
+          value={booking.consent_acknowledged ? "Consent acknowledged" : "Consent not recorded"}
+        />
+        <NoteBlock title="Health notes" value={booking.health_notes} />
+      </div>
+    </SectionCard>
+  );
+}
+
 function Notes({ booking }: { booking: BookingRecord }) {
   return (
     <SectionCard title="Notes" icon={<ClipboardList className="size-5" />}>
       <div className="grid gap-4 md:grid-cols-3">
         <NoteBlock title="Customer notes" value={booking.customer_notes} />
+        <NoteBlock title="Treatment notes" value={booking.treatment_notes} />
         <NoteBlock
           title="Customer manage notes"
           value={booking.customer_manage_notes}
