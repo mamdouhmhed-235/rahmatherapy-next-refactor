@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+import { getServerEnv } from "@/lib/env/server";
+
 /**
  * Server-only Supabase client.
  * Safe for Server Components, Server Actions, and Route Handlers.
@@ -8,10 +10,18 @@ import { cookies } from "next/headers";
  */
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
+  const supabaseUrl = getServerEnv("NEXT_PUBLIC_SUPABASE_URL");
+  const supabaseAnonKey = getServerEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Check server runtime environment variables."
+    );
+  }
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
