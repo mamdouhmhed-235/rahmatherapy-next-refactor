@@ -1,4 +1,4 @@
-import { BookingExperience } from "@/features/booking/BookingExperience";
+import { BookingExperienceLoader } from "@/features/booking/BookingExperienceLoader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 
@@ -20,7 +20,7 @@ export default function PublicLayout({
         {children}
       </main>
       <SiteFooter />
-      <BookingExperience />
+      <BookingExperienceLoader />
     </>
   );
 }

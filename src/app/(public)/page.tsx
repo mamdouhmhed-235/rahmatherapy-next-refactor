@@ -1,5 +1,2 @@
-import { redirect } from "next/navigation";
-
-export default function RootPage() {
-  redirect("/home");
-}
+export { metadata } from "./home/page";
+export { default } from "./home/page";
