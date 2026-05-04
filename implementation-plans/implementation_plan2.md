@@ -211,7 +211,7 @@ Expected system model:
 - Optional direct staff permissions through `staff_permission_overrides`.
 - Staff treatment eligibility must be separate from admin permissions.
 - Staff availability must support global rules, custom staff rules, and global-with-overrides inheritance.
-- Gender-aware slot calculation must happen before booking creation.
+- Gender-aware slot calculation must happen before booking creation. ef
 - Booking creation must normalize records into `clients`, `bookings`, `booking_participants`, `booking_items`, and `booking_assignments`.
 - `booking_participants` is the source of truth for group bookings.
 - `booking_assignments` is the source of truth for staff claiming.
