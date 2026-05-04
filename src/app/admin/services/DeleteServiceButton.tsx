@@ -9,17 +9,24 @@ import { deleteService } from "./actions";
 interface DeleteServiceButtonProps {
   serviceId: string;
   serviceName: string;
+  hasHistoricalBookings?: boolean;
 }
 
 export function DeleteServiceButton({
   serviceId,
   serviceName,
+  hasHistoricalBookings = false,
 }: DeleteServiceButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
 
   function handleDelete() {
+    if (hasHistoricalBookings) {
+      toast.error("Deactivate this service instead of deleting historical booking snapshots.");
+      return;
+    }
+
     if (!confirming) {
       setConfirming(true);
       return;

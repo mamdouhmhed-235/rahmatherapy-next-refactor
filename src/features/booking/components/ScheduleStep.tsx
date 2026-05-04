@@ -120,11 +120,11 @@ export function ScheduleStep({
     <section className={styles.stepSection} aria-labelledby="schedule-heading">
       <div className={styles.sectionHeader}>
         <div>
-          <p className={styles.sectionKicker}>4 of 6</p>
-          <h3 id="schedule-heading">Choose a preferred date and time</h3>
+          <p className={styles.sectionKicker}>4 of 7</p>
+          <h3 id="schedule-heading">Choose a matched time</h3>
           <p>
-            These static slots remain requests only until live availability is
-            connected in the next phase.
+            These times match the therapist availability needed for your
+            booking.
           </p>
         </div>
       </div>

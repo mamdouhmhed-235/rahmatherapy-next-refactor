@@ -41,6 +41,9 @@ export async function updateBusinessSettings(
   const bookingWindowDays = Number(formData.get("booking_window_days"));
   const bufferTimeMins = Number(formData.get("buffer_time_mins"));
   const minimumNoticeHours = Number(formData.get("minimum_notice_hours"));
+  const cancellationCutoffHours = Number(
+    formData.get("customer_cancellation_cutoff_hours")
+  );
   const allowedCities = parseAllowedCities(
     String(formData.get("allowed_cities") ?? "")
   );
@@ -55,6 +58,10 @@ export async function updateBusinessSettings(
   if (!Number.isInteger(minimumNoticeHours) || minimumNoticeHours < 0) {
     fieldErrors.minimum_notice_hours =
       "Enter a minimum notice of 0 hours or more.";
+  }
+  if (!Number.isInteger(cancellationCutoffHours) || cancellationCutoffHours < 0) {
+    fieldErrors.customer_cancellation_cutoff_hours =
+      "Enter a cancellation cutoff of 0 hours or more.";
   }
   if (allowedCities.length === 0) {
     fieldErrors.allowed_cities = "Enter at least one allowed service area.";
@@ -80,6 +87,7 @@ export async function updateBusinessSettings(
     booking_window_days: bookingWindowDays,
     buffer_time_mins: bufferTimeMins,
     minimum_notice_hours: minimumNoticeHours,
+    customer_cancellation_cutoff_hours: cancellationCutoffHours,
     allowed_cities: allowedCities,
     booking_status_enabled: formData.get("booking_status_enabled") === "on",
   };

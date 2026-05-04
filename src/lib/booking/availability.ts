@@ -1,4 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  addBusinessDays,
+  getBusinessDate,
+  getBusinessDayOfWeek,
+  isDateInBusinessWindow,
+  isOutsideMinimumNotice,
+  toBusinessDateTime,
+} from "@/lib/time/london";
 
 export type TherapistGender = "male" | "female";
 export type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
@@ -122,27 +130,6 @@ function emptyResult(
     requiredStaffByGender,
     reason,
   };
-}
-
-function toDateString(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function getDayOfWeek(date: string) {
-  return new Date(`${date}T00:00:00`).getDay();
-}
-
-function toDateTime(date: string, time: string) {
-  return new Date(`${date}T${time.slice(0, 5)}:00`);
 }
 
 function timeToMinutes(value: string) {
@@ -386,8 +373,6 @@ export async function calculateAvailableSlots(
   }
 
   const now = options.now ?? new Date();
-  const today = toDateString(now);
-
   const settingsResult = await supabase
     .from("business_settings")
     .select(
@@ -405,8 +390,13 @@ export async function calculateAvailableSlots(
     return emptyResult(input, 0, requiredStaffByGender, "Online booking is currently paused.");
   }
 
-  const lastBookableDate = toDateString(addDays(now, settings.booking_window_days));
-  if (input.date < today || input.date > lastBookableDate) {
+  if (
+    !isDateInBusinessWindow({
+      date: input.date,
+      now,
+      bookingWindowDays: settings.booking_window_days,
+    })
+  ) {
     return emptyResult(input, 0, requiredStaffByGender, "Date is outside the booking window.");
   }
 
@@ -479,7 +469,7 @@ export async function calculateAvailableSlots(
   }
 
   const eligibleStaffIds = eligibleStaff.map((member) => member.id);
-  const dayOfWeek = getDayOfWeek(input.date);
+  const dayOfWeek = getBusinessDayOfWeek(input.date);
 
   const [
     globalRulesResult,
@@ -596,16 +586,20 @@ export async function calculateAvailableSlots(
     ])
   );
 
-  const minimumNoticeAt = new Date(
-    now.getTime() + settings.minimum_notice_hours * 60 * 60 * 1000
-  );
   const slots: AvailableSlot[] = [];
 
   for (let start = 0; start <= 24 * 60 - durationMins; start += SLOT_STEP_MINS) {
     const end = start + durationMins;
     const startTime = minutesToTime(start);
 
-    if (toDateTime(input.date, startTime) < minimumNoticeAt) {
+    if (
+      !isOutsideMinimumNotice({
+        date: input.date,
+        time: startTime,
+        now,
+        minimumNoticeHours: settings.minimum_notice_hours,
+      })
+    ) {
       continue;
     }
 
@@ -664,3 +658,10 @@ export async function calculateAvailableSlots(
     requiredStaffByGender,
   };
 }
+
+export const businessTimeForAvailability = {
+  addBusinessDays,
+  getBusinessDate,
+  getBusinessDayOfWeek,
+  toBusinessDateTime,
+};

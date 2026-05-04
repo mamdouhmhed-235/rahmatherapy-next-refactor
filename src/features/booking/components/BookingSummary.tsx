@@ -9,7 +9,8 @@ import styles from "../BookingExperience.module.css";
 
 interface BookingSummaryProps {
   selectedPackages: BookingPackage[];
-  packageTotal: number;
+  perPersonTotal: number;
+  estimatedTotal: number;
   details: BookingDetails;
   preferredDate: string | null;
   preferredTime: string | null;
@@ -34,7 +35,8 @@ function formatParticipantSummary(details: BookingDetails) {
 
 export function BookingSummary({
   selectedPackages,
-  packageTotal,
+  perPersonTotal,
+  estimatedTotal,
   details,
   preferredDate,
   preferredTime,
@@ -77,8 +79,12 @@ export function BookingSummary({
 
       <div className={styles.summaryActionRow}>
         <div className={styles.summaryTotal}>
-          <span>Estimated total</span>
-          <strong>{formatPrice(packageTotal)}</strong>
+          <span>
+            {details.numberOfPeople > 1
+              ? `${details.numberOfPeople} x ${formatPrice(perPersonTotal)}`
+              : "Estimated total"}
+          </span>
+          <strong>{formatPrice(estimatedTotal)}</strong>
         </div>
         <div className={styles.summaryActions}>{actions}</div>
       </div>

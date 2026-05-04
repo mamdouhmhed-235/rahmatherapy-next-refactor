@@ -1,11 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { calculateAvailableSlots } from "@/lib/booking/availability";
 
 type ParticipantGender = "male" | "female";
+export type BookingSource =
+  | "website"
+  | "phone"
+  | "whatsapp"
+  | "instagram"
+  | "referral"
+  | "admin"
+  | "manual"
+  | "other";
 
-interface CreateBookingTransactionInput {
+export interface CreateBookingTransactionInput {
   selectedPackageIds: string[];
   details: {
+    bookingFor: "self" | "someone_else" | "group";
     fullName: string;
     phone: string;
     email: string;
@@ -14,31 +23,21 @@ interface CreateBookingTransactionInput {
     clientGender: ParticipantGender | "";
     numberOfPeople: number;
     participantGenders: Array<ParticipantGender | "">;
+    participantNames: string[];
+    participantNotes: string[];
     consentAcknowledged: boolean;
+    paymentAcknowledged: boolean;
+    manageAcknowledged: boolean;
     postcode: string;
     address: string;
     city: string;
     area: string;
+    accessNotes: string;
+    parkingNotes: string;
   };
   preferredDate: string;
   preferredTime: string;
-}
-
-interface ServiceRecord {
-  id: string;
-  slug: string;
-  name: string;
-  price: number | string;
-  duration_mins: number;
-}
-
-interface IdRecord {
-  id: string;
-}
-
-interface InsertedParticipantRecord {
-  id: string;
-  required_therapist_gender: ParticipantGender;
+  bookingSource?: BookingSource;
 }
 
 export class BookingCreationError extends Error {
@@ -48,15 +47,6 @@ export class BookingCreationError extends Error {
   ) {
     super(message);
   }
-}
-
-function addMinutesToTime(time: string, minutesToAdd: number) {
-  const [hours, minutes] = time.split(":").map(Number);
-  const totalMinutes = hours * 60 + minutes + minutesToAdd;
-  const endHours = Math.floor(totalMinutes / 60);
-  const endMinutes = totalMinutes % 60;
-
-  return `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
 }
 
 function getParticipantGenders(details: CreateBookingTransactionInput["details"]) {
@@ -75,82 +65,38 @@ function getParticipantGenders(details: CreateBookingTransactionInput["details"]
   return genders;
 }
 
-async function createOrFindClient(
-  input: CreateBookingTransactionInput,
-  supabase: SupabaseClient
-) {
-  const email = input.details.email.trim().toLowerCase();
-  const existingClient = await supabase
-    .from("clients")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle<IdRecord>();
-
-  if (existingClient.error) {
-    throw new BookingCreationError("Unable to check existing client.", 500);
+function getParticipantNames(details: CreateBookingTransactionInput["details"]) {
+  if (details.numberOfPeople === 1) {
+    return [
+      details.bookingFor === "someone_else" && details.participantNames[0]?.trim()
+        ? details.participantNames[0].trim()
+        : details.fullName,
+    ];
   }
 
-  if (existingClient.data) {
-    return existingClient.data.id;
-  }
-
-  const createdClient = await supabase
-    .from("clients")
-    .insert({
-      full_name: input.details.fullName.trim(),
-      phone: input.details.phone.trim(),
-      email,
-      address: input.details.address.trim(),
-      postcode: input.details.postcode.trim(),
-      notes: input.details.notes.trim() || null,
-    })
-    .select("id")
-    .single<IdRecord>();
-
-  if (createdClient.error?.code === "23505") {
-    const racedClient = await supabase
-      .from("clients")
-      .select("id")
-      .eq("email", email)
-      .single<IdRecord>();
-
-    if (!racedClient.error && racedClient.data) {
-      return racedClient.data.id;
+  return Array.from({ length: details.numberOfPeople }, (_, index) => {
+    const name = details.participantNames[index]?.trim();
+    if (!name) {
+      throw new BookingCreationError("Enter a name or label for every participant.");
     }
-  }
-
-  if (createdClient.error || !createdClient.data) {
-    throw new BookingCreationError("Unable to create client record.", 500);
-  }
-
-  return createdClient.data.id;
+    return name;
+  });
 }
 
-async function getSelectedServices(
-  serviceIds: string[],
-  supabase: SupabaseClient
-) {
-  const servicesResult = await supabase
-    .from("services")
-    .select("id, slug, name, price, duration_mins")
-    .in("slug", serviceIds)
-    .eq("is_active", true)
-    .eq("is_visible_on_frontend", true)
-    .returns<ServiceRecord[]>();
-
-  const servicesBySlug = new Map(
-    (servicesResult.data ?? []).map((service) => [service.slug, service])
+function getParticipantNotes(details: CreateBookingTransactionInput["details"]) {
+  return Array.from({ length: details.numberOfPeople }, (_, index) =>
+    details.participantNotes[index]?.trim() ?? ""
   );
-  const selectedServices = serviceIds.flatMap((serviceId) => {
-    const service = servicesBySlug.get(serviceId);
-    return service ? [service] : [];
-  });
+}
 
-  if (servicesResult.error || selectedServices.length !== serviceIds.length) {
-    throw new BookingCreationError("Selected service is unavailable.");
-  }
-
-  return selectedServices;
+function getAccessNotes(details: CreateBookingTransactionInput["details"]) {
+  return [
+    details.area.trim() ? `Area: ${details.area.trim()}` : "",
+    details.accessNotes.trim() ? `Access: ${details.accessNotes.trim()}` : "",
+    details.parkingNotes.trim() ? `Parking: ${details.parkingNotes.trim()}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export async function createBookingTransaction(
@@ -158,115 +104,51 @@ export async function createBookingTransaction(
   supabase: SupabaseClient
 ) {
   const participantGenders = getParticipantGenders(input.details);
-  const availability = await calculateAvailableSlots(
-    {
-      date: input.preferredDate,
-      serviceIds: input.selectedPackageIds,
-      participantGenders,
-      city: input.details.city,
-    },
-    supabase
-  );
+  const participantNames = getParticipantNames(input.details);
+  const participantNotes = getParticipantNotes(input.details);
 
-  const requestedSlotAvailable = availability.slots.some(
-    (slot) => slot.time === input.preferredTime
-  );
+  const { data, error } = await supabase.rpc("create_booking_request", {
+    p_service_slugs: input.selectedPackageIds,
+    p_contact_full_name: input.details.fullName,
+    p_contact_email: input.details.email,
+    p_contact_phone: input.details.phone,
+    p_customer_notes: input.details.notes,
+    p_health_notes: input.details.healthNotes,
+    p_consent_acknowledged: input.details.consentAcknowledged,
+    p_service_address_line1: input.details.address,
+    p_service_city: input.details.city,
+    p_service_postcode: input.details.postcode,
+    p_access_notes: getAccessNotes(input.details),
+    p_booking_date: input.preferredDate,
+    p_start_time: input.preferredTime,
+    p_participant_genders: participantGenders,
+    p_participant_display_names: participantNames,
+    p_participant_notes: participantNotes,
+    p_booking_source: input.bookingSource ?? "website",
+  });
 
-  if (!requestedSlotAvailable) {
+  if (error || !data || typeof data !== "object") {
     throw new BookingCreationError(
-      availability.reason ?? "Selected appointment time is no longer available."
+      error?.message ?? "Unable to create booking request.",
+      error?.code === "42501" ? 403 : 400
     );
   }
 
-  const services = await getSelectedServices(input.selectedPackageIds, supabase);
-  const clientId = await createOrFindClient(input, supabase);
-  const totalPrice = services.reduce(
-    (total, service) => total + Number(service.price) * participantGenders.length,
-    0
-  );
-  const endTime = addMinutesToTime(input.preferredTime, availability.durationMins);
+  const result = data as {
+    bookingId?: string;
+    participantCount?: number;
+    itemCount?: number;
+    assignmentCount?: number;
+  };
 
-  const bookingResult = await supabase
-    .from("bookings")
-    .insert({
-      client_id: clientId,
-      booking_date: input.preferredDate,
-      start_time: input.preferredTime,
-      end_time: endTime,
-      total_duration_mins: availability.durationMins,
-      total_price: totalPrice,
-      status: "pending",
-      assignment_status: "unassigned",
-      group_booking: participantGenders.length > 1,
-      service_address_line1: input.details.address.trim(),
-      service_city: input.details.city.trim(),
-      service_postcode: input.details.postcode.trim(),
-      access_notes: input.details.area.trim(),
-      customer_notes: input.details.notes.trim() || null,
-      health_notes: input.details.healthNotes.trim() || null,
-      consent_acknowledged: input.details.consentAcknowledged,
-    })
-    .select("id")
-    .single<IdRecord>();
-
-  if (bookingResult.error || !bookingResult.data) {
-    throw new BookingCreationError("Unable to create booking record.", 500);
-  }
-
-  const bookingId = bookingResult.data.id;
-  const participantsResult = await supabase
-    .from("booking_participants")
-    .insert(
-      participantGenders.map((gender, index) => ({
-        booking_id: bookingId,
-        participant_gender: gender,
-        required_therapist_gender: gender,
-        is_main_contact: index === 0,
-      }))
-    )
-    .select("id, required_therapist_gender")
-    .returns<InsertedParticipantRecord[]>();
-
-  const participants = participantsResult.data ?? [];
-  if (participantsResult.error || participants.length !== participantGenders.length) {
-    throw new BookingCreationError("Unable to create booking participants.", 500);
-  }
-
-  const bookingItemsResult = await supabase.from("booking_items").insert(
-    participants.flatMap((participant) =>
-      services.map((service) => ({
-        booking_id: bookingId,
-        booking_participant_id: participant.id,
-        service_id: service.id,
-        service_name_snapshot: service.name,
-        service_price_snapshot: Number(service.price),
-        service_duration_snapshot: service.duration_mins,
-      }))
-    )
-  );
-
-  if (bookingItemsResult.error) {
-    throw new BookingCreationError("Unable to create booking item snapshots.", 500);
-  }
-
-  const assignmentsResult = await supabase.from("booking_assignments").insert(
-    participants.map((participant) => ({
-      booking_id: bookingId,
-      participant_id: participant.id,
-      assigned_staff_id: null,
-      required_therapist_gender: participant.required_therapist_gender,
-      status: "unassigned",
-    }))
-  );
-
-  if (assignmentsResult.error) {
-    throw new BookingCreationError("Unable to create booking assignments.", 500);
+  if (!result.bookingId) {
+    throw new BookingCreationError("Booking request returned no reference.", 500);
   }
 
   return {
-    bookingId,
-    participantCount: participants.length,
-    itemCount: participants.length * services.length,
-    assignmentCount: participants.length,
+    bookingId: result.bookingId,
+    participantCount: result.participantCount ?? participantGenders.length,
+    itemCount: result.itemCount ?? 0,
+    assignmentCount: result.assignmentCount ?? participantGenders.length,
   };
 }

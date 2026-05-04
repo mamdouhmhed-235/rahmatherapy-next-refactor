@@ -20,6 +20,7 @@ interface BusinessSettings {
   booking_window_days: number;
   buffer_time_mins: number;
   minimum_notice_hours: number;
+  customer_cancellation_cutoff_hours: number;
   allowed_cities: string[];
   booking_status_enabled: boolean;
 }
@@ -68,7 +69,8 @@ export function SettingsForm({ settings }: SettingsFormProps) {
             </p>
           ) : null}
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <SettingsGroup title="Contact details">
+            <div className="grid gap-4 md:grid-cols-2">
             <Field label="Company name" error={state.fieldErrors?.company_name}>
               <Input
                 name="company_name"
@@ -94,75 +96,101 @@ export function SettingsForm({ settings }: SettingsFormProps) {
                 disabled={isPending}
               />
             </Field>
+            </div>
+          </SettingsGroup>
 
+          <SettingsGroup title="Booking availability">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field
+                label="Booking window days"
+                error={state.fieldErrors?.booking_window_days}
+              >
+                <Input
+                  name="booking_window_days"
+                  type="number"
+                  min="1"
+                  step="1"
+                  defaultValue={settings.booking_window_days}
+                  disabled={isPending}
+                  required
+                />
+              </Field>
+
+              <Field
+                label="Minimum notice hours"
+                error={state.fieldErrors?.minimum_notice_hours}
+              >
+                <Input
+                  name="minimum_notice_hours"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={settings.minimum_notice_hours}
+                  disabled={isPending}
+                  required
+                />
+              </Field>
+
+              <Field
+                label="Travel buffer minutes"
+                error={state.fieldErrors?.buffer_time_mins}
+              >
+                <Input
+                  name="buffer_time_mins"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={settings.buffer_time_mins}
+                  disabled={isPending}
+                  required
+                />
+              </Field>
+            </div>
+          </SettingsGroup>
+
+          <SettingsGroup title="Cancellation cutoff">
             <Field
-              label="Booking window days"
-              error={state.fieldErrors?.booking_window_days}
+              label="Customer cancellation cutoff hours"
+              error={state.fieldErrors?.customer_cancellation_cutoff_hours}
             >
               <Input
-                name="booking_window_days"
-                type="number"
-                min="1"
-                step="1"
-                defaultValue={settings.booking_window_days}
-                disabled={isPending}
-                required
-              />
-            </Field>
-
-            <Field
-              label="Minimum notice hours"
-              error={state.fieldErrors?.minimum_notice_hours}
-            >
-              <Input
-                name="minimum_notice_hours"
+                name="customer_cancellation_cutoff_hours"
                 type="number"
                 min="0"
                 step="1"
-                defaultValue={settings.minimum_notice_hours}
+                defaultValue={settings.customer_cancellation_cutoff_hours}
                 disabled={isPending}
                 required
               />
             </Field>
+          </SettingsGroup>
 
+          <SettingsGroup title="Service areas">
             <Field
-              label="Travel buffer minutes"
-              error={state.fieldErrors?.buffer_time_mins}
+              label="Allowed service areas"
+              error={state.fieldErrors?.allowed_cities}
             >
-              <Input
-                name="buffer_time_mins"
-                type="number"
-                min="0"
-                step="1"
-                defaultValue={settings.buffer_time_mins}
+              <Textarea
+                name="allowed_cities"
+                rows={5}
+                defaultValue={settings.allowed_cities.join("\n")}
                 disabled={isPending}
-                required
               />
             </Field>
-          </div>
+          </SettingsGroup>
 
-          <Field
-            label="Allowed service areas"
-            error={state.fieldErrors?.allowed_cities}
-          >
-            <Textarea
-              name="allowed_cities"
-              rows={5}
-              defaultValue={settings.allowed_cities.join("\n")}
-              disabled={isPending}
-            />
-          </Field>
-
-          <label className="flex items-center gap-2 text-sm text-[var(--rahma-charcoal)]">
-            <input
-              name="booking_status_enabled"
-              type="checkbox"
-              defaultChecked={settings.booking_status_enabled}
-              disabled={isPending}
-              className="size-4 accent-[var(--rahma-green)]"
-            />
-            Accept new booking requests
-          </label>
+          <SettingsGroup title="Payment expectations and email readiness">
+            <label className="flex items-center gap-2 text-sm text-[var(--rahma-charcoal)]">
+              <input
+                name="booking_status_enabled"
+                type="checkbox"
+                defaultChecked={settings.booking_status_enabled}
+                disabled={isPending}
+                className="size-4 accent-[var(--rahma-green)]"
+              />
+              Accept new booking requests and confirmation emails when configured
+            </label>
+          </SettingsGroup>
 
           <div className="flex justify-end">
             <Button type="submit" disabled={isPending}>
@@ -177,6 +205,23 @@ export function SettingsForm({ settings }: SettingsFormProps) {
         </CardContent>
       </Card>
     </form>
+  );
+}
+
+function SettingsGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-[var(--rahma-border)] bg-white/70 p-4">
+      <h3 className="mb-3 text-sm font-semibold text-[var(--rahma-charcoal)]">
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
 

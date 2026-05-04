@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -25,7 +25,6 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // Refresh the session on every request so it stays alive.
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -36,14 +35,11 @@ export async function proxy(request: NextRequest) {
   const isSignoutPath =
     pathname === "/admin/signout" || pathname === "/admin/signout/";
 
-  // Public admin paths that never require a session
   if (isLoginPath || isSignoutPath) {
     return supabaseResponse;
   }
 
-  // Protect all other /admin/* paths
   if (isAdminPath) {
-    // 1. No session → redirect to login
     if (!user) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/admin/login";
@@ -51,21 +47,18 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // 2. Session exists → check staff profile is active
     const { data: staffProfile } = await supabase
       .from("staff_profiles")
       .select("active")
       .eq("auth_user_id", user.id)
       .single();
 
-    // No staff profile row → treat as unauthenticated
     if (!staffProfile) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/admin/login";
       return NextResponse.redirect(loginUrl);
     }
 
-    // Inactive staff → redirect with reason
     if (!staffProfile.active) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/admin/login";
@@ -79,10 +72,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except static files and Next.js internals.
-     * This ensures the session is always refreshed.
-     */
     "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

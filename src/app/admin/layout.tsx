@@ -1,6 +1,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
-import { AdminSidebar } from "./AdminSidebar";
+import { AdminShell } from "./components/AdminShell";
+import { AdminAccessDenied } from "./components/admin-ui";
 
 export default async function AdminLayout({
   children,
@@ -10,17 +11,27 @@ export default async function AdminLayout({
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
-  if (!profile || !profile.active) {
+  if (!profile) {
     return <>{children}</>;
   }
 
-  return (
-    <div className="flex h-screen overflow-hidden bg-[var(--rahma-ivory)]">
-      <AdminSidebar profile={profile} />
-
-      <main className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-6xl px-8 py-8">{children}</div>
+  if (!profile.active) {
+    return (
+      <main className="min-h-screen bg-[var(--rahma-ivory)] px-4 py-10">
+        <AdminAccessDenied inactive />
       </main>
-    </div>
+    );
+  }
+
+  return (
+    <AdminShell
+      profile={{
+        name: profile.name,
+        roleName: profile.role_name,
+        permissions: [...profile.permissions],
+      }}
+    >
+      {children}
+    </AdminShell>
   );
 }

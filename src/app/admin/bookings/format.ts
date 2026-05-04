@@ -1,3 +1,5 @@
+import { formatBusinessDate } from "@/lib/time/london";
+
 export function formatMoney(value: number | string | null) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -6,9 +8,7 @@ export function formatMoney(value: number | string | null) {
 }
 
 export function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "medium",
-  }).format(new Date(`${value}T00:00:00`));
+  return formatBusinessDate(value);
 }
 
 export function formatTime(value: string) {

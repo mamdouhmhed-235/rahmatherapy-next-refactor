@@ -4,6 +4,7 @@ export interface BookingSubmitResult {
   status: "submitted";
   bookingId: string;
   message: string;
+  manageUrl: string | null;
 }
 
 function getResponseError(payload: unknown) {
@@ -21,6 +22,15 @@ function getSubmittedBookingId(payload: unknown) {
     "bookingId" in payload &&
     typeof payload.bookingId === "string"
     ? payload.bookingId
+    : null;
+}
+
+function getSubmittedManageUrl(payload: unknown) {
+  return typeof payload === "object" &&
+    payload !== null &&
+    "manageUrl" in payload &&
+    typeof payload.manageUrl === "string"
+    ? payload.manageUrl
     : null;
 }
 
@@ -53,6 +63,7 @@ export async function submitBookingRequest(
   return {
     status: "submitted",
     bookingId,
+    manageUrl: getSubmittedManageUrl(responsePayload),
     message: "Booking request submitted.",
   };
 }

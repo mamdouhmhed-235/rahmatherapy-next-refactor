@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +16,12 @@ export function ClaimAssignmentButton({
 }: ClaimAssignmentButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setHydrated(true), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   function handleClaim() {
     const formData = new FormData();
@@ -38,7 +44,7 @@ export function ClaimAssignmentButton({
     <Button
       type="button"
       size="sm"
-      disabled={isPending}
+      disabled={!hydrated || isPending}
       onClick={handleClaim}
     >
       {isPending ? (

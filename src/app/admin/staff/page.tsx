@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
 import { redirect } from "next/navigation";
-import { ChevronRight, User, ShieldCheck, Mail } from "lucide-react";
+import { CalendarCheck, ChevronRight, User, ShieldCheck, Mail } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { AdminAccessDenied } from "../components/admin-ui";
 import { NewStaffForm } from "./NewStaffForm";
 
 export const metadata = {
@@ -22,24 +24,18 @@ export default async function StaffPage() {
   // Permission gate
   if (!profile.permissions.has(PERMISSIONS.MANAGE_USERS)) {
     return (
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-[var(--rahma-charcoal)] mb-2">
-          Staff Management
-        </h1>
-        <div className="mt-6 rounded-2xl border bg-white px-6 py-8 text-center"
-          style={{ borderColor: "var(--rahma-border)" }}>
-          <ShieldCheck className="mx-auto mb-3 size-8 text-[var(--rahma-muted)]" />
-          <p className="font-medium text-[var(--rahma-charcoal)]">Insufficient permissions</p>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            You need the <code className="rounded bg-muted px-1 py-0.5 text-xs">manage_users</code> permission to access this page.
-          </p>
-        </div>
-      </div>
+      <AdminAccessDenied
+        title="Staff access limited"
+        message="You need user management permission to access this page."
+        permission="manage_users"
+      />
     );
   }
 
   // Fetch all staff members
-  const { data: staff } = await supabase
+  const adminClient = createSupabaseAdminClient();
+  const [{ data: staff }, { data: assignments }] = await Promise.all([
+    supabase
     .from("staff_profiles")
     .select(`
       *,
@@ -47,7 +43,12 @@ export default async function StaffPage() {
         name
       )
     `)
-    .order("name");
+    .order("name"),
+    adminClient
+      .from("booking_assignments")
+      .select("assigned_staff_id, status, bookings(booking_date, start_time, status)")
+      .not("assigned_staff_id", "is", null),
+  ]);
 
   const { data: roles } = await supabase
     .from("roles")
@@ -73,6 +74,29 @@ export default async function StaffPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(staff ?? []).map((member) => {
           const roleName = (member.roles as unknown as { name: string })?.name ?? "No Role";
+          const upcomingWorkload = (assignments ?? []).filter((assignment) => {
+            const booking = assignment.bookings as unknown as {
+              booking_date: string;
+              start_time: string;
+              status: string;
+            } | null;
+
+            return (
+              assignment.assigned_staff_id === member.id &&
+              booking &&
+              ["pending", "confirmed"].includes(booking.status) &&
+              `${booking.booking_date}T${booking.start_time}` >= new Date().toISOString().slice(0, 16)
+            );
+          }).length;
+          const onboardingItems = [
+            Boolean(member.auth_user_id),
+            Boolean(member.role_id),
+            Boolean(member.gender),
+            member.active,
+            member.can_take_bookings,
+            Boolean(member.availability_mode),
+          ];
+          const onboardingComplete = onboardingItems.filter(Boolean).length;
           
           return (
             <Link
@@ -121,6 +145,11 @@ export default async function StaffPage() {
                   <span>Gender: {member.gender || "Not set"}</span>
                 </div>
 
+                <div className="flex items-center gap-2 text-sm text-[var(--rahma-muted)]">
+                  <CalendarCheck className="size-3.5 shrink-0" />
+                  <span>{upcomingWorkload} upcoming assignment{upcomingWorkload === 1 ? "" : "s"}</span>
+                </div>
+
                 <div className="mt-4 flex flex-wrap gap-2 pt-2 border-t border-[var(--rahma-border)]">
                   {member.can_take_bookings ? (
                     <Badge className="bg-[var(--rahma-green)]/10 text-[var(--rahma-green)] border-none normal-case tracking-normal py-0.5">
@@ -134,6 +163,9 @@ export default async function StaffPage() {
                   
                   <Badge variant="outline" className="text-[var(--rahma-muted)] border-[var(--rahma-border)] normal-case tracking-normal py-0.5">
                     {member.availability_mode.replace(/_/g, ' ')}
+                  </Badge>
+                  <Badge variant="outline" className="text-[var(--rahma-muted)] border-[var(--rahma-border)] normal-case tracking-normal py-0.5">
+                    Onboarding {onboardingComplete}/6
                   </Badge>
                 </div>
               </div>

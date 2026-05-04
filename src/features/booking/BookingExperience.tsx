@@ -10,6 +10,7 @@ import { submitBookingRequest } from "./actions";
 import { BookingDialog } from "./components/BookingDialog";
 import { getStepIndex } from "./components/BookingProgress";
 import { BookingSummary } from "./components/BookingSummary";
+import { DetailsConsentStep } from "./components/DetailsConsentStep";
 import { LocationDetailsStep } from "./components/LocationDetailsStep";
 import { MotionStep } from "./components/MotionStep";
 import { PackageSelectionStep } from "./components/PackageSelectionStep";
@@ -41,13 +42,9 @@ export function BookingExperience() {
   const [open, setOpen] = useState(false);
   const [packageError, setPackageError] = useState<string | undefined>();
   const [scheduleError, setScheduleError] = useState<string | undefined>();
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [consentAcknowledged, setConsentAcknowledged] = useState(false);
-  const [acknowledgementError, setAcknowledgementError] = useState<
-    string | undefined
-  >();
-  const [consentError, setConsentError] = useState<string | undefined>();
   const [submissionError, setSubmissionError] = useState<string | undefined>();
+  const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
+  const [submittedManageUrl, setSubmittedManageUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const lastTriggerRef = useRef<HTMLElement | null>(null);
   const contentGridRef = useRef<HTMLDivElement | null>(null);
@@ -95,6 +92,8 @@ export function BookingExperience() {
     }),
     [watchedDetails]
   );
+  const participantCount = Math.max(1, detailsPreview.numberOfPeople);
+  const estimatedTotal = packageTotal * participantCount;
   const availabilityParticipantGenders = useMemo(
     () =>
       (detailsPreview.numberOfPeople > 1
@@ -109,6 +108,16 @@ export function BookingExperience() {
       detailsPreview.participantGenders,
     ]
   );
+  const availabilityInputsKey = useMemo(
+    () =>
+      [
+        selectedPackageIds.join(","),
+        availabilityParticipantGenders.join(","),
+        detailsPreview.city.trim().toLowerCase(),
+      ].join("|"),
+    [availabilityParticipantGenders, detailsPreview.city, selectedPackageIds]
+  );
+  const previousAvailabilityInputsRef = useRef<string | null>(null);
   const clearPreferredTime = useCallback(() => {
     setPreferredTime(null);
   }, [setPreferredTime]);
@@ -130,6 +139,18 @@ export function BookingExperience() {
       }, 0);
     }
   }, [open, currentStep]);
+
+  useEffect(() => {
+    if (previousAvailabilityInputsRef.current === null) {
+      previousAvailabilityInputsRef.current = availabilityInputsKey;
+      return;
+    }
+
+    if (previousAvailabilityInputsRef.current !== availabilityInputsKey) {
+      previousAvailabilityInputsRef.current = availabilityInputsKey;
+      setPreferredDate(null);
+    }
+  }, [availabilityInputsKey, setPreferredDate]);
 
   useEffect(() => {
     const shellElements = document.querySelectorAll<HTMLElement>(
@@ -160,14 +181,14 @@ export function BookingExperience() {
   const clearStepErrors = () => {
     setPackageError(undefined);
     setScheduleError(undefined);
-    setAcknowledgementError(undefined);
-    setConsentError(undefined);
     setSubmissionError(undefined);
   };
 
   const handlePackageToggle = (id: (typeof selectedPackageIds)[number]) => {
     togglePackage(id);
     setPreferredDate(null);
+    setSubmittedBookingId(null);
+    setSubmittedManageUrl(null);
     clearStepErrors();
   };
 
@@ -235,6 +256,19 @@ export function BookingExperience() {
     return false;
   };
 
+  const validateAcknowledgementsForm = () => {
+    const acknowledgementResult = bookingAcknowledgementSchema.safeParse(
+      form.getValues()
+    );
+
+    if (acknowledgementResult.success) {
+      return true;
+    }
+
+    applyFormIssues(acknowledgementResult.error.issues);
+    return false;
+  };
+
   const goToLocation = () => {
     if (!validateParticipantsForm()) {
       return;
@@ -253,8 +287,7 @@ export function BookingExperience() {
     setCurrentStep("schedule");
   };
 
-  const goToReview = () => {
-    const detailsValid = validateDetailsForm();
+  const goToDetails = () => {
     const visitResult = bookingVisitSchema.safeParse({
       ...form.getValues(),
       preferredDate: preferredDate ?? "",
@@ -269,7 +302,37 @@ export function BookingExperience() {
 
     setScheduleError(scheduleIssue?.message);
 
-    if (!detailsValid || !visitResult.success) {
+    if (!visitResult.success) {
+      const formIssues = visitResult.error.issues.filter(
+        (issue) =>
+          !["preferredDate", "preferredTime"].includes(String(issue.path[0]))
+      );
+      applyFormIssues(formIssues);
+      return;
+    }
+
+    clearStepErrors();
+    setCurrentStep("details");
+  };
+
+  const goToReview = () => {
+    const detailsValid = validateDetailsForm();
+    const acknowledgementsValid = validateAcknowledgementsForm();
+    const visitResult = bookingVisitSchema.safeParse({
+      ...form.getValues(),
+      preferredDate: preferredDate ?? "",
+      preferredTime: preferredTime ?? "",
+    });
+
+    const scheduleIssue = visitResult.success
+      ? undefined
+      : visitResult.error.issues.find((issue) =>
+          ["preferredDate", "preferredTime"].includes(String(issue.path[0]))
+        );
+
+    setScheduleError(scheduleIssue?.message);
+
+    if (!detailsValid || !acknowledgementsValid || !visitResult.success) {
       return;
     }
 
@@ -278,23 +341,6 @@ export function BookingExperience() {
   };
 
   const prepareRequest = async () => {
-    const acknowledgementResult = bookingAcknowledgementSchema.safeParse({
-      acknowledged,
-      consentAcknowledged,
-    });
-
-    if (!acknowledgementResult.success) {
-      const acknowledgementIssue = acknowledgementResult.error.issues.find(
-        (issue) => issue.path[0] === "acknowledged"
-      );
-      const consentIssue = acknowledgementResult.error.issues.find(
-        (issue) => issue.path[0] === "consentAcknowledged"
-      );
-      setAcknowledgementError(acknowledgementIssue?.message);
-      setConsentError(consentIssue?.message);
-      return;
-    }
-
     const visitResult = bookingVisitSchema.safeParse({
       ...form.getValues(),
       preferredDate: preferredDate ?? "",
@@ -310,17 +356,16 @@ export function BookingExperience() {
     setSubmitting(true);
     setSubmissionError(undefined);
     try {
-      await submitBookingRequest({
+      const result = await submitBookingRequest({
         selectedPackageIds,
         selectedPackages,
-        details: {
-          ...(form.getValues() as BookingDetailsFormValues),
-          consentAcknowledged,
-        },
+        details: form.getValues() as BookingDetailsFormValues,
         preferredDate: visitResult.data.preferredDate,
         preferredTime: visitResult.data.preferredTime,
-        estimatedTotal: packageTotal,
+        estimatedTotal,
       });
+      setSubmittedBookingId(result.bookingId);
+      setSubmittedManageUrl(result.manageUrl);
       clearStepErrors();
       setCurrentStep("prepared");
     } catch (error) {
@@ -337,8 +382,8 @@ export function BookingExperience() {
   const startOver = () => {
     resetDraft();
     form.reset(emptyBookingDetails);
-    setAcknowledged(false);
-    setConsentAcknowledged(false);
+    setSubmittedBookingId(null);
+    setSubmittedManageUrl(null);
     clearStepErrors();
   };
 
@@ -353,7 +398,8 @@ export function BookingExperience() {
         summary={
           <BookingSummary
             selectedPackages={selectedPackages}
-            packageTotal={packageTotal}
+            perPersonTotal={packageTotal}
+            estimatedTotal={estimatedTotal}
             details={detailsPreview}
             preferredDate={preferredDate}
             preferredTime={preferredTime}
@@ -368,6 +414,7 @@ export function BookingExperience() {
                 onGoToLocation={goToLocation}
                 onGoToSchedule={goToSchedule}
                 onGoToReview={goToReview}
+                onGoToDetails={goToDetails}
                 onPrepareRequest={prepareRequest}
               />
             }
@@ -424,34 +471,33 @@ export function BookingExperience() {
             </MotionStep>
           )}
 
+          {currentStep === "details" && (
+            <MotionStep key="details">
+              <DetailsConsentStep form={form} />
+            </MotionStep>
+          )}
+
           {currentStep === "review" && (
             <MotionStep key="review">
               <ReviewStep
                 details={form.getValues() as BookingDetailsFormValues}
-                acknowledged={acknowledged}
-                consentAcknowledged={consentAcknowledged}
-                acknowledgementError={acknowledgementError}
-                consentError={consentError}
                 submissionError={submissionError}
                 selectedPackages={selectedPackages}
-                total={packageTotal}
+                perPersonTotal={packageTotal}
+                total={estimatedTotal}
                 preferredDate={preferredDate}
                 preferredTime={preferredTime}
-                onAcknowledgedChange={(value) => {
-                  setAcknowledged(value);
-                  setAcknowledgementError(undefined);
-                }}
-                onConsentAcknowledgedChange={(value) => {
-                  setConsentAcknowledged(value);
-                  setConsentError(undefined);
-                }}
               />
             </MotionStep>
           )}
 
           {currentStep === "prepared" && (
             <MotionStep key="prepared">
-              <PreparedStep onStartOver={startOver} />
+              <PreparedStep
+                bookingId={submittedBookingId}
+                manageUrl={submittedManageUrl}
+                onStartOver={startOver}
+              />
             </MotionStep>
           )}
         </AnimatePresence>
@@ -467,6 +513,7 @@ interface BookingSummaryActionsProps {
   onGoToParticipants: () => void;
   onGoToLocation: () => void;
   onGoToSchedule: () => void;
+  onGoToDetails: () => void;
   onGoToReview: () => void;
   onPrepareRequest: () => void;
 }
@@ -478,6 +525,7 @@ function BookingSummaryActions({
   onGoToParticipants,
   onGoToLocation,
   onGoToSchedule,
+  onGoToDetails,
   onGoToReview,
   onPrepareRequest,
 }: BookingSummaryActionsProps) {
@@ -509,6 +557,12 @@ function BookingSummaryActions({
       )}
 
       {currentStep === "schedule" && (
+        <button type="button" className={styles.primaryButton} onClick={onGoToDetails}>
+          Continue to details
+        </button>
+      )}
+
+      {currentStep === "details" && (
         <button type="button" className={styles.primaryButton} onClick={onGoToReview}>
           Review request
         </button>

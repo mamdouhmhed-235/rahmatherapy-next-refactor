@@ -1,21 +1,25 @@
 // SERVER ONLY - do not import from client components.
-import { createHash, randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
 import {
   extractEmailAddress,
   getFromEmail,
-  getSiteUrl,
   sendEmail,
 } from "./client";
 import {
   renderAdminBookingNotificationEmail,
+  renderAdminBookingCancellationEmail,
+  renderAdminRescheduleRequestEmail,
   renderBookingCancellationEmail,
   renderBookingConfirmationEmail,
   renderBookingPlainText,
   renderBookingReminderEmail,
+  renderStaffAssignmentEmail,
+  renderStaffBookingChangeEmail,
   type BookingEmailTemplateInput,
   type EmailParticipant,
 } from "./templates";
+import { recordOperationalEvent } from "@/lib/ops/operational-events";
 
 type ParticipantGender = "male" | "female";
 
@@ -30,6 +34,7 @@ interface BookingParticipant {
   participant_gender: ParticipantGender;
   required_therapist_gender: ParticipantGender;
   is_main_contact: boolean;
+  display_name: string | null;
 }
 
 interface BookingItem {
@@ -49,8 +54,16 @@ interface BookingAssignment {
   staff_profiles: { name: string } | null;
 }
 
+interface AssignedStaffEmailRecord {
+  assigned_staff_id: string | null;
+  staff_profiles: { email: string | null } | null;
+}
+
 interface BookingEmailRecord {
   id: string;
+  contact_full_name: string;
+  contact_email: string;
+  contact_phone: string;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -76,6 +89,9 @@ interface BusinessSettings {
 
 const BOOKING_EMAIL_SELECT = `
   id,
+  contact_full_name,
+  contact_email,
+  contact_phone,
   booking_date,
   start_time,
   end_time,
@@ -88,35 +104,10 @@ const BOOKING_EMAIL_SELECT = `
   access_notes,
   customer_notes,
   clients(full_name, phone, email),
-  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact),
+  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, display_name),
   booking_items(id, booking_participant_id, service_name_snapshot, service_price_snapshot, service_duration_snapshot),
   booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
 `;
-
-function getManageTokenHash(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-function getManageTokenExpiry(bookingDate: string) {
-  return new Date(`${bookingDate}T23:59:59.000Z`).toISOString();
-}
-
-async function createManageUrl(booking: BookingEmailRecord, supabase: SupabaseClient) {
-  const token = randomUUID();
-  const { error } = await supabase
-    .from("bookings")
-    .update({
-      manage_token_hash: getManageTokenHash(token),
-      manage_token_expires_at: getManageTokenExpiry(booking.booking_date),
-    })
-    .eq("id", booking.id);
-
-  if (error) {
-    throw new Error("Unable to create booking manage link.");
-  }
-
-  return `${getSiteUrl()}/booking/manage?token=${token}`;
-}
 
 function getAddressLines(booking: BookingEmailRecord) {
   return [
@@ -138,9 +129,8 @@ function getParticipantRows(booking: BookingEmailRecord): EmailParticipant[] {
     );
 
     return {
-      label: participant.is_main_contact
-        ? `Main contact`
-        : `Participant ${index + 1}`,
+      label: participant.display_name
+        ?? (participant.is_main_contact ? `Main contact` : `Participant ${index + 1}`),
       participantGender: participant.participant_gender,
       requiredTherapistGender: participant.required_therapist_gender,
       services,
@@ -176,8 +166,8 @@ async function getBookingEmailRecord(bookingId: string, supabase: SupabaseClient
     throw new Error("Unable to load booking email context.");
   }
 
-  if (!data.clients?.email) {
-    throw new Error("Booking client has no email address.");
+  if (!data.contact_email && !data.clients?.email) {
+    throw new Error("Booking has no contact email address.");
   }
 
   return data;
@@ -186,19 +176,20 @@ async function getBookingEmailRecord(bookingId: string, supabase: SupabaseClient
 async function getBookingTemplateInput(
   bookingId: string,
   supabase: SupabaseClient,
-  options: { includeManageUrl?: boolean } = {}
+  options: { includeManageUrl?: boolean; manageUrl?: string } = {}
 ) {
   const [booking, settings] = await Promise.all([
     getBookingEmailRecord(bookingId, supabase),
     getBusinessSettings(supabase),
   ]);
-  const manageUrl = options.includeManageUrl
-    ? await createManageUrl(booking, supabase)
-    : undefined;
+  const manageUrl = options.manageUrl
+    ?? (options.includeManageUrl
+      ? await ensureBookingManageUrl(booking, supabase)
+      : undefined);
 
   const input: BookingEmailTemplateInput = {
     companyName: settings.company_name ?? "Rahma Therapy",
-    clientName: booking.clients?.full_name ?? "Client",
+    clientName: booking.contact_full_name || booking.clients?.full_name || "Client",
     bookingDate: booking.booking_date,
     startTime: booking.start_time,
     endTime: booking.end_time,
@@ -219,38 +210,221 @@ function getAdminRecipient(settings: BusinessSettings) {
   return settings.contact_email ?? extractEmailAddress(getFromEmail());
 }
 
+function getProviderMessageId(data: unknown) {
+  return typeof data === "object" &&
+    data !== null &&
+    "id" in data &&
+    typeof data.id === "string"
+    ? data.id
+    : null;
+}
+
+async function recordEmailDeliveryEvent(
+  supabase: SupabaseClient,
+  input: {
+    bookingId: string;
+    eventType: string;
+    recipientEmail: string | null;
+    recipientRole: string;
+    deliveryStatus: "accepted" | "failed" | "skipped";
+    staffId?: string | null;
+    providerMessageId?: string | null;
+    errorMessage?: string | null;
+  }
+) {
+  await supabase.from("email_delivery_events").insert({
+    booking_id: input.bookingId,
+    staff_id: input.staffId ?? null,
+    event_type: input.eventType,
+    recipient_email: input.recipientEmail,
+    recipient_role: input.recipientRole,
+    delivery_status: input.deliveryStatus,
+    provider_message_id: input.providerMessageId ?? null,
+    error_message: input.errorMessage ?? null,
+  });
+
+  if (input.deliveryStatus === "failed") {
+    await recordOperationalEvent(supabase, {
+      eventType: "failed_email_send",
+      severity: "error",
+      summary: `Email ${input.eventType} failed for ${input.recipientRole}.`,
+      bookingId: input.bookingId,
+      staffId: input.staffId ?? null,
+      safeContext: {
+        event_type: input.eventType,
+        recipient_role: input.recipientRole,
+        delivery_status: input.deliveryStatus,
+      },
+    }).catch(() => undefined);
+  }
+}
+
+async function sendTrackedEmail(
+  supabase: SupabaseClient,
+  input: {
+    bookingId: string;
+    eventType: string;
+    recipientRole: string;
+    staffId?: string | null;
+    to: string | null;
+    subject: string;
+    html: string;
+    text: string;
+  }
+) {
+  if (!input.to) {
+    await recordEmailDeliveryEvent(supabase, {
+      bookingId: input.bookingId,
+      eventType: input.eventType,
+      recipientEmail: null,
+      recipientRole: input.recipientRole,
+      deliveryStatus: "skipped",
+      staffId: input.staffId ?? null,
+      errorMessage: "Missing recipient email.",
+    }).catch(() => undefined);
+    return { status: "skipped" as const };
+  }
+
+  try {
+    const data = await sendEmail({
+      to: input.to,
+      subject: input.subject,
+      html: input.html,
+      text: input.text,
+    });
+    await recordEmailDeliveryEvent(supabase, {
+      bookingId: input.bookingId,
+      eventType: input.eventType,
+      recipientEmail: input.to,
+      recipientRole: input.recipientRole,
+      deliveryStatus: "accepted",
+      staffId: input.staffId ?? null,
+      providerMessageId: getProviderMessageId(data),
+    }).catch(() => undefined);
+    return { status: "accepted" as const };
+  } catch (error) {
+    await recordEmailDeliveryEvent(supabase, {
+      bookingId: input.bookingId,
+      eventType: input.eventType,
+      recipientEmail: input.to,
+      recipientRole: input.recipientRole,
+      deliveryStatus: "failed",
+      staffId: input.staffId ?? null,
+      errorMessage: error instanceof Error ? error.message : "Email failed.",
+    }).catch(() => undefined);
+    return { status: "failed" as const };
+  }
+}
+
+async function getAssignedStaffEmails(bookingId: string, supabase: SupabaseClient) {
+  const { data } = await supabase
+    .from("booking_assignments")
+    .select("assigned_staff_id, staff_profiles(email)")
+    .eq("booking_id", bookingId)
+    .not("assigned_staff_id", "is", null)
+    .returns<AssignedStaffEmailRecord[]>();
+
+  const records = new Map<string, { staffId: string; email: string }>();
+  for (const assignment of data ?? []) {
+    if (!assignment.assigned_staff_id || !assignment.staff_profiles?.email) {
+      continue;
+    }
+    records.set(assignment.staff_profiles.email, {
+      staffId: assignment.assigned_staff_id,
+      email: assignment.staff_profiles.email,
+    });
+  }
+
+  return [...records.values()];
+}
+
 export async function sendBookingCreatedEmails(
   bookingId: string,
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  options: { manageUrl?: string } = {}
 ) {
   const { booking, settings, input } = await getBookingTemplateInput(
     bookingId,
     supabase,
-    { includeManageUrl: true }
+    { includeManageUrl: true, manageUrl: options.manageUrl }
   );
-  const customerEmail = booking.clients?.email;
+  const customerEmail = booking.contact_email || booking.clients?.email;
   if (!customerEmail) {
     throw new Error("Booking client has no email address.");
   }
 
   await Promise.all([
-    sendEmail({
+    sendTrackedEmail(supabase, {
+      bookingId,
+      eventType: "booking_confirmation",
+      recipientRole: "customer",
       to: customerEmail,
       subject: `${input.companyName} booking request received`,
       html: renderBookingConfirmationEmail(input),
       text: renderBookingPlainText("Booking request received", input),
     }),
-    sendEmail({
+    sendTrackedEmail(supabase, {
+      bookingId,
+      eventType: "admin_booking_notification",
+      recipientRole: "admin",
       to: getAdminRecipient(settings),
       subject: `New booking request - ${input.clientName}`,
       html: renderAdminBookingNotificationEmail({
         ...input,
         bookingId: booking.id,
-        clientEmail: booking.clients?.email ?? null,
-        clientPhone: booking.clients?.phone ?? null,
+        clientEmail: booking.contact_email || booking.clients?.email || null,
+        clientPhone: booking.contact_phone || booking.clients?.phone || null,
       }),
       text: renderBookingPlainText("New booking request", input),
     }),
+  ]);
+
+  return { manageUrl: input.manageUrl ?? null };
+}
+
+export async function sendBookingCancellationEmails(
+  bookingId: string,
+  supabase: SupabaseClient,
+  options: {
+    initiatedBy: "customer" | "admin";
+    cancellationNote?: string | null;
+  } = { initiatedBy: "admin" }
+) {
+  const { booking, settings, input } = await getBookingTemplateInput(bookingId, supabase);
+  const customerEmail = booking.contact_email || booking.clients?.email;
+  if (!customerEmail) {
+    throw new Error("Booking client has no email address.");
+  }
+
+  await Promise.all([
+    sendTrackedEmail(supabase, {
+      bookingId,
+      eventType: "booking_cancellation_customer",
+      recipientRole: "customer",
+      to: customerEmail,
+      subject: `${input.companyName} booking cancelled`,
+      html: renderBookingCancellationEmail(input),
+      text: renderBookingPlainText("Booking cancelled", input),
+    }),
+    sendTrackedEmail(supabase, {
+      bookingId,
+      eventType: "booking_cancellation_admin",
+      recipientRole: "admin",
+      to: getAdminRecipient(settings),
+      subject: `Booking cancelled - ${input.clientName}`,
+      html: renderAdminBookingCancellationEmail({
+        ...input,
+        bookingId,
+        initiatedBy: options.initiatedBy,
+        cancellationNote: options.cancellationNote,
+      }),
+      text: renderBookingPlainText("Booking cancelled", input),
+    }),
+    sendAssignedStaffBookingChangeEmails(
+      bookingId,
+      supabase,
+      "An assigned booking has been cancelled."
+    ),
   ]);
 }
 
@@ -258,18 +432,89 @@ export async function sendBookingCancellationEmail(
   bookingId: string,
   supabase: SupabaseClient
 ) {
-  const { booking, input } = await getBookingTemplateInput(bookingId, supabase);
-  const customerEmail = booking.clients?.email;
-  if (!customerEmail) {
-    throw new Error("Booking client has no email address.");
-  }
-
-  await sendEmail({
-    to: customerEmail,
-    subject: `${input.companyName} booking cancelled`,
-    html: renderBookingCancellationEmail(input),
-    text: renderBookingPlainText("Booking cancelled", input),
+  await sendBookingCancellationEmails(bookingId, supabase, {
+    initiatedBy: "admin",
   });
+}
+
+export async function sendBookingRescheduleRequestEmails(
+  bookingId: string,
+  supabase: SupabaseClient,
+  input: {
+    requestedDate: string;
+    requestedTime: string;
+    requestNote: string | null;
+  }
+) {
+  const { settings, input: templateInput } = await getBookingTemplateInput(
+    bookingId,
+    supabase
+  );
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "booking_reschedule_request_admin",
+    recipientRole: "admin",
+    to: getAdminRecipient(settings),
+    subject: `Reschedule request - ${templateInput.clientName}`,
+    html: renderAdminRescheduleRequestEmail({
+      ...templateInput,
+      bookingId,
+      requestedDate: input.requestedDate,
+      requestedTime: input.requestedTime,
+      requestNote: input.requestNote,
+    }),
+    text: renderBookingPlainText("Reschedule request", templateInput),
+  });
+}
+
+export async function sendStaffAssignmentEmail(
+  bookingId: string,
+  staffEmail: string | null,
+  supabase: SupabaseClient,
+  staffId?: string | null
+) {
+  const { input } = await getBookingTemplateInput(bookingId, supabase);
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "staff_assignment",
+    recipientRole: "staff",
+    staffId: staffId ?? null,
+    to: staffEmail,
+    subject: `${input.companyName} booking assignment`,
+    html: renderStaffAssignmentEmail(input),
+    text: renderBookingPlainText("Booking assignment", input),
+  });
+}
+
+export async function sendAssignedStaffBookingChangeEmails(
+  bookingId: string,
+  supabase: SupabaseClient,
+  changeSummary: string
+) {
+  const [staffEmails, { input }] = await Promise.all([
+    getAssignedStaffEmails(bookingId, supabase),
+    getBookingTemplateInput(bookingId, supabase),
+  ]);
+
+  await Promise.all(
+    staffEmails.map((staff) =>
+      sendTrackedEmail(supabase, {
+        bookingId,
+        eventType: "staff_booking_change",
+        recipientRole: "staff",
+        staffId: staff.staffId,
+        to: staff.email,
+        subject: `${input.companyName} assigned booking changed`,
+        html: renderStaffBookingChangeEmail({
+          ...input,
+          changeSummary,
+        }),
+        text: renderBookingPlainText("Assigned booking changed", input),
+      })
+    )
+  );
 }
 
 export async function sendBookingReminderEmail(
@@ -277,12 +522,15 @@ export async function sendBookingReminderEmail(
   supabase: SupabaseClient
 ) {
   const { booking, input } = await getBookingTemplateInput(bookingId, supabase);
-  const customerEmail = booking.clients?.email;
+  const customerEmail = booking.contact_email || booking.clients?.email;
   if (!customerEmail) {
     throw new Error("Booking client has no email address.");
   }
 
-  await sendEmail({
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "booking_reminder",
+    recipientRole: "customer",
     to: customerEmail,
     subject: `${input.companyName} booking reminder`,
     html: renderBookingReminderEmail(input),

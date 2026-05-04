@@ -109,9 +109,30 @@ export function BookingManagementForm({ booking }: BookingManagementFormProps) {
             <option value="card">Card</option>
           </select>
         </Field>
+
+        <Field label="Amount paid" error={state.fieldErrors?.amount_paid}>
+          <input
+            name="amount_paid"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={Number(booking.amount_paid ?? 0)}
+            disabled={isPending}
+            className={selectClass}
+          />
+        </Field>
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <Field label="Payment note">
+          <Textarea
+            name="payment_note"
+            rows={4}
+            defaultValue={booking.payment_note ?? ""}
+            disabled={isPending}
+          />
+        </Field>
+
         <Field label="Treatment notes">
           <Textarea
             name="treatment_notes"

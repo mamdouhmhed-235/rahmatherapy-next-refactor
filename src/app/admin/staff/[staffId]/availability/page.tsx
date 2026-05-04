@@ -5,6 +5,7 @@ import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
 import { ChevronLeft, User, Globe } from "lucide-react";
 import { AvailabilityModeSelector } from "./AvailabilityModeSelector";
 import { StaffAvailabilityRulesForm } from "./StaffAvailabilityRulesForm";
+import { AdminAccessDenied } from "../../../components/admin-ui";
 
 
 interface AvailabilityPageProps {
@@ -30,7 +31,13 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
 
   // Permission gate
   if (!canManageGlobal && !(isOwnProfile && canManageOwn)) {
-    redirect(`/admin/staff/${staffId}`);
+    return (
+      <AdminAccessDenied
+        title="Availability access limited"
+        message="You can manage your own availability with own-availability permission, or any staff availability with global availability permission."
+        permission="manage_availability_own or manage_availability_global"
+      />
+    );
   }
 
   // Fetch staff member details

@@ -1538,6 +1538,31 @@ Admin:
 - owner/admin can review operational errors safely
 - mobile admin shell has no horizontal overflow
 
+Admin role journeys:
+
+- each role lands on the correct dashboard, shell, and default admin view for its permissions
+- owner/super-admin can access all admin navigation, bookings, assignments, reports, audit logs, privacy operations, and operational errors
+- admin/manager can access business operations within the formal role matrix
+- booking coordinator/reception can use permitted booking, client, enquiry, and calendar workflows without broad settings, role, privacy, or audit access
+- therapist can access only own assigned work, eligible claimable work, and permitted own-scope reports
+- read-only/reporting user can access permitted aggregate reports and exports without mutation controls or sensitive notes
+- inactive staff sees an inactive-account blocked state
+- authenticated user without a staff profile is blocked from `/admin/*`
+- each role sees only permitted sidebar/top-bar navigation items
+- restricted pages show standardized access denied states instead of partially loaded sensitive content
+- server actions reject unauthorized role attempts even when called directly
+
+Role-based booking visibility and claiming:
+
+- two eligible therapists can initially see the same unassigned claimable booking request
+- when therapist A claims an assignment, therapist B no longer sees that assignment as claimable after refresh/reload
+- therapist B cannot claim the already-claimed assignment through a stale UI or direct server action/API request
+- owner/super-admin still sees the claimed booking request, assignment state, assigned staff, and audit trail after it is taken
+- admin/manager can unclaim, reassign, or directly assign eligible staff where permitted
+- wrong-gender, inactive, or `can_take_bookings=false` staff never see the request as claimable and cannot claim it directly
+- partially assigned mixed-gender bookings remain claimable only to eligible staff needed for the remaining unfilled participant/assignment
+- completed, cancelled, no-show, or otherwise closed bookings do not remain in claimable queues
+
 Customer manage:
 
 - valid token loads safe booking summary
@@ -1607,6 +1632,13 @@ E2E scenarios:
 - admin confirms/assigns/completes/marks paid
 - admin directly reassigns staff
 - therapist claims and completes own assignment
+- owner/super-admin completes full admin navigation and booking lifecycle journey
+- booking coordinator completes limited booking/client/enquiry workflow without restricted access
+- therapist claimable-to-claimed visibility handoff after another therapist claims the request
+- owner/super-admin can still find and inspect the request after it is claimed by a therapist
+- therapist stale claim attempt is rejected after another therapist claims the request
+- read-only/reporting user cannot access booking mutation controls or sensitive notes
+- inactive staff and authenticated non-staff users are blocked from admin pages
 - admin uses calendar agenda for a daily schedule
 - owner exports a monthly revenue CSV
 - therapist views own scoped workload/revenue report
@@ -1632,6 +1664,9 @@ Production readiness requires:
 - enquiry tracking works
 - universal and role-scoped reports work
 - CSV exports are permission-gated and audit-logged
+- role-based admin E2E passes for owner/super-admin, admin/manager, booking coordinator/reception, therapist, read-only/reporting, inactive staff, and authenticated non-staff users
+- claimable booking visibility updates correctly after another eligible user claims or is assigned
+- stale claim and assignment attempts are rejected server-side
 - booking UX passes E2E
 - admin CRM passes responsive review
 - customer manage route works
@@ -1642,7 +1677,259 @@ Production readiness requires:
 - Sentry privacy is production-safe
 - Cloudflare deployment smoke passes
 
-## 16. Recommended PR Sequence
+## 16. Post-Phase 10: Cloudflare GitHub Deployment And Business Site Setup
+
+### Objective
+
+Deploy only after Phase 10 is complete and the final launch acceptance checks pass.
+
+The production deployment should use Cloudflare Workers Builds connected to GitHub, with the existing
+`@opennextjs/cloudflare` and Wrangler configuration in this repository.
+
+### Deployment Timing
+
+Do not use Cloudflare production deployment as a substitute for Phase 9 or Phase 10 verification.
+
+Deployment can begin when:
+
+- Phase 9 privacy, RLS, deployment hardening, and production runbook gates pass.
+- Phase 10 automated tests, E2E scenarios, and manual launch checklist pass.
+- The working branch has been merged into the intended production branch.
+- No known P0/P1 launch blocker remains open unless it has written mitigation.
+
+### Cloudflare Project Type
+
+Use:
+
+- Cloudflare Workers, not standard static Pages.
+- Workers Builds GitHub integration.
+- Worker name: `rahmatherapy-next-refactor`, matching `wrangler.jsonc`.
+- Existing deployment scripts:
+  - `pnpm cf:build`
+  - `pnpm preview`
+  - `pnpm deploy`
+  - `pnpm upload`
+
+The Worker name in Cloudflare must match the `name` value in `wrangler.jsonc`, otherwise Git-connected
+Workers Builds can fail.
+
+### GitHub-Connected Deployment Steps
+
+1. In Cloudflare, go to Workers & Pages.
+2. Select Create application.
+3. Choose Import a repository.
+4. Connect the GitHub account that owns `mamdouhmhed-235/rahmatherapy-next-refactor`.
+5. Select the repository.
+6. Configure the Worker:
+   - Project/Worker name: `rahmatherapy-next-refactor`
+   - Production branch: the final production branch, normally `main`
+   - Root directory: leave blank or use `.` unless the GitHub repository contains the app in a nested folder
+   - Build command: leave blank
+   - Deploy command: `pnpm deploy`
+   - Non-production branch deploy command: `pnpm upload`
+7. Select the same scoped Cloudflare API token for deployments, or let Cloudflare generate one.
+8. Enable build cache after the first successful build.
+9. Save and deploy.
+10. Confirm the first build reaches Active Deployment.
+
+Reasoning:
+
+- `pnpm deploy` already runs `opennextjs-cloudflare build` and then deploys.
+- `pnpm upload` builds and uploads a non-production version without promoting it.
+- Cloudflare Workers Builds treats build variables as build-only; runtime app variables must still be configured in
+  Settings > Variables and Secrets.
+
+### Cloudflare API Token
+
+Use a scoped API token, not the global API key.
+
+Recommended token permissions:
+
+- Account: Account Settings Read
+- Account: Workers Scripts Edit
+- Account: Workers KV Storage Edit
+- Account: Workers R2 Storage Edit
+- Zone: Workers Routes Edit for the Rahma Therapy domain zone
+- User: User Details Read
+- User: Memberships Read
+
+Resource scope:
+
+- Account Resources: include only the Rahma Therapy Cloudflare account.
+- Zone Resources: include only the Rahma Therapy domain zone.
+
+Do not store `CLOUDFLARE_API_TOKEN` in application runtime variables. Use it only as a Cloudflare Workers Builds
+deployment credential or a local/CI deployment secret.
+
+### Runtime Variables And Secrets
+
+Set these in Cloudflare Worker Settings > Variables and Secrets.
+
+Plain variables:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SITE_URL`
+- `RESEND_FROM_EMAIL`
+- `SENTRY_DSN`
+
+Secrets:
+
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `RESEND_API_KEY`
+
+Build-only secret if source maps are uploaded:
+
+- `SENTRY_AUTH_TOKEN`
+
+Rules:
+
+- `NEXT_PUBLIC_SITE_URL` must be the final canonical production URL.
+- Service-role, Resend, Sentry auth, and Cloudflare API tokens must never appear in browser bundles.
+- Verify runtime environment access in Cloudflare preview before promoting production.
+- Do not commit `.env`, `.env.local`, `.dev.vars`, or any environment-specific secret file.
+
+### Custom Domain Steps
+
+Use Workers Custom Domains for the public website.
+
+1. Confirm the domain is active in Cloudflare DNS.
+2. Deploy the Worker successfully.
+3. In Cloudflare, open Workers & Pages.
+4. Select `rahmatherapy-next-refactor`.
+5. Go to Settings > Domains & Routes.
+6. Select Add > Custom Domain.
+7. Add the canonical hostname, for example:
+   - `rahmatherapy.example`
+   - or `www.rahmatherapy.example`
+8. Let Cloudflare create the DNS record and certificate.
+9. Add the non-canonical hostname only after the canonical hostname works.
+10. Configure a redirect from the non-canonical hostname to the canonical hostname.
+11. Update `NEXT_PUBLIC_SITE_URL` to the canonical URL.
+12. Re-run booking, manage-link, admin-login, and email smoke tests.
+
+Use Custom Domains instead of a wildcard Worker route unless a specific routing need is documented.
+
+### Cloudflare Business Site Settings
+
+Configure these settings after the custom domain is live.
+
+#### SSL And HTTPS
+
+- Set SSL/TLS mode to Full (strict) where applicable.
+- Enable Always Use HTTPS.
+- Enable Automatic HTTPS Rewrites.
+- Add HSTS only after HTTPS and redirects have been stable in production.
+- Do not enable HSTS preload until the canonical domain, subdomains, and email/link behavior are proven stable.
+
+#### Redirects
+
+- Choose one canonical host: apex or `www`.
+- Redirect the other host to the canonical host.
+- Confirm `NEXT_PUBLIC_SITE_URL`, Supabase Auth URL settings, Resend email links, Sentry environment, and sitemap URLs all use the canonical host.
+
+#### Caching
+
+- Keep dynamic and sensitive routes uncacheable:
+  - `/admin*`
+  - `/booking/manage*`
+  - `/api*`
+  - any route using auth, manage tokens, or personalized customer/admin data
+- Allow static assets generated by OpenNext and Next.js to be cached normally.
+- Use Cache Rules only after confirming response headers and booking/admin behavior in preview.
+
+#### Security Headers
+
+- Prefer app-level security headers for precise control.
+- Use Cloudflare Managed Transforms to remove `X-Powered-By` where safe.
+- Add or verify:
+  - `X-Content-Type-Options`
+  - `Referrer-Policy`
+  - `X-Frame-Options` or `Content-Security-Policy frame-ancestors`
+  - a production Content Security Policy
+- Test booking, admin, Sentry, Supabase, Resend links, images, and scripts after any header change.
+
+#### WAF, Bot Protection, And Forms
+
+- Enable Cloudflare WAF managed protections appropriate to the plan.
+- Avoid aggressive challenges on booking, manage, and admin auth routes until those flows are tested.
+- If spam becomes a real issue, add Cloudflare Turnstile to public booking/contact flows as a separate issue because it
+  requires client widget and server-side token verification.
+- If rate limiting is available on the active plan, apply conservative rate limits to public booking creation and
+  customer manage actions after smoke testing.
+
+#### Observability
+
+- Keep Cloudflare Worker observability enabled.
+- Confirm Sentry production environment receives safe errors only.
+- Confirm operational errors are visible in `/admin/operations` without sensitive payloads.
+- Review Cloudflare build and deployment logs for accidental secret output.
+
+#### Email And DNS
+
+- Verify Resend sender/domain before launch.
+- Confirm SPF, DKIM, and DMARC records in Cloudflare DNS.
+- Send a production email smoke test from the deployed domain.
+- Confirm all email manage links use `NEXT_PUBLIC_SITE_URL`.
+
+#### Supabase Production Settings
+
+- Confirm Supabase Auth Site URL uses the canonical production domain.
+- Add production redirect URLs for admin/auth flows.
+- Re-run Supabase security advisor.
+- Re-run RLS smoke tests against production.
+- Confirm production migrations match checked-in migrations.
+
+### Deployment Smoke Test
+
+After Cloudflare deploy and custom domain setup:
+
+1. Open the canonical public URL.
+2. Confirm public pages load over HTTPS.
+3. Complete a public booking smoke test.
+4. Confirm the booking appears in admin.
+5. Confirm admin login works.
+6. Confirm the customer manage link loads only its own safe booking summary.
+7. Confirm a test cancellation or reschedule request appears in admin attention queues.
+8. Send a test email and confirm Resend accepted or safely logged the result.
+9. Open `/admin/dashboard`, `/admin/bookings`, `/admin/reports`, `/admin/calendar`, `/admin/operations`.
+10. Export a permitted CSV report and confirm sensitive fields are excluded.
+11. Scan browser bundles and deployment output for secret names and secret values.
+12. Review Cloudflare Worker logs, Sentry, Supabase logs, email status logs, and operational events.
+
+### Deployment Gate
+
+Deployment is complete only when:
+
+- GitHub-connected Cloudflare deployment works from the production branch.
+- Cloudflare preview or non-production branch upload works.
+- Custom domain serves the Worker over HTTPS.
+- Canonical host redirects are correct.
+- Runtime variables and secrets are present in Cloudflare and not exposed to the browser.
+- Supabase production Auth URLs and redirect URLs match the canonical domain.
+- Resend sender/domain is verified.
+- Sentry production project receives scrubbed events only.
+- Booking, admin, manage-link, email, reports, and CSV export smoke tests pass.
+- Cloudflare logs, browser bundles, and source output do not expose secrets.
+
+### Reference Documentation
+
+- Cloudflare Workers Builds: https://developers.cloudflare.com/workers/ci-cd/builds/
+- Cloudflare Workers Build configuration: https://developers.cloudflare.com/workers/ci-cd/builds/configuration/
+- Cloudflare Workers environment variables: https://developers.cloudflare.com/workers/configuration/environment-variables/
+- Cloudflare Workers secrets: https://developers.cloudflare.com/workers/configuration/secrets/
+- Cloudflare Workers Custom Domains: https://developers.cloudflare.com/workers/configuration/routing/custom-domains/
+- OpenNext Cloudflare get started: https://opennext.js.org/cloudflare/get-started
+- OpenNext Cloudflare deploy guide: https://opennext.js.org/cloudflare/howtos/dev-deploy
+- Cloudflare SSL Full strict: https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/full-strict/
+- Cloudflare Always Use HTTPS: https://developers.cloudflare.com/ssl/edge-certificates/additional-options/always-use-https/
+- Cloudflare Automatic HTTPS Rewrites: https://developers.cloudflare.com/ssl/edge-certificates/additional-options/automatic-https-rewrites/
+- Cloudflare Cache Rules: https://developers.cloudflare.com/cache/how-to/cache-rules/
+- Cloudflare Response Header Transform Rules: https://developers.cloudflare.com/rules/transform/response-header-modification/
+- Cloudflare Managed Transforms: https://developers.cloudflare.com/rules/transform/managed-transforms/reference/
+- Cloudflare Turnstile: https://developers.cloudflare.com/turnstile/
+
+## 17. Recommended PR Sequence
 
 1. Planning artifact and baseline checks.
 2. Admin bootstrap, formal role matrix, and Sentry privacy.
@@ -1660,8 +1947,9 @@ Production readiness requires:
 14. RLS/privacy/data-retention/report-export/deployment hardening.
 15. Automated tests and E2E coverage.
 16. Final launch acceptance pass.
+17. GitHub-connected Cloudflare deployment and custom-domain production smoke pass.
 
-## 17. Completion Definition
+## 18. Completion Definition
 
 Implementation Plan 3 is complete when:
 

@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
 import { redirect } from "next/navigation";
 import { ChevronRight, ShieldCheck, Users } from "lucide-react";
+import { AdminAccessDenied } from "../components/admin-ui";
 
 export const metadata = {
   title: "Roles & Permissions — Rahma Therapy Admin",
@@ -19,19 +20,11 @@ export default async function RolesPage() {
   // Fine-grained permission gate — 403 message, not a redirect
   if (!profile.permissions.has(PERMISSIONS.MANAGE_ROLES)) {
     return (
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-[var(--rahma-charcoal)] mb-2">
-          Roles &amp; Permissions
-        </h1>
-        <div className="mt-6 rounded-2xl border bg-white px-6 py-8 text-center"
-          style={{ borderColor: "var(--rahma-border)" }}>
-          <ShieldCheck className="mx-auto mb-3 size-8 text-[var(--rahma-muted)]" />
-          <p className="font-medium text-[var(--rahma-charcoal)]">Insufficient permissions</p>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            You need the <code className="rounded bg-muted px-1 py-0.5 text-xs">manage_roles</code> permission to access this page.
-          </p>
-        </div>
-      </div>
+      <AdminAccessDenied
+        title="Roles access limited"
+        message="You need role management permission to access this page."
+        permission="manage_roles"
+      />
     );
   }
 

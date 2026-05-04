@@ -26,7 +26,7 @@ export function PackageSelectionStep({
     <section className={styles.stepSection} aria-labelledby="packages-heading">
       <div className={styles.sectionHeader}>
         <div>
-          <p className={styles.sectionKicker}>1 of 6</p>
+          <p className={styles.sectionKicker}>1 of 7</p>
           <h3 id="packages-heading">Choose your service</h3>
           <p>
             Choose one hijama or cupping package. You can also add one massage
@@ -63,6 +63,12 @@ export function PackageSelectionStep({
               </span>
               <span className={styles.packageTitle}>{item.name}</span>
               <span className={styles.packageSummary}>{item.summary}</span>
+              <span className={styles.packageSuitability}>{item.suitability}</span>
+              {item.genderRestrictionLabel ? (
+                <span className={styles.packageRestriction}>
+                  {item.genderRestrictionLabel}
+                </span>
+              ) : null}
               <span className={styles.packageIncludes}>
                 {item.includes.map((include) => (
                   <span key={include}>
@@ -73,7 +79,7 @@ export function PackageSelectionStep({
               </span>
               <span className={styles.packageFooter}>
                 <strong>{formatPrice(item.price)}</strong>
-                <span>{selected ? "Selected" : "Add package"}</span>
+                <span>{selected ? "Selected" : "Per person"}</span>
               </span>
             </button>
           );

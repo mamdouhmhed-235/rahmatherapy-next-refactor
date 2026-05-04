@@ -1,0 +1,10 @@
+grant delete on public.audit_logs to service_role;
+grant delete on public.booking_assignments to service_role;
+grant delete on public.booking_items to service_role;
+grant delete on public.booking_participants to service_role;
+grant delete on public.bookings to service_role;
+grant delete on public.clients to service_role;
+grant delete on public.email_delivery_events to service_role;
+grant delete on public.operational_events to service_role;
+grant delete on public.staff_permission_overrides to service_role;
+grant delete on public.staff_profiles to service_role;

@@ -42,7 +42,9 @@ export function TimeSlotPicker({
           ))}
         </div>
       ) : (
-        <p className={styles.slotEmpty}>No available times for this date.</p>
+        <p className={styles.slotEmpty}>
+          No matched times are available for this date.
+        </p>
       )}
       {error && (
         <p className={styles.fieldError} role="alert" aria-live="polite">
@@ -52,8 +54,8 @@ export function TimeSlotPicker({
       <div className={styles.reassurance}>
         <ShieldCheck aria-hidden="true" size={18} />
         <p>
-          Preferred dates and times are requests only. Rahma Therapy will confirm
-          availability before the appointment is final.
+          We only show times that match the therapist availability needed for
+          the selected service, location and participant gender.
         </p>
       </div>
     </div>

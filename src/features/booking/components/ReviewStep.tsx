@@ -7,47 +7,54 @@ import styles from "../BookingExperience.module.css";
 
 interface ReviewStepProps {
   details: BookingDetailsFormValues;
-  acknowledged: boolean;
-  consentAcknowledged: boolean;
-  acknowledgementError?: string;
-  consentError?: string;
   submissionError?: string;
   selectedPackages: BookingPackage[];
+  perPersonTotal: number;
   total: number;
   preferredDate: string | null;
   preferredTime: string | null;
-  onAcknowledgedChange: (value: boolean) => void;
-  onConsentAcknowledgedChange: (value: boolean) => void;
+}
+
+function getParticipantRows(details: BookingDetailsFormValues) {
+  const genders =
+    details.numberOfPeople > 1
+      ? details.participantGenders.slice(0, details.numberOfPeople)
+      : [details.clientGender];
+
+  return genders.map((gender, index) => ({
+    gender,
+    name:
+      details.bookingFor === "self" && index === 0
+        ? details.fullName
+        : details.participantNames[index]?.trim() || `Participant ${index + 1}`,
+    note: details.participantNotes[index]?.trim() ?? "",
+  }));
 }
 
 export function ReviewStep({
   details,
-  acknowledged,
-  consentAcknowledged,
-  acknowledgementError,
-  consentError,
   submissionError,
   selectedPackages,
+  perPersonTotal,
   total,
   preferredDate,
   preferredTime,
-  onAcknowledgedChange,
-  onConsentAcknowledgedChange,
 }: ReviewStepProps) {
-  const participantGenders =
-    details.numberOfPeople > 1
-      ? details.participantGenders.slice(0, details.numberOfPeople)
-      : [details.clientGender];
+  const participantRows = getParticipantRows(details);
+  const durationLabel = selectedPackages
+    .map((item) => item.durationLabel)
+    .filter(Boolean)
+    .join(" + ");
 
   return (
     <section className={styles.stepSection} aria-labelledby="review-heading">
       <div className={styles.sectionHeader}>
         <div>
-          <p className={styles.sectionKicker}>5 of 6</p>
+          <p className={styles.sectionKicker}>6 of 7</p>
           <h3 id="review-heading">Review your request</h3>
           <p>
-            Check your service, participant details, home visit address and
-            preferred appointment time.
+            Check the service, participant summary, address, matched time and
+            payment expectations before sending.
           </p>
         </div>
       </div>
@@ -57,100 +64,97 @@ export function ReviewStep({
           {selectedPackages.map((item) => (
             <div className={styles.reviewLine} key={item.id}>
               <span>{item.name}</span>
-              <strong>{formatPrice(item.price)}</strong>
+              <strong>{formatPrice(item.price)} per person</strong>
             </div>
           ))}
+          {durationLabel ? <p>Duration: {durationLabel}</p> : null}
+          <div className={styles.reviewLine}>
+            <span>Participants</span>
+            <strong>
+              {details.numberOfPeople}{" "}
+              {details.numberOfPeople === 1 ? "person" : "people"}
+            </strong>
+          </div>
+          <div className={styles.reviewLine}>
+            <span>Per-person price</span>
+            <strong>{formatPrice(perPersonTotal)}</strong>
+          </div>
           <div className={styles.reviewTotal}>
-            <span>Estimated total</span>
+            <span>Total group price</span>
             <strong>{formatPrice(total)}</strong>
           </div>
         </ReviewBlock>
 
-        <ReviewBlock title="Preferred appointment">
+        <ReviewBlock title="Matched appointment">
           <p>{formatDateLabel(preferredDate)}</p>
           <p>{preferredTime || "Time not chosen"}</p>
           <p>
-            This is your preferred date and time. Rahma Therapy will confirm
-            availability before the appointment is final.
+            This time matches the therapist availability needed for the selected
+            service, location and participant gender.
           </p>
         </ReviewBlock>
 
-        <ReviewBlock title="Contact & client">
+        <ReviewBlock title="Contact snapshot">
           <p>{details.fullName}</p>
           <p>{details.phone}</p>
           <p>{details.email}</p>
           <p>
-            {details.numberOfPeople}{" "}
-            {details.numberOfPeople === 1 ? "person" : "people"}
+            {details.bookingFor === "self"
+              ? "Booking for self"
+              : details.bookingFor === "someone_else"
+                ? "Booking for someone else"
+                : "Group booking"}
           </p>
-          {participantGenders.map((gender, index) => (
-            <p key={`${gender}-${index}`}>
-              Person {index + 1}: {gender === "male" ? "Male" : "Female"}
-            </p>
+        </ReviewBlock>
+
+        <ReviewBlock title="Participant summary">
+          {participantRows.map((participant, index) => (
+            <div className={styles.participantReviewLine} key={`${participant.name}-${index}`}>
+              <strong>{participant.name}</strong>
+              <span>{participant.gender === "male" ? "Male" : "Female"}</span>
+              {participant.note ? <p>{participant.note}</p> : null}
+            </div>
           ))}
         </ReviewBlock>
 
         <ReviewBlock title="Home visit address">
+          <p>{details.address}</p>
           <p>{details.city}</p>
           <p>{details.area}</p>
-          <p>{details.address}</p>
           <p>{details.postcode}</p>
+          {details.accessNotes.trim() ? <p>{details.accessNotes}</p> : null}
+          {details.parkingNotes.trim() ? <p>{details.parkingNotes}</p> : null}
+        </ReviewBlock>
+
+        <ReviewBlock title="Consent and payment">
+          <p>Consent confirmed.</p>
+          <p>Payment expected in person by cash or card.</p>
+          <p>
+            Confirmation and manage/cancellation details may be sent after the
+            request is reviewed.
+          </p>
         </ReviewBlock>
       </div>
 
-      {details.notes.trim() && (
+      {details.notes.trim() ? (
         <div className={styles.notesReview}>
           <strong>Treatment notes</strong>
           <p>{details.notes}</p>
         </div>
-      )}
+      ) : null}
 
-      {details.healthNotes.trim() && (
+      {details.healthNotes.trim() ? (
         <div className={styles.notesReview}>
-          <strong>Health notes</strong>
+          <strong>Health or safety notes</strong>
           <p>{details.healthNotes}</p>
         </div>
-      )}
+      ) : null}
 
-      <label className={styles.acknowledgement}>
-        <input
-          type="checkbox"
-          checked={acknowledged}
-          aria-invalid={Boolean(acknowledgementError)}
-          onChange={(event) => onAcknowledgedChange(event.target.checked)}
-        />
-        <span>
-          I understand this is a booking request, not a confirmed appointment,
-          and Rahma Therapy will contact me to confirm availability.
-        </span>
-      </label>
-      {acknowledgementError && (
-        <p className={styles.fieldError} role="alert" aria-live="polite">
-          {acknowledgementError}
-        </p>
-      )}
-      <label className={styles.acknowledgement}>
-        <input
-          type="checkbox"
-          checked={consentAcknowledged}
-          aria-invalid={Boolean(consentError)}
-          onChange={(event) => onConsentAcknowledgedChange(event.target.checked)}
-        />
-        <span>
-          I consent to treatment, understand Rahma Therapy may refuse or adapt
-          treatment for safety reasons, and have shared relevant health details.
-        </span>
-      </label>
-      {consentError && (
-        <p className={styles.fieldError} role="alert" aria-live="polite">
-          {consentError}
-        </p>
-      )}
-      {submissionError && (
+      {submissionError ? (
         <p className={styles.fieldError} role="alert" aria-live="polite">
           {submissionError}
         </p>
-      )}
+      ) : null}
     </section>
   );
 }

@@ -24,6 +24,12 @@ export interface BookingEmailTemplateInput {
   contactPhone?: string | null;
 }
 
+export interface RescheduleRequestEmailInput extends BookingEmailTemplateInput {
+  requestedDate: string;
+  requestedTime: string;
+  requestNote: string | null;
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -191,6 +197,86 @@ export function renderBookingCancellationEmail(input: BookingEmailTemplateInput)
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">Hi ${escapeHtml(
       input.clientName
     )}, your ${escapeHtml(input.companyName)} booking has been cancelled.</p>
+    ${renderSummary(input)}
+    ${renderParticipants(input)}
+    ${renderFooter(input)}`
+  );
+}
+
+export function renderAdminBookingCancellationEmail(
+  input: BookingEmailTemplateInput & {
+    bookingId: string;
+    initiatedBy: "customer" | "admin";
+    cancellationNote?: string | null;
+  }
+) {
+  return renderLayout(
+    "Booking cancellation",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking cancellation</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
+      input.clientName
+    )}'s booking was cancelled by ${escapeHtml(input.initiatedBy)}. Booking reference: ${escapeHtml(
+      input.bookingId
+    )}.</p>
+    ${renderSummary(input)}
+    ${
+      input.cancellationNote
+        ? `<p style="margin:18px 0 0;font-size:14px;line-height:1.5;color:#53615d;"><strong style="color:#1f2f2b;">Cancellation note:</strong> ${escapeHtml(input.cancellationNote)}</p>`
+        : ""
+    }
+    ${renderParticipants(input)}
+    ${renderFooter(input)}`
+  );
+}
+
+export function renderAdminRescheduleRequestEmail(
+  input: RescheduleRequestEmailInput & { bookingId: string }
+) {
+  return renderLayout(
+    "Reschedule request",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Reschedule request</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
+      input.clientName
+    )} requested a new appointment time. Booking reference: ${escapeHtml(input.bookingId)}.</p>
+    ${renderSummary(input)}
+    <div style="margin:22px 0;padding:18px;border-radius:14px;background:#f7f3ec;">
+      <p style="margin:0 0 10px;font-size:13px;color:#53615d;">Requested new time</p>
+      <p style="margin:0;font-size:16px;font-weight:700;color:#1f2f2b;">${escapeHtml(
+        formatDate(input.requestedDate)
+      )} at ${escapeHtml(formatTime(input.requestedTime))}</p>
+      ${
+        input.requestNote
+          ? `<p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#53615d;">${escapeHtml(input.requestNote)}</p>`
+          : ""
+      }
+    </div>
+    ${renderParticipants(input)}
+    ${renderFooter(input)}`
+  );
+}
+
+export function renderStaffAssignmentEmail(input: BookingEmailTemplateInput) {
+  return renderLayout(
+    "Booking assignment",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking assignment</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">You have been assigned to a ${escapeHtml(
+      input.companyName
+    )} booking.</p>
+    ${renderSummary(input)}
+    ${renderParticipants(input)}
+    ${renderFooter(input)}`
+  );
+}
+
+export function renderStaffBookingChangeEmail(
+  input: BookingEmailTemplateInput & { changeSummary: string }
+) {
+  return renderLayout(
+    "Assigned booking changed",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Assigned booking changed</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
+      input.changeSummary
+    )}</p>
     ${renderSummary(input)}
     ${renderParticipants(input)}
     ${renderFooter(input)}`

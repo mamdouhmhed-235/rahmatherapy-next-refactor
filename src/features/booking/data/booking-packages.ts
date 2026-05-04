@@ -19,6 +19,8 @@ export interface BookingPackage {
   price: number;
   durationLabel?: string;
   summary: string;
+  suitability: string;
+  genderRestrictionLabel?: string;
   includes: string[];
   badge?: string;
 }
@@ -29,8 +31,12 @@ export const BOOKING_PACKAGES: readonly BookingPackage[] = [
     name: "Supreme Combo Package",
     group: "cupping",
     price: 55,
+    durationLabel: "90 mins",
     summary:
       "Our most complete home package, combining massage preparation, IASTM-style work, dry cupping, fire cupping and hijama.",
+    suitability:
+      "Best for clients who want several therapy methods in one home appointment.",
+    genderRestrictionLabel: "Therapist matched to participant gender",
     badge: "Full reset",
     includes: [
       "Pre-cupping massage",
@@ -45,8 +51,12 @@ export const BOOKING_PACKAGES: readonly BookingPackage[] = [
     name: "Hijama Package",
     group: "cupping",
     price: 45,
+    durationLabel: "60 mins",
     summary:
       "Focused wet cupping at home with pre-cupping massage and dry cupping included.",
+    suitability:
+      "Best for clients who mainly want wet cupping with a clear structure.",
+    genderRestrictionLabel: "Therapist matched to participant gender",
     badge: "Classic hijama",
     includes: [
       "Pre-cupping massage",
@@ -60,8 +70,12 @@ export const BOOKING_PACKAGES: readonly BookingPackage[] = [
     name: "Fire Package",
     group: "cupping",
     price: 40,
+    durationLabel: "45 mins",
     summary:
       "A warming dry or fire cupping session with essential oils, without wet cupping.",
+    suitability:
+      "Best for clients who want cupping support without wet cupping.",
+    genderRestrictionLabel: "Therapist matched to participant gender",
     badge: "No wet cupping",
     includes: [
       "Pre-cupping massage with essential oils",
@@ -78,6 +92,9 @@ export const BOOKING_PACKAGES: readonly BookingPackage[] = [
     price: 40,
     summary:
       "A shorter focused session for one main area such as back, neck, shoulders or legs.",
+    suitability:
+      "Best for targeted support or a quicker home appointment.",
+    genderRestrictionLabel: "Therapist matched to participant gender",
     badge: "Targeted",
     includes: [
       "Relaxing massage",
@@ -95,6 +112,9 @@ export const BOOKING_PACKAGES: readonly BookingPackage[] = [
     price: 60,
     summary:
       "A longer session for multiple areas, deeper work or a calmer full-body reset.",
+    suitability:
+      "Best for broader massage support or a calmer full-body reset.",
+    genderRestrictionLabel: "Therapist matched to participant gender",
     badge: "Longer session",
     includes: [
       "Relaxing massage",
