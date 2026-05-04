@@ -1,40 +1,69 @@
-# Phase 1 Business Operational Gaps
+# Phase 1 Business Fit And Operational Gap Review
 
-Audit issue: https://github.com/mamdouhmhed-235/rahmatherapy-next-refactor/issues/50
+Audit issue: https://github.com/mamdouhmhed-235/rahmatherapy-next-refactor/issues/84
 
-## Business Context Checked
-- UK mobile therapy appointments at customer location.
-- Cash/card payment in person.
-- No customer accounts.
-- Staff/admin use Supabase Auth.
-- Gender matching is a core safety and comfort rule.
-- Group bookings are modeled as simultaneous participant assignments.
+## Business-Fit Summary
 
-## Findings
+Rahma Therapy has a credible architecture for a small UK mobile therapy operation. The implemented model supports public booking, in-person payment tracking, mobile service addresses, service-area checks, London time helpers, gender-aware participant/therapist matching, group bookings, repeat client history, admin booking management, assignment claiming, reports, email delivery events, operational events, privacy workflows, and audit logs.
 
-| Severity | Title | Evidence | Affected Area | Why It Matters | Follow-up Issue |
-|---|---|---|---|---|---|
-| Blocker | No staff/therapist operational data in live Supabase | `staff_profiles` and active booking staff counts are both zero. | Admin operations, booking availability | The business cannot operate daily workflows or show customer slots without configured staff. | https://github.com/mamdouhmhed-235/rahmatherapy-next-refactor/issues/51 |
-| High | Concurrent booking risk remains operationally unresolved | Booking insertion is not atomic and has no DB-level capacity lock. | Scheduling, customer trust, staff workload | Mobile appointments cannot safely tolerate double-booked therapists or partial booking records. | https://github.com/mamdouhmhed-235/rahmatherapy-next-refactor/issues/52 |
-| Medium | Customer cancellation/manage-link workflow is incomplete | Email generates a manage URL, but no matching route exists. | Cancellation/rescheduling expectations | Customers are told to use a link that cannot currently resolve. | https://github.com/mamdouhmhed-235/rahmatherapy-next-refactor/issues/53 |
-| Medium | UK timezone behavior is implicit | Availability and validation rely on runtime-local JavaScript `Date`. | Booking windows, minimum notice, BST | UK booking rules need consistent Europe/London behavior in production. | https://github.com/mamdouhmhed-235/rahmatherapy-next-refactor/issues/54 |
+The highest-value remaining work is not more broad feature expansion. It is launch hardening: remove stale docs, clear security/performance advisor findings, verify role/persona behavior live, and validate that the admin CRM remains usable on mobile and under realistic data volume.
 
-## Data Flow Diagrams
+## Essential Business Checklist
 
-### Public Booking
-Service selection -> participant genders -> address/city -> `/api/availability` -> selected slot -> `/api/bookings` -> normalized Supabase rows -> email notification.
+Must-have before real customer/staff trust:
 
-### Slot Calculation
-Input date/services/genders/city -> business settings -> service visibility/duration -> active booking-eligible staff -> role permissions/overrides -> global and staff availability -> blocked dates/overrides -> existing bookings/assignments -> returned slots.
+- Supabase security advisor warning for leaked password protection is resolved or formally accepted as residual risk.
+- Admin/staff role behavior is tested in Phase 2 with owner, admin/manager, therapist, restricted, inactive, and no-bookings personas.
+- Public booking, customer manage, cancellation, reschedule, emails, and CRM visibility are tested live or in a controlled environment.
+- RLS raw-access checks are tested at runtime for anon/authenticated sensitive table access.
+- Production owner/admin bootstrap and last-critical-admin safeguards are confirmed on the live project.
 
-### Booking Creation
-Payload validation -> participant gender derivation -> availability recheck -> service lookup -> find/create client -> insert booking -> insert participants -> insert item snapshots -> insert unassigned assignments -> send emails.
+Should-have before serious marketing/scale:
 
-### Admin Booking Management
-Admin login -> staff profile/RBAC -> booking list/detail -> management form/claim actions -> service-role update -> audit log -> revalidate admin routes.
+- Missing FK indexes from the Supabase performance advisor are reviewed and added where query paths justify them.
+- Middleware-to-proxy migration clears the Next.js 16 deprecation warning.
+- README and docs are updated to match the implemented admin CRM and backend booking reality.
+- High-data-volume admin list/report behavior is tested in Phase 2.
+- Repeat customer and manual client dedupe behavior is tested in Phase 2.
 
-### Assignment Claiming
-Staff profile/RBAC -> load assignment -> verify unassigned -> verify required therapist gender matches staff gender -> update assignment -> recompute booking assignment status -> audit log.
+Polish:
 
-## No Fixes
-No operational fixes were made in Phase 1.
+- Remove or reconcile unused `AdminSidebar`.
+- Refine admin design consistency after browser screenshots.
+- Consider a small-business follow-up/recall workflow only if real operations require it.
+
+## Operational Risk Register
+
+| Risk | Current architecture | Residual concern |
+| --- | --- | --- |
+| Duplicate bookings | RPC uses advisory lock and capacity checks. | Needs Phase 2 concurrent/near-concurrent runtime testing. |
+| Stale availability | Availability and booking RPC both check staff/settings/capacity. | Need browser tests for edge cases: blocked dates, overrides, minimum notice, BST. |
+| Gender assignment mismatch | Participant and assignment gender fields exist; claim checks enforce gender. | Need E2E proof across male, female, and mixed group flows. |
+| Inactive staff access | Middleware/layout and RLS helper support inactive blocking. | Need live persona test. |
+| Public access to sensitive data | RLS enabled; no broad anon sensitive select policies seen. | Need runtime anon raw-read/write attempts in Phase 2. |
+| Admin lockout | Code/docs reference critical-owner safeguards. | Need runtime test or targeted code review of role/staff actions in Phase 2. |
+| Email failures | Emails are tracked and failures do not block booking creation. | Need production Resend sender/domain verification. |
+| Dashboard/report drift | Reporting module and metric docs exist. | Needs data-based reconciliation in Phase 2/3. |
+| Mobile admin overflow | Responsive shell and admin primitives exist. | Needs screenshot/browser audit. |
+| Unsupported service area | Frontend and RPC check allowed cities. | Postcode quality remains basic; advanced routing intentionally out of scope. |
+
+## Right-Sized Benchmark Gaps
+
+| Benchmark category | Source/reference | Current Rahma state | Rating | Recommendation |
+| --- | --- | --- | --- | --- |
+| Dashboard and activity visibility | monday.com CRM dashboards/activity tracking | Dashboard, attention items, operations, email status exist | Partial/meets | Validate operational usefulness under real data volume. |
+| Calendar and practitioner schedule | Cliniko appointment calendar and practitioner reports | Calendar exists, staff availability exists | Partial | Browser-test calendar usability and own/all role views. |
+| Client history and notes | Cliniko/Fresha client profiles and health records | Client profile/history and notes exist | Partial | Verify sensitive-note access and repeat-client clarity. |
+| Forms/consent | Fresha forms and digital consent | Booking captures consent and health notes | Partial | Consider richer forms later only if operationally necessary. |
+| Automated messages | Fresha automated messages and reminders | Booking, cancellation, reschedule, staff assignment, reminders/manual email surfaces exist | Partial | Confirm Resend production readiness and manual reminder workflow. |
+| Reports | Cliniko/Fresha reporting | Revenue, service, source, staff workload, export routes exist | Partial | Validate against metric definitions and role scopes. |
+| Duplicate handling | monday.com duplicate merge expectations | Client source and repeat-client metrics exist | Partial | Phase 2 should test repeat bookings and manual client correction. |
+| Enterprise pipelines/lead scoring | monday.com sales pipeline references | Not central to this business | Not relevant/overbuilt risk | Avoid unless enquiries become a larger sales workflow. |
+
+Sources used:
+
+- https://monday.com/crm/features
+- https://www.cliniko.com/features/
+- https://www.cliniko.com/features/appointments/
+- https://www.cliniko.com/features/reporting/
+- https://www.fresha.com/for-business/features
