@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertCircle } from "lucide-react";
+import { signInAdmin } from "./actions";
 
 interface LoginFormProps {
   redirectTo: string;
@@ -28,15 +28,10 @@ export function LoginForm({ redirectTo, inactiveReason }: LoginFormProps) {
     setError(null);
     setLoading(true);
 
-    const supabase = createSupabaseBrowserClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const result = await signInAdmin(email, password);
 
-    if (signInError) {
-      // Do not reveal whether the email exists
-      setError("Invalid credentials. Please check your email and password.");
+    if (result.error) {
+      setError(result.error);
       setLoading(false);
       return;
     }
