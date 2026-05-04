@@ -31,7 +31,7 @@ export function AssignmentManager({
 
     startTransition(async () => {
       const result = await updateBookingAssignment(formData);
-      if (result.error) {
+      if ("error" in result && result.error) {
         toast.error(result.error);
         return;
       }
