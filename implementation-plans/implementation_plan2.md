@@ -1043,7 +1043,7 @@ Business-specific missing-items audit:
 - Do admin/staff pages look and feel modern, polished, responsive, and professionally designed?
 - Are workflows clear for owners/admins, therapists, and restricted roles?
 - Does the email system cover customer confirmation, admin notification, cancellation, and reminders?
-- Does the customer lifecycle build trust from booking request through admin response and confirmation?
+- Does the customer lifecycle build trust from booking request through admin response and confirmation?  
 - Does the booking flow make gender matching feel clear and respectful rather than awkward?
 - Does the booking flow handle a customer booking for themselves, for someone else, and for several people?
 - Does the booking flow support repeat customers making multiple bookings without data confusion?
