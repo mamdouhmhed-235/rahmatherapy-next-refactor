@@ -23,10 +23,12 @@ export default async function AdminLoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const requestedRedirect = params.redirectTo;
   const redirectTo =
-    requestedRedirect?.startsWith("/admin") &&
-    !requestedRedirect.startsWith("//")
-      ? requestedRedirect
-      : "/admin/dashboard";
+    requestedRedirect === "/admin" || requestedRedirect === "/admin/"
+      ? "/admin/dashboard"
+      : requestedRedirect?.startsWith("/admin") &&
+          !requestedRedirect.startsWith("//")
+        ? requestedRedirect
+        : "/admin/dashboard";
   const inactiveReason = params.reason === "inactive";
 
   return (
