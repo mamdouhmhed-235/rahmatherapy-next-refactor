@@ -72,6 +72,8 @@ export function AdminCommandSearch({
             <Search className="size-4 shrink-0 text-[var(--rahma-muted)]" />
             <BaseDialog.Title className="sr-only">Search admin records</BaseDialog.Title>
             <Input
+              id="admin-command-search"
+              name="admin-command-search"
               autoFocus
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -84,7 +86,7 @@ export function AdminCommandSearch({
             </BaseDialog.Close>
           </div>
 
-          <div className="max-h-[60vh] overflow-y-auto p-2">
+          <div className="admin-nav-scrollbar max-h-[60vh] overflow-y-auto p-2">
             {isPending ? (
               <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-[var(--rahma-muted)]">
                 <Loader2 className="size-4 animate-spin" />
@@ -99,7 +101,7 @@ export function AdminCommandSearch({
                 No matching permitted records found.
               </p>
             ) : (
-              <ul className="grid gap-1">
+              <ul className="m-0 grid list-none gap-1 p-0">
                 {results.map((result) => (
                   <li key={`${result.type}-${result.id}`}>
                     <Link

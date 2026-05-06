@@ -47,3 +47,25 @@ a[class*="bg-white"][class*="text-rahma-green"],
 a[class*="border-rahma-green/30"] {
   color: var(--rahma-green) !important;
 }
+
+.admin-nav-scrollbar {
+  scrollbar-color: rgba(209, 234, 223, 0.32) transparent;
+  scrollbar-width: thin;
+}
+
+.admin-nav-scrollbar::-webkit-scrollbar {
+  width: 0.375rem;
+}
+
+.admin-nav-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-nav-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(209, 234, 223, 0.26);
+  border-radius: 999px;
+}
+
+.admin-nav-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(209, 234, 223, 0.42);
+}
