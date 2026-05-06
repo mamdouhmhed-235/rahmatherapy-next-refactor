@@ -49,23 +49,33 @@ a[class*="border-rahma-green/30"] {
 }
 
 .admin-nav-scrollbar {
-  scrollbar-color: rgba(209, 234, 223, 0.32) transparent;
-  scrollbar-width: thin;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 .admin-nav-scrollbar::-webkit-scrollbar {
-  width: 0.375rem;
+  display: none;
+  height: 0;
+  width: 0;
 }
 
-.admin-nav-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+.admin-nav-surface {
+  color: #ffffff;
 }
 
-.admin-nav-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(209, 234, 223, 0.26);
-  border-radius: 999px;
+.admin-nav-surface h2,
+.admin-nav-surface .admin-nav-link-active {
+  color: #ffffff !important;
 }
 
-.admin-nav-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(209, 234, 223, 0.42);
+.admin-nav-surface .admin-nav-link {
+  color: rgba(209, 234, 223, 0.84) !important;
+}
+
+.admin-nav-surface .admin-nav-link svg {
+  color: rgba(209, 234, 223, 0.72) !important;
+}
+
+.admin-nav-surface .admin-nav-link-active svg {
+  color: #ffffff !important;
 }

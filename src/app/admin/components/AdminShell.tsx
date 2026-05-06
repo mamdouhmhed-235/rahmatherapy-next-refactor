@@ -219,7 +219,7 @@ function DesktopNav({
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 left-0 z-40 hidden border-r border-emerald-100/20 bg-[#2d4038] text-white transition-[width] duration-200 lg:flex lg:flex-col",
+        "admin-nav-surface fixed inset-y-0 left-0 z-40 hidden border-r border-emerald-100/20 bg-[#2d4038] text-white transition-[width] duration-200 lg:flex lg:flex-col",
         collapsed ? "w-20" : "w-64"
       )}
     >
@@ -316,7 +316,7 @@ function MobileDrawer({
             role="dialog"
             aria-modal="true"
             aria-labelledby="admin-mobile-navigation-title"
-            className="relative z-10 flex h-dvh w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-r-xl border-r border-emerald-100/20 bg-[#2d4038] shadow-elevated outline-none"
+            className="admin-nav-surface relative z-10 flex h-dvh w-[min(22rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-r-xl border-r border-emerald-100/20 bg-[#2d4038] shadow-elevated outline-none"
           >
             <div className="flex items-start justify-between gap-3 border-b border-emerald-100/10 px-4 py-4">
               <div className="min-w-0">
@@ -512,8 +512,8 @@ function NavItemLink({
           "group relative flex min-h-11 items-center rounded-lg text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/35",
           collapsed ? "justify-center px-0" : "gap-3 px-3",
           isActive
-            ? "bg-white/12 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-            : "text-emerald-100/75 hover:bg-white/8 hover:text-white"
+            ? "admin-nav-link-active bg-white/12 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+            : "admin-nav-link text-emerald-100/75 hover:bg-white/8 hover:text-white"
         )}
       >
         {isActive && !collapsed ? (
@@ -564,7 +564,7 @@ function ShellFooter({
         <button
           type="submit"
           className={cn(
-            "flex min-h-10 w-full items-center rounded-lg text-sm text-emerald-100/75 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/35",
+            "flex min-h-10 w-full appearance-none items-center rounded-lg border border-emerald-100/15 bg-white/5 text-sm text-white/85 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/35",
             collapsed ? "justify-center px-0" : "gap-2 px-3"
           )}
         >
