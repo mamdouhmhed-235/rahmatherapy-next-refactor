@@ -68,6 +68,7 @@ export interface ReportClient {
 export interface ReportStaff {
   id: string;
   name: string;
+  gender: string;
   active: boolean;
   can_take_bookings: boolean;
   availability_mode: string;
@@ -279,7 +280,7 @@ export async function getReportData(
       .returns<ReportClient[]>(),
     adminClient
       .from("staff_profiles")
-      .select("id, name, active, can_take_bookings, availability_mode, role_id, roles(name)")
+      .select("id, name, gender, active, can_take_bookings, availability_mode, role_id, roles(name)")
       .order("name")
       .returns<ReportStaff[]>(),
     adminClient
@@ -647,6 +648,178 @@ export function formatMoney(value: number) {
 
 export function formatNumber(value: number) {
   return new Intl.NumberFormat("en-GB").format(value);
+}
+
+export function humanizeEventType(raw: string) {
+  const EVENT_LABEL_MAP: Record<string, string> = {
+    booking_confirmation: "Booking confirmation failed",
+    booking_reminder: "Booking reminder failed",
+    admin_booking_notification: "Admin booking alert failed",
+    staff_assignment: "Staff assignment email failed",
+    staff_unassignment: "Staff unassignment email failed",
+    booking_cancellation: "Booking cancellation email failed",
+    booking_reschedule: "Reschedule notification failed",
+    enquiry_confirmation: "Enquiry confirmation failed",
+    payment_confirmation: "Payment receipt failed",
+    custom_notification: "Custom notification failed",
+    internal_alert: "Internal alert failed",
+  };
+
+  return EVENT_LABEL_MAP[raw] ?? raw
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export interface GenderCapacity {
+  gender: string;
+  label: string;
+  activeTherapists: number;
+  totalAssignments: number;
+  unassignedAssignments: number;
+}
+
+export function getGenderCapacity(data: ReportData): GenderCapacity[] {
+  const staffGenderMap = new Map(data.staff.filter((s) => s.active).map((s) => [s.id, s.gender]));
+  const unassignedByGender = new Map<string, number>();
+  for (const assignment of data.assignments) {
+    if (!assignment.assigned_staff_id || assignment.status === "completed") {
+      const gender = assignment.required_therapist_gender || "any";
+      unassignedByGender.set(gender, (unassignedByGender.get(gender) ?? 0) + 1);
+    }
+  }
+
+  const staffByGender = new Map<string, Set<string>>();
+  for (const [staffId, gender] of staffGenderMap) {
+    if (!staffByGender.has(gender)) staffByGender.set(gender, new Set());
+    staffByGender.get(gender)!.add(staffId);
+  }
+
+  const staffToBookings = new Map<string, number>();
+  for (const assignment of data.assignments) {
+    if (!assignment.assigned_staff_id) continue;
+    staffToBookings.set(assignment.assigned_staff_id, (staffToBookings.get(assignment.assigned_staff_id) ?? 0) + 1);
+  }
+
+  const genders = [...new Set([...staffGenderMap.values(), ...unassignedByGender.keys()])];
+  return genders.map((gender) => {
+    const staffIds = staffByGender.get(gender) ?? new Set();
+    const activeCount = staffIds.size;
+    const totalAssigned = [...staffIds].reduce((sum, id) => sum + (staffToBookings.get(id) ?? 0), 0);
+    const unassigned = unassignedByGender.get(gender) ?? 0;
+    const label = gender === "male" ? "Male therapist" : gender === "female" ? "Female therapist" : "Any gender";
+    return { gender, label, activeTherapists: activeCount, totalAssignments: totalAssigned, unassignedAssignments: unassigned };
+  });
+}
+
+export function findNextAppointment(bookings: ReportBooking[], today: string): ReportBooking | null {
+  const upcoming = bookings
+    .filter((b) => b.booking_date > today && b.status !== "cancelled" && b.status !== "no_show")
+    .sort((a, b) => a.booking_date.localeCompare(b.booking_date) || a.start_time.localeCompare(b.start_time));
+  return upcoming[0] ?? null;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: "email" | "operation" | "assignment" | "payment" | "enquiry" | "availability";
+  title: string;
+  detail: string;
+  severity: "critical" | "warning" | "info";
+  timestamp: string;
+  href: string | null;
+  actionLabel?: string;
+  secondaryHref?: string | null;
+  secondaryLabel?: string;
+}
+
+export function buildNotifications(
+  data: {
+    assignments: ReportAssignment[];
+    emailEvents: EmailEvent[];
+    operationalEvents: OperationalEvent[];
+    enquiries: { id: string; full_name: string; status: string; created_at: string }[];
+    bookings: ReportBooking[];
+  }
+): NotificationItem[] {
+  const items: NotificationItem[] = [];
+
+  for (const email of data.emailEvents.filter((e) => e.delivery_status === "failed")) {
+    items.push({
+      id: `email-${email.id}`,
+      type: "email",
+      title: humanizeEventType(email.event_type),
+      detail: email.error_message ?? "The email could not be delivered.",
+      severity: "critical",
+      timestamp: email.created_at.slice(0, 16).replace("T", " "),
+      href: "/admin/emails",
+      actionLabel: "Open email event",
+      secondaryHref: email.booking_id ? `/admin/bookings/${email.booking_id}` : null,
+      secondaryLabel: "View booking",
+    });
+  }
+
+  for (const event of data.operationalEvents.filter((e) => e.status === "open")) {
+    items.push({
+      id: `ops-${event.id}`,
+      type: "operation",
+      title: humanizeEventType(event.event_type),
+      detail: event.summary,
+      severity: event.severity === "error" ? "critical" : "warning",
+      timestamp: event.created_at.slice(0, 16).replace("T", " "),
+      href: "/admin/operations",
+      actionLabel: "Open operations",
+    });
+  }
+
+  for (const enquiry of data.enquiries.filter((e) => e.status === "new")) {
+    items.push({
+      id: `enquiry-${enquiry.id}`,
+      type: "enquiry",
+      title: "New uncontacted enquiry",
+      detail: enquiry.full_name,
+      severity: "warning",
+      timestamp: enquiry.created_at.slice(0, 16).replace("T", " "),
+      href: "/admin/enquiries",
+      actionLabel: "Contact",
+    });
+  }
+
+  for (const booking of data.bookings.filter(
+    (b) => b.status === "completed" && b.payment_status === "unpaid"
+  )) {
+    items.push({
+      id: `unpaid-${booking.id}`,
+      type: "payment",
+      title: "Unpaid completed booking",
+      detail: booking.contact_full_name ?? "Unknown contact",
+      severity: "critical",
+      timestamp: booking.booking_date,
+      href: `/admin/bookings/${booking.id}`,
+      actionLabel: "Review payment",
+    });
+  }
+
+  const unassignedByGender = new Map<string, number>();
+  for (const a of data.assignments.filter((a) => !a.assigned_staff_id && a.status !== "completed")) {
+    const g = a.required_therapist_gender || "any";
+    unassignedByGender.set(g, (unassignedByGender.get(g) ?? 0) + 1);
+  }
+  if (unassignedByGender.size > 0) {
+    const detail = [...unassignedByGender.entries()]
+      .map(([g, count]) => `${count} ${g}`)
+      .join(", ");
+    items.push({
+      id: "capacity-gap",
+      type: "assignment",
+      title: "Unassigned booking assignments",
+      detail: `${detail} slot(s) need therapist assignment.`,
+      severity: "warning",
+      timestamp: getBusinessDate(),
+      href: "/admin/bookings?view=unassigned",
+      actionLabel: "Assign therapists",
+    });
+  }
+
+  return items.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
 
 function getScopedBookingIds(

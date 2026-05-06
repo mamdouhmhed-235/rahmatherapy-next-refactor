@@ -2,13 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   AlertCircle,
-  ArrowRight,
-  Bell,
-  CalendarCheck,
-  ClipboardList,
+  CalendarDays,
   CreditCard,
-  LockKeyhole,
+  FileText,
+  ShieldCheck,
   SlidersHorizontal,
+  UserRoundCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -18,27 +17,44 @@ import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
 import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
-  AdminAttentionRail,
   AdminHiddenDataState,
-  AdminMetricGrid,
   AdminPageScaffold,
-  AdminPanel,
   AdminStatusBadge,
 } from "../components/admin-ui";
 import { AdminSheet } from "../components/admin-ui-interactions";
 import { cn } from "@/lib/utils";
 import {
+  buildNotifications,
   canViewRevenueReports,
+  findNextAppointment,
   formatMoney,
   formatNumber,
   getAttentionItems,
+  getGenderCapacity,
   getReportData,
   getServicePerformance,
   getStaffWorkload,
   hasUniversalReportScope,
+  humanizeEventType,
   parseReportFilters,
   summarizeReports,
 } from "../reports/reporting";
+import type { NotificationItem } from "../reports/reporting";
+import {
+  AttentionItemCard,
+  BusinessPulseCard,
+  DashboardCommandCard,
+  NeedsActionBoard,
+  OperationsHealthCard,
+  PaymentHealthCard,
+  StaffCapacityCard,
+  TodayAgendaCard,
+} from "./dashboard-cards";
+import type { AttentionGroup, AttentionSeverity } from "./dashboard-cards";
+import {
+  NotificationBell,
+  MobileNotificationButton,
+} from "../components/notification-bell";
 
 export const metadata = {
   title: "Dashboard - Rahma Therapy Admin",
@@ -55,6 +71,279 @@ const sourceOptions = ["website", "phone", "whatsapp", "instagram", "referral", 
 const statusOptions = ["pending", "confirmed", "completed", "cancelled", "no_show"];
 const paymentOptions = ["paid", "unpaid"];
 
+/* ═══════════════════════════════════════════════════════════
+   Attention category grouping
+   ═══════════════════════════════════════════════════════════ */
+
+type AttentionGroupMeta = {
+  label: string;
+  category: string;
+  categoryLabel: string;
+  order: number;
+  href: (access: PermissionAccess) => string | null;
+  actionLabel: string;
+  summary: (count: number) => string;
+};
+
+const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
+  "assignment-unassigned": {
+    label: "Unassigned bookings",
+    category: "assignments",
+    categoryLabel: "Assignments",
+    order: 10,
+    href: (access) => access.bookings ? "/admin/bookings?view=unassigned" : null,
+    actionLabel: "Assign therapists",
+    summary: (n) => `${n} booking${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} a therapist before the client can be fully covered.`,
+  },
+  "assignment-partial": {
+    label: "Partially assigned bookings",
+    category: "assignments",
+    categoryLabel: "Assignments",
+    order: 20,
+    href: (access) => access.bookings ? "/admin/bookings?view=partial" : null,
+    actionLabel: "Complete assignment",
+    summary: (n) => `${n} booking${n !== 1 ? "s" : ""} still need${n === 1 ? "s" : ""} every session covered.`,
+  },
+  "payment-unpaid": {
+    label: "Unpaid completed bookings",
+    category: "payments",
+    categoryLabel: "Payments",
+    order: 30,
+    href: (access) => access.bookings ? "/admin/bookings?status=completed&payment_status=unpaid" : null,
+    actionLabel: "Review payments",
+    summary: (n) => `${n} completed booking${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} payment follow-up.`,
+  },
+  "customer-reschedule": {
+    label: "Reschedule requests",
+    category: "clients",
+    categoryLabel: "Clients",
+    order: 40,
+    href: (access) => access.bookings ? "/admin/bookings?view=attention" : null,
+    actionLabel: "Review requests",
+    summary: (n) => `${n} client reschedule request${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} a response.`,
+  },
+  "customer-cancellation": {
+    label: "Customer cancellations",
+    category: "clients",
+    categoryLabel: "Clients",
+    order: 50,
+    href: (access) => access.bookings ? "/admin/bookings?view=cancelled" : null,
+    actionLabel: "Review cancelled",
+    summary: (n) => `${n} cancelled or no-show booking${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} review.`,
+  },
+  "customer-enquiry": {
+    label: "New enquiries",
+    category: "clients",
+    categoryLabel: "Clients",
+    order: 60,
+    href: (access) => access.enquiries ? "/admin/enquiries" : null,
+    actionLabel: "Contact enquiries",
+    summary: (n) => `${n} new enquiry${n !== 1 ? "ies" : ""} waiting for follow-up.`,
+  },
+  "booking-health": {
+    label: "Health notes",
+    category: "health",
+    categoryLabel: "Health",
+    order: 70,
+    href: (access) => access.bookings ? "/admin/bookings?view=attention" : null,
+    actionLabel: "Review notes",
+    summary: (n) => `${n} booking${n !== 1 ? "s" : ""} include${n === 1 ? "s" : ""} health notes therapists should review.`,
+  },
+  "system-operations": {
+    label: "Operational errors",
+    category: "operations",
+    categoryLabel: "Operations",
+    order: 80,
+    href: (access) => access.operations ? "/admin/operations" : null,
+    actionLabel: "Open operations",
+    summary: (n) => `${n} operational event${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} acknowledgement or resolution.`,
+  },
+  "staff-availability": {
+    label: "Availability gaps",
+    category: "operations",
+    categoryLabel: "Operations",
+    order: 90,
+    href: (access) => access.staff ? "/admin/staff" : null,
+    actionLabel: "Fix availability",
+    summary: (n) => `${n} therapist availability gap${n !== 1 ? "s" : ""} may limit booking coverage.`,
+  },
+};
+
+function getAttentionGroupKey(item: AttentionItem): string {
+  if (item.label === "Failed email send") return `email-${item.detail}`;
+  if (item.label === "Unassigned booking") return "assignment-unassigned";
+  if (item.label === "Partially assigned booking") return "assignment-partial";
+  if (item.label === "Unpaid completed booking") return "payment-unpaid";
+  if (item.label === "Reschedule request") return "customer-reschedule";
+  if (item.label === "Customer cancellation") return "customer-cancellation";
+  if (item.label === "Uncontacted enquiry") return "customer-enquiry";
+  if (item.label === "Booking with health notes") return "booking-health";
+  if (item.label === "Operational error") return "system-operations";
+  if (item.label === "Staff availability gap") return "staff-availability";
+  return "system-operations";
+}
+
+function getAttentionGroupMeta(key: string, items: AttentionItem[]): AttentionGroupMeta {
+  if (key.startsWith("email-")) {
+    const eventType = items[0]?.detail ?? "email";
+    return {
+      label: `Email delivery: ${humanizeEventType(eventType)}`,
+      category: "emails",
+      categoryLabel: "Emails",
+      order: 75,
+      href: (access) => access.emails ? "/admin/emails" : null,
+      actionLabel: "Open email status",
+      summary: (n) => `${n} failed email${n !== 1 ? "s" : ""} from this workflow need review.`,
+    };
+  }
+
+  return ATTENTION_GROUP_META[key] ?? ATTENTION_GROUP_META["system-operations"];
+}
+
+function humanizeAttentionLabel(label: string): string {
+  const MAP: Record<string, string> = {
+    "Unassigned booking": "Unassigned booking needs therapist",
+    "Partially assigned booking": "Booking needs full team",
+    "Customer cancellation": "Customer cancelled booking",
+    "Reschedule request": "Client requested reschedule",
+    "Unpaid completed booking": "Completed booking not yet paid",
+    "Booking with health notes": "Health conditions recorded",
+    "Uncontacted enquiry": "New enquiry not yet contacted",
+    "Failed email send": "Email delivery failed",
+    "Operational error": "Operational system alert",
+    "Staff availability gap": "Therapist has scheduling gap",
+  };
+  return MAP[label] ?? label;
+}
+
+function getAttentionImpact(
+  item: AttentionItem
+): string | undefined {
+  if (item.label === "Unassigned booking") return "Customer may not have a confirmed therapist.";
+  if (item.label === "Partially assigned booking") return "Not all sessions have therapists assigned.";
+  if (item.label === "Unpaid completed booking") return "Revenue from completed service not yet collected.";
+  if (item.label === "Customer cancellation") return "Booking cancelled by customer — review and follow up.";
+  if (item.label === "Reschedule request") return "Client wants to change date/time.";
+  if (item.label === "Booking with health notes") return "Therapist should review health conditions before the visit.";
+  if (item.label === "Failed email send") return "Customer may not have received important communication.";
+  if (item.label === "Operational error") return "System process failed — may affect workflow.";
+  if (item.label === "Staff availability gap") return "No standard weekly availability rules configured.";
+  if (item.label === "Uncontacted enquiry") return "Potential client waiting for a response.";
+  return undefined;
+}
+
+function getAttentionSeverity(item: AttentionItem): AttentionSeverity {
+  if (item.tone === "danger") return "critical";
+  if (item.tone === "warning") return "warning";
+  return "info";
+}
+
+function parseDateKey(value: string | undefined) {
+  if (!value) return null;
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return Date.UTC(year, month - 1, day);
+}
+
+function getDayDifference(date: string | undefined, today: string) {
+  const dateMs = parseDateKey(date);
+  const todayMs = parseDateKey(today);
+  if (dateMs === null || todayMs === null) return null;
+  return Math.round((todayMs - dateMs) / 86_400_000);
+}
+
+function pluralDays(days: number) {
+  return `${days} day${days === 1 ? "" : "s"}`;
+}
+
+function getAttentionAgeLabel(item: AttentionItem, today: string) {
+  const diff = getDayDifference(item.date, today);
+  if (diff === null) return undefined;
+
+  if (item.label === "Failed email send") {
+    return diff === 0 ? "Email failed today" : `Email failed ${pluralDays(Math.abs(diff))} ago`;
+  }
+  if (item.label === "Operational error" || item.label === "Uncontacted enquiry") {
+    return diff === 0 ? "Opened today" : `${pluralDays(Math.abs(diff))} old`;
+  }
+  if (item.label === "Staff availability gap") return "Check today";
+  if (diff === 0) return "Due today";
+  if (diff > 0) return `Overdue by ${pluralDays(diff)}`;
+  return `Due in ${pluralDays(Math.abs(diff))}`;
+}
+
+function getPrimaryActionLabel(item: AttentionItem) {
+  if (item.label === "Unassigned booking") return "Assign therapist";
+  if (item.label === "Partially assigned booking") return "Complete assignment";
+  if (item.label === "Unpaid completed booking") return "Review payment";
+  if (item.label === "Reschedule request") return "Review request";
+  if (item.label === "Customer cancellation") return "Review cancellation";
+  if (item.label === "Booking with health notes") return "Review notes";
+  if (item.label === "Uncontacted enquiry") return "Contact";
+  if (item.label === "Failed email send") return "Open email event";
+  if (item.label === "Operational error") return "Open event";
+  if (item.label === "Staff availability gap") return "Fix availability";
+  return "View";
+}
+
+function buildAttentionGroups(items: AttentionItem[], permissionAccess: PermissionAccess, today: string): AttentionGroup[] {
+  const grouped = new Map<string, AttentionItem[]>();
+  for (const item of items) {
+    const key = getAttentionGroupKey(item);
+    grouped.set(key, [...(grouped.get(key) ?? []), item]);
+  }
+
+  return [...grouped.entries()]
+    .sort(([keyA, itemsA], [keyB, itemsB]) => {
+      const metaA = getAttentionGroupMeta(keyA, itemsA);
+      const metaB = getAttentionGroupMeta(keyB, itemsB);
+      return metaA.order - metaB.order || itemsB.length - itemsA.length;
+    })
+    .map(([key, groupItems]) => {
+      const meta = getAttentionGroupMeta(key, groupItems);
+      return {
+        key,
+        label: meta.label,
+        category: meta.category,
+        categoryLabel: meta.categoryLabel,
+        priority: meta.order,
+        count: groupItems.length,
+        summary: meta.summary(groupItems.length),
+        pageHref: meta.href(permissionAccess),
+        href: meta.href(permissionAccess),
+        actionLabel: meta.actionLabel,
+        items: groupItems.map((item) => {
+          const href = getAccessibleAttentionHref(item.href, permissionAccess);
+          return (
+            <AttentionItemCard
+              key={item.id}
+              title={humanizeAttentionLabel(item.label)}
+              detail={
+                item.label === "Failed email send"
+                  ? humanizeEventType(item.detail)
+                  : item.label === "Operational error"
+                    ? item.detail
+                    : item.detail
+              }
+              impact={getAttentionImpact(item)}
+              severity={getAttentionSeverity(item)}
+              date={item.date}
+              ageLabel={getAttentionAgeLabel(item, today)}
+              href={href}
+              primaryLabel={getPrimaryActionLabel(item)}
+              secondaryHref={item.href.startsWith("/admin/bookings") && permissionAccess.bookings ? item.href : null}
+              secondaryLabel="View booking"
+            />
+          );
+        }),
+      };
+    });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Permission helpers
+   ═══════════════════════════════════════════════════════════ */
+
 function canViewDashboard(profile: StaffProfile) {
   return (
     profile.permissions.has(PERMISSIONS.VIEW_DASHBOARD) ||
@@ -62,6 +351,60 @@ function canViewDashboard(profile: StaffProfile) {
     profile.permissions.has(PERMISSIONS.VIEW_OWN_BOOKINGS)
   );
 }
+
+interface PermissionAccess {
+  bookings: boolean;
+  calendar: boolean;
+  reports: boolean;
+  enquiries: boolean;
+  emails: boolean;
+  operations: boolean;
+  staff: boolean;
+}
+
+function getPermissionAccess(profile: StaffProfile): PermissionAccess {
+  return {
+    bookings: hasAnyPermission(profile, [PERMISSIONS.MANAGE_BOOKINGS_ALL, PERMISSIONS.MANAGE_BOOKINGS_OWN]),
+    calendar: hasAnyPermission(profile, [
+      PERMISSIONS.VIEW_ALL_BOOKINGS, PERMISSIONS.VIEW_OWN_BOOKINGS,
+      PERMISSIONS.MANAGE_BOOKINGS_ALL, PERMISSIONS.MANAGE_BOOKINGS_OWN,
+    ]),
+    reports: hasAnyPermission(profile, [
+      PERMISSIONS.VIEW_REPORTS, PERMISSIONS.VIEW_OWN_BOOKINGS, PERMISSIONS.MANAGE_BOOKINGS_OWN,
+    ]),
+    enquiries: hasAnyPermission(profile, [PERMISSIONS.MANAGE_CLIENTS]),
+    emails: hasAnyPermission(profile, [PERMISSIONS.MANAGE_EMAILS, PERMISSIONS.MANAGE_BOOKINGS_ALL]),
+    operations: hasAnyPermission(profile, [
+      PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_EMAILS, PERMISSIONS.MANAGE_BOOKINGS_ALL,
+    ]),
+    staff: hasAnyPermission(profile, [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_STAFF]),
+  };
+}
+
+function getAccessibleAttentionHref(href: string, access: PermissionAccess) {
+  if (href.startsWith("/admin/bookings")) return access.bookings ? href : null;
+  if (href.startsWith("/admin/enquiries")) return access.enquiries ? href : null;
+  if (href.startsWith("/admin/emails")) return access.emails ? href : null;
+  if (href.startsWith("/admin/operations")) return access.operations ? href : null;
+  if (href.startsWith("/admin/staff")) return access.staff ? href : null;
+  return href;
+}
+
+function hasAnyPermission(profile: StaffProfile, permissions: string[]) {
+  return permissions.some((p) => profile.permissions.has(p));
+}
+
+function formatFilterLabel(value: string) {
+  return value.split("_").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Page
+   ═══════════════════════════════════════════════════════════ */
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const supabase = await createSupabaseServerClient();
@@ -86,217 +429,255 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const data = await getReportData(adminClient, profile, filters);
   const summary = summarizeReports(data);
   const attentionItems = getAttentionItems(data);
-  const todayAppointments = data.bookings.filter(
-    (booking) => booking.booking_date === today
-  );
+  const todayAppointments = data.bookings.filter((b) => b.booking_date === today);
   const nextSevenDays = data.bookings.filter(
-    (booking) => booking.booking_date >= today && booking.booking_date <= addBusinessDays(today, 7)
+    (b) => b.booking_date >= today && b.booking_date <= addBusinessDays(today, 7)
   );
-  const needsAssignment = data.bookings.filter((booking) =>
-    ["unassigned", "partially_assigned"].includes(booking.assignment_status)
+  const needsAssignment = data.bookings.filter((b) =>
+    ["unassigned", "partially_assigned"].includes(b.assignment_status)
   );
-  const rescheduleRequests = data.bookings.filter(
-    (booking) => booking.reschedule_status === "requested"
+  const unassignedOnly = data.bookings.filter((b) => b.assignment_status === "unassigned");
+  const partiallyAssigned = data.bookings.filter((b) => b.assignment_status === "partially_assigned");
+  const rescheduleRequests = data.bookings.filter((b) => b.reschedule_status === "requested");
+  const unpaidBookings = data.bookings.filter((b) => b.payment_status === "unpaid");
+  const unpaidCompleted = data.bookings.filter(
+    (b) => b.status === "completed" && b.payment_status === "unpaid"
   );
-  const cancellationRequests = data.bookings.filter(
-    (booking) => booking.customer_cancelled_at
-  );
-  const unpaidBookings = data.bookings.filter(
-    (booking) => booking.payment_status === "unpaid"
-  );
-  const failedEmails = data.emailEvents.filter(
-    (event) => event.delivery_status === "failed"
-  );
-  const openOperationalErrors = data.operationalEvents.filter(
-    (event) => event.status === "open"
-  );
+  const failedEmails = data.emailEvents.filter((e) => e.delivery_status === "failed");
+  const openOperationalErrors = data.operationalEvents.filter((e) => e.status === "open");
   const staffAvailabilityGaps = data.staff.filter(
-    (member) =>
-      member.active &&
-      member.can_take_bookings &&
-      member.availability_mode === "custom" &&
-      !data.staffAvailabilityRuleStaffIds.has(member.id)
+    (s) => s.active && s.can_take_bookings && s.availability_mode === "custom" && !data.staffAvailabilityRuleStaffIds.has(s.id)
   );
   const staffWorkload = getStaffWorkload(data);
+  const genderCapacity = getGenderCapacity(data);
   const services = getServicePerformance(data);
   const revenueAllowed = canViewRevenueReports(profile);
   const assignedOnly = !hasUniversalReportScope(profile);
   const permissionAccess = getPermissionAccess(profile);
-  const newEnquiries = data.enquiries.filter((item) => item.status === "new");
-  const systemAttentionCount =
-    failedEmails.length + openOperationalErrors.length + staffAvailabilityGaps.length;
-  const serviceOptions = uniqueStrings(data.bookingItems.map((item) => item.service_name_snapshot));
+  const newEnquiries = data.enquiries.filter((e) => e.status === "new");
+  const systemAttentionCount = failedEmails.length + openOperationalErrors.length + staffAvailabilityGaps.length;
+  const nextAppointment = findNextAppointment(data.bookings, today);
+  const serviceOptions = uniqueStrings(data.bookingItems.map((i) => i.service_name_snapshot));
+  const lastChecked = new Intl.DateTimeFormat("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/London",
+  }).format(new Date());
+
+  const notifications: NotificationItem[] = buildNotifications({
+    assignments: data.assignments,
+    emailEvents: data.emailEvents,
+    operationalEvents: data.operationalEvents,
+    enquiries: data.enquiries,
+    bookings: data.bookings,
+  });
+
+  const attentionGroups = buildAttentionGroups(attentionItems, permissionAccess, today);
+
+  const noShowCancelledCount = data.bookings.filter((b) =>
+    ["cancelled", "no_show"].includes(b.status)
+  ).length;
+  const hasActiveProblems =
+    attentionItems.length > 0 ||
+    unassignedOnly.length > 0 ||
+    unpaidBookings.length > 0 ||
+    systemAttentionCount > 0;
+  const todayCard = {
+    title: "Today",
+    value: formatNumber(todayAppointments.length),
+    subtitle: `${formatNumber(todayAppointments.length)} today \u00b7 ${formatNumber(nextSevenDays.length)} this week`,
+    icon: CalendarDays,
+    tone: "default" as const,
+    href: permissionAccess.bookings ? "/admin/bookings" : undefined,
+    actionLabel: permissionAccess.bookings ? "View bookings" : undefined,
+  };
+  const problemCards = [
+    {
+      title: "Needs attention",
+      value: formatNumber(attentionItems.length),
+      subtitle: `${formatNumber(needsAssignment.length)} assignment \u00b7 ${formatNumber(rescheduleRequests.length)} reschedule`,
+      icon: AlertCircle,
+      tone: attentionItems.length > 0 ? "warning" as const : "default" as const,
+      href: permissionAccess.bookings ? "/admin/bookings?view=attention" : permissionAccess.reports ? "/admin/reports" : undefined,
+      actionLabel: attentionItems.length > 0 ? "Review signals" : permissionAccess.reports ? "Review reports" : undefined,
+    },
+    {
+      title: "Unassigned",
+      value: formatNumber(unassignedOnly.length),
+      subtitle: `${formatNumber(unassignedOnly.length)} unassigned \u00b7 ${formatNumber(partiallyAssigned.length)} partial`,
+      icon: UserRoundCheck,
+      tone: unassignedOnly.length > 0 ? "critical" as const : "default" as const,
+      href: permissionAccess.bookings ? "/admin/bookings?view=unassigned" : undefined,
+      actionLabel: unassignedOnly.length > 0 ? "Assign now" : undefined,
+    },
+    {
+      title: "Unpaid",
+      value: formatNumber(unpaidBookings.length),
+      subtitle: revenueAllowed
+        ? `${formatMoney(summary.outstandingRevenue)} outstanding`
+        : `${formatNumber(unpaidBookings.length)} unpaid`,
+      icon: CreditCard,
+      tone: unpaidBookings.length > 0 ? "warning" as const : "default" as const,
+      href: permissionAccess.bookings ? "/admin/bookings?payment_status=unpaid" : undefined,
+      actionLabel: unpaidBookings.length > 0 ? "Review payment" : undefined,
+    },
+    {
+      title: "System health",
+      value: formatNumber(systemAttentionCount),
+      subtitle: `${formatNumber(failedEmails.length)} email \u00b7 ${formatNumber(openOperationalErrors.length)} ops`,
+      icon: ShieldCheck,
+      tone: systemAttentionCount > 0 ? "warning" as const : "success" as const,
+      href: permissionAccess.operations ? "/admin/operations" : permissionAccess.emails ? "/admin/emails" : undefined,
+      actionLabel: systemAttentionCount > 0 ? "Review health" : undefined,
+    },
+  ];
+  const commandCards = hasActiveProblems && todayAppointments.length === 0
+    ? [...problemCards, todayCard]
+    : [todayCard, ...problemCards];
 
   return (
-    <AdminPageScaffold className="gap-7">
-      <DashboardHeader
-        profile={profile}
-        revenueAllowed={revenueAllowed}
-        assignedOnly={assignedOnly}
-        permissionAccess={permissionAccess}
-      />
+    <AdminPageScaffold className="gap-5">
+      {/* ── Header ── */}
+      <header className="grid gap-4 rounded-2xl border border-[var(--rahma-border)] bg-white/85 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="font-display text-[1.85rem] font-semibold leading-tight text-[var(--rahma-charcoal)] sm:text-[2.15rem]">
+              Dashboard
+            </h1>
+            <Badge variant="secondary" className="border-none bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]">
+              {profile.role_name}
+            </Badge>
+            {assignedOnly ? <AdminStatusBadge value="Assigned only" tone="info" /> : null}
+            {!revenueAllowed ? <AdminStatusBadge value="Revenue hidden" tone="restricted" /> : null}
+            <AdminStatusBadge value={`Last checked ${lastChecked}`} tone="muted" />
+          </div>
+          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[var(--rahma-muted)] sm:text-base">
+            Operational command centre &mdash; bookings, staff, payments, and attention.
+          </p>
+        </div>
 
-      <AdminMetricGrid className="xl:grid-cols-4">
-        <DashboardFocusCard
-          label="Today"
-          value={formatNumber(todayAppointments.length)}
-          note={`${formatNumber(todayAppointments.length)} today, ${formatNumber(nextSevenDays.length)} next 7 days`}
-          icon={CalendarCheck}
-        />
-        <DashboardFocusCard
-          label="Needs action"
-          value={formatNumber(attentionItems.length)}
-          note={`${formatNumber(needsAssignment.length)} assignment gap(s), ${formatNumber(rescheduleRequests.length)} request(s)`}
-          icon={AlertCircle}
-          tone={attentionItems.length > 0 ? "warning" : "default"}
-        />
-        <DashboardFocusCard
-          label="Payment follow-up"
-          value={formatNumber(unpaidBookings.length)}
-          note={
-            revenueAllowed
-              ? `${formatMoney(summary.outstandingRevenue)} outstanding`
-              : `${formatNumber(unpaidBookings.length)} unpaid, revenue hidden`
-          }
-          icon={CreditCard}
-          tone={unpaidBookings.length > 0 ? "warning" : "default"}
-        />
-        <DashboardFocusCard
-          label="System attention"
-          value={formatNumber(systemAttentionCount)}
-          note="Failed email and operational events"
-          icon={ClipboardList}
-          tone={systemAttentionCount > 0 ? "warning" : "default"}
-        />
-      </AdminMetricGrid>
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          {permissionAccess.reports ? (
+            <Link
+              href="/admin/reports"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-4")}
+            >
+              <FileText className="mr-1.5 size-3.5" />
+              Reports
+            </Link>
+          ) : null}
+          {permissionAccess.calendar ? (
+            <Link
+              href="/admin/calendar"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-4")}
+            >
+              <CalendarDays className="mr-1.5 size-3.5" />
+              Calendar
+            </Link>
+          ) : null}
+          <div className="xl:hidden">
+            <MobileNotificationButton items={notifications} variant="icon" />
+          </div>
+          <div className="hidden xl:block">
+            <NotificationBell items={notifications} />
+          </div>
+        </div>
+      </header>
 
-      <DashboardFilters
+      {/* ── Filters bar ── */}
+      <FiltersBar
         filters={filters}
         staff={data.staff}
         serviceOptions={serviceOptions}
-        revenueAllowed={revenueAllowed}
         assignedOnly={assignedOnly}
-        permissionAccess={permissionAccess}
+        revenueAllowed={revenueAllowed}
       />
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.12fr)_minmax(20rem,0.62fr)_minmax(17rem,0.42fr)]">
-        <AdminPanel
-          title="Attention queue"
-          description="High-signal operational items from bookings, enquiries, email delivery, operations and staff availability."
-          badge={
-            <AdminStatusBadge
-              value={`${attentionItems.length} open`}
-              tone={attentionItems.length > 0 ? "warning" : "success"}
-            />
-          }
-          className="border-[var(--rahma-green)]/55"
-        >
-          <div className="grid gap-3">
-            {attentionItems.slice(0, 8).map((item) => (
-              <AttentionQueueItem
-                key={item.id}
-                item={item}
-                href={getAccessibleAttentionHref(item.href, permissionAccess)}
-              />
-            ))}
-            {attentionItems.length === 0 ? (
-              <p className="rounded-[var(--admin-radius-md)] border border-dashed border-[var(--rahma-border)] bg-white/60 px-4 py-8 text-center text-sm text-[var(--rahma-muted)]">
-                No urgent operational items in this range.
-              </p>
-            ) : null}
-            {attentionItems.length > 8 ? (
-              <Link
-                href={permissionAccess.reports ? "/admin/reports" : "/admin/dashboard"}
-                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-              >
-                Review all {formatNumber(attentionItems.length)} signals
-              </Link>
-            ) : null}
-          </div>
-        </AdminPanel>
+      {/* ── Command cards ── */}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {commandCards.map((card) => (
+          <DashboardCommandCard
+            key={card.title}
+            title={card.title}
+            value={card.value}
+            subtitle={card.subtitle}
+            icon={card.icon}
+            tone={card.tone}
+            href={card.href}
+            actionLabel={card.actionLabel}
+          />
+        ))}
+      </section>
 
-        <AdminPanel
-          title="Today's agenda"
-          description="A compact route into booking details where your permissions allow it."
-        >
-          <div className="grid gap-3">
-            {todayAppointments.slice(0, 6).map((booking) => (
-              <AgendaItem
-                key={booking.id}
-                href={permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null}
-                time={booking.start_time.slice(0, 5)}
-                title={booking.contact_full_name ?? "Unknown contact"}
-                detail={booking.service_city ?? "No city recorded"}
-                status={booking.assignment_status}
-              />
-            ))}
-            {todayAppointments.length === 0 ? (
-              <p className="rounded-[var(--admin-radius-md)] bg-[var(--admin-surface-muted)] px-4 py-6 text-sm text-[var(--rahma-muted)]">
-                No appointments today.
-              </p>
-            ) : null}
-          </div>
-        </AdminPanel>
+      {/* ── Main grid: Needs Action + Today / Ops ── */}
+      <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.65fr)]">
+        <NeedsActionBoard groups={attentionGroups} />
 
-        <NotificationCentre
-          rescheduleRequests={rescheduleRequests.length}
-          failedEmails={failedEmails.length}
-          openOperationalErrors={openOperationalErrors.length}
-          staffAvailabilityGaps={staffAvailabilityGaps.length}
+        <div className="grid gap-5 self-start">
+          <TodayAgendaCard
+            appointments={todayAppointments.map((b) => ({
+              time: b.start_time.slice(0, 5),
+              title: b.contact_full_name ?? "Unknown contact",
+              detail: b.service_city ?? "No city recorded",
+              status: b.assignment_status,
+              href: permissionAccess.bookings ? `/admin/bookings/${b.id}` : null,
+            }))}
+            nextAppointment={
+              nextAppointment
+                ? {
+                    date: nextAppointment.booking_date,
+                    time: nextAppointment.start_time.slice(0, 5),
+                    title: nextAppointment.contact_full_name ?? "Unknown contact",
+                  }
+                : null
+            }
+            permissionAccess={permissionAccess}
+          />
+          <OperationsHealthCard
+            failedEmails={failedEmails.length}
+            openEnquiries={newEnquiries.length}
+            openOperations={openOperationalErrors.length}
+            availabilityGaps={staffAvailabilityGaps.length}
+            permissionAccess={permissionAccess}
+          />
+        </div>
+      </section>
+
+      {/* ── Secondary grid: Staff · Payment · Business Pulse ── */}
+      <section className="grid gap-5 lg:grid-cols-3">
+        <StaffCapacityCard
+          genderCapacity={genderCapacity}
+          staffWorkload={staffWorkload.map((sw) => ({
+            staffName: sw.staffName,
+            assignments: sw.assignments,
+            completed: sw.completed,
+          }))}
           permissionAccess={permissionAccess}
+        />
+        <PaymentHealthCard
+          summary={{
+            bookedRevenue: summary.bookedRevenue,
+            collectedRevenue: summary.collectedRevenue,
+            outstandingRevenue: summary.outstandingRevenue,
+          }}
+          unpaidCount={unpaidBookings.length}
+          unpaidCompletedCount={unpaidCompleted.length}
+          revenueAllowed={revenueAllowed}
+        />
+        <BusinessPulseCard
+          services={services}
+          clients={{
+            repeatClients: summary.repeatClients,
+            newClients: summary.newClients,
+            noShowCancelled: noShowCancelledCount,
+            newEnquiries: newEnquiries.length,
+          }}
+          revenueAllowed={revenueAllowed}
         />
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <AdminPanel title="Staff workload">
-          <DashboardRows
-            rows={staffWorkload.slice(0, 5).map((row) => ({
-              label: row.staffName,
-              value: `${formatNumber(row.assignments)} assigned`,
-            }))}
-            empty="No staff assignments in this range."
-          />
-        </AdminPanel>
-
-        <AdminPanel title="Most booked services">
-          <DashboardRows
-            rows={services.slice(0, 5).map((row) => ({
-              label: row.service,
-              value: revenueAllowed
-                ? `${formatNumber(row.bookings)} bookings, ${formatMoney(row.revenue)}`
-                : `${formatNumber(row.bookings)} bookings`,
-            }))}
-            empty="No service bookings in this range."
-          />
-        </AdminPanel>
-
-        <AdminPanel title="Client and enquiry pulse">
-          <DashboardRows
-            rows={[
-              {
-                label: "Repeat clients",
-                value: formatNumber(summary.repeatClients),
-              },
-              {
-                label: "New clients in range",
-                value: formatNumber(summary.newClients),
-              },
-              {
-                label: "New enquiries",
-                value: `${formatNumber(newEnquiries.length)} uncontacted`,
-              },
-              {
-                label: "No-show/cancelled",
-                value: `${formatNumber(
-                  data.bookings.filter((booking) => ["cancelled", "no_show"].includes(booking.status)).length
-                )} total, ${formatNumber(cancellationRequests.length)} customer requests`,
-              },
-            ]}
-          />
-        </AdminPanel>
-      </section>
-
-      {!revenueAllowed || assignedOnly ? (
+      {/* ── Restricted states ── */}
+      {(!revenueAllowed || assignedOnly) ? (
         <section className="grid gap-4 lg:grid-cols-2" aria-label="Restricted dashboard states">
           {!revenueAllowed ? (
             <AdminHiddenDataState
@@ -308,7 +689,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           {assignedOnly ? (
             <AdminHiddenDataState
               title="Assigned-only scope"
-              message="Dashboard metrics and attention items are limited to bookings assigned to this staff member."
+              message="Dashboard metrics and attention items are scoped to bookings assigned to this staff member."
               permission="view_own_bookings"
             />
           ) : null}
@@ -318,591 +699,272 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   );
 }
 
-function DashboardHeader({
-  profile,
-  revenueAllowed,
-  assignedOnly,
-  permissionAccess,
-}: {
-  profile: StaffProfile;
-  revenueAllowed: boolean;
-  assignedOnly: boolean;
-  permissionAccess: PermissionAccess;
-}) {
-  return (
-    <header className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-display text-3xl font-semibold leading-tight text-[var(--rahma-charcoal)]">
-            Dashboard
-          </h1>
-          <Badge
-            variant="secondary"
-            className="border-none bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]"
-          >
-            {profile.role_name}
-          </Badge>
-          {assignedOnly ? <AdminStatusBadge value="Assigned-only ready" tone="success" /> : null}
-          {!revenueAllowed ? <AdminStatusBadge value="Revenue hidden" tone="restricted" /> : null}
-        </div>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--rahma-muted)]">
-          A focused operational view for today, assignment gaps, payment follow-up and system attention.
-        </p>
-      </div>
+/* ═══════════════════════════════════════════════════════════
+   Date quick chips
+   ═══════════════════════════════════════════════════════════ */
 
-      <div className="flex flex-wrap gap-2 lg:justify-end">
-        {permissionAccess.reports ? (
+const DATE_CHIP_PRESETS = [
+  { label: "Today", days: 0 },
+  { label: "7 days", days: 6 },
+  { label: "30 days", days: 29 },
+] as const;
+
+function DateQuickChips({ from, to }: { from: string; to: string }) {
+  return (
+    <span className="hidden min-h-10 items-center gap-0.5 rounded-xl border border-[var(--rahma-border)] bg-white px-1 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:inline-flex">
+      {DATE_CHIP_PRESETS.map((preset) => {
+        const today = getBusinessDate();
+        const presetTo = addBusinessDays(today, preset.days);
+        const isActive = from === today && to === presetTo;
+        return (
           <Link
-            href="/admin/reports"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-5")}
+            key={preset.label}
+            href={`/admin/dashboard?from=${today}&to=${presetTo}`}
+            className={cn(
+              "inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+              isActive
+                ? "bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]"
+                : "text-[var(--rahma-muted)] hover:text-[var(--rahma-charcoal)] hover:bg-[var(--rahma-ivory)]"
+            )}
           >
-            Reports
+            {preset.label}
           </Link>
-        ) : null}
-        {permissionAccess.calendar ? (
-          <Link
-            href="/admin/calendar"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-5")}
-          >
-            Calendar
-          </Link>
-        ) : null}
-      </div>
-    </header>
+        );
+      })}
+    </span>
   );
 }
 
-function DashboardFilters({
+/* ═══════════════════════════════════════════════════════════
+   Filters bar
+   ═══════════════════════════════════════════════════════════ */
+
+function FiltersBar({
   filters,
   staff,
   serviceOptions,
-  revenueAllowed,
   assignedOnly,
-  permissionAccess,
+  revenueAllowed,
 }: {
   filters: ReturnType<typeof parseReportFilters>;
   staff: { id: string; name: string }[];
   serviceOptions: string[];
-  revenueAllowed: boolean;
   assignedOnly: boolean;
-  permissionAccess: PermissionAccess;
+  revenueAllowed: boolean;
 }) {
+  const activeAdvancedFilters = [
+    filters.staffId,
+    filters.service,
+    filters.source,
+    filters.status,
+    filters.paymentStatus,
+    filters.city,
+  ].filter(Boolean).length;
+
   return (
-    <section className="rounded-[var(--admin-radius-lg)] border border-[var(--rahma-border)] bg-white p-4 shadow-[var(--admin-shadow-card)]">
-      <form action="/admin/dashboard" className="hidden lg:block">
-        <input type="hidden" name="range" value={filters.range} />
-        <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[11rem_11rem_minmax(12rem,1fr)]">
-            <DateField label="From" name="from" defaultValue={filters.from} />
-            <DateField label="To" name="to" defaultValue={filters.to} />
-            <ScopeSummary assignedOnly={assignedOnly} />
+    <section className="rounded-2xl border border-[var(--rahma-border)] bg-white/85 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:p-4">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="min-w-0">
+          <DateQuickChips from={filters.from} to={filters.to} />
+          <div className="grid gap-2 rounded-xl bg-[var(--admin-surface-muted)] px-3 py-3 text-sm sm:hidden">
+            <span className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--rahma-muted)]">Scope</span>
+            <span className="font-semibold text-[var(--rahma-charcoal)]">
+              {filters.from} &mdash; {filters.to}
+            </span>
+            <span className="text-[var(--rahma-muted)]">
+              {assignedOnly ? "Assigned bookings only" : "Permitted records"}
+              {!revenueAllowed ? " · revenue hidden" : ""}
+            </span>
           </div>
-          <div className="flex flex-wrap gap-2 lg:justify-end">
+        </div>
+
+        <form action="/admin/dashboard" className="hidden lg:block">
+          <input type="hidden" name="range" value={filters.range} />
+          <div className="flex flex-wrap items-end justify-end gap-2">
+            <DateInput label="From" name="from" defaultValue={filters.from} />
+            <DateInput label="To" name="to" defaultValue={filters.to} />
             <button
               type="submit"
-              className={cn(buttonVariants({ size: "sm" }), "min-h-11 bg-[var(--rahma-green)] px-6")}
+              className={cn(buttonVariants({ size: "sm" }), "min-h-9 bg-[var(--rahma-green)] px-4")}
             >
               Apply
             </button>
+            <Link
+              href="/admin/dashboard"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-9 bg-white")}
+            >
+              Reset
+            </Link>
           </div>
-        </div>
-      </form>
-
-      <div className="grid gap-1 rounded-[var(--admin-radius-md)] border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-3 py-3 text-sm lg:hidden">
-        <span className="font-bold uppercase tracking-[0.08em] text-[var(--rahma-muted)]">Current scope</span>
-        <span className="font-semibold text-[var(--rahma-charcoal)]">
-          {filters.from} to {filters.to}
-        </span>
-        <span className="text-[var(--rahma-muted)]">
-          {assignedOnly ? "Assigned bookings only" : "Permitted records"}
-        </span>
+        </form>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {assignedOnly ? <AdminStatusBadge value="Assigned-only ready" tone="success" /> : null}
-        {!revenueAllowed ? <AdminStatusBadge value="Revenue hidden" tone="restricted" /> : null}
-        {!permissionAccess.reports ? <AdminStatusBadge value="Reports restricted" tone="restricted" /> : null}
-        {!permissionAccess.calendar ? <AdminStatusBadge value="Calendar restricted" tone="restricted" /> : null}
-      </div>
-
-      <details className="mt-3 hidden rounded-[var(--admin-radius-md)] border border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/60 lg:block">
-        <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 [&::-webkit-details-marker]:hidden">
-          <SlidersHorizontal className="size-4 text-[var(--rahma-green)]" />
-          Filters
+      {/* Advanced filters */}
+      <details className="mt-3 hidden overflow-hidden rounded-2xl border border-[var(--rahma-border)] bg-white lg:block">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-4 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)]/55 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 [&::-webkit-details-marker]:hidden">
+          <span className="inline-flex min-w-0 items-center gap-3">
+            <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]">
+              <SlidersHorizontal className="size-4" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block">Advanced filters</span>
+              <span className="block text-xs font-medium text-[var(--rahma-muted)]">
+                Staff, service, source, status, payment and city.
+              </span>
+            </span>
+          </span>
+          <AdminStatusBadge
+            value={activeAdvancedFilters > 0 ? `${activeAdvancedFilters} active` : "Optional"}
+            tone={activeAdvancedFilters > 0 ? "info" : "muted"}
+          />
         </summary>
-        <AdvancedFilterForm
-          filters={filters}
-          staff={staff}
-          serviceOptions={serviceOptions}
-          assignedOnly={assignedOnly}
-          compact={false}
-        />
+        <form action="/admin/dashboard" className="border-t border-[var(--rahma-border)] p-4">
+          <input type="hidden" name="from" value={filters.from} />
+          <input type="hidden" name="to" value={filters.to} />
+          <input type="hidden" name="range" value={filters.range} />
+          <div className="grid gap-4 lg:grid-cols-12">
+            <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId} className="lg:col-span-4 xl:col-span-3">
+              <option value="">All staff</option>
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </FormSelect>
+            <FormSelect label="Service" name="service" defaultValue={filters.service} className="lg:col-span-4 xl:col-span-3">
+              <option value="">All services</option>
+              {serviceOptions.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </FormSelect>
+            <FormSelect label="Source" name="source" defaultValue={filters.source} className="lg:col-span-4 xl:col-span-2">
+              <option value="">All sources</option>
+              {sourceOptions.map((s) => (
+                <option key={s} value={s}>{formatFilterLabel(s)}</option>
+              ))}
+            </FormSelect>
+            <FormSelect label="Status" name="status" defaultValue={filters.status} className="lg:col-span-4 xl:col-span-2">
+              <option value="">All statuses</option>
+              {statusOptions.map((s) => (
+                <option key={s} value={s}>{formatFilterLabel(s)}</option>
+              ))}
+            </FormSelect>
+            <FormSelect label="Payment" name="paymentStatus" defaultValue={filters.paymentStatus} className="lg:col-span-4 xl:col-span-2">
+              <option value="">All payments</option>
+              {paymentOptions.map((p) => (
+                <option key={p} value={p}>{formatFilterLabel(p)}</option>
+              ))}
+            </FormSelect>
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)] lg:col-span-6 xl:col-span-4">
+              City
+              <input
+                name="city"
+                defaultValue={filters.city}
+                className="min-h-11 rounded-xl border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                placeholder="Filter by city"
+              />
+            </label>
+            <div className="flex items-end justify-start gap-2 lg:col-span-6 xl:col-span-8 xl:justify-end">
+              <button type="submit" className={cn(buttonVariants({ size: "sm" }), "min-h-11 bg-[var(--rahma-green)] px-5")}>
+                Apply filters
+              </button>
+              <Link href="/admin/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-5")}>
+                Reset
+              </Link>
+            </div>
+          </div>
+        </form>
       </details>
 
+      {/* Mobile filters sheet */}
       <div className="mt-3 lg:hidden">
         <AdminSheet
-          title="Filters + hidden states"
-          description="Refine dashboard scope while keeping every permission and restricted-data state explicit."
+          title="Filters"
+          description="Refine dashboard scope."
           side="bottom"
           trigger={
             <button
               type="button"
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-3 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-3 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
             >
-              <SlidersHorizontal className="size-4 text-[var(--rahma-green)]" aria-hidden="true" />
+              <SlidersHorizontal className="size-4 text-[var(--rahma-green)]" />
               Date, scope and filters
             </button>
           }
         >
-          <AdvancedFilterForm
-            filters={filters}
-            staff={staff}
-            serviceOptions={serviceOptions}
-            assignedOnly={assignedOnly}
-            compact
-          />
-          <div className="mt-4 grid gap-2">
-            {!revenueAllowed ? (
-              <AdminHiddenDataState
-                title="Revenue hidden"
-                message="Money values remain hidden for this permission set."
-                permission="view_reports or manage_payments"
+          <form action="/admin/dashboard" className="grid gap-3">
+            <input type="hidden" name="range" value={filters.range} />
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+              From
+              <input
+                name="from"
+                type="date"
+                defaultValue={filters.from}
+                className="min-h-10 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
               />
-            ) : null}
-            {assignedOnly ? (
-              <AdminHiddenDataState
-                title="Assigned-only scope"
-                message="Dashboard signals are scoped to assigned bookings."
-                permission="view_own_bookings"
+            </label>
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+              To
+              <input
+                name="to"
+                type="date"
+                defaultValue={filters.to}
+                className="min-h-10 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
               />
-            ) : null}
-          </div>
+            </label>
+            <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId}>
+              <option value="">All staff</option>
+              {staff.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </FormSelect>
+            <FormSelect label="Service" name="service" defaultValue={filters.service}>
+              <option value="">All services</option>
+              {serviceOptions.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </FormSelect>
+            <FormSelect label="Source" name="source" defaultValue={filters.source}>
+              <option value="">All sources</option>
+              {sourceOptions.map((s) => (
+                <option key={s} value={s}>{formatFilterLabel(s)}</option>
+              ))}
+            </FormSelect>
+            <FormSelect label="Status" name="status" defaultValue={filters.status}>
+              <option value="">All statuses</option>
+              {statusOptions.map((s) => (
+                <option key={s} value={s}>{formatFilterLabel(s)}</option>
+              ))}
+            </FormSelect>
+            <FormSelect label="Payment" name="paymentStatus" defaultValue={filters.paymentStatus}>
+              <option value="">All payments</option>
+              {paymentOptions.map((p) => (
+                <option key={p} value={p}>{formatFilterLabel(p)}</option>
+              ))}
+            </FormSelect>
+            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+              City
+              <input
+                name="city"
+                defaultValue={filters.city}
+                className="min-h-11 rounded-xl border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                placeholder="Filter by city"
+              />
+            </label>
+            <div className="flex gap-2 pt-1">
+              <button type="submit" className={cn(buttonVariants({ size: "sm" }), "min-h-10 flex-1 bg-[var(--rahma-green)] px-4")}>
+                Apply
+              </button>
+              <Link href="/admin/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-10 flex-1 bg-white")}>
+                Reset
+              </Link>
+            </div>
+          </form>
         </AdminSheet>
       </div>
     </section>
   );
 }
 
-function DashboardFocusCard({
-  label,
-  value,
-  note,
-  icon: Icon,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  note: string;
-  icon: React.ElementType;
-  tone?: "default" | "warning";
-}) {
-  return (
-    <article
-      className={cn(
-        "rounded-[var(--admin-radius-lg)] border bg-white px-5 py-5 shadow-[var(--admin-shadow-card)]",
-        tone === "warning"
-          ? "border-orange-200 bg-[#fff8ef]"
-          : "border-[var(--rahma-border)] first:border-[var(--rahma-green)]/70"
-      )}
-      aria-label={`${label}: ${value}. ${note}`}
-    >
-      <div className="flex items-center justify-between gap-3">
-        <p
-          className={cn(
-            "text-sm font-bold",
-            tone === "warning" ? "text-[var(--admin-danger)]" : "text-[var(--rahma-green)]"
-          )}
-        >
-          {label}
-        </p>
-        <Icon className="size-4 text-[var(--rahma-muted)]" aria-hidden="true" />
-      </div>
-      <p className="mt-4 text-3xl font-semibold leading-none text-[var(--rahma-charcoal)]">
-        {value}
-      </p>
-      <p className="mt-3 text-sm leading-5 text-[var(--rahma-muted)]">{note}</p>
-    </article>
-  );
-}
-
-function ScopeSummary({ assignedOnly }: { assignedOnly: boolean }) {
-  return (
-    <div className="flex min-h-11 flex-wrap items-center gap-2 rounded-lg border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-3 text-sm font-semibold text-[var(--rahma-charcoal)]">
-      <span>Scope: {assignedOnly ? "assigned bookings" : "permitted records"}</span>
-    </div>
-  );
-}
-
-function AdvancedFilterForm({
-  filters,
-  staff,
-  serviceOptions,
-  assignedOnly,
-  compact,
-}: {
-  filters: ReturnType<typeof parseReportFilters>;
-  staff: { id: string; name: string }[];
-  serviceOptions: string[];
-  assignedOnly: boolean;
-  compact: boolean;
-}) {
-  return (
-    <form
-      action="/admin/dashboard"
-      className={cn(
-        "grid gap-3",
-        compact ? "" : "border-t border-[var(--rahma-border)] p-3 sm:grid-cols-2 xl:grid-cols-5"
-      )}
-    >
-      <input type="hidden" name="range" value={filters.range} />
-      {compact ? (
-        <>
-          <DateField label="From" name="from" defaultValue={filters.from} />
-          <DateField label="To" name="to" defaultValue={filters.to} />
-          <ScopeSummary assignedOnly={assignedOnly} />
-        </>
-      ) : (
-        <>
-          <input type="hidden" name="from" value={filters.from} />
-          <input type="hidden" name="to" value={filters.to} />
-        </>
-      )}
-      <SelectField label="Staff" name="staffId" defaultValue={filters.staffId}>
-        <option value="">All accessible staff</option>
-        {staff.map((member) => (
-          <option key={member.id} value={member.id}>
-            {member.name}
-          </option>
-        ))}
-      </SelectField>
-      <SelectField label="Service" name="service" defaultValue={filters.service}>
-        <option value="">All services</option>
-        {serviceOptions.map((service) => (
-          <option key={service} value={service}>
-            {service}
-          </option>
-        ))}
-      </SelectField>
-      <SelectField label="Source" name="source" defaultValue={filters.source}>
-        <option value="">All sources</option>
-        {sourceOptions.map((source) => (
-          <option key={source} value={source}>
-            {formatFilterLabel(source)}
-          </option>
-        ))}
-      </SelectField>
-      <SelectField label="Status" name="status" defaultValue={filters.status}>
-        <option value="">All statuses</option>
-        {statusOptions.map((status) => (
-          <option key={status} value={status}>
-            {formatFilterLabel(status)}
-          </option>
-        ))}
-      </SelectField>
-      <SelectField label="Payment" name="paymentStatus" defaultValue={filters.paymentStatus}>
-        <option value="">All payments</option>
-        {paymentOptions.map((status) => (
-          <option key={status} value={status}>
-            {formatFilterLabel(status)}
-          </option>
-        ))}
-      </SelectField>
-      <label
-        className={cn(
-          "grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]",
-          !compact && "xl:col-span-2"
-        )}
-      >
-        City or location
-        <input
-          name="city"
-          defaultValue={filters.city}
-          className="min-h-11 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-          placeholder="Filter by city"
-        />
-      </label>
-      <div className={cn("flex items-end gap-2", !compact && "sm:col-span-2 xl:col-span-3")}>
-        <button
-          type="submit"
-          className={cn(buttonVariants({ size: "sm" }), "min-h-11 bg-[var(--rahma-green)] px-6")}
-        >
-          Apply filters
-        </button>
-        <Link
-          href="/admin/dashboard"
-          className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white")}
-        >
-          Reset
-        </Link>
-      </div>
-    </form>
-  );
-}
-
-function AttentionQueueItem({
-  item,
-  href,
-}: {
-  item: AttentionItem;
-  href: string | null;
-}) {
-  const content = (
-    <>
-      <div className="min-w-0">
-        <p className="font-semibold text-[var(--rahma-charcoal)]">{item.label}</p>
-        <p className="mt-1 break-words text-sm leading-5 text-[var(--rahma-muted)]">{item.detail}</p>
-      </div>
-      <AdminStatusBadge value={item.date} tone={item.tone === "danger" ? "danger" : item.tone} />
-    </>
-  );
-
-  const className = cn(
-    "grid gap-3 rounded-[var(--admin-radius-md)] border px-4 py-4 text-left transition-colors sm:grid-cols-[1fr_auto] sm:items-center",
-    item.tone === "danger"
-      ? "border-orange-200 bg-[#fff7ed] hover:border-orange-300"
-      : item.tone === "warning"
-        ? "border-[var(--rahma-border)] bg-white hover:border-[var(--rahma-green)]/30"
-        : "border-[var(--rahma-border)] bg-white hover:border-[var(--rahma-green)]/30"
-  );
-
-  if (!href) {
-    return (
-      <div className={className}>
-        {content}
-        <AdminStatusBadge value="Restricted link" tone="restricted" className="w-fit" />
-      </div>
-    );
-  }
-
-  return (
-    <Link href={href} className={className}>
-      {content}
-    </Link>
-  );
-}
-
-function AgendaItem({
-  href,
-  time,
-  title,
-  detail,
-  status,
-}: {
-  href: string | null;
-  time: string;
-  title: string;
-  detail: string;
-  status: string;
-}) {
-  const content = (
-    <>
-      <div className="min-w-0">
-        <p className="font-semibold text-[var(--rahma-charcoal)]">{time}</p>
-        <p className="mt-1 break-words text-sm text-[var(--rahma-muted)]">
-          {title} - {detail}
-        </p>
-      </div>
-      <AdminStatusBadge
-        value={status}
-        tone={status === "fully_assigned" ? "success" : "warning"}
-        className="w-fit"
-      />
-    </>
-  );
-
-  const className =
-    "grid gap-3 rounded-[var(--admin-radius-md)] border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center";
-
-  return href ? (
-    <Link href={href} className={cn(className, "transition-colors hover:border-[var(--rahma-green)]/35")}>
-      {content}
-    </Link>
-  ) : (
-    <div className={className}>{content}</div>
-  );
-}
-
-function NotificationCentre({
-  rescheduleRequests,
-  failedEmails,
-  openOperationalErrors,
-  staffAvailabilityGaps,
-  permissionAccess,
-}: {
-  rescheduleRequests: number;
-  failedEmails: number;
-  openOperationalErrors: number;
-  staffAvailabilityGaps: number;
-  permissionAccess: PermissionAccess;
-}) {
-  const notificationItems = (
-    <NotificationList
-      rescheduleRequests={rescheduleRequests}
-      failedEmails={failedEmails}
-      openOperationalErrors={openOperationalErrors}
-      staffAvailabilityGaps={staffAvailabilityGaps}
-      permissionAccess={permissionAccess}
-    />
-  );
-
-  return (
-    <>
-      <div className="xl:hidden">
-        <AdminSheet
-          title="Notification drawer"
-          description="Reschedule, email, operations and availability alerts stay reachable on mobile."
-          side="bottom"
-          trigger={
-            <button
-              type="button"
-              className="inline-flex min-h-12 w-full items-center justify-between gap-3 rounded-[var(--admin-radius-lg)] border border-orange-200 bg-[#fff7ed] px-4 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:border-orange-300 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Bell className="size-4 text-[var(--admin-danger)]" aria-hidden="true" />
-                Notification drawer
-              </span>
-              <AdminStatusBadge
-                value={`${formatNumber(
-                  rescheduleRequests + failedEmails + openOperationalErrors + staffAvailabilityGaps
-                )} alerts`}
-                tone="warning"
-              />
-            </button>
-          }
-        >
-          <div className="grid gap-3">{notificationItems}</div>
-        </AdminSheet>
-      </div>
-      <AdminAttentionRail title="Notification centre" className="hidden xl:block">
-        {notificationItems}
-      </AdminAttentionRail>
-    </>
-  );
-}
-
-function NotificationList({
-  rescheduleRequests,
-  failedEmails,
-  openOperationalErrors,
-  staffAvailabilityGaps,
-  permissionAccess,
-}: {
-  rescheduleRequests: number;
-  failedEmails: number;
-  openOperationalErrors: number;
-  staffAvailabilityGaps: number;
-  permissionAccess: PermissionAccess;
-}) {
-  return (
-    <>
-      <AdminStatusBadge value="All" tone="success" className="w-fit" />
-      <NotificationCard
-        title="Reschedule"
-        detail={`${formatNumber(rescheduleRequests)} request(s) need admin review.`}
-        href={permissionAccess.bookings ? "/admin/bookings" : null}
-        tone={rescheduleRequests > 0 ? "warning" : "default"}
-      />
-      <NotificationCard
-        title="Failed emails"
-        detail={`${formatNumber(failedEmails)} failed delivery event(s).`}
-        href={permissionAccess.emails ? "/admin/emails" : null}
-        tone={failedEmails > 0 ? "warning" : "default"}
-      />
-      <NotificationCard
-        title="Operational errors"
-        detail={`${formatNumber(openOperationalErrors)} open event(s).`}
-        href={permissionAccess.operations ? "/admin/operations" : null}
-        tone={openOperationalErrors > 0 ? "warning" : "default"}
-      />
-      <NotificationCard
-        title="Availability gap"
-        detail={`${formatNumber(staffAvailabilityGaps)} custom staff rule gap(s).`}
-        href={permissionAccess.staff ? "/admin/staff" : null}
-        tone={staffAvailabilityGaps > 0 ? "info" : "default"}
-      />
-      {permissionAccess.operations ? (
-        <Link
-          href="/admin/operations"
-          className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--rahma-green)] px-4 text-sm font-bold text-[#ffffff] outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-          style={{ color: "#ffffff" }}
-        >
-          Open operations
-        </Link>
-      ) : null}
-    </>
-  );
-}
-
-function NotificationCard({
-  title,
-  detail,
-  href,
-  tone,
-}: {
-  title: string;
-  detail: string;
-  href: string | null;
-  tone: "default" | "warning" | "info";
-}) {
-  const content = (
-    <>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-[var(--rahma-charcoal)]">{title}</p>
-        <p className="mt-1 text-xs leading-5 text-[var(--rahma-muted)]">{detail}</p>
-      </div>
-      {href ? <ArrowRight className="size-4 text-[var(--rahma-green)]" aria-hidden="true" /> : <LockKeyhole className="size-4 text-[var(--admin-restricted)]" aria-hidden="true" />}
-    </>
-  );
-  const className = cn(
-    "flex items-start justify-between gap-3 rounded-[var(--admin-radius-md)] border px-3 py-3",
-    tone === "warning" && "border-orange-200 bg-[#fff7ed]",
-    tone === "info" && "border-blue-100 bg-[var(--admin-info-bg)]",
-    tone === "default" && "border-[var(--rahma-border)] bg-white"
-  );
-
-  return href ? (
-    <Link href={href} className={cn(className, "transition-colors hover:border-[var(--rahma-green)]/35")}>
-      {content}
-    </Link>
-  ) : (
-    <div className={className}>{content}</div>
-  );
-}
-
-function DashboardRows({
-  rows,
-  empty = "No records in range.",
-}: {
-  rows: { label: string; value: string }[];
-  empty?: string;
-}) {
-  if (rows.length === 0) {
-    return <p className="text-sm text-[var(--rahma-muted)]">{empty}</p>;
-  }
-  return (
-    <div className="grid gap-2">
-      {rows.map((row) => (
-        <div
-          key={`${row.label}-${row.value}`}
-          className="rounded-[var(--admin-radius-md)] bg-[var(--admin-surface-muted)] px-4 py-3 text-sm"
-        >
-          <span className="min-w-0 break-words font-semibold text-[var(--rahma-charcoal)]">{row.label}</span>
-          <span className="mt-1 block text-[var(--rahma-muted)]">{row.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function DateField({
-  label,
-  name,
-  defaultValue,
-}: {
-  label: string;
-  name: string;
-  defaultValue: string;
-}) {
+function DateInput({ label, name, defaultValue }: { label: string; name: string; defaultValue: string }) {
   return (
     <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
       {label}
@@ -910,30 +972,32 @@ function DateField({
         name={name}
         type="date"
         defaultValue={defaultValue}
-        className="min-h-11 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-semibold normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+        className="min-h-9 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
       />
     </label>
   );
 }
 
-function SelectField({
+function FormSelect({
   label,
   name,
   defaultValue,
   children,
+  className,
 }: {
   label: string;
   name: string;
   defaultValue: string;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+    <label className={cn("grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]", className)}>
       {label}
       <select
         name={name}
         defaultValue={defaultValue}
-        className="min-h-11 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+        className="min-h-11 rounded-xl border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
       >
         {children}
       </select>
@@ -941,73 +1005,9 @@ function SelectField({
   );
 }
 
-interface PermissionAccess {
-  bookings: boolean;
-  calendar: boolean;
-  reports: boolean;
-  enquiries: boolean;
-  emails: boolean;
-  operations: boolean;
-  staff: boolean;
-}
-
-function getPermissionAccess(profile: StaffProfile): PermissionAccess {
-  return {
-    bookings: hasAnyPermission(profile, [
-      PERMISSIONS.MANAGE_BOOKINGS_ALL,
-      PERMISSIONS.MANAGE_BOOKINGS_OWN,
-    ]),
-    calendar: hasAnyPermission(profile, [
-      PERMISSIONS.VIEW_ALL_BOOKINGS,
-      PERMISSIONS.VIEW_OWN_BOOKINGS,
-      PERMISSIONS.MANAGE_BOOKINGS_ALL,
-      PERMISSIONS.MANAGE_BOOKINGS_OWN,
-    ]),
-    reports: hasAnyPermission(profile, [
-      PERMISSIONS.VIEW_REPORTS,
-      PERMISSIONS.VIEW_OWN_BOOKINGS,
-      PERMISSIONS.MANAGE_BOOKINGS_OWN,
-    ]),
-    enquiries: hasAnyPermission(profile, [PERMISSIONS.MANAGE_CLIENTS]),
-    emails: hasAnyPermission(profile, [
-      PERMISSIONS.MANAGE_EMAILS,
-      PERMISSIONS.MANAGE_BOOKINGS_ALL,
-    ]),
-    operations: hasAnyPermission(profile, [
-      PERMISSIONS.MANAGE_SETTINGS,
-      PERMISSIONS.MANAGE_EMAILS,
-      PERMISSIONS.MANAGE_BOOKINGS_ALL,
-    ]),
-    staff: hasAnyPermission(profile, [
-      PERMISSIONS.MANAGE_USERS,
-      PERMISSIONS.MANAGE_STAFF,
-    ]),
-  };
-}
-
-function getAccessibleAttentionHref(href: string, access: PermissionAccess) {
-  if (href.startsWith("/admin/bookings")) return access.bookings ? href : null;
-  if (href.startsWith("/admin/enquiries")) return access.enquiries ? href : null;
-  if (href.startsWith("/admin/emails")) return access.emails ? href : null;
-  if (href.startsWith("/admin/operations")) return access.operations ? href : null;
-  if (href.startsWith("/admin/staff")) return access.staff ? href : null;
-  return href;
-}
-
-function hasAnyPermission(profile: StaffProfile, permissions: string[]) {
-  return permissions.some((permission) => profile.permissions.has(permission));
-}
-
-function formatFilterLabel(value: string) {
-  return value
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function uniqueStrings(values: string[]) {
-  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
-}
+/* ═══════════════════════════════════════════════════════════
+   Insufficient permissions
+   ═══════════════════════════════════════════════════════════ */
 
 function InsufficientPermissions() {
   return (
