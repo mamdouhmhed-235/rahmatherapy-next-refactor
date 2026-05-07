@@ -154,8 +154,12 @@ export function NotificationBell({
           if (!nextOpen) window.setTimeout(() => triggerRef.current?.blur(), 0);
         }}
       >
-        <AdminPopover.Trigger ref={triggerRef} aria-label={`Open notifications, ${unreadCount} unread`}>
-          <span className="relative inline-flex size-11 items-center justify-center rounded-xl border border-[var(--rahma-border)] bg-white text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30">
+        <AdminPopover.Trigger
+          ref={triggerRef}
+          aria-label={`Open notifications, ${unreadCount} unread`}
+          className="inline-flex size-11 appearance-none items-center justify-center rounded-xl border-0 bg-transparent p-0 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+        >
+          <span className="relative inline-flex size-11 items-center justify-center rounded-xl border border-[var(--rahma-border)] bg-white text-[var(--rahma-charcoal)] transition-colors hover:bg-[var(--rahma-ivory)]">
             <Bell className="size-[1.125rem]" />
             {unreadCount > 0 ? (
               <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-danger)] px-1 text-[11px] font-bold leading-none text-white" aria-hidden="true">
@@ -354,7 +358,10 @@ function NotificationPopoverContent({
 
       {/* ── Tabs ── */}
       <div
-        className={cn("flex gap-1 overflow-x-auto border-b border-[var(--rahma-border)] px-5 py-2.5", isMobile && "px-4")}
+        className={cn(
+          "flex gap-1 overflow-x-auto border-b border-[var(--rahma-border)] px-5 py-2.5",
+          isMobile && "flex-wrap overflow-x-visible px-4"
+        )}
         role="tablist"
         aria-label="Notification filters"
       >
@@ -425,7 +432,7 @@ function NotificationPopoverContent({
                       className="shrink-0 text-[10px]"
                     />
                   </div>
-                  <p className="mt-1 text-xs leading-5 text-[var(--rahma-muted)]">
+                  <p className="mt-1 break-words text-xs leading-5 text-[var(--rahma-muted)]">
                     {item.detail}
                   </p>
                   <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--rahma-muted)]/50">
@@ -433,7 +440,7 @@ function NotificationPopoverContent({
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5 ml-[1.625rem]">
+              <div className={cn("flex flex-wrap items-center gap-1.5", isMobile ? "ml-0" : "ml-[1.625rem]")}>
                 {item.href ? (
                   <Link
                     href={item.href}

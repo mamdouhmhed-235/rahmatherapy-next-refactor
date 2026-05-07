@@ -130,7 +130,7 @@ export function AttentionBoardClient({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="font-display text-base font-semibold text-[var(--rahma-charcoal)]">
+              <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
                 {title}
               </h2>
               <AdminStatusBadge value={`${total} open`} tone="warning" />
@@ -138,7 +138,7 @@ export function AttentionBoardClient({
                 <AdminStatusBadge value={selectedCategory.label} tone="muted" />
               ) : null}
             </div>
-            <p className="mt-1 text-xs leading-5 text-[var(--rahma-muted)]">
+            <p className="mt-1.5 text-sm leading-5 text-[var(--rahma-muted)]">
               Showing the highest-priority signals first. Expand for the full queue.
             </p>
           </div>
@@ -146,7 +146,7 @@ export function AttentionBoardClient({
             type="button"
             onClick={() => setExpanded(true)}
             aria-expanded={expanded}
-            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-xs font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+            className="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--rahma-border)] bg-white px-3.5 text-[13px] font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
           >
             <Expand className="size-3.5 text-[var(--rahma-green)]" aria-hidden="true" />
             Expand
@@ -167,21 +167,21 @@ export function AttentionBoardClient({
             <GroupedEntries entries={compactEntries} compact />
           ) : (
             <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-white px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-[var(--rahma-charcoal)]">
+              <p className="text-base font-semibold text-[var(--rahma-charcoal)]">
                 No signals in this category
               </p>
-              <p className="mt-1 text-xs text-[var(--rahma-muted)]">
+              <p className="mt-1 text-sm text-[var(--rahma-muted)]">
                 Choose another category or adjust the date range.
               </p>
             </div>
           )}
         </div>
 
-        <p className="text-xs text-[var(--rahma-muted)]">
+        <p className="text-sm text-[var(--rahma-muted)]">
           Showing {Math.min(COMPACT_LIMIT, activeEntries.length)} of {activeEntries.length} in {selectedCategory?.label ?? "this view"}.
         </p>
         {activeEntries.length > COMPACT_LIMIT ? (
-          <p className="text-xs text-[var(--rahma-muted)]">
+          <p className="text-sm text-[var(--rahma-muted)]">
             Use Expand to review the full queue and pagination.
           </p>
         ) : null}
@@ -246,7 +246,7 @@ export function AttentionBoardClient({
             </div>
 
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-[var(--rahma-border)] px-5 py-4">
-              <p className="text-xs text-[var(--rahma-muted)]">
+              <p className="text-sm text-[var(--rahma-muted)]">
                 Page {safePage} of {pageCount} - {activeEntries.length} signal{activeEntries.length === 1 ? "" : "s"}
               </p>
               <div className="flex flex-wrap items-center gap-1.5">
@@ -310,7 +310,7 @@ function CategoryTabs({
     <div
       role="tablist"
       aria-label="Attention categories"
-      className="flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-lg bg-[var(--admin-surface-muted)] p-1"
+      className="flex min-w-0 max-w-full flex-wrap gap-1 rounded-lg bg-[var(--admin-surface-muted)] p-1 sm:flex-nowrap sm:overflow-x-auto"
     >
       {categories.map((category) => (
         <button
@@ -320,14 +320,14 @@ function CategoryTabs({
           aria-selected={activeCategory === category.key}
           onClick={() => onChange(category.key)}
           className={cn(
-            "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30",
+            "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-[13px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30",
             activeCategory === category.key
               ? "bg-white text-[var(--rahma-charcoal)] shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
               : "text-[var(--rahma-muted)] hover:bg-white/70 hover:text-[var(--rahma-charcoal)]"
           )}
         >
           {category.label}
-          <span className="rounded-full bg-[var(--rahma-ivory)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--rahma-muted)]">
+          <span className="rounded-full bg-[var(--rahma-ivory)] px-1.5 py-0.5 text-[11px] leading-none text-[var(--rahma-muted)]">
             {category.count}
           </span>
         </button>
@@ -348,15 +348,15 @@ function GroupedEntries({
       className={cn(
         "grid min-w-0",
         compact
-          ? "gap-3 [&_.dashboard-attention-detail]:truncate [&_.dashboard-attention-impact]:hidden [&_.dashboard-attention-item]:gap-2 [&_.dashboard-attention-item]:px-3 [&_.dashboard-attention-item]:py-2.5"
+          ? "gap-3 [&_.dashboard-attention-detail]:text-sm [&_.dashboard-attention-impact]:text-[13px] [&_.dashboard-attention-item]:gap-2.5 [&_.dashboard-attention-item]:px-3.5 [&_.dashboard-attention-item]:py-3"
           : "gap-4"
       )}
     >
       {entriesToGroups(entries).map(({ group, items }) => (
         <section key={group.key} className="grid min-w-0 gap-2.5">
-          <div className="flex flex-col items-start gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              <h3 className="truncate text-sm font-semibold text-[var(--rahma-charcoal)]">
+              <h3 className="truncate text-[15px] font-semibold text-[var(--rahma-charcoal)]">
                 {group.label}
               </h3>
               <AdminStatusBadge value={`${group.count}`} tone="muted" />
@@ -364,14 +364,14 @@ function GroupedEntries({
             {!compact && group.pageHref ? (
               <Link
                 href={group.pageHref}
-                className="inline-flex min-h-8 w-full items-center justify-center rounded-lg px-2.5 text-xs font-semibold text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                className="inline-flex min-h-9 items-center justify-center rounded-lg px-3 text-[13px] font-semibold text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
               >
                 {group.actionLabel ?? "Open"}
               </Link>
             ) : null}
           </div>
           {!compact ? (
-            <p className="text-xs leading-5 text-[var(--rahma-muted)]">
+            <p className="text-sm leading-5 text-[var(--rahma-muted)]">
               {group.summary}
             </p>
           ) : null}

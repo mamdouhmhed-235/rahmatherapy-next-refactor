@@ -78,11 +78,11 @@ export function AdminSheet({
         <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-slate-950/30 backdrop-blur-sm" />
         <BaseDialog.Popup
           className={cn(
-            "fixed z-50 grid max-h-[calc(100vh-1rem)] gap-4 overflow-y-auto border border-[var(--rahma-border)] bg-white p-5 shadow-elevated outline-none",
+            "fixed z-50 grid min-w-0 max-h-[calc(100vh-1rem)] gap-4 overflow-x-hidden overflow-y-auto border border-[var(--rahma-border)] bg-white p-5 shadow-elevated outline-none",
             side === "right" &&
               "bottom-2 right-2 top-2 w-[min(calc(100vw-1rem),28rem)] rounded-xl",
             side === "bottom" &&
-              "inset-x-2 bottom-2 max-h-[85vh] rounded-t-2xl sm:left-1/2 sm:w-[min(calc(100vw-1rem),36rem)] sm:-translate-x-1/2"
+              "inset-x-2 bottom-2 w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] max-h-[85vh] rounded-t-2xl sm:left-1/2 sm:w-[min(calc(100vw-1rem),36rem)] sm:-translate-x-1/2"
           )}
         >
           <div className="flex items-start justify-between gap-3">
@@ -101,7 +101,7 @@ export function AdminSheet({
               <span className="sr-only">Close panel</span>
             </BaseDialog.Close>
           </div>
-          <div>{children}</div>
+          <div className="min-w-0">{children}</div>
           {footer ? (
             <div className="border-t border-[var(--rahma-border)] pt-4">{footer}</div>
           ) : null}

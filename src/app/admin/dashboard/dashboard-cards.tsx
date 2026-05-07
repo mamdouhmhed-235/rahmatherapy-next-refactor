@@ -1,9 +1,11 @@
 import Link from "next/link";
 import {
+  AlertTriangle,
   ArrowRight,
   CalendarDays,
   ChevronRight,
   Clock,
+  Info,
   Mail,
   Siren,
   UserRound,
@@ -65,18 +67,18 @@ export function DashboardCommandCard({
 }) {
   const content = (
     <>
-      <div className="flex items-center justify-between gap-2">
-        <p className={cn("text-[11px] font-bold uppercase tracking-[0.06em]", commandCardAccent[tone])}>
+      <div className="flex items-start justify-between gap-3">
+        <p className={cn("text-xs font-bold uppercase tracking-[0.06em] leading-4", commandCardAccent[tone])}>
           {title}
         </p>
-        <Icon className="size-4 text-[var(--rahma-muted)]/50" aria-hidden="true" />
+        <Icon className="mt-0.5 size-4 shrink-0 text-[var(--rahma-muted)]/50" aria-hidden="true" />
       </div>
-      <p className="mt-3 text-[1.75rem] font-semibold leading-none tracking-[-0.02em] text-[var(--rahma-charcoal)]">
+      <p className="mt-3.5 text-[1.85rem] font-semibold leading-none tracking-[-0.02em] text-[var(--rahma-charcoal)]">
         {value}
       </p>
-      <p className="mt-2 text-[13px] leading-5 text-[var(--rahma-muted)]">{subtitle}</p>
+      <p className="mt-2.5 text-[13px] leading-5 text-[var(--rahma-muted)]">{subtitle}</p>
       {actionLabel ? (
-        <div className="mt-4 flex items-center gap-1.5 text-[12px] font-semibold text-[var(--rahma-green)] transition-colors group-hover/link:text-[var(--rahma-green-dark)]">
+        <div className="mt-5 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--rahma-green)] transition-colors group-hover/link:text-[var(--rahma-green-dark)]">
           {actionLabel}
           <ArrowRight className="size-3" aria-hidden="true" />
         </div>
@@ -85,7 +87,7 @@ export function DashboardCommandCard({
   );
 
   const className = cn(
-    "group/link rounded-xl border px-5 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition-all duration-150",
+    "group/link rounded-xl border px-5 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition-all duration-150 xl:min-h-[10.25rem]",
     commandCardToneClasses[tone]
   );
 
@@ -118,6 +120,12 @@ const severityColor = {
   info: "info",
 } as const;
 
+const severityAccent = {
+  critical: "border-l-rose-400",
+  warning: "border-l-amber-400",
+  info: "border-l-sky-400",
+} as const;
+
 export function AttentionItemCard({
   title,
   detail,
@@ -142,30 +150,33 @@ export function AttentionItemCard({
   secondaryLabel?: string;
 }) {
   const tone = severityColor[severity];
+  const SeverityIcon = severity === "info" ? Info : AlertTriangle;
 
   return (
     <div className={cn(
-      "dashboard-attention-item grid min-w-0 gap-3 rounded-lg border px-4 py-3.5 transition-colors",
-      severity === "critical"
-        ? "border-rose-200 bg-[#fff1f2]/80"
-        : severity === "warning"
-          ? "border-amber-100 bg-[#fffbeb]/80"
-          : "border-[var(--rahma-border)] bg-white hover:border-[var(--rahma-green)]/20"
+      "dashboard-attention-item grid min-w-0 gap-3 rounded-lg border border-l-4 border-y-[var(--rahma-border)] border-r-[var(--rahma-border)] bg-white px-4 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.025)] transition-colors hover:bg-[var(--rahma-ivory)]/25",
+      severityAccent[severity]
     )}>
       {/* ── Header row ── */}
-      <div className="flex items-start gap-2.5">
-        <AdminStatusBadge
-          value={severityLabel[severity]}
-          tone={tone}
-          className="shrink-0 text-[10px]"
-        />
+      <div className="flex items-start gap-3">
+        <span className={cn(
+          "mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full",
+          severity === "critical" && "bg-rose-50 text-rose-600",
+          severity === "warning" && "bg-amber-50 text-amber-600",
+          severity === "info" && "bg-sky-50 text-sky-600"
+        )}>
+          <SeverityIcon className="size-3.5" aria-hidden="true" />
+        </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-[var(--rahma-charcoal)] leading-snug">
-            {title}
-          </p>
-          <p className="dashboard-attention-detail mt-1 text-[13px] leading-5 text-[var(--rahma-muted)]">{detail}</p>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="text-[15px] font-semibold leading-snug text-[var(--rahma-charcoal)]">
+              {title}
+            </p>
+            <AdminStatusBadge value={severityLabel[severity]} tone={tone} />
+          </div>
+          <p className="dashboard-attention-detail mt-1.5 text-sm leading-5 text-[var(--rahma-muted)]">{detail}</p>
           {impact ? (
-            <p className="dashboard-attention-impact mt-0.5 text-xs leading-5 text-[var(--rahma-muted)]/70 italic">
+            <p className="dashboard-attention-impact mt-1 text-[13px] leading-5 text-[var(--rahma-muted)]">
               {impact}
             </p>
           ) : null}
@@ -173,30 +184,30 @@ export function AttentionItemCard({
       </div>
 
       {/* ── Meta row ── */}
-      <div className="dashboard-attention-meta flex flex-col items-stretch gap-2">
+      <div className="dashboard-attention-meta flex flex-col items-stretch gap-2 sm:pl-10">
         {date || ageLabel ? (
-          <span className="text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--rahma-muted)]/60">
+          <span className="text-xs font-semibold uppercase tracking-[0.04em] text-[var(--rahma-muted)]">
             {[date, ageLabel].filter(Boolean).join(" \u00b7 ")}
           </span>
         ) : <span />}
-        <div className="flex w-full flex-wrap items-center gap-1.5">
+        <div className="flex w-full flex-wrap items-center gap-2">
           {href ? (
             <Link
               href={href}
-              className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-lg bg-[var(--rahma-green)] px-3 text-xs font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+              className="inline-flex min-h-9 min-w-[8.5rem] items-center justify-center rounded-lg bg-[var(--rahma-green)] px-3.5 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
               style={{ color: "#ffffff" }}
             >
               {primaryLabel}
             </Link>
           ) : (
-            <span className="inline-flex min-h-8 items-center rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-xs text-[var(--admin-restricted)]">
+            <span className="inline-flex min-h-9 items-center rounded-lg border border-[var(--rahma-border)] bg-white px-3.5 text-[13px] text-[var(--admin-restricted)]">
               Restricted
             </span>
           )}
           {secondaryHref ? (
             <Link
               href={secondaryHref}
-              className="inline-flex min-h-8 min-w-0 flex-1 items-center justify-center rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-xs font-medium text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+              className="inline-flex min-h-9 min-w-[7.5rem] items-center justify-center rounded-lg border border-[var(--rahma-border)] bg-white px-3.5 text-[13px] font-medium text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
             >
               {secondaryLabel ?? "Details"}
             </Link>
@@ -246,17 +257,17 @@ export function NeedsActionBoard({
         <>
           <div className="mb-5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
-              <h2 className="font-display text-base font-semibold text-[var(--rahma-charcoal)]">
+              <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
                 {title}
               </h2>
               <AdminStatusBadge value="All clear" tone="success" />
             </div>
           </div>
         <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-10 text-center">
-          <p className="text-sm font-semibold text-[var(--rahma-charcoal)]">
+          <p className="text-base font-semibold text-[var(--rahma-charcoal)]">
             All clear
           </p>
-          <p className="mt-1 text-xs text-[var(--rahma-muted)]">
+          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
             No items need attention in the selected range.
           </p>
         </div>
@@ -284,7 +295,7 @@ export function TodayAgendaCard({
   return (
     <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="font-display text-base font-semibold text-[var(--rahma-charcoal)]">
+        <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
           Today &amp; upcoming
         </h2>
         <AdminStatusBadge
@@ -299,7 +310,7 @@ export function TodayAgendaCard({
             const content = (
               <>
               <span className="text-sm font-semibold text-[var(--rahma-charcoal)]">{apt.time}</span>
-              <span className="min-w-0 break-words text-sm text-[var(--rahma-muted)]">
+              <span className="min-w-0 break-words text-sm leading-5 text-[var(--rahma-muted)]">
                 {apt.title} {"\u00b7"} {apt.detail}
               </span>
               <AdminStatusBadge
@@ -341,32 +352,34 @@ export function TodayAgendaCard({
           ) : null}
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-5 text-center">
-          <p className="text-sm font-semibold text-[var(--rahma-charcoal)]">
-            No appointments today
-          </p>
-          {nextAppointment ? (
-            <>
-              <p className="mt-1.5 text-[13px] text-[var(--rahma-muted)]">
-                Next upcoming:{" "}
-                <span className="font-medium text-[var(--rahma-charcoal)]">
-                  {nextAppointment.date} at {nextAppointment.time}
-                </span>
-              </p>
-              <p className="text-xs text-[var(--rahma-muted)]">
-                {nextAppointment.title}
-              </p>
-            </>
-          ) : (
-            <p className="mt-1 text-xs text-[var(--rahma-muted)]">
-              No upcoming bookings in this range.
+        <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-4 text-center">
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-[var(--rahma-charcoal)]">
+              No appointments today
             </p>
-          )}
+            {nextAppointment ? (
+              <>
+                <p className="mt-1.5 text-sm leading-5 text-[var(--rahma-muted)]">
+                  Next upcoming:{" "}
+                  <span className="font-medium text-[var(--rahma-charcoal)]">
+                    {nextAppointment.date} at {nextAppointment.time}
+                  </span>
+                </p>
+                <p className="text-sm text-[var(--rahma-muted)]">
+                  {nextAppointment.title}
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-[var(--rahma-muted)]">
+                No upcoming bookings in this range.
+              </p>
+            )}
+          </div>
           <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
             {permissionAccess?.calendar ? (
               <Link
                 href="/admin/calendar"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--rahma-border)] bg-white px-4 text-xs font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--rahma-border)] bg-white px-4 text-[13px] font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
               >
                 <CalendarDays className="size-3.5" />
                 View calendar
@@ -375,7 +388,7 @@ export function TodayAgendaCard({
             {permissionAccess?.bookings ? (
               <Link
                 href="/admin/bookings"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[var(--rahma-green)] px-4 text-xs font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[var(--rahma-green)] px-4 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
                 style={{ color: "#ffffff" }}
               >
                 View bookings
@@ -439,31 +452,31 @@ export function OperationsHealthCard({
   return (
     <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-base font-semibold text-[var(--rahma-charcoal)]">
+        <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
           Operations health
         </h2>
         {permissionAccess?.operations ? (
           <Link
             href="/admin/operations"
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
           >
             View details
             <ChevronRight className="size-3" aria-hidden="true" />
           </Link>
         ) : null}
       </div>
-      <div className="mt-4 grid gap-1.5">
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
         {signals.map((signal) => {
           const content = (
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5">
+              <div className="flex min-w-0 items-center gap-2.5">
                 <signal.icon
                   className={cn(
-                    "size-3.5",
+                    "size-4 shrink-0",
                     signal.warn ? "text-amber-500" : "text-[var(--rahma-muted)]"
                   )}
                 />
-                <span className="text-[13px] text-[var(--rahma-charcoal)]">{signal.label}</span>
+                <span className="min-w-0 text-sm text-[var(--rahma-charcoal)]">{signal.label}</span>
               </div>
               <AdminStatusBadge
                 value={signal.value.toString()}
@@ -476,14 +489,14 @@ export function OperationsHealthCard({
             <Link
               key={signal.label}
               href={signal.href}
-              className="rounded-lg border border-transparent bg-[var(--admin-surface-muted)] px-3.5 py-2.5 transition-colors hover:border-[var(--rahma-green)]/20 hover:bg-[var(--rahma-ivory)]/70"
+              className="rounded-lg border border-transparent bg-[var(--admin-surface-muted)] px-4 py-3.5 transition-colors hover:border-[var(--rahma-green)]/20 hover:bg-[var(--rahma-ivory)]/70"
             >
               {content}
             </Link>
           ) : (
             <div
               key={signal.label}
-              className="rounded-lg bg-[var(--admin-surface-muted)] px-3.5 py-2.5"
+              className="rounded-lg bg-[var(--admin-surface-muted)] px-4 py-3.5"
             >
               {content}
             </div>
@@ -505,20 +518,30 @@ export function StaffCapacityCard({
 }: {
   genderCapacity: { gender: string; label: string; activeTherapists: number; totalAssignments: number; unassignedAssignments: number }[];
   staffWorkload: { staffName: string; assignments: number; completed: number }[];
-  permissionAccess?: { staff: boolean };
+  permissionAccess?: { staff: boolean; bookings?: boolean };
 }) {
+  const totalUnassigned = genderCapacity.reduce((sum, row) => sum + row.unassignedAssignments, 0);
+  const capacityActionHref = permissionAccess?.bookings && totalUnassigned > 0
+    ? "/admin/bookings?view=unassigned"
+    : permissionAccess?.staff
+      ? "/admin/staff"
+      : null;
+  const capacityActionLabel = totalUnassigned > 0 && permissionAccess?.bookings
+    ? "Assign bookings"
+    : "Manage staff";
+
   return (
     <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="font-display text-base font-semibold text-[var(--rahma-charcoal)]">
+        <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
           Staff capacity
         </h2>
-        {permissionAccess?.staff ? (
+        {capacityActionHref ? (
           <Link
-            href="/admin/staff"
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[var(--rahma-green)] outline-none hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 transition-colors"
+            href={capacityActionHref}
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[var(--rahma-green)] outline-none hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 transition-colors"
           >
-            Manage
+            {capacityActionLabel}
             <ChevronRight className="size-3" aria-hidden="true" />
           </Link>
         ) : null}
@@ -526,31 +549,40 @@ export function StaffCapacityCard({
 
       {genderCapacity.length > 0 ? (
         <div className="mb-4 grid gap-2">
-          {genderCapacity.map((gc) => (
-            <div
-              key={gc.gender}
-              className="rounded-lg border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-4 py-3"
-            >
-              <div className="flex items-center gap-2 mb-1.5">
-                <Users className="size-3.5 text-[var(--rahma-green)]" />
-                <span className="text-sm font-semibold text-[var(--rahma-charcoal)]">{gc.label}</span>
-                <span className="text-xs text-[var(--rahma-muted)]">
-                  ({gc.activeTherapists} active)
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--rahma-muted)]">
-                <span>{gc.totalAssignments} assigned</span>
-                {gc.unassignedAssignments > 0 ? (
+          {genderCapacity.map((gc) => {
+            const therapistType = gc.label.toLowerCase().replace(/\s*therapists?$/, "");
+
+            return (
+              <div
+                key={gc.gender}
+                className="rounded-lg bg-[var(--admin-surface-muted)] px-4 py-3.5"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Users className="size-3.5 shrink-0 text-[var(--rahma-green)]" aria-hidden="true" />
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-semibold leading-5 text-[var(--rahma-charcoal)]">{gc.label}</p>
+                      <p className="text-sm leading-5 text-[var(--rahma-muted)]">
+                        {gc.activeTherapists} active therapist{gc.activeTherapists === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  </div>
                   <AdminStatusBadge
-                    value={`${gc.unassignedAssignments} unassigned`}
-                    tone="warning"
+                    value={gc.unassignedAssignments > 0 ? "Needs therapist" : "Covered"}
+                    tone={gc.unassignedAssignments > 0 ? "warning" : "success"}
                   />
-                ) : (
-                  <AdminStatusBadge value="Covered" tone="success" />
-                )}
+                </div>
+                <p className="mt-2 text-sm leading-5 text-[var(--rahma-muted)]">
+                  {gc.totalAssignments} assigned work item{gc.totalAssignments === 1 ? "" : "s"} in range.
+                </p>
+                {gc.unassignedAssignments > 0 ? (
+                  <p className="mt-1 text-sm font-medium leading-5 text-amber-700">
+                    {gc.unassignedAssignments} {therapistType} assignment{gc.unassignedAssignments === 1 ? "" : "s"} still need a therapist.
+                  </p>
+                ) : null}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="mb-4 rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-5 text-center">
@@ -560,17 +592,17 @@ export function StaffCapacityCard({
 
       {staffWorkload.length > 0 ? (
         <div>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)]">
+          <p className="mb-2 text-xs font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)]">
             Workload
           </p>
           <div className="grid gap-1">
             {staffWorkload.slice(0, 5).map((row) => (
               <div
                 key={row.staffName}
-                className="flex items-center justify-between gap-2 rounded-md px-3 py-1.5"
+                className="flex items-center justify-between gap-3 rounded-md px-3 py-2"
               >
-                <span className="text-[13px] font-medium text-[var(--rahma-charcoal)]">{row.staffName}</span>
-                <span className="text-xs text-[var(--rahma-muted)]">
+                <span className="text-sm font-medium text-[var(--rahma-charcoal)]">{row.staffName}</span>
+                <span className="text-sm text-[var(--rahma-muted)]">
                   {row.assignments} assigned &middot; {row.completed} done
                 </span>
               </div>
@@ -578,14 +610,25 @@ export function StaffCapacityCard({
           </div>
         </div>
       ) : (
-        <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-5 text-center text-sm text-[var(--rahma-muted)]">
-          No staff assignments in this range.
-          {permissionAccess?.staff ? (
+        <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-5 text-center">
+          <p className="text-base font-semibold text-[var(--rahma-charcoal)]">
+            No assigned work in this range.
+          </p>
+          {totalUnassigned > 0 ? (
+            <p className="mt-1 text-sm text-amber-700">
+              {totalUnassigned} assignment{totalUnassigned === 1 ? "" : "s"} still need a therapist.
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-[var(--rahma-muted)]">
+              No staff workload appears for the selected scope.
+            </p>
+          )}
+          {capacityActionHref ? (
             <Link
-              href="/admin/staff"
-              className="mt-2 block text-xs font-semibold text-[var(--rahma-green)] underline underline-offset-2"
+              href={capacityActionHref}
+              className="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg border border-[var(--rahma-border)] bg-white px-3.5 text-[13px] font-semibold text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
             >
-              Manage staff
+              {capacityActionLabel}
             </Link>
           ) : null}
         </div>
@@ -603,6 +646,7 @@ export function PaymentHealthCard({
   unpaidCount,
   unpaidCompletedCount,
   revenueAllowed,
+  canReviewBookings,
 }: {
   summary: {
     bookedRevenue: number;
@@ -612,38 +656,67 @@ export function PaymentHealthCard({
   unpaidCount: number;
   unpaidCompletedCount?: number;
   revenueAllowed: boolean;
+  canReviewBookings?: boolean;
 }) {
+  const hasOutstanding = summary.outstandingRevenue > 0 || unpaidCount > 0;
+
   return (
     <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      <h2 className="font-display text-base font-semibold text-[var(--rahma-charcoal)]">
-        Payment health
-      </h2>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
+          Payment health
+        </h2>
+        {revenueAllowed && hasOutstanding && canReviewBookings ? (
+          <Link
+            href="/admin/bookings?payment_status=unpaid"
+            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+          >
+            Review unpaid
+            <ChevronRight className="size-3" aria-hidden="true" />
+          </Link>
+        ) : null}
+      </div>
 
       {revenueAllowed ? (
-        <div className="mt-4 grid gap-1.5">
-          <PaymentRow label="Booked" value={formatMoney(summary.bookedRevenue)} tone="default" />
-          <PaymentRow label="Collected" value={formatMoney(summary.collectedRevenue)} tone="success" />
-          <PaymentRow label="Outstanding" value={formatMoney(summary.outstandingRevenue)} tone={summary.outstandingRevenue > 0 ? "warning" : "success"} />
-          {unpaidCount > 0 ? (
-            <div className="mt-1 rounded-lg border border-amber-100 bg-[#fffbeb] px-4 py-2.5 flex items-center justify-between gap-2">
-              <span className="text-[13px] font-medium text-amber-700">
-                {unpaidCount} unpaid booking{unpaidCount !== 1 ? "s" : ""}
-              </span>
-              {unpaidCompletedCount ? (
-                <span className="text-xs text-amber-600">
-                  {unpaidCompletedCount} completed
-                </span>
-              ) : null}
+        <div className="mt-4 grid gap-2">
+          {hasOutstanding ? (
+            <div className="rounded-lg border border-amber-100 bg-[#fffbeb] px-4 py-3">
+              <p className="text-xs font-bold uppercase tracking-[0.06em] text-amber-700">
+                Outstanding
+              </p>
+              <p className="mt-1 text-[2rem] font-semibold leading-none text-amber-800">
+                {formatMoney(summary.outstandingRevenue)}
+              </p>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm text-amber-700">
+                  {unpaidCount} unpaid booking{unpaidCount !== 1 ? "s" : ""}
+                  {unpaidCompletedCount ? `, ${unpaidCompletedCount} completed` : ""}
+                </p>
+                {canReviewBookings ? (
+                  <Link
+                    href="/admin/bookings?payment_status=unpaid"
+                    className="inline-flex min-h-9 items-center rounded-lg bg-[var(--rahma-green)] px-3.5 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                    style={{ color: "#ffffff" }}
+                  >
+                    Review unpaid bookings
+                  </Link>
+                ) : null}
+              </div>
             </div>
+          ) : null}
+          <PaymentRow label="Booked" value={formatMoney(summary.bookedRevenue)} tone="default" />
+          <PaymentRow label="Collected" value={formatMoney(summary.collectedRevenue)} tone={hasOutstanding ? "quiet" : "success"} />
+          {!hasOutstanding ? (
+            <PaymentRow label="Outstanding" value={formatMoney(summary.outstandingRevenue)} tone="success" />
           ) : null}
         </div>
       ) : (
         <div className="mt-4 rounded-lg border border-dashed border-purple-200 bg-purple-50/50 px-4 py-6 text-center">
           <p className="text-sm font-semibold text-purple-600">Revenue hidden</p>
-          <p className="mt-1 text-xs text-purple-500/80">
+          <p className="mt-1 text-sm text-purple-500/80">
             You don&rsquo;t have permission to view revenue.
           </p>
-          <p className="mt-2 text-[10px] text-purple-400">
+          <p className="mt-2 text-xs text-purple-400">
             Requires view_reports or manage_payments
           </p>
         </div>
@@ -659,17 +732,18 @@ function PaymentRow({
 }: {
   label: string;
   value: string;
-  tone: "default" | "success" | "warning";
+  tone: "default" | "success" | "warning" | "quiet";
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg bg-[var(--admin-surface-muted)] px-3.5 py-2.5">
-      <span className="text-[13px] text-[var(--rahma-charcoal)]">{label}</span>
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-[var(--admin-surface-muted)] px-3.5 py-3">
+      <span className="text-sm text-[var(--rahma-charcoal)]">{label}</span>
       <span
         className={cn(
-          "text-[13px] font-semibold",
+          "text-sm font-semibold",
           tone === "success" && "text-[var(--admin-success)]",
           tone === "warning" && "text-[var(--admin-warning)]",
-          tone === "default" && "text-[var(--rahma-charcoal)]"
+          tone === "default" && "text-[var(--rahma-charcoal)]",
+          tone === "quiet" && "text-[var(--rahma-muted)]"
         )}
       >
         {value}
@@ -698,48 +772,50 @@ export function BusinessPulseCard({
 }) {
   return (
     <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      <h2 className="font-display text-base font-semibold text-[var(--rahma-charcoal)]">
+      <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
         Business pulse
       </h2>
 
-      <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(8.5rem,0.62fr)]">
+      <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(9.5rem,0.62fr)]">
         {/* Most booked */}
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)] mb-2">
+          <p className="mb-2.5 text-xs font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)]">
             Most booked
           </p>
           {services.length > 0 ? (
-            <div className="grid gap-1.5">
+            <div className="grid gap-2">
               {services.slice(0, 3).map((s) => (
                 <div
                   key={s.service}
-                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-3 py-1.5"
+                  className="rounded-lg bg-[var(--admin-surface-muted)] px-3.5 py-3"
                 >
-                  <span className="min-w-0 truncate text-[13px] font-medium text-[var(--rahma-charcoal)]">
+                  <p className="break-words text-sm font-semibold leading-5 text-[var(--rahma-charcoal)]">
                     {s.service}
-                  </span>
-                  <span className="shrink-0 whitespace-nowrap text-right text-xs text-[var(--rahma-muted)]">
-                    {s.bookings}
+                  </p>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                    <span className="text-sm text-[var(--rahma-muted)]">
+                      {s.bookings} booking{s.bookings === 1 ? "" : "s"}
+                    </span>
                     {revenueAllowed ? (
-                      <span className="ml-1 font-medium text-[var(--rahma-charcoal)]">
+                      <span className="text-sm font-semibold text-[var(--rahma-charcoal)]">
                         {formatMoney(s.revenue)}
                       </span>
                     ) : null}
-                  </span>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs text-[var(--rahma-muted)] px-3 py-2">No bookings in range.</p>
+            <p className="px-3 py-2 text-sm text-[var(--rahma-muted)]">No bookings in range.</p>
           )}
         </div>
 
         {/* Client activity */}
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)] mb-2">
+          <p className="mb-2.5 text-xs font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)]">
             Clients
           </p>
-          <div className="grid gap-1">
+          <div className="grid gap-2">
             <ClientPulseRow label="Repeat" value={clients.repeatClients.toString()} />
             <ClientPulseRow label="New" value={clients.newClients.toString()} />
             <ClientPulseRow label="Enquiries" value={clients.newEnquiries.toString()} />
@@ -753,9 +829,9 @@ export function BusinessPulseCard({
 
 function ClientPulseRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-3 py-1.5">
-      <span className="min-w-0 break-words text-[13px] leading-5 text-[var(--rahma-muted)]">{label}</span>
-      <span className="shrink-0 text-[13px] font-semibold text-[var(--rahma-charcoal)]">{value}</span>
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-[var(--admin-surface-muted)] px-3.5 py-3">
+      <span className="min-w-0 break-words text-sm leading-5 text-[var(--rahma-muted)]">{label}</span>
+      <span className="shrink-0 text-sm font-semibold text-[var(--rahma-charcoal)]">{value}</span>
     </div>
   );
 }

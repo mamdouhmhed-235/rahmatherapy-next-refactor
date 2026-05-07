@@ -594,7 +594,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       />
 
       {/* ── Command cards ── */}
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="order-3 grid gap-3 sm:grid-cols-2 xl:order-none xl:grid-cols-5">
         {commandCards.map((card) => (
           <DashboardCommandCard
             key={card.title}
@@ -610,7 +610,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
 
       {/* ── Main grid: Needs Action + Today / Ops ── */}
-      <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.65fr)]">
+      <section className="order-2 grid items-start gap-5 xl:order-none xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.65fr)]">
         <NeedsActionBoard groups={attentionGroups} />
 
         <div className="grid gap-5 self-start">
@@ -644,7 +644,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
 
       {/* ── Secondary grid: Staff · Payment · Business Pulse ── */}
-      <section className="grid gap-5 lg:grid-cols-3">
+      <section className="order-4 grid items-start gap-5 lg:grid-cols-3 xl:order-none">
         <StaffCapacityCard
           genderCapacity={genderCapacity}
           staffWorkload={staffWorkload.map((sw) => ({
@@ -663,6 +663,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           unpaidCount={unpaidBookings.length}
           unpaidCompletedCount={unpaidCompleted.length}
           revenueAllowed={revenueAllowed}
+          canReviewBookings={permissionAccess.bookings}
         />
         <BusinessPulseCard
           services={services}
@@ -711,7 +712,7 @@ const DATE_CHIP_PRESETS = [
 
 function DateQuickChips({ from, to }: { from: string; to: string }) {
   return (
-    <span className="hidden min-h-10 items-center gap-0.5 rounded-xl border border-[var(--rahma-border)] bg-white px-1 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:inline-flex">
+    <span className="hidden min-h-11 items-center gap-1 rounded-xl border border-[var(--rahma-border)] bg-white px-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:inline-flex">
       {DATE_CHIP_PRESETS.map((preset) => {
         const today = getBusinessDate();
         const presetTo = addBusinessDays(today, preset.days);
@@ -721,7 +722,7 @@ function DateQuickChips({ from, to }: { from: string; to: string }) {
             key={preset.label}
             href={`/admin/dashboard?from=${today}&to=${presetTo}`}
             className={cn(
-              "inline-flex items-center rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
+              "inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors",
               isActive
                 ? "bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]"
                 : "text-[var(--rahma-muted)] hover:text-[var(--rahma-charcoal)] hover:bg-[var(--rahma-ivory)]"
@@ -763,7 +764,7 @@ function FiltersBar({
 
   return (
     <section className="rounded-2xl border border-[var(--rahma-border)] bg-white/85 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
         <div className="min-w-0">
           <DateQuickChips from={filters.from} to={filters.to} />
           <div className="grid gap-2 rounded-xl bg-[var(--admin-surface-muted)] px-3 py-3 text-sm sm:hidden">
@@ -780,18 +781,18 @@ function FiltersBar({
 
         <form action="/admin/dashboard" className="hidden lg:block">
           <input type="hidden" name="range" value={filters.range} />
-          <div className="flex flex-wrap items-end justify-end gap-2">
+          <div className="flex flex-wrap items-end justify-end gap-2.5">
             <DateInput label="From" name="from" defaultValue={filters.from} />
             <DateInput label="To" name="to" defaultValue={filters.to} />
             <button
               type="submit"
-              className={cn(buttonVariants({ size: "sm" }), "min-h-9 bg-[var(--rahma-green)] px-4")}
+              className={cn(buttonVariants({ size: "sm" }), "min-h-10 bg-[var(--rahma-green)] px-4")}
             >
               Apply
             </button>
             <Link
               href="/admin/dashboard"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-9 bg-white")}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-10 bg-white px-4")}
             >
               Reset
             </Link>
@@ -800,29 +801,20 @@ function FiltersBar({
       </div>
 
       {/* Advanced filters */}
-      <details className="mt-3 hidden overflow-hidden rounded-2xl border border-[var(--rahma-border)] bg-white lg:block">
-        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-4 px-4 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)]/55 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 [&::-webkit-details-marker]:hidden">
-          <span className="inline-flex min-w-0 items-center gap-3">
-            <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]">
-              <SlidersHorizontal className="size-4" aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-              <span className="block">Advanced filters</span>
-              <span className="block text-xs font-medium text-[var(--rahma-muted)]">
-                Staff, service, source, status, payment and city.
-              </span>
-            </span>
-          </span>
+      <details className="mt-3 hidden lg:block">
+        <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-[var(--rahma-border)] bg-white px-3.5 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 [&::-webkit-details-marker]:hidden">
+          <SlidersHorizontal className="size-4 text-[var(--rahma-green)]" aria-hidden="true" />
+          Filters
           <AdminStatusBadge
             value={activeAdvancedFilters > 0 ? `${activeAdvancedFilters} active` : "Optional"}
             tone={activeAdvancedFilters > 0 ? "info" : "muted"}
           />
         </summary>
-        <form action="/admin/dashboard" className="border-t border-[var(--rahma-border)] p-4">
+        <form action="/admin/dashboard" className="mt-3 rounded-2xl border border-[var(--rahma-border)] bg-white/75 p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
           <input type="hidden" name="from" value={filters.from} />
           <input type="hidden" name="to" value={filters.to} />
           <input type="hidden" name="range" value={filters.range} />
-          <div className="grid gap-4 lg:grid-cols-12">
+          <div className="grid gap-3 lg:grid-cols-12">
             <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId} className="lg:col-span-4 xl:col-span-3">
               <option value="">All staff</option>
               {staff.map((s) => (
@@ -863,10 +855,10 @@ function FiltersBar({
               />
             </label>
             <div className="flex items-end justify-start gap-2 lg:col-span-6 xl:col-span-8 xl:justify-end">
-              <button type="submit" className={cn(buttonVariants({ size: "sm" }), "min-h-11 bg-[var(--rahma-green)] px-5")}>
+              <button type="submit" className={cn(buttonVariants({ size: "sm" }), "min-h-11 bg-[var(--rahma-green)] px-4")}>
                 Apply filters
               </button>
-              <Link href="/admin/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-5")}>
+              <Link href="/admin/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-4")}>
                 Reset
               </Link>
             </div>
@@ -883,31 +875,31 @@ function FiltersBar({
           trigger={
             <button
               type="button"
-              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-lg border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-3 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-3 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
             >
               <SlidersHorizontal className="size-4 text-[var(--rahma-green)]" />
-              Date, scope and filters
+              Filters
             </button>
           }
         >
           <form action="/admin/dashboard" className="grid gap-3">
             <input type="hidden" name="range" value={filters.range} />
-            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
               From
               <input
                 name="from"
                 type="date"
                 defaultValue={filters.from}
-                className="min-h-10 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                className="min-h-11 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
               />
             </label>
-            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
               To
               <input
                 name="to"
                 type="date"
                 defaultValue={filters.to}
-                className="min-h-10 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                className="min-h-11 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
               />
             </label>
             <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId}>
@@ -940,7 +932,7 @@ function FiltersBar({
                 <option key={p} value={p}>{formatFilterLabel(p)}</option>
               ))}
             </FormSelect>
-            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
               City
               <input
                 name="city"
@@ -950,10 +942,10 @@ function FiltersBar({
               />
             </label>
             <div className="flex gap-2 pt-1">
-              <button type="submit" className={cn(buttonVariants({ size: "sm" }), "min-h-10 flex-1 bg-[var(--rahma-green)] px-4")}>
+              <button type="submit" className={cn(buttonVariants({ size: "sm" }), "min-h-11 flex-1 bg-[var(--rahma-green)] px-4")}>
                 Apply
               </button>
-              <Link href="/admin/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-10 flex-1 bg-white")}>
+              <Link href="/admin/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 flex-1 bg-white")}>
                 Reset
               </Link>
             </div>
@@ -966,13 +958,13 @@ function FiltersBar({
 
 function DateInput({ label, name, defaultValue }: { label: string; name: string; defaultValue: string }) {
   return (
-    <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+    <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
       {label}
       <input
         name={name}
         type="date"
         defaultValue={defaultValue}
-        className="min-h-9 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+        className="min-h-10 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
       />
     </label>
   );
@@ -992,7 +984,7 @@ function FormSelect({
   className?: string;
 }) {
   return (
-    <label className={cn("grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]", className)}>
+    <label className={cn("grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]", className)}>
       {label}
       <select
         name={name}
