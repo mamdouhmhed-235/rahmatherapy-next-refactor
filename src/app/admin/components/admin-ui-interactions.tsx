@@ -168,3 +168,5 @@ export function AdminConfirmationDialog({
     </Dialog>
   );
 }
+
+export const ConfirmActionModal = AdminConfirmationDialog;

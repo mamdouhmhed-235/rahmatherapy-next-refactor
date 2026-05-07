@@ -652,3 +652,6 @@ export function AdminLoadingState({
     </div>
   );
 }
+
+export const MetricCard = AdminStat;
+export const DetailSectionCard = AdminDetailSection;
