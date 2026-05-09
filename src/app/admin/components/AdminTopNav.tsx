@@ -25,13 +25,16 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PERMISSIONS } from "@/lib/auth/rbac";
 import { AdminCommandSearch } from "./AdminCommandSearch";
 
 interface AdminTopNavProfile {
   name: string;
   roleName: string;
-  permissions: string[];
+}
+
+interface AdminTopNavPageAccess {
+  access: boolean;
+  dataScope: string;
 }
 
 interface NavItem {
@@ -39,7 +42,8 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   section: string;
-  permissions?: string[];
+  pageKey: string;
+  dataScopes?: string[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -48,128 +52,106 @@ const NAV_ITEMS: NavItem[] = [
     href: "/admin/dashboard",
     icon: LayoutDashboard,
     section: "Operations",
-    permissions: [
-      PERMISSIONS.VIEW_DASHBOARD,
-      PERMISSIONS.VIEW_REPORTS_OWN,
-      PERMISSIONS.VIEW_REPORTS_OPERATIONAL,
-      PERMISSIONS.VIEW_REPORTS_BUSINESS,
-    ],
+    pageKey: "dashboard",
   },
   {
     label: "Bookings",
     href: "/admin/bookings",
     icon: CalendarCheck,
     section: "Operations",
-    permissions: [
-      PERMISSIONS.VIEW_BOOKINGS_ALL,
-      PERMISSIONS.VIEW_BOOKINGS_ASSIGNED,
-      PERMISSIONS.MANAGE_BOOKINGS_ALL,
-      PERMISSIONS.MANAGE_BOOKINGS_ASSIGNED,
-    ],
+    pageKey: "bookings",
   },
   {
     label: "Calendar",
     href: "/admin/calendar",
     icon: CalendarDays,
     section: "Operations",
-    permissions: [
-      PERMISSIONS.VIEW_BOOKINGS_ALL,
-      PERMISSIONS.VIEW_BOOKINGS_ASSIGNED,
-      PERMISSIONS.MANAGE_BOOKINGS_ALL,
-      PERMISSIONS.MANAGE_BOOKINGS_ASSIGNED,
-    ],
+    pageKey: "calendar",
   },
   {
     label: "Reports",
     href: "/admin/reports",
     icon: FileText,
     section: "Operations",
-    permissions: [
-      PERMISSIONS.VIEW_REPORTS_OWN,
-      PERMISSIONS.VIEW_REPORTS_OPERATIONAL,
-      PERMISSIONS.VIEW_REPORTS_BUSINESS,
-      PERMISSIONS.VIEW_REPORTS_REVENUE,
-    ],
+    pageKey: "reports",
   },
   {
     label: "Clients",
     href: "/admin/clients",
     icon: UserSquare,
     section: "Clients",
-    permissions: [PERMISSIONS.MANAGE_CLIENTS_ALL, PERMISSIONS.VIEW_CLIENTS_ALL],
+    pageKey: "clients",
   },
   {
     label: "Enquiries",
     href: "/admin/enquiries",
     icon: MessageSquareText,
     section: "Clients",
-    permissions: [PERMISSIONS.MANAGE_ENQUIRIES],
+    pageKey: "enquiries",
   },
   {
     label: "Staff",
     href: "/admin/staff",
     icon: Users,
     section: "Staff & Services",
-    permissions: [PERMISSIONS.VIEW_STAFF, PERMISSIONS.MANAGE_STAFF_PROFILES],
+    pageKey: "staff",
   },
   {
     label: "Roles",
     href: "/admin/roles",
     icon: ShieldCheck,
     section: "Staff & Services",
-    permissions: [PERMISSIONS.MANAGE_ROLE_TEMPLATES],
+    pageKey: "roles",
   },
   {
     label: "Services",
     href: "/admin/services",
     icon: Wrench,
     section: "Staff & Services",
-    permissions: [PERMISSIONS.MANAGE_SERVICES],
+    pageKey: "services",
   },
   {
     label: "Availability",
     href: "/admin/availability",
     icon: CalendarDays,
     section: "Staff & Services",
-    permissions: [PERMISSIONS.MANAGE_AVAILABILITY_GLOBAL],
+    pageKey: "availability",
+    dataScopes: ["all"],
   },
   {
     label: "Emails",
     href: "/admin/emails",
     icon: Send,
     section: "System",
-    permissions: [PERMISSIONS.VIEW_EMAIL_LOGS, PERMISSIONS.RESEND_BOOKING_EMAILS, PERMISSIONS.MANAGE_EMAIL_SETTINGS],
+    pageKey: "emails",
   },
   {
     label: "Operations",
     href: "/admin/operations",
     icon: Siren,
     section: "System",
-    permissions: [
-      PERMISSIONS.MANAGE_SETTINGS,
-      PERMISSIONS.MANAGE_EMAIL_SETTINGS,
-    ],
+    pageKey: "operations",
   },
   {
     label: "Audit",
     href: "/admin/audit",
     icon: FileText,
     section: "System",
-    permissions: [PERMISSIONS.MANAGE_AUDIT_LOGS],
+    pageKey: "audit",
   },
   {
     label: "Privacy",
     href: "/admin/privacy",
     icon: ShieldCheck,
     section: "System",
-    permissions: [PERMISSIONS.MANAGE_PRIVACY_OPERATIONS],
+    pageKey: "privacy",
   },
   {
     label: "Settings",
     href: "/admin/settings",
     icon: Settings,
     section: "System",
-    permissions: [PERMISSIONS.MANAGE_SETTINGS],
+    pageKey: "settings",
   },
 ];
 
@@ -177,21 +159,28 @@ function normalizeAdminPath(path: string) {
   return path.replace(/\/+$/, "") || "/";
 }
 
-function hasPermission(item: NavItem, userPermissions: string[]) {
-  if (!item.permissions) return true;
-  return item.permissions.some((p) => userPermissions.includes(p));
+function hasPageAccess(
+  item: NavItem,
+  pageAccess: Record<string, AdminTopNavPageAccess>
+) {
+  const access = pageAccess[item.pageKey];
+  if (!access?.access) return false;
+  if (item.dataScopes && !item.dataScopes.includes(access.dataScope)) return false;
+  return true;
 }
 
 export function AdminTopNav({
   profile,
+  pageAccess,
   children,
 }: {
   profile: AdminTopNavProfile;
+  pageAccess: Record<string, AdminTopNavPageAccess>;
   children: React.ReactNode;
 }) {
   const [scrolled, setScrolled] = useState(false);
   const visibleItems = NAV_ITEMS.filter((item) =>
-    hasPermission(item, profile.permissions)
+    hasPageAccess(item, pageAccess)
   );
 
   const sections = [...new Set(visibleItems.map((i) => i.section))];
@@ -232,7 +221,7 @@ export function AdminTopNav({
 
           {/* Desktop right: actions */}
           <div className="hidden items-center gap-2 lg:flex">
-            {hasPermission(NAV_ITEMS.find((i) => i.href === "/admin/reports")!, profile.permissions) && (
+            {hasPageAccess(NAV_ITEMS.find((i) => i.href === "/admin/reports")!, pageAccess) && (
               <Link
                 href="/admin/reports"
                 className="inline-flex h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
@@ -241,7 +230,7 @@ export function AdminTopNav({
                 Reports
               </Link>
             )}
-            {hasPermission(NAV_ITEMS.find((i) => i.href === "/admin/calendar")!, profile.permissions) && (
+            {hasPageAccess(NAV_ITEMS.find((i) => i.href === "/admin/calendar")!, pageAccess) && (
               <Link
                 href="/admin/calendar"
                 className="inline-flex h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
@@ -250,7 +239,7 @@ export function AdminTopNav({
                 Calendar
               </Link>
             )}
-            <SettingsButton profile={profile} />
+            <SettingsButton pageAccess={pageAccess} />
             <UserMenu profile={profile} />
           </div>
 
@@ -298,9 +287,13 @@ function Brand() {
   );
 }
 
-function SettingsButton({ profile }: { profile: AdminTopNavProfile }) {
+function SettingsButton({
+  pageAccess,
+}: {
+  pageAccess: Record<string, AdminTopNavPageAccess>;
+}) {
   const settingsItem = NAV_ITEMS.find((i) => i.href === "/admin/settings");
-  if (!settingsItem || !hasPermission(settingsItem, profile.permissions)) return null;
+  if (!settingsItem || !hasPageAccess(settingsItem, pageAccess)) return null;
 
   return (
     <Link

@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
+import { ADMIN_PAGE_KEYS, getAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminTopNav } from "./components/AdminTopNav";
 import { AdminAccessDenied } from "./components/admin-ui";
 
@@ -28,8 +29,19 @@ export default async function AdminLayout({
       profile={{
         name: profile.name,
         roleName: profile.role_name,
-        permissions: [...profile.permissions],
       }}
+      pageAccess={Object.fromEntries(
+        ADMIN_PAGE_KEYS.map((pageKey) => {
+          const access = getAdminPageAccess(profile, pageKey);
+          return [
+            pageKey,
+            {
+              access: access.access,
+              dataScope: access.dataScope,
+            },
+          ];
+        })
+      )}
     >
       {children}
     </AdminTopNav>

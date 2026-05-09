@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import { Siren } from "lucide-react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { canManageOperations, getStaffProfile } from "@/lib/auth/rbac";
+import { getAdminPageAccess } from "@/lib/auth/admin-access";
+import { getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminPageHeader,
@@ -28,15 +29,11 @@ interface OperationalEvent {
   created_at: string;
 }
 
-function canOpenOperations(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
-  return canManageOperations(profile);
-}
-
 export default async function OperationsPage() {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
   if (!profile || !profile.active) redirect("/admin/login");
-  if (!canOpenOperations(profile)) return <InsufficientPermissions />;
+  if (!getAdminPageAccess(profile, "operations").access) return <InsufficientPermissions />;
 
   const adminClient = createSupabaseAdminClient();
   const { data: events } = await adminClient
