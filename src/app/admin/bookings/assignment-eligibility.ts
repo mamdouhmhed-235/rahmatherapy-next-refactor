@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { canClaimAssignments, type StaffProfile } from "@/lib/auth/rbac";
 import { getBusinessDayOfWeek } from "@/lib/time/london";
+import type { BookingAssignment } from "./types";
 
 type TherapistGender = "male" | "female";
 type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
@@ -24,6 +26,11 @@ export interface StaffAssignmentCandidate {
 
 export interface StaffAssignmentPreview {
   staff: StaffAssignmentCandidate;
+  eligible: boolean;
+  reason: string;
+}
+
+export interface ClaimAssignmentEligibility {
   eligible: boolean;
   reason: string;
 }
@@ -271,5 +278,70 @@ export async function getStaffAssignmentPreviews({
     }
 
     return { staff: candidate, eligible: true, reason: "Eligible" };
+  });
+}
+
+export function evaluateClaimAssignmentEligibility({
+  actor,
+  assignment,
+  candidate,
+}: {
+  actor: StaffProfile;
+  assignment: Pick<
+    BookingAssignment,
+    "assigned_staff_id" | "required_therapist_gender" | "status"
+  >;
+  candidate: StaffAssignmentPreview | undefined;
+}): ClaimAssignmentEligibility {
+  if (!canClaimAssignments(actor)) {
+    return { eligible: false, reason: "Insufficient permissions." };
+  }
+  if (assignment.status !== "unassigned" || assignment.assigned_staff_id) {
+    return { eligible: false, reason: "This assignment has already been claimed." };
+  }
+  if (assignment.required_therapist_gender !== actor.gender) {
+    return {
+      eligible: false,
+      reason: "You cannot claim an assignment for another therapist gender.",
+    };
+  }
+  if (!candidate || candidate.staff.id !== actor.id) {
+    return { eligible: false, reason: "You are not eligible for this assignment." };
+  }
+  if (!candidate.eligible) {
+    return { eligible: false, reason: candidate.reason };
+  }
+
+  return { eligible: true, reason: "Eligible" };
+}
+
+export async function getClaimAssignmentEligibility({
+  actor,
+  assignment,
+  booking,
+  supabase,
+}: {
+  actor: StaffProfile;
+  assignment: Pick<
+    BookingAssignment,
+    "assigned_staff_id" | "required_therapist_gender" | "status"
+  >;
+  booking: AssignmentEligibilityBooking;
+  supabase: SupabaseClient;
+}): Promise<ClaimAssignmentEligibility> {
+  if (!canClaimAssignments(actor)) {
+    return { eligible: false, reason: "Insufficient permissions." };
+  }
+
+  const previews = await getStaffAssignmentPreviews({
+    booking,
+    requiredGender: assignment.required_therapist_gender,
+    supabase,
+  });
+
+  return evaluateClaimAssignmentEligibility({
+    actor,
+    assignment,
+    candidate: previews.find((preview) => preview.staff.id === actor.id),
   });
 }

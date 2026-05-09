@@ -32,6 +32,15 @@ export function hasClaimableAssignment(booking: BookingRecord, profile: StaffPro
   );
 }
 
+export function canOpenBookingRecord(booking: BookingRecord, profile: StaffProfile) {
+  return (
+    canManageAllBookings(profile) ||
+    canViewAllBookings(profile) ||
+    isOwnBooking(booking, profile) ||
+    hasClaimableAssignment(booking, profile)
+  );
+}
+
 export async function canAccessBooking(bookingId: string, profile: StaffProfile) {
   if (canManageAllBookings(profile) || canViewAllBookings(profile)) return true;
   if (!canManageBookings(profile) && !canViewAssignedBookings(profile)) return false;

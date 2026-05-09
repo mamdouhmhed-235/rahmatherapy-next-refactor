@@ -20,9 +20,9 @@ import { AssignmentManager } from "../AssignmentManager";
 import { BookingActionButton } from "../BookingActionButton";
 import {
   canClaimAssignments,
+  canOpenBookingRecord,
   canManageAllBookings,
   canManageBookings,
-  hasClaimableAssignment,
   isOwnBooking,
 } from "../access";
 import {
@@ -85,8 +85,124 @@ const BOOKING_DETAIL_SELECT = `
   email_delivery_events(id, event_type, recipient_email, recipient_role, delivery_status, provider_message_id, error_message, created_at)
 `;
 
+const CLAIMABLE_BOOKING_DETAIL_SELECT = `
+  id,
+  booking_date,
+  start_time,
+  end_time,
+  total_duration_mins,
+  status,
+  assignment_status,
+  group_booking,
+  booking_source,
+  reschedule_status,
+  customer_cancelled_at,
+  created_at,
+  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, consent_acknowledged),
+  booking_items(id, booking_participant_id, service_name_snapshot, service_duration_snapshot),
+  booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
+`;
+
 interface BookingDetailPageProps {
   params: Promise<{ bookingId: string }>;
+}
+
+async function getScopedBookingRelation(
+  bookingId: string,
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>,
+  adminClient: ReturnType<typeof createSupabaseAdminClient>
+) {
+  if (canManageAllBookings(profile)) {
+    return { canOpen: true, claimableOnly: false };
+  }
+
+  const { count: assignedCount } = await adminClient
+    .from("booking_assignments")
+    .select("id", { count: "exact", head: true })
+    .eq("booking_id", bookingId)
+    .eq("assigned_staff_id", profile.id);
+
+  if ((assignedCount ?? 0) > 0) {
+    return { canOpen: true, claimableOnly: false };
+  }
+
+  const { count: claimableCount } = canClaimAssignments(profile)
+    ? await adminClient
+        .from("booking_assignments")
+        .select("id", { count: "exact", head: true })
+        .eq("booking_id", bookingId)
+        .eq("status", "unassigned")
+        .is("assigned_staff_id", null)
+        .eq("required_therapist_gender", profile.gender)
+    : { count: 0 };
+
+  return {
+    canOpen: (claimableCount ?? 0) > 0,
+    claimableOnly: (claimableCount ?? 0) > 0,
+  };
+}
+
+function normalizeClaimableBooking(booking: Partial<BookingRecord>): BookingRecord {
+  return {
+    id: booking.id ?? "",
+    booking_date: booking.booking_date ?? "",
+    start_time: booking.start_time ?? "",
+    end_time: booking.end_time ?? "",
+    total_duration_mins: booking.total_duration_mins ?? null,
+    total_price: null,
+    contact_full_name: "Claimable booking",
+    contact_email: "",
+    contact_phone: "",
+    booking_source: booking.booking_source ?? "",
+    amount_due: null,
+    amount_paid: null,
+    paid_at: null,
+    payment_note: null,
+    status: booking.status ?? "pending",
+    payment_status: "unpaid",
+    payment_method: null,
+    assignment_status: booking.assignment_status ?? "unassigned",
+    group_booking: booking.group_booking ?? false,
+    service_address_line1: null,
+    service_address_line2: null,
+    service_city: null,
+    service_postcode: null,
+    access_notes: null,
+    consent_acknowledged: false,
+    customer_notes: null,
+    health_notes: null,
+    customer_manage_notes: null,
+    customer_cancelled_at: booking.customer_cancelled_at ?? null,
+    customer_cancellation_note: null,
+    last_customer_manage_action_at: null,
+    reschedule_requested_at: null,
+    reschedule_preferred_date: null,
+    reschedule_preferred_time: null,
+    reschedule_note: null,
+    reschedule_status: booking.reschedule_status ?? "none",
+    admin_notes: null,
+    treatment_notes: null,
+    created_at: booking.created_at ?? "",
+    clients: null,
+    booking_participants: (booking.booking_participants ?? []).map((participant) => ({
+      id: participant.id,
+      participant_gender: participant.participant_gender,
+      required_therapist_gender: participant.required_therapist_gender,
+      is_main_contact: participant.is_main_contact,
+      display_name: null,
+      participant_notes: null,
+      health_notes: null,
+      consent_acknowledged: participant.consent_acknowledged,
+    })),
+    booking_items: (booking.booking_items ?? []).map((item) => ({
+      id: item.id,
+      booking_participant_id: item.booking_participant_id,
+      service_name_snapshot: item.service_name_snapshot,
+      service_price_snapshot: 0,
+      service_duration_snapshot: item.service_duration_snapshot,
+    })),
+    booking_assignments: booking.booking_assignments ?? [],
+  };
 }
 
 export default async function BookingDetailPage({
@@ -105,22 +221,39 @@ export default async function BookingDetailPage({
   }
 
   const adminClient = createSupabaseAdminClient();
-  const { data: booking } = await adminClient
-    .from("bookings")
-    .select(BOOKING_DETAIL_SELECT)
-    .eq("id", bookingId)
-    .single<BookingRecord>();
-
-  if (!booking) notFound();
-
-  if (
-    !canManageAllBookings(profile) &&
-    !isOwnBooking(booking, profile) &&
-    !hasClaimableAssignment(booking, profile)
-  ) {
+  const scopedRelation = await getScopedBookingRelation(bookingId, profile, adminClient);
+  if (!scopedRelation.canOpen) {
     return <InsufficientPermissions />;
   }
 
+  const bookingResult = scopedRelation.claimableOnly
+    ? (
+        await adminClient
+          .from("bookings")
+          .select(CLAIMABLE_BOOKING_DETAIL_SELECT)
+          .eq("id", bookingId)
+          .single<Partial<BookingRecord>>()
+      ).data
+    : (
+        await adminClient
+          .from("bookings")
+          .select(BOOKING_DETAIL_SELECT)
+          .eq("id", bookingId)
+          .single<BookingRecord>()
+      ).data;
+
+  if (!bookingResult) notFound();
+
+  const booking = scopedRelation.claimableOnly
+    ? normalizeClaimableBooking(bookingResult)
+    : bookingResult as BookingRecord;
+
+  if (!canOpenBookingRecord(booking, profile)) {
+    return <InsufficientPermissions />;
+  }
+
+  const ownBooking = isOwnBooking(booking, profile);
+  const claimableOnly = !canManageAllBookings(profile) && !ownBooking;
   const canReassignBookings =
     canManageAllBookings(profile) &&
     canAssignBookings(profile);
@@ -135,6 +268,23 @@ export default async function BookingDetailPage({
               supabase: adminClient,
             }),
           ])
+        )
+      )
+    : {};
+  const claimEligibility = !canReassignBookings && canClaimAssignments(profile)
+    ? Object.fromEntries(
+        await Promise.all(
+          booking.booking_assignments.map(async (assignment) => {
+            const previews = await getStaffAssignmentPreviews({
+              booking,
+              requiredGender: assignment.required_therapist_gender,
+              supabase: adminClient,
+            });
+            return [
+              assignment.id,
+              previews.find((preview) => preview.staff.id === profile.id) ?? null,
+            ];
+          })
         )
       )
     : {};
@@ -209,11 +359,17 @@ export default async function BookingDetailPage({
             profile={profile}
             canReassignBookings={canReassignBookings}
             assignmentPreviews={assignmentPreviews}
+            claimEligibility={claimEligibility}
           />
-          <ServiceSnapshots booking={bookingWithTimeline} />
-          <SafetyAndConsent booking={bookingWithTimeline} />
-          <Notes booking={bookingWithTimeline} showRestrictedNotes={canManageAllBookings(profile)} />
-          <CustomerRequests booking={bookingWithTimeline} />
+          <ServiceSnapshots
+            booking={bookingWithTimeline}
+            showFinancials={canManageAllBookings(profile)}
+          />
+          {!claimableOnly ? <SafetyAndConsent booking={bookingWithTimeline} /> : null}
+          {!claimableOnly ? (
+            <Notes booking={bookingWithTimeline} showRestrictedNotes={canManageAllBookings(profile)} />
+          ) : null}
+          {!claimableOnly ? <CustomerRequests booking={bookingWithTimeline} /> : null}
           {canManageAllBookings(profile) ? <ActivityTimeline booking={bookingWithTimeline} /> : null}
           {canManageAllBookings(profile) ? (
             <EmailDeliveryStatus booking={bookingWithTimeline} />
@@ -225,8 +381,8 @@ export default async function BookingDetailPage({
             booking={bookingWithTimeline}
             showFinancials={canManageAllBookings(profile)}
           />
-          <ClientCard booking={bookingWithTimeline} />
-          <AddressCard booking={bookingWithTimeline} />
+          {!claimableOnly ? <ClientCard booking={bookingWithTimeline} /> : null}
+          {!claimableOnly ? <AddressCard booking={bookingWithTimeline} /> : null}
         </aside>
       </div>
     </div>
@@ -248,7 +404,7 @@ function SummaryCard({
           {formatTime(booking.start_time)}-{formatTime(booking.end_time)}
         </Row>
         <Row label="Duration">{booking.total_duration_mins ?? 0} mins</Row>
-        <Row label="Total">{formatMoney(booking.total_price)}</Row>
+        {showFinancials ? <Row label="Total">{formatMoney(booking.total_price)}</Row> : null}
         <Row label="Source">{formatLabel(booking.booking_source)}</Row>
         {showFinancials ? (
           <>
@@ -451,11 +607,13 @@ function ParticipantBreakdown({
   profile,
   canReassignBookings,
   assignmentPreviews,
+  claimEligibility,
 }: {
   booking: BookingRecord;
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
   canReassignBookings: boolean;
   assignmentPreviews: Record<string, StaffAssignmentPreview[]>;
+  claimEligibility: Record<string, StaffAssignmentPreview | null>;
 }) {
   return (
     <SectionCard
@@ -475,7 +633,8 @@ function ParticipantBreakdown({
             canClaimAssignments(profile) &&
             assignment?.status === "unassigned" &&
             !assignment.assigned_staff_id &&
-            assignment.required_therapist_gender === profile.gender;
+            assignment.required_therapist_gender === profile.gender &&
+            claimEligibility[assignment.id]?.eligible === true;
 
           return (
             <article
@@ -568,7 +727,13 @@ function ParticipantBreakdown({
   );
 }
 
-function ServiceSnapshots({ booking }: { booking: BookingRecord }) {
+function ServiceSnapshots({
+  booking,
+  showFinancials,
+}: {
+  booking: BookingRecord;
+  showFinancials: boolean;
+}) {
   const totalsByService = new Map<string, { count: number; price: number }>();
   for (const item of booking.booking_items) {
     const current = totalsByService.get(item.service_name_snapshot) ?? {
@@ -595,9 +760,11 @@ function ServiceSnapshots({ booking }: { booking: BookingRecord }) {
                 {summary.count} snapshot{summary.count === 1 ? "" : "s"}
               </p>
             </div>
-            <p className="font-semibold text-[var(--rahma-charcoal)]">
-              {formatMoney(summary.price)}
-            </p>
+            {showFinancials ? (
+              <p className="font-semibold text-[var(--rahma-charcoal)]">
+                {formatMoney(summary.price)}
+              </p>
+            ) : null}
           </div>
         ))}
       </div>

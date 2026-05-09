@@ -33,6 +33,8 @@ export const metadata = {
 
 type BookingView =
   | "attention"
+  | "assigned"
+  | "claimable"
   | "today"
   | "upcoming"
   | "unassigned"
@@ -43,6 +45,8 @@ type BookingView =
 
 const BOOKING_VIEWS: Array<{ key: BookingView; label: string }> = [
   { key: "attention", label: "Needs attention" },
+  { key: "assigned", label: "Assigned to me" },
+  { key: "claimable", label: "Claimable" },
   { key: "today", label: "Today" },
   { key: "upcoming", label: "Upcoming" },
   { key: "unassigned", label: "Unassigned" },
@@ -98,7 +102,25 @@ const BOOKING_SELECT = `
   booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
 `;
 
-async function getManageableBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
+const CLAIMABLE_BOOKING_SELECT = `
+  id,
+  booking_date,
+  start_time,
+  end_time,
+  total_duration_mins,
+  status,
+  assignment_status,
+  group_booking,
+  booking_source,
+  reschedule_status,
+  customer_cancelled_at,
+  created_at,
+  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, consent_acknowledged),
+  booking_items(id, booking_participant_id, service_name_snapshot, service_duration_snapshot),
+  booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
+`;
+
+async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
   const adminClient = createSupabaseAdminClient();
   const { data: assignedRows } = await adminClient
     .from("booking_assignments")
@@ -116,13 +138,14 @@ async function getManageableBookingIds(profile: NonNullable<Awaited<ReturnType<t
       ).data ?? []
     : [];
 
-  return Array.from(
-    new Set(
-      [...(assignedRows ?? []), ...claimableRows].map(
-        (assignment) => assignment.booking_id as string
-      )
-    )
-  );
+  return {
+    assignedIds: Array.from(
+      new Set((assignedRows ?? []).map((assignment) => assignment.booking_id as string))
+    ),
+    claimableIds: Array.from(
+      new Set((claimableRows ?? []).map((assignment) => assignment.booking_id as string))
+    ),
+  };
 }
 
 function getQueryValue(value: string | string[] | undefined) {
@@ -140,7 +163,8 @@ function getTodayIsoDate() {
 
 function filterBookings(
   bookings: BookingRecord[],
-  query: Record<string, string | string[] | undefined>
+  query: Record<string, string | string[] | undefined>,
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
 ) {
   const view = (getQueryValue(query.view) || "attention") as BookingView;
   const search = getQueryValue(query.search)?.trim().toLowerCase() ?? "";
@@ -163,6 +187,8 @@ function filterBookings(
           booking.assignment_status !== "fully_assigned" ||
           booking.reschedule_status === "requested" ||
           Boolean(booking.customer_cancelled_at))) ||
+      (view === "assigned" && isOwnBooking(booking, profile)) ||
+      (view === "claimable" && hasClaimableAssignment(booking, profile)) ||
       (view === "today" && booking.booking_date === today) ||
       (view === "upcoming" &&
         booking.booking_date >= today &&
@@ -240,6 +266,69 @@ function filterBookings(
   });
 }
 
+function normalizeClaimableBooking(booking: Partial<BookingRecord>): BookingRecord {
+  return {
+    id: booking.id ?? "",
+    booking_date: booking.booking_date ?? "",
+    start_time: booking.start_time ?? "",
+    end_time: booking.end_time ?? "",
+    total_duration_mins: booking.total_duration_mins ?? null,
+    total_price: null,
+    contact_full_name: "Claimable booking",
+    contact_email: "",
+    contact_phone: "",
+    booking_source: booking.booking_source ?? "",
+    amount_due: null,
+    amount_paid: null,
+    paid_at: null,
+    payment_note: null,
+    status: booking.status ?? "pending",
+    payment_status: "unpaid",
+    payment_method: null,
+    assignment_status: booking.assignment_status ?? "unassigned",
+    group_booking: booking.group_booking ?? false,
+    service_address_line1: null,
+    service_address_line2: null,
+    service_city: null,
+    service_postcode: null,
+    access_notes: null,
+    consent_acknowledged: false,
+    customer_notes: null,
+    health_notes: null,
+    customer_manage_notes: null,
+    customer_cancelled_at: booking.customer_cancelled_at ?? null,
+    customer_cancellation_note: null,
+    last_customer_manage_action_at: null,
+    reschedule_requested_at: null,
+    reschedule_preferred_date: null,
+    reschedule_preferred_time: null,
+    reschedule_note: null,
+    reschedule_status: booking.reschedule_status ?? "none",
+    admin_notes: null,
+    treatment_notes: null,
+    created_at: booking.created_at ?? "",
+    clients: null,
+    booking_participants: (booking.booking_participants ?? []).map((participant) => ({
+      id: participant.id,
+      participant_gender: participant.participant_gender,
+      required_therapist_gender: participant.required_therapist_gender,
+      is_main_contact: participant.is_main_contact,
+      display_name: null,
+      participant_notes: null,
+      health_notes: null,
+      consent_acknowledged: participant.consent_acknowledged,
+    })),
+    booking_items: (booking.booking_items ?? []).map((item) => ({
+      id: item.id,
+      booking_participant_id: item.booking_participant_id,
+      service_name_snapshot: item.service_name_snapshot,
+      service_price_snapshot: 0,
+      service_duration_snapshot: item.service_duration_snapshot,
+    })),
+    booking_assignments: booking.booking_assignments ?? [],
+  };
+}
+
 function queryWithView(view: BookingView) {
   return `/admin/bookings?view=${view}`;
 }
@@ -263,29 +352,50 @@ export default async function BookingsPage({
 
   const adminClient = createSupabaseAdminClient();
   const canViewAll = canManageAllBookings(profile);
-  const manageableIds = canViewAll
-    ? null
-    : await getManageableBookingIds(profile);
+  const scopedIds = canViewAll ? null : await getScopedBookingIds(profile);
+  const claimableOnlyIds =
+    scopedIds?.claimableIds.filter((id) => !scopedIds.assignedIds.includes(id)) ?? [];
 
-  const bookings =
-    manageableIds?.length === 0
-      ? []
-      : (
-          await (manageableIds
-            ? adminClient
-                .from("bookings")
-                .select(BOOKING_SELECT)
-                .in("id", manageableIds)
-                .order("booking_date", { ascending: false })
-                .order("start_time", { ascending: false })
-                .returns<BookingRecord[]>()
-            : adminClient
-                .from("bookings")
-                .select(BOOKING_SELECT)
-                .order("booking_date", { ascending: false })
-                .order("start_time", { ascending: false })
-                .returns<BookingRecord[]>())
-        ).data ?? [];
+  const bookings = canViewAll
+    ? (
+        await adminClient
+          .from("bookings")
+          .select(BOOKING_SELECT)
+          .order("booking_date", { ascending: false })
+          .order("start_time", { ascending: false })
+          .returns<BookingRecord[]>()
+      ).data ?? []
+    : [
+        ...(
+          scopedIds?.assignedIds.length
+            ? (
+                await adminClient
+                  .from("bookings")
+                  .select(BOOKING_SELECT)
+                  .in("id", scopedIds.assignedIds)
+                  .order("booking_date", { ascending: false })
+                  .order("start_time", { ascending: false })
+                  .returns<BookingRecord[]>()
+              ).data ?? []
+            : []
+        ),
+        ...(
+          claimableOnlyIds.length
+            ? (
+                await adminClient
+                  .from("bookings")
+                  .select(CLAIMABLE_BOOKING_SELECT)
+                  .in("id", claimableOnlyIds)
+                  .order("booking_date", { ascending: false })
+                  .order("start_time", { ascending: false })
+                  .returns<Partial<BookingRecord>[]>()
+              ).data?.map(normalizeClaimableBooking) ?? []
+            : []
+        ),
+      ].sort((a, b) => (
+        b.booking_date.localeCompare(a.booking_date) ||
+        b.start_time.localeCompare(a.start_time)
+      ));
   const [{ data: services }, { data: staff }] = canViewAll
     ? await Promise.all([
         adminClient
@@ -300,8 +410,8 @@ export default async function BookingsPage({
           .order("name"),
       ])
     : [{ data: [] }, { data: [] }];
-  const filteredBookings = filterBookings(bookings, query);
-  const currentView = getQueryValue(query.view) || "attention";
+  const filteredBookings = filterBookings(bookings, query, profile);
+  const currentView = getQueryValue(query.view) || (canViewAll ? "attention" : "assigned");
 
   return (
     <div>
@@ -320,7 +430,7 @@ export default async function BookingsPage({
             variant="secondary"
             className="border-none bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]"
           >
-            {canViewAll ? "All bookings" : "Assigned bookings"}
+            {canViewAll ? "All bookings" : "Assigned and claimable"}
           </Badge>
           {canViewAll ? (
             <Link
@@ -558,6 +668,7 @@ function BookingListCard({
       booking.booking_items.map((item) => item.service_name_snapshot)
     )
   );
+  const showSensitiveDetails = canQuickAct || ownBooking;
 
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     [
@@ -615,26 +726,34 @@ function BookingListCard({
         <Meta icon={<CalendarCheck className="size-4" />} label="Time">
           {formatTime(booking.start_time)}-{formatTime(booking.end_time)}
         </Meta>
-        <Meta icon={<CreditCard className="size-4" />} label="Payment">
-          {formatLabel(booking.payment_status)}
-          {booking.payment_method ? ` / ${booking.payment_method}` : ""}
-        </Meta>
+        {showSensitiveDetails ? (
+          <Meta icon={<CreditCard className="size-4" />} label="Payment">
+            {formatLabel(booking.payment_status)}
+            {booking.payment_method ? ` / ${booking.payment_method}` : ""}
+          </Meta>
+        ) : null}
         <Meta label="Source">{formatLabel(booking.booking_source)}</Meta>
-        <Meta label="Due">{formatMoney(booking.amount_due ?? booking.total_price)}</Meta>
+        {showSensitiveDetails ? (
+          <Meta label="Due">{formatMoney(booking.amount_due ?? booking.total_price)}</Meta>
+        ) : null}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--rahma-border)] pt-4">
-        <a
-          href={mapUrl}
-          target="_blank"
-          rel="noreferrer"
-          className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
-        >
-          <MapPin className="size-4" />
-          Map
-        </a>
-        <CopyButton value={booking.contact_phone} label="Phone" />
-        <CopyButton value={booking.contact_email} label="Email" />
+        {showSensitiveDetails ? (
+          <>
+            <a
+              href={mapUrl}
+              target="_blank"
+              rel="noreferrer"
+              className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+            >
+              <MapPin className="size-4" />
+              Map
+            </a>
+            <CopyButton value={booking.contact_phone} label="Phone" />
+            <CopyButton value={booking.contact_email} label="Email" />
+          </>
+        ) : null}
         {canQuickAct && booking.status === "pending" ? (
           <BookingActionButton bookingId={booking.id} action="confirm">
             Confirm

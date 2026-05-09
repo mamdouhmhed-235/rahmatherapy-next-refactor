@@ -19,12 +19,14 @@ import {
   type BookingSource,
 } from "@/app/api/bookings/createBookingTransaction";
 import {
-  canAccessBooking,
   canClaimAssignments,
   canManageAllBookings,
   canManageBookings,
 } from "./access";
-import { getStaffAssignmentPreviews } from "./assignment-eligibility";
+import {
+  getClaimAssignmentEligibility,
+  getStaffAssignmentPreviews,
+} from "./assignment-eligibility";
 import type { AssignmentStatus, BookingStatus, PaymentMethod, PaymentStatus } from "./types";
 
 export interface BookingUpdateState {
@@ -57,8 +59,8 @@ interface AssignmentClaimRecord {
   id: string;
   booking_id: string;
   assigned_staff_id: string | null;
-  required_therapist_gender: string;
-  status: string;
+  required_therapist_gender: "male" | "female";
+  status: AssignmentStatus;
 }
 
 interface BookingAssignmentStatusRecord {
@@ -119,6 +121,7 @@ export async function updateBookingManagement(
 ): Promise<BookingUpdateState> {
   const actor = await requireBookingManager();
   if (!actor) return { error: "Insufficient permissions." };
+  if (!canManageAllBookings(actor)) return { error: "Insufficient permissions." };
 
   const bookingId = String(formData.get("booking_id") ?? "").trim();
   const status = String(formData.get("status") ?? "") as BookingStatus;
@@ -161,9 +164,6 @@ export async function updateBookingManagement(
   }
 
   if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
-
-  const canAccess = await canAccessBooking(bookingId, actor);
-  if (!canAccess) return { error: "Insufficient permissions." };
 
   const adminClient = createSupabaseAdminClient();
   const { data: beforeState } = await adminClient
@@ -261,6 +261,25 @@ export async function claimBookingAssignment(formData: FormData) {
 
   if (assignment.required_therapist_gender !== actor.gender) {
     return { error: "You cannot claim an assignment for another therapist gender." };
+  }
+
+  const { data: booking } = await adminClient
+    .from("bookings")
+    .select("id, booking_date, start_time, end_time")
+    .eq("id", assignment.booking_id)
+    .single();
+
+  if (!booking) return { error: "Booking not found." };
+
+  const eligibility = await getClaimAssignmentEligibility({
+    actor,
+    assignment,
+    booking,
+    supabase: adminClient,
+  });
+
+  if (!eligibility.eligible) {
+    return { error: eligibility.reason };
   }
 
   const { data: claimedAssignment, error: claimError } = await adminClient

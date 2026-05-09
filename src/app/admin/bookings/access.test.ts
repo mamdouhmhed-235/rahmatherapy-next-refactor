@@ -3,6 +3,7 @@ import { PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import type { BookingRecord } from "./types";
 import {
   canClaimAssignments,
+  canOpenBookingRecord,
   canManageAllBookings,
   hasClaimableAssignment,
   isOwnBooking,
@@ -114,6 +115,40 @@ describe("admin booking access helpers", () => {
           },
         ]),
         profile()
+      )
+    ).toBe(true);
+  });
+
+  it("opens booking detail only for all-booking, own, or claimable records", () => {
+    const unrelated = booking([]);
+    const own = booking([
+      {
+        id: "assignment-a",
+        participant_id: "participant-a",
+        assigned_staff_id: "staff-a",
+        required_therapist_gender: "female",
+        status: "assigned",
+        staff_profiles: { name: "Staff A" },
+      },
+    ]);
+    const claimable = booking([
+      {
+        id: "assignment-b",
+        participant_id: "participant-b",
+        assigned_staff_id: null,
+        required_therapist_gender: "female",
+        status: "unassigned",
+        staff_profiles: null,
+      },
+    ]);
+
+    expect(canOpenBookingRecord(unrelated, profile())).toBe(false);
+    expect(canOpenBookingRecord(own, profile())).toBe(true);
+    expect(canOpenBookingRecord(claimable, profile())).toBe(true);
+    expect(
+      canOpenBookingRecord(
+        unrelated,
+        profile({ permissions: new Set([PERMISSIONS.VIEW_BOOKINGS_ALL]) })
       )
     ).toBe(true);
   });
