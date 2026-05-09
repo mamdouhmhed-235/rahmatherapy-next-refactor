@@ -236,6 +236,14 @@ export interface StaffProfile {
   active: boolean;
   can_take_bookings: boolean;
   availability_mode: string;
+  profile_photo_path?: string | null;
+  phone?: string | null;
+  show_phone_on_profile?: boolean;
+  short_bio?: string | null;
+  specialties?: string[];
+  languages?: string[];
+  service_areas?: string[];
+  profile_completed_at?: string | null;
   permissions: Set<string>;
 }
 
@@ -298,7 +306,7 @@ export async function getStaffProfile(
 
   const { data: profile } = await supabase
     .from("staff_profiles")
-    .select("id, auth_user_id, name, email, role_id, gender, active, can_take_bookings, availability_mode, roles(name, display_label)")
+    .select("id, auth_user_id, name, email, role_id, gender, active, can_take_bookings, availability_mode, profile_photo_path, phone, show_phone_on_profile, short_bio, specialties, languages, service_areas, profile_completed_at, roles(name, display_label)")
     .eq("auth_user_id", user.id)
     .single();
 
@@ -318,6 +326,14 @@ export async function getStaffProfile(
     active: profile.active,
     can_take_bookings: profile.can_take_bookings,
     availability_mode: profile.availability_mode,
+    profile_photo_path: profile.profile_photo_path,
+    phone: profile.phone,
+    show_phone_on_profile: profile.show_phone_on_profile,
+    short_bio: profile.short_bio,
+    specialties: profile.specialties ?? [],
+    languages: profile.languages ?? [],
+    service_areas: profile.service_areas ?? [],
+    profile_completed_at: profile.profile_completed_at,
     permissions,
   };
 }

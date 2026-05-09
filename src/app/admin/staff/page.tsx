@@ -14,6 +14,7 @@ import { CalendarCheck, ChevronRight, User, ShieldCheck, Mail } from "lucide-rea
 import { Badge } from "@/components/ui/badge";
 import { AdminAccessDenied } from "../components/admin-ui";
 import { NewStaffForm } from "./NewStaffForm";
+import { getStaffProfileCompletion } from "./profile-access";
 
 export const metadata = {
   title: "Staff Management — Rahma Therapy Admin",
@@ -108,6 +109,7 @@ export default async function StaffPage() {
             Boolean(member.availability_mode),
           ];
           const onboardingComplete = onboardingItems.filter(Boolean).length;
+          const profileCompletion = getStaffProfileCompletion(member);
           
           return (
             <Link
@@ -177,6 +179,9 @@ export default async function StaffPage() {
                   </Badge>
                   <Badge variant="outline" className="text-[var(--rahma-muted)] border-[var(--rahma-border)] normal-case tracking-normal py-0.5">
                     Onboarding {onboardingComplete}/6
+                  </Badge>
+                  <Badge variant="outline" className="text-[var(--rahma-muted)] border-[var(--rahma-border)] normal-case tracking-normal py-0.5">
+                    Profile {profileCompletion.completed}/{profileCompletion.total}
                   </Badge>
                 </div>
               </div>

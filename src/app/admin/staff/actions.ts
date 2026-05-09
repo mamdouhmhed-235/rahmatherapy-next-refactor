@@ -11,16 +11,14 @@ import {
   PERMISSIONS,
 } from "@/lib/auth/rbac";
 import { revalidatePath } from "next/cache";
+import {
+  getStaffProfileCompletion,
+  sanitizeStaffProfileUpdate,
+  type StaffProfileUpdate,
+} from "./profile-access";
 
 type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
 type StaffGender = "male" | "female";
-
-interface StaffProfileUpdate {
-  active?: boolean;
-  can_take_bookings?: boolean;
-  role_id?: string;
-  gender?: StaffGender;
-}
 
 interface StaffAvailabilityRuleInput {
   day_of_week: number;
@@ -228,14 +226,18 @@ export async function updateStaffProfile(
   updates: StaffProfileUpdate
 ) {
   const supabase = await createSupabaseServerClient();
-  
-  let actor;
-  try {
-    actor = await requirePermission(PERMISSIONS.MANAGE_STAFF_PROFILES, supabase);
-  } catch {
-    return { error: "Insufficient permissions." };
+
+  const actor = await getStaffProfile(supabase);
+  const sanitizedResult = sanitizeStaffProfileUpdate({ actor, staffId, updates });
+  if ("error" in sanitizedResult) {
+    return { error: sanitizedResult.error };
   }
-  if (updates.role_id && !canAssignStaffRoles(actor)) {
+  const sanitizedUpdates = sanitizedResult.updates;
+  if (Object.keys(sanitizedUpdates).length === 0) {
+    return { error: "No profile changes submitted." };
+  }
+
+  if (!actor) {
     return { error: "Insufficient permissions." };
   }
 
@@ -250,32 +252,39 @@ export async function updateStaffProfile(
 
   if (!beforeState) return { error: "Staff profile not found." };
 
-  if (staffId === actor.id && updates.active === false) {
+  if (staffId === actor.id && sanitizedUpdates.active === false) {
     return { error: "You cannot deactivate your own account." };
   }
 
-  if (staffId === actor.id && updates.role_id && updates.role_id !== beforeState.role_id) {
+  if (
+    staffId === actor.id &&
+    sanitizedUpdates.role_id &&
+    sanitizedUpdates.role_id !== beforeState.role_id
+  ) {
     return { error: "You cannot change your own role." };
   }
 
-  if (updates.role_id) {
+  if (sanitizedUpdates.role_id) {
     const { data: role } = await adminClient
       .from("roles")
       .select("id")
-      .eq("id", updates.role_id)
+      .eq("id", sanitizedUpdates.role_id)
       .eq("active", true)
       .single();
 
     if (!role) return { error: "Choose a valid role." };
   }
 
-  if (updates.gender && !["male", "female"].includes(updates.gender)) {
+  if (
+    sanitizedUpdates.gender &&
+    !["male", "female"].includes(sanitizedUpdates.gender)
+  ) {
     return { error: "Choose a valid gender." };
   }
 
   if (
-    updates.can_take_bookings === true &&
-    updates.active !== true &&
+    sanitizedUpdates.can_take_bookings === true &&
+    sanitizedUpdates.active !== true &&
     !beforeState.active
   ) {
     return { error: "Inactive staff cannot accept bookings." };
@@ -285,9 +294,9 @@ export async function updateStaffProfile(
     beforeState.active &&
     (await roleHasCriticalAdminPermissions(adminClient, beforeState.role_id));
   const nextKeepsCriticalAdmin =
-    updates.active !== false &&
-    (!updates.role_id ||
-      (await roleHasCriticalAdminPermissions(adminClient, updates.role_id)));
+    sanitizedUpdates.active !== false &&
+    (!sanitizedUpdates.role_id ||
+      (await roleHasCriticalAdminPermissions(adminClient, sanitizedUpdates.role_id)));
 
   if (wasCriticalAdmin && !nextKeepsCriticalAdmin) {
     const remainingCriticalAdmins = await countOtherActiveCriticalAdmins(
@@ -300,15 +309,22 @@ export async function updateStaffProfile(
     }
   }
 
-  const sanitizedUpdates = {
-    ...updates,
-    ...(updates.active === false ? { can_take_bookings: false } : {}),
+  const profileCompletion = getStaffProfileCompletion({
+    ...beforeState,
+    ...sanitizedUpdates,
+  });
+  const updatePayload = {
+    ...sanitizedUpdates,
+    ...(sanitizedUpdates.active === false ? { can_take_bookings: false } : {}),
+    profile_completed_at: profileCompletion.isComplete
+      ? beforeState.profile_completed_at ?? new Date().toISOString()
+      : null,
   };
 
   const { data, error } = await adminClient
     .from("staff_profiles")
     .update({
-      ...sanitizedUpdates,
+      ...updatePayload,
       updated_at: new Date().toISOString(),
       updated_by: actor.id
     })

@@ -10,10 +10,18 @@ import { toast } from "sonner";
 
 interface StaffProfile {
   id: string;
+  name: string;
   active: boolean;
   can_take_bookings: boolean;
   role_id: string;
   gender: "male" | "female";
+  profile_photo_path?: string | null;
+  phone?: string | null;
+  show_phone_on_profile?: boolean | null;
+  short_bio?: string | null;
+  specialties?: string[] | null;
+  languages?: string[] | null;
+  service_areas?: string[] | null;
 }
 
 interface Role {
@@ -26,6 +34,7 @@ interface StaffProfileFormProps {
   staff: StaffProfile;
   roles: Role[];
   canManageUsers: boolean;
+  canEditSafeProfile: boolean;
   canAssignRoles: boolean;
 }
 
@@ -33,12 +42,46 @@ export function StaffProfileForm({
   staff,
   roles,
   canManageUsers,
+  canEditSafeProfile,
   canAssignRoles,
 }: StaffProfileFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [currentStaff, setCurrentStaff] = useState(staff);
+  const [profileDraft, setProfileDraft] = useState({
+    name: staff.name ?? "",
+    phone: staff.phone ?? "",
+    show_phone_on_profile: Boolean(staff.show_phone_on_profile),
+    short_bio: staff.short_bio ?? "",
+    specialties: (staff.specialties ?? []).join(", "),
+    languages: (staff.languages ?? []).join(", "),
+    service_areas: (staff.service_areas ?? []).join(", "),
+  });
+
+  async function handleSafeProfileSave() {
+    startTransition(async () => {
+      const result = await updateStaffProfile(currentStaff.id, profileDraft);
+      if (result.error) {
+        setError(result.error);
+        toast.error(result.error);
+      } else {
+        setError(null);
+        setCurrentStaff((current) => ({
+          ...current,
+          name: profileDraft.name,
+          phone: profileDraft.phone || null,
+          show_phone_on_profile: profileDraft.show_phone_on_profile,
+          short_bio: profileDraft.short_bio || null,
+          specialties: splitList(profileDraft.specialties),
+          languages: splitList(profileDraft.languages),
+          service_areas: splitList(profileDraft.service_areas),
+        }));
+        toast.success("Profile updated");
+        router.refresh();
+      }
+    });
+  }
 
   async function handleToggleActive() {
     startTransition(async () => {
@@ -125,6 +168,124 @@ export function StaffProfileForm({
           {error}
         </div>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <User className="size-5 text-[var(--rahma-green)]" />
+            Profile Details
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-medium text-[var(--rahma-charcoal)]">Display name</span>
+              <input
+                value={profileDraft.name}
+                onChange={(event) =>
+                  setProfileDraft((current) => ({
+                    ...current,
+                    name: event.target.value,
+                  }))
+                }
+                disabled={isPending || !canEditSafeProfile}
+                className="h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20 disabled:bg-gray-50"
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-medium text-[var(--rahma-charcoal)]">Phone</span>
+              <input
+                value={profileDraft.phone}
+                onChange={(event) =>
+                  setProfileDraft((current) => ({
+                    ...current,
+                    phone: event.target.value,
+                  }))
+                }
+                disabled={isPending || !canEditSafeProfile}
+                className="h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20 disabled:bg-gray-50"
+              />
+            </label>
+          </div>
+
+          <label className="flex items-center gap-3 text-sm text-[var(--rahma-charcoal)]">
+            <input
+              type="checkbox"
+              checked={profileDraft.show_phone_on_profile}
+              onChange={(event) =>
+                setProfileDraft((current) => ({
+                  ...current,
+                  show_phone_on_profile: event.target.checked,
+                }))
+              }
+              disabled={isPending || !canEditSafeProfile}
+              className="size-4 rounded border-[var(--rahma-border)]"
+            />
+            Show phone on profile surfaces when contact visibility allows it
+          </label>
+
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-medium text-[var(--rahma-charcoal)]">Short bio</span>
+            <textarea
+              value={profileDraft.short_bio}
+              onChange={(event) =>
+                setProfileDraft((current) => ({
+                  ...current,
+                  short_bio: event.target.value,
+                }))
+              }
+              rows={4}
+              maxLength={600}
+              disabled={isPending || !canEditSafeProfile}
+              className="rounded-md border border-[var(--rahma-border)] bg-white px-3 py-2 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20 disabled:bg-gray-50"
+            />
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <ListInput
+              label="Specialties/services"
+              value={profileDraft.specialties}
+              disabled={isPending || !canEditSafeProfile}
+              onChange={(value) =>
+                setProfileDraft((current) => ({ ...current, specialties: value }))
+              }
+            />
+            <ListInput
+              label="Languages"
+              value={profileDraft.languages}
+              disabled={isPending || !canEditSafeProfile}
+              onChange={(value) =>
+                setProfileDraft((current) => ({ ...current, languages: value }))
+              }
+            />
+            <ListInput
+              label="Service areas"
+              value={profileDraft.service_areas}
+              disabled={isPending || !canEditSafeProfile}
+              onChange={(value) =>
+                setProfileDraft((current) => ({ ...current, service_areas: value }))
+              }
+            />
+          </div>
+
+          <div className="rounded-lg bg-[var(--rahma-ivory)]/70 p-3 text-xs text-[var(--rahma-muted)]">
+            Profile photo path: {currentStaff.profile_photo_path ?? "reserved for Phase 8 upload"}
+          </div>
+
+          {canEditSafeProfile ? (
+            <div>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={handleSafeProfileSave}
+                className="rounded-md bg-[var(--rahma-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Save profile details
+              </button>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Status & Access */}
@@ -252,5 +413,37 @@ export function StaffProfileForm({
         </Card>
       </div>
     </div>
+  );
+}
+
+function splitList(value: string) {
+  return value
+    .split(",")
+    .map((item) => item.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function ListInput({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="grid gap-1.5 text-sm">
+      <span className="font-medium text-[var(--rahma-charcoal)]">{label}</span>
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        placeholder="Comma separated"
+        className="h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20 disabled:bg-gray-50"
+      />
+    </label>
   );
 }

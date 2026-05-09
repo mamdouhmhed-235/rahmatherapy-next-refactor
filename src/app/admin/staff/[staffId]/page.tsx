@@ -14,6 +14,7 @@ import { StaffProfileForm } from "./StaffProfileForm";
 import { StaffPermissionOverridesForm } from "./StaffPermissionOverridesForm";
 import { Badge } from "@/components/ui/badge";
 import { AdminAccessDenied, AdminPanel, AdminStatusBadge } from "../../components/admin-ui";
+import { getStaffProfileCompletion } from "../profile-access";
 
 
 interface StaffDetailPageProps {
@@ -34,9 +35,10 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
 
   const { staffId } = await params;
   const isOwnProfile = profile.id === staffId;
-  const canManageUsers = canViewStaff(profile) || canManageStaffProfiles(profile);
+  const canViewUsers = canViewStaff(profile) || canManageStaffProfiles(profile);
+  const canManageUsers = canManageStaffProfiles(profile);
 
-  if (!isOwnProfile && !canManageUsers) {
+  if (!isOwnProfile && !canViewUsers) {
     return (
       <AdminAccessDenied
         title="Staff access limited"
@@ -145,6 +147,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       done: staff.availability_mode === "use_global" || (availabilityRules?.length ?? 0) > 0,
     },
   ];
+  const profileCompletion = getStaffProfileCompletion(staff);
 
   return (
     <div>
@@ -211,6 +214,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
         staff={staff} 
         roles={roles ?? []} 
         canManageUsers={canManageUsers}
+        canEditSafeProfile={isOwnProfile || canManageUsers}
         canAssignRoles={canAssignStaffRoles(profile)}
       />
 
@@ -221,6 +225,30 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
               <div key={item.label} className="flex items-center justify-between gap-4 rounded-lg bg-[var(--rahma-ivory)]/70 px-3 py-2 text-sm">
                 <span className="text-[var(--rahma-charcoal)]">{item.label}</span>
                 {item.done ? (
+                  <CheckCircle2 className="size-4 text-emerald-600" />
+                ) : (
+                  <XCircle className="size-4 text-orange-600" />
+                )}
+              </div>
+            ))}
+          </div>
+        </AdminPanel>
+
+        <AdminPanel
+          title="Profile completion"
+          description={`${profileCompletion.completed}/${profileCompletion.total} profile fields complete`}
+        >
+          <div className="grid gap-3 text-sm">
+            {[
+              ["Phone", Boolean(staff.phone)],
+              ["Short bio", Boolean(staff.short_bio)],
+              ["Specialties", Boolean(staff.specialties?.length)],
+              ["Languages", Boolean(staff.languages?.length)],
+              ["Service areas", Boolean(staff.service_areas?.length)],
+            ].map(([label, done]) => (
+              <div key={String(label)} className="flex items-center justify-between gap-4 rounded-lg bg-[var(--rahma-ivory)]/70 px-3 py-2">
+                <span className="text-[var(--rahma-charcoal)]">{label}</span>
+                {done ? (
                   <CheckCircle2 className="size-4 text-emerald-600" />
                 ) : (
                   <XCircle className="size-4 text-orange-600" />
