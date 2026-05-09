@@ -5,7 +5,6 @@ import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
 import {
   canManageOperations,
   canOpenReports,
-  canViewDashboard,
   canViewStaff,
   canManageBookings,
   canManageEnquiries,
@@ -14,6 +13,7 @@ import {
   canViewAssignedBookings,
   getStaffProfile,
 } from "@/lib/auth/rbac";
+import { getAdminPageAccess } from "@/lib/auth/admin-access";
 import {
   AdminAccessDenied,
   AdminHiddenDataState,
@@ -21,15 +21,12 @@ import {
 } from "../components/admin-ui";
 import {
   buildNotifications,
-  canViewRevenueReports,
   findNextAppointment,
   formatNumber,
   getAttentionItems,
   getGenderCapacity,
-  getReportData,
   getServicePerformance,
   getStaffWorkload,
-  hasUniversalReportScope,
   humanizeEventType,
   parseReportFilters,
   summarizeReports,
@@ -56,6 +53,7 @@ import {
 import { DashboardFiltersClient } from "./dashboard-filters-client";
 import { AdminErrorBoundary } from "../components/admin-error-boundary";
 import { DashboardHeader } from "./dashboard-header";
+import { getDashboardData, type DashboardVariant } from "./dashboard-data";
 
 export const metadata = {
   title: "Dashboard - Rahma Therapy Admin",
@@ -340,6 +338,7 @@ interface PermissionAccess {
   emails: boolean;
   operations: boolean;
   staff: boolean;
+  availability: boolean;
 }
 
 function getPermissionAccess(profile: StaffProfile): PermissionAccess {
@@ -351,6 +350,7 @@ function getPermissionAccess(profile: StaffProfile): PermissionAccess {
     emails: canViewEmailLogs(profile),
     operations: canManageOperations(profile),
     staff: canViewStaff(profile),
+    availability: getAdminPageAccess(profile, "availability").access,
   };
 }
 
@@ -359,7 +359,11 @@ function getAccessibleAttentionHref(href: string, access: PermissionAccess) {
   if (href.startsWith("/admin/enquiries")) return access.enquiries ? href : null;
   if (href.startsWith("/admin/emails")) return access.emails ? href : null;
   if (href.startsWith("/admin/operations")) return access.operations ? href : null;
-  if (href.startsWith("/admin/staff")) return access.staff ? href : null;
+  if (href.startsWith("/admin/staff")) {
+    return access.staff || (access.availability && href.endsWith("/availability"))
+      ? href
+      : null;
+  }
   return href;
 }
 
@@ -367,11 +371,31 @@ function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
+function getDashboardCopy(variant: DashboardVariant) {
+  if (variant === "coordinator") {
+    return {
+      title: "Coordinator dashboard",
+      subtitle: "Booking queue, enquiries, email status and assignment gaps.",
+    };
+  }
+  if (variant === "therapist") {
+    return {
+      title: "Therapist dashboard",
+      subtitle: "Assigned bookings, matching claimable work and own availability.",
+    };
+  }
+  return {
+    title: "Dashboard",
+    subtitle: "Business-wide command centre for operations, bookings, staff and reports.",
+  };
+}
+
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
   if (!profile || !profile.active) redirect("/admin/login");
-  if (!canViewDashboard(profile)) return <InsufficientPermissions />;
+  const dashboardAccess = getAdminPageAccess(profile, "dashboard");
+  if (!dashboardAccess.access) return <InsufficientPermissions />;
 
   const today = getBusinessDate();
   const params = await searchParams;
@@ -387,7 +411,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     city: params.city,
   });
   const adminClient = createSupabaseAdminClient();
-  const data = await getReportData(adminClient, profile, filters);
+  const { data, plan } = await getDashboardData(adminClient, profile, filters);
   const summary = summarizeReports(data);
   const attentionItems = getAttentionItems(data);
 
@@ -432,9 +456,13 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const staffWorkload = getStaffWorkload(data);
   const genderCapacity = getGenderCapacity(data);
   const services = getServicePerformance(data);
-  const revenueAllowed = canViewRevenueReports(profile);
-  const assignedOnly = !hasUniversalReportScope(profile);
+  const revenueAllowed = plan.includeRevenue;
+  const assignedOnly = plan.variant === "therapist";
   const permissionAccess = getPermissionAccess(profile);
+  const dashboardCopy = getDashboardCopy(plan.variant);
+  const showStaffCapacity = plan.variant === "business" && permissionAccess.staff;
+  const showPaymentHealth = plan.variant !== "therapist";
+  const showOperationsHealth = plan.variant !== "therapist";
   const newEnquiries = data.enquiries.filter((enquiry) => enquiry.status === "new");
   const nextAppointment = findNextAppointment(data.bookings, today);
   const serviceOptions = uniqueStrings(data.bookingItems.map((item) => item.service_name_snapshot));
@@ -489,7 +517,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       href: permissionAccess.bookings ? "/admin/bookings?view=unassigned" : null,
     });
   }
-  if (unpaidBookings.length > 0) {
+  if (plan.variant !== "therapist" && unpaidBookings.length > 0) {
     attentionSummaryRows.push({
       key: "payments",
       label: "Payment follow up",
@@ -503,7 +531,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const readiness = {
     confirmations: failedEmails.length > 0 ? `${formatNumber(failedEmails.length)} to review` : "All clear",
     staffCoverage: needsAssignment.length > 0 ? `${formatNumber(needsAssignment.length)} need assignment` : "Well covered",
-    paymentCollection: unpaidBookings.length > 0 ? `${formatNumber(unpaidBookings.length)} to collect` : "No activity yet",
+    paymentCollection:
+      plan.variant === "therapist"
+        ? "Assigned work only"
+        : unpaidBookings.length > 0
+          ? `${formatNumber(unpaidBookings.length)} to collect`
+          : "No activity yet",
   };
 
   const notificationButton = (
@@ -524,9 +557,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   return (
     <AdminPageScaffold className="gap-4">
       <DashboardHeader
-        title="Dashboard"
+        title={dashboardCopy.title}
         roleName={profile.role_name}
-        subtitle="Operational command centre — bookings, staff, payments & attention."
+        subtitle={dashboardCopy.subtitle}
         lastChecked={lastChecked}
         assignedOnly={assignedOnly}
         revenueAllowed={revenueAllowed}
@@ -579,40 +612,46 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       </section>
 
       <section className="grid min-w-0 items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        <div className="order-2 xl:order-1">
-          <StaffCapacityCard
-            genderCapacity={genderCapacity}
-            staffWorkload={staffWorkload.map((row) => ({
-              staffName: row.staffName,
-              assignments: row.assignments,
-              completed: row.completed,
-            }))}
-            permissionAccess={permissionAccess}
-          />
-        </div>
-        <div className="order-3 xl:order-2">
-          <PaymentHealthCard
-            summary={{
-              bookedRevenue: summary.bookedRevenue,
-              collectedRevenue: summary.collectedRevenue,
-              outstandingRevenue: summary.outstandingRevenue,
-            }}
-            unpaidCount={unpaidBookings.length}
-            unpaidCompletedCount={unpaidCompleted.length}
-            revenueAllowed={revenueAllowed}
-            canReviewBookings={permissionAccess.bookings}
-            canViewReports={permissionAccess.reports}
-          />
-        </div>
-        <div className="order-1 lg:col-span-2 xl:order-3 xl:col-span-1">
-          <OperationsHealthCard
-            failedEmails={failedEmails.length}
-            openEnquiries={newEnquiries.length}
-            openOperations={openOperationalErrors.length}
-            availabilityGaps={staffAvailabilityGaps.length}
-            permissionAccess={permissionAccess}
-          />
-        </div>
+        {showStaffCapacity ? (
+          <div className="order-2 xl:order-1">
+            <StaffCapacityCard
+              genderCapacity={genderCapacity}
+              staffWorkload={staffWorkload.map((row) => ({
+                staffName: row.staffName,
+                assignments: row.assignments,
+                completed: row.completed,
+              }))}
+              permissionAccess={permissionAccess}
+            />
+          </div>
+        ) : null}
+        {showPaymentHealth ? (
+          <div className="order-3 xl:order-2">
+            <PaymentHealthCard
+              summary={{
+                bookedRevenue: summary.bookedRevenue,
+                collectedRevenue: summary.collectedRevenue,
+                outstandingRevenue: summary.outstandingRevenue,
+              }}
+              unpaidCount={unpaidBookings.length}
+              unpaidCompletedCount={unpaidCompleted.length}
+              revenueAllowed={revenueAllowed}
+              canReviewBookings={permissionAccess.bookings}
+              canViewReports={permissionAccess.reports}
+            />
+          </div>
+        ) : null}
+        {showOperationsHealth ? (
+          <div className="order-1 lg:col-span-2 xl:order-3 xl:col-span-1">
+            <OperationsHealthCard
+              failedEmails={failedEmails.length}
+              openEnquiries={newEnquiries.length}
+              openOperations={openOperationalErrors.length}
+              availabilityGaps={staffAvailabilityGaps.length}
+              permissionAccess={permissionAccess}
+            />
+          </div>
+        ) : null}
       </section>
 
       <AdminErrorBoundary sectionName="Business pulse">

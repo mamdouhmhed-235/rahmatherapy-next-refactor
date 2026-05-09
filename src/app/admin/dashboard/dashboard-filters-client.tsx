@@ -181,6 +181,7 @@ export function DashboardFiltersClient({
     filters.status,
     filters.paymentStatus,
   ].filter(Boolean).length;
+  const showStaffFilter = staff.length > 0;
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -250,14 +251,16 @@ export function DashboardFiltersClient({
               </option>
             ))}
           </FormSelect>
-          <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId}>
-            <option value="">All staff</option>
-            {staff.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </FormSelect>
+          {showStaffFilter ? (
+            <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId}>
+              <option value="">All staff</option>
+              {staff.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </FormSelect>
+          ) : null}
           <button
             type="submit"
             disabled={isPending}
@@ -359,14 +362,16 @@ export function DashboardFiltersClient({
                 </option>
               ))}
             </FormSelect>
-            <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId}>
-              <option value="">All staff</option>
-              {staff.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
-            </FormSelect>
+            {showStaffFilter ? (
+              <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId}>
+                <option value="">All staff</option>
+                {staff.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
+              </FormSelect>
+            ) : null}
             <FormSelect label="Source" name="source" defaultValue={filters.source}>
               <option value="">All sources</option>
               {sourceOptions.map((source) => (
