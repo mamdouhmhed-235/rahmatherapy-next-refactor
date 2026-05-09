@@ -10,7 +10,13 @@ import {
 } from "../components/admin-ui";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canManageSensitiveClientNotes,
+  canViewClientContactDetails,
+  getStaffProfile,
+  hasPermission,
+  PERMISSIONS,
+} from "@/lib/auth/rbac";
 import { formatDateTime } from "../clients/format";
 import { PrivacyStatusForm } from "./PrivacyStatusForm";
 
@@ -52,31 +58,40 @@ export default async function PrivacyPage() {
     redirect("/admin/login");
   }
 
-  if (!profile.permissions.has(PERMISSIONS.MANAGE_PRIVACY_OPERATIONS)) {
+  const canManagePrivacyOperations = hasPermission(
+    profile,
+    PERMISSIONS.MANAGE_PRIVACY_OPERATIONS
+  );
+  const canViewSensitiveNotes = canManageSensitiveClientNotes(profile);
+  const canViewContactDetails = canViewClientContactDetails(profile);
+
+  if (!canManagePrivacyOperations && !canViewSensitiveNotes) {
     return (
       <AdminAccessDenied
         title="Privacy operations restricted"
-        message="Customer privacy requests and sensitive-note review require explicit privacy operations permission."
-        permission={PERMISSIONS.MANAGE_PRIVACY_OPERATIONS}
+        message="Customer privacy requests and sensitive-note review require explicit privacy or sensitive-note permission."
+        permission={`${PERMISSIONS.MANAGE_PRIVACY_OPERATIONS} or ${PERMISSIONS.MANAGE_SENSITIVE_CLIENT_NOTES}`}
       />
     );
   }
 
   const adminClient = createSupabaseAdminClient();
-  const [requestsResult, notesResult] = await Promise.all([
-    adminClient
-      .from("client_privacy_requests")
-      .select("id, client_id, request_type, status, request_note, created_at, updated_at, created_by_staff_id")
-      .order("created_at", { ascending: false })
-      .returns<PrivacyRequestRecord[]>(),
-    adminClient
-      .from("client_notes")
-      .select("id, client_id, note, created_at, author_staff_id")
-      .eq("is_sensitive", true)
-      .order("created_at", { ascending: false })
-      .limit(25)
-      .returns<SensitiveNoteRecord[]>(),
-  ]);
+  const requestsResult = canManagePrivacyOperations
+    ? await adminClient
+        .from("client_privacy_requests")
+        .select("id, client_id, request_type, status, request_note, created_at, updated_at, created_by_staff_id")
+        .order("created_at", { ascending: false })
+        .returns<PrivacyRequestRecord[]>()
+    : { data: [] as PrivacyRequestRecord[] };
+  const notesResult = canViewSensitiveNotes
+    ? await adminClient
+        .from("client_notes")
+        .select("id, client_id, note, created_at, author_staff_id")
+        .eq("is_sensitive", true)
+        .order("created_at", { ascending: false })
+        .limit(25)
+        .returns<SensitiveNoteRecord[]>()
+    : { data: [] as SensitiveNoteRecord[] };
 
   const requests = requestsResult.data ?? [];
   const notes = notesResult.data ?? [];
@@ -87,7 +102,7 @@ export default async function PrivacyPage() {
     clientIds.length > 0
       ? await adminClient
           .from("clients")
-          .select("id, full_name, email, phone")
+          .select(canViewContactDetails ? "id, full_name, email, phone" : "id, full_name")
           .in("id", clientIds)
           .returns<ClientSummary[]>()
       : { data: [] as ClientSummary[] };
@@ -119,6 +134,8 @@ export default async function PrivacyPage() {
                   key={request.id}
                   request={request}
                   client={clientById.get(request.client_id)}
+                  canManagePrivacyOperations={canManagePrivacyOperations}
+                  showContactDetails={canViewContactDetails}
                 />
               ))}
             </div>
@@ -151,9 +168,13 @@ export default async function PrivacyPage() {
 function PrivacyRequestCard({
   request,
   client,
+  canManagePrivacyOperations,
+  showContactDetails,
 }: {
   request: PrivacyRequestRecord;
   client?: ClientSummary;
+  canManagePrivacyOperations: boolean;
+  showContactDetails: boolean;
 }) {
   return (
     <article className="rounded-lg border border-[var(--rahma-border)] bg-white p-4">
@@ -175,9 +196,11 @@ function PrivacyRequestCard({
               "Unknown client"
             )}
           </h2>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            {client?.email ?? "No email"} - {client?.phone ?? "No phone"}
-          </p>
+          {showContactDetails ? (
+            <p className="mt-1 text-sm text-[var(--rahma-muted)]">
+              {client?.email ?? "No email"} - {client?.phone ?? "No phone"}
+            </p>
+          ) : null}
           {request.request_note ? (
             <p className="mt-3 whitespace-pre-wrap rounded-md bg-[var(--rahma-ivory)]/70 p-3 text-sm text-[var(--rahma-charcoal)]">
               {request.request_note}
@@ -188,7 +211,9 @@ function PrivacyRequestCard({
             {formatDateTime(request.updated_at)}.
           </p>
         </div>
-        <PrivacyStatusForm requestId={request.id} status={request.status} />
+        {canManagePrivacyOperations ? (
+          <PrivacyStatusForm requestId={request.id} status={request.status} />
+        ) : null}
       </div>
     </article>
   );

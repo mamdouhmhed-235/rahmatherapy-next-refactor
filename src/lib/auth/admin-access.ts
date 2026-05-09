@@ -311,10 +311,11 @@ const ADMIN_PAGE_RULES = {
       ? allowed("all", { viewSensitiveFields: true })
       : allowed("none"),
   privacy: (profile) =>
-    hasPermission(profile, PERMISSIONS.MANAGE_PRIVACY_OPERATIONS)
+    hasPermission(profile, PERMISSIONS.MANAGE_PRIVACY_OPERATIONS) ||
+    canManageSensitiveClientNotes(profile)
       ? allowed("all", {
-          edit: true,
-          approveRequests: true,
+          edit: hasPermission(profile, PERMISSIONS.MANAGE_PRIVACY_OPERATIONS),
+          approveRequests: hasPermission(profile, PERMISSIONS.MANAGE_PRIVACY_OPERATIONS),
           viewSensitiveFields: true,
         })
       : allowed("none"),

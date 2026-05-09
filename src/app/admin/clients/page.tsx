@@ -14,7 +14,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { canManageAllClients, canViewAllClients, getStaffProfile } from "@/lib/auth/rbac";
+import { getAdminPageAccess } from "@/lib/auth/admin-access";
+import { getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminFilterBar,
@@ -22,6 +23,7 @@ import {
 } from "../components/admin-ui";
 import { cn } from "@/lib/utils";
 import { formatDate, formatLabel, formatMoney, formatTime } from "./format";
+import { getClientDataAccess } from "./access";
 import type { ClientBookingRecord, ClientRecord } from "./types";
 
 export const metadata = {
@@ -47,7 +49,15 @@ const CLIENT_SELECT = `
   postcode,
   client_source,
   source_detail,
-  notes,
+  created_at,
+  updated_at
+`;
+
+const CLIENT_SAFE_SELECT = `
+  id,
+  full_name,
+  client_source,
+  source_detail,
   created_at,
   updated_at
 `;
@@ -76,11 +86,37 @@ const BOOKING_SELECT = `
   booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
 `;
 
-function matchesSearch(client: ClientRecord, query: string) {
+const BOOKING_SAFE_SELECT = `
+  id,
+  client_id,
+  booking_date,
+  start_time,
+  end_time,
+  status,
+  payment_status,
+  assignment_status,
+  group_booking,
+  total_price,
+  amount_due,
+  amount_paid,
+  booking_source,
+  service_city,
+  created_at,
+  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
+`;
+
+function matchesSearch(
+  client: ClientRecord,
+  query: string,
+  canSearchContactDetails: boolean
+) {
   const normalizedQuery = query.trim().toLowerCase();
   if (!normalizedQuery) return true;
 
-  return [client.full_name, client.phone, client.email]
+  return [
+    client.full_name,
+    ...(canSearchContactDetails ? [client.phone, client.email] : []),
+  ]
     .filter((value): value is string => Boolean(value))
     .some((value) => value.toLowerCase().includes(normalizedQuery));
 }
@@ -111,6 +147,7 @@ function matchesFilters({
   payment,
   location,
   source,
+  canSearchContactDetails,
 }: {
   client: ClientRecord;
   bookings: ClientBookingRecord[];
@@ -118,6 +155,7 @@ function matchesFilters({
   payment: string;
   location: string;
   source: string;
+  canSearchContactDetails: boolean;
 }) {
   const hasUpcoming = bookings.some(isUpcomingBooking);
   const outstanding = getOutstandingAmount(bookings);
@@ -131,6 +169,7 @@ function matchesFilters({
     return false;
   }
   if (
+    canSearchContactDetails &&
     normalizedLocation &&
     ![
       client.postcode,
@@ -172,26 +211,73 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
     redirect("/admin/login");
   }
 
-  const canManageClients = canManageAllClients(profile);
+  const pageAccess = getAdminPageAccess(profile, "clients");
 
-  if (!canManageClients && !canViewAllClients(profile)) {
+  if (!pageAccess.access) {
     return <InsufficientPermissions />;
   }
 
   const adminClient = createSupabaseAdminClient();
-  const [{ data: clients }, { data: bookings }] = await Promise.all([
-    adminClient
-      .from("clients")
-      .select(CLIENT_SELECT)
-      .order("full_name")
-      .returns<ClientRecord[]>(),
-    adminClient
-      .from("bookings")
-      .select(BOOKING_SELECT)
-      .order("booking_date", { ascending: false })
-      .order("start_time", { ascending: false })
-      .returns<ClientBookingRecord[]>(),
-  ]);
+  const hasAllClientAccess =
+    pageAccess.dataScope === "all" || pageAccess.dataScope === "sensitive_hidden";
+  const clientAccess = getClientDataAccess(profile, {
+    hasAssignedBooking: hasAllClientAccess,
+  });
+  const canManageClients = clientAccess.canManageClient;
+  const clientSelect = clientAccess.canViewContactDetails ? CLIENT_SELECT : CLIENT_SAFE_SELECT;
+  const bookingSelect = clientAccess.canViewContactDetails ? BOOKING_SELECT : BOOKING_SAFE_SELECT;
+  let clients: ClientRecord[] = [];
+  let bookings: ClientBookingRecord[] = [];
+
+  if (hasAllClientAccess) {
+    const [clientsResult, bookingsResult] = await Promise.all([
+      adminClient
+        .from("clients")
+        .select(clientSelect)
+        .order("full_name")
+        .returns<ClientRecord[]>(),
+      adminClient
+        .from("bookings")
+        .select(bookingSelect)
+        .order("booking_date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .returns<ClientBookingRecord[]>(),
+    ]);
+    clients = clientsResult.data ?? [];
+    bookings = bookingsResult.data ?? [];
+  } else {
+    const { data: assignments } = await adminClient
+      .from("booking_assignments")
+      .select("booking_id")
+      .eq("assigned_staff_id", profile.id);
+    const assignedBookingIds = Array.from(
+      new Set((assignments ?? []).map((assignment) => assignment.booking_id))
+    );
+
+    if (assignedBookingIds.length > 0) {
+      const { data: assignedBookings } = await adminClient
+        .from("bookings")
+        .select(bookingSelect)
+        .in("id", assignedBookingIds)
+        .order("booking_date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .returns<ClientBookingRecord[]>();
+      bookings = assignedBookings ?? [];
+
+      const assignedClientIds = Array.from(
+        new Set(bookings.map((booking) => booking.client_id))
+      );
+      if (assignedClientIds.length > 0) {
+        const { data: assignedClients } = await adminClient
+          .from("clients")
+          .select(clientSelect)
+          .in("id", assignedClientIds)
+          .order("full_name")
+          .returns<ClientRecord[]>();
+        clients = assignedClients ?? [];
+      }
+    }
+  }
 
   const bookingsByClientId = new Map<string, ClientBookingRecord[]>();
   for (const booking of bookings ?? []) {
@@ -204,7 +290,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   const visibleClients = (clients ?? []).filter((client) => {
     const clientBookings = bookingsByClientId.get(client.id) ?? [];
     return (
-      matchesSearch(client, q) &&
+      matchesSearch(client, q, clientAccess.canViewContactDetails) &&
       matchesFilters({
         client,
         bookings: clientBookings,
@@ -212,6 +298,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         payment,
         location,
         source,
+        canSearchContactDetails: clientAccess.canViewContactDetails,
       })
     );
   });
@@ -308,6 +395,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
               key={client.id}
               client={client}
               bookings={bookingsByClientId.get(client.id) ?? []}
+              showContactDetails={clientAccess.canViewContactDetails}
             />
           ))}
         </div>
@@ -319,9 +407,11 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
 function ClientCard({
   client,
   bookings,
+  showContactDetails,
 }: {
   client: ClientRecord;
   bookings: ClientBookingRecord[];
+  showContactDetails: boolean;
 }) {
   const latestBooking = getLatestBooking(bookings);
   const upcomingCount = bookings.filter(isUpcomingBooking).length;
@@ -354,16 +444,18 @@ function ClientCard({
             <StatusBadge value={client.client_source} muted />
             <StatusBadge value={`${bookings.length} booking${bookings.length === 1 ? "" : "s"}`} muted />
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--rahma-muted)]">
-            <span className="inline-flex items-center gap-1.5">
-              <Phone className="size-3.5" />
-              {client.phone ?? "No phone"}
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <Mail className="size-3.5" />
-              {client.email ?? "No email"}
-            </span>
-          </div>
+          {showContactDetails ? (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--rahma-muted)]">
+              <span className="inline-flex items-center gap-1.5">
+                <Phone className="size-3.5" />
+                {client.phone ?? "No phone"}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Mail className="size-3.5" />
+                {client.email ?? "No email"}
+              </span>
+            </div>
+          ) : null}
         </div>
         <ChevronRight className="mt-1 size-5 text-[var(--rahma-muted)] transition-transform group-hover:translate-x-1" />
       </div>

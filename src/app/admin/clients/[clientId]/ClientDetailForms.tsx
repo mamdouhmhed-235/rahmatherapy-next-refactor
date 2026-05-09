@@ -15,7 +15,13 @@ const initialState: ClientActionState = {};
 const selectClass =
   "h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20";
 
-export function ClientNoteForm({ clientId }: { clientId: string }) {
+export function ClientNoteForm({
+  clientId,
+  isSensitiveNote,
+}: {
+  clientId: string;
+  isSensitiveNote: boolean;
+}) {
   const router = useRouter();
   const [state, action, pending] = useActionState(addClientNote, initialState);
 
@@ -29,7 +35,7 @@ export function ClientNoteForm({ clientId }: { clientId: string }) {
       {state.error ? <ErrorMessage message={state.error} /> : null}
       <label className="grid gap-1.5">
         <span className="text-sm font-medium text-[var(--rahma-charcoal)]">
-          Add sensitive client note
+          {isSensitiveNote ? "Add sensitive client note" : "Add session note"}
         </span>
         <Textarea name="note" rows={4} />
         {state.fieldErrors?.note ? (

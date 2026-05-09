@@ -21,14 +21,9 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getAdminPageAccess } from "@/lib/auth/admin-access";
 import {
-  canManageAllClients,
-  canManageSensitiveClientNotes,
-  canViewAllClients,
-  canViewAssignedClients,
-  canViewAssignedHealthNotes,
   getStaffProfile,
-  PERMISSIONS,
 } from "@/lib/auth/rbac";
 import {
   formatDate,
@@ -43,6 +38,7 @@ import type {
   ClientPrivacyRequestRecord,
   ClientRecord,
 } from "../types";
+import { getClientDataAccess } from "../access";
 import { ClientNoteForm, ClientPrivacyRequestForm } from "./ClientDetailForms";
 
 export const metadata = {
@@ -62,7 +58,15 @@ const CLIENT_SELECT = `
   postcode,
   client_source,
   source_detail,
-  notes,
+  created_at,
+  updated_at
+`;
+
+const CLIENT_SAFE_SELECT = `
+  id,
+  full_name,
+  client_source,
+  source_detail,
   created_at,
   updated_at
 `;
@@ -94,8 +98,98 @@ const BOOKING_SELECT = `
   booking_participants(display_name, participant_gender, health_notes, participant_notes, consent_acknowledged)
 `;
 
+const BOOKING_SAFE_SELECT = `
+  id,
+  client_id,
+  booking_date,
+  start_time,
+  end_time,
+  status,
+  payment_status,
+  assignment_status,
+  group_booking,
+  total_price,
+  amount_due,
+  amount_paid,
+  booking_source,
+  created_at,
+  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
+`;
+
+const BOOKING_CONTACT_SELECT = `
+  id,
+  client_id,
+  booking_date,
+  start_time,
+  end_time,
+  status,
+  payment_status,
+  assignment_status,
+  group_booking,
+  total_price,
+  amount_due,
+  amount_paid,
+  booking_source,
+  contact_full_name,
+  contact_email,
+  contact_phone,
+  service_city,
+  service_postcode,
+  service_address_line1,
+  created_at,
+  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
+`;
+
+const BOOKING_HEALTH_SELECT = `
+  id,
+  client_id,
+  booking_date,
+  start_time,
+  end_time,
+  status,
+  payment_status,
+  assignment_status,
+  group_booking,
+  total_price,
+  amount_due,
+  amount_paid,
+  booking_source,
+  created_at,
+  health_notes,
+  customer_notes,
+  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot),
+  booking_participants(display_name, participant_gender, health_notes, participant_notes, consent_acknowledged)
+`;
+
 function isFutureBooking(booking: ClientBookingRecord) {
   return new Date(`${booking.booking_date}T${booking.start_time}`) >= new Date();
+}
+
+function getClientSelect({
+  canViewContactDetails,
+  canViewNotes,
+}: {
+  canViewContactDetails: boolean;
+  canViewNotes: boolean;
+}) {
+  const fields = canViewContactDetails
+    ? CLIENT_SELECT
+    : CLIENT_SAFE_SELECT;
+
+  return canViewNotes ? `${fields}, notes` : fields;
+}
+
+function getBookingSelect({
+  canViewContactDetails,
+  canViewHealthNotes,
+}: {
+  canViewContactDetails: boolean;
+  canViewHealthNotes: boolean;
+}) {
+  if (canViewContactDetails && canViewHealthNotes) return BOOKING_SELECT;
+  if (canViewContactDetails) return BOOKING_CONTACT_SELECT;
+  if (canViewHealthNotes) return BOOKING_HEALTH_SELECT;
+  return BOOKING_SAFE_SELECT;
 }
 
 export default async function ClientDetailPage({
@@ -109,40 +203,100 @@ export default async function ClientDetailPage({
     redirect("/admin/login");
   }
 
-  const hasAllClientAccess = canManageAllClients(profile) || canViewAllClients(profile);
-  if (!hasAllClientAccess && !canViewAssignedClients(profile)) {
+  const pageAccess = getAdminPageAccess(profile, "clientDetail");
+  if (!pageAccess.access) {
     return <InsufficientPermissions />;
   }
 
   const adminClient = createSupabaseAdminClient();
-  const [{ data: client }, { data: bookings }] = await Promise.all([
-    adminClient
-      .from("clients")
-      .select(CLIENT_SELECT)
-      .eq("id", clientId)
-      .single<ClientRecord>(),
-    adminClient
-      .from("bookings")
-      .select(BOOKING_SELECT)
-      .eq("client_id", clientId)
-      .order("booking_date", { ascending: false })
-      .order("start_time", { ascending: false })
-      .returns<ClientBookingRecord[]>(),
-  ]);
+  const hasAllClientAccess =
+    pageAccess.dataScope === "all" || pageAccess.dataScope === "sensitive_hidden";
+  let hasAssignedClientAccess = false;
+  let clientAccess = getClientDataAccess(profile, {
+    hasAssignedBooking: hasAssignedClientAccess,
+  });
+  let bookingHistory: ClientBookingRecord[] = [];
+  let client: ClientRecord | null = null;
+
+  if (hasAllClientAccess) {
+    const clientSelect = getClientSelect({
+      canViewContactDetails: clientAccess.canViewContactDetails,
+      canViewNotes:
+        clientAccess.canViewHealthNotes ||
+        clientAccess.canCreateClientNote ||
+        clientAccess.canViewSensitiveNoteQueue,
+    });
+    const bookingSelect = getBookingSelect({
+      canViewContactDetails: clientAccess.canViewContactDetails,
+      canViewHealthNotes: clientAccess.canViewHealthNotes,
+    });
+    const [clientResult, bookingsResult] = await Promise.all([
+      adminClient
+        .from("clients")
+        .select(clientSelect)
+        .eq("id", clientId)
+        .single<ClientRecord>(),
+      adminClient
+        .from("bookings")
+        .select(bookingSelect)
+        .eq("client_id", clientId)
+        .order("booking_date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .returns<ClientBookingRecord[]>(),
+    ]);
+    client = clientResult.data;
+    bookingHistory = bookingsResult.data ?? [];
+  } else {
+    const { data: assignments } = await adminClient
+      .from("booking_assignments")
+      .select("booking_id")
+      .eq("assigned_staff_id", profile.id);
+    const assignedBookingIds = Array.from(
+      new Set((assignments ?? []).map((assignment) => assignment.booking_id))
+    );
+    if (assignedBookingIds.length > 0) {
+      clientAccess = getClientDataAccess(profile, { hasAssignedBooking: true });
+      const bookingSelect = getBookingSelect({
+        canViewContactDetails: clientAccess.canViewContactDetails,
+        canViewHealthNotes: clientAccess.canViewHealthNotes,
+      });
+      const { data: assignedBookings } = await adminClient
+        .from("bookings")
+        .select(bookingSelect)
+        .eq("client_id", clientId)
+        .in("id", assignedBookingIds)
+        .order("booking_date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .returns<ClientBookingRecord[]>();
+      bookingHistory = assignedBookings ?? [];
+      hasAssignedClientAccess = bookingHistory.length > 0;
+    } else {
+      hasAssignedClientAccess = false;
+    }
+
+    clientAccess = getClientDataAccess(profile, {
+      hasAssignedBooking: hasAssignedClientAccess,
+    });
+    if (clientAccess.canViewClient) {
+      const clientSelect = getClientSelect({
+        canViewContactDetails: clientAccess.canViewContactDetails,
+        canViewNotes:
+          clientAccess.canViewHealthNotes ||
+          clientAccess.canCreateClientNote ||
+          clientAccess.canViewSensitiveNoteQueue,
+      });
+      const { data: assignedClient } = await adminClient
+        .from("clients")
+        .select(clientSelect)
+        .eq("id", clientId)
+        .single<ClientRecord>();
+      client = assignedClient;
+    }
+  }
 
   if (!client) notFound();
 
-  const bookingHistory = bookings ?? [];
-  let hasAssignedClientAccess = false;
-  if (!hasAllClientAccess && bookingHistory.length > 0) {
-    const { count } = await adminClient
-      .from("booking_assignments")
-      .select("id", { count: "exact", head: true })
-      .in("booking_id", bookingHistory.map((booking) => booking.id))
-      .eq("assigned_staff_id", profile.id);
-    hasAssignedClientAccess = (count ?? 0) > 0;
-  }
-  if (!hasAllClientAccess && !hasAssignedClientAccess) {
+  if (!clientAccess.canViewClient) {
     return <InsufficientPermissions />;
   }
 
@@ -158,32 +312,31 @@ export default async function ClientDetailPage({
   );
   const lastVisit = pastBookings[0];
   const commonServices = getCommonServices(bookingHistory);
-  const canManagePrivacyOperations = profile.permissions.has(PERMISSIONS.MANAGE_PRIVACY_OPERATIONS);
-  const canViewSensitiveClientData =
-    canManageSensitiveClientNotes(profile) ||
-    (hasAssignedClientAccess && canViewAssignedHealthNotes(profile));
-
   let clientNotes: ClientNoteRecord[] = [];
   let privacyRequests: ClientPrivacyRequestRecord[] = [];
   let auditLogs: { id: string; action_type: string; created_at: string }[] = [];
 
-  if (canViewSensitiveClientData) {
-    const [clientNotesResult, privacyRequestsResult] = await Promise.all([
-      adminClient
-        .from("client_notes")
-        .select("id, note, is_sensitive, created_at, staff_profiles(name)")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false })
-        .returns<ClientNoteRecord[]>(),
-      adminClient
-        .from("client_privacy_requests")
-        .select("id, request_type, status, request_note, created_at")
-        .eq("client_id", clientId)
-        .order("created_at", { ascending: false })
-        .returns<ClientPrivacyRequestRecord[]>(),
-    ]);
+  if (clientAccess.canViewHealthNotes || clientAccess.canViewSensitiveNoteQueue) {
+    let clientNotesQuery = adminClient
+      .from("client_notes")
+      .select("id, note, is_sensitive, created_at, staff_profiles(name)")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+    if (!clientAccess.canViewSensitiveNoteQueue) {
+      clientNotesQuery = clientNotesQuery.eq("is_sensitive", false);
+    }
+    const clientNotesResult = await clientNotesQuery.returns<ClientNoteRecord[]>();
     clientNotes = clientNotesResult.data ?? [];
-    privacyRequests = privacyRequestsResult.data ?? [];
+  }
+
+  if (clientAccess.canManagePrivacyOperations) {
+    const { data: requests } = await adminClient
+      .from("client_privacy_requests")
+      .select("id, request_type, status, request_note, created_at")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false })
+      .returns<ClientPrivacyRequestRecord[]>();
+    privacyRequests = requests ?? [];
 
     const auditTargetIds = [
       clientId,
@@ -235,7 +388,10 @@ export default async function ClientDetailPage({
 
       <div className="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
         <aside className="grid content-start gap-4">
-          <ClientCard client={client} />
+          <ClientCard
+            client={client}
+            showContactDetails={clientAccess.canViewContactDetails}
+          />
           <StatsCard
             bookingCount={bookingHistory.length}
             upcomingCount={upcomingCount}
@@ -244,14 +400,27 @@ export default async function ClientDetailPage({
             lastVisit={lastVisit}
             commonServices={commonServices}
           />
-          {canViewSensitiveClientData ? (
+          {clientAccess.canViewHealthNotes ||
+          clientAccess.canCreateClientNote ||
+          clientAccess.canManagePrivacyOperations ? (
             <>
-              <HealthContextCard bookings={bookingHistory} />
-              <NotesCard client={client} notes={clientNotes} />
-              {canManagePrivacyOperations ? (
+              {clientAccess.canViewHealthNotes ? (
+                <HealthContextCard bookings={bookingHistory} />
+              ) : null}
+              {clientAccess.canViewHealthNotes || clientAccess.canCreateClientNote ? (
+                <NotesCard
+                  client={client}
+                  notes={clientNotes}
+                  canCreateNote={clientAccess.canCreateClientNote}
+                  isSensitiveNote={clientAccess.canCreateSensitiveNote}
+                />
+              ) : null}
+              {clientAccess.canManagePrivacyOperations ? (
                 <PrivacyCard requests={privacyRequests} clientId={client.id} />
               ) : null}
-              <AuditCard events={auditLogs} />
+              {clientAccess.canManagePrivacyOperations ? (
+                <AuditCard events={auditLogs} />
+              ) : null}
             </>
           ) : (
             <AdminPanel
@@ -291,8 +460,16 @@ export default async function ClientDetailPage({
             </div>
           ) : (
             <div className="grid gap-6">
-              <BookingGroup title="Upcoming bookings" bookings={upcomingBookings} />
-              <BookingGroup title="Past bookings" bookings={pastBookings} />
+              <BookingGroup
+                title="Upcoming bookings"
+                bookings={upcomingBookings}
+                showContactDetails={clientAccess.canViewContactDetails}
+              />
+              <BookingGroup
+                title="Past bookings"
+                bookings={pastBookings}
+                showContactDetails={clientAccess.canViewContactDetails}
+              />
             </div>
           )}
         </section>
@@ -301,25 +478,37 @@ export default async function ClientDetailPage({
   );
 }
 
-function ClientCard({ client }: { client: ClientRecord }) {
+function ClientCard({
+  client,
+  showContactDetails,
+}: {
+  client: ClientRecord;
+  showContactDetails: boolean;
+}) {
   return (
     <Card title="Contact" icon={<UserSquare className="size-5" />}>
       <div className="grid gap-3 text-sm text-[var(--rahma-muted)]">
-        <p className="flex items-center gap-2">
-          <Phone className="size-4" />
-          {client.phone ?? "No phone"}
-        </p>
-        <p className="flex items-center gap-2">
-          <Mail className="size-4" />
-          {client.email ?? "No email"}
-        </p>
-        <div className="flex items-start gap-2">
-          <MapPin className="mt-0.5 size-4" />
-          <div>
-            <p>{client.address ?? "No address"}</p>
-            <p>{client.postcode ?? "No postcode"}</p>
-          </div>
-        </div>
+        {showContactDetails ? (
+          <>
+            <p className="flex items-center gap-2">
+              <Phone className="size-4" />
+              {client.phone ?? "No phone"}
+            </p>
+            <p className="flex items-center gap-2">
+              <Mail className="size-4" />
+              {client.email ?? "No email"}
+            </p>
+            <div className="flex items-start gap-2">
+              <MapPin className="mt-0.5 size-4" />
+              <div>
+                <p>{client.address ?? "No address"}</p>
+                <p>{client.postcode ?? "No postcode"}</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p>Contact details require explicit permission.</p>
+        )}
         <Row label="Source">{formatLabel(client.client_source)}</Row>
         {client.source_detail ? <Row label="Source detail">{client.source_detail}</Row> : null}
       </div>
@@ -364,9 +553,13 @@ function StatsCard({
 function NotesCard({
   client,
   notes,
+  canCreateNote,
+  isSensitiveNote,
 }: {
   client: ClientRecord;
   notes: ClientNoteRecord[];
+  canCreateNote: boolean;
+  isSensitiveNote: boolean;
 }) {
   return (
     <Card title="Client Notes" icon={<StickyNote className="size-5" />}>
@@ -374,7 +567,9 @@ function NotesCard({
         {client.notes || "No notes."}
       </p>
       <div className="my-4 border-t border-[var(--rahma-border)]" />
-      <ClientNoteForm clientId={client.id} />
+      {canCreateNote ? (
+        <ClientNoteForm clientId={client.id} isSensitiveNote={isSensitiveNote} />
+      ) : null}
       <div className="mt-4 grid gap-3">
         {notes.map((note) => (
           <div key={note.id} className="rounded-lg bg-[var(--rahma-ivory)]/70 p-3">
@@ -476,9 +671,11 @@ function AuditCard({ events }: { events: { id: string; action_type: string; crea
 function BookingGroup({
   title,
   bookings,
+  showContactDetails,
 }: {
   title: string;
   bookings: ClientBookingRecord[];
+  showContactDetails: boolean;
 }) {
   return (
     <section>
@@ -492,7 +689,11 @@ function BookingGroup({
       ) : (
         <div className="grid gap-3">
           {bookings.map((booking) => (
-            <BookingHistoryCard key={booking.id} booking={booking} />
+            <BookingHistoryCard
+              key={booking.id}
+              booking={booking}
+              showContactDetails={showContactDetails}
+            />
           ))}
         </div>
       )}
@@ -500,7 +701,13 @@ function BookingGroup({
   );
 }
 
-function BookingHistoryCard({ booking }: { booking: ClientBookingRecord }) {
+function BookingHistoryCard({
+  booking,
+  showContactDetails,
+}: {
+  booking: ClientBookingRecord;
+  showContactDetails: boolean;
+}) {
   const serviceNames = Array.from(
     new Set(booking.booking_items.map((item) => item.service_name_snapshot))
   );
@@ -523,14 +730,18 @@ function BookingHistoryCard({ booking }: { booking: ClientBookingRecord }) {
           <p className="mt-1 text-sm text-[var(--rahma-muted)]">
             {serviceNames.join(", ") || "No service snapshots"}
           </p>
-          <p className="mt-2 text-xs text-[var(--rahma-muted)]">
-            Snapshot: {booking.contact_full_name ?? "No name"} -{" "}
-            {booking.contact_email ?? "No email"} - {booking.contact_phone ?? "No phone"}
-          </p>
-          <p className="mt-1 text-xs text-[var(--rahma-muted)]">
-            {booking.service_address_line1 ?? "No address"} {booking.service_city ?? ""}{" "}
-            {booking.service_postcode ?? ""}
-          </p>
+          {showContactDetails ? (
+            <>
+              <p className="mt-2 text-xs text-[var(--rahma-muted)]">
+                Snapshot: {booking.contact_full_name ?? "No name"} -{" "}
+                {booking.contact_email ?? "No email"} - {booking.contact_phone ?? "No phone"}
+              </p>
+              <p className="mt-1 text-xs text-[var(--rahma-muted)]">
+                {booking.service_address_line1 ?? "No address"} {booking.service_city ?? ""}{" "}
+                {booking.service_postcode ?? ""}
+              </p>
+            </>
+          ) : null}
         </div>
         <div className="text-right text-sm">
           <p className="font-semibold text-[var(--rahma-charcoal)]">
