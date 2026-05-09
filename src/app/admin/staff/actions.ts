@@ -4,8 +4,6 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   canAssignStaffRoles,
-  canManageStaffProfiles,
-  canViewStaff,
   getStaffProfile,
   requirePermission,
   PERMISSIONS,
@@ -16,6 +14,7 @@ import {
   sanitizeStaffProfileUpdate,
   type StaffProfileUpdate,
 } from "./profile-access";
+import { getStaffTeamAccess, getStaffTeamSelect, staffProfilesFrom } from "./team-access";
 
 type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
 type StaffGender = "male" | "female";
@@ -128,24 +127,60 @@ export async function getStaffProfiles() {
   const supabase = await createSupabaseServerClient();
   
   const profile = await getStaffProfile(supabase);
-  if (!profile || !profile.active || (!canViewStaff(profile) && !canManageStaffProfiles(profile))) {
+  const teamAccess = getStaffTeamAccess(profile);
+  if (!teamAccess.access) {
     return { error: "Insufficient permissions." };
   }
 
-  const { data, error } = await supabase
-    .from("staff_profiles")
-    .select(`
-      *,
-      roles (
-        id,
-        name,
-        display_label
-      )
-    `)
-    .order("name");
+  const adminClient = createSupabaseAdminClient();
+  const staffProfiles = staffProfilesFrom(adminClient);
+  const staffSelect = getStaffTeamSelect(teamAccess);
 
-  if (error) return { error: error.message };
-  return { data };
+  if (teamAccess.scope === "admin") {
+    const { data, error } = await staffProfiles
+      .select<unknown[]>(staffSelect)
+      .order("name");
+
+    if (error) return { error: error.message };
+    return { data };
+  }
+
+  if (teamAccess.scope === "assignment") {
+    const { data, error } = await staffProfiles
+      .select<unknown[]>(staffSelect)
+      .eq("active", true)
+      .eq("can_take_bookings", true)
+      .order("name");
+
+    if (error) return { error: error.message };
+    return { data };
+  }
+
+  if (teamAccess.scope === "same_gender_team") {
+    const [{ data: sameGenderStaff, error }, { data: ownProfile }] = await Promise.all([
+      staffProfiles
+        .select<unknown[]>(staffSelect)
+        .eq("active", true)
+        .eq("can_take_bookings", true)
+        .eq("gender", profile?.gender)
+        .order("name"),
+      staffProfiles
+        .select<unknown>(staffSelect)
+        .eq("id", profile?.id)
+        .maybeSingle(),
+    ]);
+
+    if (error) return { error: error.message };
+    const data = Array.from(
+      new Map(
+        ([...((sameGenderStaff ?? []) as unknown[]), ownProfile].filter(Boolean) as { id: string }[])
+          .map((member) => [member.id, member])
+      ).values()
+    );
+    return { data };
+  }
+
+  return { data: [] };
 }
 
 /**

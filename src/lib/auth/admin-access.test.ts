@@ -256,6 +256,11 @@ describe("admin access matrix", () => {
       actions: expect.objectContaining({ edit: true }),
     });
     expect(canAccessAdminPage(coordinator, "roles")).toBe(false);
+    expect(getAdminPageAccess(coordinator, "staff")).toMatchObject({
+      access: true,
+      dataScope: "team_visible",
+      actions: expect.objectContaining({ manageProfiles: false }),
+    });
     expect(canAccessAdminPage(coordinator, "settings")).toBe(false);
     expect(canAccessAdminPage(coordinator, "privacy")).toBe(false);
   });
@@ -290,7 +295,11 @@ describe("admin access matrix", () => {
       dataScope: "own",
     });
     expect(canAccessAdminPage(therapist, "roles")).toBe(false);
-    expect(canAccessAdminPage(therapist, "staff")).toBe(false);
+    expect(getAdminPageAccess(therapist, "staff")).toMatchObject({
+      access: true,
+      dataScope: "same_gender_team",
+      actions: expect.objectContaining({ manageProfiles: false }),
+    });
     expect(canAccessAdminPage(therapist, "audit")).toBe(false);
     expect(canAccessAdminPage(therapist, "privacy")).toBe(false);
   });

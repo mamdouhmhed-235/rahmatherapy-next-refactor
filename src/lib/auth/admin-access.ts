@@ -195,6 +195,15 @@ function staffScope(profile: ActiveStaffProfile): AdminDataScope {
   if (canManageStaffProfiles(profile) || canViewStaff(profile)) {
     return "all";
   }
+  if (canAssignBookings(profile)) {
+    return "team_visible";
+  }
+  if (
+    hasPermission(profile, PERMISSIONS.CLAIM_ASSIGNMENTS) ||
+    canViewAssignedBookings(profile)
+  ) {
+    return "same_gender_team";
+  }
   return "none";
 }
 

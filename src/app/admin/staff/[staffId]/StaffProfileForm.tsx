@@ -287,8 +287,10 @@ export function StaffProfileForm({
         </CardContent>
       </Card>
 
+      {canManageUsers || canAssignRoles ? (
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Status & Access */}
+        {canManageUsers ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -350,8 +352,10 @@ export function StaffProfileForm({
             </div>
           </CardContent>
         </Card>
+        ) : null}
 
         {/* Role & Personal */}
+        {canManageUsers || canAssignRoles ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -361,6 +365,7 @@ export function StaffProfileForm({
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Role Selection */}
+            {canAssignRoles ? (
             <div className="space-y-3">
               <p className="text-sm font-medium text-[var(--rahma-charcoal)]">Assigned Role</p>
               <div className="flex flex-wrap gap-2">
@@ -382,8 +387,10 @@ export function StaffProfileForm({
                 ))}
               </div>
             </div>
+            ) : null}
 
             {/* Gender Selection */}
+            {canManageUsers ? (
             <div className="space-y-3 border-t border-[var(--rahma-border)] pt-6">
               <p className="text-sm font-medium text-[var(--rahma-charcoal)]">Therapist Gender</p>
               <div className="flex gap-2">
@@ -409,9 +416,12 @@ export function StaffProfileForm({
                 Required for gender-matched treatment rules.
               </p>
             </div>
+            ) : null}
           </CardContent>
         </Card>
+        ) : null}
       </div>
+      ) : null}
     </div>
   );
 }
