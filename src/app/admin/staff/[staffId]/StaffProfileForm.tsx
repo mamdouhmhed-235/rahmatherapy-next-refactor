@@ -19,15 +19,22 @@ interface StaffProfile {
 interface Role {
   id: string;
   name: string;
+  display_label: string | null;
 }
 
 interface StaffProfileFormProps {
   staff: StaffProfile;
   roles: Role[];
   canManageUsers: boolean;
+  canAssignRoles: boolean;
 }
 
-export function StaffProfileForm({ staff, roles, canManageUsers }: StaffProfileFormProps) {
+export function StaffProfileForm({
+  staff,
+  roles,
+  canManageUsers,
+  canAssignRoles,
+}: StaffProfileFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -200,7 +207,7 @@ export function StaffProfileForm({ staff, roles, canManageUsers }: StaffProfileF
                   <button
                     key={role.id}
                     type="button"
-                    disabled={isPending || !canManageUsers}
+                    disabled={isPending || !canAssignRoles}
                     onClick={() => handleRoleChange(role.id)}
                     className={cn(
                       "rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider uppercase border transition-all",
@@ -209,7 +216,7 @@ export function StaffProfileForm({ staff, roles, canManageUsers }: StaffProfileF
                         : "bg-white text-[var(--rahma-muted)] border-[var(--rahma-border)] hover:border-[var(--rahma-green)] hover:text-[var(--rahma-green)]"
                     )}
                   >
-                    {role.name}
+                    {role.display_label ?? role.name}
                   </button>
                 ))}
               </div>

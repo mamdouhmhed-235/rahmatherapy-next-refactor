@@ -1,41 +1,64 @@
 import Link from "next/link";
 import {
   AlertTriangle,
-  ArrowRight,
   CalendarDays,
   ChevronRight,
-  Clock,
+  HeartPulse,
   Info,
   Mail,
-  Siren,
+  Plus,
+  PoundSterling,
+  ShieldAlert,
   UserRound,
   Users,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AdminStatusBadge } from "../components/admin-ui";
-import { AttentionBoardClient } from "./attention-group-client";
+import {
+  AdminDashboardPanel,
+  AdminEmptyState,
+  AdminHealthTile,
+  AdminIconBadge,
+  AdminPanelHeader,
+  AdminProgressBar,
+  AdminSeverityMeter,
+  AdminStackedBar,
+  AdminStatusBadge,
+} from "../components/admin-ui";
+import { AttentionReviewButton } from "./attention-group-client";
+import { DemandTrendClient } from "./demand-trend-client";
+import {
+  appointmentStyle,
+  safeDivide,
+  severityLabel,
+  severityMeterValue,
+  severityTone,
+} from "./dashboard-helpers";
 
-/* ═══════════════════════════════════════════════════════════════
-   Shared helpers & types
-   ═══════════════════════════════════════════════════════════════ */
+export type AttentionSeverity = "critical" | "warning" | "info";
 
-type CommandCardTone = "default" | "warning" | "critical" | "success" | "info";
+export interface AttentionGroup {
+  key: string;
+  label: string;
+  category: string;
+  categoryLabel: string;
+  priority: number;
+  count: number;
+  summary: string;
+  pageHref?: string | null;
+  href?: string | null;
+  actionLabel?: string;
+  items: React.ReactNode[];
+}
 
-const commandCardToneClasses: Record<CommandCardTone, string> = {
-  default: "border-[var(--rahma-border)] bg-white hover:border-[var(--rahma-green)]/35",
-  warning: "border-amber-200 bg-[#fffbeb] hover:border-amber-300",
-  critical: "border-rose-200 bg-[#fff1f2] hover:border-rose-300",
-  success: "border-emerald-200 bg-[#ecfdf5] hover:border-emerald-300",
-  info: "border-sky-200 bg-[#eff8ff] hover:border-sky-300",
-};
-
-const commandCardAccent: Record<CommandCardTone, string> = {
-  default: "text-[var(--rahma-green)]",
-  warning: "text-amber-600",
-  critical: "text-rose-600",
-  success: "text-emerald-600",
-  info: "text-sky-600",
-};
+export interface AttentionSummaryRow {
+  key: string;
+  label: string;
+  detail: string;
+  count: number;
+  severity: AttentionSeverity | "clear";
+  href?: string | null;
+}
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat("en-GB", {
@@ -44,87 +67,34 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   DashboardCommandCard
-   ═══════════════════════════════════════════════════════════════ */
-
-export function DashboardCommandCard({
-  title,
-  value,
-  subtitle,
-  icon: Icon,
-  tone = "default",
-  href,
-  actionLabel,
-}: {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: React.ElementType;
-  tone?: CommandCardTone;
-  href?: string;
-  actionLabel?: string;
-}) {
-  const content = (
-    <>
-      <div className="flex items-start justify-between gap-3">
-        <p className={cn("text-xs font-bold uppercase tracking-[0.06em] leading-4", commandCardAccent[tone])}>
-          {title}
-        </p>
-        <Icon className="mt-0.5 size-4 shrink-0 text-[var(--rahma-muted)]/50" aria-hidden="true" />
-      </div>
-      <p className="mt-3.5 text-[1.85rem] font-semibold leading-none tracking-[-0.02em] text-[var(--rahma-charcoal)]">
-        {value}
-      </p>
-      <p className="mt-2.5 text-[13px] leading-5 text-[var(--rahma-muted)]">{subtitle}</p>
-      {actionLabel ? (
-        <div className="mt-5 flex items-center gap-1.5 text-[13px] font-semibold text-[var(--rahma-green)] transition-colors group-hover/link:text-[var(--rahma-green-dark)]">
-          {actionLabel}
-          <ArrowRight className="size-3" aria-hidden="true" />
-        </div>
-      ) : null}
-    </>
-  );
-
-  const className = cn(
-    "group/link rounded-xl border px-5 py-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] transition-all duration-150 xl:min-h-[10.25rem]",
-    commandCardToneClasses[tone]
-  );
-
-  return href ? (
-    <Link href={href} className={cn(className, "block focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/40 focus-visible:ring-offset-2")} aria-label={`${title}: ${value}. ${actionLabel ?? ""}`}>
-      {content}
-    </Link>
-  ) : (
-    <article className={className} aria-label={`${title}: ${value}`}>
-      {content}
-    </article>
-  );
+function formatPercent(value: number) {
+  return `${Math.round(value)}%`;
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   AttentionItemCard
-   ═══════════════════════════════════════════════════════════════ */
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
 
-export type AttentionSeverity = "critical" | "warning" | "info";
-
-const severityLabel: Record<AttentionSeverity, string> = {
-  critical: "Critical",
-  warning: "Warning",
-  info: "Info",
-};
-
-const severityColor = {
-  critical: "danger",
-  warning: "warning",
-  info: "info",
-} as const;
-
-const severityAccent = {
-  critical: "border-l-rose-400",
-  warning: "border-l-amber-400",
-  info: "border-l-sky-400",
-} as const;
+function avatarColor(name: string) {
+  const colors = [
+    "bg-[#e8d5e0] text-[#8b4a6b]",
+    "bg-[#d5e0e8] text-[#4a6b8b]",
+    "bg-[#d5e8d8] text-[#4a8b5e]",
+    "bg-[#e8e0d5] text-[#8b6b4a]",
+    "bg-[#d8d5e8] text-[#5e4a8b]",
+    "bg-[#e8d8d5] text-[#8b4a4a]",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
 
 export function AttentionItemCard({
   title,
@@ -149,65 +119,61 @@ export function AttentionItemCard({
   secondaryHref?: string | null;
   secondaryLabel?: string;
 }) {
-  const tone = severityColor[severity];
+  const tone = severityTone(severity);
   const SeverityIcon = severity === "info" ? Info : AlertTriangle;
 
   return (
-    <div className={cn(
-      "dashboard-attention-item grid min-w-0 gap-3 rounded-lg border border-l-4 border-y-[var(--rahma-border)] border-r-[var(--rahma-border)] bg-white px-4 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.025)] transition-colors hover:bg-[var(--rahma-ivory)]/25",
-      severityAccent[severity]
-    )}>
-      {/* ── Header row ── */}
+    <div
+      className={cn(
+        "dashboard-attention-item grid min-w-0 gap-3 rounded-[var(--admin-radius-card)] border border-l-4 border-y-[var(--admin-border)] border-r-[var(--admin-border)] bg-white px-4 py-4 shadow-[var(--admin-shadow-subtle)]",
+        severity === "critical" && "border-l-[var(--admin-danger)]",
+        severity === "warning" && "border-l-[var(--admin-warning)]",
+        severity === "info" && "border-l-[var(--admin-info)]"
+      )}
+    >
       <div className="flex items-start gap-3">
-        <span className={cn(
-          "mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full",
-          severity === "critical" && "bg-rose-50 text-rose-600",
-          severity === "warning" && "bg-amber-50 text-amber-600",
-          severity === "info" && "bg-sky-50 text-sky-600"
-        )}>
-          <SeverityIcon className="size-3.5" aria-hidden="true" />
-        </span>
+        <AdminIconBadge icon={SeverityIcon} tone={tone} className="size-8" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <p className="text-[15px] font-semibold leading-snug text-[var(--rahma-charcoal)]">
+            <p className="text-[15px] font-semibold leading-snug text-[var(--admin-heading)]">
               {title}
             </p>
-            <AdminStatusBadge value={severityLabel[severity]} tone={tone} />
+            <AdminStatusBadge value={severityLabel(severity)} tone={tone} />
           </div>
-          <p className="dashboard-attention-detail mt-1.5 text-sm leading-5 text-[var(--rahma-muted)]">{detail}</p>
+          <p className="dashboard-attention-detail mt-1.5 text-sm leading-5 text-[var(--admin-text-muted)]">
+            {detail}
+          </p>
           {impact ? (
-            <p className="dashboard-attention-impact mt-1 text-[13px] leading-5 text-[var(--rahma-muted)]">
+            <p className="dashboard-attention-impact mt-1 text-[13px] leading-5 text-[var(--admin-text-muted)]">
               {impact}
             </p>
           ) : null}
         </div>
       </div>
 
-      {/* ── Meta row ── */}
-      <div className="dashboard-attention-meta flex flex-col items-stretch gap-2 sm:pl-10">
+      <div className="dashboard-attention-meta flex flex-col items-stretch gap-2 sm:pl-11">
         {date || ageLabel ? (
-          <span className="text-xs font-semibold uppercase tracking-[0.04em] text-[var(--rahma-muted)]">
-            {[date, ageLabel].filter(Boolean).join(" \u00b7 ")}
+          <span className="text-xs font-semibold uppercase tracking-[0.04em] text-[var(--admin-text-muted)]">
+            {[date, ageLabel].filter(Boolean).join(" - ")}
           </span>
-        ) : <span />}
+        ) : null}
         <div className="flex w-full flex-wrap items-center gap-2">
           {href ? (
             <Link
               href={href}
-              className="inline-flex min-h-9 min-w-[8.5rem] items-center justify-center rounded-lg bg-[var(--rahma-green)] px-3.5 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-              style={{ color: "#ffffff" }}
+              className="inline-flex min-h-9 min-w-[8.5rem] items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-3.5 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
             >
               {primaryLabel}
             </Link>
           ) : (
-            <span className="inline-flex min-h-9 items-center rounded-lg border border-[var(--rahma-border)] bg-white px-3.5 text-[13px] text-[var(--admin-restricted)]">
+            <span className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3.5 text-[13px] text-[var(--admin-restricted)]">
               Restricted
             </span>
           )}
           {secondaryHref ? (
             <Link
               href={secondaryHref}
-              className="inline-flex min-h-9 min-w-[7.5rem] items-center justify-center rounded-lg border border-[var(--rahma-border)] bg-white px-3.5 text-[13px] font-medium text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+              className="inline-flex min-h-9 min-w-[7.5rem] items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3.5 text-[13px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
             >
               {secondaryLabel ?? "Details"}
             </Link>
@@ -218,192 +184,645 @@ export function AttentionItemCard({
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   AttentionGroup — a named bucket of attention items
-   ═══════════════════════════════════════════════════════════════ */
-
-export interface AttentionGroup {
-  key: string;
-  label: string;
-  category: string;
-  categoryLabel: string;
-  priority: number;
-  count: number;
-  summary: string;
-  pageHref?: string | null;
-  href?: string | null;
-  actionLabel?: string;
-  items: React.ReactNode[];
-}
-
-/* Extracted to a client component for expand/collapse interactivity */
-
-/* ═══════════════════════════════════════════════════════════════
-   NeedsActionBoard
-   ═══════════════════════════════════════════════════════════════ */
-
-export function NeedsActionBoard({
-  groups,
-  title = "Needs attention",
-}: {
-  groups: AttentionGroup[];
-  title?: string;
-}) {
-  const total = groups.reduce((sum, g) => sum + g.count, 0);
-
-  return (
-    <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      {total === 0 ? (
-        <>
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
-                {title}
-              </h2>
-              <AdminStatusBadge value="All clear" tone="success" />
-            </div>
-          </div>
-        <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-10 text-center">
-          <p className="text-base font-semibold text-[var(--rahma-charcoal)]">
-            All clear
-          </p>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            No items need attention in the selected range.
-          </p>
-        </div>
-        </>
-      ) : (
-        <AttentionBoardClient title={title} groups={groups.filter((g) => g.count > 0)} />
-      )}
-    </section>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   TodayAgendaCard
-   ═══════════════════════════════════════════════════════════════ */
-
-export function TodayAgendaCard({
+export function TodayAtAGlanceCard({
   appointments,
   nextAppointment,
+  todayCount,
+  weekCount,
   permissionAccess,
+  readiness,
 }: {
-  appointments: { time: string; title: string; detail: string; status: string; href: string | null }[];
+  appointments: {
+    time: string;
+    endTime?: string;
+    title: string;
+    detail: string;
+    status: string;
+    href: string | null;
+  }[];
   nextAppointment?: { date: string; time: string; title: string } | null;
+  todayCount: number;
+  weekCount: number;
   permissionAccess?: { bookings: boolean; calendar: boolean };
+  readiness: {
+    confirmations: string;
+    staffCoverage: string;
+    paymentCollection: string;
+  };
 }) {
-  return (
-    <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
-          Today &amp; upcoming
-        </h2>
-        <AdminStatusBadge
-          value={`${appointments.length} today`}
-          tone={appointments.length > 0 ? "success" : "muted"}
-        />
-      </div>
+  const timeTicks = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"];
 
-      {appointments.length > 0 ? (
-        <div className="grid gap-2">
-          {appointments.slice(0, 2).map((apt) => {
-            const content = (
-              <>
-              <span className="text-sm font-semibold text-[var(--rahma-charcoal)]">{apt.time}</span>
-              <span className="min-w-0 break-words text-sm leading-5 text-[var(--rahma-muted)]">
-                {apt.title} {"\u00b7"} {apt.detail}
-              </span>
-              <AdminStatusBadge
-                value={apt.status}
-                tone={apt.status === "fully_assigned" ? "success" : "warning"}
-              />
-              </>
-            );
-            const className = "grid gap-2 rounded-lg border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-4 py-3 transition-colors sm:grid-cols-[auto_1fr_auto] sm:items-center";
-            return apt.href ? (
-              <Link
-                key={apt.time + apt.title}
-                href={apt.href}
-                className={cn(className, "outline-none hover:border-[var(--rahma-green)]/35 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30")}
-              >
-                {content}
-              </Link>
-            ) : (
-              <div key={apt.time + apt.title} className={className}>
-                {content}
-              </div>
-            );
-          })}
-          {appointments.length > 2 ? (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--rahma-border)] bg-white px-4 py-3">
-              <span className="text-xs font-medium text-[var(--rahma-muted)]">
-                {appointments.length - 2} more appointment{appointments.length - 2 === 1 ? "" : "s"} today
-              </span>
-              {permissionAccess?.bookings ? (
-                <Link
-                  href="/admin/bookings"
-                  className="inline-flex min-h-8 items-center rounded-lg bg-[var(--rahma-green)] px-3 text-xs font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-                  style={{ color: "#ffffff" }}
-                >
-                  View all
-                </Link>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-4 text-center">
-          <div className="min-w-0">
-            <p className="text-base font-semibold text-[var(--rahma-charcoal)]">
-              No appointments today
-            </p>
-            {nextAppointment ? (
-              <>
-                <p className="mt-1.5 text-sm leading-5 text-[var(--rahma-muted)]">
-                  Next upcoming:{" "}
-                  <span className="font-medium text-[var(--rahma-charcoal)]">
-                    {nextAppointment.date} at {nextAppointment.time}
-                  </span>
-                </p>
-                <p className="text-sm text-[var(--rahma-muted)]">
-                  {nextAppointment.title}
-                </p>
-              </>
-            ) : (
-              <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-                No upcoming bookings in this range.
-              </p>
-            )}
+  return (
+    <AdminDashboardPanel className="min-h-[20rem]">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <AdminPanelHeader icon={CalendarDays} title="Today at a glance" />
+        <div className="flex flex-wrap items-start justify-end gap-4">
+          <div className="grid grid-cols-2 divide-x divide-[var(--admin-border)] text-center">
+            <MetricMini value={todayCount.toString()} label="today" />
+            <MetricMini value={weekCount.toString()} label="this week" />
           </div>
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+          <div className="flex flex-wrap gap-2">
             {permissionAccess?.calendar ? (
-              <Link
-                href="/admin/calendar"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[var(--rahma-border)] bg-white px-4 text-[13px] font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-              >
-                <CalendarDays className="size-3.5" />
+              <Link className="admin-action-outline" href="/admin/calendar">
                 View calendar
               </Link>
             ) : null}
             {permissionAccess?.bookings ? (
-              <Link
-                href="/admin/bookings"
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[var(--rahma-green)] px-4 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-                style={{ color: "#ffffff" }}
-              >
+              <Link className="admin-action-primary" href="/admin/bookings">
                 View bookings
               </Link>
             ) : null}
           </div>
         </div>
-      )}
-    </section>
+      </div>
+
+      <div className="mt-6">
+        <div className="hidden sm:block">
+          <div className="grid grid-cols-7 text-center text-sm font-semibold text-[var(--admin-text-muted)]">
+            {timeTicks.map((tick) => (
+              <span key={tick}>{tick}</span>
+            ))}
+          </div>
+          <div className="relative mt-2 h-[8rem] overflow-visible">
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(90deg, transparent 0, transparent calc(8.333% - 1px), var(--admin-border) calc(8.333% - 1px), var(--admin-border) 8.333%)",
+                opacity: 0.75,
+              }}
+            />
+            {appointments.length > 0 ? (
+              appointments.map((appointment) => {
+                const content = (
+                  <span className="block truncate rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-success-bg)] px-3 py-2 text-xs font-semibold text-[var(--admin-primary)] shadow-[var(--admin-shadow-subtle)]">
+                    {appointment.time} {appointment.title}
+                  </span>
+                );
+                const style = appointmentStyle(appointment.time, appointment.endTime);
+                return appointment.href ? (
+                  <Link
+                    key={`${appointment.time}-${appointment.title}`}
+                    href={appointment.href}
+                    className="absolute top-8 min-w-[7rem] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                    style={style}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div
+                    key={`${appointment.time}-${appointment.title}`}
+                    className="absolute top-8 min-w-[7rem]"
+                    style={style}
+                  >
+                    {content}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="absolute inset-x-0 top-8">
+                <AdminEmptyState
+                  icon={CalendarDays}
+                  title="No appointments today"
+                  message={
+                    nextAppointment
+                      ? `Next booking: ${nextAppointment.date} at ${nextAppointment.time}`
+                      : "Enjoy a quiet day. Great time for admin and planning."
+                  }
+                  tone="muted"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:hidden">
+          {appointments.length > 0 ? (
+            appointments.map((appointment) => (
+              <AppointmentMobileRow key={`${appointment.time}-${appointment.title}`} appointment={appointment} />
+            ))
+          ) : (
+            <AdminEmptyState
+              icon={CalendarDays}
+              title="No appointments today"
+              message={
+                nextAppointment
+                  ? `Next booking: ${nextAppointment.date} at ${nextAppointment.time}`
+                  : "Enjoy a quiet day. Great time for admin and planning."
+              }
+              tone="muted"
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
+        <p className="mb-3 text-sm font-semibold text-[var(--admin-heading)]">
+          Day readiness
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <ReadinessItem icon={Mail} label="Client confirmations" value={readiness.confirmations} />
+          <ReadinessItem icon={Users} label="Staff coverage" value={readiness.staffCoverage} />
+          <ReadinessItem icon={PoundSterling} label="Payment collection" value={readiness.paymentCollection} />
+        </div>
+      </div>
+    </AdminDashboardPanel>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   OperationsHealthCard
-   ═══════════════════════════════════════════════════════════════ */
+export const TodayAgendaCard = TodayAtAGlanceCard;
+
+function MetricMini({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="min-w-16 px-3">
+      <p className="text-2xl font-semibold leading-none text-[var(--admin-heading)]">{value}</p>
+      <p className="mt-1 text-xs text-[var(--admin-text-muted)]">{label}</p>
+    </div>
+  );
+}
+
+function AppointmentMobileRow({
+  appointment,
+}: {
+  appointment: { time: string; title: string; detail: string; status: string; href: string | null };
+}) {
+  const content = (
+    <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-[var(--admin-heading)]">{appointment.time}</span>
+        <AdminStatusBadge
+          value={appointment.status}
+          tone={appointment.status === "fully_assigned" ? "success" : "warning"}
+        />
+      </div>
+      <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+        {appointment.title} - {appointment.detail}
+      </p>
+    </div>
+  );
+
+  return appointment.href ? (
+    <Link href={appointment.href}>{content}</Link>
+  ) : (
+    content
+  );
+}
+
+function ReadinessItem({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: React.ElementType;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <AdminIconBadge icon={Icon} tone="default" className="size-9" />
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-[var(--admin-heading)]">{label}</p>
+        <p className="text-sm text-[var(--admin-text-muted)]">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+export function UrgentAttentionPanel({
+  rows,
+  groups,
+}: {
+  rows: AttentionSummaryRow[];
+  groups: AttentionGroup[];
+}) {
+  const visibleRows = rows.slice(0, 5);
+  const activeGroups = groups.filter((group) => group.count > 0);
+
+  return (
+    <AdminDashboardPanel className="min-h-[20rem]">
+      <AdminPanelHeader
+        icon={ShieldAlert}
+        title="Urgent attention"
+        description="High priority signals that may need your action."
+        tone={visibleRows.some((row) => row.severity === "critical") ? "danger" : "warning"}
+      />
+
+      <div className="mt-5 grid gap-2">
+        {visibleRows.map((row) => {
+          const tone = severityTone(row.severity);
+          const content = (
+            <div
+              className={cn(
+                "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3 shadow-[var(--admin-shadow-subtle)]",
+                row.severity === "critical" && "border-l-4 border-l-[var(--admin-danger)]",
+                row.severity === "warning" && "border-l-4 border-l-[var(--admin-warning)]",
+                row.severity === "clear" && "border-l-4 border-l-[var(--admin-success)]"
+              )}
+            >
+              <AdminIconBadge
+                icon={row.severity === "critical" ? Mail : row.key.includes("staff") ? UserRound : Wrench}
+                tone={tone}
+                className="size-9"
+              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">
+                  {row.label}
+                </p>
+                <p className="truncate text-sm text-[var(--admin-text-muted)]">{row.detail}</p>
+              </div>
+              <div className="grid justify-items-end gap-1">
+                <p className="text-2xl font-semibold leading-none text-[var(--admin-heading)]">
+                  {row.count}
+                </p>
+                <span
+                  className={cn(
+                    "text-xs font-semibold",
+                    row.severity === "critical" && "text-[var(--admin-danger)]",
+                    row.severity === "warning" && "text-[var(--admin-warning)]",
+                    row.severity === "clear" && "text-[var(--admin-success)]"
+                  )}
+                >
+                  {severityLabel(row.severity)}
+                </span>
+                <AdminSeverityMeter
+                  value={severityMeterValue(row)}
+                  tone={tone}
+                  label={`${row.label}: ${severityLabel(row.severity)}`}
+                />
+              </div>
+            </div>
+          );
+
+          return row.href ? (
+            <Link key={row.key} href={row.href} className="outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35">
+              {content}
+            </Link>
+          ) : (
+            <div key={row.key}>{content}</div>
+          );
+        })}
+      </div>
+
+      <div className="mt-5">
+        <AttentionReviewButton groups={activeGroups.length > 0 ? activeGroups : groups} />
+      </div>
+    </AdminDashboardPanel>
+  );
+}
+
+export function StaffCapacityCard({
+  genderCapacity,
+  staffWorkload,
+  permissionAccess,
+}: {
+  genderCapacity: {
+    gender: string;
+    label: string;
+    activeTherapists: number;
+    totalAssignments: number;
+    unassignedAssignments: number;
+  }[];
+  staffWorkload: { staffName: string; assignments: number; completed: number }[];
+  permissionAccess?: { staff: boolean; bookings?: boolean };
+}) {
+  const totalUnassigned = genderCapacity.reduce((sum, row) => sum + row.unassignedAssignments, 0);
+  const totalAssignments = genderCapacity.reduce((sum, row) => sum + row.totalAssignments, 0);
+  const totalSlots = totalAssignments + totalUnassigned;
+  const overallUtilisation = totalSlots > 0 ? safeDivide(totalAssignments, totalSlots) : 0;
+  const openSlots = totalUnassigned;
+
+  return (
+    <AdminDashboardPanel>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <AdminIconBadge icon={Users} tone="default" />
+          <div>
+            <h2 className="admin-display text-[1.35rem] font-bold leading-7 text-[var(--admin-heading)]">
+              Staff Capacity
+            </h2>
+            <p className="text-sm text-[var(--admin-text-muted)]">
+              {staffWorkload.length} active · Today
+            </p>
+          </div>
+        </div>
+        {permissionAccess?.staff && (
+          <Link
+            href="/admin/staff"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--admin-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+          >
+            Manage
+            <ChevronRight className="size-4" />
+          </Link>
+        )}
+      </div>
+
+      {/* Overall utilisation */}
+      {genderCapacity.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between gap-3 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-muted)]">
+              Overall utilisation
+            </span>
+            <span className="text-sm font-bold text-[var(--admin-heading)]">
+              {totalAssignments}/{totalSlots} slots
+            </span>
+          </div>
+          <AdminProgressBar
+            value={overallUtilisation}
+            label="Overall utilisation"
+            tone={totalUnassigned > 0 ? "warning" : "success"}
+          />
+          <div className="flex items-center justify-between mt-1">
+            <span className="text-xs font-semibold text-[var(--admin-success)]">
+              {formatPercent(overallUtilisation)} utilised
+            </span>
+            <span className="text-xs text-[var(--admin-text-muted)]">
+              {openSlots} slots open
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Staff list */}
+      <div className="mt-4 grid gap-3">
+        {staffWorkload.length > 0 ? (
+          staffWorkload.map((staff) => {
+            const initials = getInitials(staff.staffName);
+            const colorClass = avatarColor(staff.staffName);
+            const workloadPercent = staff.assignments > 0
+              ? safeDivide(staff.completed, staff.assignments)
+              : 0;
+            const isNearFull = workloadPercent >= 75 && workloadPercent < 100;
+            const isOverloaded = workloadPercent >= 100;
+            const statusText = isOverloaded
+              ? "Near full"
+              : isNearFull
+                ? "Near full"
+                : workloadPercent > 0
+                  ? "Active"
+                  : "Staff gap";
+            const statusTone = isOverloaded || isNearFull
+              ? "warning"
+              : workloadPercent > 0
+                ? "success"
+                : "danger";
+
+            return (
+              <div
+                key={staff.staffName}
+                className="flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-3"
+              >
+                <div
+                  className={cn(
+                    "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                    colorClass
+                  )}
+                >
+                  {initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-[var(--admin-heading)] truncate">
+                      {staff.staffName}
+                    </p>
+                    <AdminStatusBadge
+                      value={statusText}
+                      tone={statusTone}
+                      className="shrink-0 text-[10px]"
+                    />
+                  </div>
+                  <AdminProgressBar
+                    value={workloadPercent}
+                    label={`${staff.staffName} workload`}
+                    tone={statusTone}
+                    className="mt-2"
+                  />
+                </div>
+                <p className="shrink-0 text-sm font-semibold text-[var(--admin-text-muted)]">
+                  {staff.completed}/{staff.assignments} ({formatPercent(workloadPercent)})
+                </p>
+              </div>
+            );
+          })
+        ) : (
+          <AdminEmptyState
+            icon={Users}
+            title="No staff assigned"
+            message="No appointments scheduled in this period."
+            tone="muted"
+          />
+        )}
+      </div>
+
+      {/* Footer action */}
+      {permissionAccess?.staff && (
+        <div className="mt-4">
+          <Link
+            href="/admin/staff"
+            className="flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/60 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+          >
+            <Plus className="size-4" />
+            Add or manage staff
+          </Link>
+        </div>
+      )}
+    </AdminDashboardPanel>
+  );
+}
+
+export function PaymentHealthCard({
+  summary,
+  unpaidCount,
+  unpaidCompletedCount,
+  revenueAllowed,
+  canReviewBookings,
+  canViewReports,
+}: {
+  summary: {
+    bookedRevenue: number;
+    collectedRevenue: number;
+    outstandingRevenue: number;
+  };
+  unpaidCount: number;
+  unpaidCompletedCount?: number;
+  revenueAllowed: boolean;
+  canReviewBookings?: boolean;
+  canViewReports?: boolean;
+}) {
+  const total = Math.max(summary.bookedRevenue, summary.collectedRevenue + summary.outstandingRevenue);
+  const hasActivity = total > 0 || unpaidCount > 0;
+  const actionHref =
+    revenueAllowed && canViewReports
+      ? "/admin/reports"
+      : canReviewBookings && unpaidCount > 0
+        ? "/admin/bookings?payment_status=unpaid"
+        : null;
+  const collectedDegrees = total > 0 ? (summary.collectedRevenue / total) * 360 : 0;
+  const collectionRate = total > 0 ? safeDivide(summary.collectedRevenue, total) : 0;
+
+  return (
+    <AdminDashboardPanel>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <AdminIconBadge icon={PoundSterling} tone="default" />
+          <div>
+            <h2 className="admin-display text-[1.35rem] font-bold leading-7 text-[var(--admin-heading)]">
+              Payment Health
+            </h2>
+            <p className="text-sm text-[var(--admin-text-muted)]">This week</p>
+          </div>
+        </div>
+        {actionHref && (
+          <Link
+            href={actionHref}
+            className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--admin-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+          >
+            Details
+            <ChevronRight className="size-4" />
+          </Link>
+        )}
+      </div>
+
+      {revenueAllowed ? (
+        total > 0 ? (
+          <div className="mt-4">
+            {/* Row-based payment bars */}
+            <div className="grid gap-3">
+              {/* Booked */}
+              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2.5 rounded-full bg-[#5b8dd9]" />
+                    <span className="text-sm font-semibold text-[var(--admin-heading)]">Booked</span>
+                  </div>
+                  <span className="text-lg font-bold text-[var(--admin-heading)]">
+                    {formatMoney(summary.bookedRevenue)}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--admin-progress-neutral)]">
+                  <span className="block h-full rounded-full bg-[#5b8dd9]" style={{ width: "100%" }} />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between">
+                  <span className="text-xs text-[var(--admin-text-muted)]">Total value of bookings</span>
+                  <span className="text-xs font-medium text-[var(--admin-success)]">+12% vs last week</span>
+                </div>
+              </div>
+
+              {/* Collected */}
+              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2.5 rounded-full bg-[var(--admin-success)]" />
+                    <span className="text-sm font-semibold text-[var(--admin-heading)]">Collected</span>
+                  </div>
+                  <span className="text-lg font-bold text-[var(--admin-heading)]">
+                    {formatMoney(summary.collectedRevenue)}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--admin-progress-neutral)]">
+                  <span
+                    className="block h-full rounded-full bg-[var(--admin-success)]"
+                    style={{ width: `${collectionRate}%` }}
+                  />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between">
+                  <span className="text-xs text-[var(--admin-text-muted)]">Payments received</span>
+                  <span className="text-xs font-medium text-[var(--admin-success)]">
+                    {formatPercent(collectionRate)} collection rate
+                  </span>
+                </div>
+              </div>
+
+              {/* Outstanding */}
+              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2.5 rounded-full bg-[var(--admin-warning)]" />
+                    <span className="text-sm font-semibold text-[var(--admin-heading)]">Outstanding</span>
+                  </div>
+                  <span className="text-lg font-bold text-[var(--admin-heading)]">
+                    {formatMoney(summary.outstandingRevenue)}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--admin-progress-neutral)]">
+                  <span
+                    className="block h-full rounded-full bg-[var(--admin-warning)]"
+                    style={{ width: `${total > 0 ? (summary.outstandingRevenue / total) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="mt-1.5 flex items-center justify-between">
+                  <span className="text-xs text-[var(--admin-text-muted)]">Awaiting collection</span>
+                  {summary.outstandingRevenue > 0 && (
+                    <span className="text-xs font-medium text-[var(--admin-warning)]">Requires follow-up</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Pie chart summary */}
+            <div className="mt-4 flex items-center justify-center gap-6 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-4">
+              <div
+                className="grid size-24 place-items-center rounded-full"
+                role="img"
+                aria-label={`Total payment value ${formatMoney(total)}`}
+                style={{
+                  background: `conic-gradient(var(--admin-success) ${collectedDegrees}deg, var(--admin-progress-neutral) 0deg)`,
+                }}
+              >
+                <div className="grid size-16 place-items-center rounded-full bg-[var(--admin-panel)] text-center">
+                  <span className="text-base font-bold leading-none text-[var(--admin-heading)]">
+                    {formatMoney(total)}
+                  </span>
+                  <span className="text-[10px] text-[var(--admin-text-muted)]">Total</span>
+                </div>
+              </div>
+              <div className="grid gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-[#5b8dd9]" />
+                  <span className="text-xs text-[var(--admin-text-muted)]">Booked</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-[var(--admin-success)]" />
+                  <span className="text-xs text-[var(--admin-text-muted)]">Collected</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="size-2 rounded-full bg-[var(--admin-warning)]" />
+                  <span className="text-xs text-[var(--admin-text-muted)]">Outstanding</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <p className="mt-4 flex items-center gap-2 text-xs text-[var(--admin-text-muted)]">
+              <Info className="size-3.5" aria-hidden="true" />
+              {hasActivity
+                ? `${unpaidCount} unpaid booking${unpaidCount === 1 ? "" : "s"}${unpaidCompletedCount ? `, ${unpaidCompletedCount} completed` : ""}.`
+                : "No financial activity in this period."}
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4">
+            <AdminEmptyState
+              icon={PoundSterling}
+              title="No financial activity"
+              message="Bookings and payments will appear here once there is activity in the selected range."
+              tone="muted"
+            />
+          </div>
+        )
+      ) : (
+        <div className="mt-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-6 text-center">
+          <p className="text-sm font-semibold text-[var(--admin-heading)]">Revenue hidden</p>
+          <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+            Payment counts stay visible, but money values need reporting permission.
+          </p>
+        </div>
+      )}
+    </AdminDashboardPanel>
+  );
+}
 
 export function OperationsHealthCard({
   failedEmails,
@@ -418,348 +837,88 @@ export function OperationsHealthCard({
   availabilityGaps: number;
   permissionAccess?: { emails: boolean; operations: boolean; staff: boolean; enquiries: boolean };
 }) {
-  const signals = [
-    {
-      label: "Failed emails",
-      value: failedEmails,
-      href: permissionAccess?.emails ? "/admin/emails" : null,
-      icon: Mail,
-      warn: failedEmails > 0,
-    },
-    {
-      label: "Open operations",
-      value: openOperations,
-      href: permissionAccess?.operations ? "/admin/operations" : null,
-      icon: Siren,
-      warn: openOperations > 0,
-    },
-    {
-      label: "New enquiries",
-      value: openEnquiries,
-      href: permissionAccess?.enquiries ? "/admin/enquiries" : null,
-      icon: UserRound,
-      warn: false,
-    },
-    {
-      label: "Staff gaps",
-      value: availabilityGaps,
-      href: permissionAccess?.staff ? "/admin/staff" : null,
-      icon: Clock,
-      warn: availabilityGaps > 0,
-    },
-  ];
+  const overall = failedEmails > 0 || openOperations > 0 || availabilityGaps > 0
+    ? "Needs attention"
+    : "All clear";
+  const warningDots = Math.min(4, [failedEmails, openOperations, availabilityGaps].filter(Boolean).length + (failedEmails > 0 ? 1 : 0));
 
   return (
-    <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
-          Operations health
-        </h2>
-        {permissionAccess?.operations ? (
-          <Link
-            href="/admin/operations"
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-          >
-            View details
-            <ChevronRight className="size-3" aria-hidden="true" />
-          </Link>
-        ) : null}
-      </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-        {signals.map((signal) => {
-          const content = (
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <signal.icon
-                  className={cn(
-                    "size-4 shrink-0",
-                    signal.warn ? "text-amber-500" : "text-[var(--rahma-muted)]"
-                  )}
-                />
-                <span className="min-w-0 text-sm text-[var(--rahma-charcoal)]">{signal.label}</span>
-              </div>
-              <AdminStatusBadge
-                value={signal.value.toString()}
-                tone={signal.warn ? "warning" : "muted"}
-              />
-            </div>
-          );
-
-          return signal.href ? (
-            <Link
-              key={signal.label}
-              href={signal.href}
-              className="rounded-lg border border-transparent bg-[var(--admin-surface-muted)] px-4 py-3.5 transition-colors hover:border-[var(--rahma-green)]/20 hover:bg-[var(--rahma-ivory)]/70"
-            >
-              {content}
+    <AdminDashboardPanel>
+      <AdminPanelHeader
+        icon={HeartPulse}
+        title="Operational health"
+        action={
+          permissionAccess?.operations ? (
+            <Link className="admin-link-action" href="/admin/operations">
+              View details
             </Link>
-          ) : (
-            <div
-              key={signal.label}
-              className="rounded-lg bg-[var(--admin-surface-muted)] px-4 py-3.5"
-            >
-              {content}
-            </div>
-          );
-        })}
+          ) : null
+        }
+      />
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        <AdminHealthTile
+          icon={Mail}
+          label="Emails"
+          value={failedEmails}
+          status={failedEmails > 0 ? "Critical" : "All clear"}
+          tone={failedEmails > 0 ? "danger" : "success"}
+          href={permissionAccess?.emails ? "/admin/emails" : null}
+        />
+        <AdminHealthTile
+          icon={Wrench}
+          label="Operations"
+          value={openOperations}
+          status={openOperations > 0 ? "Warning" : "All clear"}
+          tone={openOperations > 0 ? "warning" : "success"}
+          href={permissionAccess?.operations ? "/admin/operations" : null}
+        />
+        <AdminHealthTile
+          icon={UserRound}
+          label="Enquiries"
+          value={openEnquiries}
+          status={openEnquiries > 0 ? "Open" : "All clear"}
+          tone={openEnquiries > 0 ? "info" : "success"}
+          href={permissionAccess?.enquiries ? "/admin/enquiries" : null}
+        />
+        <AdminHealthTile
+          icon={Users}
+          label="Staff gaps"
+          value={availabilityGaps}
+          status={availabilityGaps > 0 ? "Warning" : "All clear"}
+          tone={availabilityGaps > 0 ? "warning" : "success"}
+          href={permissionAccess?.staff ? "/admin/staff" : null}
+        />
       </div>
-    </section>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   StaffCapacityCard
-   ═══════════════════════════════════════════════════════════════ */
-
-export function StaffCapacityCard({
-  genderCapacity,
-  staffWorkload,
-  permissionAccess,
-}: {
-  genderCapacity: { gender: string; label: string; activeTherapists: number; totalAssignments: number; unassignedAssignments: number }[];
-  staffWorkload: { staffName: string; assignments: number; completed: number }[];
-  permissionAccess?: { staff: boolean; bookings?: boolean };
-}) {
-  const totalUnassigned = genderCapacity.reduce((sum, row) => sum + row.unassignedAssignments, 0);
-  const capacityActionHref = permissionAccess?.bookings && totalUnassigned > 0
-    ? "/admin/bookings?view=unassigned"
-    : permissionAccess?.staff
-      ? "/admin/staff"
-      : null;
-  const capacityActionLabel = totalUnassigned > 0 && permissionAccess?.bookings
-    ? "Assign bookings"
-    : "Manage staff";
-
-  return (
-    <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
-          Staff capacity
-        </h2>
-        {capacityActionHref ? (
-          <Link
-            href={capacityActionHref}
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[var(--rahma-green)] outline-none hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 transition-colors"
-          >
-            {capacityActionLabel}
-            <ChevronRight className="size-3" aria-hidden="true" />
-          </Link>
-        ) : null}
+      <div className="mt-3 flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
+        <span className="inline-flex gap-1.5" aria-hidden="true">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <span
+              key={index}
+              className={cn(
+                "size-2 rounded-full",
+                index < warningDots ? "bg-[var(--admin-warning)]" : "bg-[var(--admin-progress-neutral)]"
+              )}
+            />
+          ))}
+        </span>
+        <p className="text-sm font-semibold text-[var(--admin-body)]">
+          Overall status:{" "}
+          <span className={overall === "Needs attention" ? "text-[var(--admin-warning)]" : "text-[var(--admin-success)]"}>
+            {overall}
+          </span>
+        </p>
       </div>
-
-      {genderCapacity.length > 0 ? (
-        <div className="mb-4 grid gap-2">
-          {genderCapacity.map((gc) => {
-            const therapistType = gc.label.toLowerCase().replace(/\s*therapists?$/, "");
-
-            return (
-              <div
-                key={gc.gender}
-                className="rounded-lg bg-[var(--admin-surface-muted)] px-4 py-3.5"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Users className="size-3.5 shrink-0 text-[var(--rahma-green)]" aria-hidden="true" />
-                    <div className="min-w-0">
-                      <p className="text-[15px] font-semibold leading-5 text-[var(--rahma-charcoal)]">{gc.label}</p>
-                      <p className="text-sm leading-5 text-[var(--rahma-muted)]">
-                        {gc.activeTherapists} active therapist{gc.activeTherapists === 1 ? "" : "s"}
-                      </p>
-                    </div>
-                  </div>
-                  <AdminStatusBadge
-                    value={gc.unassignedAssignments > 0 ? "Needs therapist" : "Covered"}
-                    tone={gc.unassignedAssignments > 0 ? "warning" : "success"}
-                  />
-                </div>
-                <p className="mt-2 text-sm leading-5 text-[var(--rahma-muted)]">
-                  {gc.totalAssignments} assigned work item{gc.totalAssignments === 1 ? "" : "s"} in range.
-                </p>
-                {gc.unassignedAssignments > 0 ? (
-                  <p className="mt-1 text-sm font-medium leading-5 text-amber-700">
-                    {gc.unassignedAssignments} {therapistType} assignment{gc.unassignedAssignments === 1 ? "" : "s"} still need a therapist.
-                  </p>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="mb-4 rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-5 text-center">
-          <p className="text-sm text-[var(--rahma-muted)]">No capacity data in this range.</p>
-        </div>
-      )}
-
-      {staffWorkload.length > 0 ? (
-        <div>
-          <p className="mb-2 text-xs font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)]">
-            Workload
-          </p>
-          <div className="grid gap-1">
-            {staffWorkload.slice(0, 5).map((row) => (
-              <div
-                key={row.staffName}
-                className="flex items-center justify-between gap-3 rounded-md px-3 py-2"
-              >
-                <span className="text-sm font-medium text-[var(--rahma-charcoal)]">{row.staffName}</span>
-                <span className="text-sm text-[var(--rahma-muted)]">
-                  {row.assignments} assigned &middot; {row.completed} done
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-lg border border-dashed border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/50 px-4 py-5 text-center">
-          <p className="text-base font-semibold text-[var(--rahma-charcoal)]">
-            No assigned work in this range.
-          </p>
-          {totalUnassigned > 0 ? (
-            <p className="mt-1 text-sm text-amber-700">
-              {totalUnassigned} assignment{totalUnassigned === 1 ? "" : "s"} still need a therapist.
-            </p>
-          ) : (
-            <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-              No staff workload appears for the selected scope.
-            </p>
-          )}
-          {capacityActionHref ? (
-            <Link
-              href={capacityActionHref}
-              className="mt-3 inline-flex min-h-9 items-center justify-center rounded-lg border border-[var(--rahma-border)] bg-white px-3.5 text-[13px] font-semibold text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-            >
-              {capacityActionLabel}
-            </Link>
-          ) : null}
-        </div>
-      )}
-    </section>
+    </AdminDashboardPanel>
   );
 }
-
-/* ═══════════════════════════════════════════════════════════════
-   PaymentHealthCard
-   ═══════════════════════════════════════════════════════════════ */
-
-export function PaymentHealthCard({
-  summary,
-  unpaidCount,
-  unpaidCompletedCount,
-  revenueAllowed,
-  canReviewBookings,
-}: {
-  summary: {
-    bookedRevenue: number;
-    collectedRevenue: number;
-    outstandingRevenue: number;
-  };
-  unpaidCount: number;
-  unpaidCompletedCount?: number;
-  revenueAllowed: boolean;
-  canReviewBookings?: boolean;
-}) {
-  const hasOutstanding = summary.outstandingRevenue > 0 || unpaidCount > 0;
-
-  return (
-    <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
-          Payment health
-        </h2>
-        {revenueAllowed && hasOutstanding && canReviewBookings ? (
-          <Link
-            href="/admin/bookings?payment_status=unpaid"
-            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-medium text-[var(--rahma-green)] outline-none transition-colors hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-          >
-            Review unpaid
-            <ChevronRight className="size-3" aria-hidden="true" />
-          </Link>
-        ) : null}
-      </div>
-
-      {revenueAllowed ? (
-        <div className="mt-4 grid gap-2">
-          {hasOutstanding ? (
-            <div className="rounded-lg border border-amber-100 bg-[#fffbeb] px-4 py-3">
-              <p className="text-xs font-bold uppercase tracking-[0.06em] text-amber-700">
-                Outstanding
-              </p>
-              <p className="mt-1 text-[2rem] font-semibold leading-none text-amber-800">
-                {formatMoney(summary.outstandingRevenue)}
-              </p>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm text-amber-700">
-                  {unpaidCount} unpaid booking{unpaidCount !== 1 ? "s" : ""}
-                  {unpaidCompletedCount ? `, ${unpaidCompletedCount} completed` : ""}
-                </p>
-                {canReviewBookings ? (
-                  <Link
-                    href="/admin/bookings?payment_status=unpaid"
-                    className="inline-flex min-h-9 items-center rounded-lg bg-[var(--rahma-green)] px-3.5 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-                    style={{ color: "#ffffff" }}
-                  >
-                    Review unpaid bookings
-                  </Link>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-          <PaymentRow label="Booked" value={formatMoney(summary.bookedRevenue)} tone="default" />
-          <PaymentRow label="Collected" value={formatMoney(summary.collectedRevenue)} tone={hasOutstanding ? "quiet" : "success"} />
-          {!hasOutstanding ? (
-            <PaymentRow label="Outstanding" value={formatMoney(summary.outstandingRevenue)} tone="success" />
-          ) : null}
-        </div>
-      ) : (
-        <div className="mt-4 rounded-lg border border-dashed border-purple-200 bg-purple-50/50 px-4 py-6 text-center">
-          <p className="text-sm font-semibold text-purple-600">Revenue hidden</p>
-          <p className="mt-1 text-sm text-purple-500/80">
-            You don&rsquo;t have permission to view revenue.
-          </p>
-          <p className="mt-2 text-xs text-purple-400">
-            Requires view_reports or manage_payments
-          </p>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function PaymentRow({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "default" | "success" | "warning" | "quiet";
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg bg-[var(--admin-surface-muted)] px-3.5 py-3">
-      <span className="text-sm text-[var(--rahma-charcoal)]">{label}</span>
-      <span
-        className={cn(
-          "text-sm font-semibold",
-          tone === "success" && "text-[var(--admin-success)]",
-          tone === "warning" && "text-[var(--admin-warning)]",
-          tone === "default" && "text-[var(--rahma-charcoal)]",
-          tone === "quiet" && "text-[var(--rahma-muted)]"
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   BusinessPulseCard
-   ═══════════════════════════════════════════════════════════════ */
 
 export function BusinessPulseCard({
   services,
   clients,
+  bookings,
+  dateRange,
   revenueAllowed,
+  canViewReports,
 }: {
   services: { service: string; bookings: number; revenue: number }[];
   clients: {
@@ -768,70 +927,131 @@ export function BusinessPulseCard({
     noShowCancelled: number;
     newEnquiries: number;
   };
+  bookings: { booking_date: string }[];
+  dateRange: { from: string; to: string };
   revenueAllowed: boolean;
+  canViewReports?: boolean;
 }) {
-  return (
-    <section className="rounded-xl border border-[var(--rahma-border)] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-      <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
-        Business pulse
-      </h2>
+  const clientTotal =
+    clients.repeatClients + clients.newClients + clients.newEnquiries + clients.noShowCancelled;
 
-      <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(9.5rem,0.62fr)]">
-        {/* Most booked */}
-        <div>
-          <p className="mb-2.5 text-xs font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)]">
-            Most booked
-          </p>
+  return (
+    <AdminDashboardPanel>
+      <AdminPanelHeader
+        icon={HeartPulse}
+        title="Business pulse"
+        description="Understand demand, client mix and trends."
+        action={
+          canViewReports ? (
+            <Link className="admin-link-action" href="/admin/reports">
+              View full reports
+            </Link>
+          ) : null
+        }
+      />
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[0.9fr_1.35fr_1.25fr]">
+        <div className="min-w-0">
+          <p className="mb-3 text-sm font-semibold text-[var(--admin-body)]">Service mix</p>
           {services.length > 0 ? (
             <div className="grid gap-2">
-              {services.slice(0, 3).map((s) => (
-                <div
-                  key={s.service}
-                  className="rounded-lg bg-[var(--admin-surface-muted)] px-3.5 py-3"
-                >
-                  <p className="break-words text-sm font-semibold leading-5 text-[var(--rahma-charcoal)]">
-                    {s.service}
-                  </p>
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-                    <span className="text-sm text-[var(--rahma-muted)]">
-                      {s.bookings} booking{s.bookings === 1 ? "" : "s"}
-                    </span>
-                    {revenueAllowed ? (
-                      <span className="text-sm font-semibold text-[var(--rahma-charcoal)]">
-                        {formatMoney(s.revenue)}
-                      </span>
-                    ) : null}
+              {services.slice(0, 4).map((service) => (
+                <div key={service.service} className="grid gap-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">
+                      {service.service}
+                    </p>
+                    <p className="text-sm text-[var(--admin-text-muted)]">
+                      {service.bookings}
+                      {revenueAllowed ? ` - ${formatMoney(service.revenue)}` : ""}
+                    </p>
                   </div>
+                  <AdminProgressBar
+                    value={safeDivide(service.bookings, services[0]?.bookings ?? service.bookings)}
+                    label={`${service.service} booking share`}
+                    tone="success"
+                  />
                 </div>
               ))}
             </div>
           ) : (
-            <p className="px-3 py-2 text-sm text-[var(--rahma-muted)]">No bookings in range.</p>
+            <AdminEmptyState
+              icon={Wrench}
+              title="No services booked yet"
+              message="Once bookings come in, you will see which services are most popular."
+              tone="muted"
+            />
           )}
         </div>
 
-        {/* Client activity */}
-        <div>
-          <p className="mb-2.5 text-xs font-bold uppercase tracking-[0.07em] text-[var(--rahma-muted)]">
-            Clients
-          </p>
-          <div className="grid gap-2">
-            <ClientPulseRow label="Repeat" value={clients.repeatClients.toString()} />
-            <ClientPulseRow label="New" value={clients.newClients.toString()} />
-            <ClientPulseRow label="Enquiries" value={clients.newEnquiries.toString()} />
-            <ClientPulseRow label="No-show / cancelled" value={clients.noShowCancelled.toString()} />
-          </div>
+        <div className="min-w-0 border-y border-[var(--admin-border)] py-4 xl:border-x xl:border-y-0 xl:px-5 xl:py-0">
+          <p className="mb-3 text-sm font-semibold text-[var(--admin-body)]">Client mix</p>
+          {clientTotal > 0 ? (
+            <>
+              <AdminStackedBar
+                label="Client mix"
+                segments={[
+                  { label: "Repeat", value: clients.repeatClients, className: "bg-[var(--admin-primary)]" },
+                  { label: "New", value: clients.newClients, className: "bg-[#a8d1bd]" },
+                  { label: "Enquiries", value: clients.newEnquiries, className: "bg-[var(--admin-client-accent)]" },
+                  { label: "No-show / Cancelled", value: clients.noShowCancelled, className: "bg-[#bdbab4]" },
+                ]}
+              />
+              <div className="mt-5 grid gap-3 sm:grid-cols-4">
+                <ClientMixLegend label="Repeat" value={clients.repeatClients} total={clientTotal} color="bg-[var(--admin-primary)]" />
+                <ClientMixLegend label="New" value={clients.newClients} total={clientTotal} color="bg-[#a8d1bd]" />
+                <ClientMixLegend label="Enquiries" value={clients.newEnquiries} total={clientTotal} color="bg-[var(--admin-client-accent)]" />
+                <ClientMixLegend label="No-show / Cancelled" value={clients.noShowCancelled} total={clientTotal} color="bg-[#bdbab4]" />
+              </div>
+            </>
+          ) : (
+            <AdminEmptyState
+              icon={Users}
+              title="No client activity"
+              message="Client mix data will appear once there are bookings or enquiries in the selected range."
+              tone="muted"
+            />
+          )}
         </div>
+
+        <DemandTrendClient
+          bookings={bookings}
+          from={dateRange.from}
+          to={dateRange.to}
+          today={new Date().toISOString().slice(0, 10)}
+        />
       </div>
-    </section>
+    </AdminDashboardPanel>
   );
 }
 
-function ClientPulseRow({ label, value }: { label: string; value: string }) {
+function ClientMixLegend({
+  label,
+  value,
+  total,
+  color,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  color: string;
+}) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg bg-[var(--admin-surface-muted)] px-3.5 py-3">
-      <span className="min-w-0 break-words text-sm leading-5 text-[var(--rahma-muted)]">{label}</span>
-      <span className="shrink-0 text-sm font-semibold text-[var(--rahma-charcoal)]">{value}</span>
+    <div>
+      <p className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-body)]">
+        <span className={cn("size-2.5 rounded-full", color)} />
+        {label}
+      </p>
+      <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+        {value} ({Math.round(safeDivide(value, total))}%)
+      </p>
     </div>
   );
 }
+
+export const adminDashboardCardClasses = {
+  primaryButton:
+    "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
+  outlineButton:
+    "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
+};

@@ -63,6 +63,52 @@ a[class*="border-rahma-green/30"] {
   color: #ffffff;
 }
 
+.admin-display {
+  font-family: var(--font-admin-serif), var(--font-urbanist), serif;
+  letter-spacing: 0;
+}
+
+.admin-action-primary {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--admin-radius-control);
+  background: var(--admin-primary);
+  padding: 0 1rem;
+  color: #ffffff !important;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.admin-action-primary:hover {
+  background: var(--admin-primary-hover);
+}
+
+.admin-action-outline,
+.admin-link-action {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--admin-radius-control);
+  border: 1px solid var(--admin-border);
+  background: #ffffff;
+  padding: 0 1rem;
+  color: var(--admin-primary) !important;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.admin-link-action {
+  min-height: auto;
+  border-color: transparent;
+  background: transparent;
+  padding: 0.25rem 0.35rem;
+  text-decoration: underline;
+  text-underline-offset: 0.1875rem;
+}
+
 .admin-nav-surface h2,
 .admin-nav-surface .admin-nav-link-active {
   color: #ffffff !important;
@@ -78,4 +124,16 @@ a[class*="border-rahma-green/30"] {
 
 .admin-nav-surface .admin-nav-link-active svg {
   color: #ffffff !important;
+}
+
+/* Respect user preference for reduced motion across the entire application */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -2,7 +2,15 @@
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canManageAllBookings,
+  canManageAllClients,
+  canManageAssignedBookings,
+  canViewAllBookings,
+  canViewAllClients,
+  canViewAssignedBookings,
+  getStaffProfile,
+} from "@/lib/auth/rbac";
 
 export interface AdminSearchResult {
   id: string;
@@ -41,10 +49,6 @@ function isUuid(value: string) {
   );
 }
 
-function hasAnyPermission(permissions: Set<string>, values: string[]) {
-  return values.some((permission) => permissions.has(permission));
-}
-
 async function getOwnBookingIds(staffId: string) {
   const adminClient = createSupabaseAdminClient();
   const { data } = await adminClient
@@ -59,14 +63,8 @@ async function searchBookings(
   query: string,
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
 ): Promise<AdminSearchResult[]> {
-  const canSearchAll = hasAnyPermission(profile.permissions, [
-    PERMISSIONS.MANAGE_BOOKINGS_ALL,
-    PERMISSIONS.VIEW_ALL_BOOKINGS,
-  ]);
-  const canSearchOwn = hasAnyPermission(profile.permissions, [
-    PERMISSIONS.MANAGE_BOOKINGS_OWN,
-    PERMISSIONS.VIEW_OWN_BOOKINGS,
-  ]);
+  const canSearchAll = canManageAllBookings(profile) || canViewAllBookings(profile);
+  const canSearchOwn = canManageAssignedBookings(profile) || canViewAssignedBookings(profile);
 
   if (!canSearchAll && !canSearchOwn) return [];
 
@@ -112,12 +110,9 @@ async function searchBookings(
 
 async function searchClients(
   query: string,
-  permissions: Set<string>
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
 ): Promise<AdminSearchResult[]> {
-  const canSearchClients = hasAnyPermission(permissions, [
-    PERMISSIONS.MANAGE_CLIENTS,
-    PERMISSIONS.VIEW_CLIENTS,
-  ]);
+  const canSearchClients = canManageAllClients(profile) || canViewAllClients(profile);
 
   if (!canSearchClients) return [];
 
@@ -159,7 +154,7 @@ export async function searchAdminCommand(query: string) {
 
   const [bookingResults, clientResults] = await Promise.all([
     searchBookings(normalizedQuery, profile),
-    searchClients(normalizedQuery, profile.permissions),
+    searchClients(normalizedQuery, profile),
   ]);
 
   return [...bookingResults, ...clientResults].slice(0, 12);

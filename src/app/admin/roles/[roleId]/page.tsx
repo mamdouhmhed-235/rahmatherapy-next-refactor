@@ -1,10 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canManageRoleTemplates, getRoleDisplayName, getStaffProfile } from "@/lib/auth/rbac";
 import { ChevronLeft, ShieldCheck, Users } from "lucide-react";
 import { AdminAccessDenied } from "../../components/admin-ui";
 import { PermissionRow } from "./PermissionRow";
+import { RoleMetadataForm } from "./RoleMetadataForm";
 
 interface RoleDetailPageProps {
   params: Promise<{ roleId: string }>;
@@ -22,12 +23,12 @@ export default async function RoleDetailPage({ params }: RoleDetailPageProps) {
     redirect("/admin/login");
   }
 
-  if (!profile.permissions.has(PERMISSIONS.MANAGE_ROLES)) {
+  if (!canManageRoleTemplates(profile)) {
     return (
       <AdminAccessDenied
         title="Roles access limited"
         message="You need role management permission to access this page."
-        permission="manage_roles"
+        permission="manage_role_templates"
       />
     );
   }
@@ -37,7 +38,7 @@ export default async function RoleDetailPage({ params }: RoleDetailPageProps) {
   // Fetch role
   const { data: role } = await supabase
     .from("roles")
-    .select("id, name, description")
+    .select("id, name, display_label, description, sort_order, active, is_system")
     .eq("id", roleId)
     .single();
 
@@ -46,8 +47,10 @@ export default async function RoleDetailPage({ params }: RoleDetailPageProps) {
   // Fetch all permissions
   const { data: allPermissions } = await supabase
     .from("permissions")
-    .select("id, name, description")
-    .order("name");
+    .select("id, name, description, category, scope, risk_level, active")
+    .eq("active", true)
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
 
   // Fetch this role's granted permission IDs
   const { data: rolePermissions } = await supabase
@@ -91,8 +94,13 @@ export default async function RoleDetailPage({ params }: RoleDetailPageProps) {
         </div>
         <div>
           <h1 className="font-display text-2xl font-semibold text-[var(--rahma-charcoal)]">
-            {role.name}
+            {getRoleDisplayName(role)}
           </h1>
+          <p className="mt-1 text-xs text-[var(--rahma-muted)]">
+            DB role: {role.name}
+            {role.is_system ? " - system role" : ""}
+            {!role.active ? " - inactive" : ""}
+          </p>
           {role.description && (
             <p className="mt-1 text-sm text-[var(--rahma-muted)]">
               {role.description}
@@ -116,6 +124,9 @@ export default async function RoleDetailPage({ params }: RoleDetailPageProps) {
                 permissionId={perm.id}
                 permissionName={perm.name}
                 permissionDescription={perm.description}
+                permissionCategory={perm.category}
+                permissionScope={perm.scope}
+                permissionRiskLevel={perm.risk_level}
                 isGranted={grantedIds.has(perm.id)}
                 isOwnerRole={isOwnerRole}
               />
@@ -125,7 +136,9 @@ export default async function RoleDetailPage({ params }: RoleDetailPageProps) {
 
         {/* Staff on this role (1/3) */}
         <section>
-          <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-[var(--rahma-charcoal)]">
+          <RoleMetadataForm role={role} />
+
+          <h2 className="mb-4 mt-6 flex items-center gap-2 text-base font-semibold text-[var(--rahma-charcoal)]">
             <Users className="size-4" />
             Staff with this role
           </h2>

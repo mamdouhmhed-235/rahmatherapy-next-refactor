@@ -5,7 +5,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { PERMISSIONS, requirePermission } from "@/lib/auth/rbac";
+import {
+  canCreateSessionNotes,
+  canManageAllClients,
+  canManageSensitiveClientNotes,
+  getStaffProfile,
+  PERMISSIONS,
+  requirePermission,
+} from "@/lib/auth/rbac";
 
 const CLIENT_SOURCES = [
   "website",
@@ -44,7 +51,24 @@ const clientSchema = z.object({
 
 async function requireClientManager() {
   const supabase = await createSupabaseServerClient();
-  return requirePermission(PERMISSIONS.MANAGE_CLIENTS, supabase);
+  const profile = await getStaffProfile(supabase);
+  if (!profile || !profile.active || !canManageAllClients(profile)) {
+    throw new Error("Insufficient permissions.");
+  }
+  return profile;
+}
+
+async function requireClientNoteActor() {
+  const supabase = await createSupabaseServerClient();
+  const profile = await getStaffProfile(supabase);
+  if (
+    !profile ||
+    !profile.active ||
+    (!canCreateSessionNotes(profile) && !canManageSensitiveClientNotes(profile))
+  ) {
+    throw new Error("Insufficient permissions.");
+  }
+  return profile;
 }
 
 async function requirePrivacyManager() {
@@ -76,7 +100,7 @@ export async function createClient(
 ): Promise<ClientActionState> {
   let actor;
   try {
-    actor = await requirePrivacyManager();
+    actor = await requireClientManager();
   } catch {
     return { error: "Insufficient permissions." };
   }
@@ -177,7 +201,7 @@ export async function addClientNote(
 ): Promise<ClientActionState> {
   let actor;
   try {
-    actor = await requireClientManager();
+    actor = await requireClientNoteActor();
   } catch {
     return { error: "Insufficient permissions." };
   }
@@ -219,7 +243,7 @@ export async function createClientPrivacyRequest(
 ): Promise<ClientActionState> {
   let actor;
   try {
-    actor = await requireClientManager();
+    actor = await requirePrivacyManager();
   } catch {
     return { error: "Insufficient permissions." };
   }

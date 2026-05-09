@@ -695,7 +695,7 @@ function InsufficientPermissions() {
     <AdminAccessDenied
       title="Bookings access limited"
       message="You need booking management permission to access this page."
-      permission="manage_bookings_all or manage_bookings_own"
+      permission="manage_bookings_all or manage_bookings_assigned"
     />
   );
 }

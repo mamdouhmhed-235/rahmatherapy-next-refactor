@@ -4,7 +4,7 @@ import { Download, FileText, TrendingUp, Users } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canOpenReports, getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminFilterBar,
@@ -36,14 +36,6 @@ export const metadata = {
 
 interface ReportsPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-}
-
-function canOpenReports(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
-  return (
-    profile.permissions.has(PERMISSIONS.VIEW_REPORTS) ||
-    profile.permissions.has(PERMISSIONS.VIEW_OWN_BOOKINGS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_OWN)
-  );
 }
 
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
@@ -251,7 +243,7 @@ function InsufficientPermissions() {
     <AdminAccessDenied
       title="Reports access limited"
       message="You need reporting or own-booking permission to view reports."
-      permission="view_reports or view_own_bookings"
+      permission="view_reports_own or view_reports_operational"
     />
   );
 }

@@ -12,6 +12,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { AdminEmptyState } from "./admin-ui";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import * as AdminPopover from "./admin-popover";
@@ -142,7 +143,6 @@ export function NotificationBell({
 
   const closePopover = () => {
     setOpen(false);
-    window.setTimeout(() => triggerRef.current?.blur(), 0);
   };
 
   return (
@@ -151,15 +151,14 @@ export function NotificationBell({
         open={open}
         onOpenChange={(nextOpen) => {
           setOpen(nextOpen);
-          if (!nextOpen) window.setTimeout(() => triggerRef.current?.blur(), 0);
         }}
       >
         <AdminPopover.Trigger
           ref={triggerRef}
           aria-label={`Open notifications, ${unreadCount} unread`}
-          className="inline-flex size-11 appearance-none items-center justify-center rounded-xl border-0 bg-transparent p-0 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+          className="inline-flex size-11 appearance-none items-center justify-center rounded-[var(--admin-radius-card)] border-0 bg-transparent p-0 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
         >
-          <span className="relative inline-flex size-11 items-center justify-center rounded-xl border border-[var(--rahma-border)] bg-white text-[var(--rahma-charcoal)] transition-colors hover:bg-[var(--rahma-ivory)]">
+          <span className="relative inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)] shadow-[var(--admin-shadow-subtle)]">
             <Bell className="size-[1.125rem]" />
             {unreadCount > 0 ? (
               <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-danger)] px-1 text-[11px] font-bold leading-none text-white" aria-hidden="true">
@@ -170,13 +169,6 @@ export function NotificationBell({
         </AdminPopover.Trigger>
         <AdminPopover.Content
           className="w-[26rem] max-h-[min(70vh,40rem)] overflow-y-auto"
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            window.requestAnimationFrame(() => {
-              triggerRef.current?.blur();
-              document.getElementById("admin-main")?.focus({ preventScroll: true });
-            });
-          }}
         >
           <NotificationPopoverContent
             items={visibleItems}
@@ -220,10 +212,10 @@ export function MobileNotificationButton({
         variant === "icon" ? (
           <button
             type="button"
-            className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-xl border border-[var(--rahma-border)] bg-white text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+            className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 shadow-[var(--admin-shadow-subtle)]"
             aria-label={triggerLabel}
           >
-            <Bell className="size-[1.125rem] text-[var(--rahma-green)]" aria-hidden="true" />
+            <Bell className="size-[1.125rem] text-[var(--admin-primary)]" aria-hidden="true" />
             {unreadCount > 0 ? (
               <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-danger)] px-1 text-[11px] font-bold leading-none text-white" aria-hidden="true">
                 {unreadCount}
@@ -233,11 +225,11 @@ export function MobileNotificationButton({
         ) : (
           <button
             type="button"
-            className="relative inline-flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border border-[var(--rahma-border)] bg-white px-4 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+            className="relative inline-flex min-h-12 w-full items-center justify-between gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 shadow-[var(--admin-shadow-subtle)]"
             aria-label={triggerLabel}
           >
             <span className="inline-flex items-center gap-2">
-              <Bell className="size-4 text-[var(--rahma-green)]" aria-hidden="true" />
+              <Bell className="size-4 text-[var(--admin-primary)]" aria-hidden="true" />
               Notification centre
             </span>
             {unreadCount > 0 ? (
@@ -318,19 +310,19 @@ function NotificationPopoverContent({
   return (
     <>
       {/* ── Header ── */}
-      <div className={cn("flex items-center justify-between gap-3 border-b border-[var(--rahma-border)] px-5 py-4", isMobile && "px-4 py-3")}>
+      <div className={cn("flex items-center justify-between gap-3 border-b border-[var(--admin-border)] px-5 py-4", isMobile && "px-4 py-3")}>
         <div>
           {!isMobile ? (
-            <h2 className="font-display text-base font-semibold text-[var(--rahma-charcoal)]">
+            <h2 className="admin-display text-base font-semibold text-[var(--admin-heading)]">
               Notification centre
             </h2>
           ) : null}
           {unreadCount > 0 ? (
-            <p className="mt-0.5 text-xs text-[var(--rahma-muted)]">
+            <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">
               {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
             </p>
           ) : (
-            <p className="text-xs font-medium text-[var(--rahma-muted)]">All notifications are read.</p>
+            <p className="text-xs font-medium text-[var(--admin-text-muted)]">All notifications are read.</p>
           )}
         </div>
         <div className="flex items-center gap-1.5">
@@ -338,7 +330,7 @@ function NotificationPopoverContent({
             <button
               type="button"
               onClick={markAllRead}
-              className="rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[var(--rahma-green)] outline-none hover:bg-[var(--rahma-green)]/8 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 transition-colors"
+              className="rounded-[var(--admin-radius-control)] px-2.5 py-1.5 text-xs font-semibold text-[var(--admin-primary)] outline-none hover:bg-[var(--admin-primary)]/8 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 transition-colors"
             >
               Mark all read
             </button>
@@ -347,7 +339,7 @@ function NotificationPopoverContent({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex size-8 items-center justify-center rounded-lg text-[var(--rahma-muted)] outline-none hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 transition-colors"
+              className="inline-flex size-8 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 transition-colors"
               aria-label="Close notifications"
             >
               <X className="size-4" />
@@ -359,7 +351,7 @@ function NotificationPopoverContent({
       {/* ── Tabs ── */}
       <div
         className={cn(
-          "flex gap-1 overflow-x-auto border-b border-[var(--rahma-border)] px-5 py-2.5",
+          "flex gap-1 overflow-x-auto border-b border-[var(--admin-border)] px-5 py-2.5",
           isMobile && "flex-wrap overflow-x-visible px-4"
         )}
         role="tablist"
@@ -373,17 +365,17 @@ function NotificationPopoverContent({
             role="tab"
             aria-selected={tab === t}
             className={cn(
-              "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold outline-none transition-all focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30",
+              "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 py-1.5 text-xs font-semibold outline-none transition-all focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
               tab === t
-                ? "bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]"
-                : "text-[var(--rahma-muted)] hover:text-[var(--rahma-charcoal)] hover:bg-[var(--rahma-ivory)]"
+                ? "bg-[var(--admin-primary)] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                : "text-[var(--admin-body)] hover:text-[var(--admin-heading)] hover:bg-[var(--admin-panel-muted)]"
             )}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
             {tabCounts[t] > 0 ? (
               <span className={cn(
                 "rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
-                tab === t ? "bg-[var(--rahma-green)]/20" : "bg-gray-100"
+                tab === t ? "bg-white/20 text-white" : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
               )}>
                 {tabCounts[t]}
               </span>
@@ -393,21 +385,28 @@ function NotificationPopoverContent({
       </div>
 
       {/* ── Notification list ── */}
-      <div className="divide-y divide-[var(--rahma-border)]/60">
+      <div className="divide-y divide-[var(--admin-border)]/60">
         {filtered.slice(0, 30).map((item) => {
           const read = readIds.has(item.id);
           const TypeIcon = getTypeIcon(item.type);
           const ageLabel = getNotificationAgeLabel(item.timestamp);
+          const severityBorder =
+            item.severity === "critical"
+              ? "border-l-[var(--admin-danger)]"
+              : item.severity === "warning"
+                ? "border-l-[var(--admin-warning)]"
+                : "border-l-[var(--admin-info)]";
           return (
             <div
               key={item.id}
               className={cn(
-                "grid gap-2.5 px-5 py-4 transition-colors",
+                "grid gap-3 border-l-4 px-5 py-5 transition-colors",
                 isMobile && "px-4",
-                !read && "bg-[var(--rahma-green)]/[0.025]"
+                severityBorder,
+                !read && "bg-[var(--admin-primary)]/[0.02]"
               )}
             >
-              <div className="flex items-start gap-2.5">
+              <div className="flex items-start gap-3">
                 <TypeIcon
                   className={cn(
                     "mt-0.5 size-4 shrink-0",
@@ -422,7 +421,7 @@ function NotificationPopoverContent({
                   <div className="flex items-start justify-between gap-2">
                     <p className={cn(
                       "text-sm leading-snug",
-                      !read ? "font-semibold text-[var(--rahma-charcoal)]" : "text-[var(--rahma-muted)]"
+                      !read ? "font-semibold text-[var(--admin-heading)]" : "text-[var(--admin-text-muted)]"
                     )}>
                       {item.title}
                     </p>
@@ -432,15 +431,15 @@ function NotificationPopoverContent({
                       className="shrink-0 text-[10px]"
                     />
                   </div>
-                  <p className="mt-1 break-words text-xs leading-5 text-[var(--rahma-muted)]">
+                  <p className="mt-1 break-words text-xs leading-5 text-[var(--admin-text-muted)]">
                     {item.detail}
                   </p>
-                  <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--rahma-muted)]/50">
+                  <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--admin-text-muted)]/50">
                     {[item.timestamp, ageLabel].filter(Boolean).join(" \u00b7 ")}
                   </p>
                 </div>
               </div>
-              <div className={cn("flex flex-wrap items-center gap-1.5", isMobile ? "ml-0" : "ml-[1.625rem]")}>
+              <div className={cn("flex flex-wrap items-center gap-1.5", isMobile ? "ml-0" : "ml-[1.75rem]")}>
                 {item.href ? (
                   <Link
                     href={item.href}
@@ -448,8 +447,7 @@ function NotificationPopoverContent({
                       markRead(item.id);
                       onClose();
                     }}
-                    className="inline-flex min-h-7 items-center rounded-lg bg-[var(--rahma-green)] px-2.5 text-[11px] font-semibold text-white outline-none transition-colors hover:bg-[var(--rahma-green)]/90 focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-                    style={{ color: "#ffffff" }}
+                    className="inline-flex min-h-7 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-2.5 text-[11px] font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     {item.actionLabel ?? "View"}
                   </Link>
@@ -461,7 +459,7 @@ function NotificationPopoverContent({
                       markRead(item.id);
                       onClose();
                     }}
-                    className="inline-flex min-h-7 items-center rounded-lg border border-[var(--rahma-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                    className="inline-flex min-h-7 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     {item.secondaryLabel ?? "Details"}
                   </Link>
@@ -470,7 +468,7 @@ function NotificationPopoverContent({
                   <button
                     type="button"
                     onClick={() => markRead(item.id)}
-                    className="inline-flex min-h-7 items-center rounded-lg border border-[var(--rahma-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--rahma-muted)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                    className="inline-flex min-h-7 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     Mark read
                   </button>
@@ -478,7 +476,7 @@ function NotificationPopoverContent({
                   <button
                     type="button"
                     onClick={() => markUnread(item.id)}
-                    className="inline-flex min-h-7 items-center rounded-lg border border-[var(--rahma-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--rahma-muted)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                    className="inline-flex min-h-7 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     Mark unread
                   </button>
@@ -486,7 +484,7 @@ function NotificationPopoverContent({
                 <button
                   type="button"
                   onClick={() => dismissNotification(item.id)}
-                  className="inline-flex min-h-7 items-center gap-1 rounded-lg border border-[var(--rahma-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--rahma-muted)] outline-none transition-colors hover:border-[var(--admin-danger)]/35 hover:bg-[var(--admin-danger)]/5 hover:text-[var(--admin-danger)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                  className="inline-flex min-h-7 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:border-[var(--admin-danger)]/35 hover:bg-[var(--admin-danger)]/5 hover:text-[var(--admin-danger)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   aria-label={`Delete notification: ${item.title}`}
                 >
                   <Trash2 className="size-3" aria-hidden="true" />
@@ -497,9 +495,13 @@ function NotificationPopoverContent({
           );
         })}
         {filtered.length === 0 ? (
-          <div className="px-5 py-12 text-center">
-            <p className="text-sm font-semibold text-[var(--rahma-charcoal)]">All clear</p>
-            <p className="mt-1 text-xs text-[var(--rahma-muted)]">No notifications in this view.</p>
+          <div className="px-5 py-10">
+            <AdminEmptyState
+              icon={Bell}
+              title="All caught up"
+              message="No notifications require your attention."
+              tone="muted"
+            />
           </div>
         ) : null}
       </div>

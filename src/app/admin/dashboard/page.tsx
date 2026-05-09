@@ -1,33 +1,28 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  AlertCircle,
-  CalendarDays,
-  CreditCard,
-  FileText,
-  ShieldCheck,
-  SlidersHorizontal,
-  UserRoundCheck,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canManageOperations,
+  canOpenReports,
+  canViewDashboard,
+  canViewStaff,
+  canManageBookings,
+  canManageEnquiries,
+  canViewEmailLogs,
+  canViewAllBookings,
+  canViewAssignedBookings,
+  getStaffProfile,
+} from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminHiddenDataState,
   AdminPageScaffold,
-  AdminStatusBadge,
 } from "../components/admin-ui";
-import { AdminSheet } from "../components/admin-ui-interactions";
-import { cn } from "@/lib/utils";
 import {
   buildNotifications,
   canViewRevenueReports,
   findNextAppointment,
-  formatMoney,
   formatNumber,
   getAttentionItems,
   getGenderCapacity,
@@ -43,18 +38,24 @@ import type { NotificationItem } from "../reports/reporting";
 import {
   AttentionItemCard,
   BusinessPulseCard,
-  DashboardCommandCard,
-  NeedsActionBoard,
   OperationsHealthCard,
   PaymentHealthCard,
   StaffCapacityCard,
-  TodayAgendaCard,
+  TodayAtAGlanceCard,
+  UrgentAttentionPanel,
 } from "./dashboard-cards";
-import type { AttentionGroup, AttentionSeverity } from "./dashboard-cards";
+import type {
+  AttentionGroup,
+  AttentionSeverity,
+  AttentionSummaryRow,
+} from "./dashboard-cards";
 import {
-  NotificationBell,
   MobileNotificationButton,
+  NotificationBell,
 } from "../components/notification-bell";
+import { DashboardFiltersClient } from "./dashboard-filters-client";
+import { AdminErrorBoundary } from "../components/admin-error-boundary";
+import { DashboardHeader } from "./dashboard-header";
 
 export const metadata = {
   title: "Dashboard - Rahma Therapy Admin",
@@ -70,10 +71,6 @@ type AttentionItem = ReturnType<typeof getAttentionItems>[number];
 const sourceOptions = ["website", "phone", "whatsapp", "instagram", "referral", "admin", "manual", "other"];
 const statusOptions = ["pending", "confirmed", "completed", "cancelled", "no_show"];
 const paymentOptions = ["paid", "unpaid"];
-
-/* ═══════════════════════════════════════════════════════════
-   Attention category grouping
-   ═══════════════════════════════════════════════════════════ */
 
 type AttentionGroupMeta = {
   label: string;
@@ -91,7 +88,7 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "assignments",
     categoryLabel: "Assignments",
     order: 10,
-    href: (access) => access.bookings ? "/admin/bookings?view=unassigned" : null,
+    href: (access) => (access.bookings ? "/admin/bookings?view=unassigned" : null),
     actionLabel: "Assign therapists",
     summary: (n) => `${n} booking${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} a therapist before the client can be fully covered.`,
   },
@@ -100,7 +97,7 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "assignments",
     categoryLabel: "Assignments",
     order: 20,
-    href: (access) => access.bookings ? "/admin/bookings?view=partial" : null,
+    href: (access) => (access.bookings ? "/admin/bookings?view=partial" : null),
     actionLabel: "Complete assignment",
     summary: (n) => `${n} booking${n !== 1 ? "s" : ""} still need${n === 1 ? "s" : ""} every session covered.`,
   },
@@ -109,7 +106,7 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "payments",
     categoryLabel: "Payments",
     order: 30,
-    href: (access) => access.bookings ? "/admin/bookings?status=completed&payment_status=unpaid" : null,
+    href: (access) => (access.bookings ? "/admin/bookings?status=completed&payment_status=unpaid" : null),
     actionLabel: "Review payments",
     summary: (n) => `${n} completed booking${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} payment follow-up.`,
   },
@@ -118,7 +115,7 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "clients",
     categoryLabel: "Clients",
     order: 40,
-    href: (access) => access.bookings ? "/admin/bookings?view=attention" : null,
+    href: (access) => (access.bookings ? "/admin/bookings?view=attention" : null),
     actionLabel: "Review requests",
     summary: (n) => `${n} client reschedule request${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} a response.`,
   },
@@ -127,7 +124,7 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "clients",
     categoryLabel: "Clients",
     order: 50,
-    href: (access) => access.bookings ? "/admin/bookings?view=cancelled" : null,
+    href: (access) => (access.bookings ? "/admin/bookings?view=cancelled" : null),
     actionLabel: "Review cancelled",
     summary: (n) => `${n} cancelled or no-show booking${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} review.`,
   },
@@ -136,16 +133,16 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "clients",
     categoryLabel: "Clients",
     order: 60,
-    href: (access) => access.enquiries ? "/admin/enquiries" : null,
+    href: (access) => (access.enquiries ? "/admin/enquiries" : null),
     actionLabel: "Contact enquiries",
-    summary: (n) => `${n} new enquiry${n !== 1 ? "ies" : ""} waiting for follow-up.`,
+    summary: (n) => `${n} new enquir${n === 1 ? "y" : "ies"} waiting for follow-up.`,
   },
   "booking-health": {
     label: "Health notes",
     category: "health",
     categoryLabel: "Health",
     order: 70,
-    href: (access) => access.bookings ? "/admin/bookings?view=attention" : null,
+    href: (access) => (access.bookings ? "/admin/bookings?view=attention" : null),
     actionLabel: "Review notes",
     summary: (n) => `${n} booking${n !== 1 ? "s" : ""} include${n === 1 ? "s" : ""} health notes therapists should review.`,
   },
@@ -154,7 +151,7 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "operations",
     categoryLabel: "Operations",
     order: 80,
-    href: (access) => access.operations ? "/admin/operations" : null,
+    href: (access) => (access.operations ? "/admin/operations" : null),
     actionLabel: "Open operations",
     summary: (n) => `${n} operational event${n !== 1 ? "s" : ""} need${n === 1 ? "s" : ""} acknowledgement or resolution.`,
   },
@@ -163,7 +160,7 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "operations",
     categoryLabel: "Operations",
     order: 90,
-    href: (access) => access.staff ? "/admin/staff" : null,
+    href: (access) => (access.staff ? "/admin/staff" : null),
     actionLabel: "Fix availability",
     summary: (n) => `${n} therapist availability gap${n !== 1 ? "s" : ""} may limit booking coverage.`,
   },
@@ -191,17 +188,16 @@ function getAttentionGroupMeta(key: string, items: AttentionItem[]): AttentionGr
       category: "emails",
       categoryLabel: "Emails",
       order: 75,
-      href: (access) => access.emails ? "/admin/emails" : null,
+      href: (access) => (access.emails ? "/admin/emails" : null),
       actionLabel: "Open email status",
       summary: (n) => `${n} failed email${n !== 1 ? "s" : ""} from this workflow need review.`,
     };
   }
-
   return ATTENTION_GROUP_META[key] ?? ATTENTION_GROUP_META["system-operations"];
 }
 
 function humanizeAttentionLabel(label: string): string {
-  const MAP: Record<string, string> = {
+  const map: Record<string, string> = {
     "Unassigned booking": "Unassigned booking needs therapist",
     "Partially assigned booking": "Booking needs full team",
     "Customer cancellation": "Customer cancelled booking",
@@ -213,20 +209,18 @@ function humanizeAttentionLabel(label: string): string {
     "Operational error": "Operational system alert",
     "Staff availability gap": "Therapist has scheduling gap",
   };
-  return MAP[label] ?? label;
+  return map[label] ?? label;
 }
 
-function getAttentionImpact(
-  item: AttentionItem
-): string | undefined {
+function getAttentionImpact(item: AttentionItem): string | undefined {
   if (item.label === "Unassigned booking") return "Customer may not have a confirmed therapist.";
   if (item.label === "Partially assigned booking") return "Not all sessions have therapists assigned.";
   if (item.label === "Unpaid completed booking") return "Revenue from completed service not yet collected.";
-  if (item.label === "Customer cancellation") return "Booking cancelled by customer — review and follow up.";
-  if (item.label === "Reschedule request") return "Client wants to change date/time.";
+  if (item.label === "Customer cancellation") return "Booking cancelled by customer; review and follow up.";
+  if (item.label === "Reschedule request") return "Client wants to change date or time.";
   if (item.label === "Booking with health notes") return "Therapist should review health conditions before the visit.";
-  if (item.label === "Failed email send") return "Customer may not have received important communication.";
-  if (item.label === "Operational error") return "System process failed — may affect workflow.";
+  if (item.label === "Failed email send") return "Client may not have received important communication.";
+  if (item.label === "Operational error") return "System process failed and may affect workflow.";
   if (item.label === "Staff availability gap") return "No standard weekly availability rules configured.";
   if (item.label === "Uncontacted enquiry") return "Potential client waiting for a response.";
   return undefined;
@@ -259,7 +253,6 @@ function pluralDays(days: number) {
 function getAttentionAgeLabel(item: AttentionItem, today: string) {
   const diff = getDayDifference(item.date, today);
   if (diff === null) return undefined;
-
   if (item.label === "Failed email send") {
     return diff === 0 ? "Email failed today" : `Email failed ${pluralDays(Math.abs(diff))} ago`;
   }
@@ -301,6 +294,7 @@ function buildAttentionGroups(items: AttentionItem[], permissionAccess: Permissi
     })
     .map(([key, groupItems]) => {
       const meta = getAttentionGroupMeta(key, groupItems);
+      const href = meta.href(permissionAccess);
       return {
         key,
         label: meta.label,
@@ -309,11 +303,11 @@ function buildAttentionGroups(items: AttentionItem[], permissionAccess: Permissi
         priority: meta.order,
         count: groupItems.length,
         summary: meta.summary(groupItems.length),
-        pageHref: meta.href(permissionAccess),
-        href: meta.href(permissionAccess),
+        pageHref: href,
+        href,
         actionLabel: meta.actionLabel,
         items: groupItems.map((item) => {
-          const href = getAccessibleAttentionHref(item.href, permissionAccess);
+          const itemHref = getAccessibleAttentionHref(item.href, permissionAccess);
           return (
             <AttentionItemCard
               key={item.id}
@@ -321,15 +315,13 @@ function buildAttentionGroups(items: AttentionItem[], permissionAccess: Permissi
               detail={
                 item.label === "Failed email send"
                   ? humanizeEventType(item.detail)
-                  : item.label === "Operational error"
-                    ? item.detail
-                    : item.detail
+                  : item.detail
               }
               impact={getAttentionImpact(item)}
               severity={getAttentionSeverity(item)}
               date={item.date}
               ageLabel={getAttentionAgeLabel(item, today)}
-              href={href}
+              href={itemHref}
               primaryLabel={getPrimaryActionLabel(item)}
               secondaryHref={item.href.startsWith("/admin/bookings") && permissionAccess.bookings ? item.href : null}
               secondaryLabel="View booking"
@@ -338,18 +330,6 @@ function buildAttentionGroups(items: AttentionItem[], permissionAccess: Permissi
         }),
       };
     });
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Permission helpers
-   ═══════════════════════════════════════════════════════════ */
-
-function canViewDashboard(profile: StaffProfile) {
-  return (
-    profile.permissions.has(PERMISSIONS.VIEW_DASHBOARD) ||
-    profile.permissions.has(PERMISSIONS.VIEW_REPORTS) ||
-    profile.permissions.has(PERMISSIONS.VIEW_OWN_BOOKINGS)
-  );
 }
 
 interface PermissionAccess {
@@ -364,20 +344,13 @@ interface PermissionAccess {
 
 function getPermissionAccess(profile: StaffProfile): PermissionAccess {
   return {
-    bookings: hasAnyPermission(profile, [PERMISSIONS.MANAGE_BOOKINGS_ALL, PERMISSIONS.MANAGE_BOOKINGS_OWN]),
-    calendar: hasAnyPermission(profile, [
-      PERMISSIONS.VIEW_ALL_BOOKINGS, PERMISSIONS.VIEW_OWN_BOOKINGS,
-      PERMISSIONS.MANAGE_BOOKINGS_ALL, PERMISSIONS.MANAGE_BOOKINGS_OWN,
-    ]),
-    reports: hasAnyPermission(profile, [
-      PERMISSIONS.VIEW_REPORTS, PERMISSIONS.VIEW_OWN_BOOKINGS, PERMISSIONS.MANAGE_BOOKINGS_OWN,
-    ]),
-    enquiries: hasAnyPermission(profile, [PERMISSIONS.MANAGE_CLIENTS]),
-    emails: hasAnyPermission(profile, [PERMISSIONS.MANAGE_EMAILS, PERMISSIONS.MANAGE_BOOKINGS_ALL]),
-    operations: hasAnyPermission(profile, [
-      PERMISSIONS.MANAGE_SETTINGS, PERMISSIONS.MANAGE_EMAILS, PERMISSIONS.MANAGE_BOOKINGS_ALL,
-    ]),
-    staff: hasAnyPermission(profile, [PERMISSIONS.MANAGE_USERS, PERMISSIONS.MANAGE_STAFF]),
+    bookings: canManageBookings(profile) || canViewAllBookings(profile) || canViewAssignedBookings(profile),
+    calendar: canViewAllBookings(profile) || canViewAssignedBookings(profile) || canManageBookings(profile),
+    reports: canOpenReports(profile),
+    enquiries: canManageEnquiries(profile),
+    emails: canViewEmailLogs(profile),
+    operations: canManageOperations(profile),
+    staff: canViewStaff(profile),
   };
 }
 
@@ -390,21 +363,9 @@ function getAccessibleAttentionHref(href: string, access: PermissionAccess) {
   return href;
 }
 
-function hasAnyPermission(profile: StaffProfile, permissions: string[]) {
-  return permissions.some((p) => profile.permissions.has(p));
-}
-
-function formatFilterLabel(value: string) {
-  return value.split("_").map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ");
-}
-
 function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
-
-/* ═══════════════════════════════════════════════════════════
-   Page
-   ═══════════════════════════════════════════════════════════ */
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const supabase = await createSupabaseServerClient();
@@ -415,9 +376,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const today = getBusinessDate();
   const params = await searchParams;
   const filters = parseReportFilters({
-    range: params.range ?? "week",
+    range: params.range ?? "today",
     from: params.from ?? today,
-    to: params.to ?? addBusinessDays(today, 7),
+    to: params.to ?? today,
     staffId: params.staffId,
     service: params.service,
     source: params.source,
@@ -429,24 +390,44 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const data = await getReportData(adminClient, profile, filters);
   const summary = summarizeReports(data);
   const attentionItems = getAttentionItems(data);
-  const todayAppointments = data.bookings.filter((b) => b.booking_date === today);
-  const nextSevenDays = data.bookings.filter(
-    (b) => b.booking_date >= today && b.booking_date <= addBusinessDays(today, 7)
-  );
-  const needsAssignment = data.bookings.filter((b) =>
-    ["unassigned", "partially_assigned"].includes(b.assignment_status)
-  );
-  const unassignedOnly = data.bookings.filter((b) => b.assignment_status === "unassigned");
-  const partiallyAssigned = data.bookings.filter((b) => b.assignment_status === "partially_assigned");
-  const rescheduleRequests = data.bookings.filter((b) => b.reschedule_status === "requested");
-  const unpaidBookings = data.bookings.filter((b) => b.payment_status === "unpaid");
-  const unpaidCompleted = data.bookings.filter(
-    (b) => b.status === "completed" && b.payment_status === "unpaid"
-  );
-  const failedEmails = data.emailEvents.filter((e) => e.delivery_status === "failed");
-  const openOperationalErrors = data.operationalEvents.filter((e) => e.status === "open");
+
+  const todayAppointments: typeof data.bookings = [];
+  const nextSevenDays: typeof data.bookings = [];
+  const needsAssignment: typeof data.bookings = [];
+  const unassignedOnly: typeof data.bookings = [];
+  const unpaidBookings: typeof data.bookings = [];
+  const unpaidCompleted: typeof data.bookings = [];
+  let noShowCancelledCount = 0;
+  const sevenDayLimit = addBusinessDays(today, 7);
+
+  for (const booking of data.bookings) {
+    if (booking.booking_date === today) todayAppointments.push(booking);
+    if (booking.booking_date >= today && booking.booking_date <= sevenDayLimit) {
+      nextSevenDays.push(booking);
+    }
+    if (booking.assignment_status === "unassigned") {
+      unassignedOnly.push(booking);
+      needsAssignment.push(booking);
+    } else if (booking.assignment_status === "partially_assigned") {
+      needsAssignment.push(booking);
+    }
+    if (booking.payment_status === "unpaid") {
+      unpaidBookings.push(booking);
+      if (booking.status === "completed") unpaidCompleted.push(booking);
+    }
+    if (booking.status === "cancelled" || booking.status === "no_show") {
+      noShowCancelledCount++;
+    }
+  }
+
+  const failedEmails = data.emailEvents.filter((event) => event.delivery_status === "failed");
+  const openOperationalErrors = data.operationalEvents.filter((event) => event.status === "open");
   const staffAvailabilityGaps = data.staff.filter(
-    (s) => s.active && s.can_take_bookings && s.availability_mode === "custom" && !data.staffAvailabilityRuleStaffIds.has(s.id)
+    (member) =>
+      member.active &&
+      member.can_take_bookings &&
+      member.availability_mode === "custom" &&
+      !data.staffAvailabilityRuleStaffIds.has(member.id)
   );
   const staffWorkload = getStaffWorkload(data);
   const genderCapacity = getGenderCapacity(data);
@@ -454,10 +435,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const revenueAllowed = canViewRevenueReports(profile);
   const assignedOnly = !hasUniversalReportScope(profile);
   const permissionAccess = getPermissionAccess(profile);
-  const newEnquiries = data.enquiries.filter((e) => e.status === "new");
-  const systemAttentionCount = failedEmails.length + openOperationalErrors.length + staffAvailabilityGaps.length;
+  const newEnquiries = data.enquiries.filter((enquiry) => enquiry.status === "new");
   const nextAppointment = findNextAppointment(data.bookings, today);
-  const serviceOptions = uniqueStrings(data.bookingItems.map((i) => i.service_name_snapshot));
+  const serviceOptions = uniqueStrings(data.bookingItems.map((item) => item.service_name_snapshot));
   const lastChecked = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
@@ -473,166 +453,158 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   });
 
   const attentionGroups = buildAttentionGroups(attentionItems, permissionAccess, today);
-
-  const noShowCancelledCount = data.bookings.filter((b) =>
-    ["cancelled", "no_show"].includes(b.status)
-  ).length;
-  const hasActiveProblems =
-    attentionItems.length > 0 ||
-    unassignedOnly.length > 0 ||
-    unpaidBookings.length > 0 ||
-    systemAttentionCount > 0;
-  const todayCard = {
-    title: "Today",
-    value: formatNumber(todayAppointments.length),
-    subtitle: `${formatNumber(todayAppointments.length)} today \u00b7 ${formatNumber(nextSevenDays.length)} this week`,
-    icon: CalendarDays,
-    tone: "default" as const,
-    href: permissionAccess.bookings ? "/admin/bookings" : undefined,
-    actionLabel: permissionAccess.bookings ? "View bookings" : undefined,
-  };
-  const problemCards = [
+  const attentionSummaryRows: AttentionSummaryRow[] = [
     {
-      title: "Needs attention",
-      value: formatNumber(attentionItems.length),
-      subtitle: `${formatNumber(needsAssignment.length)} assignment \u00b7 ${formatNumber(rescheduleRequests.length)} reschedule`,
-      icon: AlertCircle,
-      tone: attentionItems.length > 0 ? "warning" as const : "default" as const,
-      href: permissionAccess.bookings ? "/admin/bookings?view=attention" : permissionAccess.reports ? "/admin/reports" : undefined,
-      actionLabel: attentionItems.length > 0 ? "Review signals" : permissionAccess.reports ? "Review reports" : undefined,
+      key: "emails",
+      label: "Client confirmation emails",
+      detail: failedEmails.length > 0 ? "Delivery failed or bounced" : "No failed delivery signals",
+      count: failedEmails.length,
+      severity: failedEmails.length > 0 ? "critical" : "clear",
+      href: permissionAccess.emails ? "/admin/emails" : null,
     },
     {
-      title: "Unassigned",
-      value: formatNumber(unassignedOnly.length),
-      subtitle: `${formatNumber(unassignedOnly.length)} unassigned \u00b7 ${formatNumber(partiallyAssigned.length)} partial`,
-      icon: UserRoundCheck,
-      tone: unassignedOnly.length > 0 ? "critical" as const : "default" as const,
-      href: permissionAccess.bookings ? "/admin/bookings?view=unassigned" : undefined,
-      actionLabel: unassignedOnly.length > 0 ? "Assign now" : undefined,
+      key: "operations",
+      label: "Open operations",
+      detail: openOperationalErrors.length > 0 ? "Issues require follow up" : "No open operational errors",
+      count: openOperationalErrors.length,
+      severity: openOperationalErrors.length > 0 ? "warning" : "clear",
+      href: permissionAccess.operations ? "/admin/operations" : null,
     },
     {
-      title: "Unpaid",
-      value: formatNumber(unpaidBookings.length),
-      subtitle: revenueAllowed
-        ? `${formatMoney(summary.outstandingRevenue)} outstanding`
-        : `${formatNumber(unpaidBookings.length)} unpaid`,
-      icon: CreditCard,
-      tone: unpaidBookings.length > 0 ? "warning" as const : "default" as const,
-      href: permissionAccess.bookings ? "/admin/bookings?payment_status=unpaid" : undefined,
-      actionLabel: unpaidBookings.length > 0 ? "Review payment" : undefined,
-    },
-    {
-      title: "System health",
-      value: formatNumber(systemAttentionCount),
-      subtitle: `${formatNumber(failedEmails.length)} email \u00b7 ${formatNumber(openOperationalErrors.length)} ops`,
-      icon: ShieldCheck,
-      tone: systemAttentionCount > 0 ? "warning" as const : "success" as const,
-      href: permissionAccess.operations ? "/admin/operations" : permissionAccess.emails ? "/admin/emails" : undefined,
-      actionLabel: systemAttentionCount > 0 ? "Review health" : undefined,
+      key: "staff-gaps",
+      label: "Staff gaps",
+      detail: staffAvailabilityGaps.length > 0 ? "Shifts needing coverage" : "Well covered",
+      count: staffAvailabilityGaps.length,
+      severity: staffAvailabilityGaps.length > 0 ? "warning" : "clear",
+      href: permissionAccess.staff ? "/admin/staff" : null,
     },
   ];
-  const commandCards = hasActiveProblems && todayAppointments.length === 0
-    ? [...problemCards, todayCard]
-    : [todayCard, ...problemCards];
+  if (needsAssignment.length > 0) {
+    attentionSummaryRows.push({
+      key: "assignments",
+      label: "Booking assignments",
+      detail: "Bookings need therapist assignment",
+      count: needsAssignment.length,
+      severity: unassignedOnly.length > 0 ? "critical" : "warning",
+      href: permissionAccess.bookings ? "/admin/bookings?view=unassigned" : null,
+    });
+  }
+  if (unpaidBookings.length > 0) {
+    attentionSummaryRows.push({
+      key: "payments",
+      label: "Payment follow up",
+      detail: "Bookings need payment review",
+      count: unpaidBookings.length,
+      severity: "warning",
+      href: permissionAccess.bookings ? "/admin/bookings?payment_status=unpaid" : null,
+    });
+  }
+
+  const readiness = {
+    confirmations: failedEmails.length > 0 ? `${formatNumber(failedEmails.length)} to review` : "All clear",
+    staffCoverage: needsAssignment.length > 0 ? `${formatNumber(needsAssignment.length)} need assignment` : "Well covered",
+    paymentCollection: unpaidBookings.length > 0 ? `${formatNumber(unpaidBookings.length)} to collect` : "No activity yet",
+  };
+
+  const notificationButton = (
+    <>
+      <div className="xl:hidden">
+        <AdminErrorBoundary sectionName="Notifications">
+          <MobileNotificationButton items={notifications} variant="icon" />
+        </AdminErrorBoundary>
+      </div>
+      <div className="hidden xl:block">
+        <AdminErrorBoundary sectionName="Notifications">
+          <NotificationBell items={notifications} />
+        </AdminErrorBoundary>
+      </div>
+    </>
+  );
 
   return (
-    <AdminPageScaffold className="gap-5">
-      {/* ── Header ── */}
-      <header className="grid gap-4 rounded-2xl border border-[var(--rahma-border)] bg-white/85 p-4 shadow-[0_1px_3px_rgba(0,0,0,0.03)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h1 className="font-display text-[1.85rem] font-semibold leading-tight text-[var(--rahma-charcoal)] sm:text-[2.15rem]">
-              Dashboard
-            </h1>
-            <Badge variant="secondary" className="border-none bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]">
-              {profile.role_name}
-            </Badge>
-            {assignedOnly ? <AdminStatusBadge value="Assigned only" tone="info" /> : null}
-            {!revenueAllowed ? <AdminStatusBadge value="Revenue hidden" tone="restricted" /> : null}
-            <AdminStatusBadge value={`Last checked ${lastChecked}`} tone="muted" />
-          </div>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[var(--rahma-muted)] sm:text-base">
-            Operational command centre &mdash; bookings, staff, payments, and attention.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          {permissionAccess.reports ? (
-            <Link
-              href="/admin/reports"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-4")}
-            >
-              <FileText className="mr-1.5 size-3.5" />
-              Reports
-            </Link>
-          ) : null}
-          {permissionAccess.calendar ? (
-            <Link
-              href="/admin/calendar"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-4")}
-            >
-              <CalendarDays className="mr-1.5 size-3.5" />
-              Calendar
-            </Link>
-          ) : null}
-          <div className="xl:hidden">
-            <MobileNotificationButton items={notifications} variant="icon" />
-          </div>
-          <div className="hidden xl:block">
-            <NotificationBell items={notifications} />
-          </div>
-        </div>
-      </header>
-
-      {/* ── Filters bar ── */}
-      <FiltersBar
-        filters={filters}
-        staff={data.staff}
-        serviceOptions={serviceOptions}
+    <AdminPageScaffold className="gap-4">
+      <DashboardHeader
+        title="Dashboard"
+        roleName={profile.role_name}
+        subtitle="Operational command centre — bookings, staff, payments & attention."
+        lastChecked={lastChecked}
         assignedOnly={assignedOnly}
         revenueAllowed={revenueAllowed}
+        showReports={permissionAccess.reports}
+        showCalendar={permissionAccess.calendar}
+        showSettings={permissionAccess.operations}
+        notificationButton={notificationButton}
       />
 
-      {/* ── Command cards ── */}
-      <section className="order-3 grid gap-3 sm:grid-cols-2 xl:order-none xl:grid-cols-5">
-        {commandCards.map((card) => (
-          <DashboardCommandCard
-            key={card.title}
-            title={card.title}
-            value={card.value}
-            subtitle={card.subtitle}
-            icon={card.icon}
-            tone={card.tone}
-            href={card.href}
-            actionLabel={card.actionLabel}
-          />
-        ))}
+      <AdminErrorBoundary sectionName="Dashboard filters">
+        <DashboardFiltersClient
+          filters={filters}
+          staff={data.staff}
+          serviceOptions={serviceOptions}
+          sourceOptions={sourceOptions}
+          statusOptions={statusOptions}
+          paymentOptions={paymentOptions}
+          cityOptions={data.cityOptions}
+          today={today}
+          assignedOnly={assignedOnly}
+          revenueAllowed={revenueAllowed}
+        />
+      </AdminErrorBoundary>
+
+      <section className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.95fr)]">
+        <TodayAtAGlanceCard
+          appointments={todayAppointments.map((booking) => ({
+            time: booking.start_time.slice(0, 5),
+            endTime: booking.end_time?.slice(0, 5),
+            title: booking.contact_full_name ?? "Unknown contact",
+            detail: booking.service_city ?? "No city recorded",
+            status: booking.assignment_status,
+            href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
+          }))}
+          todayCount={todayAppointments.length}
+          weekCount={nextSevenDays.length}
+          nextAppointment={
+            nextAppointment
+              ? {
+                  date: nextAppointment.booking_date,
+                  time: nextAppointment.start_time.slice(0, 5),
+                  title: nextAppointment.contact_full_name ?? "Unknown contact",
+                }
+              : null
+          }
+          permissionAccess={permissionAccess}
+          readiness={readiness}
+        />
+        <UrgentAttentionPanel rows={attentionSummaryRows} groups={attentionGroups} />
       </section>
 
-      {/* ── Main grid: Needs Action + Today / Ops ── */}
-      <section className="order-2 grid items-start gap-5 xl:order-none xl:grid-cols-[minmax(0,1.15fr)_minmax(18rem,0.65fr)]">
-        <NeedsActionBoard groups={attentionGroups} />
-
-        <div className="grid gap-5 self-start">
-          <TodayAgendaCard
-            appointments={todayAppointments.map((b) => ({
-              time: b.start_time.slice(0, 5),
-              title: b.contact_full_name ?? "Unknown contact",
-              detail: b.service_city ?? "No city recorded",
-              status: b.assignment_status,
-              href: permissionAccess.bookings ? `/admin/bookings/${b.id}` : null,
+      <section className="grid min-w-0 items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="order-2 xl:order-1">
+          <StaffCapacityCard
+            genderCapacity={genderCapacity}
+            staffWorkload={staffWorkload.map((row) => ({
+              staffName: row.staffName,
+              assignments: row.assignments,
+              completed: row.completed,
             }))}
-            nextAppointment={
-              nextAppointment
-                ? {
-                    date: nextAppointment.booking_date,
-                    time: nextAppointment.start_time.slice(0, 5),
-                    title: nextAppointment.contact_full_name ?? "Unknown contact",
-                  }
-                : null
-            }
             permissionAccess={permissionAccess}
           />
+        </div>
+        <div className="order-3 xl:order-2">
+          <PaymentHealthCard
+            summary={{
+              bookedRevenue: summary.bookedRevenue,
+              collectedRevenue: summary.collectedRevenue,
+              outstandingRevenue: summary.outstandingRevenue,
+            }}
+            unpaidCount={unpaidBookings.length}
+            unpaidCompletedCount={unpaidCompleted.length}
+            revenueAllowed={revenueAllowed}
+            canReviewBookings={permissionAccess.bookings}
+            canViewReports={permissionAccess.reports}
+          />
+        </div>
+        <div className="order-1 lg:col-span-2 xl:order-3 xl:col-span-1">
           <OperationsHealthCard
             failedEmails={failedEmails.length}
             openEnquiries={newEnquiries.length}
@@ -643,28 +615,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         </div>
       </section>
 
-      {/* ── Secondary grid: Staff · Payment · Business Pulse ── */}
-      <section className="order-4 grid items-start gap-5 lg:grid-cols-3 xl:order-none">
-        <StaffCapacityCard
-          genderCapacity={genderCapacity}
-          staffWorkload={staffWorkload.map((sw) => ({
-            staffName: sw.staffName,
-            assignments: sw.assignments,
-            completed: sw.completed,
-          }))}
-          permissionAccess={permissionAccess}
-        />
-        <PaymentHealthCard
-          summary={{
-            bookedRevenue: summary.bookedRevenue,
-            collectedRevenue: summary.collectedRevenue,
-            outstandingRevenue: summary.outstandingRevenue,
-          }}
-          unpaidCount={unpaidBookings.length}
-          unpaidCompletedCount={unpaidCompleted.length}
-          revenueAllowed={revenueAllowed}
-          canReviewBookings={permissionAccess.bookings}
-        />
+      <AdminErrorBoundary sectionName="Business pulse">
         <BusinessPulseCard
           services={services}
           clients={{
@@ -673,25 +624,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             noShowCancelled: noShowCancelledCount,
             newEnquiries: newEnquiries.length,
           }}
+          bookings={data.bookings}
+          dateRange={{ from: filters.from, to: filters.to }}
           revenueAllowed={revenueAllowed}
+          canViewReports={permissionAccess.reports}
         />
-      </section>
+      </AdminErrorBoundary>
 
-      {/* ── Restricted states ── */}
-      {(!revenueAllowed || assignedOnly) ? (
+      {!revenueAllowed || assignedOnly ? (
         <section className="grid gap-4 lg:grid-cols-2" aria-label="Restricted dashboard states">
           {!revenueAllowed ? (
             <AdminHiddenDataState
               title="Revenue hidden"
-              message="Payment counts stay visible, but money values are hidden unless view_reports or manage_payments is granted."
-              permission="view_reports or manage_payments"
+              message="Payment counts stay visible, but money values are hidden unless revenue report access is granted."
+              permission="view_reports_revenue"
             />
           ) : null}
           {assignedOnly ? (
             <AdminHiddenDataState
               title="Assigned-only scope"
               message="Dashboard metrics and attention items are scoped to bookings assigned to this staff member."
-              permission="view_own_bookings"
+              permission="view_bookings_assigned"
             />
           ) : null}
         </section>
@@ -700,313 +653,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Date quick chips
-   ═══════════════════════════════════════════════════════════ */
-
-const DATE_CHIP_PRESETS = [
-  { label: "Today", days: 0 },
-  { label: "7 days", days: 6 },
-  { label: "30 days", days: 29 },
-] as const;
-
-function DateQuickChips({ from, to }: { from: string; to: string }) {
-  return (
-    <span className="hidden min-h-11 items-center gap-1 rounded-xl border border-[var(--rahma-border)] bg-white px-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:inline-flex">
-      {DATE_CHIP_PRESETS.map((preset) => {
-        const today = getBusinessDate();
-        const presetTo = addBusinessDays(today, preset.days);
-        const isActive = from === today && to === presetTo;
-        return (
-          <Link
-            key={preset.label}
-            href={`/admin/dashboard?from=${today}&to=${presetTo}`}
-            className={cn(
-              "inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors",
-              isActive
-                ? "bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]"
-                : "text-[var(--rahma-muted)] hover:text-[var(--rahma-charcoal)] hover:bg-[var(--rahma-ivory)]"
-            )}
-          >
-            {preset.label}
-          </Link>
-        );
-      })}
-    </span>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Filters bar
-   ═══════════════════════════════════════════════════════════ */
-
-function FiltersBar({
-  filters,
-  staff,
-  serviceOptions,
-  assignedOnly,
-  revenueAllowed,
-}: {
-  filters: ReturnType<typeof parseReportFilters>;
-  staff: { id: string; name: string }[];
-  serviceOptions: string[];
-  assignedOnly: boolean;
-  revenueAllowed: boolean;
-}) {
-  const activeAdvancedFilters = [
-    filters.staffId,
-    filters.service,
-    filters.source,
-    filters.status,
-    filters.paymentStatus,
-    filters.city,
-  ].filter(Boolean).length;
-
-  return (
-    <section className="rounded-2xl border border-[var(--rahma-border)] bg-white/85 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.02)] sm:p-4">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-        <div className="min-w-0">
-          <DateQuickChips from={filters.from} to={filters.to} />
-          <div className="grid gap-2 rounded-xl bg-[var(--admin-surface-muted)] px-3 py-3 text-sm sm:hidden">
-            <span className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--rahma-muted)]">Scope</span>
-            <span className="font-semibold text-[var(--rahma-charcoal)]">
-              {filters.from} &mdash; {filters.to}
-            </span>
-            <span className="text-[var(--rahma-muted)]">
-              {assignedOnly ? "Assigned bookings only" : "Permitted records"}
-              {!revenueAllowed ? " · revenue hidden" : ""}
-            </span>
-          </div>
-        </div>
-
-        <form action="/admin/dashboard" className="hidden lg:block">
-          <input type="hidden" name="range" value={filters.range} />
-          <div className="flex flex-wrap items-end justify-end gap-2.5">
-            <DateInput label="From" name="from" defaultValue={filters.from} />
-            <DateInput label="To" name="to" defaultValue={filters.to} />
-            <button
-              type="submit"
-              className={cn(buttonVariants({ size: "sm" }), "min-h-10 bg-[var(--rahma-green)] px-4")}
-            >
-              Apply
-            </button>
-            <Link
-              href="/admin/dashboard"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-10 bg-white px-4")}
-            >
-              Reset
-            </Link>
-          </div>
-        </form>
-      </div>
-
-      {/* Advanced filters */}
-      <details className="mt-3 hidden lg:block">
-        <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-[var(--rahma-border)] bg-white px-3.5 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30 [&::-webkit-details-marker]:hidden">
-          <SlidersHorizontal className="size-4 text-[var(--rahma-green)]" aria-hidden="true" />
-          Filters
-          <AdminStatusBadge
-            value={activeAdvancedFilters > 0 ? `${activeAdvancedFilters} active` : "Optional"}
-            tone={activeAdvancedFilters > 0 ? "info" : "muted"}
-          />
-        </summary>
-        <form action="/admin/dashboard" className="mt-3 rounded-2xl border border-[var(--rahma-border)] bg-white/75 p-3.5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-          <input type="hidden" name="from" value={filters.from} />
-          <input type="hidden" name="to" value={filters.to} />
-          <input type="hidden" name="range" value={filters.range} />
-          <div className="grid gap-3 lg:grid-cols-12">
-            <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId} className="lg:col-span-4 xl:col-span-3">
-              <option value="">All staff</option>
-              {staff.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Service" name="service" defaultValue={filters.service} className="lg:col-span-4 xl:col-span-3">
-              <option value="">All services</option>
-              {serviceOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Source" name="source" defaultValue={filters.source} className="lg:col-span-4 xl:col-span-2">
-              <option value="">All sources</option>
-              {sourceOptions.map((s) => (
-                <option key={s} value={s}>{formatFilterLabel(s)}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Status" name="status" defaultValue={filters.status} className="lg:col-span-4 xl:col-span-2">
-              <option value="">All statuses</option>
-              {statusOptions.map((s) => (
-                <option key={s} value={s}>{formatFilterLabel(s)}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Payment" name="paymentStatus" defaultValue={filters.paymentStatus} className="lg:col-span-4 xl:col-span-2">
-              <option value="">All payments</option>
-              {paymentOptions.map((p) => (
-                <option key={p} value={p}>{formatFilterLabel(p)}</option>
-              ))}
-            </FormSelect>
-            <label className="grid gap-1 text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)] lg:col-span-6 xl:col-span-4">
-              City
-              <input
-                name="city"
-                defaultValue={filters.city}
-                className="min-h-11 rounded-xl border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-                placeholder="Filter by city"
-              />
-            </label>
-            <div className="flex items-end justify-start gap-2 lg:col-span-6 xl:col-span-8 xl:justify-end">
-              <button type="submit" className={cn(buttonVariants({ size: "sm" }), "min-h-11 bg-[var(--rahma-green)] px-4")}>
-                Apply filters
-              </button>
-              <Link href="/admin/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 bg-white px-4")}>
-                Reset
-              </Link>
-            </div>
-          </div>
-        </form>
-      </details>
-
-      {/* Mobile filters sheet */}
-      <div className="mt-3 lg:hidden">
-        <AdminSheet
-          title="Filters"
-          description="Refine dashboard scope."
-          side="bottom"
-          trigger={
-            <button
-              type="button"
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-[var(--rahma-border)] bg-[var(--admin-surface-muted)] px-3 text-sm font-semibold text-[var(--rahma-charcoal)] outline-none transition-colors hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-            >
-              <SlidersHorizontal className="size-4 text-[var(--rahma-green)]" />
-              Filters
-            </button>
-          }
-        >
-          <form action="/admin/dashboard" className="grid gap-3">
-            <input type="hidden" name="range" value={filters.range} />
-            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
-              From
-              <input
-                name="from"
-                type="date"
-                defaultValue={filters.from}
-                className="min-h-11 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-              />
-            </label>
-            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
-              To
-              <input
-                name="to"
-                type="date"
-                defaultValue={filters.to}
-                className="min-h-11 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-              />
-            </label>
-            <FormSelect label="Staff" name="staffId" defaultValue={filters.staffId}>
-              <option value="">All staff</option>
-              {staff.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Service" name="service" defaultValue={filters.service}>
-              <option value="">All services</option>
-              {serviceOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Source" name="source" defaultValue={filters.source}>
-              <option value="">All sources</option>
-              {sourceOptions.map((s) => (
-                <option key={s} value={s}>{formatFilterLabel(s)}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Status" name="status" defaultValue={filters.status}>
-              <option value="">All statuses</option>
-              {statusOptions.map((s) => (
-                <option key={s} value={s}>{formatFilterLabel(s)}</option>
-              ))}
-            </FormSelect>
-            <FormSelect label="Payment" name="paymentStatus" defaultValue={filters.paymentStatus}>
-              <option value="">All payments</option>
-              {paymentOptions.map((p) => (
-                <option key={p} value={p}>{formatFilterLabel(p)}</option>
-              ))}
-            </FormSelect>
-            <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
-              City
-              <input
-                name="city"
-                defaultValue={filters.city}
-                className="min-h-11 rounded-xl border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-                placeholder="Filter by city"
-              />
-            </label>
-            <div className="flex gap-2 pt-1">
-              <button type="submit" className={cn(buttonVariants({ size: "sm" }), "min-h-11 flex-1 bg-[var(--rahma-green)] px-4")}>
-                Apply
-              </button>
-              <Link href="/admin/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-11 flex-1 bg-white")}>
-                Reset
-              </Link>
-            </div>
-          </form>
-        </AdminSheet>
-      </div>
-    </section>
-  );
-}
-
-function DateInput({ label, name, defaultValue }: { label: string; name: string; defaultValue: string }) {
-  return (
-    <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
-      {label}
-      <input
-        name={name}
-        type="date"
-        defaultValue={defaultValue}
-        className="min-h-10 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-      />
-    </label>
-  );
-}
-
-function FormSelect({
-  label,
-  name,
-  defaultValue,
-  children,
-  className,
-}: {
-  label: string;
-  name: string;
-  defaultValue: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={cn("grid gap-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--rahma-muted)]", className)}>
-      {label}
-      <select
-        name={name}
-        defaultValue={defaultValue}
-        className="min-h-11 rounded-xl border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--rahma-charcoal)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
-      >
-        {children}
-      </select>
-    </label>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   Insufficient permissions
-   ═══════════════════════════════════════════════════════════ */
-
 function InsufficientPermissions() {
   return (
     <AdminAccessDenied
       title="Dashboard access limited"
       message="You need dashboard, reporting, or own-booking permission to view this area."
-      permission="view_dashboard or view_reports"
+      permission="view_dashboard or view_reports_own"
     />
   );
 }

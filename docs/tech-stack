@@ -1,0 +1,24 @@
+## Tech Stack
+
+| Layer | Choice |
+| --- | --- |
+| Framework | Next.js App Router |
+| UI | React + shadcn/ui |
+| Language | TypeScript strict |
+| Styling | Tailwind CSS, CSS variables, design tokens, utility-first responsive styling |
+| Motion | Framer Motion / Motion |
+| Date picking | React DayPicker |
+| Forms | React Hook Form + Zod |
+| Client state | Zustand |
+| Server state | TanStack Query |
+| Backend platform | Supabase |
+| Database | Supabase Postgres |
+| Auth | Supabase Auth |
+| CMS | Custom in-app admin CMS, Supabase-backed, no separate CMS |
+| Storage | Supabase Storage |
+| Email | Resend |
+| Images | next/image plus Cloudflare CDN/edge caching |
+| Analytics | None initially; add Umami later if needed |
+| Package manager | pnpm |
+| Build/dev | Next.js build pipeline; Turbopack in dev |
+| Deployment | Cloudflare |

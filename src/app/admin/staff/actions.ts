@@ -2,7 +2,14 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { requirePermission, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canAssignStaffRoles,
+  canManageStaffProfiles,
+  canViewStaff,
+  getStaffProfile,
+  requirePermission,
+  PERMISSIONS,
+} from "@/lib/auth/rbac";
 import { revalidatePath } from "next/cache";
 
 type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
@@ -23,6 +30,10 @@ interface StaffAvailabilityRuleInput {
 }
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const CRITICAL_ROLE_PERMISSIONS = new Set<string>([
+  PERMISSIONS.MANAGE_STAFF_PROFILES,
+  PERMISSIONS.ASSIGN_STAFF_ROLES,
+]);
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -65,8 +76,8 @@ async function roleHasCriticalAdminPermissions(
   );
 
   return (
-    permissions.has(PERMISSIONS.MANAGE_USERS) &&
-    permissions.has(PERMISSIONS.MANAGE_ROLES)
+    permissions.has(PERMISSIONS.MANAGE_STAFF_PROFILES) &&
+    permissions.has(PERMISSIONS.ASSIGN_STAFF_ROLES)
   );
 }
 
@@ -118,9 +129,8 @@ async function getAvailabilityActor(
 export async function getStaffProfiles() {
   const supabase = await createSupabaseServerClient();
   
-  try {
-    await requirePermission(PERMISSIONS.MANAGE_USERS, supabase);
-  } catch {
+  const profile = await getStaffProfile(supabase);
+  if (!profile || !profile.active || (!canViewStaff(profile) && !canManageStaffProfiles(profile))) {
     return { error: "Insufficient permissions." };
   }
 
@@ -130,7 +140,8 @@ export async function getStaffProfiles() {
       *,
       roles (
         id,
-        name
+        name,
+        display_label
       )
     `)
     .order("name");
@@ -152,10 +163,11 @@ export async function createStaffProfile(input: {
 
   let actor;
   try {
-    actor = await requirePermission(PERMISSIONS.MANAGE_USERS, supabase);
+    actor = await requirePermission(PERMISSIONS.MANAGE_STAFF_PROFILES, supabase);
   } catch {
     return { error: "Insufficient permissions." };
   }
+  if (!canAssignStaffRoles(actor)) return { error: "Insufficient permissions." };
 
   const name = input.name.trim();
   const email = normalizeEmail(input.email);
@@ -172,6 +184,7 @@ export async function createStaffProfile(input: {
     .from("roles")
     .select("id")
     .eq("id", input.role_id)
+    .eq("active", true)
     .single();
 
   if (!role) return { error: "Choose a valid role." };
@@ -218,8 +231,11 @@ export async function updateStaffProfile(
   
   let actor;
   try {
-    actor = await requirePermission(PERMISSIONS.MANAGE_USERS, supabase);
+    actor = await requirePermission(PERMISSIONS.MANAGE_STAFF_PROFILES, supabase);
   } catch {
+    return { error: "Insufficient permissions." };
+  }
+  if (updates.role_id && !canAssignStaffRoles(actor)) {
     return { error: "Insufficient permissions." };
   }
 
@@ -247,6 +263,7 @@ export async function updateStaffProfile(
       .from("roles")
       .select("id")
       .eq("id", updates.role_id)
+      .eq("active", true)
       .single();
 
     if (!role) return { error: "Choose a valid role." };
@@ -459,6 +476,107 @@ export async function deleteStaffAvailabilityRule(
   });
 
   revalidatePath(`/admin/staff/${staffId}/availability`);
+
+  return { success: true };
+}
+
+export async function updateStaffPermissionOverride(
+  staffId: string,
+  permissionId: string,
+  mode: "inherit" | "grant" | "revoke"
+): Promise<{ error?: string; success?: boolean }> {
+  const supabase = await createSupabaseServerClient();
+
+  let actor;
+  try {
+    actor = await requirePermission(PERMISSIONS.MANAGE_PERMISSION_OVERRIDES, supabase);
+  } catch {
+    return { error: "Insufficient permissions." };
+  }
+
+  if (!["inherit", "grant", "revoke"].includes(mode)) {
+    return { error: "Choose a valid override mode." };
+  }
+
+  if (actor.id === staffId) {
+    return { error: "You cannot change your own permission overrides." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const [{ data: staff }, { data: permission }] = await Promise.all([
+    adminClient
+      .from("staff_profiles")
+      .select("id, role_id, active")
+      .eq("id", staffId)
+      .single(),
+    adminClient
+      .from("permissions")
+      .select("id, name, active")
+      .eq("id", permissionId)
+      .single(),
+  ]);
+
+  if (!staff || !permission || !permission.active) {
+    return { error: "Staff profile or permission not found." };
+  }
+
+  if (
+    mode === "revoke" &&
+    staff.active &&
+    CRITICAL_ROLE_PERMISSIONS.has(permission.name) &&
+    (await roleHasCriticalAdminPermissions(adminClient, staff.role_id)) &&
+    (await countOtherActiveCriticalAdmins(adminClient, staffId)) === 0
+  ) {
+    return { error: "Cannot remove the last active staff admin." };
+  }
+
+  const { data: beforeState } = await adminClient
+    .from("staff_permission_overrides")
+    .select("*")
+    .eq("staff_id", staffId)
+    .eq("permission_id", permissionId)
+    .maybeSingle();
+
+  if (mode === "inherit") {
+    const { error } = await adminClient
+      .from("staff_permission_overrides")
+      .delete()
+      .eq("staff_id", staffId)
+      .eq("permission_id", permissionId);
+
+    if (error) return { error: "Failed to remove permission override." };
+  } else {
+    const { error } = await adminClient
+      .from("staff_permission_overrides")
+      .upsert(
+        {
+          staff_id: staffId,
+          permission_id: permissionId,
+          is_granted: mode === "grant",
+        },
+        { onConflict: "staff_id,permission_id" }
+      );
+
+    if (error) return { error: "Failed to save permission override." };
+  }
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "staff_permission_override_updated",
+    target_type: "staff_permission_overrides",
+    target_id: staffId,
+    before_state: beforeState,
+    after_state: {
+      staff_id: staffId,
+      permission_id: permissionId,
+      permission_name: permission.name,
+      mode,
+    },
+  });
+
+  revalidatePath("/admin/staff");
+  revalidatePath(`/admin/staff/${staffId}`);
 
   return { success: true };
 }

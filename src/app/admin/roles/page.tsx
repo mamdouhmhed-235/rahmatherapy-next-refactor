@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canManageRoleTemplates, getRoleDisplayName, getStaffProfile } from "@/lib/auth/rbac";
 import { redirect } from "next/navigation";
 import { ChevronRight, ShieldCheck, Users } from "lucide-react";
 import { AdminAccessDenied } from "../components/admin-ui";
@@ -18,12 +18,12 @@ export default async function RolesPage() {
   }
 
   // Fine-grained permission gate — 403 message, not a redirect
-  if (!profile.permissions.has(PERMISSIONS.MANAGE_ROLES)) {
+  if (!canManageRoleTemplates(profile)) {
     return (
       <AdminAccessDenied
         title="Roles access limited"
         message="You need role management permission to access this page."
-        permission="manage_roles"
+        permission="manage_role_templates"
       />
     );
   }
@@ -31,8 +31,9 @@ export default async function RolesPage() {
   // Fetch all roles with permission count and staff count
   const { data: roles } = await supabase
     .from("roles")
-    .select("id, name, description, role_permissions(count), staff_profiles(count)")
-    .order("name");
+    .select("id, name, display_label, description, sort_order, active, is_system, role_permissions(count), staff_profiles(count)")
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
 
   return (
     <div>
@@ -73,7 +74,12 @@ export default async function RolesPage() {
               {/* Role info */}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-[var(--rahma-charcoal)]">
-                  {role.name}
+                  {getRoleDisplayName(role)}
+                </p>
+                <p className="mt-0.5 text-xs text-[var(--rahma-muted)]">
+                  DB role: {role.name}
+                  {!role.active ? " - inactive" : ""}
+                  {role.is_system ? " - system" : ""}
                 </p>
                 {role.description && (
                   <p className="mt-0.5 truncate text-sm text-[var(--rahma-muted)]">

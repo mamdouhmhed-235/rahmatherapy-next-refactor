@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canAssignStaffRoles,
+  canManageStaffProfiles,
+  canViewStaff,
+  getRoleDisplayName,
+  getStaffProfile,
+} from "@/lib/auth/rbac";
 import { redirect } from "next/navigation";
 import { CalendarCheck, ChevronRight, User, ShieldCheck, Mail } from "lucide-react";
 
@@ -21,13 +27,12 @@ export default async function StaffPage() {
     redirect("/admin/login");
   }
 
-  // Permission gate
-  if (!profile.permissions.has(PERMISSIONS.MANAGE_USERS)) {
+  if (!canViewStaff(profile) && !canManageStaffProfiles(profile)) {
     return (
       <AdminAccessDenied
         title="Staff access limited"
         message="You need user management permission to access this page."
-        permission="manage_users"
+        permission="view_staff"
       />
     );
   }
@@ -40,7 +45,8 @@ export default async function StaffPage() {
     .select(`
       *,
       roles (
-        name
+        name,
+        display_label
       )
     `)
     .order("name"),
@@ -52,8 +58,10 @@ export default async function StaffPage() {
 
   const { data: roles } = await supabase
     .from("roles")
-    .select("id, name")
-    .order("name");
+    .select("id, name, display_label, active, sort_order")
+    .eq("active", true)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
 
   return (
     <div>
@@ -67,13 +75,16 @@ export default async function StaffPage() {
             Manage your team, their roles, and booking availability.
           </p>
         </div>
-        <NewStaffForm roles={roles ?? []} />
+        {canManageStaffProfiles(profile) && canAssignStaffRoles(profile) ? (
+          <NewStaffForm roles={roles ?? []} />
+        ) : null}
       </div>
 
       {/* Staff list */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {(staff ?? []).map((member) => {
-          const roleName = (member.roles as unknown as { name: string })?.name ?? "No Role";
+          const role = member.roles as unknown as { name: string; display_label?: string | null } | null;
+          const roleName = role ? getRoleDisplayName(role) : "No Role";
           const upcomingWorkload = (assignments ?? []).filter((assignment) => {
             const booking = assignment.bookings as unknown as {
               booking_date: string;

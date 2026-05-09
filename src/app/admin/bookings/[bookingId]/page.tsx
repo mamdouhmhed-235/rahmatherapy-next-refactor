@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canAssignBookings, getStaffProfile } from "@/lib/auth/rbac";
 import { AdminAccessDenied } from "../../components/admin-ui";
 import { AssignmentManager } from "../AssignmentManager";
 import { BookingActionButton } from "../BookingActionButton";
@@ -123,7 +123,7 @@ export default async function BookingDetailPage({
 
   const canReassignBookings =
     canManageAllBookings(profile) &&
-    profile.permissions.has(PERMISSIONS.REASSIGN_BOOKINGS);
+    canAssignBookings(profile);
   const assignmentPreviews = canReassignBookings
     ? Object.fromEntries(
         await Promise.all(
@@ -736,7 +736,7 @@ function InsufficientPermissions() {
     <AdminAccessDenied
       title="Booking access limited"
       message="You need booking management permission or an assigned booking relationship to access this booking."
-      permission="manage_bookings_all, manage_bookings_own, or assigned booking"
+      permission="manage_bookings_all, manage_bookings_assigned, or assigned booking"
     />
   );
 }

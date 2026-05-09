@@ -9,10 +9,9 @@ const PASSWORD = "Phase10-Test-2026!";
 const USERS = [
   { prefix: "OWNER", email: "phase10.owner@example.test", role: "Owner", gender: "male", active: true, canTakeBookings: false },
   { prefix: "ADMIN", email: "phase10.admin@example.test", role: "Admin", gender: "female", active: true, canTakeBookings: false },
-  { prefix: "COORDINATOR", email: "phase10.coordinator@example.test", role: "Phase10 Booking Coordinator", gender: "female", active: true, canTakeBookings: false },
+  { prefix: "COORDINATOR", email: "phase10.coordinator@example.test", role: "Booking Coordinator", gender: "female", active: true, canTakeBookings: false },
   { prefix: "THERAPIST_A", email: "phase10.therapist.a@example.test", role: "Therapist", gender: "female", active: true, canTakeBookings: true },
   { prefix: "THERAPIST_B", email: "phase10.therapist.b@example.test", role: "Therapist", gender: "female", active: true, canTakeBookings: true },
-  { prefix: "REPORTING", email: "phase10.reporting@example.test", role: "Phase10 Reporting", gender: "male", active: true, canTakeBookings: false },
   { prefix: "INACTIVE", email: "phase10.inactive@example.test", role: "Inactive", gender: "female", active: false, canTakeBookings: false },
   { prefix: "NON_STAFF", email: "phase10.nonstaff@example.test", role: null, gender: "male", active: true, canTakeBookings: false },
 ];
@@ -98,57 +97,11 @@ async function getRoleMap(supabase) {
   return new Map((data ?? []).map((role) => [role.name, role.id]));
 }
 
-async function getPermissionMap(supabase) {
-  const { data, error } = await supabase.from("permissions").select("id, name");
-  if (error) throw new Error(`Failed to load permissions: ${error.message}`);
-  return new Map((data ?? []).map((permission) => [permission.name, permission.id]));
-}
-
-async function ensureTestRoles(supabase) {
-  const roles = [
-    {
-      name: "Phase10 Booking Coordinator",
-      description: `${MARKER} temporary limited booking/client workflow role.`,
-      permissions: [
-        "view_dashboard",
-        "manage_bookings_own",
-        "view_all_bookings",
-        "view_own_bookings",
-        "manage_clients",
-        "view_clients",
-      ],
-    },
-    {
-      name: "Phase10 Reporting",
-      description: `${MARKER} temporary read-only reporting role.`,
-      permissions: ["view_dashboard", "view_reports"],
-    },
-  ];
-
-  for (const role of roles) {
-    const { error } = await supabase
-      .from("roles")
-      .upsert({ name: role.name, description: role.description }, { onConflict: "name" });
-    if (error) throw new Error(`Failed to upsert role ${role.name}: ${error.message}`);
-  }
-
+async function ensureStandardRoles(supabase) {
+  const requiredRoles = ["Owner", "Admin", "Booking Coordinator", "Therapist", "Inactive"];
   const roleMap = await getRoleMap(supabase);
-  const permissionMap = await getPermissionMap(supabase);
-
-  for (const role of roles) {
-    const roleId = roleMap.get(role.name);
-    if (!roleId) throw new Error(`Missing role ${role.name}.`);
-
-    const rows = role.permissions.map((name) => {
-      const permissionId = permissionMap.get(name);
-      if (!permissionId) throw new Error(`Missing permission ${name}.`);
-      return { role_id: roleId, permission_id: permissionId };
-    });
-
-    const { error } = await supabase.from("role_permissions").upsert(rows, {
-      onConflict: "role_id,permission_id",
-    });
-    if (error) throw new Error(`Failed to upsert permissions for ${role.name}: ${error.message}`);
+  for (const role of requiredRoles) {
+    if (!roleMap.has(role)) throw new Error(`Missing standard role ${role}. Run RBAC migrations first.`);
   }
 }
 
@@ -193,20 +146,12 @@ async function cleanup(supabase) {
     await supabase.from("staff_profiles").delete().in("id", staffIds);
   }
 
-  const roleNames = ["Phase10 Booking Coordinator", "Phase10 Reporting"];
-  const roleMap = await getRoleMap(supabase);
-  const roleIds = roleNames.map((name) => roleMap.get(name)).filter(Boolean);
-  if (roleIds.length > 0) {
-    await supabase.from("role_permissions").delete().in("role_id", roleIds);
-    await supabase.from("roles").delete().in("id", roleIds);
-  }
-
   await deleteUsers(supabase);
 }
 
 async function setup(supabase) {
   await cleanup(supabase);
-  await ensureTestRoles(supabase);
+  await ensureStandardRoles(supabase);
 
   const roleMap = await getRoleMap(supabase);
   const createdUsers = new Map();

@@ -33,10 +33,7 @@ interface TimeWindow {
   end: number;
 }
 
-const BOOKING_ELIGIBILITY_PERMISSIONS = new Set([
-  "claim_bookings",
-  "claim_assignments",
-]);
+const BOOKING_ELIGIBILITY_PERMISSIONS = new Set(["claim_assignments"]);
 
 function timeToMinutes(value: string) {
   const [hours, minutes] = value.split(":").map(Number);

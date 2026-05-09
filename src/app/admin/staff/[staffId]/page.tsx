@@ -2,9 +2,16 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canAssignStaffRoles,
+  canManagePermissionOverrides,
+  canManageStaffProfiles,
+  canViewStaff,
+  getStaffProfile,
+} from "@/lib/auth/rbac";
 import { CalendarCheck, CheckCircle2, ChevronLeft, Clock, Mail, User, XCircle } from "lucide-react";
 import { StaffProfileForm } from "./StaffProfileForm";
+import { StaffPermissionOverridesForm } from "./StaffPermissionOverridesForm";
 import { Badge } from "@/components/ui/badge";
 import { AdminAccessDenied, AdminPanel, AdminStatusBadge } from "../../components/admin-ui";
 
@@ -25,17 +32,16 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     redirect("/admin/login");
   }
 
-  // Permission gate: Can view own profile, or MANAGE_USERS for others
   const { staffId } = await params;
   const isOwnProfile = profile.id === staffId;
-  const canManageUsers = profile.permissions.has(PERMISSIONS.MANAGE_USERS);
+  const canManageUsers = canViewStaff(profile) || canManageStaffProfiles(profile);
 
   if (!isOwnProfile && !canManageUsers) {
     return (
       <AdminAccessDenied
         title="Staff access limited"
         message="You can view your own profile, but need user management permission to view other staff profiles."
-        permission="manage_users"
+        permission="view_staff"
       />
     );
   }
@@ -47,7 +53,8 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       *,
       roles (
         id,
-        name
+        name,
+        display_label
       )
     `)
     .eq("id", staffId)
@@ -58,16 +65,35 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
   // Fetch roles for selection if manager
   const { data: roles } = await supabase
     .from("roles")
-    .select("id, name")
-    .order("name");
+    .select("id, name, display_label, active, sort_order")
+    .eq("active", true)
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
 
   const adminClient = createSupabaseAdminClient();
-  const [{ data: rolePermissions }, { data: assignments }, { data: auditLogs }, { data: availabilityRules }] =
+  const [
+    { data: rolePermissions },
+    { data: staffOverrides },
+    { data: allPermissions },
+    { data: assignments },
+    { data: auditLogs },
+    { data: availabilityRules },
+  ] =
     await Promise.all([
       adminClient
         .from("role_permissions")
-        .select("permissions(name)")
+        .select("permission_id, permissions(name)")
         .eq("role_id", staff.role_id),
+      adminClient
+        .from("staff_permission_overrides")
+        .select("permission_id, is_granted")
+        .eq("staff_id", staffId),
+      adminClient
+        .from("permissions")
+        .select("id, name, description, category, scope, risk_level, active")
+        .eq("active", true)
+        .order("category", { ascending: true })
+        .order("name", { ascending: true }),
       adminClient
         .from("booking_assignments")
         .select("id, status, required_therapist_gender, bookings(id, booking_date, start_time, status, contact_full_name, service_city)")
@@ -89,6 +115,13 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
   const permissions = (rolePermissions ?? [])
     .map((row) => (row.permissions as unknown as { name: string } | null)?.name)
     .filter((permission): permission is string => Boolean(permission));
+  const inheritedPermissionIds = (rolePermissions ?? []).map((row) => row.permission_id);
+  const overrideMap = Object.fromEntries(
+    (staffOverrides ?? []).map((override) => [
+      override.permission_id,
+      override.is_granted,
+    ])
+  );
   const upcomingAssignments = (assignments ?? []).filter((assignment) => {
     const booking = assignment.bookings as unknown as {
       booking_date: string;
@@ -177,7 +210,8 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       <StaffProfileForm 
         staff={staff} 
         roles={roles ?? []} 
-        canManageUsers={canManageUsers} 
+        canManageUsers={canManageUsers}
+        canAssignRoles={canAssignStaffRoles(profile)}
       />
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
@@ -207,6 +241,30 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
             </div>
           )}
         </AdminPanel>
+
+        {canManagePermissionOverrides(profile) && (
+          <AdminPanel
+            title="Individual permission overrides"
+            description={
+              isOwnProfile
+                ? "Self overrides are disabled to prevent lockout."
+                : "Overrides sit on top of the fixed role bundle."
+            }
+          >
+            {isOwnProfile ? (
+              <p className="text-sm text-[var(--rahma-muted)]">
+                Ask another owner-level admin to change your permission overrides.
+              </p>
+            ) : (
+              <StaffPermissionOverridesForm
+                staffId={staffId}
+                permissions={allPermissions ?? []}
+                inheritedPermissionIds={inheritedPermissionIds}
+                overrides={overrideMap}
+              />
+            )}
+          </AdminPanel>
+        )}
 
         <AdminPanel
           title="Assigned bookings and workload"

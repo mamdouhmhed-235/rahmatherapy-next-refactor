@@ -3,7 +3,7 @@ import { Mail, Send } from "lucide-react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getBusinessDate } from "@/lib/time/london";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canResendBookingEmails, canViewEmailLogs, getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminPageHeader,
@@ -40,10 +40,7 @@ interface ReminderBooking {
 }
 
 function canOpenEmailStatus(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
-  return (
-    profile.permissions.has(PERMISSIONS.MANAGE_EMAILS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL)
-  );
+  return canViewEmailLogs(profile) || canResendBookingEmails(profile);
 }
 
 export default async function EmailsPage() {
@@ -143,7 +140,7 @@ function InsufficientPermissions() {
     <AdminAccessDenied
       title="Email access limited"
       message="You need email or booking-management permission to view delivery status."
-      permission="manage_emails"
+      permission="view_email_logs"
     />
   );
 }

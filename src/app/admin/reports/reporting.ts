@@ -1,6 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
-import { PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
+import {
+  canViewRevenueReports,
+  hasUniversalReportScope,
+  type StaffProfile,
+} from "@/lib/auth/rbac";
+
+export { canViewRevenueReports, hasUniversalReportScope };
 
 export interface ReportFilters {
   range: string;
@@ -73,7 +79,7 @@ export interface ReportStaff {
   can_take_bookings: boolean;
   availability_mode: string;
   role_id: string;
-  roles: { name: string } | null;
+  roles: { name: string; display_label: string | null } | null;
 }
 
 export interface EmailEvent {
@@ -102,6 +108,7 @@ export interface OperationalEvent {
 export interface ReportData {
   filters: ReportFilters;
   bookings: ReportBooking[];
+  cityOptions: string[];
   assignments: ReportAssignment[];
   bookingItems: ReportBookingItem[];
   clients: ReportClient[];
@@ -227,21 +234,6 @@ export function parseReportFilters(searchParams: Record<string, string | string[
   };
 }
 
-export function hasUniversalReportScope(profile: StaffProfile) {
-  return (
-    profile.permissions.has(PERMISSIONS.VIEW_REPORTS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL) ||
-    profile.permissions.has(PERMISSIONS.VIEW_ALL_BOOKINGS)
-  );
-}
-
-export function canViewRevenueReports(profile: StaffProfile) {
-  return (
-    profile.permissions.has(PERMISSIONS.VIEW_REPORTS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_PAYMENTS)
-  );
-}
-
 export async function getReportData(
   adminClient: SupabaseClient,
   profile: StaffProfile,
@@ -280,7 +272,7 @@ export async function getReportData(
       .returns<ReportClient[]>(),
     adminClient
       .from("staff_profiles")
-      .select("id, name, gender, active, can_take_bookings, availability_mode, role_id, roles(name)")
+      .select("id, name, gender, active, can_take_bookings, availability_mode, role_id, roles(name, display_label)")
       .order("name")
       .returns<ReportStaff[]>(),
     adminClient
@@ -309,9 +301,13 @@ export async function getReportData(
     bookingsResult.data ?? [],
     allAssignments
   );
-  const filteredBookings = (bookingsResult.data ?? [])
-    .filter((booking) => scopedBookingIds.has(booking.id))
-    .filter((booking) => filterBooking(booking, filters));
+  const scopedBookings = (bookingsResult.data ?? []).filter((booking) =>
+    scopedBookingIds.has(booking.id)
+  );
+  const cityOptions = getCityOptionsFromBookings(scopedBookings);
+  const filteredBookings = scopedBookings.filter((booking) =>
+    filterBooking(booking, filters)
+  );
   const initialBookingIds = new Set(filteredBookings.map((booking) => booking.id));
   const initialAssignments = allAssignments.filter((assignment) =>
     initialBookingIds.has(assignment.booking_id)
@@ -354,6 +350,7 @@ export async function getReportData(
   return {
     filters,
     bookings: finalBookings,
+    cityOptions,
     assignments: filteredAssignments,
     bookingItems: filteredItems,
     clients: clientsResult.data ?? [],
@@ -368,34 +365,50 @@ export async function getReportData(
 }
 
 export function summarizeReports(data: ReportData) {
-  const repeatClients = getRepeatClientIds(data.bookings).size;
-  const bookedRevenue = sum(data.bookings.map((booking) => amount(booking.total_price)));
-  const collectedRevenue = sum(data.bookings.map((booking) => amount(booking.amount_paid)));
-  const outstandingRevenue = sum(
-    data.bookings.map((booking) =>
-      Math.max(amount(booking.amount_due ?? booking.total_price) - amount(booking.amount_paid), 0)
-    )
-  );
-  const completedRevenue = sum(
-    data.bookings
-      .filter((booking) => booking.status === "completed")
-      .map((booking) => amount(booking.amount_paid || booking.total_price))
-  );
-  const expectedRevenue = sum(
-    data.bookings
-      .filter((booking) => ["confirmed", "pending"].includes(booking.status) && booking.payment_status === "unpaid")
-      .map((booking) => amount(booking.amount_due ?? booking.total_price))
-  );
-  const cancelledRevenue = sum(
-    data.bookings
-      .filter((booking) => booking.status === "cancelled")
-      .map((booking) => amount(booking.total_price))
-  );
-  const noShowRevenue = sum(
-    data.bookings
-      .filter((booking) => booking.status === "no_show")
-      .map((booking) => amount(booking.total_price))
-  );
+  let bookedRevenue = 0;
+  let collectedRevenue = 0;
+  let outstandingRevenue = 0;
+  let completedRevenue = 0;
+  let expectedRevenue = 0;
+  let cancelledRevenue = 0;
+  let noShowRevenue = 0;
+  const clientBookingCounts = new Map<string, number>();
+
+  for (const booking of data.bookings) {
+    const totalPrice = amount(booking.total_price);
+    const amountPaid = amount(booking.amount_paid);
+    const amountDue = amount(booking.amount_due ?? booking.total_price);
+
+    bookedRevenue += totalPrice;
+    collectedRevenue += amountPaid;
+    outstandingRevenue += Math.max(amountDue - amountPaid, 0);
+
+    if (booking.status === "completed") {
+      completedRevenue += amount(booking.amount_paid || booking.total_price);
+    }
+    if (
+      ["confirmed", "pending"].includes(booking.status) &&
+      booking.payment_status === "unpaid"
+    ) {
+      expectedRevenue += amountDue;
+    }
+    if (booking.status === "cancelled") {
+      cancelledRevenue += totalPrice;
+    }
+    if (booking.status === "no_show") {
+      noShowRevenue += totalPrice;
+    }
+    if (booking.client_id) {
+      clientBookingCounts.set(
+        booking.client_id,
+        (clientBookingCounts.get(booking.client_id) ?? 0) + 1
+      );
+    }
+  }
+
+  const repeatClients = [...clientBookingCounts.values()].filter(
+    (count) => count > 1
+  ).length;
 
   return {
     bookingCount: data.bookings.length,
@@ -413,6 +426,23 @@ export function summarizeReports(data: ReportData) {
     ).length,
     participantCount: data.assignments.length,
   };
+}
+
+export function getCityOptionsFromBookings(
+  bookings: Pick<ReportBooking, "service_city">[]
+) {
+  const cityLabelsByKey = new Map<string, string>();
+
+  for (const booking of bookings) {
+    const city = booking.service_city?.trim();
+    if (!city) continue;
+    const key = city.toLocaleLowerCase("en-GB");
+    if (!cityLabelsByKey.has(key)) {
+      cityLabelsByKey.set(key, city);
+    }
+  }
+
+  return [...cityLabelsByKey.values()].sort((a, b) => a.localeCompare(b));
 }
 
 export function getRevenueSeries(bookings: ReportBooking[]) {
@@ -850,18 +880,10 @@ function filterBooking(booking: ReportBooking, filters: ReportFilters) {
   return true;
 }
 
-function getRepeatClientIds(bookings: ReportBooking[]) {
-  const counts = new Map<string, number>();
-  for (const booking of bookings) {
-    if (!booking.client_id) continue;
-    counts.set(booking.client_id, (counts.get(booking.client_id) ?? 0) + 1);
-  }
-  return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([id]) => id));
-}
-
 function getRangeDefaults(range: string, currentYear: string, currentMonth: string, today: string) {
   if (range === "lifetime") return { from: "2000-01-01", to: "2100-12-31" };
   if (range === "year") return { from: `${currentYear}-01-01`, to: `${currentYear}-12-31` };
+  if (range === "today") return { from: today, to: today };
   if (range === "week") return { from: today, to: addBusinessDays(today, 7) };
   if (range === "custom") return { from: today, to: today };
   return { from: `${currentMonth}-01`, to: addBusinessDays(today, 30) };
@@ -869,10 +891,6 @@ function getRangeDefaults(range: string, currentYear: string, currentMonth: stri
 
 function getValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
-}
-
-function sum(values: number[]) {
-  return values.reduce((total, value) => total + value, 0);
 }
 
 function groupBy<T>(items: T[], getKey: (item: T) => string) {

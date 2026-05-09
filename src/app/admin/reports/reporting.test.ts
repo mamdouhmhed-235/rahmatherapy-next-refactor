@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import {
   canViewRevenueReports,
+  getCityOptionsFromBookings,
   getStaffRevenueAttribution,
+  parseReportFilters,
   summarizeReports,
   type ReportData,
 } from "./reporting";
+import { getBusinessDate } from "@/lib/time/london";
 
 function profile(permissions: string[]): StaffProfile {
   return {
@@ -37,6 +40,7 @@ function reportData(overrides: Partial<ReportData> = {}): ReportData {
       city: "",
     },
     bookings: [],
+    cityOptions: [],
     assignments: [],
     bookingItems: [],
     clients: [],
@@ -50,10 +54,20 @@ function reportData(overrides: Partial<ReportData> = {}): ReportData {
 }
 
 describe("reporting metrics", () => {
+  it("supports an explicit today range for dashboard defaults", () => {
+    const today = getBusinessDate();
+
+    expect(parseReportFilters({ range: "today" })).toMatchObject({
+      range: "today",
+      from: today,
+      to: today,
+    });
+  });
+
   it("does not expose revenue reports to own-booking-only therapist scope", () => {
-    expect(canViewRevenueReports(profile([PERMISSIONS.VIEW_OWN_BOOKINGS]))).toBe(false);
-    expect(canViewRevenueReports(profile([PERMISSIONS.VIEW_REPORTS]))).toBe(true);
-    expect(canViewRevenueReports(profile([PERMISSIONS.MANAGE_PAYMENTS]))).toBe(true);
+    expect(canViewRevenueReports(profile([PERMISSIONS.VIEW_REPORTS_OWN]))).toBe(false);
+    expect(canViewRevenueReports(profile([PERMISSIONS.VIEW_REPORTS_OPERATIONAL]))).toBe(false);
+    expect(canViewRevenueReports(profile([PERMISSIONS.VIEW_REPORTS_REVENUE]))).toBe(true);
   });
 
   it("summarizes booked, collected, outstanding, repeat client, and participant metrics", () => {
@@ -151,5 +165,17 @@ describe("reporting metrics", () => {
       { staffId: "staff-a", staffName: "Aisha", revenue: 45 },
       { staffId: "staff-b", staffName: "Omar", revenue: 45 },
     ]);
+  });
+
+  it("builds distinct sorted city options from permitted bookings before city filtering", () => {
+    const cityOptions = getCityOptionsFromBookings([
+      { service_city: "  Barnet  " },
+      { service_city: "Finchley" },
+      { service_city: "barnet" },
+      { service_city: "" },
+      { service_city: null },
+    ] as ReportData["bookings"]);
+
+    expect(cityOptions).toEqual(["Barnet", "Finchley"]);
   });
 });

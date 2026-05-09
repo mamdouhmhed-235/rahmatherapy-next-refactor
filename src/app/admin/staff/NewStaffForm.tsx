@@ -20,6 +20,7 @@ import { createStaffProfile } from "./actions";
 interface Role {
   id: string;
   name: string;
+  display_label: string | null;
 }
 
 interface NewStaffFormProps {
@@ -135,7 +136,7 @@ export function NewStaffForm({ roles }: NewStaffFormProps) {
               >
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>
-                    {role.name}
+                    {role.display_label ?? role.name}
                   </option>
                 ))}
               </select>

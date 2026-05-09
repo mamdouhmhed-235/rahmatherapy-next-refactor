@@ -5,7 +5,12 @@ import { buttonVariants } from "@/components/ui/button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { addBusinessDays, formatBusinessDate, getBusinessDate } from "@/lib/time/london";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canManageBookings,
+  canViewAllBookings,
+  canViewAssignedBookings,
+  getStaffProfile,
+} from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminFilterBar,
@@ -26,12 +31,7 @@ interface CalendarPageProps {
 }
 
 function canViewCalendar(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
-  return (
-    profile.permissions.has(PERMISSIONS.VIEW_ALL_BOOKINGS) ||
-    profile.permissions.has(PERMISSIONS.VIEW_OWN_BOOKINGS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_OWN)
-  );
+  return canViewAllBookings(profile) || canViewAssignedBookings(profile) || canManageBookings(profile);
 }
 
 export default async function CalendarPage({ searchParams }: CalendarPageProps) {
@@ -181,7 +181,7 @@ function InsufficientPermissions() {
     <AdminAccessDenied
       title="Calendar access limited"
       message="You need booking visibility permission to view the operations calendar."
-      permission="view_all_bookings or view_own_bookings"
+      permission="view_bookings_all or view_bookings_assigned"
     />
   );
 }

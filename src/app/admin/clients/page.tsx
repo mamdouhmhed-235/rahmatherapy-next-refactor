@@ -14,7 +14,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canManageAllClients, canViewAllClients, getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminFilterBar,
@@ -172,9 +172,9 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
     redirect("/admin/login");
   }
 
-  const canManageClients = profile.permissions.has(PERMISSIONS.MANAGE_CLIENTS);
+  const canManageClients = canManageAllClients(profile);
 
-  if (!canManageClients && !profile.permissions.has(PERMISSIONS.VIEW_CLIENTS)) {
+  if (!canManageClients && !canViewAllClients(profile)) {
     return <InsufficientPermissions />;
   }
 
@@ -453,7 +453,7 @@ function InsufficientPermissions() {
     <AdminAccessDenied
       title="Clients access limited"
       message="You need client management permission to access this page."
-      permission="manage_clients"
+      permission="view_clients_all"
     />
   );
 }

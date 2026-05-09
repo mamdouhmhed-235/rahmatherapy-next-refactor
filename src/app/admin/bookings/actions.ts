@@ -11,7 +11,7 @@ import {
   sendStaffAssignmentEmail,
 } from "@/lib/email/notifications";
 import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canAssignBookings, getStaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   BookingCreationError,
@@ -78,10 +78,7 @@ async function requireBookingManager() {
 }
 
 function canReassignBookings(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
-  return (
-    canManageAllBookings(profile) &&
-    profile.permissions.has(PERMISSIONS.REASSIGN_BOOKINGS)
-  );
+  return canManageAllBookings(profile) && canAssignBookings(profile);
 }
 
 async function recomputeBookingAssignmentStatus(

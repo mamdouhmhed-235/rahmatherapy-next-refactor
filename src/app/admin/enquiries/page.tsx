@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canManageEnquiries, getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminEmptyState,
@@ -44,12 +44,12 @@ export default async function EnquiriesPage() {
     redirect("/admin/login");
   }
 
-  if (!profile.permissions.has(PERMISSIONS.MANAGE_CLIENTS)) {
+  if (!canManageEnquiries(profile)) {
     return (
       <AdminAccessDenied
         title="Enquiry access limited"
         message="You need client management permission to manage enquiries."
-        permission="manage_clients"
+        permission="manage_enquiries"
       />
     );
   }

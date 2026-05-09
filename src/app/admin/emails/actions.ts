@@ -3,17 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canResendBookingEmails, getStaffProfile } from "@/lib/auth/rbac";
 import { sendBookingReminderEmail } from "@/lib/email/notifications";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
 
 function canManageEmails(
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
 ) {
-  return (
-    profile.permissions.has(PERMISSIONS.MANAGE_EMAILS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL)
-  );
+  return canResendBookingEmails(profile);
 }
 
 export async function sendManualBookingReminder(formData: FormData) {

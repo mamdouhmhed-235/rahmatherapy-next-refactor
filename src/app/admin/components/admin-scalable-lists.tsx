@@ -68,10 +68,12 @@ export function DebouncedSearchInput({
   className?: string;
 }) {
   const [localValue, setLocalValue] = React.useState(value);
+  const [prevValueProp, setPrevValueProp] = React.useState(value);
 
-  React.useEffect(() => {
+  if (value !== prevValueProp) {
+    setPrevValueProp(value);
     setLocalValue(value);
-  }, [value]);
+  }
 
   React.useEffect(() => {
     const handler = setTimeout(() => {

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Siren } from "lucide-react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canManageOperations, getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminPageHeader,
@@ -29,11 +29,7 @@ interface OperationalEvent {
 }
 
 function canOpenOperations(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
-  return (
-    profile.permissions.has(PERMISSIONS.MANAGE_SETTINGS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_EMAILS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL)
-  );
+  return canManageOperations(profile);
 }
 
 export default async function OperationsPage() {
@@ -117,7 +113,7 @@ function InsufficientPermissions() {
     <AdminAccessDenied
       title="Operational events access limited"
       message="You need owner/admin operational permission to review support events."
-      permission="manage_settings or manage_emails"
+      permission="manage_settings or view_email_logs"
     />
   );
 }

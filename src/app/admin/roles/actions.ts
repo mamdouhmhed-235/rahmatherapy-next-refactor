@@ -6,9 +6,78 @@ import { requirePermission, PERMISSIONS } from "@/lib/auth/rbac";
 import { revalidatePath } from "next/cache";
 
 const CRITICAL_ROLE_PERMISSIONS = new Set<string>([
-  PERMISSIONS.MANAGE_USERS,
-  PERMISSIONS.MANAGE_ROLES,
+  PERMISSIONS.MANAGE_STAFF_PROFILES,
+  PERMISSIONS.ASSIGN_STAFF_ROLES,
 ]);
+
+export async function updateRoleMetadata(
+  _previousState: { error?: string; success?: boolean },
+  formData: FormData
+): Promise<{ error?: string; success?: boolean }> {
+  const supabase = await createSupabaseServerClient();
+
+  let actor;
+  try {
+    actor = await requirePermission(PERMISSIONS.MANAGE_ROLE_TEMPLATES, supabase);
+  } catch {
+    return { error: "Insufficient permissions." };
+  }
+
+  const roleId = String(formData.get("role_id") ?? "").trim();
+  const displayLabel = String(formData.get("display_label") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const sortOrder = Number(String(formData.get("sort_order") ?? "").trim());
+  const active = formData.get("active") === "on";
+
+  if (!roleId) return { error: "Role is required." };
+  if (!displayLabel) return { error: "Display label is required." };
+  if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 999) {
+    return { error: "Sort order must be a whole number between 0 and 999." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: beforeState } = await adminClient
+    .from("roles")
+    .select("id, name, display_label, description, sort_order, is_system, active")
+    .eq("id", roleId)
+    .single();
+
+  if (!beforeState) return { error: "Role not found." };
+
+  if (beforeState.is_system && !active) {
+    return { error: "System roles cannot be deactivated." };
+  }
+
+  const payload = {
+    display_label: displayLabel,
+    description: description || null,
+    sort_order: sortOrder,
+    active: beforeState.is_system ? true : active,
+  };
+
+  const { data, error } = await adminClient
+    .from("roles")
+    .update(payload)
+    .eq("id", roleId)
+    .select("id, name, display_label, description, sort_order, is_system, active")
+    .single();
+
+  if (error) return { error: "Failed to update role details." };
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "role_metadata_updated",
+    target_type: "roles",
+    target_id: roleId,
+    before_state: beforeState,
+    after_state: data,
+  });
+
+  revalidatePath(`/admin/roles/${roleId}`);
+  revalidatePath("/admin/roles");
+
+  return { success: true };
+}
 
 export async function toggleRolePermission(
   roleId: string,
@@ -18,10 +87,9 @@ export async function toggleRolePermission(
 ): Promise<{ error?: string }> {
   const supabase = await createSupabaseServerClient();
 
-  // Only users with manage_roles may call this
   let actor;
   try {
-    actor = await requirePermission(PERMISSIONS.MANAGE_ROLES, supabase);
+    actor = await requirePermission(PERMISSIONS.MANAGE_ROLE_TEMPLATES, supabase);
   } catch {
     return { error: "Insufficient permissions." };
   }
@@ -61,7 +129,7 @@ export async function toggleRolePermission(
   if (isCriticalRevoke && isOwnerRole) {
     return {
       error:
-        "Owner must keep manage_users and manage_roles to prevent admin lockout.",
+        "Owner must keep staff profile and role assignment permissions to prevent admin lockout.",
     };
   }
 

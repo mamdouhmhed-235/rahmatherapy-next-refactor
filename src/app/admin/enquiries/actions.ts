@@ -34,7 +34,7 @@ const enquirySchema = z.object({
 
 async function requireEnquiryManager() {
   const supabase = await createSupabaseServerClient();
-  return requirePermission(PERMISSIONS.MANAGE_CLIENTS, supabase);
+  return requirePermission(PERMISSIONS.MANAGE_ENQUIRIES, supabase);
 }
 
 function toFieldErrors(error: z.ZodError) {

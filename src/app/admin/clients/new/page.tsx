@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canManageAllClients, getStaffProfile } from "@/lib/auth/rbac";
 import { AdminAccessDenied, AdminPageHeader } from "../../components/admin-ui";
 import { ClientCreateForm } from "./ClientCreateForm";
 
@@ -18,12 +18,12 @@ export default async function NewClientPage() {
     redirect("/admin/login");
   }
 
-  if (!profile.permissions.has(PERMISSIONS.MANAGE_CLIENTS)) {
+  if (!canManageAllClients(profile)) {
     return (
       <AdminAccessDenied
         title="Client creation limited"
         message="You need client management permission to create clients."
-        permission="manage_clients"
+        permission="manage_clients_all"
       />
     );
   }

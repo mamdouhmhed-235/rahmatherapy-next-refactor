@@ -19,6 +19,9 @@ interface PermissionRowProps {
   permissionId: string;
   permissionName: string;
   permissionDescription: string | null;
+  permissionCategory: string | null;
+  permissionScope: string | null;
+  permissionRiskLevel: string | null;
   isGranted: boolean;
   isOwnerRole: boolean;
 }
@@ -29,6 +32,9 @@ export function PermissionRow({
   permissionId,
   permissionName,
   permissionDescription,
+  permissionCategory,
+  permissionScope,
+  permissionRiskLevel,
   isGranted,
   isOwnerRole,
 }: PermissionRowProps) {
@@ -98,6 +104,11 @@ export function PermissionRow({
               {permissionDescription}
             </p>
           )}
+          <p className="mt-1 text-xs text-[var(--rahma-muted)]">
+            {[permissionCategory, permissionScope, permissionRiskLevel]
+              .filter(Boolean)
+              .join(" / ")}
+          </p>
         </div>
 
         {/* Status badge */}

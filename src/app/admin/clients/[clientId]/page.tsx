@@ -21,7 +21,15 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canManageAllClients,
+  canManageSensitiveClientNotes,
+  canViewAllClients,
+  canViewAssignedClients,
+  canViewAssignedHealthNotes,
+  getStaffProfile,
+  PERMISSIONS,
+} from "@/lib/auth/rbac";
 import {
   formatDate,
   formatDateTime,
@@ -101,10 +109,8 @@ export default async function ClientDetailPage({
     redirect("/admin/login");
   }
 
-  if (
-    !profile.permissions.has(PERMISSIONS.MANAGE_CLIENTS) &&
-    !profile.permissions.has(PERMISSIONS.VIEW_CLIENTS)
-  ) {
+  const hasAllClientAccess = canManageAllClients(profile) || canViewAllClients(profile);
+  if (!hasAllClientAccess && !canViewAssignedClients(profile)) {
     return <InsufficientPermissions />;
   }
 
@@ -127,6 +133,19 @@ export default async function ClientDetailPage({
   if (!client) notFound();
 
   const bookingHistory = bookings ?? [];
+  let hasAssignedClientAccess = false;
+  if (!hasAllClientAccess && bookingHistory.length > 0) {
+    const { count } = await adminClient
+      .from("booking_assignments")
+      .select("id", { count: "exact", head: true })
+      .in("booking_id", bookingHistory.map((booking) => booking.id))
+      .eq("assigned_staff_id", profile.id);
+    hasAssignedClientAccess = (count ?? 0) > 0;
+  }
+  if (!hasAllClientAccess && !hasAssignedClientAccess) {
+    return <InsufficientPermissions />;
+  }
+
   const upcomingCount = bookingHistory.filter(isFutureBooking).length;
   const completedCount = bookingHistory.filter(
     (booking) => booking.status === "completed"
@@ -139,11 +158,10 @@ export default async function ClientDetailPage({
   );
   const lastVisit = pastBookings[0];
   const commonServices = getCommonServices(bookingHistory);
-  const canManageClients = profile.permissions.has(PERMISSIONS.MANAGE_CLIENTS);
-  const canManagePrivacyOperations = profile.permissions.has(
-    PERMISSIONS.MANAGE_PRIVACY_OPERATIONS
-  );
-  const canViewSensitiveClientData = canManageClients;
+  const canManagePrivacyOperations = profile.permissions.has(PERMISSIONS.MANAGE_PRIVACY_OPERATIONS);
+  const canViewSensitiveClientData =
+    canManageSensitiveClientNotes(profile) ||
+    (hasAssignedClientAccess && canViewAssignedHealthNotes(profile));
 
   let clientNotes: ClientNoteRecord[] = [];
   let privacyRequests: ClientPrivacyRequestRecord[] = [];
@@ -238,7 +256,7 @@ export default async function ClientDetailPage({
           ) : (
             <AdminPanel
               title="Sensitive CRM context"
-              description="Client notes, privacy requests, and health context require client-management permission."
+              description="Client notes, privacy requests, and health context require relevant client or assigned-health permission."
             >
               <ShieldCheck className="mb-3 size-5 text-[var(--rahma-muted)]" />
               <p className="text-sm text-[var(--rahma-muted)]">
@@ -607,7 +625,7 @@ function InsufficientPermissions() {
     <AdminAccessDenied
       title="Client access limited"
       message="You need client management permission to access this client."
-      permission="manage_clients"
+      permission="view_clients_assigned or view_clients_all"
     />
   );
 }

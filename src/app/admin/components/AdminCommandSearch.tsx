@@ -54,22 +54,22 @@ export function AdminCommandSearch({
       <BaseDialog.Trigger
         className={
           triggerClassName ??
-          "inline-flex h-10 items-center gap-2 rounded-lg border border-[var(--rahma-border)] bg-white px-3 text-sm font-medium text-[var(--rahma-muted)] outline-none transition-colors hover:text-[var(--rahma-charcoal)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+          "inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
         }
       >
         <Search className="size-4" />
         <span>{compact ? "Search" : "Search clients or bookings"}</span>
         {!compact ? (
-          <kbd className="ml-2 hidden rounded border border-[var(--rahma-border)] bg-[var(--rahma-ivory)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--rahma-muted)] xl:inline">
+          <kbd className="ml-2 hidden rounded border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--admin-text-muted)] xl:inline">
             Ctrl K
           </kbd>
         ) : null}
       </BaseDialog.Trigger>
       <BaseDialog.Portal>
         <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-slate-950/25 backdrop-blur-sm" />
-        <BaseDialog.Popup className="fixed left-1/2 top-[8vh] z-50 grid w-[min(calc(100vw-1rem),42rem)] -translate-x-1/2 gap-0 overflow-hidden rounded-xl border border-[var(--rahma-border)] bg-white shadow-elevated outline-none">
-          <div className="flex items-center gap-3 border-b border-[var(--rahma-border)] px-4 py-3">
-            <Search className="size-4 shrink-0 text-[var(--rahma-muted)]" />
+        <BaseDialog.Popup className="fixed left-1/2 top-[8vh] z-50 grid w-[min(calc(100vw-1rem),42rem)] -translate-x-1/2 gap-0 overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-elevated outline-none">
+          <div className="flex items-center gap-3 border-b border-[var(--admin-border)] px-4 py-3">
+            <Search className="size-4 shrink-0 text-[var(--admin-text-muted)]" />
             <BaseDialog.Title className="sr-only">Search admin records</BaseDialog.Title>
             <Input
               id="admin-command-search"
@@ -80,7 +80,7 @@ export function AdminCommandSearch({
               placeholder="Search bookings, clients, phones, emails, postcodes..."
               className="h-10 border-0 px-0 shadow-none focus-visible:ring-0"
             />
-            <BaseDialog.Close className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-[var(--rahma-muted)] outline-none hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30">
+            <BaseDialog.Close className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35">
               <X className="size-4" />
               <span className="sr-only">Close search</span>
             </BaseDialog.Close>
@@ -88,16 +88,16 @@ export function AdminCommandSearch({
 
           <div className="admin-nav-scrollbar max-h-[60vh] overflow-y-auto p-2">
             {isPending ? (
-              <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-[var(--rahma-muted)]">
+              <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-[var(--admin-text-muted)]">
                 <Loader2 className="size-4 animate-spin" />
                 Searching
               </div>
             ) : query.trim().length < 2 ? (
-              <p className="px-4 py-10 text-center text-sm text-[var(--rahma-muted)]">
+              <p className="px-4 py-10 text-center text-sm text-[var(--admin-text-muted)]">
                 Type at least two characters to search permitted records.
               </p>
             ) : results.length === 0 ? (
-              <p className="px-4 py-10 text-center text-sm text-[var(--rahma-muted)]">
+              <p className="px-4 py-10 text-center text-sm text-[var(--admin-text-muted)]">
                 No matching permitted records found.
               </p>
             ) : (
@@ -107,17 +107,17 @@ export function AdminCommandSearch({
                     <Link
                       href={result.href}
                       onClick={() => setOpen(false)}
-                      className="grid rounded-lg px-3 py-3 text-left outline-none hover:bg-[var(--rahma-ivory)] focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30"
+                      className="grid rounded-[var(--admin-radius-control)] px-3 py-3 text-left outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                     >
                       <span className="flex items-center justify-between gap-3">
-                        <span className="truncate font-medium text-[var(--rahma-charcoal)]">
+                        <span className="truncate font-medium text-[var(--admin-heading)]">
                           {result.title}
                         </span>
-                        <span className="shrink-0 rounded-full bg-[var(--rahma-green)]/10 px-2 py-0.5 text-xs font-semibold capitalize text-[var(--rahma-green)]">
+                        <span className="shrink-0 rounded-full bg-[var(--admin-primary)]/10 px-2 py-0.5 text-xs font-semibold capitalize text-[var(--admin-primary)]">
                           {result.type}
                         </span>
                       </span>
-                      <span className="mt-1 truncate text-sm text-[var(--rahma-muted)]">
+                      <span className="mt-1 truncate text-sm text-[var(--admin-text-muted)]">
                         {result.detail}
                       </span>
                     </Link>
@@ -127,7 +127,7 @@ export function AdminCommandSearch({
             )}
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-[var(--rahma-border)] bg-[var(--rahma-ivory)] px-4 py-3 text-xs text-[var(--rahma-muted)]">
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-xs text-[var(--admin-text-muted)]">
             <span>Results are scoped to your permissions.</span>
             <Button size="sm" variant="outline" onClick={() => setOpen(false)}>
               Close
