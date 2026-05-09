@@ -19,7 +19,19 @@ export default async function AdminLayout({
   if (!profile.active) {
     return (
       <main className="min-h-screen bg-[var(--admin-panel-muted)] px-4 py-10">
-        <AdminAccessDenied inactive />
+        <AdminAccessDenied
+          inactive
+          actions={
+            <form action="/admin/signout" method="POST">
+              <button
+                type="submit"
+                className="inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+              >
+                Sign out / switch account
+              </button>
+            </form>
+          }
+        />
       </main>
     );
   }
@@ -29,6 +41,8 @@ export default async function AdminLayout({
       profile={{
         name: profile.name,
         roleName: profile.role_name,
+        active: profile.active,
+        canTakeBookings: profile.can_take_bookings,
       }}
       pageAccess={Object.fromEntries(
         ADMIN_PAGE_KEYS.map((pageKey) => {

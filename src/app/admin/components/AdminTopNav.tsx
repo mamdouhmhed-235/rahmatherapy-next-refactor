@@ -30,6 +30,8 @@ import { AdminCommandSearch } from "./AdminCommandSearch";
 interface AdminTopNavProfile {
   name: string;
   roleName: string;
+  active: boolean;
+  canTakeBookings: boolean;
 }
 
 interface AdminTopNavPageAccess {
@@ -240,6 +242,7 @@ export function AdminTopNav({
               </Link>
             )}
             <SettingsButton pageAccess={pageAccess} />
+            <AccountStatePills profile={profile} compact />
             <UserMenu profile={profile} />
           </div>
 
@@ -306,6 +309,38 @@ function SettingsButton({
   );
 }
 
+function AccountStatePills({
+  profile,
+  compact = false,
+}: {
+  profile: AdminTopNavProfile;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center gap-1.5",
+        compact && "hidden xl:flex"
+      )}
+      aria-label="Account state"
+    >
+      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] text-emerald-700">
+        {profile.active ? "Active" : "Inactive"}
+      </span>
+      <span
+        className={cn(
+          "rounded-full border px-2 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em]",
+          profile.canTakeBookings
+            ? "border-teal-200 bg-teal-50 text-teal-700"
+            : "border-[var(--admin-border)] bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
+        )}
+      >
+        {profile.canTakeBookings ? "Taking bookings" : "Not bookable"}
+      </span>
+    </div>
+  );
+}
+
 function UserMenu({ profile }: { profile: AdminTopNavProfile }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -345,6 +380,9 @@ function UserMenu({ profile }: { profile: AdminTopNavProfile }) {
           <div className="px-3 py-2">
             <p className="text-sm font-semibold text-[var(--admin-heading)]">{profile.name}</p>
             <p className="text-xs text-[var(--admin-text-muted)]">{profile.roleName}</p>
+            <div className="mt-2">
+              <AccountStatePills profile={profile} />
+            </div>
           </div>
           <div className="my-1 border-t border-[var(--admin-border)]" />
           <form action="/admin/signout" method="POST">
@@ -354,7 +392,7 @@ function UserMenu({ profile }: { profile: AdminTopNavProfile }) {
               role="menuitem"
             >
               <LogOut className="size-4" />
-              Sign out
+              Sign out / switch account
             </button>
           </form>
         </div>
@@ -441,8 +479,11 @@ function MobileMenu({
                 Menu
               </BaseDialog.Title>
               <BaseDialog.Description className="mt-0.5 text-xs text-[var(--admin-text-muted)]">
-                {profile.name} · {profile.roleName}
+                {profile.name} / {profile.roleName}
               </BaseDialog.Description>
+              <div className="mt-2">
+                <AccountStatePills profile={profile} />
+              </div>
             </div>
             <BaseDialog.Close className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35">
               <X className="size-4" />
@@ -507,7 +548,7 @@ function MobileMenu({
                 className="flex min-h-10 w-full appearance-none items-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
               >
                 <LogOut className="size-4" />
-                Sign out
+                Sign out / switch account
               </button>
             </form>
           </div>
