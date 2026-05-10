@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { Clock, FileText, CalendarDays, Settings } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 interface DashboardHeaderProps {
   title: string;
-  roleName: string;
   subtitle: string;
   lastChecked: string;
-  assignedOnly?: boolean;
-  revenueAllowed?: boolean;
   showReports?: boolean;
   showCalendar?: boolean;
   showSettings?: boolean;
@@ -18,11 +14,8 @@ interface DashboardHeaderProps {
 
 export function DashboardHeader({
   title,
-  roleName,
   subtitle,
   lastChecked,
-  assignedOnly,
-  revenueAllowed,
   showReports,
   showCalendar,
   showSettings,
@@ -31,27 +24,9 @@ export function DashboardHeader({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="admin-display text-xl font-bold leading-tight text-[var(--admin-heading)] sm:text-2xl">
-            {title}
-          </h1>
-          <Badge
-            variant="secondary"
-            className="border-none bg-[var(--admin-primary)] text-white text-xs font-bold uppercase tracking-wider"
-          >
-            {roleName}
-          </Badge>
-          {assignedOnly && (
-            <span className="inline-flex items-center rounded-full bg-[var(--admin-info-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--admin-info)]">
-              Assigned only
-            </span>
-          )}
-          {!revenueAllowed && (
-            <span className="inline-flex items-center rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--admin-restricted)]">
-              Revenue hidden
-            </span>
-          )}
-        </div>
+        <h1 className="admin-display text-xl font-bold leading-tight text-[var(--admin-heading)] sm:text-2xl">
+          {title}
+        </h1>
         <p className="mt-1 text-sm leading-5 text-[var(--admin-text-muted)]">
           {subtitle}
         </p>

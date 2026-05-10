@@ -137,7 +137,6 @@ export default async function AvailabilityPage() {
                   {staff.gender} - {staff.availability_mode.replace(/_/g, " ")}
                 </p>
                 <p className="mt-2 text-xs text-[var(--rahma-muted)]">
-                  {staff.active && staff.can_take_bookings ? "Booking eligible" : "Not booking eligible"} ·{" "}
                   {staffRules.has(staff.id) ? "rules" : "no custom rules"} ·{" "}
                   {staffBlocked.has(staff.id) ? "blocked dates" : "no blocked dates"} ·{" "}
                   {staffOverrides.has(staff.id) ? "overrides" : "no overrides"}

@@ -16,7 +16,6 @@ import {
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
 import {
   AdminAccessDenied,
-  AdminHiddenDataState,
   AdminPageScaffold,
 } from "../components/admin-ui";
 import {
@@ -558,11 +557,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     <AdminPageScaffold className="gap-4">
       <DashboardHeader
         title={dashboardCopy.title}
-        roleName={profile.role_name}
         subtitle={dashboardCopy.subtitle}
         lastChecked={lastChecked}
-        assignedOnly={assignedOnly}
-        revenueAllowed={revenueAllowed}
         showReports={permissionAccess.reports}
         showCalendar={permissionAccess.calendar}
         showSettings={permissionAccess.operations}
@@ -670,24 +666,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         />
       </AdminErrorBoundary>
 
-      {!revenueAllowed || assignedOnly ? (
-        <section className="grid gap-4 lg:grid-cols-2" aria-label="Restricted dashboard states">
-          {!revenueAllowed ? (
-            <AdminHiddenDataState
-              title="Revenue hidden"
-              message="Payment counts stay visible, but money values are hidden unless revenue report access is granted."
-              permission="view_reports_revenue"
-            />
-          ) : null}
-          {assignedOnly ? (
-            <AdminHiddenDataState
-              title="Assigned-only scope"
-              message="Dashboard metrics and attention items are scoped to bookings assigned to this staff member."
-              permission="view_bookings_assigned"
-            />
-          ) : null}
-        </section>
-      ) : null}
     </AdminPageScaffold>
   );
 }

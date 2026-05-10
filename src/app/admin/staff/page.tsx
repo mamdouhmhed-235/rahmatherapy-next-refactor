@@ -209,9 +209,9 @@ export default async function StaffPage() {
                   </div>
                 </div>
                 {teamAccess.canViewAdminFields && !member.active ? (
-                  <Badge variant="secondary" className="border-none bg-gray-100 text-gray-500">
+                  <span className="text-xs font-medium uppercase tracking-wider text-[var(--rahma-muted)]">
                     Inactive
-                  </Badge>
+                  </span>
                 ) : null}
               </div>
 
@@ -266,40 +266,20 @@ export default async function StaffPage() {
                   </div>
                 ) : null}
 
-                <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--rahma-border)] pt-2">
+                <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[var(--rahma-border)] pt-2 text-xs text-[var(--rahma-muted)]">
                   {member.can_take_bookings ? (
-                    <Badge className="border-none bg-[var(--rahma-green)]/10 py-0.5 normal-case tracking-normal text-[var(--rahma-green)]">
-                      Accepting bookings
-                    </Badge>
+                    <span>Accepting bookings</span>
                   ) : teamAccess.canViewAdminFields ? (
-                    <Badge
-                      variant="secondary"
-                      className="border-none bg-orange-50 py-0.5 normal-case tracking-normal text-orange-600"
-                    >
-                      Bookings off
-                    </Badge>
+                    <span>Bookings off</span>
                   ) : null}
 
-                  <Badge
-                    variant="outline"
-                    className="border-[var(--rahma-border)] py-0.5 normal-case tracking-normal text-[var(--rahma-muted)]"
-                  >
+                  <span className="capitalize">
                     {member.availability_mode.replace(/_/g, " ")}
-                  </Badge>
+                  </span>
                   {teamAccess.canViewAdminFields ? (
                     <>
-                      <Badge
-                        variant="outline"
-                        className="border-[var(--rahma-border)] py-0.5 normal-case tracking-normal text-[var(--rahma-muted)]"
-                      >
-                        Onboarding {onboardingComplete}/6
-                      </Badge>
-                      <Badge
-                        variant="outline"
-                        className="border-[var(--rahma-border)] py-0.5 normal-case tracking-normal text-[var(--rahma-muted)]"
-                      >
-                        Profile {profileCompletion.completed}/{profileCompletion.total}
-                      </Badge>
+                      <span>Onboarding {onboardingComplete}/6</span>
+                      <span>Profile {profileCompletion.completed}/{profileCompletion.total}</span>
                     </>
                   ) : null}
                 </div>

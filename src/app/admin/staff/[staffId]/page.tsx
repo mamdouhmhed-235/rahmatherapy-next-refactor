@@ -244,20 +244,8 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
               <User className="size-10" />
             </div>
             <div className="mb-2 pb-1">
-              <h1 className="flex items-center gap-3 font-display text-2xl font-semibold text-[var(--rahma-charcoal)]">
+              <h1 className="font-display text-2xl font-semibold text-[var(--rahma-charcoal)]">
                 {typedStaff.name}
-                {typedStaff.can_take_bookings ? (
-                  <Badge className="border-none bg-[var(--rahma-green)]/10 normal-case tracking-normal text-[var(--rahma-green)]">
-                    Available for bookings
-                  </Badge>
-                ) : canShowAdminPanels ? (
-                  <Badge
-                    variant="secondary"
-                    className="border-none bg-orange-50 normal-case tracking-normal text-orange-600"
-                  >
-                    Bookings off
-                  </Badge>
-                ) : null}
               </h1>
               {canViewContactFields && typedStaff.email ? (
                 <p className="flex items-center gap-2 text-sm text-[var(--rahma-muted)]">

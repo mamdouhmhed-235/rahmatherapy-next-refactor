@@ -41,8 +41,6 @@ export default async function AdminLayout({
       profile={{
         name: profile.name,
         roleName: profile.role_name,
-        active: profile.active,
-        canTakeBookings: profile.can_take_bookings,
       }}
       pageAccess={Object.fromEntries(
         ADMIN_PAGE_KEYS.map((pageKey) => {
