@@ -3,6 +3,7 @@ import { getStaffProfile } from "@/lib/auth/rbac";
 import { ADMIN_PAGE_KEYS, getAdminPageAccess } from "@/lib/auth/admin-access";
 import { AdminTopNav } from "./components/AdminTopNav";
 import { AdminAccessDenied } from "./components/admin-ui";
+import { resolveAdminShellVariant } from "./shell-variant";
 
 export default async function AdminLayout({
   children,
@@ -36,12 +37,15 @@ export default async function AdminLayout({
     );
   }
 
+  const variant = resolveAdminShellVariant(profile) ?? "owner_admin";
+
   return (
     <AdminTopNav
       profile={{
         name: profile.name,
         roleName: profile.role_name,
       }}
+      variant={variant}
       pageAccess={Object.fromEntries(
         ADMIN_PAGE_KEYS.map((pageKey) => {
           const access = getAdminPageAccess(profile, pageKey);

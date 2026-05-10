@@ -26,11 +26,24 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminCommandSearch } from "./AdminCommandSearch";
+import type { AdminShellVariant } from "../shell-variant";
 
 interface AdminTopNavProfile {
   name: string;
   roleName: string;
 }
+
+// Pages that survive on the therapist's trimmed nav. Therapists don't
+// need staff/roles/audit/privacy/account-requests/operations/emails/
+// services/settings — those are admin chrome. They get a focused worker
+// nav: dashboard, their bookings, their clients, calendar, reports.
+const THERAPIST_NAV_PAGE_KEYS = new Set<string>([
+  "dashboard",
+  "bookings",
+  "clients",
+  "calendar",
+  "reports",
+]);
 
 interface AdminTopNavPageAccess {
   access: boolean;
@@ -171,17 +184,22 @@ function hasPageAccess(
 
 export function AdminTopNav({
   profile,
+  variant,
   pageAccess,
   children,
 }: {
   profile: AdminTopNavProfile;
+  variant: AdminShellVariant;
   pageAccess: Record<string, AdminTopNavPageAccess>;
   children: React.ReactNode;
 }) {
   const [scrolled, setScrolled] = useState(false);
-  const visibleItems = NAV_ITEMS.filter((item) =>
-    hasPageAccess(item, pageAccess)
-  );
+  const isTherapist = variant === "therapist";
+  const visibleItems = NAV_ITEMS.filter((item) => {
+    if (!hasPageAccess(item, pageAccess)) return false;
+    if (isTherapist && !THERAPIST_NAV_PAGE_KEYS.has(item.pageKey)) return false;
+    return true;
+  });
 
   const sections = [...new Set(visibleItems.map((i) => i.section))];
 
@@ -211,13 +229,18 @@ export function AdminTopNav({
         <div className="mx-auto flex h-14 max-w-[100rem] items-center gap-3 px-4 sm:px-6 lg:px-8">
           <Brand />
 
-          {/* Desktop center: search */}
-          <div className="hidden flex-1 items-center justify-center md:flex">
-            <AdminCommandSearch
-              compact
-              triggerClassName="inline-flex h-9 w-full max-w-[16rem] shrink items-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/60 px-3 text-sm font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            />
-          </div>
+          {/* Desktop center: search (hidden for therapists — they don't need
+              cross-CRM lookup) */}
+          {!isTherapist ? (
+            <div className="hidden flex-1 items-center justify-center md:flex">
+              <AdminCommandSearch
+                compact
+                triggerClassName="inline-flex h-9 w-full max-w-[16rem] shrink items-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/60 px-3 text-sm font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+              />
+            </div>
+          ) : (
+            <div className="hidden flex-1 md:flex" />
+          )}
 
           {/* Desktop right: actions */}
           <div className="hidden items-center gap-2 lg:flex">
@@ -245,7 +268,7 @@ export function AdminTopNav({
 
           {/* Mobile right */}
           <div className="flex flex-1 items-center justify-end gap-2 lg:hidden">
-            <MobileSearch />
+            {!isTherapist ? <MobileSearch /> : null}
             <MobileMenu profile={profile} items={visibleItems} sections={sections} />
           </div>
         </div>
