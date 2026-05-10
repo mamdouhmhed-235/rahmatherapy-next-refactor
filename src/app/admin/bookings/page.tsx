@@ -56,6 +56,17 @@ const BOOKING_VIEWS: Array<{ key: BookingView; label: string }> = [
   { key: "all", label: "All" },
 ];
 
+// Therapists only see views relevant to their own work. Admin views like
+// "Needs attention", "Unassigned", "Partially assigned", "All" are noise
+// for someone whose job is just to deliver assigned sessions.
+const THERAPIST_BOOKING_VIEWS: BookingView[] = [
+  "assigned",
+  "claimable",
+  "today",
+  "upcoming",
+  "completed",
+];
+
 const BOOKING_SELECT = `
   id,
   booking_date,
@@ -418,21 +429,16 @@ export default async function BookingsPage({
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold text-[var(--rahma-charcoal)]">
-            Bookings
+            {canViewAll ? "Bookings" : "My bookings"}
           </h1>
           <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            View booking requests, participant breakdowns, assignment status,
-            and payment lifecycle.
+            {canViewAll
+              ? "View booking requests, participant breakdowns, assignment status, and payment lifecycle."
+              : "Sessions assigned to you and claimable work that matches your scope."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge
-            variant="secondary"
-            className="border-none bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]"
-          >
-            {canViewAll ? "All bookings" : "Assigned and claimable"}
-          </Badge>
-          {canViewAll ? (
+        {canViewAll ? (
+          <div className="flex flex-wrap items-center gap-2">
             <Link
               href="/admin/bookings/new"
               className={cn(buttonVariants({ size: "md" }))}
@@ -440,8 +446,8 @@ export default async function BookingsPage({
               <Plus className="size-4" />
               Create booking
             </Link>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
 
       <BookingOperationsBar
@@ -496,10 +502,15 @@ function BookingOperationsBar({
   staff: Array<{ id: string; name: string }>;
   canViewAll: boolean;
 }) {
+  const visibleViews = canViewAll
+    ? BOOKING_VIEWS
+    : BOOKING_VIEWS.filter((view) =>
+        THERAPIST_BOOKING_VIEWS.includes(view.key)
+      );
   return (
     <div className="mb-5 grid gap-4">
       <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Booking views">
-        {BOOKING_VIEWS.map((view) => (
+        {visibleViews.map((view) => (
           <Link
             key={view.key}
             href={queryWithView(view.key)}

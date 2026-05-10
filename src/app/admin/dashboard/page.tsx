@@ -53,6 +53,8 @@ import { DashboardFiltersClient } from "./dashboard-filters-client";
 import { AdminErrorBoundary } from "../components/admin-error-boundary";
 import { DashboardHeader } from "./dashboard-header";
 import { getDashboardData, type DashboardVariant } from "./dashboard-data";
+import { TherapistDashboard } from "./TherapistDashboard";
+import { resolveAdminShellVariant } from "../shell-variant";
 
 export const metadata = {
   title: "Dashboard - Rahma Therapy Admin",
@@ -441,6 +443,32 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     if (booking.status === "cancelled" || booking.status === "no_show") {
       noShowCancelledCount++;
     }
+  }
+
+  // Therapist branch: focused worker UI. The owner/admin/coordinator
+  // command-centre below is admin chrome that's noise for therapists.
+  if (resolveAdminShellVariant(profile) === "therapist") {
+    const nextAppointmentForTherapist = findNextAppointment(data.bookings, today);
+    return (
+      <TherapistDashboard
+        staffName={profile.name}
+        today={today}
+        data={data}
+        weekCount={
+          data.bookings.filter((booking) => {
+            const sevenDayLimit = addBusinessDays(today, 7);
+            return (
+              booking.booking_date >= today &&
+              booking.booking_date <= sevenDayLimit
+            );
+          }).length
+        }
+        todayAppointments={data.bookings.filter(
+          (booking) => booking.booking_date === today
+        )}
+        nextAppointment={nextAppointmentForTherapist}
+      />
+    );
   }
 
   const failedEmails = data.emailEvents.filter((event) => event.delivery_status === "failed");

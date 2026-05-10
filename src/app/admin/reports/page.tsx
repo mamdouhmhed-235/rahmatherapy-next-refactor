@@ -61,16 +61,22 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   return (
     <div>
       <AdminPageHeader
-        title="Reports"
-        description="Server-scoped business, client, booking, payment, staff, service, and source reporting."
+        title={revenueAllowed ? "Reports" : "My report"}
+        description={
+          revenueAllowed
+            ? "Server-scoped business, client, booking, payment, staff, service, and source reporting."
+            : "Your workload, completed sessions, and own bookings in the selected range."
+        }
         actions={
-          <Link
-            href={`/admin/reports/export?report=revenue_summary&${query}`}
-            className={cn(buttonVariants({ size: "sm" }), "min-h-10")}
-          >
-            <Download className="size-4" />
-            Export CSV
-          </Link>
+          revenueAllowed ? (
+            <Link
+              href={`/admin/reports/export?report=revenue_summary&${query}`}
+              className={cn(buttonVariants({ size: "sm" }), "min-h-10")}
+            >
+              <Download className="size-4" />
+              Export CSV
+            </Link>
+          ) : null
         }
       />
 
@@ -126,17 +132,15 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             <AdminStat icon={TrendingUp} label="Collected revenue" value={formatMoney(summary.collectedRevenue)} note="Actual amount paid" />
             <AdminStat icon={TrendingUp} label="Outstanding" value={formatMoney(summary.outstandingRevenue)} note="Due minus paid" alert={summary.outstandingRevenue > 0} />
           </>
-        ) : (
-          <AdminPanel title="Revenue hidden" description="This role can see workload metrics, not business-wide revenue.">
-            <p className="text-sm text-[var(--rahma-muted)]">Revenue values are hidden for this permission scope.</p>
-          </AdminPanel>
-        )}
+        ) : null}
       </section>
 
       <section className="mt-6 grid gap-4 xl:grid-cols-2">
-        <AdminPanel title="Revenue by period" description="Booked, collected, and outstanding revenue from scoped booking rows.">
-          {revenueAllowed ? <RevenueChart data={revenueSeries} /> : <p className="text-sm text-[var(--rahma-muted)]">Revenue chart requires reporting or payment permission.</p>}
-        </AdminPanel>
+        {revenueAllowed ? (
+          <AdminPanel title="Revenue by period" description="Booked, collected, and outstanding revenue from scoped booking rows.">
+            <RevenueChart data={revenueSeries} />
+          </AdminPanel>
+        ) : null}
         <AdminPanel title="Bookings by status">
           <CountBarChart data={getCountBy(data.bookings, (booking) => booking.status)} label="Bookings by status chart" />
         </AdminPanel>
@@ -155,16 +159,14 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
             value: `${row.assignments} assignments · ${row.completed} completed`,
           }))} />
         </AdminPanel>
-        <AdminPanel title="Staff revenue attribution" description="Participant service-item attribution avoids group-booking double-counting.">
-          {revenueAllowed ? (
+        {revenueAllowed ? (
+          <AdminPanel title="Staff revenue attribution" description="Participant service-item attribution avoids group-booking double-counting.">
             <Rows rows={staffRevenue.slice(0, 8).map((row) => ({
               label: row.staffName,
               value: formatMoney(row.revenue),
             }))} />
-          ) : (
-            <p className="text-sm text-[var(--rahma-muted)]">Revenue attribution requires reporting or payment permission.</p>
-          )}
-        </AdminPanel>
+          </AdminPanel>
+        ) : null}
       </section>
 
       <AdminPanel title="CSV exports" description="Default exports exclude health notes, treatment notes, admin notes, consent details, and raw audit payloads." className="mt-6">

@@ -306,8 +306,12 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   return (
     <div>
       <AdminPageHeader
-        title="Clients"
-        description="Search customer profiles, booking-specific snapshots, repeat status, source attribution, and payment follow-up."
+        title={hasAllClientAccess ? "Clients" : "My clients"}
+        description={
+          hasAllClientAccess
+            ? "Search customer profiles, booking-specific snapshots, repeat status, source attribution, and payment follow-up."
+            : "Clients you've delivered or are assigned to deliver sessions for."
+        }
         actions={
           canManageClients ? (
           <Link

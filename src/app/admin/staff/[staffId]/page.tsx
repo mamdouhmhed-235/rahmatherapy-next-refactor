@@ -386,6 +386,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
           </AdminPanel>
         ) : null}
 
+        {canShowAdminPanels ? (
         <AdminPanel
           title="Assigned bookings and workload"
           description={`${upcomingAssignments.length} upcoming assignment${
@@ -442,6 +443,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
             </div>
           )}
         </AdminPanel>
+        ) : null}
 
         {teamAccess.canViewAudit ? (
           <AdminPanel title="Audit history">
