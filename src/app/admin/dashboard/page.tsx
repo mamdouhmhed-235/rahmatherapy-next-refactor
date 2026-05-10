@@ -488,7 +488,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const permissionAccess = getPermissionAccess(profile);
   const dashboardCopy = getDashboardCopy(plan.variant);
   const showStaffCapacity = plan.variant === "business" && permissionAccess.staff;
-  const showPaymentHealth = plan.variant !== "therapist";
+  // Coordinators don't see money — render the money card only when revenue
+  // is actually viewable. Avoids the "Revenue hidden" carrot.
+  const showPaymentHealth = plan.variant !== "therapist" && revenueAllowed;
   const showOperationsHealth = plan.variant !== "therapist";
   const newEnquiries = data.enquiries.filter((enquiry) => enquiry.status === "new");
   const nextAppointment = findNextAppointment(data.bookings, today);
@@ -603,8 +605,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           paymentOptions={paymentOptions}
           cityOptions={data.cityOptions}
           today={today}
-          assignedOnly={assignedOnly}
-          revenueAllowed={revenueAllowed}
         />
       </AdminErrorBoundary>
 

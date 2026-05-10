@@ -685,8 +685,7 @@ export function PaymentHealthCard({
         )}
       </div>
 
-      {revenueAllowed ? (
-        total > 0 ? (
+      {total > 0 ? (
           <div className="mt-4">
             {/* Row-based payment bars */}
             <div className="grid gap-3">
@@ -802,22 +801,14 @@ export function PaymentHealthCard({
                 : "No financial activity in this period."}
             </p>
           </div>
-        ) : (
-          <div className="mt-4">
-            <AdminEmptyState
-              icon={PoundSterling}
-              title="No financial activity"
-              message="Bookings and payments will appear here once there is activity in the selected range."
-              tone="muted"
-            />
-          </div>
-        )
       ) : (
-        <div className="mt-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-6 text-center">
-          <p className="text-sm font-semibold text-[var(--admin-heading)]">Revenue hidden</p>
-          <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
-            Payment counts stay visible, but money values need reporting permission.
-          </p>
+        <div className="mt-4">
+          <AdminEmptyState
+            icon={PoundSterling}
+            title="No financial activity"
+            message="Bookings and payments will appear here once there is activity in the selected range."
+            tone="muted"
+          />
         </div>
       )}
     </AdminDashboardPanel>

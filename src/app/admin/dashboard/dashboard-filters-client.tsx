@@ -158,8 +158,6 @@ export function DashboardFiltersClient({
   cityOptions = [],
   today,
   filters,
-  assignedOnly,
-  revenueAllowed,
 }: {
   staff: { id: string; name: string }[];
   serviceOptions: string[];
@@ -169,8 +167,6 @@ export function DashboardFiltersClient({
   cityOptions?: string[];
   today: string;
   filters: ReportFilters;
-  assignedOnly: boolean;
-  revenueAllowed: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -317,10 +313,6 @@ export function DashboardFiltersClient({
           </span>
           <span className="font-semibold text-[var(--admin-heading)]">
             {filters.from} to {filters.to}
-          </span>
-          <span className="text-[var(--admin-text-muted)]">
-            {assignedOnly ? "Assigned bookings only" : "Permitted records"}
-            {!revenueAllowed ? " - revenue hidden" : ""}
           </span>
         </div>
       </div>
