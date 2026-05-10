@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { hasBaseUrl } from "./helpers";
 
-test.describe("Phase 10 public booking smoke", () => {
+test.describe("Public booking smoke", () => {
   test.skip(!hasBaseUrl(), "Set E2E_BASE_URL to run public booking E2E checks.");
 
   test("booking page exposes the service step and can show unsupported service area feedback", async ({

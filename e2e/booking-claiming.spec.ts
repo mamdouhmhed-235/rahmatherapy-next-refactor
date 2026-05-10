@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { getCredentials, hasBaseUrl, loginAs, requireCredentials } from "./helpers";
 
-test.describe("Phase 10 role-based booking visibility and claiming", () => {
+test.describe("Role-based booking visibility and claiming", () => {
   test.skip(!hasBaseUrl(), "Set E2E_BASE_URL to run booking claim E2E checks.");
   test.skip(
     !process.env.E2E_CLAIMABLE_BOOKING_PATH,

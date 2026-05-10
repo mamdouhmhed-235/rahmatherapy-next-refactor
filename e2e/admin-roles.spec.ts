@@ -8,7 +8,7 @@ import {
   requireCredentials,
 } from "./helpers";
 
-test.describe("Phase 10 admin role journeys", () => {
+test.describe("Admin role journeys", () => {
   test.skip(!hasBaseUrl(), "Set E2E_BASE_URL to run admin role E2E checks.");
 
   test("unauthenticated users are redirected away from admin dashboard", async ({
