@@ -15,6 +15,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import { AdminAccessDenied } from "../components/admin-ui";
+import { EmptyState } from "../components/EmptyState";
 import { BookingActionButton } from "./BookingActionButton";
 import { CopyButton } from "./CopyButton";
 import {
@@ -459,19 +460,20 @@ export default async function BookingsPage({
       />
 
       {filteredBookings.length === 0 ? (
-        <div
-          className="rounded-2xl border-2 border-dashed bg-white/50 px-6 py-20 text-center"
-          style={{ borderColor: "var(--rahma-border)" }}
-        >
-          <CalendarCheck className="mx-auto mb-4 size-12 text-[var(--rahma-muted)]/30" />
-          <h2 className="text-lg font-semibold text-[var(--rahma-charcoal)]">
-            No bookings found
-          </h2>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            Adjust filters or create a new manual booking if this request came
-            in by phone, WhatsApp, referral, or walk-in.
-          </p>
-        </div>
+        <EmptyState
+          icon={CalendarCheck}
+          title="No bookings found"
+          message={
+            canViewAll
+              ? "Adjust filters or create a new manual booking if this request came in by phone, WhatsApp, referral, or walk-in."
+              : "No bookings match this view yet. Check claimable work to find sessions you can pick up."
+          }
+          action={
+            canViewAll
+              ? { label: "Create booking", href: "/admin/bookings/new" }
+              : { label: "View claimable", href: "/admin/bookings?view=claimable" }
+          }
+        />
       ) : (
         <div className="grid gap-4">
           {filteredBookings.map((booking) => (

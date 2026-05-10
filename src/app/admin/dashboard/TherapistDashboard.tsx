@@ -10,6 +10,7 @@
 import Link from "next/link";
 import { ArrowRight, CalendarCheck, Clock, MapPin, User } from "lucide-react";
 import { AdminPageScaffold } from "../components/admin-ui";
+import { EmptyState } from "../components/EmptyState";
 import { formatNumber } from "../reports/reporting";
 import type { ReportData } from "../reports/reporting";
 
@@ -116,10 +117,12 @@ export function TherapistDashboard({
           actionHref="/admin/bookings"
         />
         {todayAppointments.length === 0 ? (
-          <EmptyCard
-            icon={<CalendarCheck className="size-5" />}
+          <EmptyState
+            icon={CalendarCheck}
             title="No appointments today"
             message="Take a moment to plan tomorrow or claim available work."
+            action={{ label: "View claimable work", href: "/admin/bookings?view=claimable" }}
+            compact
           />
         ) : (
           <ul className="m-0 grid list-none gap-3 p-0">
@@ -300,29 +303,3 @@ function SectionHeader({
   );
 }
 
-function EmptyCard({
-  icon,
-  title,
-  message,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  message: string;
-}) {
-  return (
-    <div className="flex items-start gap-3 rounded-[var(--admin-radius-card)] border border-dashed border-[var(--admin-border)] bg-white p-6">
-      <span
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
-        aria-hidden="true"
-      >
-        {icon}
-      </span>
-      <div>
-        <p className="text-sm font-semibold text-[var(--admin-heading)]">
-          {title}
-        </p>
-        <p className="mt-1 text-sm text-[var(--admin-text-muted)]">{message}</p>
-      </div>
-    </div>
-  );
-}
