@@ -90,9 +90,10 @@ export function AdminCommandSearch({
                 Searching
               </div>
             ) : query.trim().length < 2 ? (
-              <p className="px-4 py-10 text-center text-sm text-[var(--admin-text-muted)]">
-                Type at least two characters to search permitted records.
-              </p>
+              <div className="px-4 py-10 text-center">
+                <p className="text-sm font-semibold text-[var(--admin-heading)]">Start typing</p>
+                <p className="mt-1 text-sm text-[var(--admin-text-muted)]">Search bookings, clients, staff, or pages.</p>
+              </div>
             ) : results.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-[var(--admin-text-muted)]">
                 Nothing matches &ldquo;{query}&rdquo;. Try a name, phone number, or booking ID.

@@ -419,7 +419,7 @@ function UserAvatarMenu({ profile }: { profile: AdminTopNavProfile }) {
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`${profile.name}'s account menu`}
+        aria-label={`${profile.name.split(" ")[0]}'s account menu`}
         className="inline-flex size-8 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[oklch(92%_0.022_155)] focus-visible:ring-2 focus-visible:ring-white/60"
       >
         {initials}
@@ -521,7 +521,7 @@ function MobileMenuButton({
     <BaseDialog.Root open={open} onOpenChange={setOpen}>
       <BaseDialog.Trigger
         className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
-        aria-label="Open admin navigation"
+        aria-label="Open menu"
       >
         <Menu className="size-5" aria-hidden="true" />
       </BaseDialog.Trigger>
