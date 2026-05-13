@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
+  BellRing,
   Clock,
   CreditCard,
   Mail,
@@ -155,14 +156,18 @@ export function NotificationBell({
       >
         <AdminPopover.Trigger
           ref={triggerRef}
-          aria-label={`Open notifications, ${unreadCount} unread`}
+          aria-label={unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up"}
           className="inline-flex size-11 appearance-none items-center justify-center rounded-[var(--admin-radius-card)] border-0 bg-transparent p-0 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
         >
           <span className="relative inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)] shadow-[var(--admin-shadow-subtle)]">
-            <Bell className="size-[1.125rem]" />
             {unreadCount > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-danger)] px-1 text-[11px] font-bold leading-none text-white" aria-hidden="true">
-                {unreadCount}
+              <BellRing className="size-[1.125rem]" aria-hidden="true" />
+            ) : (
+              <Bell className="size-[1.125rem]" aria-hidden="true" />
+            )}
+            {unreadCount > 0 ? (
+              <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] px-1 text-[11px] font-bold leading-none text-[oklch(26%_0.13_55)]" aria-hidden="true">
+                {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             ) : null}
           </span>
@@ -215,10 +220,14 @@ export function MobileNotificationButton({
             className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 shadow-[var(--admin-shadow-subtle)]"
             aria-label={triggerLabel}
           >
-            <Bell className="size-[1.125rem] text-[var(--admin-primary)]" aria-hidden="true" />
             {unreadCount > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-danger)] px-1 text-[11px] font-bold leading-none text-white" aria-hidden="true">
-                {unreadCount}
+              <BellRing className="size-[1.125rem] text-[var(--admin-primary)]" aria-hidden="true" />
+            ) : (
+              <Bell className="size-[1.125rem] text-[var(--admin-primary)]" aria-hidden="true" />
+            )}
+            {unreadCount > 0 ? (
+              <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] px-1 text-[11px] font-bold leading-none text-[oklch(26%_0.13_55)]" aria-hidden="true">
+                {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             ) : null}
           </button>
@@ -229,7 +238,11 @@ export function MobileNotificationButton({
             aria-label={triggerLabel}
           >
             <span className="inline-flex items-center gap-2">
-              <Bell className="size-4 text-[var(--admin-primary)]" aria-hidden="true" />
+              {unreadCount > 0 ? (
+                <BellRing className="size-4 text-[var(--admin-primary)]" aria-hidden="true" />
+              ) : (
+                <Bell className="size-4 text-[var(--admin-primary)]" aria-hidden="true" />
+              )}
               Notification centre
             </span>
             {unreadCount > 0 ? (
