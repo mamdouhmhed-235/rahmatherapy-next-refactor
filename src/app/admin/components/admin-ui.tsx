@@ -1177,7 +1177,7 @@ export function AdminSkeleton({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "animate-pulse rounded-[var(--admin-radius-control)] bg-[var(--admin-border)]/55",
+        "rounded-[var(--admin-radius-control)] bg-[var(--admin-border)]/55 [animation:pulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none",
         className
       )}
     />
