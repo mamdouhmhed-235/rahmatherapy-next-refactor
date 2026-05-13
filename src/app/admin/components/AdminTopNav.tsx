@@ -213,7 +213,7 @@ export function AdminTopNav({
 
           {/* Centre zone: primary nav items (desktop) */}
           <nav
-            className="hidden flex-1 items-center gap-0.5 md:flex"
+            className="admin-nav-scrollbar hidden flex-1 items-center gap-0.5 overflow-x-auto md:flex"
             aria-label="Admin navigation"
           >
             {primaryItems.map((item) => {
@@ -431,8 +431,8 @@ function UserAvatarMenu({ profile }: { profile: AdminTopNavProfile }) {
           role="menu"
         >
           <div className="border-b border-[var(--admin-border)] px-3 py-2.5 mb-1">
-            <p className="text-sm font-semibold text-[var(--admin-heading)]">{profile.name}</p>
-            <p className="text-xs text-[var(--admin-text-muted)]">{profile.roleName}</p>
+            <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">{profile.name}</p>
+            <p className="truncate text-xs text-[var(--admin-text-muted)]">{profile.roleName}</p>
           </div>
           <Link
             href="/admin/staff"

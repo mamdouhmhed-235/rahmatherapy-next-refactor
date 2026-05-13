@@ -5,6 +5,7 @@ import {
   CheckCircle,
   CheckSquare,
   Clock,
+  Loader2,
   Lock,
   ShieldCheck,
   XCircle,
@@ -190,6 +191,7 @@ export function AdminStat({
   tone,
   footer,
   numeral = false,
+  loading = false,
 }: {
   label: string;
   value: React.ReactNode;
@@ -199,6 +201,7 @@ export function AdminStat({
   tone?: AdminTone;
   footer?: React.ReactNode;
   numeral?: boolean;
+  loading?: boolean;
 }) {
   const resolvedTone = tone ?? (alert ? "danger" : "default");
 
@@ -224,7 +227,9 @@ export function AdminStat({
           />
         ) : null}
       </div>
-      {numeral ? (
+      {loading ? (
+        <AdminSkeleton className="mt-2 h-9 w-2/3" aria-hidden="true" />
+      ) : numeral ? (
         <p
           className="mt-2 font-[var(--font-admin-serif),Georgia,serif] text-[3.157rem] font-bold leading-none tracking-[-0.02em] text-[var(--admin-heading)]"
           style={{ fontFamily: "var(--font-admin-serif), Georgia, serif" }}
@@ -232,7 +237,7 @@ export function AdminStat({
           {value}
         </p>
       ) : (
-        <p className="font-display mt-2 text-[1.778rem] font-semibold leading-none tracking-[-0.015em] text-[var(--admin-heading)]">{value}</p>
+        <p className="font-display mt-2 line-clamp-2 text-[1.778rem] font-semibold leading-tight tracking-[-0.015em] text-[var(--admin-heading)]">{value}</p>
       )}
       {note ? <p className="mt-1 text-xs text-[var(--admin-text-muted)]">{note}</p> : null}
       {footer ? (
@@ -254,6 +259,8 @@ export function AdminPanel({
   footer,
   tone = "default",
   density = "comfortable",
+  loading = false,
+  error,
 }: {
   title?: string;
   description?: string;
@@ -264,14 +271,18 @@ export function AdminPanel({
   footer?: React.ReactNode;
   tone?: AdminTone;
   density?: AdminDensity;
+  loading?: boolean;
+  error?: string;
 }) {
+  const resolvedTone = error ? "danger" : tone;
+
   return (
     <section
       className={cn(
         "rounded-[var(--admin-radius-card)] border",
         density === "compact" ? "p-4" : "p-4 sm:p-5",
-        panelBorderClasses[tone],
-        panelBgClasses[tone],
+        panelBorderClasses[resolvedTone],
+        panelBgClasses[resolvedTone],
         className
       )}
     >
@@ -295,8 +306,28 @@ export function AdminPanel({
           ) : null}
         </div>
       ) : null}
-      {children}
-      {footer ? (
+
+      {error ? (
+        <div
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-3 text-sm text-[oklch(26%_0.14_25)]"
+        >
+          <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      ) : loading ? (
+        <div className="grid gap-3" aria-hidden="true">
+          <AdminSkeleton className="h-4 w-2/3" />
+          <AdminSkeleton className="h-3 w-full" />
+          <AdminSkeleton className="h-3 w-4/5" />
+        </div>
+      ) : (
+        children
+      )}
+
+      {footer && !loading && !error ? (
         <div className="mt-4 border-t border-[var(--admin-border)] pt-4">{footer}</div>
       ) : null}
     </section>
@@ -715,7 +746,7 @@ export function AdminInput({
         aria-describedby={cn(error ? errorId : undefined, hint ? hintId : undefined) || undefined}
         aria-invalid={error ? "true" : undefined}
         className={cn(
-          "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50",
+          "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50 read-only:bg-[var(--admin-panel-muted)] read-only:cursor-default read-only:text-[var(--admin-text-muted)] read-only:focus-visible:border-[var(--admin-border-form)] read-only:focus-visible:ring-0",
           error
             ? "border-[oklch(26%_0.14_25)]"
             : "border-[var(--admin-border-form)]"
@@ -884,9 +915,18 @@ export function AdminAccessDenied({
 
 // ─── AdminMobileActionBar ─────────────────────────────────────────────────────
 
-export function AdminMobileActionBar({ children }: { children: React.ReactNode }) {
+export function AdminMobileActionBar({
+  children,
+  submitting = false,
+}: {
+  children: React.ReactNode;
+  submitting?: boolean;
+}) {
   return (
-    <div className="sticky bottom-0 z-20 -mx-4 mt-6 border-t border-[var(--admin-border)] bg-[var(--admin-panel)]/95 px-4 py-3 backdrop-blur lg:hidden">
+    <div
+      aria-busy={submitting || undefined}
+      className="sticky bottom-0 z-20 -mx-4 mt-6 border-t border-[var(--admin-border)] bg-[var(--admin-panel)]/95 px-4 py-3 backdrop-blur lg:hidden"
+    >
       <div className="flex gap-2 overflow-x-auto">{children}</div>
     </div>
   );
@@ -1225,17 +1265,22 @@ export function AdminButton({
   children,
   variant = "primary",
   size = "default",
+  loading = false,
   className,
+  disabled,
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "destructive" | "ghost" | "outline";
   size?: "default" | "sm";
+  loading?: boolean;
 }) {
   return (
     <button
       type="button"
+      disabled={loading || disabled}
+      aria-busy={loading || undefined}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+        "inline-flex items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 disabled:pointer-events-none",
         size === "default" && "min-h-10 px-4 text-sm",
         size === "sm" && "min-h-8 px-3 text-xs",
         variant === "primary" &&
@@ -1252,6 +1297,9 @@ export function AdminButton({
       )}
       {...props}
     >
+      {loading ? (
+        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+      ) : null}
       {children}
     </button>
   );

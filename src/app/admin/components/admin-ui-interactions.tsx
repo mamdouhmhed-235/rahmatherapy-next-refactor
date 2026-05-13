@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
-import { CheckCircle, MoreHorizontal, SlidersHorizontal, X, XCircle } from "lucide-react";
+import { CheckCircle, Loader2, MoreHorizontal, SlidersHorizontal, X, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── AdminActionMenu ──────────────────────────────────────────────────────────
@@ -161,10 +162,24 @@ export function ConfirmActionModal({
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
-  onConfirm?: () => void;
+  onConfirm?: (() => void) | (() => Promise<void>);
 }) {
+  const [confirming, setConfirming] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  async function handleConfirm() {
+    if (!onConfirm) { setOpen(false); return; }
+    setConfirming(true);
+    try {
+      await onConfirm();
+      setOpen(false);
+    } finally {
+      setConfirming(false);
+    }
+  }
+
   return (
-    <BaseDialog.Root>
+    <BaseDialog.Root open={open} onOpenChange={setOpen}>
       <BaseDialog.Trigger render={trigger} />
       <BaseDialog.Portal>
         <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm" />
@@ -195,31 +210,34 @@ export function ConfirmActionModal({
 
           <div className="mt-5 flex flex-wrap-reverse justify-end gap-2">
             <BaseDialog.Close
+              disabled={confirming}
               render={
                 <button
                   type="button"
-                  className="inline-flex min-h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                  disabled={confirming}
+                  className="inline-flex min-h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {cancelLabel}
                 </button>
               }
             />
-            <BaseDialog.Close
-              render={
-                <button
-                  type="button"
-                  onClick={onConfirm}
-                  className={cn(
-                    "inline-flex min-h-10 items-center rounded-[var(--admin-radius-control)] px-4 text-sm font-semibold text-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
-                    destructive
-                      ? "bg-[oklch(40%_0.14_25)] hover:bg-[oklch(33%_0.14_25)]"
-                      : "bg-[var(--admin-primary)] hover:bg-[var(--admin-primary-hover)]"
-                  )}
-                >
-                  {confirmLabel}
-                </button>
-              }
-            />
+            <button
+              type="button"
+              aria-busy={confirming || undefined}
+              disabled={confirming}
+              onClick={handleConfirm}
+              className={cn(
+                "inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] px-4 text-sm font-semibold text-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none",
+                destructive
+                  ? "bg-[oklch(40%_0.14_25)] hover:bg-[oklch(33%_0.14_25)]"
+                  : "bg-[var(--admin-primary)] hover:bg-[var(--admin-primary-hover)]"
+              )}
+            >
+              {confirming ? (
+                <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+              ) : null}
+              {confirmLabel}
+            </button>
           </div>
         </BaseDialog.Popup>
       </BaseDialog.Portal>
