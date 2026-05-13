@@ -127,6 +127,22 @@ function isActive(href: string, pathname: string): boolean {
   return current === target || current.startsWith(`${target}/`);
 }
 
+function getDesktopBreadcrumb(
+  pathname: string,
+  allItems: NavItem[],
+  variant: AdminShellVariant
+): string | null {
+  const segments = pathname.split("/").filter(Boolean);
+  // Only show breadcrumb for routes deeper than /admin/{section}
+  if (segments.length <= 2) return null;
+  const sectionHref = `/${segments[0]}/${segments[1]}`;
+  const match = allItems.find(
+    (item) => normalizeAdminPath(item.href) === normalizeAdminPath(sectionHref)
+  );
+  if (!match) return null;
+  return getNavLabel(match, variant);
+}
+
 export function AdminTopNav({
   profile,
   variant,
@@ -147,6 +163,7 @@ export function AdminTopNav({
   const accessibleItems = NAV_ITEMS.filter((item) => hasPageAccess(item, pageAccess));
   const primaryItems = accessibleItems.filter((item) => primaryKeys.has(item.pageKey) && !item.overflowOnly);
   const overflowItems = accessibleItems.filter((item) => !primaryKeys.has(item.pageKey) || item.overflowOnly);
+  const breadcrumb = getDesktopBreadcrumb(pathname, accessibleItems, variant);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--admin-canvas)] text-[var(--admin-heading)]">
@@ -183,6 +200,12 @@ export function AdminTopNav({
             <span className="hidden text-[11px] font-medium text-white/60 sm:block" aria-hidden="true">
               {subLabel}
             </span>
+            {breadcrumb ? (
+              <span className="hidden items-center gap-1.5 lg:flex" aria-label={`Section: ${breadcrumb}`}>
+                <span className="text-white/30 text-sm" aria-hidden="true">›</span>
+                <span className="text-sm font-medium text-white/90">{breadcrumb}</span>
+              </span>
+            ) : null}
           </div>
 
           {/* Separator */}
@@ -504,7 +527,7 @@ function MobileMenuButton({
       </BaseDialog.Trigger>
       <BaseDialog.Portal>
         <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/40 backdrop-blur-sm lg:hidden" />
-        <BaseDialog.Popup className="fixed left-0 top-0 z-50 flex h-dvh w-[min(20rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-r-[var(--admin-radius-card)] border-r border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)] outline-none lg:hidden">
+        <BaseDialog.Popup className="fixed left-0 top-0 z-50 flex h-dvh w-[min(20rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-r-[var(--admin-radius-card)] border-r border-[var(--admin-border-form)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)] outline-none lg:hidden">
 
           {/* Sheet header — mirrors desktop brand block */}
           <div className="flex items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[var(--admin-primary)] px-4 py-3.5">
@@ -564,8 +587,33 @@ function MobileMenuButton({
           </nav>
 
           {/* Sheet footer */}
-          <div className="border-t border-[var(--admin-border)] px-3 py-3">
-            <div className="mb-2 flex items-center gap-2.5 px-3 py-2">
+          <div className="border-t border-[var(--admin-border)] px-3 py-3 grid gap-1.5">
+            {/* cmd-K row */}
+            <BaseDialog.Close
+              render={
+                <button
+                  type="button"
+                  className="flex min-h-10 w-full items-center justify-between gap-2.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                  onClick={() => {
+                    const input = document.getElementById("admin-command-search") as HTMLInputElement | null;
+                    if (input) { input.focus(); }
+                    else {
+                      const event = new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true });
+                      document.dispatchEvent(event);
+                    }
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <svg className="size-4 text-[var(--admin-text-muted)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                    Search…
+                  </span>
+                  <kbd className="rounded border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--admin-text-muted)]">⌘K</kbd>
+                </button>
+              }
+            />
+
+            {/* Profile info */}
+            <div className="flex items-center gap-2.5 px-3 py-1.5">
               <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] text-xs font-semibold text-[var(--admin-heading)]">
                 {profile.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
               </span>
@@ -574,6 +622,15 @@ function MobileMenuButton({
                 <p className="truncate text-xs text-[var(--admin-text-muted)]">{profile.roleName}</p>
               </div>
             </div>
+
+            {/* Your profile + Sign out */}
+            <Link
+              href="/admin/staff"
+              onClick={() => setOpen(false)}
+              className="flex min-h-10 items-center gap-2.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            >
+              Your profile
+            </Link>
             <form action="/admin/signout" method="POST">
               <button
                 type="submit"
