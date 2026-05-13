@@ -346,11 +346,14 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
             <option value="">Any payment</option>
             <option value="outstanding">Outstanding</option>
           </Select>
-          <Input
-            name="location"
-            defaultValue={location}
-            placeholder="Postcode or city"
-          />
+          <label>
+            <span className="sr-only">Location</span>
+            <Input
+              name="location"
+              defaultValue={location}
+              placeholder="Postcode or city"
+            />
+          </label>
           <Select name="source" defaultValue={source} label="Source">
             <option value="">Any source</option>
             <option value="website">Website</option>

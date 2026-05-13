@@ -103,8 +103,9 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
             >
               Profile Settings
             </Link>
-            <Link 
+            <Link
               href={`/admin/staff/${staffId}/availability`}
+              aria-current="page"
               className="border-b-2 border-[var(--rahma-green)] px-1 pb-4 text-sm font-semibold text-[var(--rahma-charcoal)]"
             >
               Availability

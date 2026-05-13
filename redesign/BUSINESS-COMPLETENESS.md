@@ -47,7 +47,7 @@ Discipline filter ✓ (regulatory: Equality Act 2010 / WCAG 2.1 AA). Confirmed l
 **Phase 5 brief coverage (2026-05-12):** `00-shared-components-brief.md` mandates `AdminPanel`/`AdminPanelHeader` rendering H2 universally, replacing all shadcn `Card`/`CardTitle` (H3) usages in admin pages. Named fixes in: `settings-brief.md` (explicit H2 panels), `staff-brief.md` (H3→H2 for member names), `availability-brief.md` (H2 section panels), `staff-detail-brief.md` (mixed H2/H3 order fix), `roles-brief.md` (role name `<p>`→`<h2>`), `client-detail-brief.md` (CardTitle→AdminPanel). Phase 6 session 1 (00-shared-components) fixes the primitive; subsequent sessions inherit it.
 
 ### 2A-5. Unlabelled filter input on `/admin/clients`
-`BLOCKS-REDESIGN · Zone 1 · BROKEN` · **Evidence:** `A11Y-BASELINE.md` `/admin/clients` row: `INPUT[name="location" type=text placeholder="Postcode or city"]` has no `<label>`, no `aria-label`, no `aria-labelledby` (live-probed).
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** `A11Y-BASELINE.md` `/admin/clients` row: `INPUT[name="location" type=text placeholder="Postcode or city"]` has no `<label>`, no `aria-label`, no `aria-labelledby` (live-probed).
 
 Discipline filter ✓ (regulatory: Equality Act 2010 / WCAG 2.1 AA, also blocks clients filter for screen-reader users).
 
@@ -61,14 +61,14 @@ Discipline filter ✓ (regulatory). Highest-impact a11y fix because it touches e
 **Phase 5 brief coverage (2026-05-12):** `00-shared-components-brief.md` §5 Input spec mandates `<div role="alert" aria-live="polite" aria-atomic="true">` on every error region universally. Every form-bearing brief (booking-new, client-new, settings, availability, enquiries, services, staff-availability, etc.) carries this forward verbatim. Phase 6 session 1 (00-shared-components) establishes the primitive; every subsequent session inherits it.
 
 ### 2A-7. Recharts empty-data 0×0 warnings on `/admin/reports` and dashboard
-`BLOCKS-REDESIGN · Zone 1 · BROKEN` · **Evidence:** `RECON.md` §8: six console warnings *"width(-1) and height(-1) of chart …"* from `RevenueChart` / `CountBarChart` / dashboard demand-trend mini-chart. Confirmed in-scope by user during Phase 0 Q&A.
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** `RECON.md` §8: six console warnings *"width(-1) and height(-1) of chart …"* from `RevenueChart` / `CountBarChart` / dashboard demand-trend mini-chart. Confirmed in-scope by user during Phase 0 Q&A.
 
 Discipline filter ✓ (owner essential — reports). Cosmetic but visible; fixed with `minHeight: 288` on `ResponsiveContainer`.
 
 **Phase 5 brief coverage (2026-05-12):** `reports-brief.md` §4 explicitly applies `minHeight: 288` to every `ResponsiveContainer` (6 warnings → 0). `dashboard-owner-admin-brief.md` §10 Open Question 3 notes the demand-trend mini-chart fix. Phase 6 sessions 11 (reports), 8 (dashboard-owner-admin).
 
 ### 2A-8. Tab `<Link>`s lack `aria-current="page"` on staff detail / availability
-`BLOCKS-REDESIGN · Zone 1 · BROKEN` · **Evidence:** `A11Y-BASELINE.md` `/admin/staff/[id]/availability` row. Active tab is signalled by `border-[var(--rahma-green)]` only (color-only conveyance), violating one of PRODUCT.md's accessibility commitments.
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** `A11Y-BASELINE.md` `/admin/staff/[id]/availability` row. Active tab is signalled by `border-[var(--rahma-green)]` only (color-only conveyance), violating one of PRODUCT.md's accessibility commitments.
 
 Discipline filter ✓ (regulatory).
 
@@ -205,7 +205,7 @@ Could power optimistic UI on quick-actions (Confirm / Mark Paid / Claim) and rem
 `MOVED TO DEFERRED · Zone 1 · NOT-STARTED` · **Phase 5 finding:** No Phase 5 brief requires Framer Motion. All motion in the redesign is specified as CSS transitions using DESIGN.md motion tokens (`--motion-duration-*`, `ease-gentle`, `ease-snappy`) implemented via Tailwind utilities. Moved to `/redesign/DEFERRED-COMPLETENESS.md` entry #1 with reason: "no brief required this — predicted in Phase 0 but not realized in Phase 5."
 
 ### 2C-3. Recharts width/height warnings
-`BLOCKS-REDESIGN · Zone 1 · BROKEN` · **Evidence:** Same as 2A-7. Cross-listed here because it is a stack-utilisation symptom (Recharts `ResponsiveContainer` config gap), not just a console hygiene issue.
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** Same as 2A-7. Cross-listed here because it is a stack-utilisation symptom (Recharts `ResponsiveContainer` config gap), not just a console hygiene issue.
 
 **Phase 5 brief coverage (2026-05-12):** See 2A-7. `reports-brief.md` and `dashboard-owner-admin-brief.md` both apply `minHeight: 288`. Phase 6 sessions 11 (reports), 8 (dashboard-owner-admin).
 

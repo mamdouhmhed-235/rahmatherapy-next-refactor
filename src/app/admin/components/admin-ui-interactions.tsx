@@ -133,7 +133,7 @@ export function AdminFilterSheet({
           className="inline-flex h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
         >
           <SlidersHorizontal className="size-4" aria-hidden="true" />
-          Filters
+          Refine
         </button>
       }
       footer={footer}

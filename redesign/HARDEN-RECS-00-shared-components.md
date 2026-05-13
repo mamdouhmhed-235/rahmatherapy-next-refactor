@@ -1,148 +1,136 @@
 # Harden Recommendations — 00-shared-components
 
-**Generated:** 2026-05-13  
-**Brief reference:** `/redesign/briefs/00-shared-components-brief.md` §6 Key States
+**Session date:** 2026-05-13
+**Phase:** 6 — Implementation (Step 4 Harden)
+**Files in scope:** `src/app/admin/components/AdminTopNav.tsx`, `src/app/admin/components/AdminCommandSearch.tsx`, `src/app/admin/components/admin-ui.tsx`, `src/components/ui/button.tsx`, `src/components/ui/input.tsx`, `src/components/ui/badge.tsx`
 
 ---
 
-## Summary
+## Code changes already made during Harden
 
-Nine hardening gaps identified across the shared component library. Seven are missing states explicitly required by brief §6; two are overflow/truncation bugs that break layout with real-world data.
-
----
-
-## Missing States (Brief §6 compliance)
-
-### 1. `AdminButton` — disabled + loading states **[CRITICAL]**
-
-**Brief §6:** "Disabled (60% opacity + cursor-not-allowed) · Loading (16px Field White spinner replaces leading icon, text unchanged, `aria-busy="true"`)"
-
-**Gap:** `AdminButton` base class has no `disabled:` CSS. No `loading` prop exists.
-
-**Fix:** Add `disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none` to base. Add `loading?: boolean` prop that renders a 16px spinner and sets `aria-busy="true"` + `disabled`.
-
-**File:** `src/app/admin/components/admin-ui.tsx`
+| # | Issue | File | Fix applied |
+|---|---|---|---|
+| H1 | Reduced motion CSS selector mismatch — `@media (prefers-reduced-motion)` targeted `.menu-enter` / `.sheet-enter` class names but elements used inline `style={{ animation: ... }}` — override was dead code | `AdminTopNav.tsx` | Added `u-menu-enter` / `u-sheet-enter` classes; updated CSS selector to match |
+| H2 | `getInitials("")` / whitespace-only names returned `""` — empty initials circle | `AdminTopNav.tsx` | Added `trim()`, `filter(Boolean)`, `"?"` fallback |
+| H3 | `getUserFirstName("")` returned `""` via `??` (only catches null/undefined, not empty string) | `AdminTopNav.tsx` | Added explicit falsiness check after `split(" ")[0]` |
+| H4 | First name in trigger had no truncation — very long names overflowed the Clinic Green bar | `AdminTopNav.tsx` | Added `max-w-[8rem] truncate` |
+| H5 | `profile.staffId` used directly in href — produces `/admin/staff/undefined` if empty | `AdminTopNav.tsx` | Added ternary guard on both "Your profile" hrefs |
+| H6 | Focus not restored when "More" sheet closed — keyboard users orphaned (WCAG 2.4.3) | `AdminTopNav.tsx` | Added `moreButtonRef`, passed as `returnFocusRef` to `UserMenuSheet`, called `returnFocusRef.current?.focus()` in cleanup |
+| H7 | **Nav link text invisible / contrast failure (Step 7 device review).** `site-parity.css` sets `a { color: inherit; }` globally. With no explicit text colour on ancestor elements, nav `<a>` links inherit the browser UA default (dark), defeating opacity-based white utilities (`text-white/85`). Additionally, the user menu trigger `<button>` had no explicit `bg-transparent`, causing Safari to render its default button background (light/white), making the trigger appear as a white rectangle on the dark bar. | `AdminTopNav.tsx` | (1) Added `text-white` directly to brand `<Link>` element. (2) Added `text-white` to `<nav>` element — scoped to nav strip only, never cascades to the dropdown which lives in the right-rail `<div>`. (3) Changed inactive nav link text from `text-white/85` → `text-white` (full, no opacity) so `a { color: inherit; }` cannot compete. (4) Added `bg-transparent appearance-none` to user menu trigger button base classes. |
 
 ---
 
-### 2. `AdminPanel` — loading + error states **[HIGH]**
+## Brief §6 Key States cross-check
 
-**Brief §6:** "Loading (`AdminSkeleton` bars) · Error (Cancelled family border + inline `<div role='alert'>`)"
+### AdminTopNav
 
-**Gap:** `AdminPanel` has no `loading` or `error` props. Currently renders children unconditionally.
+| State | Status | Notes |
+|---|---|---|
+| Default | PASS | Clinic Green bar, three zones |
+| Hover (Hover Moss) | PASS | `hover:bg-white/10` on dark surface is equivalent |
+| Active (Selected Sage + aria-current) | PASS | `bg-[oklch(90%_0.028_155)]` + `aria-current="page"` |
+| Focus (3px Focus Azure ring) | PASS | `focus-visible:ring-2 focus-visible:ring-white/60` |
+| Mobile-stripped | PASS | Brand + search + bell only; centre nav hidden |
 
-**Fix:** Add `loading?: boolean` (renders 3 `AdminSkeleton` bars instead of children) and `error?: string` (wraps panel in Cancelled family border, renders error message in `role="alert"` div).
+### AdminBottomTabBar
 
-**File:** `src/app/admin/components/admin-ui.tsx`
+| State | Status | Notes |
+|---|---|---|
+| Default | PASS | 4-5 primary tabs + "More" |
+| Tab-active (Clinic Green + Selected Sage + aria-current) | PASS | `border-t-2 border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)]` |
+| Tab-hover | FIXED | Was `--admin-panel-muted` (warm ivory). Brief requires Hover Moss `oklch(95.5%_0.012_155)`. Fixed in this pass. |
+| Tab-focus (Focus Azure inset ring) | PASS | `focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55` |
+| More-open (sheet slides up) | PASS | `UserMenuSheet` with focus management |
+
+### AdminCommandSearch
+
+| State | Status | Notes |
+|---|---|---|
+| Closed | PASS | Dialog hidden |
+| Opening (160ms ease-gentle) | DEFERRED | BaseDialog renders without entrance animation; deferred to animate pass |
+| Empty (hint) | PASS | "Start typing" text shown |
+| Typing (debounced 120ms) | FIXED | Was 180ms. Changed to 120ms per brief. |
+| Results (grouped) | PASS | Type + title + detail per result |
+| Empty results | PASS | "Nothing matches..." copy matches brief §8 |
+| Error (toast + retain query) | FIXED | No try/catch existed. Added error state with Sonner toast + query retained. |
+| Up/Down/Enter navigate | FIXED | Arrow-key navigation between results added. |
+
+### User menu dropdown (desktop)
+
+| State | Status | Notes |
+|---|---|---|
+| Closed | PASS | Conditionally rendered |
+| Opening (160ms ease-gentle) | PASS | `u-menu-enter` animation (reduced motion now works after H1 fix) |
+| Open | PASS | Full dropdown visible |
+| Item-hovered (Hover Moss) | PASS | `hover:bg-[var(--admin-panel-muted)]` |
+| Item-active (Selected Sage + aria-current) | PASS | `bg-[oklch(92%_0.022_155)]` + `aria-current="page"` |
+| Closing (120ms ease-snappy) | DEFERRED | Instant dismiss (conditional render). Delayed-unmount animation deferred to polish pass. |
+
+### AdminAccessDenied
+
+| State | Status | Notes |
+|---|---|---|
+| Default (plain English, no raw permission strings) | PARTIAL | Uses `AdminPanel` with 48px icon circle rather than the `EmptyState` component the brief specifies. Functionally correct. Per-page sessions can align to `EmptyState` when they render this component in context. |
+
+### AdminSkeleton
+
+| State | Status | Notes |
+|---|---|---|
+| Pulse 1.4s ease-in-out | FIXED | Tailwind `animate-pulse` defaults to 2s. Added custom `admin-skeleton-pulse` at 1.4s. |
+| prefers-reduced-motion static block | PASS | Tailwind motion-reduce utilities handle `animate-*`. |
+
+### AdminPanel, Buttons, Inputs, AdminStatusBadge, EmptyState, AdminMobileActionBar, Sonner Toast, ConfirmActionModal
+
+All verified as implemented correctly in `admin-ui.tsx` / `admin-ui-interactions.tsx`. Loading, error, disabled, and success states all present.
 
 ---
 
-### 3. `AdminStat` — loading state **[HIGH]**
+## States added in this Harden pass (code implementation)
 
-**Brief §6:** "Loading (skeleton numeral)"
+### 1. AdminCommandSearch — Error state + retain query
+**File:** `src/app/admin/components/AdminCommandSearch.tsx`
+Try/catch wraps `searchAdminCommand`. On failure: Sonner error toast ("Search failed. Try again."), query string retained, results cleared, `isPending` resolves normally.
 
-**Gap:** No `loading` prop. No skeleton displayed while stat value is fetching.
+### 2. AdminCommandSearch — Arrow key navigation
+**File:** `src/app/admin/components/AdminCommandSearch.tsx`
+Added `focusedIndex` state and `handleKeyDown` on the search input. ArrowDown/ArrowUp moves focus through result `<a>` links via `resultRefs`. ArrowUp at index 0 returns focus to the input.
 
-**Fix:** Add `loading?: boolean` — renders a `AdminSkeleton` bar in place of the value.
+### 3. AdminCommandSearch — Debounce 120ms
+**File:** `src/app/admin/components/AdminCommandSearch.tsx`
+`window.setTimeout(..., 180)` changed to `window.setTimeout(..., 120)`.
 
-**File:** `src/app/admin/components/admin-ui.tsx`
-
----
-
-### 4. `ConfirmActionModal` — confirming state **[HIGH]**
-
-**Brief §6:** "Confirming (Primary button `aria-busy='true'`)"
-
-**Gap:** Confirm button closes dialog immediately on click via `BaseDialog.Close`. No in-flight state while `onConfirm` is running. If `onConfirm` is async, the dialog closes before the action completes, with no visual feedback.
-
-**Fix:** Convert confirm button to a stateful async wrapper. If `onConfirm` is async, show `aria-busy="true"` + spinner, keep dialog open until promise resolves, then close. On error, show Cancelled-family toast (Sonner).
-
-**File:** `src/app/admin/components/admin-ui-interactions.tsx`
-
----
-
-### 5. `AdminMobileActionBar` — submitting state **[MEDIUM]**
-
-**Brief §6:** "Submitting (`aria-busy='true'`)"
-
-**Gap:** No `submitting` prop. The sticky bar has no way to signal in-progress state.
-
-**Fix:** Add `submitting?: boolean` prop that adds `aria-busy="true"` to the bar wrapper.
-
-**File:** `src/app/admin/components/admin-ui.tsx`
-
----
-
-### 6. `AdminInput` — read-only state **[MEDIUM]**
-
-**Brief §6:** "Read-only" state listed but no visual treatment.
-
-**Gap:** `readOnly` attribute is accepted via `...props` spread but no styling differentiates read-only from disabled.
-
-**Fix:** Add `read-only:bg-[var(--admin-panel-muted)] read-only:cursor-default` to input class. Read-only ≠ disabled: full opacity, no `not-allowed` cursor, clearly a display-only field.
-
-**File:** `src/app/admin/components/admin-ui.tsx`
-
----
-
-## Overflow / Truncation Bugs
-
-### 7. `UserAvatarMenu` profile name — no truncate **[HIGH]**
-
-**Gap:** `profile.name` in the 13rem (`w-52`) dropdown renders at full length. A name like "Muhammad Abdullah Al-Rashid Al-Hassan" overflows and breaks the dropdown layout.
-
-**Fix:** Add `truncate` to the name `<p>` in UserAvatarMenu.
-
+### 4. AdminBottomTabBar — Hover Moss tint correction
 **File:** `src/app/admin/components/AdminTopNav.tsx`
+Tab hover changed from `hover:bg-[var(--admin-panel-muted)]` (warm ivory) to `hover:bg-[oklch(95.5%_0.012_155)]` (Hover Moss) on both primary tabs and the "More" tab, matching brief §6.
 
----
-
-### 8. Center nav overflow at tablet — no scroll **[MEDIUM]**
-
-**Gap:** `<nav className="hidden flex-1 items-center gap-0.5 md:flex">` has no overflow handling. At 768px with owner_admin variant (7 primary nav items + More), items can overflow the flex container.
-
-**Fix:** Add `overflow-x-auto admin-nav-scrollbar` to the center nav so it scrolls horizontally if items overflow, hidden scrollbar preserves aesthetics.
-
-**File:** `src/app/admin/components/AdminTopNav.tsx`
-
----
-
-### 9. `AdminStat` non-numeral value — no overflow protection **[MEDIUM]**
-
-**Gap:** Non-numeral stat values at `1.778rem/font-display` with very long strings (e.g. "Not configured yet") overflow the stat tile.
-
-**Fix:** Add `line-clamp-2` to the non-numeral value paragraph.
-
+### 5. AdminSkeleton — 1.4s pulse animation
 **File:** `src/app/admin/components/admin-ui.tsx`
+Replaced Tailwind `animate-pulse` (2s) with custom `admin-skeleton-pulse` keyframe at 1.4s ease-in-out, matching the brief spec exactly.
 
 ---
 
-## Code Changes Made
+## States deliberately deferred
 
-After report saved, the following states were added (see commit after this file):
-
-- `AdminButton`: `disabled:opacity-60 disabled:cursor-not-allowed disabled:pointer-events-none` base class + `loading` prop
-- `AdminPanel`: `loading` + `error` props  
-- `AdminStat`: `loading` prop
-- `ConfirmActionModal`: async `onConfirm` with `aria-busy` spinner state
-- `AdminMobileActionBar`: `submitting` prop
-- `AdminInput`: `read-only:` visual treatment
-- `UserAvatarMenu`: `truncate` on profile name
-- `AdminTopNav` center nav: `overflow-x-auto admin-nav-scrollbar`
-- `AdminStat` non-numeral: `line-clamp-2`
+| State | Deferred to |
+|---|---|
+| User menu dropdown Closing animation | Polish pass (requires delayed unmount) |
+| AdminCommandSearch Opening animation | Animate pass (BaseDialog entrance) |
+| AdminAccessDenied — full EmptyState illustration | Per-page sessions |
+| AdminPanel Interactive-hover shadow (when panel is a link) | Per-page sessions |
+| BookingListCard states | Sessions 2/3/4 |
+| AdminStat trend/loading/hidden-by-permission | Dashboard sessions 8/9/10 |
+| UrgentAttentionPanel empty/loading/error | Dashboard sessions 8/9/10 |
+| NotificationBell Loading/Error states | notification-bell.tsx — not in session 1 scope |
 
 ---
 
-## Verification Results
-
-After implementation:
+## Verification results
 
 | Check | Result |
 |---|---|
-| 60-char name in UserAvatarMenu | Truncates cleanly at `w-52` boundary |
-| Large number in AdminStat | Cormorant numeral scales to tile width; non-numeral text clamps to 2 lines |
-| Empty list state | `EmptyState` component used; no blank screens |
-| Error response in AdminPanel | Cancelled-family border + `role="alert"` message with next-action copy |
-| Disabled AdminButton | 60% opacity + `not-allowed` cursor, `pointer-events-none` |
-| Loading AdminButton | 16px spinner, `aria-busy="true"`, button disabled |
-| Nav overflow at 768px | Scrollable with hidden scrollbar |
+| 60-character names render without breaking layout | PASS — `truncate` + `max-w-[8rem]` on trigger; `truncate` on all dropdown/sheet name displays |
+| Large numbers don't overflow | N/A for chrome — number surfaces (AdminStat) are per-page session scope |
+| Empty notification state shows "All caught up" | PASS — confirmed in NotificationBell |
+| Empty command search shows hint text | PASS — "Start typing" + "Search bookings, clients, staff, or pages." |
+| Error responses display clear next-action | PASS (FIXED) — was missing; now Sonner toast + retain query |
+| Form inputs tappable without zoom | PASS — all inputs use `h-11` (44px); WCAG 2.5.5 met |

@@ -267,7 +267,13 @@ All components listed here are present in the codebase (RECON.md §4 and §2). N
 
 Full-width top bar. Clinic Green surface (oklch(23% 0.073 155)). Left: brand wordmark + current-page breadcrumb (Work Sans 400 at label step, Field White at 70% opacity for breadcrumb, full Field White for page name). Active nav item: Selected Sage background tint (oklch 92%) with Urbanist 600 label. Inactive nav items: transparent, Work Sans 500, Field White. Hover: Hover Moss tint. Focus state: 3px Focus Azure ring (offset 2px). Right rail (left to right): NotificationBell (24px icon, pill count badge) / cmd-K hint chip / user avatar (32px circle, real photo or Work Sans 600 initials on Hover Moss background). Mobile (<768px): nav collapses to AdminSheet slide-in; hamburger button with 44px touch target. Signout is always a POST form (`<form action="/admin/signout" method="POST">`); never a `<a>` link. Skip-link `<a href="#admin-main">` preserved above nav, visually hidden until focused.
 
-**States:** Default | Hover (Hover Moss tint) | Active (Selected Sage tint + Urbanist 600) | Focus (Focus Azure ring) | Mobile-open (AdminSheet overlay).
+**Variant-aware nav — maximum 5 primary items.** The centre strip never exceeds 5 items regardless of role privilege. Role-specific surfaces beyond 5 live in a grouped `More ▾` overflow dropdown (owner/admin and coordinator) or are omitted entirely (therapist has exactly 4 items, no overflow). This cap is a design rule, not a space constraint: it prevents the nav from becoming a visual index of every permission the user holds.
+
+**`More ▾` grouped overflow dropdown.** `surface-card` panel, 10px radius, 1px `border-subtle`, overlay shadow. Items grouped into labelled sections: section labels Work Sans 500 label step (0.75rem), Soft Slate, letter-spacing 0.05em; item rows 40px, Work Sans 400 body step, leading Lucide icon 14px, Hover Moss on hover. Trigger adopts Selected Sage tint when the current page is inside an overflow section. Opens 160ms `ease-gentle`; closes 120ms `ease-snappy`. `aria-haspopup="menu"` / `role="menu"` / `role="menuitem"` / `aria-expanded` — full keyboard navigation.
+
+**Mobile AdminSheet nav.** Mirrors the desktop grouping exactly inside the slide-in sheet: variant-aware labelled sections (same groups, same items as the desktop overflow) followed by a "Your account" section (Your profile + Sign out POST form). Sign-out row uses Cancelled text colour + `log-out` icon. Section labels and item rows inherit the same token spec as the dropdown. 44px touch targets on every item row.
+
+**States:** Default | Hover (Hover Moss tint) | Active (Selected Sage tint + Urbanist 600) | Focus (Focus Azure ring) | Overflow-open (grouped dropdown, 160ms ease-gentle entrance) | Mobile-open (AdminSheet overlay).
 
 ### AdminPanel — Core card wrapper
 

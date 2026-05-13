@@ -67,7 +67,7 @@ const panelBgClasses: Record<AdminTone, string> = {
   success: "bg-[oklch(93.5%_0.038_155)]",
   info: "bg-[oklch(96%_0.038_75)]",
   restricted: "bg-[oklch(94%_0.008_280)]",
-  gold: "bg-[#fff8ec]",
+  gold: "bg-[var(--brand-warm-surface)]",
 };
 
 const iconBgClasses: Record<AdminTone, string> = {
@@ -850,6 +850,16 @@ export function AdminEmptyState({
 
 // ─── AdminAccessDenied ────────────────────────────────────────────────────────
 
+// Pattern matching raw permission identifiers — never render these to the user.
+const RAW_PERMISSION_PATTERN = /^[a-z_]+$/;
+
+function sanitiseDeniedMessage(message: string | undefined): string | undefined {
+  if (!message) return undefined;
+  // Guard: if the message looks like a raw permission string, discard it.
+  if (RAW_PERMISSION_PATTERN.test(message.trim())) return undefined;
+  return message;
+}
+
 export function AdminAccessDenied({
   title,
   message,
@@ -857,12 +867,15 @@ export function AdminAccessDenied({
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   permission: _permission,
   inactive = false,
+  variant,
   actions,
 }: {
   title?: string;
   message?: string;
   permission?: string;
   inactive?: boolean;
+  /** Shell variant — used to produce role-appropriate CTA copy. */
+  variant?: "owner_admin" | "coordinator" | "therapist";
   actions?: React.ReactNode;
 }) {
   const heading = inactive
@@ -870,7 +883,8 @@ export function AdminAccessDenied({
     : (title ?? "You don't have access to this section");
   const body = inactive
     ? "This staff account is inactive. Contact an owner or manager to restore access."
-    : (message ?? "Contact the owner if you think this is a mistake.");
+    : (sanitiseDeniedMessage(message) ?? "Contact the owner if you think this is a mistake.");
+  const ctaLabel = variant === "therapist" ? "Back to My day" : "Back to dashboard";
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -901,7 +915,7 @@ export function AdminAccessDenied({
               href="/admin/dashboard"
               className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
-              Back to dashboard
+              {ctaLabel}
             </Link>
           ) : null}
           {actions ? (
@@ -1266,6 +1280,7 @@ export function AdminButton({
   variant = "primary",
   size = "default",
   loading = false,
+  icon,
   className,
   disabled,
   ...props
@@ -1273,7 +1288,19 @@ export function AdminButton({
   variant?: "primary" | "secondary" | "destructive" | "ghost" | "outline";
   size?: "default" | "sm";
   loading?: boolean;
+  /**
+   * Leading icon slot. When `loading` is true the spinner occupies this slot
+   * instead of the icon — never alongside it (§12.6 fix).
+   */
+  icon?: React.ReactNode;
 }) {
+  // §12.6: spinner replaces leading icon when loading — never appends alongside.
+  const leadingSlot = loading ? (
+    <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+  ) : icon ? (
+    <>{icon}</>
+  ) : null;
+
   return (
     <button
       type="button"
@@ -1297,9 +1324,7 @@ export function AdminButton({
       )}
       {...props}
     >
-      {loading ? (
-        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
-      ) : null}
+      {leadingSlot}
       {children}
     </button>
   );

@@ -260,6 +260,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
           <nav className="flex gap-8 border-b border-[var(--rahma-border)]">
             <Link
               href={`/admin/staff/${staffId}`}
+              aria-current="page"
               className="border-b-2 border-[var(--rahma-green)] px-1 pb-4 text-sm font-semibold text-[var(--rahma-charcoal)]"
             >
               Profile

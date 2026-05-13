@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import { ADMIN_PAGE_KEYS, getAdminPageAccess } from "@/lib/auth/admin-access";
@@ -38,7 +39,16 @@ export default async function AdminLayout({
     );
   }
 
-  const variant = resolveAdminShellVariant(profile) ?? "owner_admin";
+  const resolvedVariant = resolveAdminShellVariant(profile);
+
+  // §12.3: null variant means no matching capability (or inactive profile).
+  // Redirect rather than silently falling back to the owner shell and exposing
+  // all nav items visually to a user who cannot act on any of them.
+  if (!resolvedVariant) {
+    redirect("/admin/login?reason=inactive");
+  }
+
+  const variant = resolvedVariant;
 
   // Pass full profile so getNavNotifications can filter by permission set
   const notifications = await getNavNotifications(profile);

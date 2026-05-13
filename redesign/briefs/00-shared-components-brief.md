@@ -3,8 +3,8 @@
 **Slug:** `00-shared-components`
 **Phase:** 5 — Per-Page Briefs (Brief 1 of 29; foundation brief — downstream briefs inherit its vocabulary)
 **Register:** product
-**Status:** Awaiting user confirmation
-**Date:** 2026-05-12
+**Status:** Active — updated 2026-05-13 (grouped nav redesign §5/§11 + RBAC audit fixes §12)
+**Date:** 2026-05-13
 
 This brief covers the shell (`AdminLayout`, `AdminTopNav`, `AdminCommandSearch`, mobile `AdminSheet`) plus every shared primitive that ships in `admin-ui.tsx` / `admin-ui-interactions.tsx` / `EmptyState.tsx` and is consumed by 2+ admin pages. Per-page briefs (Briefs 02–29) will reference this document by component name and state requirements; they will not re-specify primitives.
 
@@ -43,8 +43,20 @@ Two-tier chrome plus a tokenised primitive library:
 **Tier 1 — Persistent top chrome (`AdminTopNav`).** Full-width, Clinic Green surface (`action-primary`, oklch 23%), 56px tall on desktop, 56px tall on mobile. Three zones:
 
 - **Left zone (anchor):** 36×36 brand tile (Clinic Green with `logo-mark.svg` inverted to Field White, sized 24×24, `alt=""`) + wordmark "Rahma Therapy" in Urbanist 600 at title step, Field White. Adjacent: variant sub-label in Work Sans 500 at label step at 70% opacity ("Owner", "Coordinator", "Therapist" — see §11). On routes deeper than `/admin/{section}`, a single breadcrumb separator `›` and the current page name in Field White Urbanist 500.
-- **Centre zone (navigation):** Horizontal row of primary nav items per variant (§11). Inactive: transparent fill, Work Sans 500 at label step, Field White. Hover: Hover Moss tint. Active: Selected Sage tint (oklch 92%) + Urbanist 600 label + `aria-current="page"`. Focus: 3px Focus Azure ring with 2px offset. Collapses to a hamburger on `<768px` viewports.
-- **Right rail (utility):** Left-to-right — `cmd-K` chip ("⌘K" / "Search…", Work Sans 500 label, 1px Form Seam border at 30% opacity, Field White text, opens `AdminCommandSearch`), `NotificationBell` (24px Lucide icon + pill count badge in Pending family colours when count > 0), user avatar menu (32px circle, real photo or two-letter Work Sans 600 initials on Hover Moss background, opens `AdminActionMenu` with "Your profile" / "Sign out" — the sign-out is the only off-domain affordance and remains a `<form action="/admin/signout" method="POST">` server-action form, never an `<a>` link).
+- **Centre zone (navigation):** Role-aware, responsive nav strip. Shows **only genuinely daily-use items** — a small fixed set per variant (see §11). No overflow trigger in the strip. All secondary surfaces live in the user menu button (right rail). Inactive: transparent fill, Work Sans 500 at label step, **full Field White (`text-white`, no opacity modifier)**. Hover: Hover Moss tint. Active: `bg-white/20` translucent pill + `ring-1 ring-inset ring-white/25` + Urbanist 600 label in full Field White + `aria-current="page"`. Focus: 3px Focus Azure ring with 2px offset. Hidden on `<768px` viewports — primary navigation on mobile is handled by the bottom tab bar (see Mobile chrome below).
+
+  **Implementation note — nav link text colour.** The global `site-parity.css` rule `a { color: inherit; }` defeats opacity-based white text (`text-white/75`, `text-white/85`) on `<a>` elements when no explicit text colour is set on ancestor elements. The correct implementation is: (1) add `text-white` to the brand `<Link>` element directly, (2) add `text-white` to the `<nav>` element so all child links inherit a white baseline, and (3) use full `text-white` (not `text-white/X`) on inactive nav link elements. The user menu dropdown is inside the right-rail `<div>`, not inside `<nav>`, so it receives no cascade from this `text-white` and retains its own dark text colours correctly.
+- **Right rail (utility):** Left-to-right — `cmd-K` chip ("⌘K" / "Search…", Work Sans 500 label, 1px Form Seam border at 30% opacity, Field White text, opens `AdminCommandSearch`), `NotificationBell` (24px Lucide icon + pill count badge in Pending family colours when count > 0), **user menu button** (replaces the former thin avatar-only menu and the former `More ▾` overflow trigger — both consolidated here).
+
+  **User menu button trigger.** On desktop ≥1024px: 32px initials circle (real photo or Work Sans 600 two-letter initials on Hover Moss background) + first name in Work Sans 500 label step Field White + 12px `ChevronDown` icon — e.g. `[FA]  Fatimah ▾`. On 768–1023px: initials circle + `ChevronDown` only (name hidden, space-constrained). When the current page lives inside one of the overflow groups, the trigger adopts Selected Sage tint to signal the active section. `aria-haspopup="menu"` / `aria-expanded` / `aria-label="{First name}'s account menu"`. Focus: 3px Focus Azure ring 2px offset.
+
+  **User menu dropdown.** `surface-card` panel, 280px width, right-aligned to the trigger, 10px radius, 1px `border-subtle`, overlay shadow (`0 8px 24px oklch(23% 0.073 155 / 0.12)`). Opens 160ms `ease-gentle` (scale + opacity from top-right origin); closes 120ms `ease-snappy`. Closes on Escape, click-outside, or item selection. `role="menu"` on the panel.
+
+  Contents top-to-bottom:
+  1. **Identity header** (non-interactive): full name in Work Sans 600 body step Chronicle + role sub-label in Work Sans 400 label step Soft Slate. `8px 14px` padding, 1px `border-subtle` below.
+  2. **Grouped nav sections** — labelled sections, role-dependent (full section tables in §11). Section labels: Work Sans 500 label step 0.75rem, Soft Slate, letter-spacing 0.05em, `6px 14px 3px` padding, `role="presentation"`. Item rows: 40px min-height, Work Sans 400 body step, leading Lucide icon 16px Soft Slate, Practice Charcoal text, Hover Moss fill on hover, entire row is the link. Active item: Selected Sage tint + Urbanist 600 + `aria-current="page"`. `role="menuitem"` on each item row.
+  3. **1px `border-subtle` divider** above account actions.
+  4. **Account actions:** "Your profile" → `/admin/staff/{ownStaffId}` (`role="menuitem"`, 40px, leading `user` icon Soft Slate) · "Sign out" → `<form action="/admin/signout" method="POST">` (`role="menuitem"`, 40px, leading `log-out` icon, Cancelled text colour to signal off-domain, never an `<a>` link).
 
 **Tier 2 — Page chrome (`AdminPageHeader` slot).** Sits on Clinic Canvas (oklch 97.8%), full-bleed under the top nav with `xl` (32px) vertical padding on desktop and `lg` (24px) on mobile. H1 in Display step (Urbanist 600, clamp 1.778rem → 2.369rem, Chronicle). Optional supporting sentence below H1 in Body step (Work Sans 400, Soft Slate, max 65ch). Optional primary action button right-aligned on desktop, full-width stacked on mobile.
 
@@ -54,7 +66,20 @@ Two-tier chrome plus a tokenised primitive library:
 
 **Toast host (Sonner):** top-right on desktop (`md` offset from top + right), top-centre on mobile, max stack height 3. Lives in `AdminLayout`, outside `<main>`.
 
-**Mobile chrome (`AdminSheet`, slide-in from left):** triggered by hamburger. Full viewport height, 320px wide, Practice Panel surface, 1px Form Seam right border, slides in over a Clinic Green / 40% opacity scrim. Internal stack: brand block (mirrors desktop), nav items (full-width row buttons, 44px touch target, Work Sans 500 at body step), `cmd-K` row, user-menu rows, sign-out row. Close: tap scrim, tap × in top-right (24px Lucide `x`, Field White on Clinic Green tile), or swipe-left gesture. Focus trap inside the sheet while open; restore focus to hamburger on close.
+**Mobile top nav (`<768px`):** collapses to brand tile + wordmark left-aligned only. Centre nav strip hidden. Right rail: search icon (opens `AdminCommandSearch` full-screen) + `NotificationBell` icon only. No hamburger button — primary navigation moves to the bottom tab bar below.
+
+**Mobile bottom tab bar (`<768px`):** fixed, `inset-x-0 bottom-0`, `surface-card` background, 1px `border-subtle` top border, `padding-bottom: env(safe-area-inset-bottom)` (iPhone notch-safe). Height: 56px content + safe-area padding. `z-40` (same stacking layer as top nav). The `<main>` element gains `pb-[calc(56px+env(safe-area-inset-bottom))]` on `<768px` to clear the bar.
+
+  Contains the same primary nav items as the desktop strip for that variant — 4 items for therapist, 5 for owner/admin and coordinator. Each item: 44px touch target (WCAG 2.5.5), 20px Lucide icon + Work Sans 500 label at 10px, stacked vertically, equal-width columns. Active tab: `action-primary` (Clinic Green) icon tint + Clinic Green label text + `aria-current="page"` + subtle Selected Sage background tint on the tab cell. Inactive: Soft Slate icon and label. Pressed state: Hover Moss background. Focus: 3px Focus Azure ring inset.
+
+  **"More" tab** — always the last/rightmost slot. Icon: initials token (same 32px circle as desktop avatar, but 24px on the bar) or Lucide `layout-grid`. Label: "More". `aria-haspopup="dialog"` / `aria-expanded`. Tapping opens the **user menu `AdminSheet`** (slides up from bottom — `bottom-0`, full width, rounded top corners 16px, `surface-card`, overlay shadow). The sheet contains:
+  1. **Drag handle** (32px × 4px, `border-subtle` tint, centred, 12px top margin) — visual affordance for swipe-to-close.
+  2. **Identity header**: full name Work Sans 600 + role sub-label Work Sans 400 Soft Slate, left-aligned, `14px 16px` padding, 1px `border-subtle` below.
+  3. **Grouped nav sections** — identical structure and content to the desktop dropdown (see §11). Item rows: 48px min-height (mobile touch target), Work Sans 500 body step, leading 20px Lucide icon. Active item: Selected Sage tint + `aria-current="page"`.
+  4. **1px `border-subtle` divider**.
+  5. **Account actions**: "Your profile" row + "Sign out" POST form row (Cancelled text colour + `log-out` icon).
+
+  Sheet close: swipe down, tap backdrop, or Escape. Focus trap inside the sheet while open; restore focus to "More" tab on close. `role="dialog"` / `aria-label="Navigation and account menu"`.
 
 ## 6. Key States
 
@@ -63,7 +88,9 @@ Primitive-by-primitive state inventory. Per-page briefs reference these by name;
 | Primitive | States | Notes |
 |---|---|---|
 | `AdminLayout` | Authenticated · Unauthenticated (redirect to `/admin/login`) · Inactive (redirect to `/admin/login?reason=inactive`) · Variant-resolved (owner_admin / coordinator / therapist — see §11) | Server Component. Hydrates `pageAccess` into nav children. |
-| `AdminTopNav` | Default · Hover (Hover Moss) · Active (Selected Sage + `aria-current="page"`) · Focus (3px Focus Azure ring + 2px offset) · Mobile-collapsed (hamburger only) · Mobile-open (AdminSheet) | Variant prop drives nav set + sub-label. |
+| `AdminTopNav` | Default · Hover (Hover Moss) · Active (Selected Sage + `aria-current="page"`) · Focus (3px Focus Azure ring + 2px offset) · Mobile-stripped (brand + search + bell only, no nav strip) | Variant prop drives nav set + sub-label. Centre strip hidden on `<768px`; bottom tab bar takes over navigation. |
+| `AdminBottomTabBar` | Default · Tab-active (Clinic Green icon + label + Selected Sage tint + `aria-current="page"`) · Tab-hover (Hover Moss tint) · Tab-focus (Focus Azure ring inset) · More-open (user menu `AdminSheet` slides up) | Mobile only (`<768px`). Fixed bottom, safe-area-inset-bottom padding. 4 primary tabs + "More" tab (always 5th). |
+| User menu dropdown (desktop) | Closed · Opening (160ms ease-gentle) · Open · Item-hovered (Hover Moss) · Item-active (Selected Sage + `aria-current="page"`) · Closing (120ms ease-snappy) | Right-aligned to trigger, 280px, grouped nav sections + identity header + account actions. Replaces former `More ▾` dropdown and former thin avatar dropdown. |
 | `AdminCommandSearch` | Closed · Opening (160ms scale + fade entrance, ease-gentle) · Empty (input only, recent-actions hint) · Typing (debounced 120ms) · Results (grouped: Bookings / Clients / Staff / Pages) · Empty results ("Nothing matches '<query>' — try a name or booking ID", Soft Slate) · Error (toast + retain query) | Modal overlay with two-layer green-tinted shadow. `id="admin-command-search"` preserved. ⌘K opens; Escape closes; ↑/↓/Enter navigate. |
 | `NotificationBell` | Idle (count 0, no badge) · Idle (count 1-9, numeric badge) · Idle (count 10+, "9+" badge) · Open (popover on desktop, AdminSheet on mobile, 5-item max + "See all" link) · Loading (skeleton) · Error (toast) | Pending family colour pair for the badge tint. |
 | `AdminAccessDenied` | Default — illustrated `EmptyState` variant, plain-English copy ("You don't have access to this section. Contact the owner."), no raw permission strings (BASELINE-CRITIQUE Fatimah #3 fix) | Used by every page on RBAC fail. |
@@ -121,8 +148,15 @@ Primitive-by-primitive state inventory. Per-page briefs reference these by name;
 - ⌘K empty-results: `Nothing matches "{query}". Try a name, phone number, or booking ID.`
 - NotificationBell tooltip: `Notifications` (Lucide `bell-ring` when count > 0; `bell` when 0).
 - NotificationBell empty: `All caught up.` (Confirmed family colour pair, leading `check-circle` icon).
-- User-menu items: `Your profile`, `Sign out`.
+- User menu button `aria-label`: `{First name}'s account menu`.
+- User menu identity header: full name (Work Sans 600) + role sub-label (Work Sans 400 Soft Slate). Non-interactive.
+- User menu section labels (owner_admin): `Scheduling & Leads` · `Communications` · `Clinic Setup` · `Admin & Compliance`.
+- User menu section labels (coordinator): `Scheduling` · `Communications`.
+- Therapist user menu: no nav sections — identity header + account actions only.
+- Account action items: `Your profile` · `Sign out`.
 - Sign-out submit: `<button type="submit">Sign out</button>` inside a `<form action="/admin/signout" method="POST">`.
+- Mobile bottom tab bar "More" label: `More`.
+- Mobile user menu sheet `aria-label`: `Navigation and account menu`.
 - Access-denied heading: `You don't have access to this section.`
 - Access-denied body: `Contact the owner if you think this is a mistake.`
 - Access-denied CTA: `Back to dashboard` (Secondary button → `/admin/dashboard`).
@@ -190,7 +224,17 @@ All three variants share: brand wordmark, skip-link, focus contract, motion toke
 
 ### 11.1 `owner_admin` — Owner / Practice Manager shell
 
-- **Nav items** (left-to-right, desktop): `Dashboard` · `Bookings` · `Calendar` · `Clients` · `Enquiries` · `Staff` · `Reports` · `More…` (overflow disclosure containing `Services`, `Settings`, `Availability`, `Roles`, `Emails`, `Operations`, `Privacy`, `Audit`, `Account password requests`). The overflow is itself an `AdminActionMenu` to keep the visible nav row scannable (PRODUCT.md "power must not equal clutter").
+- **Nav items — Primary strip (5, always visible, desktop / bottom tab bar on mobile):** `Dashboard` · `Bookings` · `Clients` · `Staff` · `Reports`. These five cover every daily-use surface; everything else is one tap away in the user menu.
+- **User menu — grouped nav sections (four labelled sections):**
+
+  | Section label | Items |
+  |---|---|
+  | Scheduling & Leads | `Calendar` · `Enquiries` |
+  | Communications | `Emails` |
+  | Clinic Setup | `Availability` · `Services` |
+  | Admin & Compliance | `Settings` · `Roles` · `Operations` · `Privacy` · `Audit` · `Account password requests` |
+
+  Section order is fixed (most-frequent-to-least-frequent top-to-bottom). Sections appear in the user menu dropdown on desktop and in the "More" sheet on mobile, in the same order. The `account-password-requests` nav item uses `pageKey: "accountRequests"` (camelCase, matching `ADMIN_PAGE_KEYS` — see §12.2 for the fix this corrects). Permissions the user does not hold are omitted at the item level; sections with zero visible items collapse entirely (no empty section label shown).
 - **Command-palette visibility:** Visible. ⌘K chip rendered. Result groups: `Bookings`, `Clients`, `Staff`, `Enquiries`, `Services`, `Pages`. No scope limit on entity results.
 - **Brand sub-label:** `Owner` (Work Sans 500, Field White 70%, label step). When the resolved profile is Admin / Practice Manager (capability match identical), the sub-label still reads `Owner` — the variant is capability-keyed, not title-keyed; reserve title-specific copy for the user-menu (`Your profile` shows the actual job title).
 - **Page-header style:** Dense — `AdminPageHeader` may render up to one Primary action plus one Secondary action right-aligned on desktop. Dashboard uses tiered disclosure: Tier 1 (Today + Urgent Attention) always visible; Tier 2 (Staff capacity, Payment health, Operations health) collapsed behind a `Business overview` disclosure trigger (BASELINE-CRITIQUE P2 fix).
@@ -198,7 +242,15 @@ All three variants share: brand wordmark, skip-link, focus contract, motion toke
 
 ### 11.2 `coordinator` — Booking Coordinator shell
 
-- **Nav items** (left-to-right, desktop): `Dashboard` · `Bookings` · `Calendar` · `Clients` · `Enquiries` · `Staff` · `More…` (overflow containing `Emails`, `Availability`). No `Reports`, `Roles`, `Settings`, `Services`, `Operations`, `Privacy`, `Audit`, `Account password requests` — these are gated by permissions the coordinator does not hold and the chrome must not advertise them. (Permission gates still enforce server-side; the chrome simply omits the nav item.)
+- **Nav items — Primary strip (5, always visible, desktop / bottom tab bar on mobile):** `Dashboard` · `Bookings` · `Clients` · `Team` · `Enquiries`. Front-desk triage work: bookings, client lookup, and the enquiry queue are the coordinator's daily loop.
+- **User menu — grouped nav sections (two labelled sections):**
+
+  | Section label | Items |
+  |---|---|
+  | Scheduling | `Calendar` |
+  | Communications | `Emails` · `Availability` |
+
+  Permissions the coordinator does not hold (`Reports`, `Roles`, `Settings`, `Services`, `Operations`, `Privacy`, `Audit`, `Account password requests`) are omitted entirely — the chrome must not advertise surfaces the user cannot access. Permission gates still enforce server-side. The user menu for a coordinator is compact: two small sections + identity header + account actions.
 - **Command-palette visibility:** Visible. Result groups: `Bookings`, `Clients`, `Staff`, `Enquiries`, `Pages`. No `Services`, `Reports`, `Roles`. Staff results scope to assignable-team (same-gender + active) per `getStaffTeamAccess`.
 - **Brand sub-label:** `Coordinator` (Work Sans 500, Field White 70%, label step).
 - **Page-header style:** Standard — single Primary action right-aligned on desktop. No tiered disclosure on dashboard (only Tier 1 surfaces are visible to this variant by permission anyway).
@@ -206,7 +258,11 @@ All three variants share: brand wordmark, skip-link, focus contract, motion toke
 
 ### 11.3 `therapist` — Therapist shell
 
-- **Nav items** (left-to-right, desktop): `My day` (alias for `Dashboard` — copy reflects the assignment-scoped view) · `My bookings` (alias for `Bookings`, scoped) · `My availability` (deep-link to `/admin/staff/{ownStaffId}/availability` — not the global page) · `Team` (alias for `Staff`, scoped to same-gender + self per `getStaffTeamAccess`). No overflow menu; only four nav items at any breakpoint. No `Calendar` (read-only week view available inside `My bookings`), no `Clients` index (clients reachable via assigned bookings only).
+- **Nav items — exactly 4, desktop strip and mobile bottom tab bar:** `My day` (alias for `Dashboard` — copy reflects the personal scope) · `My bookings` (alias for `Bookings`, scoped to assigned only) · `My availability` (deep-link to `/admin/staff/{ownStaffId}/availability` — not the global availability page) · `Team` (alias for `Staff`, scoped to same-gender + self via `getStaffTeamAccess`). No `Calendar` nav item (read-only week view accessible from within `My bookings`); no `Clients` index (clients reachable only via assigned booking rows).
+
+  > **Implementation requirement — do not omit `Team`.** The current codebase (`THERAPIST_NAV_KEYS` in `AdminTopNav.tsx`) is missing `"staff"` and renders only 3 items. This is a bug. Exactly 4 items must render; `Team` is the 4th. See §12.1 for the required fix.
+
+- **User menu — no nav sections.** The therapist's 4-item strip covers their entire surface — there is nothing to overflow. The user menu (desktop dropdown and mobile sheet) contains only: identity header + account actions ("Your profile" + "Sign out"). On the mobile bottom tab bar, the "More" tab still renders (5th slot) because it carries the account actions; it just opens a minimal sheet with no grouped nav sections above the divider.
 - **Command-palette visibility:** Visible but narrower. Result groups: `My bookings`, `My clients` (only clients with bookings the therapist is assigned to), `Team`, `Pages`. No global `Bookings`, no `Enquiries`, no `Services`. Confirm `searchAdminCommand` enforces this scope server-side (Open Question §10.3).
 - **Brand sub-label:** `Therapist` (Work Sans 500, Field White 70%, label step).
 - **Page-header style:** Standard — single Primary action right-aligned on desktop. On `My day`, the H1 is the therapist's first name plus a date (`{firstName} · {weekday}, {dayMonth}`) rather than the generic `Dashboard`, reinforcing the personal scope and avoiding the "owner-style command centre" framing.
@@ -217,6 +273,60 @@ All three variants share: brand wordmark, skip-link, focus contract, motion toke
 ---
 
 **Confirmation gate.** This brief is the foundation for the remaining 28 per-page briefs. Phase 5 cannot proceed to Brief 02 until the user confirms this document. Reply `brief confirmed` to lock vocabulary, or call out specific sections to revise.
+
+---
+
+## 12. RBAC Audit Fixes Required
+
+Identified during Phase 6 pre-implementation audit (2026-05-13). All 8 items are **ship-blockers** for the shared-components page unless marked otherwise. Phase 6 implementer must resolve every Critical item before marking this page complete.
+
+### 12.1 Therapist "Team" nav item missing from code — CRITICAL
+
+**File:** `src/app/admin/components/AdminTopNav.tsx`
+**Problem:** `THERAPIST_NAV_KEYS` contains only `"dashboard"`, `"bookings"`, `"availability"` — 3 items. The brief (§11.3) mandates exactly 4: add `"staff"` to the set.
+**Fix:** Add `"staff"` to `THERAPIST_NAV_KEYS`. Confirm `getNavLabel()` returns `"Team"` for `item.pageKey === "staff"` on the therapist variant (the coordinator branch already handles `"Team"` — apply the same pattern for therapist).
+
+### 12.2 `account-password-requests` nav pageKey mismatch — CRITICAL
+
+**File:** `src/app/admin/components/AdminTopNav.tsx`
+**Problem:** Nav item uses `pageKey: "account-password-requests"` (kebab-case). `ADMIN_PAGE_KEYS` and the access matrix use `"accountRequests"` (camelCase). `hasPageAccess()` lookups fail silently — the item never renders for any role including Owner.
+**Fix:** Change `pageKey: "account-password-requests"` → `pageKey: "accountRequests"` on the password-requests nav item.
+
+### 12.3 Shell variant `null` falls back to `owner_admin` — CRITICAL
+
+**File:** `src/app/admin/layout.tsx`
+**Problem:** `const variant = resolveAdminShellVariant(profile) ?? "owner_admin"` — when the resolver returns `null` (inactive or no matching capabilities), the layout silently renders the full owner shell, exposing all nav items visually even though the user cannot act on any of them.
+**Fix:** Remove the `?? "owner_admin"` fallback. When `resolveAdminShellVariant` returns `null`, redirect to `/admin/login?reason=inactive`. The brief (§11) is explicit: "The chrome itself never renders for null variants."
+
+### 12.4 `manage_account_password_requests` permission not defined — CRITICAL
+
+**Files:** `src/lib/auth/rbac.ts`, `src/app/admin/components/admin-access.ts`
+**Problem:** Brief 12 (`account-password-requests`) created this permission for the review queue. It is not defined in `PERMISSIONS`. The access gate falls back to `canManageStaffProfiles()` — a different, broader permission — causing incorrect access decisions.
+**Fix:** Add `MANAGE_ACCOUNT_PASSWORD_REQUESTS: "manage_account_password_requests"` to `PERMISSIONS` in `rbac.ts`. Re-gate the `accountRequests` access check to `hasPermission(profile, PERMISSIONS.MANAGE_ACCOUNT_PASSWORD_REQUESTS)`. Ensure Owner and Admin/PM roles have this permission assigned.
+
+### 12.5 `AdminAccessDenied` message prop allows raw permission strings — HIGH
+
+**File:** `src/app/admin/components/admin-ui.tsx`
+**Problem:** The component accepts a `message` prop with no sanitisation. Any downstream page that passes a raw permission identifier (e.g. from a caught error) renders it to the user — violating BASELINE-CRITIQUE Fatimah #3 and DESIGN.md Don't list ("Don't display raw permission identifiers").
+**Fix:** Either (a) remove the `message` prop and always render the hardcoded brief copy ("You don't have access to this section. Contact the owner if you think this is a mistake."), or (b) add a guard that strips any string matching the known permission-name pattern (`/^[a-z_]+$/`) and falls back to the default copy. Option (a) is simpler and safer.
+
+### 12.6 Button loading spinner appends instead of replacing the leading icon — HIGH
+
+**File:** `src/app/admin/components/admin-ui.tsx`
+**Problem:** The loading spinner is unconditionally prepended alongside button children. The brief (§6 Buttons) specifies: "16px Field White spinner **replaces** leading icon, text unchanged." A button with a leading icon shows `<Spinner> <Icon> "Label"` — visually wrong and breaks the design spec.
+**Fix:** Implement an icon slot system on the button. When `loading=true` and a leading icon is present, render `<Spinner>` in the icon slot instead of the icon. When `loading=true` and no icon is present, prepend the spinner. Button text stays unchanged in both cases.
+
+### 12.7 Coordinator `assign` flag gated on wrong permission — MEDIUM
+
+**File:** `src/app/admin/components/admin-access.ts`
+**Problem:** The `assign` flag on the staff access object checks `ASSIGN_STAFF_ROLES` (assigning role templates to staff) not `ASSIGN_BOOKINGS` (assigning staff to bookings). A coordinator's core workflow is booking assignment, not role assignment.
+**Fix:** Confirm intent with the RBAC matrix. If coordinators should be able to assign staff to bookings, gate the `assign` flag on `hasPermission(profile, PERMISSIONS.ASSIGN_BOOKINGS)` or equivalent. If `ASSIGN_BOOKINGS` does not exist as a permission, define it. This may be intentional but must be confirmed before Phase 6 ships.
+
+### 12.8 `AdminAccessDenied` CTA copy not variant-aware — MEDIUM
+
+**File:** `src/app/admin/components/admin-ui.tsx`
+**Problem:** The hardcoded CTA reads "Back to dashboard" → `/admin/dashboard`. For a therapist, the nav item is labelled "My day" and the conceptual label has changed — "Back to dashboard" is dissonant.
+**Fix:** Accept a `variant` prop on `AdminAccessDenied`. When `variant === "therapist"`, render "Back to My day" as the CTA label (destination `/admin/dashboard` remains the same URL). Default stays "Back to dashboard" for all other variants.
 
 ---
 
@@ -338,28 +448,31 @@ Top → bottom across the entire admin surface:
 ### Per-viewport intent
 
 **Mobile (375px)**
-- `AdminTopNav` collapses to 56px bar: brand tile + wordmark on left, hamburger (Lucide `menu`, 24px, 44px touch target) on right; centre navigation zone hidden
-- Right rail on mobile: search icon (opens `AdminCommandSearch` full-screen) + `NotificationBell` icon — no ⌘K chip, no avatar text
-- `AdminSheet` slides in from left at 320px width over a `action-primary / 40%` scrim; internal stack: brand block, nav items (44px rows, Work Sans 500 body step), ⌘K row, profile row, sign-out row; focus-trapped while open; swipe-left or ✕ closes
-- Skip-link: visually hidden until focused, anchors top-left in Clinic Green fill
-- `AdminMobileActionBar`: sticky bottom, 1px `border-subtle` top border, `surface-card`, `md` vertical padding — used on booking detail, booking new, client new; not used on list/dashboard pages
-- Filter bars: collapse to "Refine" trigger opening an `AdminSheet` at `<768px`; never 8-column horizontal grid on mobile
+- `AdminTopNav` strips to 56px bar: brand tile + wordmark left-aligned only. Centre nav strip hidden. Right rail: search icon (opens `AdminCommandSearch` full-screen) + `NotificationBell` icon. No hamburger.
+- `AdminBottomTabBar`: fixed bottom, `safe-area-inset-bottom` padding, `surface-card`, 1px `border-subtle` top. Contains 4–5 primary tabs (icon 20px + label 10px, 44px touch target each) + "More" tab (initials token or `layout-grid` icon + "More" label). Tapping "More" opens the user menu `AdminSheet` (slides up from bottom, rounded top 16px, drag handle, focus-trapped).
+- Skip-link: visually hidden until focused, anchors top-left in Clinic Green fill.
+- `AdminMobileActionBar`: sticky bottom, 1px `border-subtle` top border, `surface-card`, `md` vertical padding — used on booking detail, booking new, client new. Sits above the bottom tab bar (z-index higher); `<main>` padding-bottom accounts for both when both are visible simultaneously.
+- Filter bars: collapse to "Refine" trigger opening an `AdminSheet` at `<768px`; never 8-column horizontal grid on mobile.
 
 **Tablet (768px)**
-- Breakpoint shared with mobile — `<768px` triggers hamburger/sheet mode; `≥768px` shows full three-zone desktop nav
-- No distinct tablet layout; treat as desktop from 768px upward
+- Breakpoint shared with mobile — `<768px` uses bottom tab bar; `≥768px` shows full three-zone desktop nav with user menu button in right rail.
+- No distinct tablet-only layout; treat as desktop from 768px upward.
 
-**Desktop (1440px)**
-- Full `AdminTopNav` at 56px: left zone (brand tile + wordmark + role sub-label + breadcrumb on deep routes), centre zone (nav items per §11 variant), right rail (⌘K chip + `NotificationBell` + avatar)
-- Content max-width: `--content-width-xl` on dashboard and reports; `--content-width-lg` on detail pages; full-bleed on calendar and bookings list
-- Primary actions right-aligned in `AdminPageHeader`; secondary action beside primary for owner_admin variant (per §11.1)
+**Desktop 768–1023px**
+- Full `AdminTopNav` at 56px: left zone + centre strip + right rail. User menu button trigger: initials circle + `ChevronDown` only (name hidden).
+
+**Desktop ≥1024px**
+- Full `AdminTopNav` at 56px: left zone (brand tile + wordmark + role sub-label + breadcrumb on deep routes), centre zone (nav items per §11 variant), right rail (⌘K chip + `NotificationBell` + user menu button showing initials + first name + `ChevronDown`).
+- Content max-width: `--content-width-xl` on dashboard and reports; `--content-width-lg` on detail pages; full-bleed on calendar and bookings list.
+- Primary actions right-aligned in `AdminPageHeader`; secondary action beside primary for owner_admin variant (per §11.1).
 
 ### Verification steps
 
 **Playwright (automated):**
 - Tab through complete nav from skip-link to last right-rail item; confirm focus order matches DOM order
 - ⌘K opens `AdminCommandSearch` from any admin route; Escape closes; result navigation via ↑/↓/Enter works
-- Mobile viewport (375×812): hamburger triggers `AdminSheet`; focus is trapped inside sheet; Escape and ✕ close and return focus to hamburger
+- Mobile viewport (375×812): bottom tab bar visible; primary tabs navigate correctly; "More" tab opens user menu sheet; focus trapped inside sheet; swipe-down / Escape / backdrop close returns focus to "More" tab
+- Mobile viewport (375×812): no hamburger button present in DOM
 - Sign-out button submits as `POST /admin/signout` (network inspector — must never be a GET request)
 - All touch targets on 375px viewport: `min-height 44px` on every interactive element
 - `ConfirmActionModal` opens on destructive actions (cancel booking, deactivate staff, delete service) and POSTs correctly

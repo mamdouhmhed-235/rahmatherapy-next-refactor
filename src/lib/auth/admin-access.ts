@@ -334,10 +334,9 @@ const ADMIN_PAGE_RULES = {
       : allowed("none"),
   profile: () => allowed("own", { edit: true }),
   accountRequests: (profile) =>
-    canManageStaffProfiles(profile)
+    hasPermission(profile, PERMISSIONS.MANAGE_ACCOUNT_PASSWORD_REQUESTS)
       ? allowed("all", {
           edit: true,
-          manageProfiles: true,
           approveRequests: true,
         })
       : allowed("none"),

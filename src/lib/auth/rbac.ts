@@ -39,6 +39,7 @@ export const PERMISSIONS = {
   MANAGE_AVAILABILITY_OWN: "manage_availability_own",
   MANAGE_AUDIT_LOGS: "manage_audit_logs",
   MANAGE_PRIVACY_OPERATIONS: "manage_privacy_operations",
+  MANAGE_ACCOUNT_PASSWORD_REQUESTS: "manage_account_password_requests",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
