@@ -158,7 +158,7 @@ export function AdminPageHeader({
           </p>
         ) : null}
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="text-balance text-2xl font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
+          <h1 className="font-display text-balance text-2xl font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
             {title}
           </h1>
           {badge ? <div className="shrink-0">{badge}</div> : null}
@@ -279,7 +279,7 @@ export function AdminPanel({
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             {title ? (
-              <h2 className="text-base font-semibold text-[var(--admin-heading)]">
+              <h2 className="font-display text-base font-semibold text-[var(--admin-heading)]">
                 {title}
               </h2>
             ) : null}
@@ -374,7 +374,7 @@ export function AdminPanelHeader({
       <div className="flex min-w-0 items-start gap-3">
         {icon ? <AdminIconBadge icon={icon} tone={tone} /> : null}
         <div className="min-w-0">
-          <h2 className="text-[1.333rem] font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
+          <h2 className="font-display text-[1.333rem] font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
             {title}
           </h2>
           {description ? (
@@ -859,7 +859,7 @@ export function AdminAccessDenied({
               aria-hidden="true"
             />
           </span>
-          <h1 className="text-xl font-semibold text-[var(--admin-heading)]">
+          <h1 className="font-display text-xl font-semibold text-[var(--admin-heading)]">
             {heading}
           </h1>
           <p className="max-w-[45ch] text-sm leading-6 text-[var(--admin-text-muted)]">
