@@ -14,7 +14,7 @@ Currently on: 1 of 29 — 00-shared-components   ← update when you start a ses
 
 ---
 
-## 1. [x] 00-shared-components — commit: b764989
+## 1. [x] 00-shared-components — commit: aa76451
 
 **Tier:** Tier 1 — shared-components foundation (always first)
 
