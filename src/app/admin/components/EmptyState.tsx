@@ -45,14 +45,15 @@ export function EmptyState({
       ) : (
         <span
           className={cn(
-            "mb-5 inline-flex items-center justify-center rounded-full bg-[var(--admin-panel-muted)]",
+            "mb-5 inline-flex items-center justify-center rounded-full",
+            "bg-[oklch(93.5%_0.038_155)] shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.08)]",
             compact ? "size-12" : "size-16"
           )}
           aria-hidden="true"
         >
           <Icon
             className={cn(
-              "text-[var(--admin-text-muted)]",
+              "text-[var(--admin-primary)]",
               compact ? "size-5" : "size-7"
             )}
           />
@@ -61,13 +62,13 @@ export function EmptyState({
 
       <p
         className={cn(
-          "font-semibold tracking-tight text-[var(--admin-heading)]",
-          compact ? "text-sm" : "text-base"
+          "font-display font-semibold tracking-[-0.01em] text-[var(--admin-heading)]",
+          compact ? "text-sm" : "text-[1.0625rem]"
         )}
       >
         {title}
       </p>
-      <p className="mt-1.5 text-sm leading-6 text-[var(--admin-text-muted)]">
+      <p className="mt-2 max-w-[38ch] text-sm leading-6 text-[var(--admin-text-muted)]">
         {message}
       </p>
 

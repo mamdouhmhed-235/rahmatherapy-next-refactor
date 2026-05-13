@@ -184,16 +184,16 @@ export function AdminTopNav({
               className="flex shrink-0 items-center gap-2.5 rounded-[var(--admin-radius-control)] outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               aria-label="Rahma Therapy admin dashboard"
             >
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-white/12">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-white/16 ring-1 ring-inset ring-white/10">
                 <Image
                   src="/images/brand/rahma/logo-mark.svg"
                   alt=""
-                  width={20}
-                  height={20}
-                  className="size-5 invert"
+                  width={22}
+                  height={22}
+                  className="size-[1.375rem] invert"
                 />
               </div>
-              <span className="font-display hidden text-sm font-semibold tracking-tight text-white sm:block">
+              <span className="font-display hidden text-[0.9375rem] font-semibold tracking-[-0.01em] text-white sm:block">
                 Rahma Therapy
               </span>
             </Link>
@@ -227,7 +227,7 @@ export function AdminTopNav({
                   className={cn(
                     "inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/60",
                     active
-                      ? "font-display bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
+                      ? "font-display bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)] ring-1 ring-inset ring-white/20"
                       : "font-medium text-white/80 hover:bg-white/10 hover:text-white"
                   )}
                 >
@@ -532,7 +532,7 @@ function MobileMenuButton({
           {/* Sheet header — mirrors desktop brand block */}
           <div className="flex items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[var(--admin-primary)] px-4 py-3.5">
             <div className="flex items-center gap-2.5">
-              <div className="flex size-7 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-white/12">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-white/16 ring-1 ring-inset ring-white/10">
                 <Image
                   src="/images/brand/rahma/logo-mark.svg"
                   alt=""

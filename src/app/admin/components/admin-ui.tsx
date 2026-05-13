@@ -158,7 +158,7 @@ export function AdminPageHeader({
           </p>
         ) : null}
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="font-display text-balance text-2xl font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
+          <h1 className="font-display text-balance text-[clamp(1.778rem,2.5vw,2.369rem)] font-semibold leading-[1.15] tracking-[-0.02em] text-[var(--admin-heading)]">
             {title}
           </h1>
           {badge ? <div className="shrink-0">{badge}</div> : null}
@@ -205,7 +205,7 @@ export function AdminStat({
   return (
     <article
       className={cn(
-        "rounded-[var(--admin-radius-card)] border px-5 py-4",
+        "rounded-[var(--admin-radius-card)] border px-5 py-4 shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.06)]",
         panelBorderClasses[resolvedTone],
         panelBgClasses[resolvedTone]
       )}
@@ -232,7 +232,7 @@ export function AdminStat({
           {value}
         </p>
       ) : (
-        <p className="mt-2 text-2xl font-semibold text-[var(--admin-heading)]">{value}</p>
+        <p className="font-display mt-2 text-[1.778rem] font-semibold leading-none tracking-[-0.015em] text-[var(--admin-heading)]">{value}</p>
       )}
       {note ? <p className="mt-1 text-xs text-[var(--admin-text-muted)]">{note}</p> : null}
       {footer ? (
@@ -279,7 +279,7 @@ export function AdminPanel({
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             {title ? (
-              <h2 className="font-display text-base font-semibold text-[var(--admin-heading)]">
+              <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
                 {title}
               </h2>
             ) : null}
@@ -374,7 +374,7 @@ export function AdminPanelHeader({
       <div className="flex min-w-0 items-start gap-3">
         {icon ? <AdminIconBadge icon={icon} tone={tone} /> : null}
         <div className="min-w-0">
-          <h2 className="font-display text-[1.333rem] font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
+          <h2 className="font-display text-[1.333rem] font-semibold leading-[1.3] tracking-[-0.02em] text-[var(--admin-heading)]">
             {title}
           </h2>
           {description ? (
