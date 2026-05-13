@@ -150,7 +150,7 @@ export function AdminPageHeader({
   secondaryActions?: React.ReactNode;
 }) {
   return (
-    <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <header className="mb-4 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {eyebrow ? (
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--admin-primary)]">
@@ -1032,9 +1032,10 @@ export function AdminEntityRow({
         className
       )}
     >
-      <div className="grid gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-start">
+      {/* Mobile: leading+content row, actions below. Desktop: 3-col grid */}
+      <div className="flex min-w-0 items-start gap-3">
         {leading ? <div className="shrink-0">{leading}</div> : null}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h3 className="min-w-0 break-words text-sm font-semibold text-[var(--admin-heading)]">
               {title}
@@ -1051,9 +1052,17 @@ export function AdminEntityRow({
           ) : null}
         </div>
         {actions ? (
-          <AdminActionGroup className="sm:justify-end">{actions}</AdminActionGroup>
+          <AdminActionGroup className="hidden shrink-0 sm:flex sm:justify-end">
+            {actions}
+          </AdminActionGroup>
         ) : null}
       </div>
+      {/* Mobile-only actions row — hidden on sm+ where they appear inline above */}
+      {actions ? (
+        <AdminActionGroup className="mt-3 sm:hidden">
+          {actions}
+        </AdminActionGroup>
+      ) : null}
       {children ? (
         <div className="mt-4 border-t border-[var(--admin-border)] pt-4">{children}</div>
       ) : null}

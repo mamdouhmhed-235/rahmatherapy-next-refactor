@@ -262,8 +262,8 @@ export function AdminTopNav({
               <UserAvatarMenu profile={profile} />
             </div>
 
-            {/* Mobile: search icon + notification icon + hamburger */}
-            <div className="flex items-center gap-1.5 lg:hidden">
+            {/* Mobile: search icon + notification icon + hamburger (all 44px touch targets) */}
+            <div className="flex items-center gap-0 lg:hidden">
               <MobileSearch />
               <MobileNotificationButton items={notifications} variant="icon" />
               <MobileMenuButton
@@ -281,7 +281,7 @@ export function AdminTopNav({
       <main
         id="admin-main"
         tabIndex={-1}
-        className="min-w-0 px-4 pb-8 pt-5 outline-none sm:px-6 lg:px-8"
+        className="min-w-0 px-4 pb-16 pt-5 outline-none sm:px-6 sm:pb-8 lg:px-8"
       >
         <div className="mx-auto w-full min-w-0 max-w-[100rem]">
           {children}
@@ -467,7 +467,7 @@ function MobileSearch() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search (⌘K)"
-        className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
       >
         <svg className="size-[1.125rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8" />
@@ -475,13 +475,16 @@ function MobileSearch() {
         </svg>
       </button>
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-[oklch(12%_0.01_165)]/35 pt-[10vh] backdrop-blur-sm">
-          <div className="w-[min(calc(100vw-2rem),32rem)] rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)]">
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-[oklch(12%_0.01_165)]/35 pt-[8vh] backdrop-blur-sm px-4"
+          onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
+        >
+          <div className="relative w-full max-w-[32rem] rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)]">
             <AdminCommandSearch />
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="absolute right-3 top-3 inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               aria-label="Close search"
             >
               <X className="size-4" aria-hidden="true" />
@@ -520,7 +523,7 @@ function MobileMenuButton({
   return (
     <BaseDialog.Root open={open} onOpenChange={setOpen}>
       <BaseDialog.Trigger
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
         aria-label="Open menu"
       >
         <Menu className="size-5" aria-hidden="true" />
