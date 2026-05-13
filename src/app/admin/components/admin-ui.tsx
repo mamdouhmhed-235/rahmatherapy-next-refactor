@@ -153,7 +153,7 @@ export function AdminPageHeader({
     <header className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {eyebrow ? (
-          <p className="mb-1 text-xs font-semibold text-[var(--admin-text-muted)]">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--admin-primary)]">
             {eyebrow}
           </p>
         ) : null}
@@ -1028,7 +1028,7 @@ export function AdminEntityRow({
   return (
     <article
       className={cn(
-        "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors hover:border-[var(--admin-primary)]/20 hover:shadow-[var(--admin-shadow-hover)]",
+        "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors hover:border-[var(--admin-primary)]/35 hover:shadow-[var(--admin-shadow-hover)]",
         className
       )}
     >
@@ -1159,12 +1159,12 @@ export function AdminAttentionRail({
   return (
     <aside
       className={cn(
-        "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4",
+        "rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/35 p-4",
         className
       )}
       aria-label={typeof title === "string" ? title : undefined}
     >
-      <h2 className="text-base font-semibold text-[var(--admin-heading)]">{title}</h2>
+      <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-[oklch(26%_0.13_55)]">{title}</h2>
       <div className="mt-4 grid gap-3">{children}</div>
     </aside>
   );

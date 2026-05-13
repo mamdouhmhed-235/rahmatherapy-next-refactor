@@ -1,7 +1,7 @@
 "use client";
 
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
-import { MoreHorizontal, SlidersHorizontal, X, XCircle } from "lucide-react";
+import { CheckCircle, MoreHorizontal, SlidersHorizontal, X, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── AdminActionMenu ──────────────────────────────────────────────────────────
@@ -174,7 +174,11 @@ export function ConfirmActionModal({
               <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]">
                 <XCircle className="size-5 text-[oklch(26%_0.14_25)]" aria-hidden="true" />
               </span>
-            ) : null}
+            ) : (
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)]">
+                <CheckCircle className="size-5 text-[oklch(22%_0.085_155)]" aria-hidden="true" />
+              </span>
+            )}
             <div className="min-w-0 flex-1">
               <BaseDialog.Title className="text-base font-semibold text-[var(--admin-heading)]">
                 {title}
