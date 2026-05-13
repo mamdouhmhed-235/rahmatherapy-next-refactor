@@ -175,7 +175,7 @@ export function AdminTopNav({
       </a>
 
       <header className="sticky top-0 z-40 bg-[var(--admin-primary)]">
-        <div className="mx-auto flex h-14 max-w-[100rem] items-center gap-0 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-14 max-w-[100rem] items-center gap-0 px-4 md:px-6 lg:px-8">
 
           {/* Left zone: brand tile + wordmark + role sub-label */}
           <div className="flex shrink-0 items-center gap-3">
@@ -201,7 +201,7 @@ export function AdminTopNav({
               {subLabel}
             </span>
             {breadcrumb ? (
-              <span className="hidden items-center gap-1.5 lg:flex" aria-label={`Section: ${breadcrumb}`}>
+              <span className="hidden items-center gap-1.5 md:flex" aria-label={`Section: ${breadcrumb}`}>
                 <span className="text-white/30 text-sm" aria-hidden="true">›</span>
                 <span className="text-sm font-medium text-white/90">{breadcrumb}</span>
               </span>
@@ -209,11 +209,11 @@ export function AdminTopNav({
           </div>
 
           {/* Separator */}
-          <div className="mx-4 hidden h-5 w-px bg-white/15 lg:block" aria-hidden="true" />
+          <div className="mx-4 hidden h-5 w-px bg-white/15 md:block" aria-hidden="true" />
 
           {/* Centre zone: primary nav items (desktop) */}
           <nav
-            className="hidden flex-1 items-center gap-0.5 lg:flex"
+            className="hidden flex-1 items-center gap-0.5 md:flex"
             aria-label="Admin navigation"
           >
             {primaryItems.map((item) => {
@@ -244,26 +244,26 @@ export function AdminTopNav({
 
           {/* Right rail: cmd-K + NotificationBell + avatar */}
           <div className="ml-auto flex items-center gap-1.5">
-            {/* cmd-K trigger (desktop) */}
-            <div className="hidden lg:block">
+            {/* cmd-K trigger (desktop ≥768px) */}
+            <div className="hidden md:block">
               <AdminCommandSearch
                 compact
                 triggerClassName="inline-flex h-8 items-center gap-2 rounded-[var(--admin-radius-control)] border border-white/20 bg-white/10 px-3 text-sm font-medium text-white/80 outline-none transition-colors hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
               />
             </div>
 
-            {/* Notification bell (desktop) */}
-            <div className="hidden lg:block">
+            {/* Notification bell (desktop ≥768px) */}
+            <div className="hidden md:block">
               <NotificationBell items={notifications} />
             </div>
 
-            {/* User avatar menu (desktop) */}
-            <div className="hidden lg:block">
+            {/* User avatar menu (desktop ≥768px) */}
+            <div className="hidden md:block">
               <UserAvatarMenu profile={profile} />
             </div>
 
-            {/* Mobile: search icon + notification icon + hamburger (all 44px touch targets) */}
-            <div className="flex items-center gap-0 lg:hidden">
+            {/* Mobile (<768px): search icon + notification icon + hamburger */}
+            <div className="flex items-center gap-0 md:hidden">
               <MobileSearch />
               <MobileNotificationButton items={notifications} variant="icon" />
               <MobileMenuButton
@@ -529,8 +529,8 @@ function MobileMenuButton({
         <Menu className="size-5" aria-hidden="true" />
       </BaseDialog.Trigger>
       <BaseDialog.Portal>
-        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/40 backdrop-blur-sm lg:hidden" />
-        <BaseDialog.Popup className="fixed left-0 top-0 z-50 flex h-dvh w-[min(20rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-r-[var(--admin-radius-card)] border-r border-[var(--admin-border-form)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)] outline-none lg:hidden">
+        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/40 backdrop-blur-sm md:hidden" />
+        <BaseDialog.Popup className="fixed left-0 top-0 z-50 flex h-dvh w-[min(20rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-r-[var(--admin-radius-card)] border-r border-[var(--admin-border-form)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)] outline-none md:hidden">
 
           {/* Sheet header — mirrors desktop brand block */}
           <div className="flex items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[var(--admin-primary)] px-4 py-3.5">
