@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
+import { Toaster } from "sonner";
 import {
   Bell,
   CalendarCheck,
@@ -263,6 +264,28 @@ export function AdminTopNav({
           {children}
         </div>
       </main>
+
+      {/* Toast host — outside <main>, per brief §5 */}
+      <Toaster
+        position="top-right"
+        visibleToasts={3}
+        toastOptions={{
+          classNames: {
+            toast:
+              "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] shadow-[var(--admin-shadow-overlay)] text-sm font-medium",
+            title: "font-semibold text-[var(--admin-heading)]",
+            description: "text-[var(--admin-text-muted)]",
+            success:
+              "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]",
+            error:
+              "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]",
+            warning:
+              "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]",
+            info:
+              "border-[oklch(88%_0.055_75)] bg-[oklch(96%_0.038_75)] text-[oklch(28%_0.12_55)]",
+          },
+        }}
+      />
     </div>
   );
 }
