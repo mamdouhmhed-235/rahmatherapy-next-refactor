@@ -62,28 +62,35 @@ function getNotificationAgeLabel(timestamp: string) {
   return `Due in ${Math.abs(diff)}d`;
 }
 
-const READ_STORAGE_KEY = "rahmatherapy-notification-read";
-const DISMISSED_STORAGE_KEY = "rahmatherapy-notification-dismissed";
+function getStorageKeys(staffId: string) {
+  return {
+    read: `rahmatherapy-notification-read-${staffId}`,
+    dismissed: `rahmatherapy-notification-dismissed-${staffId}`,
+  };
+}
 
-function useLocalStorageNotificationState(ids: string[]) {
+function useLocalStorageNotificationState(ids: string[], staffId: string) {
+  const keys = getStorageKeys(staffId);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     try {
-      const rawRead = localStorage.getItem(READ_STORAGE_KEY);
-      const rawDismissed = localStorage.getItem(DISMISSED_STORAGE_KEY);
+      const rawRead = localStorage.getItem(keys.read);
+      const rawDismissed = localStorage.getItem(keys.dismissed);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing external localStorage state after hydration
       if (rawRead) setReadIds(new Set(JSON.parse(rawRead)));
       if (rawDismissed) setDismissedIds(new Set(JSON.parse(rawDismissed)));
     } catch {}
-  }, []);
+  // Re-sync when the staffId changes (e.g., after login switch on same device)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [staffId]);
 
   const markRead = (id: string) => {
     setReadIds((prev) => {
       const next = new Set(prev);
       next.add(id);
-      localStorage.setItem(READ_STORAGE_KEY, JSON.stringify([...next]));
+      localStorage.setItem(keys.read, JSON.stringify([...next]));
       return next;
     });
   };
@@ -92,7 +99,7 @@ function useLocalStorageNotificationState(ids: string[]) {
     setReadIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
-      localStorage.setItem(READ_STORAGE_KEY, JSON.stringify([...next]));
+      localStorage.setItem(keys.read, JSON.stringify([...next]));
       return next;
     });
   };
@@ -100,7 +107,7 @@ function useLocalStorageNotificationState(ids: string[]) {
   const markAllRead = () => {
     setReadIds((prev) => {
       const next = new Set([...prev, ...ids]);
-      localStorage.setItem(READ_STORAGE_KEY, JSON.stringify([...next]));
+      localStorage.setItem(keys.read, JSON.stringify([...next]));
       return next;
     });
   };
@@ -109,13 +116,13 @@ function useLocalStorageNotificationState(ids: string[]) {
     setDismissedIds((prev) => {
       const next = new Set(prev);
       next.add(id);
-      localStorage.setItem(DISMISSED_STORAGE_KEY, JSON.stringify([...next]));
+      localStorage.setItem(keys.dismissed, JSON.stringify([...next]));
       return next;
     });
     setReadIds((prev) => {
       const next = new Set(prev);
       next.delete(id);
-      localStorage.setItem(READ_STORAGE_KEY, JSON.stringify([...next]));
+      localStorage.setItem(keys.read, JSON.stringify([...next]));
       return next;
     });
   };
@@ -127,13 +134,15 @@ type NotificationTab = "all" | "unread" | "read" | "critical" | "emails" | "oper
 
 export function NotificationBell({
   items,
+  staffId = "shared",
 }: {
   items: NotificationItem[];
+  staffId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ids = useMemo(() => items.map((i) => i.id), [items]);
   const { readIds, dismissedIds, markRead, markUnread, markAllRead, dismissNotification } =
-    useLocalStorageNotificationState(ids);
+    useLocalStorageNotificationState(ids, staffId);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const visibleItems = useMemo(
@@ -157,7 +166,7 @@ export function NotificationBell({
         <AdminPopover.Trigger
           ref={triggerRef}
           aria-label={unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up"}
-          className="inline-flex size-11 appearance-none items-center justify-center rounded-[var(--admin-radius-card)] border-0 bg-transparent p-0 outline-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+          className="inline-flex size-11 appearance-none items-center justify-center rounded-[var(--admin-radius-card)] border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
         >
           <span className="relative inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)] shadow-[var(--admin-shadow-subtle)]">
             {unreadCount > 0 ? (
@@ -194,13 +203,15 @@ export function NotificationBell({
 export function MobileNotificationButton({
   items,
   variant = "full",
+  staffId = "shared",
 }: {
   items: NotificationItem[];
   variant?: "full" | "icon";
+  staffId?: string;
 }) {
   const ids = useMemo(() => items.map((i) => i.id), [items]);
   const { readIds, dismissedIds, markRead, markUnread, markAllRead, dismissNotification } =
-    useLocalStorageNotificationState(ids);
+    useLocalStorageNotificationState(ids, staffId);
   const visibleItems = useMemo(
     () => items.filter((i) => !dismissedIds.has(i.id)),
     [items, dismissedIds]
@@ -455,7 +466,7 @@ function NotificationPopoverContent({
                       markRead(item.id);
                       onClose();
                     }}
-                    className="inline-flex min-h-7 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-2.5 text-[11px] font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-2.5 text-[11px] font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     {item.actionLabel ?? "View"}
                   </Link>
@@ -467,7 +478,7 @@ function NotificationPopoverContent({
                       markRead(item.id);
                       onClose();
                     }}
-                    className="inline-flex min-h-7 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 text-[11px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     {item.secondaryLabel ?? "Details"}
                   </Link>
@@ -476,7 +487,7 @@ function NotificationPopoverContent({
                   <button
                     type="button"
                     onClick={() => markRead(item.id)}
-                    className="inline-flex min-h-7 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     Mark read
                   </button>
@@ -484,7 +495,7 @@ function NotificationPopoverContent({
                   <button
                     type="button"
                     onClick={() => markUnread(item.id)}
-                    className="inline-flex min-h-7 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     Mark unread
                   </button>
@@ -492,7 +503,7 @@ function NotificationPopoverContent({
                 <button
                   type="button"
                   onClick={() => dismissNotification(item.id)}
-                  className="inline-flex min-h-7 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:border-[var(--admin-danger)]/35 hover:bg-[var(--admin-danger)]/5 hover:text-[var(--admin-danger)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:border-[var(--admin-danger)]/35 hover:bg-[var(--admin-danger)]/5 hover:text-[var(--admin-danger)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   aria-label={`Delete notification: ${item.title}`}
                 >
                   <Trash2 className="size-3" aria-hidden="true" />

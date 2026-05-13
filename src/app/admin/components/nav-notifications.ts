@@ -1,4 +1,11 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  canManageBookings,
+  canViewAllBookings,
+  canManageOperations,
+  canViewEmailLogs,
+  type StaffProfile,
+} from "@/lib/auth/rbac";
 import type { NotificationItem } from "../reports/reporting";
 
 const OPS_EVENT_LABELS: Record<string, string> = {
@@ -11,31 +18,46 @@ const OPS_EVENT_LABELS: Record<string, string> = {
   sync_failed: "Sync error",
 };
 
-export async function getNavNotifications(profileId: string): Promise<NotificationItem[]> {
+export async function getNavNotifications(profile: StaffProfile): Promise<NotificationItem[]> {
   try {
     const supabase = await createSupabaseServerClient();
 
+    const canSeeBookings = canManageBookings(profile) || canViewAllBookings(profile);
+    const canSeeEmails = canViewEmailLogs(profile);
+    const canSeeOps = canManageOperations(profile);
+
     const [assignmentsRes, emailsRes, opsRes] = await Promise.all([
-      supabase
-        .from("bookings")
-        .select("id, date")
-        .in("status", ["pending", "confirmed"])
-        .is("assigned_staff_id", null)
-        .gte("date", new Date().toISOString().slice(0, 10))
-        .order("date", { ascending: true })
-        .limit(20),
-      supabase
-        .from("email_events")
-        .select("id, event_type, error_message, booking_id, created_at")
-        .eq("delivery_status", "failed")
-        .order("created_at", { ascending: false })
-        .limit(10),
-      supabase
-        .from("operational_events")
-        .select("id, event_type, summary, severity, created_at")
-        .eq("status", "open")
-        .order("created_at", { ascending: false })
-        .limit(10),
+      // Only fetch unassigned bookings if the profile can act on them
+      canSeeBookings
+        ? supabase
+            .from("bookings")
+            .select("id, date")
+            .in("status", ["pending", "confirmed"])
+            .is("assigned_staff_id", null)
+            .gte("date", new Date().toISOString().slice(0, 10))
+            .order("date", { ascending: true })
+            .limit(20)
+        : Promise.resolve({ data: [] as { id: string; date: string }[], error: null }),
+
+      // Only fetch failed emails if the profile can view email logs
+      canSeeEmails
+        ? supabase
+            .from("email_events")
+            .select("id, event_type, error_message, booking_id, created_at")
+            .eq("delivery_status", "failed")
+            .order("created_at", { ascending: false })
+            .limit(10)
+        : Promise.resolve({ data: [] as { id: string; event_type: string; error_message: string | null; booking_id: string | null; created_at: string }[], error: null }),
+
+      // Only fetch operational events if the profile can manage operations
+      canSeeOps
+        ? supabase
+            .from("operational_events")
+            .select("id, event_type, summary, severity, created_at")
+            .eq("status", "open")
+            .order("created_at", { ascending: false })
+            .limit(10)
+        : Promise.resolve({ data: [] as { id: string; event_type: string; summary: string; severity: string; created_at: string }[], error: null }),
     ]);
 
     const items: NotificationItem[] = [];

@@ -16,7 +16,6 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
-  MoreHorizontal,
   Send,
   Settings,
   ShieldCheck,
@@ -35,6 +34,7 @@ import type { NotificationItem } from "../reports/reporting";
 interface AdminTopNavProfile {
   name: string;
   roleName: string;
+  staffId: string;
 }
 
 interface AdminTopNavPageAccess {
@@ -181,7 +181,7 @@ export function AdminTopNav({
           <div className="flex shrink-0 items-center gap-3">
             <Link
               href="/admin/dashboard"
-              className="flex shrink-0 items-center gap-2.5 rounded-[var(--admin-radius-control)] outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              className="flex min-h-11 shrink-0 items-center gap-2.5 rounded-[var(--admin-radius-control)] outline-none focus-visible:ring-2 focus-visible:ring-white/60"
               aria-label="Rahma Therapy admin dashboard"
             >
               <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-white/16 ring-1 ring-inset ring-white/10">
@@ -254,7 +254,7 @@ export function AdminTopNav({
 
             {/* Notification bell (desktop ≥768px) */}
             <div className="hidden md:block">
-              <NotificationBell items={notifications} />
+              <NotificationBell items={notifications} staffId={profile.staffId} />
             </div>
 
             {/* User avatar menu (desktop ≥768px) */}
@@ -265,7 +265,7 @@ export function AdminTopNav({
             {/* Mobile (<768px): search icon + notification icon + hamburger */}
             <div className="flex items-center gap-0 md:hidden">
               <MobileSearch />
-              <MobileNotificationButton items={notifications} variant="icon" />
+              <MobileNotificationButton items={notifications} variant="icon" staffId={profile.staffId} />
               <MobileMenuButton
                 profile={profile}
                 items={accessibleItems}
@@ -357,7 +357,17 @@ function OverflowMenu({
         )}
       >
         More
-        <MoreHorizontal className="size-3.5" aria-hidden="true" />
+        {items.length > 0 ? (
+          <span className={cn(
+            "inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full px-1 text-[10px] font-semibold leading-none",
+            hasActive
+              ? "bg-[var(--admin-primary)]/15 text-[var(--admin-primary)]"
+              : "bg-white/15 text-white/80"
+          )}>
+            {items.length}
+          </span>
+        ) : null}
+        <ChevronDown className={cn("size-3 transition-transform duration-150", open && "rotate-180")} aria-hidden="true" />
       </button>
 
       {open ? (
@@ -637,7 +647,7 @@ function MobileMenuButton({
             <form action="/admin/signout" method="POST">
               <button
                 type="submit"
-                className="flex min-h-10 w-full items-center gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="flex min-h-10 w-full items-center gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 <LogOut className="size-4 shrink-0 text-[var(--admin-text-muted)]" aria-hidden="true" />
                 Sign out

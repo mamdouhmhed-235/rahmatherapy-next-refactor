@@ -27,7 +27,7 @@ export default async function AdminLayout({
             <form action="/admin/signout" method="POST">
               <button
                 type="submit"
-                className="inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-white px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 Sign out
               </button>
@@ -40,13 +40,15 @@ export default async function AdminLayout({
 
   const variant = resolveAdminShellVariant(profile) ?? "owner_admin";
 
-  const notifications = await getNavNotifications(profile.id);
+  // Pass full profile so getNavNotifications can filter by permission set
+  const notifications = await getNavNotifications(profile);
 
   return (
     <AdminTopNav
       profile={{
         name: profile.name,
         roleName: profile.role_name,
+        staffId: profile.id,
       }}
       variant={variant}
       notifications={notifications}
