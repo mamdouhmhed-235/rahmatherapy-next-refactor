@@ -255,7 +255,7 @@ export function LargeListSkeleton({
       {Array.from({ length: rows }).map((_, index) => (
         <div
           key={index}
-          className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white p-4 shadow-[var(--admin-shadow-subtle)]"
+          className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 shadow-[var(--admin-shadow-subtle)]"
         >
           <div className="flex gap-4">
             <AdminSkeleton className="size-10 rounded-full shrink-0" />

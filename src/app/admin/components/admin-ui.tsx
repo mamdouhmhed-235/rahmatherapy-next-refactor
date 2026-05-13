@@ -438,7 +438,7 @@ export function AdminSegmentedControl({
   return (
     <div
       className={cn(
-        "inline-flex h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white p-0.5",
+        "inline-flex h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-0.5",
         className
       )}
       role="group"
