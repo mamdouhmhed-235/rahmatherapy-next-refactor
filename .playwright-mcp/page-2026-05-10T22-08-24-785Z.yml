@@ -1,0 +1,33 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+        - generic [ref=e8]: Rahma Therapy
+      - button "Search" [ref=e10]:
+        - img [ref=e11]
+        - generic [ref=e14]: Search
+      - generic [ref=e15]:
+        - link "Reports" [ref=e16] [cursor=pointer]:
+          - /url: /admin/reports/
+          - img [ref=e17]
+          - text: Reports
+        - link "Calendar" [ref=e20] [cursor=pointer]:
+          - /url: /admin/calendar/
+          - img [ref=e21]
+          - text: Calendar
+        - link "Settings" [ref=e23] [cursor=pointer]:
+          - /url: /admin/settings/
+          - img [ref=e24]
+        - button "Test Admin" [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e33]: Test Admin
+          - img [ref=e34]
+  - main [ref=e36]:
+    - generic [ref=e40]:
+      - img [ref=e41]
+      - heading "Roles access limited" [level=1] [ref=e44]
+      - paragraph [ref=e45]: You need role management permission to access this page.
+      - code [ref=e46]: manage_role_templates

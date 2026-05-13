@@ -1,0 +1,43 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+      - /url: "#admin-main"
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+          - /url: /admin/dashboard/
+          - generic [ref=e8]: Rahma Therapy
+        - button "Search" [ref=e10]:
+          - img [ref=e11]
+          - generic [ref=e14]: Search
+        - generic [ref=e15]:
+          - link "Reports" [ref=e16] [cursor=pointer]:
+            - /url: /admin/reports/
+            - img [ref=e17]
+            - text: Reports
+          - link "Calendar" [ref=e20] [cursor=pointer]:
+            - /url: /admin/calendar/
+            - img [ref=e21]
+            - text: Calendar
+          - link "Settings" [ref=e23] [cursor=pointer]:
+            - /url: /admin/settings/
+            - img [ref=e24]
+          - button "Rahma Therapy" [ref=e28]:
+            - img [ref=e30]
+            - generic [ref=e33]: Rahma Therapy
+            - img [ref=e34]
+    - main [ref=e36]:
+      - generic [ref=e38]:
+        - generic [ref=e40]:
+          - heading "Email status" [level=1] [ref=e42]
+          - paragraph [ref=e43]: Review provider accepted/failed events and send manual reminders without storing private email bodies.
+        - generic [ref=e44]:
+          - generic [ref=e45]:
+            - generic [ref=e47]:
+              - heading "Manual reminder" [level=2] [ref=e48]
+              - paragraph [ref=e49]: Send the existing reminder template for an upcoming booking.
+            - paragraph [ref=e51]: No upcoming reminder candidates.
+          - generic [ref=e52]:
+            - heading "Delivery events" [level=2] [ref=e55]
+            - paragraph [ref=e57]: No email events logged yet.
+  - alert [ref=e58]

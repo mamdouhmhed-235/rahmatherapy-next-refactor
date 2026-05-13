@@ -1,0 +1,93 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+      - generic [ref=e8]:
+        - button "Search" [ref=e9]:
+          - img [ref=e10]
+        - button "Open admin navigation" [ref=e13]:
+          - img [ref=e14]
+  - main [ref=e15]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - heading "Roles & Permissions" [level=1] [ref=e19]
+        - paragraph [ref=e20]: Manage what each role can do across the admin.
+      - generic [ref=e21]:
+        - 'link "Owner / Main Admin DB role: Owner - system Full owner/main admin access. 36 permissions 2 staff" [ref=e22] [cursor=pointer]':
+          - /url: /admin/roles/2d5295c3-5d45-4c96-ab49-d5f87e0464b5/
+          - img [ref=e24]
+          - generic:
+            - paragraph: Owner / Main Admin
+            - paragraph: "DB role: Owner - system"
+            - paragraph: Full owner/main admin access.
+          - generic [ref=e27]:
+            - generic [ref=e28]:
+              - img [ref=e29]
+              - text: 36 permissions
+            - generic [ref=e32]:
+              - img [ref=e33]
+              - text: 2 staff
+            - img [ref=e38]
+        - 'link "Admin / Practice Manager DB role: Admin - system Practice manager access for daily operations. 29 permissions 2 staff" [ref=e40] [cursor=pointer]':
+          - /url: /admin/roles/9f746458-a342-49ae-8b24-ff1a9068f422/
+          - img [ref=e42]
+          - generic:
+            - paragraph: Admin / Practice Manager
+            - paragraph: "DB role: Admin - system"
+            - paragraph: Practice manager access for daily operations.
+          - generic [ref=e45]:
+            - generic [ref=e46]:
+              - img [ref=e47]
+              - text: 29 permissions
+            - generic [ref=e50]:
+              - img [ref=e51]
+              - text: 2 staff
+            - img [ref=e56]
+        - 'link "Client Care / Booking Coordinator DB role: Booking Coordinator - system Client care and booking coordination access. 11 permissions 2 staff" [ref=e58] [cursor=pointer]':
+          - /url: /admin/roles/0bd2abca-9522-405a-a53a-4f0a8af7eb49/
+          - img [ref=e60]
+          - generic:
+            - paragraph: Client Care / Booking Coordinator
+            - paragraph: "DB role: Booking Coordinator - system"
+            - paragraph: Client care and booking coordination access.
+          - generic [ref=e63]:
+            - generic [ref=e64]:
+              - img [ref=e65]
+              - text: 11 permissions
+            - generic [ref=e68]:
+              - img [ref=e69]
+              - text: 2 staff
+            - img [ref=e74]
+        - 'link "Therapist DB role: Therapist - system Therapist access for assigned bookings, own availability, clients, and own reports. 11 permissions 3 staff" [ref=e76] [cursor=pointer]':
+          - /url: /admin/roles/c30bd264-7f50-454d-9ba4-c393af0ce618/
+          - img [ref=e78]
+          - generic:
+            - paragraph: Therapist
+            - paragraph: "DB role: Therapist - system"
+            - paragraph: Therapist access for assigned bookings, own availability, clients, and own reports.
+          - generic [ref=e81]:
+            - generic [ref=e82]:
+              - img [ref=e83]
+              - text: 11 permissions
+            - generic [ref=e86]:
+              - img [ref=e87]
+              - text: 3 staff
+            - img [ref=e92]
+        - 'link "Inactive / Suspended DB role: Inactive - system Suspended staff role with no permissions. 0 permissions 2 staff" [ref=e94] [cursor=pointer]':
+          - /url: /admin/roles/ea0c5101-51c1-42d0-8395-abcfa5c19266/
+          - img [ref=e96]
+          - generic:
+            - paragraph: Inactive / Suspended
+            - paragraph: "DB role: Inactive - system"
+            - paragraph: Suspended staff role with no permissions.
+          - generic [ref=e99]:
+            - generic [ref=e100]:
+              - img [ref=e101]
+              - text: 0 permissions
+            - generic [ref=e104]:
+              - img [ref=e105]
+              - text: 2 staff
+            - img [ref=e110]

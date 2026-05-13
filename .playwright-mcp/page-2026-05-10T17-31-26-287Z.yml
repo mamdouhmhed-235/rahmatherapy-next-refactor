@@ -1,0 +1,77 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+      - /url: "#admin-main"
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+          - /url: /admin/dashboard/
+          - generic [ref=e8]: Rahma Therapy
+        - button "Search" [ref=e10]:
+          - img [ref=e11]
+          - generic [ref=e14]: Search
+        - generic [ref=e15]:
+          - link "Reports" [ref=e16] [cursor=pointer]:
+            - /url: /admin/reports/
+            - img [ref=e17]
+            - text: Reports
+          - link "Calendar" [ref=e20] [cursor=pointer]:
+            - /url: /admin/calendar/
+            - img [ref=e21]
+            - text: Calendar
+          - link "Settings" [ref=e23] [cursor=pointer]:
+            - /url: /admin/settings/
+            - img [ref=e24]
+          - button "Rahma Therapy" [ref=e28]:
+            - img [ref=e30]
+            - generic [ref=e33]: Rahma Therapy
+            - img [ref=e34]
+    - main [ref=e36]:
+      - generic [ref=e38]:
+        - link "Back to clients" [ref=e39] [cursor=pointer]:
+          - /url: /admin/clients/
+          - img [ref=e40]
+          - text: Back to clients
+        - generic [ref=e43]:
+          - heading "Create client" [level=1] [ref=e45]
+          - paragraph [ref=e46]: Create a CRM profile without creating a booking. Duplicate email or phone matches are flagged before save.
+        - generic [ref=e47]:
+          - generic [ref=e48]:
+            - heading "Client details" [level=2] [ref=e49]
+            - generic [ref=e50]:
+              - generic [ref=e51]:
+                - generic [ref=e52]: Full name
+                - textbox "Full name" [ref=e53]
+              - generic [ref=e54]:
+                - generic [ref=e55]: Source
+                - combobox "Source" [ref=e56]:
+                  - option "Website"
+                  - option "Phone"
+                  - option "WhatsApp"
+                  - option "Instagram"
+                  - option "Referral"
+                  - option "Manual" [selected]
+                  - option "Other"
+              - generic [ref=e57]:
+                - generic [ref=e58]: Email
+                - textbox "Email" [ref=e59]
+              - generic [ref=e60]:
+                - generic [ref=e61]: Phone
+                - textbox "Phone" [ref=e62]
+              - generic [ref=e63]:
+                - generic [ref=e64]: Address
+                - textbox "Address" [ref=e65]
+              - generic [ref=e66]:
+                - generic [ref=e67]: Postcode
+                - textbox "Postcode" [ref=e68]
+              - generic [ref=e69]:
+                - generic [ref=e70]: Source detail
+                - textbox "Source detail" [ref=e71]:
+                  - /placeholder: Referral name, campaign, or admin context
+          - generic [ref=e73]:
+            - generic [ref=e74]: Internal client notes
+            - textbox "Internal client notes" [ref=e75]
+          - button "Create client" [ref=e77]:
+            - img
+            - text: Create client
+  - alert [ref=e78]

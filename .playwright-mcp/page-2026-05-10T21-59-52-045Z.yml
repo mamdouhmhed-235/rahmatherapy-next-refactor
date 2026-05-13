@@ -1,0 +1,93 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+        - generic [ref=e8]: Rahma Therapy
+      - button "Search" [ref=e10]:
+        - img [ref=e11]
+        - generic [ref=e14]: Search
+      - generic [ref=e15]:
+        - link "Reports" [ref=e16] [cursor=pointer]:
+          - /url: /admin/reports/
+          - img [ref=e17]
+          - text: Reports
+        - link "Calendar" [ref=e20] [cursor=pointer]:
+          - /url: /admin/calendar/
+          - img [ref=e21]
+          - text: Calendar
+        - link "Settings" [ref=e23] [cursor=pointer]:
+          - /url: /admin/settings/
+          - img [ref=e24]
+        - button "Rahma Therapy" [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e33]: Rahma Therapy
+          - img [ref=e34]
+  - main [ref=e36]:
+    - generic [ref=e38]:
+      - link "Phase10 ADMIN Profile" [ref=e40] [cursor=pointer]:
+        - /url: /admin/staff/1f4f7581-9b26-4c1f-bd50-364b4924a3a0/
+        - img [ref=e41]
+        - text: Phase10 ADMIN Profile
+      - generic [ref=e43]:
+        - generic [ref=e45]:
+          - img [ref=e47]
+          - generic [ref=e50]:
+            - heading "Phase10 ADMIN" [level=1] [ref=e51]
+            - paragraph [ref=e52]:
+              - img [ref=e53]
+              - text: Availability Management
+        - navigation [ref=e57]:
+          - link "Profile Settings" [ref=e58] [cursor=pointer]:
+            - /url: /admin/staff/1f4f7581-9b26-4c1f-bd50-364b4924a3a0/
+          - link "Availability" [ref=e59] [cursor=pointer]:
+            - /url: /admin/staff/1f4f7581-9b26-4c1f-bd50-364b4924a3a0/availability/
+      - generic [ref=e61]:
+        - heading "Availability Mode" [level=3] [ref=e63]:
+          - img [ref=e64]
+          - text: Availability Mode
+        - generic [ref=e67]:
+          - generic [ref=e68]:
+            - button "Use Global Schedule Follow the practice-wide working hours and holidays. Ideal for regular part-time or full-time staff." [ref=e69]:
+              - img [ref=e71]
+              - generic [ref=e74]:
+                - paragraph [ref=e75]: Use Global Schedule
+                - img [ref=e76]
+              - paragraph [ref=e79]: Follow the practice-wide working hours and holidays. Ideal for regular part-time or full-time staff.
+            - button "Strictly Custom Override all global rules with a unique schedule. Best for contractors or visiting therapists." [ref=e80]:
+              - img [ref=e82]
+              - paragraph [ref=e87]: Strictly Custom
+              - paragraph [ref=e88]: Override all global rules with a unique schedule. Best for contractors or visiting therapists.
+            - button "Global with Overrides Base availability on global rules, but allow specific custom shifts or block-outs." [ref=e89]:
+              - img [ref=e91]
+              - paragraph [ref=e94]: Global with Overrides
+              - paragraph [ref=e95]: Base availability on global rules, but allow specific custom shifts or block-outs.
+          - generic [ref=e96]:
+            - heading "Current Active Logic" [level=4] [ref=e97]
+            - paragraph [ref=e101]: Currently pulling 08:00 - 20:00 schedule from Global Settings.
+      - generic [ref=e103]:
+        - heading "Schedule Rules" [level=3] [ref=e105]:
+          - img [ref=e106]
+          - text: Schedule Rules
+        - generic [ref=e108]:
+          - generic [ref=e109]:
+            - generic [ref=e110]:
+              - generic [ref=e111]: Day
+              - combobox "Day" [ref=e112]:
+                - option "Sunday"
+                - option "Monday" [selected]
+                - option "Tuesday"
+                - option "Wednesday"
+                - option "Thursday"
+                - option "Friday"
+                - option "Saturday"
+            - generic [ref=e113]:
+              - generic [ref=e114]: Start
+              - textbox "Start" [ref=e115]: 09:00
+            - generic [ref=e116]:
+              - generic [ref=e117]: End
+              - textbox "End" [ref=e118]: 17:00
+            - button "Add Rule" [ref=e119]
+          - paragraph [ref=e121]: No personal schedule rules yet.

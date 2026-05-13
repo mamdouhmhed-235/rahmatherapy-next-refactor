@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-11T00:00:00Z",
+  "title": "Design System: Rahma Admin",
+  "extensions": {
+    "colorMeta": {
+      "surface-page":      { "role": "neutral",    "displayName": "Clinic Canvas",      "canonical": "oklch(97.8% 0.006 88)",  "tonalRamp": ["oklch(15% 0.006 88)", "oklch(28% 0.006 88)", "oklch(42% 0.006 88)", "oklch(56% 0.006 88)", "oklch(70% 0.006 88)", "oklch(82% 0.006 88)", "oklch(91% 0.006 88)", "oklch(97.8% 0.006 88)"] },
+      "surface-card":      { "role": "neutral",    "displayName": "Practice Panel",     "canonical": "oklch(99.2% 0.004 88)",  "tonalRamp": ["oklch(15% 0.004 88)", "oklch(30% 0.004 88)", "oklch(45% 0.004 88)", "oklch(60% 0.004 88)", "oklch(74% 0.004 88)", "oklch(85% 0.004 88)", "oklch(93% 0.004 88)", "oklch(99.2% 0.004 88)"] },
+      "action-primary":    { "role": "primary",    "displayName": "Clinic Green",       "canonical": "oklch(23% 0.073 155)",   "tonalRamp": ["oklch(10% 0.073 155)", "oklch(17% 0.073 155)", "oklch(23% 0.073 155)", "oklch(33% 0.073 155)", "oklch(45% 0.060 155)", "oklch(60% 0.045 155)", "oklch(78% 0.028 155)", "oklch(93.5% 0.038 155)"] },
+      "accent-gold":       { "role": "secondary",  "displayName": "Rahma Gold",         "canonical": "oklch(75% 0.155 72)",    "tonalRamp": ["oklch(25% 0.12 72)", "oklch(36% 0.13 72)", "oklch(47% 0.14 72)", "oklch(58% 0.15 72)", "oklch(69% 0.142 72)", "oklch(75% 0.155 72)", "oklch(87% 0.09 72)", "oklch(96% 0.038 75)"] },
+      "border-focus":      { "role": "focus",      "displayName": "Focus Azure",        "canonical": "oklch(47% 0.095 230)",   "tonalRamp": ["oklch(18% 0.095 230)", "oklch(28% 0.095 230)", "oklch(35% 0.095 230)", "oklch(47% 0.095 230)", "oklch(60% 0.075 230)", "oklch(74% 0.055 230)", "oklch(87% 0.035 230)", "oklch(94% 0.020 230)"] },
+      "text-primary":      { "role": "neutral",    "displayName": "Chronicle",          "canonical": "oklch(11% 0.014 155)",   "tonalRamp": ["oklch(11% 0.014 155)", "oklch(20% 0.013 155)", "oklch(30% 0.012 155)", "oklch(42% 0.010 150)", "oklch(55% 0.008 148)", "oklch(68% 0.006 145)", "oklch(82% 0.005 140)", "oklch(95% 0.004 130)"] },
+      "status-confirmed-bg":  { "role": "status",  "displayName": "Confirmed Background",  "canonical": "oklch(93.5% 0.038 155)", "tonalRamp": [] },
+      "status-pending-bg":    { "role": "status",  "displayName": "Pending Background",    "canonical": "oklch(96.0% 0.038 75)",  "tonalRamp": [] },
+      "status-cancelled-bg":  { "role": "status",  "displayName": "Cancelled Background",  "canonical": "oklch(95.5% 0.028 20)",  "tonalRamp": [] },
+      "status-completed-bg":  { "role": "status",  "displayName": "Completed Background",  "canonical": "oklch(94.0% 0.030 200)", "tonalRamp": [] },
+      "status-attention-bg":  { "role": "status",  "displayName": "Attention Background",  "canonical": "oklch(95.0% 0.050 65)",  "tonalRamp": [] },
+      "status-restricted-bg": { "role": "status",  "displayName": "Restricted Background", "canonical": "oklch(94.0% 0.008 280)", "tonalRamp": [] }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",        "purpose": "Page titles (H1). One per page view." },
+      "heading":  { "displayName": "Heading",        "purpose": "Section headers (H2), AdminPanel titles." },
+      "title":    { "displayName": "Title",          "purpose": "Card headings (H3), client/booking names in cards." },
+      "body":     { "displayName": "Body",           "purpose": "Body copy, form values, card detail lines. Max 65-75ch." },
+      "label":    { "displayName": "Label",          "purpose": "Field labels, badge text, metadata, timestamps, nav items." },
+      "numeral":  { "displayName": "Numeral Accent", "purpose": "Dashboard KPI numerals and stat tiles ONLY. Cormorant Garamond. No other use." },
+      "mono":     { "displayName": "Mono",           "purpose": "Booking IDs, audit entries, payment references." }
+    },
+    "shadows": [
+      { "name": "card-hover",  "value": "0 2px 8px oklch(23% 0.073 155 / 0.08)",                                                      "purpose": "Interactive card or booking row on hover. Not applied at rest." },
+      { "name": "overlay",     "value": "0 8px 24px oklch(23% 0.073 155 / 0.12), 0 1px 4px oklch(23% 0.073 155 / 0.06)",              "purpose": "Modal (Dialog), AdminSheet, popover elevation." },
+      { "name": "focus-ring",  "value": "0 0 0 3px oklch(47% 0.095 230 / 0.55)",                                                      "purpose": "Keyboard focus indicator on all interactive elements. Blue, not green." }
+    ],
+    "motion": [
+      { "name": "duration-fast",   "value": "160ms", "purpose": "Icon swaps, badge colour changes, focus ring appearance." },
+      { "name": "duration-normal", "value": "240ms", "purpose": "Panel expand/collapse, card hover shadow, button state." },
+      { "name": "duration-slow",   "value": "360ms", "purpose": "Sheet slide-in/out, modal open/close." },
+      { "name": "ease-gentle",     "value": "cubic-bezier(0.16, 1, 0.3, 1)",  "purpose": "Standard ease-out-expo for state transitions. No bounce." },
+      { "name": "ease-snappy",     "value": "cubic-bezier(0.4, 0, 0.2, 1)",   "purpose": "Quick directional transitions (list reorder, dismiss)." }
+    ],
+    "breakpoints": [
+      { "name": "mobile",  "value": "375px",  "purpose": "Base mobile — Therapist phone triage context." },
+      { "name": "sm",      "value": "640px",  "purpose": "Larger phones / small tablets." },
+      { "name": "md",      "value": "768px",  "purpose": "Nav collapses to AdminSheet below this." },
+      { "name": "lg",      "value": "1024px", "purpose": "Desktop clinic office context." },
+      { "name": "xl",      "value": "1280px", "purpose": "Wide desktop; Owner full dashboard view." },
+      { "name": "2xl",     "value": "1440px", "purpose": "Baseline screenshot viewport (Phase 2 recon)." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Primary call-to-action. Clinic Green fill, Field White text. Focus Azure ring on keyboard nav.",
+      "html": "<button class=\"ds-btn-primary\">Confirm booking</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; background: oklch(23% 0.073 155); color: oklch(99.5% 0.003 88); font-family: 'Work Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em; line-height: 1.4; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary:hover { background: oklch(18% 0.068 155); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(47% 0.095 230 / 0.55); } .ds-btn-primary:active { background: oklch(15% 0.065 155); } .ds-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Secondary action. Bordered, transparent fill. Hover gets Hover Moss tint.",
+      "html": "<button class=\"ds-btn-secondary\">View details</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: oklch(23% 0.010 143); font-family: 'Work Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em; line-height: 1.4; padding: 10px 20px; border: 1px solid oklch(55% 0.022 80); border-radius: 6px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-secondary:hover { background: oklch(95.5% 0.012 155); } .ds-btn-secondary:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(47% 0.095 230 / 0.55); } .ds-btn-secondary:active { background: oklch(92.0% 0.022 155); } .ds-btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Destructive Button",
+      "kind": "button",
+      "refersTo": "button-destructive",
+      "description": "Confirmed destructive actions only (cancel booking, deactivate staff). Deep red fill.",
+      "html": "<button class=\"ds-btn-destructive\">Cancel booking</button>",
+      "css": ".ds-btn-destructive { display: inline-flex; align-items: center; gap: 6px; background: oklch(40% 0.14 25); color: oklch(99.5% 0.003 88); font-family: 'Work Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em; line-height: 1.4; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; transition: background 160ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-destructive:hover { background: oklch(33% 0.14 25); } .ds-btn-destructive:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(47% 0.095 230 / 0.55); } .ds-btn-destructive:disabled { opacity: 0.4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Form Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Standard text input. Form Seam border (3.6:1 WCAG). Focus Azure ring. Error state with role=alert.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field-label\" for=\"ds-input-example\">Booking date <span aria-hidden=\"true\" class=\"ds-required\">*</span></label><input class=\"ds-input\" id=\"ds-input-example\" type=\"text\" placeholder=\"DD / MM / YYYY\" required /></div>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 6px; } .ds-field-label { font-family: 'Work Sans', system-ui, sans-serif; font-size: 1rem; font-weight: 500; color: oklch(11% 0.014 155); line-height: 1.4; } .ds-required { color: oklch(26% 0.140 25); margin-left: 2px; } .ds-input { background: oklch(98.5% 0.005 88); color: oklch(23% 0.010 143); font-family: 'Work Sans', system-ui, sans-serif; font-size: 1rem; font-weight: 400; line-height: 1.6; padding: 10px 14px; border: 1px solid oklch(55% 0.022 80); border-radius: 6px; width: 100%; transition: border-color 160ms cubic-bezier(0.16,1,0.3,1); } .ds-input::placeholder { color: oklch(42% 0.008 143); } .ds-input:focus-visible { outline: none; border-color: oklch(47% 0.095 230); box-shadow: 0 0 0 3px oklch(47% 0.095 230 / 0.55); } .ds-input:disabled { opacity: 0.6; cursor: not-allowed; } .ds-input[aria-invalid='true'] { border-color: oklch(26% 0.140 25); }"
+    },
+    {
+      "name": "Status Badge — Confirmed",
+      "kind": "chip",
+      "refersTo": "badge-confirmed",
+      "description": "Rounded pill. Icon + text always paired. Confirmed/Active family (green). Never colour-only.",
+      "html": "<span class=\"ds-badge ds-badge--confirmed\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><polyline points=\"22 4 12 14.01 9 11.01\"/></svg>Confirmed</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; gap: 5px; font-family: 'Work Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.01em; line-height: 1.4; padding: 3px 10px; border-radius: 9999px; white-space: nowrap; } .ds-badge--confirmed { background: oklch(93.5% 0.038 155); color: oklch(22% 0.085 155); } .ds-badge--pending { background: oklch(96.0% 0.038 75); color: oklch(28% 0.120 55); } .ds-badge--cancelled { background: oklch(95.5% 0.028 20); color: oklch(26% 0.140 25); } .ds-badge--completed { background: oklch(94.0% 0.030 200); color: oklch(28% 0.095 200); } .ds-badge--attention { background: oklch(95.0% 0.050 65); color: oklch(26% 0.130 55); } .ds-badge--restricted { background: oklch(94.0% 0.008 280); color: oklch(30% 0.020 280); }"
+    },
+    {
+      "name": "Admin Panel",
+      "kind": "card",
+      "refersTo": "admin-panel",
+      "description": "Core content wrapper. Practice Panel surface, Warm Veil border. No resting shadow. Hover shadow only when panel is interactive.",
+      "html": "<section class=\"ds-panel\"><h2 class=\"ds-panel-title\">Today's bookings</h2><p class=\"ds-panel-body\">Panel content goes here.</p></section>",
+      "css": ".ds-panel { background: oklch(99.2% 0.004 88); border: 1px solid oklch(89% 0.014 78); border-radius: 8px; padding: 20px; transition: box-shadow 240ms cubic-bezier(0.16,1,0.3,1); } .ds-panel-title { font-family: 'Urbanist', system-ui, sans-serif; font-size: 1.778rem; font-weight: 600; letter-spacing: -0.015em; line-height: 1.25; color: oklch(11% 0.014 155); margin: 0 0 12px; } .ds-panel-body { font-family: 'Work Sans', system-ui, sans-serif; font-size: 1rem; font-weight: 400; line-height: 1.6; color: oklch(23% 0.010 143); margin: 0; } a.ds-panel:hover, button.ds-panel:hover { box-shadow: 0 2px 8px oklch(23% 0.073 155 / 0.08); }"
+    },
+    {
+      "name": "Stat Tile",
+      "kind": "card",
+      "refersTo": "admin-stat",
+      "description": "Dashboard KPI tile. Cormorant Garamond numeral. Work Sans label. No hero-metric stacking, no gradient.",
+      "html": "<div class=\"ds-stat\"><span class=\"ds-stat-label\">Bookings today</span><span class=\"ds-stat-numeral\">14</span><span class=\"ds-stat-trend ds-stat-trend--up\"><svg width=\"12\" height=\"12\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" aria-hidden=\"true\"><polyline points=\"23 6 13.5 15.5 8.5 10.5 1 18\"/><polyline points=\"17 6 23 6 23 12\"/></svg>+3 vs last week</span></div>",
+      "css": ".ds-stat { background: oklch(99.2% 0.004 88); border: 1px solid oklch(89% 0.014 78); border-radius: 8px; padding: 20px 24px; display: flex; flex-direction: column; gap: 4px; } .ds-stat-label { font-family: 'Work Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.01em; color: oklch(42% 0.008 143); line-height: 1.4; } .ds-stat-numeral { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 3.157rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: oklch(11% 0.014 155); } .ds-stat-trend { display: inline-flex; align-items: center; gap: 4px; font-family: 'Work Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 400; color: oklch(42% 0.008 143); line-height: 1.4; } .ds-stat-trend--up { color: oklch(22% 0.085 155); } .ds-stat-trend--down { color: oklch(26% 0.140 25); }"
+    },
+    {
+      "name": "Booking List Card",
+      "kind": "card",
+      "refersTo": "admin-panel",
+      "description": "Signature component. Full-border, avatar + status + gender-match chip. No border-l-4 under any circumstance.",
+      "html": "<article class=\"ds-booking-card\"><div class=\"ds-booking-card__header\"><div class=\"ds-booking-card__avatar\" aria-hidden=\"true\">SF</div><div class=\"ds-booking-card__identity\"><span class=\"ds-booking-card__name\">Amira Hassan</span><span class=\"ds-booking-card__service\">Hijama — 60 min &middot; Tue 13 May, 10:00 am</span></div><span class=\"ds-badge ds-badge--confirmed\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><polyline points=\"22 4 12 14.01 9 11.01\"/></svg>Confirmed</span></div><div class=\"ds-booking-card__footer\"><span class=\"ds-badge ds-badge--restricted\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><rect x=\"3\" y=\"11\" width=\"18\" height=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/></svg>Same-gender required</span><span class=\"ds-badge ds-badge--attention\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"12\" y1=\"8\" x2=\"12\" y2=\"12\"/><line x1=\"12\" y1=\"16\" x2=\"12.01\" y2=\"16\"/></svg>Payment pending</span></div></article>",
+      "css": ".ds-booking-card { background: oklch(99.2% 0.004 88); border: 1px solid oklch(89% 0.014 78); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; transition: box-shadow 240ms cubic-bezier(0.16,1,0.3,1); cursor: pointer; } .ds-booking-card:hover { box-shadow: 0 2px 8px oklch(23% 0.073 155 / 0.08); } .ds-booking-card:focus-visible { outline: none; box-shadow: 0 0 0 3px oklch(47% 0.095 230 / 0.55); } .ds-booking-card__header { display: flex; align-items: flex-start; gap: 10px; } .ds-booking-card__avatar { width: 32px; height: 32px; border-radius: 9999px; background: oklch(95.5% 0.012 155); color: oklch(23% 0.073 155); font-family: 'Work Sans', system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; } .ds-booking-card__identity { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; } .ds-booking-card__name { font-family: 'Urbanist', system-ui, sans-serif; font-size: 1.333rem; font-weight: 600; letter-spacing: -0.01em; color: oklch(11% 0.014 155); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-booking-card__service { font-family: 'Work Sans', system-ui, sans-serif; font-size: 1rem; font-weight: 400; color: oklch(23% 0.010 143); line-height: 1.6; } .ds-booking-card__footer { display: flex; flex-wrap: wrap; gap: 6px; }"
+    },
+    {
+      "name": "Empty State",
+      "kind": "custom",
+      "refersTo": "admin-panel",
+      "description": "Dignified illustrated empty state. No dashed borders. Encouraging copy. Optional CTA.",
+      "html": "<div class=\"ds-empty\"><div class=\"ds-empty__illustration\" aria-hidden=\"true\"><svg width=\"80\" height=\"80\" viewBox=\"0 0 80 80\" fill=\"none\"><circle cx=\"40\" cy=\"40\" r=\"36\" fill=\"oklch(93.5% 0.038 155)\"/><path d=\"M28 42l8 8 16-18\" stroke=\"oklch(22% 0.085 155)\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></div><h2 class=\"ds-empty__heading\">All caught up</h2><p class=\"ds-empty__body\">No bookings need attention right now. Check back when a new request comes in.</p><button class=\"ds-btn-secondary\">View all bookings</button></div>",
+      "css": ".ds-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px; padding: 48px 24px; max-width: 360px; margin: 0 auto; } .ds-empty__illustration { display: flex; align-items: center; justify-content: center; } .ds-empty__heading { font-family: 'Urbanist', system-ui, sans-serif; font-size: 1.333rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.35; color: oklch(11% 0.014 155); margin: 0; } .ds-empty__body { font-family: 'Work Sans', system-ui, sans-serif; font-size: 1rem; font-weight: 400; line-height: 1.6; color: oklch(42% 0.008 143); margin: 0; max-width: 45ch; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Practitioner's Board",
+    "overview": "Rahma Admin is the morning briefing book of a well-run mobile hijama clinic: every booking's status is named and coloured, every assignment shows the therapist's face, and today's work is legible before the first coffee. The grammar is card-board (the team already uses monday.com and its muscle memory is an asset, not a liability), but the palette, typography, and clinic-specific affordances make it unmistakably Rahma rather than a generic project tool. Warm ivory surfaces, deep clinic green chrome, Cormorant Garamond on marquee numerals, and dignified illustrated empty states define a surface that is calm and scannable at Therapist level, revealing depth for the Owner without becoming cluttered.",
+    "keyCharacteristics": [
+      "Warm ivory surface system: page, card, input — three distinct lightness steps; depth via tonal lift, not shadow",
+      "Full status palette: six named families, each with bg tint + text + icon — never colour alone",
+      "Cormorant Garamond reserved strictly for marquee numerals on dashboard stat tiles",
+      "Staff avatars (real photo or initialled token) on every assignment and staff surface",
+      "Dignified illustrated empty states — no dashed borders, no bare 0-items copy",
+      "Flat elevation at rest; tonal lift via surface lightness; shadows only in response to interaction",
+      "Comfortable density: 16px body base, 24-32px section rhythm, mobile-first throughout"
+    ],
+    "rules": [
+      { "name": "The No-Gold-Text Rule",    "body": "Both gold tokens (Rahma Gold and Admin Amber) fail WCAG 3:1 on any ivory surface. Gold is decoration: stat numerals, icon fills, chart colours. Never use as body text, label text, or status text on light backgrounds.",      "section": "colors" },
+      { "name": "The Form Seam Rule",       "body": "Input and interactive component borders use Form Seam (oklch 55%), not Warm Veil. Warm Veil is intentionally decorative and does not meet WCAG 1.4.11 Non-text Contrast.",                                                   "section": "colors" },
+      { "name": "The Named Status Rule",    "body": "A status badge without both a text label and an icon is incomplete and must not ship. Colour-only chips are an absolute ban. The icon supports scanning; the text carries the accessible meaning.",                          "section": "colors" },
+      { "name": "The Cormorant Exception",  "body": "Cormorant Garamond appears on numbers and only on numbers — marquee stats and KPI tiles. Body copy, card titles, or form labels in Cormorant is decoration noise. Preserve its rarity.",                                 "section": "typography" },
+      { "name": "The Tonal Lift Rule",      "body": "A resting card has no shadow. Its elevation comes from being lighter than the page (oklch 99.2% vs 97.8%). Shadows appear only in response to interaction state: hover, overlay open, focus ring.",                       "section": "elevation" },
+      { "name": "The Green-Tinted Shadow Rule", "body": "All shadows use the brand green oklch(23% 0.073 155) at low opacity, never rgba(0,0,0,X). This prevents shadows reading as generic and keeps them perceptually warm.",                                                "section": "elevation" }
+    ],
+    "dos": [
+      "Do vary card composition by content type — BookingListCard is horizontal with avatar + badge; AdminStat is vertical with numeral; ClientCard is avatar-led with rollup stats.",
+      "Do include staff avatars (real photo or initialled token, minimum 32px) on every assignment and staff surface.",
+      "Do name every status with text label + icon + background tint.",
+      "Do reserve Cormorant Garamond for marquee numerals and KPI stats only.",
+      "Do keep gender-matching legible as a labelled chip ('Same-gender required') on booking and assignment cards.",
+      "Do use dignified illustrated empty states with an SVG illustration, Urbanist heading, and encouraging copy.",
+      "Do wrap all form-level error regions in role='alert' aria-live='polite' aria-atomic='true'.",
+      "Do mark required form fields with a visible * marker in Cancelled text colour adjacent to every required label.",
+      "Do tint all shadows toward the brand green oklch(23% 0.073 155), never rgba(0,0,0,X).",
+      "Do use Form Seam (oklch 55%) for input and interactive component borders."
+    ],
+    "donts": [
+      "Don't use border-l-4 or any border-left/border-right greater than 1px as a coloured accent on any element. Absolute ban.",
+      "Don't use gradient text (background-clip: text combined with gradient fill). Absolute ban.",
+      "Don't use Rahma Gold or Admin Amber as body text or label text on any light surface.",
+      "Don't use the hero-metric template: large number / small label / supporting stats / gradient accent stacked decoratively.",
+      "Don't use identical card grids — same shape with icon + heading + text repeated without variation.",
+      "Don't use decorative blobs, glassmorphism, or background blur as a stylistic default.",
+      "Don't use purple-and-blue gradients, neon accents, or a dark theme justified by aesthetics.",
+      "Don't ship shadcn primitives with default styling — every primitive must be restyled to the Rahma token system.",
+      "Don't build a pure-typography admin stripped of avatars and illustration — warmth and visuals are design requirements.",
+      "Don't use colour-only status signalling.",
+      "Don't expose raw permission identifiers on access-denied screens — use plain English.",
+      "Don't add shadows to panels or cards at rest — shadows are state responses only."
+    ]
+  }
+}

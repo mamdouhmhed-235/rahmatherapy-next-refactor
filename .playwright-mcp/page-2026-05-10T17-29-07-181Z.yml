@@ -1,0 +1,18 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - img [ref=e6]
+    - heading "Rahma Therapy" [level=1] [ref=e9]
+    - paragraph [ref=e10]: Admin & Staff Portal
+  - generic [ref=e11]:
+    - heading "Sign in to your account" [level=2] [ref=e12]
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]: Email address
+        - textbox "Email address" [ref=e16]:
+          - /placeholder: you@rahmatherapy.co.uk
+      - generic [ref=e17]:
+        - generic [ref=e18]: Password
+        - textbox "Password" [ref=e19]:
+          - /placeholder: ••••••••
+      - button "Sign in" [ref=e20]
+  - paragraph [ref=e21]: Staff access only. Contact your administrator if you need help.

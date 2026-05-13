@@ -1,0 +1,170 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+        - generic [ref=e8]: Rahma Therapy
+      - button "Search" [ref=e10]:
+        - img [ref=e11]
+        - generic [ref=e14]: Search
+      - generic [ref=e15]:
+        - link "Reports" [ref=e16] [cursor=pointer]:
+          - /url: /admin/reports/
+          - img [ref=e17]
+          - text: Reports
+        - link "Calendar" [ref=e20] [cursor=pointer]:
+          - /url: /admin/calendar/
+          - img [ref=e21]
+          - text: Calendar
+        - link "Settings" [ref=e23] [cursor=pointer]:
+          - /url: /admin/settings/
+          - img [ref=e24]
+        - button "Rahma Therapy" [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e33]: Rahma Therapy
+          - img [ref=e34]
+  - main [ref=e36]:
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - link "Back to clients" [ref=e40] [cursor=pointer]:
+          - /url: /admin/clients/
+          - img [ref=e41]
+          - text: Back to clients
+        - generic [ref=e43]:
+          - generic [ref=e44]:
+            - heading "Phase10 E2E Claim Client" [level=1] [ref=e45]
+            - paragraph [ref=e46]: Client since 10 May 2026, 18:55
+          - generic [ref=e47]:
+            - link "Create booking" [ref=e48] [cursor=pointer]:
+              - /url: /admin/bookings/new/?clientId=0f38df55-c0e0-4528-a7d3-a90a48a67919
+              - img
+              - text: Create booking
+            - generic [ref=e49]: manual
+            - generic [ref=e50]: 1 booking
+      - generic [ref=e51]:
+        - complementary [ref=e52]:
+          - generic [ref=e53]:
+            - heading "Contact" [level=2] [ref=e54]:
+              - img [ref=e55]
+              - text: Contact
+            - generic [ref=e59]:
+              - paragraph [ref=e60]:
+                - img [ref=e61]
+                - text: "07123456789"
+              - paragraph [ref=e63]:
+                - img [ref=e64]
+                - text: phase10.claim.client@example.test
+              - generic [ref=e67]:
+                - img [ref=e68]
+                - generic [ref=e71]:
+                  - paragraph [ref=e72]: 10 Phase Street
+                  - paragraph [ref=e73]: LU1 1AA
+              - generic [ref=e74]:
+                - term [ref=e75]: Source
+                - definition [ref=e76]: manual
+              - generic [ref=e77]:
+                - term [ref=e78]: Source detail
+                - definition [ref=e79]: phase10_e2e
+          - generic [ref=e80]:
+            - heading "Client Summary" [level=2] [ref=e81]:
+              - img [ref=e82]
+              - text: Client Summary
+            - generic [ref=e85]:
+              - generic [ref=e86]:
+                - term [ref=e87]: Total bookings
+                - definition [ref=e88]: "1"
+              - generic [ref=e89]:
+                - term [ref=e90]: Upcoming
+                - definition [ref=e91]: "1"
+              - generic [ref=e92]:
+                - term [ref=e93]: Completed
+                - definition [ref=e94]: "0"
+              - generic [ref=e95]:
+                - term [ref=e96]: Repeat client
+                - definition [ref=e97]: "No"
+              - generic [ref=e98]:
+                - term [ref=e99]: Total spend
+                - definition [ref=e100]: £0.00
+              - generic [ref=e101]:
+                - term [ref=e102]: Last visit
+                - definition [ref=e103]: None
+              - generic [ref=e104]:
+                - term [ref=e105]: Common services
+                - definition [ref=e106]: Hijama Package
+          - generic [ref=e107]:
+            - heading "Health and safety context" [level=2] [ref=e108]:
+              - img [ref=e109]
+              - text: Health and safety context
+            - generic [ref=e112]:
+              - generic [ref=e113]:
+                - paragraph [ref=e114]: Booking health note
+                - paragraph [ref=e115]: Phase10 safe test health note
+              - generic [ref=e116]:
+                - paragraph [ref=e117]: Phase10 Claim Participant
+                - paragraph [ref=e118]: Phase10 safe participant health note
+          - generic [ref=e119]:
+            - heading "Client Notes" [level=2] [ref=e120]:
+              - img [ref=e121]
+              - text: Client Notes
+            - paragraph [ref=e124]: phase10_e2e
+            - generic [ref=e126]:
+              - generic [ref=e127]:
+                - generic [ref=e128]: Add sensitive client note
+                - textbox "Add sensitive client note" [ref=e129]
+              - button "Add note" [ref=e130]:
+                - img
+                - text: Add note
+          - generic [ref=e131]:
+            - heading "Privacy workflow" [level=2] [ref=e132]:
+              - img [ref=e133]
+              - text: Privacy workflow
+            - generic [ref=e136]:
+              - generic [ref=e137]:
+                - generic [ref=e138]: Privacy workflow
+                - combobox "Privacy workflow" [ref=e139]:
+                  - option "Data export request" [selected]
+                  - option "Correction request"
+                  - option "Deletion request review"
+                  - option "Sensitive note review"
+              - generic [ref=e140]:
+                - generic [ref=e141]: Request note
+                - textbox "Request note" [ref=e142]
+              - button "Record request" [ref=e143]:
+                - img
+                - text: Record request
+            - generic [ref=e145]:
+              - generic [ref=e146]:
+                - paragraph [ref=e147]: data export
+                - paragraph [ref=e148]: 10 May 2026, 18:55
+              - generic [ref=e149]: open
+          - generic [ref=e150]:
+            - heading "Recent audit activity" [level=2] [ref=e151]:
+              - img [ref=e152]
+              - text: Recent audit activity
+            - paragraph [ref=e155]: No recent client audit activity.
+        - generic [ref=e156]:
+          - generic [ref=e157]:
+            - heading "Booking History" [level=2] [ref=e158]
+            - paragraph [ref=e159]: Booking-specific snapshots connected to this client.
+          - generic [ref=e160]:
+            - generic [ref=e161]:
+              - heading "Upcoming bookings" [level=3] [ref=e162]
+              - 'link "pending unassigned 24 May 2026 at 10:00 Hijama Package Snapshot: Phase10 E2E Claim Client - phase10.claim.client@example.test - 07123456789 10 Phase Street Luton LU1 1AA £45.00 unpaid" [ref=e164] [cursor=pointer]':
+                - /url: /admin/bookings/1d503d3b-b1dc-455c-8007-43c5ed1358b8/
+                - generic [ref=e165]:
+                  - generic [ref=e166]:
+                    - generic [ref=e167]:
+                      - generic [ref=e168]: pending
+                      - generic [ref=e169]: unassigned
+                    - paragraph [ref=e170]: 24 May 2026 at 10:00
+                    - paragraph [ref=e171]: Hijama Package
+                    - paragraph [ref=e172]: "Snapshot: Phase10 E2E Claim Client - phase10.claim.client@example.test - 07123456789"
+                    - paragraph [ref=e173]: 10 Phase Street Luton LU1 1AA
+                  - generic [ref=e174]:
+                    - paragraph [ref=e175]: £45.00
+                    - paragraph [ref=e176]: unpaid
+            - generic [ref=e177]:
+              - heading "Past bookings" [level=3] [ref=e178]
+              - paragraph [ref=e179]: No past bookings.

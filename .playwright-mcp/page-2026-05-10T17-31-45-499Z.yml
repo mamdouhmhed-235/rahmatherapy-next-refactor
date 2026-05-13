@@ -1,0 +1,79 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+      - /url: "#admin-main"
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+          - /url: /admin/dashboard/
+          - generic [ref=e8]: Rahma Therapy
+        - button "Search" [ref=e10]:
+          - img [ref=e11]
+          - generic [ref=e14]: Search
+        - generic [ref=e15]:
+          - link "Reports" [ref=e16] [cursor=pointer]:
+            - /url: /admin/reports/
+            - img [ref=e17]
+            - text: Reports
+          - link "Calendar" [ref=e20] [cursor=pointer]:
+            - /url: /admin/calendar/
+            - img [ref=e21]
+            - text: Calendar
+          - link "Settings" [ref=e23] [cursor=pointer]:
+            - /url: /admin/settings/
+            - img [ref=e24]
+          - button "Rahma Therapy" [ref=e28]:
+            - img [ref=e30]
+            - generic [ref=e33]: Rahma Therapy
+            - img [ref=e34]
+    - main [ref=e36]:
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]:
+            - heading "Enquiries" [level=1] [ref=e42]
+            - paragraph [ref=e43]: Track phone, WhatsApp, Instagram, referral, and website leads before they become bookings.
+          - generic [ref=e45]: 0 new
+        - generic [ref=e46]:
+          - generic [ref=e47]:
+            - heading "Record enquiry" [level=2] [ref=e48]
+            - generic [ref=e49]:
+              - generic [ref=e50]:
+                - generic [ref=e51]: Name
+                - textbox "Name" [ref=e52]
+              - generic [ref=e53]:
+                - generic [ref=e54]: Source
+                - combobox "Source" [ref=e55]:
+                  - option "Website"
+                  - option "Phone"
+                  - option "WhatsApp" [selected]
+                  - option "Instagram"
+                  - option "Referral"
+                  - option "Other"
+              - generic [ref=e56]:
+                - generic [ref=e57]: Phone
+                - textbox "Phone" [ref=e58]
+              - generic [ref=e59]:
+                - generic [ref=e60]: Email
+                - textbox "Email" [ref=e61]
+              - generic [ref=e62]:
+                - generic [ref=e63]: Service interest
+                - textbox "Service interest" [ref=e64]
+              - generic [ref=e65]:
+                - generic [ref=e66]: Owner
+                - combobox "Owner" [ref=e67]:
+                  - option "Unassigned" [selected]
+                  - option "Rahma Therapy"
+                  - option "Test Admin"
+                  - option "Test Booking Coordinator"
+                  - option "Test Therapist"
+            - generic [ref=e68]:
+              - generic [ref=e69]: Enquiry notes
+              - textbox "Enquiry notes" [ref=e70]
+            - button "Save enquiry" [ref=e71]:
+              - img
+              - text: Save enquiry
+          - generic [ref=e72]:
+            - img [ref=e75]
+            - heading "No enquiries yet" [level=2] [ref=e77]
+            - paragraph [ref=e78]: Record phone or WhatsApp enquiries here before they become bookings.
+  - alert [ref=e79]

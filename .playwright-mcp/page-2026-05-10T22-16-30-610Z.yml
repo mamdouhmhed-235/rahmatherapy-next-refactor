@@ -1,0 +1,255 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+        - generic [ref=e8]: Rahma Therapy
+      - button "Search" [ref=e10]:
+        - img [ref=e11]
+        - generic [ref=e14]: Search
+      - generic [ref=e15]:
+        - link "Reports" [ref=e16] [cursor=pointer]:
+          - /url: /admin/reports/
+          - img [ref=e17]
+          - text: Reports
+        - link "Calendar" [ref=e20] [cursor=pointer]:
+          - /url: /admin/calendar/
+          - img [ref=e21]
+          - text: Calendar
+        - link "Settings" [ref=e23] [cursor=pointer]:
+          - /url: /admin/settings/
+          - img [ref=e24]
+        - button "Rahma Therapy" [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e33]: Rahma Therapy
+          - img [ref=e34]
+  - main [ref=e36]:
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - link "Back to bookings" [ref=e40] [cursor=pointer]:
+          - /url: /admin/bookings/
+          - img [ref=e41]
+          - text: Back to bookings
+        - generic [ref=e43]:
+          - generic [ref=e44]:
+            - heading "Phase10 E2E Claim Client" [level=1] [ref=e45]
+            - paragraph [ref=e46]: 24 May 2026 at 10:00
+          - generic [ref=e47]:
+            - generic [ref=e48]: pending
+            - generic [ref=e49]: unassigned
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - generic [ref=e53]:
+              - heading "Lifecycle & Payment" [level=2] [ref=e54]
+              - paragraph [ref=e55]: Update the appointment status, payment record, and back-office notes.
+            - generic [ref=e56]:
+              - generic [ref=e57]:
+                - generic [ref=e58]: Booking status
+                - combobox "Booking status" [ref=e59]:
+                  - option "Pending" [selected]
+                  - option "Confirmed"
+                  - option "Completed"
+                  - option "Cancelled"
+                  - option "No show"
+              - generic [ref=e60]:
+                - generic [ref=e61]: Payment status
+                - combobox "Payment status" [ref=e62]:
+                  - option "Unpaid" [selected]
+                  - option "Paid"
+              - generic [ref=e63]:
+                - generic [ref=e64]: Payment method
+                - combobox "Payment method" [ref=e65]:
+                  - option "Not set" [selected]
+                  - option "Cash"
+                  - option "Card"
+              - generic [ref=e66]:
+                - generic [ref=e67]: Amount paid
+                - spinbutton "Amount paid" [ref=e68]: "0"
+            - generic [ref=e69]:
+              - generic [ref=e70]:
+                - generic [ref=e71]: Payment note
+                - textbox "Payment note" [ref=e72]
+              - generic [ref=e73]:
+                - generic [ref=e74]: Treatment notes
+                - textbox "Treatment notes" [ref=e75]
+              - generic [ref=e76]:
+                - generic [ref=e77]: Admin notes
+                - textbox "Admin notes" [ref=e78]
+              - generic [ref=e79]:
+                - generic [ref=e80]: Customer manage notes
+                - textbox "Customer manage notes" [ref=e81]
+            - button "Save booking" [ref=e83]:
+              - img
+              - text: Save booking
+          - generic [ref=e84]:
+            - heading "Participants & Assignments" [level=2] [ref=e85]:
+              - img [ref=e86]
+              - text: Participants & Assignments
+            - article [ref=e91]:
+              - generic [ref=e92]:
+                - heading "Phase10 Claim Participant" [level=3] [ref=e93]
+                - generic [ref=e94]: main contact
+              - generic [ref=e95]:
+                - generic [ref=e96]:
+                  - term [ref=e97]: Participant
+                  - definition [ref=e98]: female
+                - generic [ref=e99]:
+                  - term [ref=e100]: Required therapist
+                  - definition [ref=e101]: female
+                - generic [ref=e102]:
+                  - term [ref=e103]: Assignment
+                  - definition [ref=e104]: unassigned
+                - generic [ref=e105]:
+                  - term [ref=e106]: Assigned staff
+                  - definition [ref=e107]: Unassigned
+                - generic [ref=e108]:
+                  - term [ref=e109]: Consent
+                  - definition [ref=e110]: Acknowledged
+              - generic [ref=e111]:
+                - paragraph [ref=e112]: phase10_e2e
+                - paragraph [ref=e113]: Phase10 safe participant health note
+              - generic [ref=e114]:
+                - generic [ref=e115]:
+                  - generic [ref=e116]: Assign eligible staff
+                  - combobox "Assign eligible staff" [ref=e117]:
+                    - option "Choose staff" [selected]
+                    - option "Phase10 ADMIN - Bookings disabled" [disabled]
+                    - option "Phase10 COORDINATOR - Bookings disabled" [disabled]
+                    - option "Phase10 INACTIVE - Inactive staff" [disabled]
+                    - option "Phase10 OWNER - Wrong therapist gender" [disabled]
+                    - option "Phase10 THERAPIST A - Out of availability" [disabled]
+                    - option "Phase10 THERAPIST B - Out of availability" [disabled]
+                    - option "Rahma Therapy - Wrong therapist gender" [disabled]
+                    - option "Test Admin - Wrong therapist gender" [disabled]
+                    - option "Test Booking Coordinator - Bookings disabled" [disabled]
+                    - option "Test Inactive - Inactive staff" [disabled]
+                    - option "Test Therapist - Out of availability" [disabled]
+                - generic [ref=e118]:
+                  - button "Assign" [disabled]:
+                    - img
+                    - text: Assign
+              - generic [ref=e119]:
+                - paragraph [ref=e120]: Service snapshots
+                - list [ref=e121]:
+                  - listitem [ref=e122]: Hijama Package - £45.00
+          - generic [ref=e123]:
+            - heading "Service Snapshots" [level=2] [ref=e124]:
+              - img [ref=e125]
+              - text: Service Snapshots
+            - generic [ref=e128]:
+              - generic [ref=e129]:
+                - paragraph [ref=e130]: Hijama Package
+                - paragraph [ref=e131]: 1 snapshot
+              - paragraph [ref=e132]: £45.00
+          - generic [ref=e133]:
+            - heading "Safety & Consent" [level=2] [ref=e134]:
+              - img [ref=e135]
+              - text: Safety & Consent
+            - generic [ref=e138]:
+              - generic [ref=e139]:
+                - heading "Consent" [level=3] [ref=e140]
+                - paragraph [ref=e141]: Consent acknowledged
+              - generic [ref=e142]:
+                - heading "Health notes" [level=3] [ref=e143]
+                - paragraph [ref=e144]: Phase10 safe test health note
+          - generic [ref=e145]:
+            - heading "Notes" [level=2] [ref=e146]:
+              - img [ref=e147]
+              - text: Notes
+            - generic [ref=e150]:
+              - generic [ref=e151]:
+                - heading "Customer notes" [level=3] [ref=e152]
+                - paragraph [ref=e153]: phase10_e2e
+              - generic [ref=e154]:
+                - heading "Customer manage notes" [level=3] [ref=e155]
+                - paragraph [ref=e156]: No notes.
+              - generic [ref=e157]:
+                - heading "Treatment notes" [level=3] [ref=e158]
+                - paragraph [ref=e159]: No notes.
+              - generic [ref=e160]:
+                - heading "Admin notes" [level=3] [ref=e161]
+                - paragraph [ref=e162]: No notes.
+          - generic [ref=e163]:
+            - heading "Customer Requests" [level=2] [ref=e164]:
+              - img [ref=e165]
+              - text: Customer Requests
+            - generic [ref=e168]:
+              - generic [ref=e169]:
+                - heading "Cancellation" [level=3] [ref=e170]
+                - paragraph [ref=e171]: No customer cancellation request.
+              - generic [ref=e172]:
+                - heading "Reschedule request" [level=3] [ref=e173]
+                - paragraph [ref=e174]: No reschedule request.
+          - generic [ref=e175]:
+            - heading "Activity Timeline" [level=2] [ref=e176]:
+              - img [ref=e177]
+              - text: Activity Timeline
+            - paragraph [ref=e180]: No audit activity recorded for this booking yet.
+          - generic [ref=e181]:
+            - heading "Email Delivery" [level=2] [ref=e182]:
+              - img [ref=e183]
+              - text: Email Delivery
+            - paragraph [ref=e186]: No email delivery events recorded.
+        - complementary [ref=e187]:
+          - generic [ref=e188]:
+            - heading "Booking Summary" [level=2] [ref=e189]:
+              - img [ref=e190]
+              - text: Booking Summary
+            - generic [ref=e193]:
+              - generic [ref=e194]:
+                - term [ref=e195]: Date
+                - definition [ref=e196]: 24 May 2026
+              - generic [ref=e197]:
+                - term [ref=e198]: Time
+                - definition [ref=e199]: 10:00-11:00
+              - generic [ref=e200]:
+                - term [ref=e201]: Duration
+                - definition [ref=e202]: 60 mins
+              - generic [ref=e203]:
+                - term [ref=e204]: Total
+                - definition [ref=e205]: £45.00
+              - generic [ref=e206]:
+                - term [ref=e207]: Source
+                - definition [ref=e208]: manual
+              - generic [ref=e209]:
+                - term [ref=e210]: Payment
+                - definition [ref=e211]: unpaid
+              - generic [ref=e212]:
+                - term [ref=e213]: Amount due
+                - definition [ref=e214]: £45.00
+              - generic [ref=e215]:
+                - term [ref=e216]: Amount paid
+                - definition [ref=e217]: £0.00
+              - generic [ref=e218]:
+                - term [ref=e219]: Reschedule
+                - definition [ref=e220]: none
+              - generic [ref=e221]:
+                - term [ref=e222]: Paid at
+                - definition [ref=e223]: Not paid
+          - generic [ref=e224]:
+            - heading "Booking Contact" [level=2] [ref=e225]:
+              - img [ref=e226]
+              - text: Booking Contact
+            - generic [ref=e231]:
+              - generic [ref=e232]:
+                - paragraph [ref=e233]: Submitted for this booking
+                - paragraph [ref=e234]: Phase10 E2E Claim Client
+                - paragraph [ref=e235]: phase10.claim.client@example.test
+                - paragraph [ref=e236]: "07123456789"
+              - generic [ref=e237]:
+                - paragraph [ref=e238]: Linked CRM profile
+                - paragraph [ref=e239]: Phase10 E2E Claim Client
+                - paragraph [ref=e240]: phase10.claim.client@example.test
+                - paragraph [ref=e241]: "07123456789"
+          - generic [ref=e242]:
+            - heading "Home Visit" [level=2] [ref=e243]:
+              - img [ref=e244]
+              - text: Home Visit
+            - generic [ref=e247]:
+              - paragraph [ref=e248]: 10 Phase Street
+              - paragraph [ref=e249]: Luton
+              - paragraph [ref=e250]: LU1 1AA
+              - paragraph [ref=e251]: "Area/access: phase10_e2e"

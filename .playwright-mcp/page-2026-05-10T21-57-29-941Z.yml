@@ -1,0 +1,62 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+        - generic [ref=e8]: Rahma Therapy
+      - button "Search" [ref=e10]:
+        - img [ref=e11]
+        - generic [ref=e14]: Search
+      - generic [ref=e15]:
+        - link "Reports" [ref=e16] [cursor=pointer]:
+          - /url: /admin/reports/
+          - img [ref=e17]
+          - text: Reports
+        - link "Calendar" [ref=e20] [cursor=pointer]:
+          - /url: /admin/calendar/
+          - img [ref=e21]
+          - text: Calendar
+        - link "Settings" [ref=e23] [cursor=pointer]:
+          - /url: /admin/settings/
+          - img [ref=e24]
+        - button "Rahma Therapy" [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e33]: Rahma Therapy
+          - img [ref=e34]
+  - main [ref=e36]:
+    - generic [ref=e38]:
+      - generic [ref=e40]:
+        - paragraph [ref=e41]: Privacy
+        - heading "Privacy Operations" [level=1] [ref=e43]
+        - paragraph [ref=e44]: Track customer data export, correction, deletion/anonymization review, and sensitive-note review workflows. Every status change is audit logged.
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - generic [ref=e48]:
+            - heading "Customer privacy requests" [level=2] [ref=e49]
+            - paragraph [ref=e50]: Use this queue for GDPR-style customer data operations. Do not complete deletion/anonymization until booking and audit integrity requirements have been reviewed.
+          - article [ref=e52]:
+            - generic [ref=e53]:
+              - generic [ref=e54]:
+                - generic [ref=e55]:
+                  - generic [ref=e56]: data export
+                  - generic [ref=e57]: open
+                - heading "Phase10 E2E Claim Client" [level=2] [ref=e58]:
+                  - link "Phase10 E2E Claim Client" [ref=e59] [cursor=pointer]:
+                    - /url: /admin/clients/0f38df55-c0e0-4528-a7d3-a90a48a67919/
+                - paragraph [ref=e60]: phase10.claim.client@example.test - 07123456789
+                - paragraph [ref=e61]: phase10_e2e
+                - paragraph [ref=e62]: Created 10 May 2026, 18:55. Updated 10 May 2026, 18:55.
+              - generic [ref=e63]:
+                - combobox [ref=e64]:
+                  - option "Open" [selected]
+                  - option "Reviewing"
+                  - option "Completed"
+                  - option "Declined"
+                - button "Save" [ref=e65]
+        - generic [ref=e66]:
+          - generic [ref=e68]:
+            - heading "Sensitive note review" [level=2] [ref=e69]
+            - paragraph [ref=e70]: Recent sensitive client notes for owner/admin review. Keep note content out of exports and operational logs.
+          - paragraph [ref=e71]: No sensitive notes found.
