@@ -193,7 +193,7 @@ export function AdminTopNav({
                   className="size-5 invert"
                 />
               </div>
-              <span className="hidden text-sm font-semibold tracking-tight text-white sm:block">
+              <span className="font-display hidden text-sm font-semibold tracking-tight text-white sm:block">
                 Rahma Therapy
               </span>
             </Link>
@@ -225,10 +225,10 @@ export function AdminTopNav({
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/60",
+                    "inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/60",
                     active
-                      ? "bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
-                      : "text-white/80 hover:bg-white/10 hover:text-white"
+                      ? "font-display bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
+                      : "font-medium text-white/80 hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <span>{label}</span>
@@ -542,7 +542,7 @@ function MobileMenuButton({
                 />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-white leading-none">Rahma Therapy</p>
+                <p className="font-display text-sm font-semibold text-white leading-none">Rahma Therapy</p>
                 <p className="mt-0.5 text-[11px] text-white/60 leading-none">{subLabel}</p>
               </div>
             </div>
