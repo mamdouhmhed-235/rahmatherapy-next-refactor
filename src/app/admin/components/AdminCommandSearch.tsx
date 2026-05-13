@@ -126,7 +126,7 @@ export function AdminCommandSearch({
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-xs text-[var(--admin-text-muted)]">
-            <span>Results are scoped to your permissions.</span>
+            <span>You'll only see records you have access to.</span>
             <button
               type="button"
               onClick={() => setOpen(false)}

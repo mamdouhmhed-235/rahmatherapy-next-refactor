@@ -206,12 +206,12 @@ export function MobileNotificationButton({
     [items, dismissedIds]
   );
   const unreadCount = visibleItems.filter((i) => !readIds.has(i.id)).length;
-  const triggerLabel = `Open notification centre, ${unreadCount} unread`;
+  const triggerLabel = unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up";
 
   return (
     <AdminSheet
       title="Notifications"
-      description={`${unreadCount} unread notification(s)`}
+      description={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}` : "All caught up"}
       side="bottom"
       trigger={
         variant === "icon" ? (
@@ -507,7 +507,7 @@ function NotificationPopoverContent({
             <AdminEmptyState
               icon={Bell}
               title="All caught up"
-              message="No notifications require your attention."
+              message="When something needs your attention, it'll appear here."
               tone="muted"
             />
           </div>

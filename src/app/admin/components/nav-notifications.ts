@@ -1,6 +1,16 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { NotificationItem } from "../reports/reporting";
 
+const OPS_EVENT_LABELS: Record<string, string> = {
+  booking_failed: "Booking error",
+  payment_failed: "Payment failed",
+  email_failed: "Email delivery failed",
+  assignment_failed: "Assignment error",
+  webhook_failed: "System webhook failed",
+  reminder_failed: "Reminder delivery failed",
+  sync_failed: "Sync error",
+};
+
 export async function getNavNotifications(profileId: string): Promise<NotificationItem[]> {
   try {
     const supabase = await createSupabaseServerClient();
@@ -62,7 +72,7 @@ export async function getNavNotifications(profileId: string): Promise<Notificati
       items.push({
         id: `nav-ops-${event.id}`,
         type: "operation",
-        title: event.event_type.replace(/_/g, " "),
+        title: OPS_EVENT_LABELS[event.event_type] ?? "Operational alert",
         detail: event.summary,
         severity: event.severity === "error" ? "critical" : "warning",
         timestamp: event.created_at.slice(0, 16).replace("T", " "),
