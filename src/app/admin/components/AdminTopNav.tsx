@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import {
+  Bell,
   CalendarCheck,
   CalendarDays,
   ChevronDown,
@@ -14,7 +15,7 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
-  Search,
+  MoreHorizontal,
   Send,
   Settings,
   ShieldCheck,
@@ -26,24 +27,14 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminCommandSearch } from "./AdminCommandSearch";
+import { NotificationBell, MobileNotificationButton } from "./notification-bell";
 import type { AdminShellVariant } from "../shell-variant";
+import type { NotificationItem } from "../reports/reporting";
 
 interface AdminTopNavProfile {
   name: string;
   roleName: string;
 }
-
-// Pages that survive on the therapist's trimmed nav. Therapists don't
-// need staff/roles/audit/privacy/account-requests/operations/emails/
-// services/settings — those are admin chrome. They get a focused worker
-// nav: dashboard, their bookings, their clients, calendar, reports.
-const THERAPIST_NAV_PAGE_KEYS = new Set<string>([
-  "dashboard",
-  "bookings",
-  "clients",
-  "calendar",
-  "reports",
-]);
 
 interface AdminTopNavPageAccess {
   access: boolean;
@@ -54,119 +45,41 @@ interface NavItem {
   label: string;
   href: string;
   icon: React.ElementType;
-  section: string;
   pageKey: string;
   dataScopes?: string[];
+  overflowOnly?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    label: "Dashboard",
-    href: "/admin/dashboard",
-    icon: LayoutDashboard,
-    section: "Operations",
-    pageKey: "dashboard",
-  },
-  {
-    label: "Bookings",
-    href: "/admin/bookings",
-    icon: CalendarCheck,
-    section: "Operations",
-    pageKey: "bookings",
-  },
-  {
-    label: "Calendar",
-    href: "/admin/calendar",
-    icon: CalendarDays,
-    section: "Operations",
-    pageKey: "calendar",
-  },
-  {
-    label: "Reports",
-    href: "/admin/reports",
-    icon: FileText,
-    section: "Operations",
-    pageKey: "reports",
-  },
-  {
-    label: "Clients",
-    href: "/admin/clients",
-    icon: UserSquare,
-    section: "Clients",
-    pageKey: "clients",
-  },
-  {
-    label: "Enquiries",
-    href: "/admin/enquiries",
-    icon: MessageSquareText,
-    section: "Clients",
-    pageKey: "enquiries",
-  },
-  {
-    label: "Staff",
-    href: "/admin/staff",
-    icon: Users,
-    section: "Staff & Services",
-    pageKey: "staff",
-  },
-  {
-    label: "Roles",
-    href: "/admin/roles",
-    icon: ShieldCheck,
-    section: "Staff & Services",
-    pageKey: "roles",
-  },
-  {
-    label: "Services",
-    href: "/admin/services",
-    icon: Wrench,
-    section: "Staff & Services",
-    pageKey: "services",
-  },
-  {
-    label: "Availability",
-    href: "/admin/availability",
-    icon: CalendarDays,
-    section: "Staff & Services",
-    pageKey: "availability",
-    dataScopes: ["all"],
-  },
-  {
-    label: "Emails",
-    href: "/admin/emails",
-    icon: Send,
-    section: "System",
-    pageKey: "emails",
-  },
-  {
-    label: "Operations",
-    href: "/admin/operations",
-    icon: Siren,
-    section: "System",
-    pageKey: "operations",
-  },
-  {
-    label: "Audit",
-    href: "/admin/audit",
-    icon: FileText,
-    section: "System",
-    pageKey: "audit",
-  },
-  {
-    label: "Privacy",
-    href: "/admin/privacy",
-    icon: ShieldCheck,
-    section: "System",
-    pageKey: "privacy",
-  },
-  {
-    label: "Settings",
-    href: "/admin/settings",
-    icon: Settings,
-    section: "System",
-    pageKey: "settings",
-  },
+  { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard, pageKey: "dashboard" },
+  { label: "Bookings", href: "/admin/bookings", icon: CalendarCheck, pageKey: "bookings" },
+  { label: "Calendar", href: "/admin/calendar", icon: CalendarDays, pageKey: "calendar" },
+  { label: "Clients", href: "/admin/clients", icon: UserSquare, pageKey: "clients" },
+  { label: "Enquiries", href: "/admin/enquiries", icon: MessageSquareText, pageKey: "enquiries" },
+  { label: "Staff", href: "/admin/staff", icon: Users, pageKey: "staff" },
+  { label: "Reports", href: "/admin/reports", icon: FileText, pageKey: "reports" },
+  { label: "Services", href: "/admin/services", icon: Wrench, pageKey: "services", overflowOnly: true },
+  { label: "Settings", href: "/admin/settings", icon: Settings, pageKey: "settings", overflowOnly: true },
+  { label: "Availability", href: "/admin/availability", icon: CalendarDays, pageKey: "availability", dataScopes: ["all"], overflowOnly: true },
+  { label: "Roles", href: "/admin/roles", icon: ShieldCheck, pageKey: "roles", overflowOnly: true },
+  { label: "Emails", href: "/admin/emails", icon: Send, pageKey: "emails", overflowOnly: true },
+  { label: "Operations", href: "/admin/operations", icon: Siren, pageKey: "operations", overflowOnly: true },
+  { label: "Privacy", href: "/admin/privacy", icon: ShieldCheck, pageKey: "privacy", overflowOnly: true },
+  { label: "Audit", href: "/admin/audit", icon: FileText, pageKey: "audit", overflowOnly: true },
+  { label: "Password requests", href: "/admin/account-password-requests", icon: ShieldCheck, pageKey: "account-password-requests", overflowOnly: true },
 ];
+
+const OWNER_ADMIN_PRIMARY_KEYS = new Set([
+  "dashboard", "bookings", "calendar", "clients", "enquiries", "staff", "reports",
+]);
+
+const COORDINATOR_PRIMARY_KEYS = new Set([
+  "dashboard", "bookings", "calendar", "clients", "enquiries", "staff",
+]);
+
+const THERAPIST_NAV_KEYS = new Set([
+  "dashboard", "bookings", "availability",
+]);
 
 function normalizeAdminPath(path: string) {
   return path.replace(/\/+$/, "") || "/";
@@ -182,94 +95,161 @@ function hasPageAccess(
   return true;
 }
 
+function getVariantSubLabel(variant: AdminShellVariant): string {
+  if (variant === "coordinator") return "Coordinator";
+  if (variant === "therapist") return "Therapist";
+  return "Owner";
+}
+
+function getPrimaryKeys(variant: AdminShellVariant): Set<string> {
+  if (variant === "coordinator") return COORDINATOR_PRIMARY_KEYS;
+  if (variant === "therapist") return THERAPIST_NAV_KEYS;
+  return OWNER_ADMIN_PRIMARY_KEYS;
+}
+
+function getNavLabel(item: NavItem, variant: AdminShellVariant): string {
+  if (variant === "therapist") {
+    if (item.pageKey === "dashboard") return "My day";
+    if (item.pageKey === "bookings") return "My bookings";
+    if (item.pageKey === "availability") return "My availability";
+  }
+  if (variant === "coordinator") {
+    if (item.pageKey === "staff") return "Team";
+  }
+  return item.label;
+}
+
+function isActive(href: string, pathname: string): boolean {
+  const current = normalizeAdminPath(pathname);
+  const target = normalizeAdminPath(href);
+  if (target === "/admin/dashboard") return current === target;
+  return current === target || current.startsWith(`${target}/`);
+}
+
 export function AdminTopNav({
   profile,
   variant,
   pageAccess,
+  notifications = [],
   children,
 }: {
   profile: AdminTopNavProfile;
   variant: AdminShellVariant;
   pageAccess: Record<string, AdminTopNavPageAccess>;
+  notifications?: NotificationItem[];
   children: React.ReactNode;
 }) {
-  const [scrolled, setScrolled] = useState(false);
-  const isTherapist = variant === "therapist";
-  const visibleItems = NAV_ITEMS.filter((item) => {
-    if (!hasPageAccess(item, pageAccess)) return false;
-    if (isTherapist && !THERAPIST_NAV_PAGE_KEYS.has(item.pageKey)) return false;
-    return true;
-  });
+  const pathname = usePathname();
+  const primaryKeys = getPrimaryKeys(variant);
+  const subLabel = getVariantSubLabel(variant);
 
-  const sections = [...new Set(visibleItems.map((i) => i.section))];
-
-  useEffect(() => {
-    function onScroll() {
-      setScrolled(window.scrollY > 8);
-    }
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const accessibleItems = NAV_ITEMS.filter((item) => hasPageAccess(item, pageAccess));
+  const primaryItems = accessibleItems.filter((item) => primaryKeys.has(item.pageKey) && !item.overflowOnly);
+  const overflowItems = accessibleItems.filter((item) => !primaryKeys.has(item.pageKey) || item.overflowOnly);
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--admin-canvas)] text-[var(--admin-heading)]">
       <a
         href="#admin-main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--admin-heading)] focus:shadow-elevated"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-[var(--admin-radius-control)] focus:bg-[var(--admin-primary)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-[var(--admin-shadow-overlay)]"
       >
-        Skip to admin content
+        Skip to main content
       </a>
 
-      <header
-        className={cn(
-          "sticky top-0 z-40 border-b border-[var(--admin-border)] bg-[var(--admin-panel)]/95 backdrop-blur transition-shadow",
-          scrolled && "shadow-[var(--admin-shadow-subtle)]"
-        )}
-      >
-        <div className="mx-auto flex h-14 max-w-[100rem] items-center gap-3 px-4 sm:px-6 lg:px-8">
-          <Brand />
+      <header className="sticky top-0 z-40 bg-[var(--admin-primary)]">
+        <div className="mx-auto flex h-14 max-w-[100rem] items-center gap-0 px-4 sm:px-6 lg:px-8">
 
-          {/* Desktop center: search (hidden for therapists — they don't need
-              cross-CRM lookup) */}
-          {!isTherapist ? (
-            <div className="hidden flex-1 items-center justify-center md:flex">
-              <AdminCommandSearch
-                compact
-                triggerClassName="inline-flex h-9 w-full max-w-[16rem] shrink items-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/60 px-3 text-sm font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-              />
-            </div>
-          ) : (
-            <div className="hidden flex-1 md:flex" />
-          )}
-
-          {/* Desktop right: actions */}
-          <div className="hidden items-center gap-2 lg:flex">
-            {hasPageAccess(NAV_ITEMS.find((i) => i.href === "/admin/reports")!, pageAccess) && (
-              <Link
-                href="/admin/reports"
-                className="inline-flex h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-              >
-                <FileText className="size-4" />
-                Reports
-              </Link>
-            )}
-            {hasPageAccess(NAV_ITEMS.find((i) => i.href === "/admin/calendar")!, pageAccess) && (
-              <Link
-                href="/admin/calendar"
-                className="inline-flex h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-              >
-                <CalendarDays className="size-4" />
-                Calendar
-              </Link>
-            )}
-            <SettingsButton pageAccess={pageAccess} />
-            <UserMenu profile={profile} />
+          {/* Left zone: brand tile + wordmark + role sub-label */}
+          <div className="flex shrink-0 items-center gap-3">
+            <Link
+              href="/admin/dashboard"
+              className="flex shrink-0 items-center gap-2.5 rounded-[var(--admin-radius-control)] outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              aria-label="Rahma Therapy admin dashboard"
+            >
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-white/12">
+                <Image
+                  src="/images/brand/rahma/logo-mark.svg"
+                  alt=""
+                  width={20}
+                  height={20}
+                  className="size-5 invert"
+                />
+              </div>
+              <span className="hidden text-sm font-semibold tracking-tight text-white sm:block">
+                Rahma Therapy
+              </span>
+            </Link>
+            <span className="hidden text-[11px] font-medium text-white/60 sm:block" aria-hidden="true">
+              {subLabel}
+            </span>
           </div>
 
-          {/* Mobile right */}
-          <div className="flex flex-1 items-center justify-end gap-2 lg:hidden">
-            {!isTherapist ? <MobileSearch /> : null}
-            <MobileMenu profile={profile} items={visibleItems} sections={sections} />
+          {/* Separator */}
+          <div className="mx-4 hidden h-5 w-px bg-white/15 lg:block" aria-hidden="true" />
+
+          {/* Centre zone: primary nav items (desktop) */}
+          <nav
+            className="hidden flex-1 items-center gap-0.5 lg:flex"
+            aria-label="Admin navigation"
+          >
+            {primaryItems.map((item) => {
+              const active = isActive(item.href, pathname);
+              const label = getNavLabel(item, variant);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/60",
+                    active
+                      ? "bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
+                      : "text-white/80 hover:bg-white/10 hover:text-white"
+                  )}
+                >
+                  <span>{label}</span>
+                </Link>
+              );
+            })}
+
+            {/* Overflow "More…" menu for owner_admin / coordinator */}
+            {overflowItems.length > 0 && variant !== "therapist" ? (
+              <OverflowMenu items={overflowItems} variant={variant} pathname={pathname} />
+            ) : null}
+          </nav>
+
+          {/* Right rail: cmd-K + NotificationBell + avatar */}
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* cmd-K trigger (desktop) */}
+            <div className="hidden lg:block">
+              <AdminCommandSearch
+                compact
+                triggerClassName="inline-flex h-8 items-center gap-2 rounded-[var(--admin-radius-control)] border border-white/20 bg-white/10 px-3 text-sm font-medium text-white/80 outline-none transition-colors hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
+              />
+            </div>
+
+            {/* Notification bell (desktop) */}
+            <div className="hidden lg:block">
+              <NotificationBell items={notifications} />
+            </div>
+
+            {/* User avatar menu (desktop) */}
+            <div className="hidden lg:block">
+              <UserAvatarMenu profile={profile} />
+            </div>
+
+            {/* Mobile: search icon + notification icon + hamburger */}
+            <div className="flex items-center gap-1.5 lg:hidden">
+              <MobileSearch />
+              <MobileNotificationButton items={notifications} variant="icon" />
+              <MobileMenuButton
+                profile={profile}
+                items={accessibleItems}
+                variant={variant}
+                pathname={pathname}
+                subLabel={subLabel}
+              />
+            </div>
           </div>
         </div>
       </header>
@@ -287,58 +267,100 @@ export function AdminTopNav({
   );
 }
 
-function Brand() {
-  return (
-    <Link
-      href="/admin/dashboard"
-      className="flex shrink-0 items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-      aria-label="Rahma Therapy admin dashboard"
-    >
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)]">
-        <Image
-          src="/images/brand/rahma/logo-mark.svg"
-          alt=""
-          width={24}
-          height={24}
-          className="size-5 invert"
-        />
-      </div>
-      <span className="admin-display hidden text-sm font-bold uppercase tracking-[0.08em] text-[var(--admin-heading)] sm:block">
-        Rahma Therapy
-      </span>
-    </Link>
-  );
-}
-
-function SettingsButton({
-  pageAccess,
+function OverflowMenu({
+  items,
+  variant,
+  pathname,
 }: {
-  pageAccess: Record<string, AdminTopNavPageAccess>;
+  items: NavItem[];
+  variant: AdminShellVariant;
+  pathname: string;
 }) {
-  const settingsItem = NAV_ITEMS.find((i) => i.href === "/admin/settings");
-  if (!settingsItem || !hasPageAccess(settingsItem, pageAccess)) return null;
-
-  return (
-    <Link
-      href="/admin/settings"
-      className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-      aria-label="Settings"
-    >
-      <Settings className="size-4" />
-    </Link>
-  );
-}
-
-function UserMenu({ profile }: { profile: AdminTopNavProfile }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const hasActive = items.some((item) => isActive(item.href, pathname));
 
   useEffect(() => {
     if (!open) return;
-    function onClick(event: MouseEvent) {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("mousedown", onClick);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onClick);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className={cn(
+          "inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/60",
+          hasActive
+            ? "bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
+            : "text-white/80 hover:bg-white/10 hover:text-white"
+        )}
+      >
+        More
+        <MoreHorizontal className="size-3.5" aria-hidden="true" />
+      </button>
+
+      {open ? (
+        <div
+          className="absolute left-0 top-full z-50 mt-1.5 grid min-w-[13rem] gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
+          role="menu"
+        >
+          {items.map((item) => {
+            const active = isActive(item.href, pathname);
+            const label = getNavLabel(item, variant);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                role="menuitem"
+                aria-current={active ? "page" : undefined}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex min-h-9 items-center gap-2.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                  active
+                    ? "bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
+                    : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
+                )}
+              >
+                <item.icon className="size-4 shrink-0 text-[var(--admin-text-muted)]" aria-hidden="true" />
+                {label}
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function UserAvatarMenu({ profile }: { profile: AdminTopNavProfile }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const initials = profile.name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
@@ -349,39 +371,43 @@ function UserMenu({ profile }: { profile: AdminTopNavProfile }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-2.5 py-1.5 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={`${profile.name}'s account menu`}
+        className="inline-flex size-8 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[oklch(92%_0.022_155)] focus-visible:ring-2 focus-visible:ring-white/60"
       >
-        <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]">
-          <ShieldCheck className="size-4 text-[var(--admin-primary)]" />
-        </span>
-        <span className="hidden max-w-[8rem] truncate xl:block">{profile.name}</span>
-        <ChevronDown className="size-4 text-[var(--admin-text-muted)]" />
+        {initials}
       </button>
 
-      {open && (
+      {open ? (
         <div
-          className="absolute right-0 z-50 mt-2 w-56 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-2 shadow-elevated"
+          className="absolute right-0 top-full z-50 mt-2 w-52 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
           role="menu"
         >
-          <div className="px-3 py-2">
+          <div className="border-b border-[var(--admin-border)] px-3 py-2.5 mb-1">
             <p className="text-sm font-semibold text-[var(--admin-heading)]">{profile.name}</p>
             <p className="text-xs text-[var(--admin-text-muted)]">{profile.roleName}</p>
           </div>
-          <div className="my-1 border-t border-[var(--admin-border)]" />
+          <Link
+            href="/admin/staff"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="flex min-h-9 items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Your profile
+          </Link>
           <form action="/admin/signout" method="POST">
             <button
               type="submit"
-              className="flex w-full items-center gap-2 rounded-[var(--admin-radius-control)] px-3 py-2 text-left text-sm font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
               role="menuitem"
+              className="flex min-h-9 w-full items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
-              <LogOut className="size-4" />
-              Sign out / switch account
+              <LogOut className="size-4 shrink-0 text-[var(--admin-text-muted)]" aria-hidden="true" />
+              Sign out
             </button>
           </form>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -394,143 +420,144 @@ function MobileSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-        aria-label="Search"
+        aria-label="Search (⌘K)"
+        className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
       >
-        <Search className="size-4" />
+        <svg className="size-[1.125rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.35-4.35" />
+        </svg>
       </button>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/25 pt-20 backdrop-blur-sm">
-          <div className="w-[min(calc(100vw-2rem),28rem)] rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 shadow-elevated">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm font-semibold text-[var(--admin-heading)]">Search</p>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="inline-flex size-8 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
-            <p className="mt-2 text-sm text-[var(--admin-text-muted)]">
-              Press{" "}
-              <kbd className="rounded border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--admin-text-muted)]">
-                Ctrl K
-              </kbd>{" "}
-              from anywhere to search.
-            </p>
+      {open ? (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-[oklch(12%_0.01_165)]/35 pt-[10vh] backdrop-blur-sm">
+          <div className="w-[min(calc(100vw-2rem),32rem)] rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)]">
+            <AdminCommandSearch />
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="absolute right-4 top-4 inline-flex size-8 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              aria-label="Close search"
+            >
+              <X className="size-4" aria-hidden="true" />
+            </button>
           </div>
         </div>
-      )}
+      ) : null}
     </>
   );
 }
 
-function MobileMenu({
+function MobileMenuButton({
   profile,
   items,
-  sections,
+  variant,
+  pathname,
+  subLabel,
 }: {
   profile: AdminTopNavProfile;
   items: NavItem[];
-  sections: string[];
+  variant: AdminShellVariant;
+  pathname: string;
+  subLabel: string;
 }) {
   const [open, setOpen] = useState(false);
-  const pathname = usePathname();
 
   useEffect(() => {
     if (!open) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
     }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
   return (
     <BaseDialog.Root open={open} onOpenChange={setOpen}>
       <BaseDialog.Trigger
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white text-[var(--admin-heading)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
         aria-label="Open admin navigation"
       >
-        <Menu className="size-5" />
+        <Menu className="size-5" aria-hidden="true" />
       </BaseDialog.Trigger>
       <BaseDialog.Portal>
-        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm lg:hidden" />
-        <BaseDialog.Popup className="fixed right-0 top-0 z-50 flex h-dvh w-[min(20rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-l-[var(--admin-radius-card)] border-l border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-elevated outline-none lg:hidden">
-          <div className="flex items-start justify-between gap-3 border-b border-[var(--admin-border)] px-4 py-4">
-            <div className="min-w-0">
-              <BaseDialog.Title className="admin-display text-base font-bold text-[var(--admin-heading)]">
-                Menu
-              </BaseDialog.Title>
-              <BaseDialog.Description className="mt-0.5 text-xs text-[var(--admin-text-muted)]">
-                {profile.name} / {profile.roleName}
-              </BaseDialog.Description>
+        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/40 backdrop-blur-sm lg:hidden" />
+        <BaseDialog.Popup className="fixed left-0 top-0 z-50 flex h-dvh w-[min(20rem,calc(100vw-3rem))] flex-col overflow-hidden rounded-r-[var(--admin-radius-card)] border-r border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)] outline-none lg:hidden">
+
+          {/* Sheet header — mirrors desktop brand block */}
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[var(--admin-primary)] px-4 py-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className="flex size-7 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-white/12">
+                <Image
+                  src="/images/brand/rahma/logo-mark.svg"
+                  alt=""
+                  width={16}
+                  height={16}
+                  className="size-4 invert"
+                />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white leading-none">Rahma Therapy</p>
+                <p className="mt-0.5 text-[11px] text-white/60 leading-none">{subLabel}</p>
+              </div>
             </div>
-            <BaseDialog.Close className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white text-[var(--admin-text-muted)] outline-none hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35">
-              <X className="size-4" />
+            <BaseDialog.Close className="inline-flex size-8 items-center justify-center rounded-[var(--admin-radius-control)] text-white/70 outline-none hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60">
+              <X className="size-4" aria-hidden="true" />
               <span className="sr-only">Close navigation</span>
             </BaseDialog.Close>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-4 py-4" aria-label="Admin navigation">
-            <ul className="m-0 grid list-none gap-4 p-0">
-              {sections.map((section) => (
-                <li key={section}>
-                  <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-muted)]">
-                    {section}
-                  </p>
-                  <ul className="m-0 grid list-none gap-0.5 p-0">
-                    {items
-                      .filter((item) => item.section === section)
-                      .map((item) => {
-                        const currentPath = normalizeAdminPath(pathname);
-                        const itemPath = normalizeAdminPath(item.href);
-                        const isActive =
-                          itemPath === "/admin/dashboard"
-                            ? currentPath === itemPath
-                            : currentPath === itemPath || currentPath.startsWith(`${itemPath}/`);
-
-                        return (
-                          <li key={item.href}>
-                            <Link
-                              href={item.href}
-                              onClick={() => setOpen(false)}
-                              aria-current={isActive ? "page" : undefined}
-                              className={cn(
-                                "group flex min-h-[2.5rem] items-center gap-3 rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
-                                isActive
-                                  ? "bg-[var(--admin-primary)] text-white"
-                                  : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
-                              )}
-                            >
-                              <item.icon
-                                className={cn(
-                                  "size-4 shrink-0",
-                                  isActive
-                                    ? "text-white"
-                                    : "text-[var(--admin-text-muted)] group-hover:text-[var(--admin-heading)]"
-                                )}
-                              />
-                              <span className="truncate">{item.label}</span>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                  </ul>
-                </li>
-              ))}
+          {/* Nav items */}
+          <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Admin navigation">
+            <ul className="m-0 grid list-none gap-0.5 p-0">
+              {items.map((item) => {
+                const active = isActive(item.href, pathname);
+                const label = getNavLabel(item, variant);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        "flex min-h-11 items-center gap-3 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                        active
+                          ? "bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
+                          : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
+                      )}
+                    >
+                      <item.icon
+                        className={cn(
+                          "size-4 shrink-0",
+                          active ? "text-[var(--admin-primary)]" : "text-[var(--admin-text-muted)]"
+                        )}
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </nav>
 
-          <div className="border-t border-[var(--admin-border)] px-4 py-4">
+          {/* Sheet footer */}
+          <div className="border-t border-[var(--admin-border)] px-3 py-3">
+            <div className="mb-2 flex items-center gap-2.5 px-3 py-2">
+              <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] text-xs font-semibold text-[var(--admin-heading)]">
+                {profile.name.split(" ").map((p) => p[0]).slice(0, 2).join("").toUpperCase()}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">{profile.name}</p>
+                <p className="truncate text-xs text-[var(--admin-text-muted)]">{profile.roleName}</p>
+              </div>
+            </div>
             <form action="/admin/signout" method="POST">
               <button
                 type="submit"
-                className="flex min-h-10 w-full appearance-none items-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                className="flex min-h-10 w-full items-center gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
-                <LogOut className="size-4" />
-                Sign out / switch account
+                <LogOut className="size-4 shrink-0 text-[var(--admin-text-muted)]" aria-hidden="true" />
+                Sign out
               </button>
             </form>
           </div>

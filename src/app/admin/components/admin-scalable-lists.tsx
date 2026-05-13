@@ -3,9 +3,7 @@
 import * as React from "react";
 import { Search, FilterX, ChevronLeft, ChevronRight, Loader2, FolderSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { AdminEmptyState, AdminSkeleton, AdminActionGroup } from "./admin-ui";
+import { AdminButton, AdminEmptyState, AdminSkeleton, AdminActionGroup } from "./admin-ui";
 
 export function AdminListSurface({
   children,
@@ -41,10 +39,10 @@ export function SavedViewTabs({
           onClick={() => onViewChange(view.id)}
           aria-current={activeView === view.id ? "page" : undefined}
           className={cn(
-            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--rahma-blue)]/30",
+            "rounded-full px-4 py-1.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
             activeView === view.id
-              ? "bg-[var(--rahma-green)] text-white"
-              : "bg-[var(--admin-surface-muted)] text-[var(--rahma-muted)] hover:bg-[var(--rahma-green)]/10 hover:text-[var(--rahma-green)]"
+              ? "bg-[var(--admin-primary)] text-white"
+              : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)] hover:bg-[oklch(95.5%_0.012_155)] hover:text-[var(--admin-heading)]"
           )}
         >
           {view.label}
@@ -87,12 +85,12 @@ export function DebouncedSearchInput({
 
   return (
     <div className={cn("relative flex items-center", className)}>
-      <Search className="absolute left-3 size-4 text-[var(--rahma-muted)]" />
-      <Input
+      <Search className="absolute left-3 size-4 text-[var(--admin-text-muted)]" aria-hidden="true" />
+      <input
         value={localValue}
         onChange={(e) => setLocalValue(e.target.value)}
         placeholder={placeholder}
-        className="pl-9 bg-white"
+        className="flex h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] pl-9 pr-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
       />
     </div>
   );
@@ -112,7 +110,7 @@ export function SearchFilterBar({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-[var(--admin-radius-md)] border border-[var(--rahma-border)] bg-white p-3 shadow-[var(--admin-shadow-card)] lg:flex-row lg:items-center lg:justify-between",
+        "flex flex-col gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-3 lg:flex-row lg:items-center lg:justify-between",
         className
       )}
     >
@@ -139,32 +137,32 @@ export function PaginationControls({
   if (totalPages <= 1) return null;
 
   return (
-    <div className={cn("flex items-center justify-between border-t border-[var(--rahma-border)] bg-white px-4 py-3 sm:px-6 rounded-b-[var(--admin-radius-md)]", className)}>
+    <div className={cn("flex items-center justify-between border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3 sm:px-6 rounded-b-[var(--admin-radius-card)]", className)}>
       <div className="hidden sm:block">
-        <p className="text-sm text-[var(--rahma-muted)]">
-          Page <span className="font-medium text-[var(--rahma-charcoal)]">{currentPage}</span> of{" "}
-          <span className="font-medium text-[var(--rahma-charcoal)]">{totalPages}</span>
+        <p className="text-sm text-[var(--admin-text-muted)]">
+          Page <span className="font-medium text-[var(--admin-heading)]">{currentPage}</span> of{" "}
+          <span className="font-medium text-[var(--admin-heading)]">{totalPages}</span>
         </p>
       </div>
       <div className="flex flex-1 justify-between sm:justify-end gap-2">
-        <Button
+        <AdminButton
           variant="outline"
           size="sm"
           disabled={currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
         >
-          <ChevronLeft className="mr-1 size-4" />
+          <ChevronLeft className="mr-1 size-4" aria-hidden="true" />
           Previous
-        </Button>
-        <Button
+        </AdminButton>
+        <AdminButton
           variant="outline"
           size="sm"
           disabled={currentPage >= totalPages}
           onClick={() => onPageChange(currentPage + 1)}
         >
           Next
-          <ChevronRight className="ml-1 size-4" />
-        </Button>
+          <ChevronRight className="ml-1 size-4" aria-hidden="true" />
+        </AdminButton>
       </div>
     </div>
   );
@@ -185,16 +183,16 @@ export function LoadMoreButton({
 
   return (
     <div className={cn("flex justify-center py-4", className)}>
-      <Button variant="outline" onClick={onClick} disabled={loading}>
+      <AdminButton variant="outline" onClick={onClick} disabled={loading}>
         {loading ? (
           <>
-            <Loader2 className="mr-2 size-4 animate-spin" />
+            <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
             Loading more...
           </>
         ) : (
           "Load more"
         )}
-      </Button>
+      </AdminButton>
     </div>
   );
 }
@@ -213,9 +211,9 @@ export function FilteredEmptyState({
         title="No matching results"
         message="Try adjusting your search or filters to find what you're looking for."
         actions={
-          <Button variant="outline" onClick={onReset}>
+          <AdminButton variant="outline" onClick={onReset}>
             Clear filters
-          </Button>
+          </AdminButton>
         }
       />
     </div>
@@ -257,7 +255,7 @@ export function LargeListSkeleton({
       {Array.from({ length: rows }).map((_, index) => (
         <div
           key={index}
-          className="rounded-[var(--admin-radius-md)] border border-[var(--rahma-border)] bg-white p-4 shadow-[var(--admin-shadow-card)]"
+          className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white p-4 shadow-[var(--admin-shadow-subtle)]"
         >
           <div className="flex gap-4">
             <AdminSkeleton className="size-10 rounded-full shrink-0" />

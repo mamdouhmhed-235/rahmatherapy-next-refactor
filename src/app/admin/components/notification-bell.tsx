@@ -390,20 +390,15 @@ function NotificationPopoverContent({
           const read = readIds.has(item.id);
           const TypeIcon = getTypeIcon(item.type);
           const ageLabel = getNotificationAgeLabel(item.timestamp);
-          const severityBorder =
-            item.severity === "critical"
-              ? "border-l-[var(--admin-danger)]"
-              : item.severity === "warning"
-                ? "border-l-[var(--admin-warning)]"
-                : "border-l-[var(--admin-info)]";
           return (
             <div
               key={item.id}
               className={cn(
-                "grid gap-3 border-l-4 px-5 py-5 transition-colors",
+                "grid gap-3 px-5 py-5 transition-colors",
                 isMobile && "px-4",
-                severityBorder,
-                !read && "bg-[var(--admin-primary)]/[0.02]"
+                item.severity === "critical" && "bg-[oklch(95.5%_0.028_20)]/40",
+                item.severity === "warning" && "bg-[oklch(95%_0.05_65)]/40",
+                item.severity === "info" && !read && "bg-[var(--admin-primary)]/[0.02]"
               )}
             >
               <div className="flex items-start gap-3">

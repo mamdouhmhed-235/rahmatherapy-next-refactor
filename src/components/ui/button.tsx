@@ -15,6 +15,14 @@ export const buttonVariants = cva(
           "border border-border bg-background text-foreground hover:bg-muted",
         ghost: "text-foreground hover:bg-muted",
         link: "rounded-none px-0 text-primary underline-offset-4 hover:underline",
+        "admin-primary":
+          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[oklch(15%_0.065_155)] focus-visible:ring-[var(--admin-focus)]/55",
+        "admin-secondary":
+          "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] active:bg-[oklch(92%_0.022_155)] focus-visible:ring-[var(--admin-focus)]/55",
+        "admin-destructive":
+          "bg-[oklch(40%_0.14_25)] text-white hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-[var(--admin-focus)]/55",
+        "admin-ghost":
+          "bg-transparent text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] active:bg-[oklch(92%_0.022_155)] focus-visible:ring-[var(--admin-focus)]/55",
       },
       size: {
         sm: "h-9 px-3 text-sm",

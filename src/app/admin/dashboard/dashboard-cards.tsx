@@ -125,10 +125,10 @@ export function AttentionItemCard({
   return (
     <div
       className={cn(
-        "dashboard-attention-item grid min-w-0 gap-3 rounded-[var(--admin-radius-card)] border border-l-4 border-y-[var(--admin-border)] border-r-[var(--admin-border)] bg-white px-4 py-4 shadow-[var(--admin-shadow-subtle)]",
-        severity === "critical" && "border-l-[var(--admin-danger)]",
-        severity === "warning" && "border-l-[var(--admin-warning)]",
-        severity === "info" && "border-l-[var(--admin-info)]"
+        "dashboard-attention-item grid min-w-0 gap-3 rounded-[var(--admin-radius-card)] border bg-white px-4 py-4",
+        severity === "critical" && "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/30",
+        severity === "warning" && "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/30",
+        severity === "info" && "border-[var(--admin-border)]"
       )}
     >
       <div className="flex items-start gap-3">
@@ -413,10 +413,10 @@ export function UrgentAttentionPanel({
           const content = (
             <div
               className={cn(
-                "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3 shadow-[var(--admin-shadow-subtle)]",
-                row.severity === "critical" && "border-l-4 border-l-[var(--admin-danger)]",
-                row.severity === "warning" && "border-l-4 border-l-[var(--admin-warning)]",
-                row.severity === "clear" && "border-l-4 border-l-[var(--admin-success)]"
+                "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3",
+                row.severity === "critical" && "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/30",
+                row.severity === "warning" && "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/30",
+                row.severity === "clear" && "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)]/20"
               )}
             >
               <AdminIconBadge

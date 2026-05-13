@@ -77,8 +77,12 @@
   --admin-radius-lg: 0.625rem;
   --admin-radius-card: 0.625rem;
   --admin-radius-control: 0.5rem;
+  --admin-border-form: oklch(55% 0.022 80);
+  --admin-surface-input: oklch(98.5% 0.005 88);
   --admin-shadow-card: 0 12px 36px -34px rgba(7, 61, 42, 0.55);
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
+  --admin-shadow-hover: 0 2px 8px oklch(23% 0.073 155 / 0.08);
+  --admin-shadow-overlay: 0 8px 24px oklch(23% 0.073 155 / 0.12), 0 1px 4px oklch(23% 0.073 155 / 0.06);
   --hero-scrim-token: linear-gradient(90deg, rgba(7, 22, 28, 0.86) 0%, rgba(9, 37, 47, 0.62) 38%, rgba(9, 37, 47, 0.2) 70%, rgba(9, 37, 47, 0.34) 100%);
   --site-header-height: 4.875rem;
   --image-card-scrim-token: linear-gradient(180deg, rgba(7, 22, 28, 0.02) 0%, rgba(7, 22, 28, 0.08) 34%, rgba(7, 22, 28, 0.58) 66%, rgba(7, 22, 28, 0.92) 100%);
