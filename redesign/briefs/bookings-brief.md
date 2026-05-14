@@ -43,6 +43,7 @@ Production-ready. Includes tab consolidation (4 primary + "More views" overflow)
 | State | What the user sees |
 |---|---|
 | Default (Needs Attention, bookings present) | Active tab, filter bar, list of `BookingListCard` rows with status badges and quick actions |
+| REQUEST booking (from booking-new) | `status: "pending"` + `assignment_status: "unassigned"` — renders with **Attention-family** status badge (orange, `alert-circle` icon, label "Pending") + "Unassigned" Attention-family assignment chip. Appears in Needs Attention tab and Claimable tab. Coordinator's primary action: Confirm + trigger assignment. |
 | Today tab, empty | `EmptyState`: "All caught up" / "Nothing scheduled for today. Quiet days are healthy days." |
 | Needs Attention, empty | `EmptyState`: "All caught up" / "No bookings need your attention right now." |
 | Claimable, empty | `EmptyState`: "Nothing to claim" / "No unassigned bookings match your profile right now." |

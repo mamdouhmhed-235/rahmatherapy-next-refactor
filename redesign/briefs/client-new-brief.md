@@ -36,7 +36,7 @@ Out (unchanged):
 - Duplicate detection rules (server-side; matches on lowercased email or normalised phone).
 - The seven-option client_source enum.
 - Server-side validation rules. Client-side is courtesy; server is truth.
-- No address autocomplete / postcode lookup. UK postcode validation stays server-side only.
+- No address autocomplete / postcode lookup currently. UK postcode validation stays server-side only. **Note:** booking-new now uses postcodes.io (free, no API key) for postcode → city/area auto-fill. Recommend applying the same pattern to this form in the client-new Phase 6 session for consistency — see `BUILD-postcode-lookup-client.md`. Out of scope for current session.
 - No customer-facing copy; this is admin chrome.
 
 ## 5. Layout Strategy
@@ -153,7 +153,7 @@ Page chrome (top to bottom):
 
 1. **Per-panel descriptions vs. a single intro line.** Three panel descriptions adds 3 × ~12 words of chrome to a form whose operator scans, not reads. Proposal: keep them; they're short and they help a novice owner (PRODUCT.md Fatimah) on her phone understand what each panel asks for. Phase 6 A/B is overkill; commit.
 2. **Phone-required vs. email-required.** Currently both are optional. The "at least one of email or phone" advisory copy is real, but the server enforces nothing. Proposal: keep both optional at the schema layer (some walk-ins genuinely give neither up front), but add a client-side soft warning when both are blank ("This client will have no contact channel. Save anyway?") on form submit. Defer to Phase 6 polish.
-3. **Postcode lookup integration.** Not in scope (PRODUCT.md backend-issues-to-leave-alone implies no third-party address services). Flag for Phase 7 product question: do we want to integrate a postcode lookup (e.g. Ideal Postcodes) once the team grows past a manual-entry tolerance threshold?
+3. **Postcode auto-fill integration.** booking-new now uses postcodes.io (free, no key, Zone 1) for postcode → city/area auto-fill. The same pattern should be applied here for consistency. Full spec in `BUILD-postcode-lookup-client.md`. Recommend adding as a Phase 6 improvement for the client-new session — out of scope now but flagged for the implementer.
 
 ## 11. Role variants
 

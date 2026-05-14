@@ -100,7 +100,7 @@ Mechanics inherited from Owner/Admin brief verbatim (header rail, filter strip, 
 The "Quiet day" copy on the Coordinator variant deliberately pivots to "Use the time to follow up on enquiries" (vs. Owner/Admin's "Quiet days are healthy days") because the Coordinator role has secondary work even on quiet booking days; Owner does not.
 
 **Microcopy.**
-- Inline count copy in Today panel sub-line: "of which N unassigned · N confirmed · N pending"
+- Inline count copy in Today panel sub-line: "of which N unassigned · N confirmed · N pending" — **the "unassigned" count includes REQUEST bookings** (`status: "pending"` + `assignment_status: "unassigned"`) created via booking-new, as well as confirmed-but-unassigned bookings. Distinction is visible via each row's status badge: Attention family (orange) for REQUEST, Confirmed family for confirmed-unassigned.
 - Assignment chip: "Unassigned" (default); "Unassigned · same-gender required" (when `required_gender` is set on the booking)
 - Role pill: "Coordinator" (Restricted family pill, Work Sans 500, label step)
 - Tier 2 disclosure aria-labels: "Show active queues" / "Hide active queues"

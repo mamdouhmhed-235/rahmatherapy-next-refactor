@@ -61,7 +61,7 @@ Production-ready. Restructures `page.tsx` layout and adds tabs + filter bar. Res
 
 **Status actions per row:**
 - "Mark contacted": `EnquiryStatusButton` → `updateEnquiryStatus(id, "contacted")` — instant, Sonner toast "Marked as contacted."
-- "Convert": Ghost link → `/admin/bookings/new?enquiryId={id}` (navigation only, no server action)
+- "Convert": Ghost link → `/admin/bookings/new?enquiryId={id}` (navigation only, no server action). Booking-new pre-fills step 1 contact fields from the enquiry record and defaults "Booking for" to **Themself** (enquiries represent individual client leads). The converted booking arrives as a REQUEST (`status: "pending"` + `assignment_status: "unassigned"`). **After creation**, `createManualBooking` sets `enquiry.converted_booking_id = bookingId` and `enquiry.status = "booked"` — confirmed in `src/app/admin/bookings/actions.ts`. The "Convert" link is replaced by "View booking →" once `converted_booking_id` is set.
 - "Close enquiry": via three-dot `AdminActionMenu` → `updateEnquiryStatus(id, "closed")` — no `ConfirmActionModal` (see Open Question 1)
 - "View booking →": Ghost link → `/admin/bookings/{converted_booking_id}`
 
