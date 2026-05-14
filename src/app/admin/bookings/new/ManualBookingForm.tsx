@@ -29,10 +29,19 @@ type ParticipantGender = "male" | "female" | "";
 interface Participant {
   name: string;
   gender: ParticipantGender;
-  services: string[];
+  packageSlug: string; // "" | "supreme-combo-package" | "hijama-package" | "fire-package"
+  massageEnabled: boolean;
+  massageSlug: string; // "" | "30-min-massage-therapy" | "1-hour-massage-therapy"
   differentAddress: boolean;
   overrideAddress: string;
   overridePostcode: string;
+}
+
+function participantServices(p: Participant): string[] {
+  return [
+    ...(p.packageSlug ? [p.packageSlug] : []),
+    ...(p.massageEnabled && p.massageSlug ? [p.massageSlug] : []),
+  ];
 }
 
 interface ServiceOption {
@@ -92,11 +101,39 @@ const MAX_PARTICIPANTS = 6;
 const DRAFT_KEY = "booking-new-draft";
 const CREATED_KEY = "booking-new-created-toast";
 
+const PACKAGE_OPTIONS = [
+  {
+    slug: "supreme-combo-package",
+    name: "Supreme Combo Package",
+    price: "£55",
+    description: "Pre-Cupping massage / IASTM · Dry Cupping · Fire Cupping · Wet Cupping",
+  },
+  {
+    slug: "hijama-package",
+    name: "Hijama Package",
+    price: "£45",
+    description: "Pre-Cupping massage · Dry Cupping · Wet Cupping",
+  },
+  {
+    slug: "fire-package",
+    name: "Fire Package",
+    price: "£40",
+    description: "Pre-Cupping massage with essential oils · Dry / Fire Cupping",
+  },
+] as const;
+
+const MASSAGE_OPTIONS = [
+  { slug: "30-min-massage-therapy", label: "30 minutes", price: "£40" },
+  { slug: "1-hour-massage-therapy", label: "1 hour", price: "£60" },
+] as const;
+
 function emptyParticipant(name = ""): Participant {
   return {
     name,
     gender: "",
-    services: [],
+    packageSlug: "",
+    massageEnabled: false,
+    massageSlug: "",
     differentAddress: false,
     overrideAddress: "",
     overridePostcode: "",
@@ -123,8 +160,8 @@ function validateStep(
         errs[`participant_name_${i}`] = `Label this person so the therapist knows who's who (e.g. "Client 1", "Husband").`;
       if (!p.gender)
         errs[`participant_gender_${i}`] = "Pick the client's gender so we can match the right therapist.";
-      if (p.services.length === 0)
-        errs[`participant_services_${i}`] = "Pick at least one service for this person.";
+      if (!p.packageSlug && !(p.massageEnabled && p.massageSlug))
+        errs[`participant_services_${i}`] = "Pick at least one package or massage for this person.";
     });
   }
 
@@ -151,7 +188,7 @@ interface FormValues {
   fullName: string;
   email: string;
   phone: string;
-  bookingFor: "self" | "someone_else";
+  bookingForMode: "self" | "someone_else" | "group";
   participants: Participant[];
   address: string;
   postcode: string;
@@ -434,7 +471,7 @@ export function ManualBookingForm({
   const [fullName, setFullName] = useState(prefillClient?.full_name ?? enquiry?.full_name ?? "");
   const [email, setEmail] = useState(prefillClient?.email ?? enquiry?.email ?? "");
   const [phone, setPhone] = useState(prefillClient?.phone ?? enquiry?.phone ?? "");
-  const [bookingFor, setBookingFor] = useState<"self" | "someone_else">("self");
+  const [bookingForMode, setBookingForMode] = useState<"self" | "someone_else" | "group">("self");
 
   const [participants, setParticipants] = useState<Participant[]>([
     emptyParticipant(prefillClient?.full_name ?? enquiry?.full_name ?? ""),
@@ -452,10 +489,28 @@ export function ManualBookingForm({
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
 
+  // Postcode lookup
+  const [postcodeLookupError, setPostcodeLookupError] = useState("");
+
+  // Same-gender group availability (or single participant)
   const [availSlots, setAvailSlots] = useState<AvailableSlot[]>([]);
   const [availLoading, setAvailLoading] = useState(false);
   const [availChecked, setAvailChecked] = useState(false);
   const [availReason, setAvailReason] = useState("");
+
+  // Mixed-gender group availability (Option C Phase 1 — two sections, one start_time)
+  const [femaleAvailSlots, setFemaleAvailSlots] = useState<AvailableSlot[]>([]);
+  const [maleAvailSlots, setMaleAvailSlots] = useState<AvailableSlot[]>([]);
+  const [femaleAvailLoading, setFemaleAvailLoading] = useState(false);
+  const [maleAvailLoading, setMaleAvailLoading] = useState(false);
+  const [femaleAvailChecked, setFemaleAvailChecked] = useState(false);
+  const [maleAvailChecked, setMaleAvailChecked] = useState(false);
+  const [femaleAvailReason, setFemaleAvailReason] = useState("");
+  const [maleAvailReason, setMaleAvailReason] = useState("");
+  const [showFemaleOverrideConfirm, setShowFemaleOverrideConfirm] = useState(false);
+  const [showMaleOverrideConfirm, setShowMaleOverrideConfirm] = useState(false);
+  const [femaleOverride, setFemaleOverride] = useState(false);
+  const [maleOverride, setMaleOverride] = useState(false);
 
   const [customerNotes, setCustomerNotes] = useState(
     enquiry ? [enquiry.service_interest, enquiry.notes].filter(Boolean).join("\n\n") : ""
@@ -474,63 +529,87 @@ export function ManualBookingForm({
     : "";
 
   const formVals: FormValues = {
-    bookingSource, fullName, email, phone, bookingFor,
+    bookingSource, fullName, email, phone, bookingForMode,
     participants, address, postcode, city, area, accessNotes, parkingNotes,
     bookingDate, startTime, overrideAvailability,
     customerNotes, healthNotes, consentAcknowledged, sendConfirmationEmail,
   };
 
-  // All selected services (union across participants)
+  // All selected services (union across participants — max 2 per participant)
   const allSelectedSlugs = Array.from(
-    new Set(participants.flatMap((p) => p.services))
+    new Set(participants.flatMap(participantServices))
   );
+
+  // Mixed-gender group detection
+  const femaleParticipants = participants.filter((p) => p.gender === "female");
+  const maleParticipants = participants.filter((p) => p.gender === "male");
+  const isMixedGenderGroup =
+    bookingForMode === "group" &&
+    femaleParticipants.length > 0 &&
+    maleParticipants.length > 0;
 
   // Availability check prerequisites
   const canCheckAvailability =
     city.trim().length >= 2 &&
     participants.some((p) => p.gender === "male" || p.gender === "female") &&
-    allSelectedSlugs.length > 0;
+    allSelectedSlugs.length > 0 &&
+    participants.every((p) => participantServices(p).length > 0);
 
   const checkAvailability = useCallback(
     async (date: string) => {
       if (!date || !canCheckAvailability) return;
 
-      const validGenders = participants
-        .map((p) => p.gender)
-        .filter((g): g is "male" | "female" => g === "male" || g === "female");
-
-      setAvailLoading(true);
-      setAvailChecked(false);
-      setStartTime("");
-
-      try {
+      async function fetchSlotsForGenders(genders: ("male" | "female")[]) {
         const res = await fetch("/api/availability", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            date,
-            serviceIds: allSelectedSlugs,
-            participantGenders: validGenders,
-            city: city.trim(),
-          }),
+          body: JSON.stringify({ date, serviceIds: allSelectedSlugs, participantGenders: genders, city: city.trim() }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          setAvailSlots(data.slots ?? []);
-          setAvailReason(data.reason ?? "");
-        } else {
-          setAvailSlots([]);
-          setAvailReason("Couldn't check availability. Try again.");
-        }
-      } catch {
-        setAvailSlots([]);
-        setAvailReason("Couldn't check availability. Try again.");
-      } finally {
-        setAvailLoading(false);
-        setAvailChecked(true);
+        if (!res.ok) return { slots: [], reason: "Couldn't check availability. Try again." };
+        const data = await res.json();
+        return { slots: (data.slots ?? []) as AvailableSlot[], reason: (data.reason ?? "") as string };
+      }
+
+      setStartTime("");
+
+      if (isMixedGenderGroup) {
+        // Option C Phase 1: two independent checks
+        setFemaleAvailLoading(true); setFemaleAvailChecked(false);
+        setMaleAvailLoading(true); setMaleAvailChecked(false);
+
+        const femaleGenders = femaleParticipants.map(() => "female" as const);
+        const maleGenders = maleParticipants.map(() => "male" as const);
+
+        fetchSlotsForGenders(femaleGenders).then(({ slots, reason }) => {
+          setFemaleAvailSlots(slots);
+          setFemaleAvailReason(reason);
+          setFemaleAvailLoading(false);
+          setFemaleAvailChecked(true);
+        });
+        fetchSlotsForGenders(maleGenders).then(({ slots, reason }) => {
+          setMaleAvailSlots(slots);
+          setMaleAvailReason(reason);
+          setMaleAvailLoading(false);
+          setMaleAvailChecked(true);
+        });
+      } else {
+        const validGenders = participants
+          .map((p) => p.gender)
+          .filter((g): g is "male" | "female" => g === "male" || g === "female");
+
+        setAvailLoading(true);
+        setAvailChecked(false);
+
+        fetchSlotsForGenders(validGenders).then(({ slots, reason }) => {
+          setAvailSlots(slots);
+          setAvailReason(reason);
+          setAvailLoading(false);
+          setAvailChecked(true);
+        });
       }
     },
-    [canCheckAvailability, allSelectedSlugs, city, participants]
+    [canCheckAvailability, allSelectedSlugs, city, participants, isMixedGenderGroup,
+     femaleParticipants, maleParticipants]
   );
 
   // Session storage draft
@@ -544,7 +623,7 @@ export function ManualBookingForm({
         if (draft.fullName) setFullName(draft.fullName);
         if (draft.email) setEmail(draft.email);
         if (draft.phone) setPhone(draft.phone);
-        if (draft.bookingFor) setBookingFor(draft.bookingFor);
+        if (draft.bookingForMode) setBookingForMode(draft.bookingForMode);
         if (draft.participants?.length) setParticipants(draft.participants);
         if (draft.address) setAddress(draft.address);
         if (draft.postcode) setPostcode(draft.postcode);
@@ -560,11 +639,19 @@ export function ManualBookingForm({
   useEffect(() => {
     try {
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
-        step, bookingSource, fullName, email, phone, bookingFor,
+        step, bookingSource, fullName, email, phone, bookingForMode,
         participants, address, postcode, city, area, customerNotes, healthNotes,
       }));
     } catch {}
-  }, [step, bookingSource, fullName, email, phone, bookingFor, participants, address, postcode, city, area, customerNotes, healthNotes]);
+  }, [step, bookingSource, fullName, email, phone, bookingForMode, participants, address, postcode, city, area, customerNotes, healthNotes]);
+
+  // Keep first participant name in sync when "Themself" is selected
+  useEffect(() => {
+    if (bookingForMode === "self") {
+      setParticipants((prev) => [{ ...prev[0], name: fullName }, ...prev.slice(1)]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fullName, bookingForMode]);
 
   // Warn browser on unload when form has data
   const formHasData = !!(fullName.trim() || phone.trim() || email.trim() || address.trim());
@@ -582,16 +669,37 @@ export function ManualBookingForm({
     );
   }
 
-  function toggleParticipantService(index: number, slug: string) {
-    setParticipants((prev) =>
-      prev.map((p, i) => {
-        if (i !== index) return p;
-        const next = p.services.includes(slug)
-          ? p.services.filter((s) => s !== slug)
-          : [...p.services, slug];
-        return { ...p, services: next };
-      })
-    );
+  function setParticipantPackage(index: number, slug: string) {
+    // toggle: clicking same slug again clears it
+    updateParticipant(index, {
+      packageSlug: (participants[index]?.packageSlug === slug) ? "" : slug,
+    });
+  }
+
+  function setParticipantMassageEnabled(index: number, enabled: boolean) {
+    updateParticipant(index, {
+      massageEnabled: enabled,
+      massageSlug: enabled ? (participants[index]?.massageSlug || "") : "",
+    });
+  }
+
+  function setParticipantMassageSlug(index: number, slug: string) {
+    updateParticipant(index, { massageSlug: slug });
+  }
+
+  // Booking-for mode change — drives participant structure
+  function handleBookingForChange(mode: "self" | "someone_else" | "group") {
+    setBookingForMode(mode);
+    if (mode === "self") {
+      setParticipants([emptyParticipant(fullName)]);
+    } else if (mode === "someone_else") {
+      setParticipants([emptyParticipant()]);
+    } else {
+      // Group: ensure at least 2 participants
+      setParticipants((prev) =>
+        prev.length >= 2 ? prev : [...prev, emptyParticipant()]
+      );
+    }
   }
 
   function addParticipant() {
@@ -602,6 +710,26 @@ export function ManualBookingForm({
   function removeParticipant(index: number) {
     if (participants.length <= 1) return;
     setParticipants((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  // Postcode auto-fill via postcodes.io
+  async function handlePostcodeBlur() {
+    const raw = postcode.trim().replace(/\s/g, "").toUpperCase();
+    if (raw.length < 5) return;
+    try {
+      const res = await fetch(`https://api.postcodes.io/postcodes/${raw}`);
+      if (!res.ok) {
+        setPostcodeLookupError("Postcode not found. Fill in city and area manually.");
+        return;
+      }
+      const data = await res.json();
+      const toTitleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+      if (!city.trim()) setCity(toTitleCase(data.result?.post_town ?? ""));
+      if (!area.trim()) setArea(data.result?.admin_district ?? "");
+      setPostcodeLookupError("");
+    } catch {
+      setPostcodeLookupError("Couldn't check postcode. Fill in city and area manually.");
+    }
   }
 
   // Step navigation
@@ -657,7 +785,7 @@ export function ManualBookingForm({
   const isStepReady: boolean = (() => {
     if (step === 1) return !!(fullName.trim() && phone.trim());
     if (step === 2) return participants.every(
-      (p) => p.name.trim() && p.gender && p.services.length > 0
+      (p) => p.name.trim() && p.gender && (p.packageSlug || (p.massageEnabled && p.massageSlug))
     );
     if (step === 3) return !!(
       address.trim() && postcode.trim() && city.trim() &&
@@ -676,20 +804,23 @@ export function ManualBookingForm({
       <input type="hidden" name="full_name" value={fullName} />
       <input type="hidden" name="email" value={email} />
       <input type="hidden" name="phone" value={phone} />
-      <input type="hidden" name="booking_for" value={participants.length > 1 ? "group" : bookingFor} />
+      <input type="hidden" name="booking_for" value={bookingForMode === "group" || participants.length > 1 ? "group" : bookingForMode} />
       <input type="hidden" name="number_of_people" value={participants.length} />
-      {participants.flatMap((p, i) => [
-        <input key={`pn${i}`} type="hidden" name={`participant_name_${i}`} value={p.name} />,
-        <input key={`pg${i}`} type="hidden" name={`participant_gender_${i}`} value={p.gender} />,
-        <input key={`pnt${i}`} type="hidden" name={`participant_note_${i}`} value={
-          p.differentAddress && p.overrideAddress
-            ? `Visit address: ${p.overrideAddress}, ${p.overridePostcode}`
-            : ""
-        } />,
-        ...p.services.map((slug) => (
-          <input key={`ps${i}-${slug}`} type="hidden" name={`participant_services_${i}[]`} value={slug} />
-        )),
-      ])}
+      {participants.flatMap((p, i) => {
+        const slugs = participantServices(p);
+        return [
+          <input key={`pn${i}`} type="hidden" name={`participant_name_${i}`} value={p.name} />,
+          <input key={`pg${i}`} type="hidden" name={`participant_gender_${i}`} value={p.gender} />,
+          <input key={`pnt${i}`} type="hidden" name={`participant_note_${i}`} value={
+            p.differentAddress && p.overrideAddress
+              ? `Visit address: ${p.overrideAddress}, ${p.overridePostcode}`
+              : ""
+          } />,
+          ...slugs.map((slug) => (
+            <input key={`ps${i}-${slug}`} type="hidden" name={`participant_services_${i}[]`} value={slug} />
+          )),
+        ];
+      })}
       {allSelectedSlugs.map((slug) => (
         <input key={slug} type="hidden" name="service_slugs" value={slug} />
       ))}
@@ -701,7 +832,9 @@ export function ManualBookingForm({
       <input type="hidden" name="parking_notes" value={parkingNotes} />
       <input type="hidden" name="booking_date" value={bookingDate} />
       <input type="hidden" name="start_time" value={startTime} />
-      {overrideAvailability && <input type="hidden" name="override_availability" value="on" />}
+      {(overrideAvailability || femaleOverride || maleOverride) && (
+        <input type="hidden" name="override_availability" value="on" />
+      )}
       <input type="hidden" name="customer_notes" value={customerNotes} />
       <input type="hidden" name="health_notes" value={healthNotes} />
       <input type="hidden" name="consent_acknowledged" value={consentAcknowledged ? "on" : ""} />
@@ -800,37 +933,43 @@ export function ManualBookingForm({
           </div>
         </div>
 
-        {participants.length === 1 && (
-          <fieldset className="mt-4">
-            <legend className="mb-2 text-sm font-medium text-[var(--admin-heading)]">
-              Booking for
-            </legend>
-            <div className="flex flex-wrap gap-3">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--admin-body)]">
+        <fieldset className="mt-4">
+          <legend className="mb-2 text-sm font-medium text-[var(--admin-heading)]">
+            Booking for
+          </legend>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {([
+              { value: "self" as const, label: "Themself", desc: "Caller is the client" },
+              { value: "someone_else" as const, label: "Someone else", desc: "A single person, not the caller" },
+              { value: "group" as const, label: "A group of people", desc: "Two or more participants" },
+            ]).map((opt) => (
+              <label
+                key={opt.value}
+                className={cn(
+                  "flex cursor-pointer items-start gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-colors",
+                  bookingForMode === opt.value
+                    ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)]"
+                    : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/30"
+                )}
+              >
                 <input
                   type="radio"
                   name="booking_for_display"
-                  value="self"
-                  checked={bookingFor === "self"}
-                  onChange={() => setBookingFor("self")}
-                  className="accent-[var(--admin-primary)]"
+                  value={opt.value}
+                  checked={bookingForMode === opt.value}
+                  onChange={() => handleBookingForChange(opt.value)}
+                  className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
                 />
-                Themself
+                <span>
+                  <span className={cn("block text-sm font-medium", bookingForMode === opt.value ? "text-[var(--admin-primary)]" : "text-[var(--admin-body)]")}>
+                    {opt.label}
+                  </span>
+                  <span className="block text-xs text-[var(--admin-text-muted)]">{opt.desc}</span>
+                </span>
               </label>
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-[var(--admin-body)]">
-                <input
-                  type="radio"
-                  name="booking_for_display"
-                  value="group"
-                  checked={false}
-                  onChange={() => addParticipant()}
-                  className="accent-[var(--admin-primary)]"
-                />
-                A group of people
-              </label>
-            </div>
-          </fieldset>
-        )}
+            ))}
+          </div>
+        </fieldset>
       </AdminPanel>
     </div>
   );
@@ -851,7 +990,7 @@ export function ManualBookingForm({
               <p className="text-sm font-semibold text-[var(--admin-heading)]">
                 {participants.length > 1 ? `Person ${idx + 1}` : "Participant"}
               </p>
-              {participants.length > 1 && (
+              {bookingForMode === "group" && participants.length > 2 && idx > 0 && (
                 <button
                   type="button"
                   onClick={() => removeParticipant(idx)}
@@ -897,48 +1036,93 @@ export function ManualBookingForm({
               </div>
             </div>
 
+            {/* Package radio */}
             <div>
               <p className="mb-2 text-sm font-medium text-[var(--admin-heading)]">
-                Services for this person
+                Select a package
                 <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
+                <span className="ml-1 text-xs font-normal text-[var(--admin-text-muted)]">(required unless adding a massage only)</span>
               </p>
               {stepErrors[`participant_services_${idx}`] && (
                 <FieldError error={stepErrors[`participant_services_${idx}`]} id={`participant_services_${idx}-error`} />
               )}
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {services.map((svc) => {
-                  const isSelected = participant.services.includes(svc.slug);
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {PACKAGE_OPTIONS.map((pkg) => {
+                  const selected = participant.packageSlug === pkg.slug;
                   return (
-                  <label
-                    key={svc.slug}
-                    className={cn(
-                      "flex cursor-pointer items-start gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-all duration-150",
-                      isSelected
-                        ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] ring-1 ring-[var(--admin-primary)]/20"
-                        : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(95.5%_0.012_155)]"
-                    )}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleParticipantService(idx, svc.slug)}
-                      className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
-                    />
-                    <span>
-                      <span className={cn("block text-sm font-medium", isSelected ? "text-[var(--admin-primary)]" : "text-[var(--admin-body)]")}>{svc.name}</span>
-                      <span className="block text-xs text-[var(--admin-text-muted)]">
-                        {svc.duration_mins} min · £{Number(svc.price).toFixed(2)}
-                        {svc.gender_restrictions !== "any" && (
-                          <span className="ml-1">
-                            · {svc.gender_restrictions === "female_only" ? "Women only" : "Men only"}
-                          </span>
-                        )}
+                    <label
+                      key={pkg.slug}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-all duration-150",
+                        selected
+                          ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] ring-1 ring-[var(--admin-primary)]/20"
+                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(95.5%_0.012_155)]"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name={`pkg_radio_${idx}`}
+                        checked={selected}
+                        onChange={() => setParticipantPackage(idx, pkg.slug)}
+                        className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
+                      />
+                      <span>
+                        <span className={cn("block text-sm font-semibold", selected ? "text-[var(--admin-primary)]" : "text-[var(--admin-body)]")}>
+                          {pkg.name}
+                        </span>
+                        <span className="block text-xs font-medium text-[var(--admin-text-muted)]">{pkg.price}</span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-[var(--admin-text-muted)]">{pkg.description}</span>
                       </span>
-                    </span>
-                  </label>
+                    </label>
                   );
                 })}
               </div>
+            </div>
+
+            {/* Massage add-on */}
+            <div className="border-t border-[var(--admin-border)] pt-4">
+              <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium text-[var(--admin-body)]">
+                <input
+                  type="checkbox"
+                  checked={participant.massageEnabled}
+                  onChange={(e) => setParticipantMassageEnabled(idx, e.target.checked)}
+                  className="shrink-0 accent-[var(--admin-primary)]"
+                />
+                Add a massage to this booking
+                <span className="font-normal text-[var(--admin-text-muted)]">(optional)</span>
+              </label>
+              {participant.massageEnabled && (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {MASSAGE_OPTIONS.map((m) => {
+                    const mSelected = participant.massageSlug === m.slug;
+                    return (
+                      <label
+                        key={m.slug}
+                        className={cn(
+                          "flex cursor-pointer items-center gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-all duration-150",
+                          mSelected
+                            ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] ring-1 ring-[var(--admin-primary)]/20"
+                            : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40"
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name={`massage_radio_${idx}`}
+                          checked={mSelected}
+                          onChange={() => setParticipantMassageSlug(idx, m.slug)}
+                          className="shrink-0 accent-[var(--admin-primary)]"
+                        />
+                        <span>
+                          <span className={cn("block text-sm font-semibold", mSelected ? "text-[var(--admin-primary)]" : "text-[var(--admin-body)]")}>
+                            {m.label}
+                          </span>
+                          <span className="block text-xs text-[var(--admin-text-muted)]">{m.price}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {idx > 0 && (
@@ -975,7 +1159,7 @@ export function ManualBookingForm({
           </div>
         ))}
 
-        {participants.length < MAX_PARTICIPANTS && (
+        {bookingForMode === "group" && participants.length < MAX_PARTICIPANTS && (
           <AdminButton
             variant="ghost"
             size="sm"
@@ -986,7 +1170,7 @@ export function ManualBookingForm({
             Add another person
           </AdminButton>
         )}
-        {participants.length >= MAX_PARTICIPANTS && (
+        {bookingForMode === "group" && participants.length >= MAX_PARTICIPANTS && (
           <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
             For larger groups, contact us directly.
           </p>
@@ -1000,25 +1184,18 @@ export function ManualBookingForm({
       {step === 3 && multiErrorBanner}
       <AdminPanel title="Location">
         <div className="grid gap-4 sm:grid-cols-2">
-          <AdminInput
-            id="address"
-            label="Address"
-            required
-            placeholder="Street name and number"
-            value={address}
-            error={stepErrors.address}
-            className={isPrefilled("address") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : ""}
-            onChange={(e) => { setAddress(e.target.value); markEdited("address"); }}
-          />
+          {/* Postcode first — auto-fills city + area */}
           <AdminInput
             id="postcode"
             label="Postcode"
             required
             placeholder="LU1 1AA"
+            hint="We'll auto-fill city and area from this"
             value={postcode}
-            error={stepErrors.postcode}
-            className={isPrefilled("postcode") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : ""}
-            onChange={(e) => { setPostcode(e.target.value); markEdited("postcode"); }}
+            error={stepErrors.postcode || postcodeLookupError || undefined}
+            className={cn("sm:col-span-1", isPrefilled("postcode") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : "")}
+            onChange={(e) => { setPostcode(e.target.value); markEdited("postcode"); setPostcodeLookupError(""); }}
+            onBlur={handlePostcodeBlur}
           />
           <AdminInput
             id="city"
@@ -1028,7 +1205,7 @@ export function ManualBookingForm({
             value={city}
             error={stepErrors.city}
             className={isPrefilled("city") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : ""}
-            onChange={(e) => { setCity(e.target.value); markEdited("city"); setBookingDate(""); setStartTime(""); setAvailChecked(false); setAvailSlots([]); }}
+            onChange={(e) => { setCity(e.target.value); markEdited("city"); setBookingDate(""); setStartTime(""); setAvailChecked(false); setAvailSlots([]); setFemaleAvailChecked(false); setMaleAvailChecked(false); }}
           />
           <AdminInput
             id="area"
@@ -1037,6 +1214,16 @@ export function ManualBookingForm({
             value={area}
             className={isPrefilled("area") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : ""}
             onChange={(e) => { setArea(e.target.value); markEdited("area"); }}
+          />
+          <AdminInput
+            id="address"
+            label="Address"
+            required
+            placeholder="Street name and number"
+            value={address}
+            error={stepErrors.address}
+            className={isPrefilled("address") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : ""}
+            onChange={(e) => { setAddress(e.target.value); markEdited("address"); }}
           />
           <TextareaField
             id="access_notes"
@@ -1082,7 +1269,8 @@ export function ManualBookingForm({
           </div>
         )}
 
-        {canCheckAvailability && !overrideAvailability && (
+        {/* Date picker (shared across all cases when prerequisites met) */}
+        {canCheckAvailability && !overrideAvailability && !isMixedGenderGroup && (
           <div className="grid gap-4">
             <AdminInput
               id="booking_date"
@@ -1092,70 +1280,40 @@ export function ManualBookingForm({
               value={bookingDate}
               error={stepErrors.booking_date}
               min={new Date().toISOString().split("T")[0]}
-              onChange={(e) => {
-                const d = e.target.value;
-                setBookingDate(d);
-                setStartTime("");
-                if (d) checkAvailability(d);
-              }}
+              onChange={(e) => { const d = e.target.value; setBookingDate(d); setStartTime(""); if (d) checkAvailability(d); }}
             />
-
             {availLoading && (
               <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-                Checking availability…
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability…
               </div>
             )}
-
             {availChecked && !availLoading && availSlots.length === 0 && (
               <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-4">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="mt-0.5 size-4 shrink-0 text-[oklch(26%_0.13_55)]" aria-hidden="true" />
                   <div>
-                    <p className="text-sm font-medium text-[oklch(26%_0.13_55)]">
-                      No therapists available on this date.
-                    </p>
-                    {availReason && (
-                      <p className="mt-0.5 text-xs text-[oklch(26%_0.13_55)]/80">{availReason}</p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setShowOverrideConfirm(true)}
-                      className="mt-2 text-xs font-semibold text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-                    >
-                      Override this date
-                    </button>
+                    <p className="text-sm font-medium text-[oklch(26%_0.13_55)]">No therapists available on this date.</p>
+                    {availReason && <p className="mt-0.5 text-xs text-[oklch(26%_0.13_55)]/80">{availReason}</p>}
+                    <button type="button" onClick={() => setShowOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline">Override this date</button>
                   </div>
                 </div>
               </div>
             )}
-
             {availChecked && !availLoading && availSlots.length > 0 && (
               <div>
                 <p className="mb-3 text-sm font-medium text-[var(--admin-heading)]">
-                  Available times
-                  <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
+                  Available times <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
                 </p>
-                {stepErrors.start_time && (
-                  <FieldError error={stepErrors.start_time} id="start_time-error" />
-                )}
+                {stepErrors.start_time && <FieldError error={stepErrors.start_time} id="start_time-error" />}
                 <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {availSlots.map((slot) => (
-                    <button
-                      key={slot.time}
-                      type="button"
-                      onClick={() => setStartTime(slot.time)}
-                      className={cn(
-                        "flex flex-col items-center rounded-[var(--admin-radius-control)] border p-3 text-center transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
-                        startTime === slot.time
-                          ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white shadow-[0_2px_8px_oklch(23%_0.073_155/0.25)] ring-2 ring-[var(--admin-primary)]/20"
+                    <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
+                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-3 text-center transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white shadow-[0_2px_8px_oklch(23%_0.073_155/0.25)] ring-2 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
-                      )}
-                    >
+                      )}>
                       <span className="text-sm font-bold leading-none">{slot.time}</span>
-                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>
-                        {slotLabel(slot)}
-                      </span>
+                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slotLabel(slot)}</span>
                     </button>
                   ))}
                 </div>
@@ -1164,7 +1322,117 @@ export function ManualBookingForm({
           </div>
         )}
 
-        {overrideAvailability && (
+        {/* Option C Phase 1: mixed-gender group — two independent availability sections */}
+        {canCheckAvailability && !overrideAvailability && !femaleOverride && !maleOverride && isMixedGenderGroup && (
+          <div className="grid gap-6">
+            <AdminInput
+              id="booking_date"
+              label="Date"
+              required
+              type="date"
+              value={bookingDate}
+              error={stepErrors.booking_date}
+              min={new Date().toISOString().split("T")[0]}
+              onChange={(e) => { const d = e.target.value; setBookingDate(d); setStartTime(""); if (d) checkAvailability(d); }}
+            />
+            {bookingDate && (
+              <p className="text-xs text-[var(--admin-text-muted)] -mt-2">
+                Phase 1: both groups share one appointment time. Full split-time booking supported in a future update.
+              </p>
+            )}
+
+            {/* Female participants section */}
+            <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] p-4">
+              <p className="mb-3 text-sm font-semibold text-[var(--admin-heading)]">
+                Female participants ({femaleParticipants.length})
+              </p>
+              {femaleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking female availability…</div>}
+              {femaleAvailChecked && !femaleAvailLoading && femaleAvailSlots.length === 0 && (
+                <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="mt-0.5 size-4 shrink-0 text-[oklch(26%_0.13_55)]" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-medium text-[oklch(26%_0.13_55)]">No female therapists available on this date.</p>
+                      {femaleAvailReason && <p className="mt-0.5 text-xs text-[oklch(26%_0.13_55)]/80">{femaleAvailReason}</p>}
+                      <button type="button" onClick={() => setShowFemaleOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline">Override for female participants</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {femaleAvailChecked && !femaleAvailLoading && femaleAvailSlots.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {femaleAvailSlots.map((slot) => (
+                    <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
+                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white ring-2 ring-[var(--admin-primary)]/20"
+                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
+                      )}>
+                      <span className="text-sm font-bold leading-none">{slot.time}</span>
+                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slot.availableStaffByGender.female} female</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showFemaleOverrideConfirm && (
+                <div className="mt-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
+                  <p className="text-sm font-semibold text-[oklch(26%_0.13_55)]">Override female availability?</p>
+                  <p className="mt-1 text-xs text-[oklch(26%_0.13_55)]/80">Female participants will be unassigned until a therapist accepts.</p>
+                  <div className="mt-2 flex gap-2">
+                    <AdminButton size="sm" onClick={() => { setFemaleOverride(true); setShowFemaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-white hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+                    <AdminButton size="sm" variant="ghost" onClick={() => setShowFemaleOverrideConfirm(false)}>Cancel</AdminButton>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Male participants section */}
+            <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] p-4">
+              <p className="mb-3 text-sm font-semibold text-[var(--admin-heading)]">
+                Male participants ({maleParticipants.length})
+              </p>
+              {maleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking male availability…</div>}
+              {maleAvailChecked && !maleAvailLoading && maleAvailSlots.length === 0 && (
+                <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="mt-0.5 size-4 shrink-0 text-[oklch(26%_0.13_55)]" aria-hidden="true" />
+                    <div>
+                      <p className="text-sm font-medium text-[oklch(26%_0.13_55)]">No male therapists available on this date.</p>
+                      {maleAvailReason && <p className="mt-0.5 text-xs text-[oklch(26%_0.13_55)]/80">{maleAvailReason}</p>}
+                      <button type="button" onClick={() => setShowMaleOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline">Override for male participants</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {maleAvailChecked && !maleAvailLoading && maleAvailSlots.length > 0 && (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {maleAvailSlots.map((slot) => (
+                    <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
+                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white ring-2 ring-[var(--admin-primary)]/20"
+                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
+                      )}>
+                      <span className="text-sm font-bold leading-none">{slot.time}</span>
+                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slot.availableStaffByGender.male} male</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showMaleOverrideConfirm && (
+                <div className="mt-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
+                  <p className="text-sm font-semibold text-[oklch(26%_0.13_55)]">Override male availability?</p>
+                  <p className="mt-1 text-xs text-[oklch(26%_0.13_55)]/80">Male participants will be unassigned until a therapist accepts.</p>
+                  <div className="mt-2 flex gap-2">
+                    <AdminButton size="sm" onClick={() => { setMaleOverride(true); setShowMaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-white hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+                    <AdminButton size="sm" variant="ghost" onClick={() => setShowMaleOverrideConfirm(false)}>Cancel</AdminButton>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Override mode (single group or combined) */}
+        {(overrideAvailability || (isMixedGenderGroup && (femaleOverride || maleOverride))) && (
           <div className="grid gap-4">
             <div className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-3 text-sm text-[oklch(26%_0.13_55)]">
               <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -1174,25 +1442,8 @@ export function ManualBookingForm({
               </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <AdminInput
-                id="booking_date"
-                label="Date"
-                required
-                type="date"
-                value={bookingDate}
-                error={stepErrors.booking_date}
-                min={new Date().toISOString().split("T")[0]}
-                onChange={(e) => setBookingDate(e.target.value)}
-              />
-              <AdminInput
-                id="start_time"
-                label="Start time"
-                required
-                type="time"
-                value={startTime}
-                error={stepErrors.start_time}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
+              <AdminInput id="booking_date" label="Date" required type="date" value={bookingDate} error={stepErrors.booking_date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setBookingDate(e.target.value)} />
+              <AdminInput id="start_time" label="Start time" required type="time" value={startTime} error={stepErrors.start_time} onChange={(e) => setStartTime(e.target.value)} />
             </div>
           </div>
         )}
@@ -1204,20 +1455,8 @@ export function ManualBookingForm({
               This booking will be created unassigned — a therapist will need to accept it before the visit.
             </p>
             <div className="mt-3 flex gap-2">
-              <AdminButton
-                size="sm"
-                onClick={() => { setOverrideAvailability(true); setShowOverrideConfirm(false); }}
-                className="bg-[oklch(26%_0.13_55)] text-white hover:bg-[oklch(22%_0.12_55)]"
-              >
-                Override
-              </AdminButton>
-              <AdminButton
-                size="sm"
-                variant="ghost"
-                onClick={() => setShowOverrideConfirm(false)}
-              >
-                Cancel
-              </AdminButton>
+              <AdminButton size="sm" onClick={() => { setOverrideAvailability(true); setShowOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-white hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+              <AdminButton size="sm" variant="ghost" onClick={() => setShowOverrideConfirm(false)}>Cancel</AdminButton>
             </div>
           </div>
         )}
@@ -1285,7 +1524,18 @@ export function ManualBookingForm({
                 </p>
                 <dl className="grid gap-2 sm:grid-cols-2">
                   {dl("Gender", p.gender || "Not set")}
-                  {dl("Services", services.filter((s) => p.services.includes(s.slug)).map((s) => s.name).join(", ") || "None selected")}
+                  {dl("Services", (() => {
+                    const names: string[] = [];
+                    if (p.packageSlug) {
+                      const pkg = PACKAGE_OPTIONS.find((o) => o.slug === p.packageSlug);
+                      if (pkg) names.push(pkg.name);
+                    }
+                    if (p.massageEnabled && p.massageSlug) {
+                      const m = MASSAGE_OPTIONS.find((o) => o.slug === p.massageSlug);
+                      if (m) names.push(`Massage ${m.label}`);
+                    }
+                    return names.join(", ") || "None selected";
+                  })())}
                 </dl>
               </div>
             ))}
@@ -1357,6 +1607,18 @@ export function ManualBookingForm({
         </div>
       </div>
 
+      {/* Unassigned note — always shown on step 4 */}
+      {step === 4 && (
+        <div className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-3 text-sm text-[oklch(26%_0.13_55)]">
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>
+            {overrideAvailability || femaleOverride || maleOverride
+              ? "No availability checked — a therapist must be assigned before the visit."
+              : "Once submitted, this booking will be unassigned until a therapist accepts it."}
+          </span>
+        </div>
+      )}
+
       {state.error && (
         <div
           role="alert"
@@ -1408,7 +1670,7 @@ export function ManualBookingForm({
           className="inline-flex items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
         >
           {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-          Create booking
+          Submit booking request
         </button>
       )}
     </div>
@@ -1488,7 +1750,7 @@ export function ManualBookingForm({
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
             >
               {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              Create booking
+              Submit booking request
             </button>
           )}
         </AdminMobileActionBar>

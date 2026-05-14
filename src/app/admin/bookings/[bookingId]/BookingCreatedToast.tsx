@@ -20,7 +20,10 @@ export function BookingCreatedToast() {
       Number.isFinite(timestamp) &&
       Date.now() - timestamp <= TOAST_WINDOW_MS
     ) {
-      toast.success("Booking created.", { duration: 4000 });
+      toast("Booking request submitted.", {
+        duration: 4000,
+        icon: "📋",
+      });
     }
   }, []);
 
