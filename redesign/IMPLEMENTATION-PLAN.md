@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 2 of 29 — booking-new   ← update when you start a session (count by position from the top, not by label)
+Currently on: 3 of 29 — bookings   ← update when you start a session (count by position from the top, not by label)
 
 ---
 
@@ -52,7 +52,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 2. [ ] booking-new — commit: ____
+## 2. [x] booking-new — commit: 3dd6553
 
 **Tier:** Tier 2 — KEY_TASK 1 (Create bookings)
 

@@ -139,7 +139,7 @@
     - Backend plan files: started 22, added 1 (BUILD-automated-booking-reminders.md), now 23.
 - [ ] Phase 6 — Implementation
   - [x] Session 1 — `00-shared-components`: COMPLETE (2026-05-13) — admin chrome + shared component library committed; downstream sessions inherit tokens, AdminPanel, EmptyState, Switch, avatar algorithm.
-  - [ ] Session 2 — `booking-new`: **INCOMPLETE — previous attempt had mistakes and was abandoned. Current `ManualBookingForm.tsx` is the old pre-redesign single-page form (old `--rahma-*` tokens, no wizard, no step rail, no AdminPanel, no pre-fill chips, no gender-match chip, no AdminMobileActionBar). Requires full rewrite from `booking-new-brief.md` via `/impeccable craft`.**
+  - [x] Session 2 — `booking-new`: COMPLETE (2026-05-14) — commit 3dd6553. Four-step wizard with step rail (clickable completed circles, bolder active circle ring), availability integration via POST /api/availability, override mode, per-participant services, group booking auto-flag, pre-fill chips, gender-match chip (Lock icon), Leave dialog, aria-disabled on Continue, multi-error banner, bolder service card selected state. Supabase migrations: city/area on clients + per-participant services RPC. Switch component added. Dead code (BookingStatusChip, AssignmentStatusChip) deleted.
 - [ ] Phase 7 — QA
 
 ---
