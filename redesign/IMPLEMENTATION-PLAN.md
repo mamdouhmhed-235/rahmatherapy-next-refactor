@@ -90,7 +90,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 3. [ ] bookings — commit: ____
+## 3. [x] bookings — commit: 449f722
 
 **Tier:** Tier 2 — KEY_TASK 1 (Create bookings)
 
