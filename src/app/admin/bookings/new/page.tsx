@@ -74,6 +74,11 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
   const enquiry = enquiryResult.data ?? null;
   const assignableStaff = assignableStaffResult.data ?? [];
 
+  // Signal to the form when a requested pre-fill fetch failed (so it can toast a warning)
+  const prefillFailed =
+    (!!clientId && !prefillClient && !!prefillClientResult.error) ||
+    (!!enquiryId && !enquiry && !!enquiryResult.error);
+
   // "Take myself" — uses canClaimAssignments which checks active + can_take_bookings + claim_assignments permission
   const currentUserIsBookable = canClaimAssignments(profile) && !!profile.gender;
 
@@ -84,6 +89,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
         services={services}
         prefillClient={prefillClient}
         enquiry={enquiry}
+        prefillFailed={prefillFailed}
         canAssign={canAssign}
         assignableStaff={assignableStaff as Array<{ id: string; name: string; gender: string; can_take_bookings: boolean }>}
         currentUserId={profile.id}

@@ -748,6 +748,68 @@ export async function createManualBooking(
       },
     });
 
+    // Inline assignment — apply therapist selections from step 4 if present
+    try {
+      const therapistAssignments = participantIndexes.map((i) =>
+        String(formData.get(`therapist_assignment_${i}`) ?? "").trim()
+      );
+      const hasAnyAssignment = therapistAssignments.some((id) => id.length > 0);
+
+      if (hasAnyAssignment) {
+        const { data: participants } = await adminClient
+          .from("booking_participants")
+          .select("id")
+          .eq("booking_id", result.bookingId)
+          .order("created_at", { ascending: true });
+
+        if (participants && participants.length > 0) {
+          let appliedCount = 0;
+
+          for (let i = 0; i < therapistAssignments.length; i++) {
+            const staffId = therapistAssignments[i];
+            if (!staffId || !participants[i]) continue;
+
+            const { data: assignment } = await adminClient
+              .from("booking_assignments")
+              .select("id")
+              .eq("participant_id", participants[i].id)
+              .single();
+
+            if (!assignment) continue;
+
+            await adminClient
+              .from("booking_assignments")
+              .update({ assigned_staff_id: staffId, status: "assigned" })
+              .eq("id", assignment.id);
+
+            await adminClient.from("audit_logs").insert({
+              actor_staff_id: actor.id,
+              action_type: "booking_assignment_reassigned",
+              target_type: "booking_assignments",
+              target_id: assignment.id,
+              after_state: { assigned_staff_id: staffId },
+            });
+
+            appliedCount++;
+          }
+
+          if (appliedCount > 0) {
+            const newStatus =
+              appliedCount >= result.participantCount
+                ? "fully_assigned"
+                : "partially_assigned";
+
+            await adminClient
+              .from("bookings")
+              .update({ assignment_status: newStatus })
+              .eq("id", result.bookingId);
+          }
+        }
+      }
+    } catch (assignmentError) {
+      console.error("Inline assignment failed (booking was created):", assignmentError);
+    }
+
     if (enquiryId) {
       const { data: beforeEnquiry } = await adminClient
         .from("enquiries")

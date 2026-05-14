@@ -132,6 +132,7 @@ export async function createBookingTransaction(
     p_participant_service_slugs: input.participantServiceSlugs?.map((services) =>
       services.join(",")
     ) ?? null,
+    p_area: input.details.area || null,
   });
 
   if (error || !data || typeof data !== "object") {
