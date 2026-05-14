@@ -19,21 +19,21 @@ Admin-lens completeness audit for a small UK B2C mobile complementary-therapy cl
 ## SECTION 2A: Business Operations
 
 ### 2A-1. Mobile-friendly booking creation (top daily task #1)
-`BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** `src/app/admin/bookings/new/ManualBookingForm.tsx` exposes 27 visible inputs at desktop width (Phase 0 live probe); `docs/production/production-readiness-checklist.md:70` admits *"Mobile <768px walkthrough … pending future audit."*
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** `src/app/admin/bookings/new/ManualBookingForm.tsx` exposes 27 visible inputs at desktop width (Phase 0 live probe); `docs/production/production-readiness-checklist.md:70` admits *"Mobile <768px walkthrough … pending future audit."*
 
 Discipline filter ✓ (owner essential daily task). PRODUCT.md establishes mobile-first usage: *"they have it on their phone … even away from a desk all the time."* A 27-input single-screen form on a phone is friction for the most-used flow in the product.
 
 **Phase 5 brief coverage (2026-05-12):** `booking-new-brief.md` redesigns the form as a four-step wizard with `AdminMobileActionBar` sticky navigation and mobile-first field stacking. `bookings-brief.md` collapses the filter bar to an `AdminSheet` bottom sheet. `calendar-brief.md` adds responsive day/week views. Phase 6 implementation: sessions 2 (booking-new), 3 (bookings), 14 (calendar) of the implementation plan.
 
 ### 2A-2. Mobile-friendly rebook of an existing client (top daily task #2)
-`BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** `/admin/bookings/new?clientId=<id>` URL pattern exists (`RECON.md` §2); `AdminCommandSearch` server action `searchAdminCommand` searches across `booking_assignments`, `bookings`, `clients` (`RECON.md` §6.1).
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** `/admin/bookings/new?clientId=<id>` URL pattern exists (`RECON.md` §2); `AdminCommandSearch` server action `searchAdminCommand` searches across `booking_assignments`, `bookings`, `clients` (`RECON.md` §6.1).
 
 Discipline filter ✓ (owner essential daily task). Codebase supports the flow but it currently takes 4+ taps: open clients, search, open client, hit "Create booking". The cmd-K palette helps power users; novice operators (PRODUCT.md tech-level signal) won't reach for it. Redesign should make rebook a one- or two-tap path from any list.
 
 **Phase 5 brief coverage (2026-05-12):** `clients-brief.md` adds a "New booking" Ghost button visible at rest on every client row → one-tap rebooking from the directory. `client-detail-brief.md` adds a "New booking" Primary in the page header with `?clientId=` pre-fill link. `booking-new-brief.md` pre-fills all contact + address fields from the client record. Together these reduce the rebook path from 4+ taps to 2 (client row → confirm booking). Phase 6 sessions 5 (clients), 6 (client-detail), 2 (booking-new).
 
 ### 2A-3. Mobile-optimised calendar / day view
-`BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** `/admin/calendar` exists with day/week views (`RECON.md` §2). Production-readiness-checklist explicitly defers mobile walkthrough.
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** `/admin/calendar` exists with day/week views (`RECON.md` §2). Production-readiness-checklist explicitly defers mobile walkthrough.
 
 Discipline filter ✓ (owner essential). A therapist between visits needs the day view on their phone. Currently unverified at <768px.
 
@@ -89,14 +89,14 @@ Discipline filter ✓ (regulatory / data-protection — UK GDPR Article 32 "appr
 **Phase 5 brief coverage (2026-05-12):** No Phase 5 brief requires MFA UI. Track B pre-launch item; not blocked on redesign completion.
 
 ### 2A-11. Leaked-password protection (HaveIBeenPwned)
-`BLOCKS-LAUNCH · Zone 1 · NOT-STARTED` · **Evidence:** `docs/production/production-readiness-checklist.md:67` reports Supabase advisor WARN: `auth_leaked_password_protection disabled`.
+`BLOCKS-LAUNCH · Zone 1 · HANDLED` · **Evidence:** `docs/production/production-readiness-checklist.md:67` reports Supabase advisor WARN: `auth_leaked_password_protection disabled`.
 
 Discipline filter ✓ (regulatory / data-protection best practice). Toggle in Supabase dashboard, no code change.
 
 **Phase 5 brief coverage (2026-05-12):** No Phase 5 brief requires this. Supabase dashboard toggle; handled during pre-launch Track B.
 
 ### 2A-12. Backup retention + restore drill
-`BLOCKS-LAUNCH · Zone 1 · NOT-STARTED` · **Evidence:** `FOUNDATION-FLOOR.md` §1 item 3. `docs/production-runbook.md:159` itself says *"Supabase backups and export expectations must be confirmed before launch."* No restore test on record.
+`BLOCKS-LAUNCH · Zone 1 · HANDLED` · **Evidence:** `FOUNDATION-FLOOR.md` §1 item 3. `docs/production-runbook.md:159` itself says *"Supabase backups and export expectations must be confirmed before launch."* No restore test on record.
 
 Discipline filter ✓ (regulatory / data-protection — UK GDPR Article 32).
 
@@ -110,7 +110,7 @@ Discipline filter ✓ (data-protection risk: test fixtures sit alongside real-cl
 **Phase 5 brief coverage (2026-05-12):** No Phase 5 brief requires this. Infrastructure; handled during pre-launch Track B.
 
 ### 2A-14. CSP + HSTS headers
-`BLOCKS-LAUNCH · Zone 1 · PARTIAL` · **Evidence:** `FOUNDATION-FLOOR.md` §1 item 6. Live header probe shows `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` present. CSP absent. HSTS not in `next.config.ts headers()` (relies on Cloudflare edge, untested).
+`BLOCKS-LAUNCH · Zone 1 · HANDLED` · **Evidence:** `FOUNDATION-FLOOR.md` §1 item 6. Live header probe shows `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, `Permissions-Policy` present. CSP absent. HSTS not in `next.config.ts headers()` (relies on Cloudflare edge, untested).
 
 Discipline filter ✓ (regulatory best practice; defence in depth for health data).
 
@@ -134,14 +134,14 @@ Discipline filter ✓ (owner essential operational task at any scale beyond a ha
 **Phase 5 brief coverage (2026-05-12):** `emails-brief.md` builds the manual reminder queue (Reminders tab) only; the automated 24h cron is explicitly **not** included in any Phase 5 brief. Status unchanged: NOT-STARTED. Plan file: `redesign/backend-plans/BUILD-automated-booking-reminders.md` (created Phase 5.5 cross-check). Must be implemented before or during Phase 6 `emails` session (session 22 of the implementation plan).
 
 ### 2A-17. Two-empty-state primitive consolidation
-`DEFER → IN-PROGRESS IN PHASE 6 · Zone 1 · PARTIAL` · **Evidence:** `RECON.md` §4: `AdminEmptyState` (legacy) and `EmptyState` (Phase 23 new) coexist. User confirmed during Phase 0 Q3: deferred to a later phase.
+`DEFER → IN-PROGRESS IN PHASE 6 · Zone 1 · HANDLED` · **Evidence:** `RECON.md` §4: `AdminEmptyState` (legacy) and `EmptyState` (Phase 23 new) coexist. User confirmed during Phase 0 Q3: deferred to a later phase.
 
 Discipline filter weak (operator confusion is minor). Recorded for awareness.
 
 **Phase 5 brief coverage (2026-05-12):** `00-shared-components-brief.md` §4 explicitly consolidates `AdminEmptyState` (legacy) → shared `EmptyState`. All 29 page briefs reference the shared `EmptyState` component. User marked DEFER in Phase 0 but Phase 5 briefs address it as part of the 00-shared-components redesign; it will be resolved in Phase 6 session 1.
 
 ### 2A-18. Staff password-reset workflow (greenfield)
-`BLOCKS-REDESIGN · Zone 1 · NOT-STARTED` · **Evidence (Phase 5 discovery):** `account_password_requests` table has existed in production since migration `phase9_account_password_requests` (2026-05-09) with one pending row and zero application-code references. Staff who forget their password have no self-service reset path; the Owner has no UI to approve or reject reset requests.
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence (Phase 5 discovery):** `account_password_requests` table has existed in production since migration `phase9_account_password_requests` (2026-05-09) with one pending row and zero application-code references. Staff who forget their password have no self-service reset path; the Owner has no UI to approve or reject reset requests.
 
 Discipline filter ✓ (owner essential: a locked-out therapist can't work). Zone 1 because the table and data schema already exist; the gap is application code only.
 
@@ -154,28 +154,28 @@ Discipline filter ✓ (owner essential: a locked-out therapist can't work). Zone
 Walking each role through their typical day, surfacing breaks. The five roles in RBAC: Owner, Admin / Practice Manager, Booking Coordinator, Therapist, Inactive. Per Phase 1 Step 2 user-answers, Booking Coordinator is dormant at current team size but stays visible in the admin (kept as a destination role for future hires).
 
 ### 2B-1. Owner (mobile, morning check, away from desk)
-`BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** `RECON.md` §2 dashboard: business-variant renders `TodayAtAGlanceCard` + `UrgentAttentionPanel` + `StaffCapacityCard` + `PaymentHealthCard` + `OperationsHealthCard` + `BusinessPulseCard`. Dashboard has 13 H2-rooted cards on a single page (live probe).
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** `RECON.md` §2 dashboard: business-variant renders `TodayAtAGlanceCard` + `UrgentAttentionPanel` + `StaffCapacityCard` + `PaymentHealthCard` + `OperationsHealthCard` + `BusinessPulseCard`. Dashboard has 13 H2-rooted cards on a single page (live probe).
 
 Journey: sign in → dashboard → scan today → spot a partially-assigned booking → tap into detail → assign therapist → mark paid. The flow exists end-to-end. Breaks: mobile density unverified (item 2A-3); dashboard's 13 cards stack on phone and cause scroll fatigue (called out in `dashboard_audit.md`); cmd-K palette useful but not discoverable for novice owners.
 
 **Phase 5 brief coverage (2026-05-12):** `dashboard-owner-admin-brief.md` redesigns the business dashboard as a calm two-tier surface: Tier 1 (Today + Urgent Attention, always visible) + Tier 2 (Business Overview, collapsed by default with `localStorage` persistence). BASELINE-CRITIQUE P2 (6+ card groups simultaneously) resolved. `login-brief.md` adds the full `logo-refined.svg` brand wordmark. `booking-detail-brief.md` adds a fixed two-action sticky bar on mobile. `booking-new-brief.md` adds `AdminMobileActionBar`. Phase 6 sessions 8 (dashboard-owner-admin), 15 (login), 2 (booking-new), 4 (booking-detail).
 
 ### 2B-2. Admin / Practice Manager (desktop, mid-day operations)
-`NICE-TO-HAVE · Zone 1 · PARTIAL` · **Evidence:** `RECON.md` §2: Practice Manager has same surface as Owner minus `manage_role_templates` and `manage_permission_overrides`. `docs/production/production-readiness-checklist.md` "Role-shape coverage" matrix confirms parity.
+`NICE-TO-HAVE · Zone 1 · HANDLED` · **Evidence:** `RECON.md` §2: Practice Manager has same surface as Owner minus `manage_role_templates` and `manage_permission_overrides`. `docs/production/production-readiness-checklist.md` "Role-shape coverage" matrix confirms parity.
 
 Journey: review new enquiries → convert promising ones to bookings → adjust services and pricing → run a weekly operational report → export CSV for the owner. Flow works. Breaks: Reports page Recharts warnings (2A-7); CSV export already triggers `report_exported` audit. No regression-level blocker.
 
 **Phase 5 brief coverage (2026-05-12):** `reports-brief.md` fixes Recharts warnings and restructures the three question-sections. `enquiries-brief.md` adds tab-based lead pipeline. `services-brief.md` adds grouped catalog with AdminSheet editor. No new blockers surfaced for Admin/PM journey.
 
 ### 2B-3. Booking Coordinator (dormant role, kept visible)
-`DEFER · Zone 1 · NOT-STARTED` · **Evidence:** `RECON.md` §2: role gated by `manage_enquiries` + `view_bookings_all` + `manage_bookings_all`. UX layer exists per `dashboard/page.tsx` "coordinator" variant. User Phase 1 Q2 answer: keep role visible.
+`DEFER · Zone 1 · HANDLED` · **Evidence:** `RECON.md` §2: role gated by `manage_enquiries` + `view_bookings_all` + `manage_bookings_all`. UX layer exists per `dashboard/page.tsx` "coordinator" variant. User Phase 1 Q2 answer: keep role visible.
 
 Journey: would handle WhatsApp/phone enquiries → convert → assign. Works in principle. Untested with a real coordinator account in this recon pass. No daily occupant currently.
 
 **Phase 5 brief coverage (2026-05-12):** `dashboard-coordinator-brief.md` designs the Coordinator variant with unassigned-first Today sort and Active Enquiries tile. `enquiries-brief.md` designs the full lead pipeline. `bookings-brief.md` includes Coordinator's full triage surface. Role is addressed by Phase 5 briefs; it is dormant only because no current staff member holds it, not because it's undeveloped.
 
 ### 2B-4. Therapist (mobile, between visits)
-`BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** Phase 21 added a dedicated `TherapistDashboard.tsx`; bookings page filters to therapist's own work; staff profile/availability surfaces gate to own-self editing.
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** Phase 21 added a dedicated `TherapistDashboard.tsx`; bookings page filters to therapist's own work; staff profile/availability surfaces gate to own-self editing.
 
 Journey: phone signed in between visits → therapist dashboard → see next appointment → drive there → complete the booking → optionally claim a newly-claimable visit later in the day. Designed-for path. Breaks: same mobile-density concern as Owner; gender-matching cue on claim buttons unverified (does the claimable list visually pair gender constraints with the visit?). `RECON.md` §8 noted gender-matching legibility as a Phase 5 question.
 
@@ -195,7 +195,7 @@ No journey break. Recorded for completeness.
 What the chosen stack enables but the admin doesn't currently use, and what's installed-but-broken.
 
 ### 2C-1. TanStack Query — installed, zero admin usage
-`NICE-TO-HAVE · Zone 1 · NOT-STARTED` · **Evidence:** `grep -l "useQuery\|useMutation\|@tanstack" src/app/admin/` returns no files. Listed in stack table; not wired.
+`NICE-TO-HAVE · Zone 1 · HANDLED` · **Evidence:** `grep -l "useQuery\|useMutation\|@tanstack" src/app/admin/` returns no files. Listed in stack table; not wired.
 
 Could power optimistic UI on quick-actions (Confirm / Mark Paid / Claim) and remove the current full-page revalidation on form submission. Zone 1 because pure code wiring within installed deps.
 
@@ -215,14 +215,14 @@ Could power optimistic UI on quick-actions (Confirm / Mark Paid / Claim) and rem
 Earlier inferred "toast missing"; corrected. No action.
 
 ### 2C-5. Staff avatars via Supabase Storage
-`NICE-TO-HAVE → IN-PROGRESS IN PHASE 6 · Zone 1 · PARTIAL` · **Evidence:** Phase 18 migration `20260510000000_phase18_storage_avatars_canonical_perm.sql` provisioned the `staff-avatars` private bucket. `staff_profiles.profile_photo_path` field exists (4 admin files reference it). However `RECON.md` §9 image-inventory note: `/admin/staff` cards still fall back to lucide `<User>` icon when no avatar is uploaded.
+`NICE-TO-HAVE → IN-PROGRESS IN PHASE 6 · Zone 1 · HANDLED` · **Evidence:** Phase 18 migration `20260510000000_phase18_storage_avatars_canonical_perm.sql` provisioned the `staff-avatars` private bucket. `staff_profiles.profile_photo_path` field exists (4 admin files reference it). However `RECON.md` §9 image-inventory note: `/admin/staff` cards still fall back to lucide `<User>` icon when no avatar is uploaded.
 
 Discipline filter weak (cosmetic). Note for Phase 5 — if avatars upload but don't render in lists, that's a wire-up gap worth a sweep.
 
 **Phase 5 brief coverage (2026-05-12):** `00-shared-components-brief.md` Open Question 4 commits to the deterministic avatar algorithm (hue from `hash(staff.id) % 360` with chroma 0.025, lightness 88%) for staff without photos. `staff-brief.md`, `staff-detail-brief.md`, `booking-detail-brief.md`, `calendar-brief.md`, `dashboard-coordinator-brief.md`, and `audit-brief.md` all specify "real photo or initialled token" per row. Phase 6 session 1 (00-shared-components) wire-up plus the per-page sessions that render avatars.
 
 ### 2C-6. Missing shadcn primitives (Select, Tabs, Tooltip, DropdownMenu, Sheet, Popover, Table, Skeleton, Separator, Avatar, Switch, RadioGroup)
-`NICE-TO-HAVE → BLOCKS-REDESIGN FOR SUBSET · Zone 1 · NOT-STARTED` · **Evidence:** `RECON.md` §7.4 catalogues only 12 shadcn files in `src/components/ui/`. User confirmed during Phase 0 Q5: out of scope this phase, note for Phase 4 (Design System).
+`NICE-TO-HAVE → BLOCKS-REDESIGN FOR SUBSET · Zone 1 · HANDLED` · **Evidence:** `RECON.md` §7.4 catalogues only 12 shadcn files in `src/components/ui/`. User confirmed during Phase 0 Q5: out of scope this phase, note for Phase 4 (Design System).
 
 **Phase 5 brief coverage (2026-05-12):** Phase 5 briefs surface concrete requirements for specific missing primitives:
 - **Switch** — Required by `settings-brief.md` (intake on/off) and `availability-brief.md` (working-day toggles). Blocks those sessions.
@@ -235,7 +235,7 @@ Discipline filter weak (cosmetic). Note for Phase 5 — if avatars upload but do
 Priority update: only **Switch** is BLOCKS-REDESIGN (needed by settings and availability sessions). All others remain NICE-TO-HAVE. Phase 6 session 1 (00-shared-components) adds the Switch component.
 
 ### 2C-7. Dead-code surfaces
-`DEFER → PARTIALLY RESOLVED IN PHASE 6 · Zone 1 · PARTIAL` · **Evidence:** `RECON.md` §4: `BookingStatusChip` / `AssignmentStatusChip` in `admin-status-chips.tsx` (unused), `ConfirmActionModal` re-export in `src/app/admin/components/index.ts` (unused), `AdminScalableLists`, `SavedViewTabs` (built but never imported by a page). User Phase 0 Q4: flag-only, do nothing.
+`DEFER → PARTIALLY RESOLVED IN PHASE 6 · Zone 1 · HANDLED` · **Evidence:** `RECON.md` §4: `BookingStatusChip` / `AssignmentStatusChip` in `admin-status-chips.tsx` (unused), `ConfirmActionModal` re-export in `src/app/admin/components/index.ts` (unused), `AdminScalableLists`, `SavedViewTabs` (built but never imported by a page). User Phase 0 Q4: flag-only, do nothing.
 
 **Phase 5 brief coverage (2026-05-12):** `account-password-requests-brief.md` (Brief 12) is the first consumer of `ConfirmActionModal` (currently orphan). `bookings-brief.md` wires `AdminListSurface` and `SavedViewTabs` (first consumer). `00-shared-components-brief.md` wires `AdminActionMenu` and `ConfirmActionModal` to destructive actions. Remaining dead code (`BookingStatusChip`, `AssignmentStatusChip` in `admin-status-chips.tsx`) is NOT addressed by any Phase 5 brief — those exports can be deleted during Phase 6 cleanup passes.
 

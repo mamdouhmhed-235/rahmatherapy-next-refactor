@@ -57,7 +57,7 @@ Production-ready. Restructures `page.tsx` layout and adds tabs + filter bar. Res
 
 **Converted tab filter:** Queries `converted_booking_id IS NOT NULL` (not a database `status` value — derived at query time). Status badge on converted rows reads "Converted" in Confirmed family colors.
 
-**Filter bar:** GET form, additive URL params. Fields: `source` select (website / phone / whatsapp / instagram / referral / other), `assigned_staff` select (unassigned + active staff list), `from`/`to` date range with presets (Today / This week / This month / Custom), `q` free-text search (name, phone, email). Active filters render as Restricted-family chips below the bar. "Clear" on each chip removes that param from the URL.
+**Filter bar:** GET form, additive URL params. Fields: `source` select (website / phone / whatsapp / facebook / instagram / referral / other), `assigned_staff` select (unassigned + active staff list), `from`/`to` date range with presets (Today / This week / This month / Custom), `q` free-text search (name, phone, email). Active filters render as Restricted-family chips below the bar. "Clear" on each chip removes that param from the URL.
 
 **Status actions per row:**
 - "Mark contacted": `EnquiryStatusButton` → `updateEnquiryStatus(id, "contacted")` — instant, Sonner toast "Marked as contacted."
@@ -67,7 +67,7 @@ Production-ready. Restructures `page.tsx` layout and adds tabs + filter bar. Res
 
 **Intake form (left sidebar):** Standard `<form action={createEnquiry}>`. On mobile, the disclosure toggle uses client-side `useState` — no URL change. Form resets on successful submission (server action revalidates path).
 
-**Source icon mapping:** `phone` → `phone`, `whatsapp` → `message-circle`, `instagram` → `at-sign`, `website` → `globe`, `referral` → `users`, `other` → `more-horizontal`. All icons 16px, `aria-hidden="true"`.
+**Source icon mapping:** `phone` → `phone`, `whatsapp` → `message-circle`, `facebook` → `facebook`, `instagram` → `at-sign`, `website` → `globe`, `referral` → `users`, `other` → `more-horizontal`. All icons 16px, `aria-hidden="true"`. (Lucide includes a `facebook` icon; `at-sign` remains the substitute for Instagram which has no Lucide icon — see Open Question 4.)
 
 ## 8. Content Requirements
 

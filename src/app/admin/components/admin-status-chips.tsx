@@ -2,46 +2,6 @@ import { AdminStatusBadge } from "./admin-ui";
 
 type AdminTone = "default" | "muted" | "warning" | "danger" | "success" | "info" | "restricted" | "gold";
 
-export function BookingStatusChip({
-  status,
-  className,
-}: {
-  status: "pending" | "confirmed" | "completed" | "cancelled" | "no-show";
-  className?: string;
-}) {
-  const tones: Record<string, AdminTone> = {
-    pending: "warning",
-    confirmed: "info",
-    completed: "success",
-    cancelled: "muted",
-    "no-show": "danger",
-  };
-  return <AdminStatusBadge value={status} tone={tones[status]} className={className} />;
-}
-
-export function AssignmentStatusChip({
-  status,
-  className,
-}: {
-  status: "unassigned" | "partially_assigned" | "fully_assigned" | "claimable" | "assigned_to_you";
-  className?: string;
-}) {
-  const tones: Record<string, AdminTone> = {
-    unassigned: "warning",
-    partially_assigned: "info",
-    fully_assigned: "success",
-    claimable: "default",
-    assigned_to_you: "gold",
-  };
-  return (
-    <AdminStatusBadge 
-      value={status === "assigned_to_you" ? "assigned to you" : status} 
-      tone={tones[status]} 
-      className={className} 
-    />
-  );
-}
-
 export function PaymentStatusChip({
   status,
   className,

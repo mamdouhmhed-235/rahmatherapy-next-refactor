@@ -47,10 +47,10 @@ const PAYMENT_METHODS: PaymentMethod[] = ["cash", "card"];
 const BOOKING_SOURCES: BookingSource[] = [
   "phone",
   "whatsapp",
+  "facebook",
   "instagram",
   "referral",
   "admin",
-  "manual",
   "other",
 ];
 const OWN_ASSIGNMENT_STATUSES: AssignmentStatus[] = ["completed", "no_show"];
@@ -612,6 +612,7 @@ const manualBookingSchema = z.object({
   selectedPackageIds: z.array(z.string().trim().min(1)).min(1, "Choose at least one service."),
   bookingSource: z.enum(BOOKING_SOURCES),
   sendConfirmationEmail: z.boolean(),
+  overrideAvailability: z.boolean().default(false),
   preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a booking date."),
   preferredTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Choose a booking time."),
   details: z.object({
@@ -654,10 +655,15 @@ export async function createManualBooking(
   );
   const selectedPackageIds = formData.getAll("service_slugs").map(String);
   const enquiryId = String(formData.get("enquiry_id") ?? "").trim();
+  const overrideAvailability = formData.get("override_availability") === "on";
+  const participantServiceSlugs: string[][] = participantIndexes.map((index) =>
+    formData.getAll(`participant_services_${index}[]`).map(String).filter(Boolean)
+  );
   const parsed = manualBookingSchema.safeParse({
     selectedPackageIds,
     bookingSource: String(formData.get("booking_source") ?? ""),
     sendConfirmationEmail: formData.get("send_confirmation_email") === "on",
+    overrideAvailability,
     preferredDate: String(formData.get("booking_date") ?? ""),
     preferredTime: String(formData.get("start_time") ?? ""),
     details: {
@@ -721,6 +727,10 @@ export async function createManualBooking(
         preferredDate: parsed.data.preferredDate,
         preferredTime: parsed.data.preferredTime,
         bookingSource: parsed.data.bookingSource,
+        overrideAvailability: parsed.data.overrideAvailability,
+        participantServiceSlugs: participantServiceSlugs.some((s) => s.length > 0)
+          ? participantServiceSlugs
+          : undefined,
       },
       adminClient
     );

@@ -218,7 +218,7 @@ All filter params serialise to URL; deep-links like `/admin/bookings?view=claima
 - **"More views" dropdown:** `AdminActionMenu` pattern — `surface-card` background, 8px radius, `overlay` green-tinted shadow, 240ms ease-gentle open
 - **Filter bar:** `AdminFilterBar` — `surface-input` ground, `border-default` Form Seam on each input
 - **Active filter chips:** Restricted family — `status-restricted-bg` / `status-restricted-text` — dismissible with trailing `x`
-- **BookingListCard:** DESIGN.md §5 full spec — `surface-card` background, 1px `border-subtle`, 8px radius, status badge top-right, avatar inline with therapist name, payment badge bottom-left, gender-match chip when applicable, never `border-l-4`
+- **BookingListCard:** DESIGN.md §5 full spec — `surface-card` background, 1px `border-subtle`, 8px radius, status badge top-right, avatar inline with therapist name, payment badge bottom-left, gender-match chip when applicable, never `border-l-4`. **Group booking:** when `booking.group_booking = true`, a Restricted-family "Group · {N}" chip renders beside the booking reference — never colour-only, always shows participant count. **Override-created bookings** (unassigned with no therapist availability at creation) carry an Attention-family "Unassigned" assignment-status chip until a therapist claims it.
 - **Quick-action strip:** Ghost buttons visible at rest — Work Sans 500 label step; trailing `more-horizontal` `AdminActionMenu`; `map-pin` Ghost icon always visible
 - **Sticky date headings:** Urbanist 600 title step, Chronicle colour, `surface-page` background (so they stick cleanly over scrolling rows)
 - **Skeleton rows:** `AdminSkeleton` at `BookingListCard` approximate height (≈80px desktop, ≈100px mobile)

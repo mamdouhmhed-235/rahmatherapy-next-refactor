@@ -209,7 +209,7 @@ The sidebar is the **reference column** (who is this client, what are their cons
 2. Primary action — "New booking" CTA (Owner/Admin/Coordinator)
 
 **Sidebar (left, 24rem):**
-3. Contact details — phone, email, address (always visible)
+3. Contact details — phone, email, address, postcode, city, area (always visible; city/area display after `20260513120000_add_client_city_area.sql` migration; show "—" when blank)
 4. Client summary stats — total visits, last visit, lifecycle, source (always visible)
 5. Health context — health notes, consent (conditional: `canViewHealthNotes`)
 6. Client notes — note list + expandable add form (conditional: `canViewHealthNotes` OR `canCreateClientNote`)

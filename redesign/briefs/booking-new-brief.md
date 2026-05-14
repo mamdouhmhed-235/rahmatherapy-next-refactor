@@ -47,8 +47,16 @@ A **four-step wizard** with a persistent step rail at the top of the content are
 | Step validation error | Inline `role="alert"` below each invalid field; "Continue" remains disabled; focus moves to first error on attempt |
 | Step completed, moving forward | Step circle fills Clinic Green with `check` icon; next step slides in (160ms `ease-gentle`) |
 | Navigating back | No validation; previous step restores with values intact |
-| Step 2 — multiple participants | Each participant row: label, `participantGender` select, `requiredTherapistGender` select, `service_slugs[]` checkboxes. "Add participant" Ghost button. Minimum 1 row; remove button hidden when only 1 row remains |
-| Gender-match chip on participant row | When `requiredTherapistGender` is set: "Same-gender required" chip (Restricted family) renders inline — always visible, never colour-only |
+| Step 2 — multiple participants | Each participant row: label, `participantGender` select, per-participant `service_slugs[]` checkboxes. `requiredTherapistGender` is **not** a form input — it derives automatically from participant gender inside the RPC. "Add participant" Ghost button. Minimum 1 row; remove button hidden when only 1 row remains |
+| Gender-match chip on participant row | When participant gender is set: "Same-gender required" chip (Restricted family) renders inline as read-only — derived from gender, never editable, never colour-only |
+| City not yet entered (Step 3) | Date/time picker disabled; message: "Enter the client's city first to see available slots." |
+| Checking availability (Step 3) | Date/time picker in skeleton state after date selection fires the `/api/availability` call |
+| Slots available (Step 3) | Time-slot grid shows bookable times; each slot labelled with gender-breakdown count ("2 therapists available" / "1 male, 1 female available") |
+| No slots on selected date | Attention-family banner: "No therapists available on [date]."; "Override this date" Ghost button appears below banner |
+| Override mode active | Date/time inputs unlock to accept any date/time; Attention-family persistent banner: "No availability checked — this booking will be unassigned until a therapist accepts it."; hidden `override_availability` field set to `"on"` |
+| Mixed-gender participants (Step 3) | Availability calendar shows only combined slots where all required genders have available therapists simultaneously; slot label shows breakdown |
+| Additional participant — same address | By default inherits main contact's address silently; no override UI shown unless "Different address?" toggle is expanded |
+| Additional participant — address override | "Different address for this person?" toggle → address + postcode sub-form appears; value stored in `participant_note_N` as `"Visit address: [address], [postcode]"` |
 | Step 4 — confirmation review | Summary cards for steps 1–3, each with an "Edit" Ghost link back to that step. `consent_acknowledged` checkbox. `send_confirmation_email` toggle (on by default). "Create booking" Primary button |
 | Submitting | "Create booking" button shows 16px spinner, `aria-busy="true"`, inputs disabled |
 | Success | Redirect to new booking detail page; Sonner toast "Booking created." (Confirmed family, 4s) on arrival |
@@ -65,9 +73,15 @@ A **four-step wizard** with a persistent step rail at the top of the content are
 
 **Pre-fill on mount:** When `?clientId=` or `?enquiryId=` is present, the server pre-populates fields before the page renders (Server Component pre-fetch). No visible loading flash.
 
-**Participant rows (step 2):** Each row has a trailing Ghost `trash-2` button (16px) to remove it. "Add participant" Ghost button adds a blank row. `number_of_people` hidden field syncs with rendered row count on step change. Cap at 6 rows with inline note: "For larger groups, contact us directly."
+**Participant rows (step 2):** Each row has a trailing Ghost `trash-2` button (16px) to remove it. "Add participant" Ghost button adds a blank row. `number_of_people` hidden field syncs with rendered row count on step change. Cap at 6 rows with inline note: "For larger groups, contact us directly." **When `number_of_people > 1`, `createManualBooking` automatically sets `bookingFor: "group"` — no separate group checkbox needed; the booking is flagged as a group booking in the database.**
 
-**Confirmation review (step 4):** Summary cards show completed data in `AdminDescriptionList` format (Work Sans 500 labels / Work Sans 400 values). Each "Edit" Ghost link navigates back to the corresponding step.
+**Additional participant address (step 2 / step 3):** Additional participant rows show a collapsed "Different address for this person?" disclosure toggle. When expanded: address line + postcode inputs appear (city/area locked to main contact's). The different address is stored as `"Visit address: [address], [postcode]"` appended to that participant's `participant_note_N` field — no schema change required for V1.
+
+**Availability check flow (step 3):** The date/time section is gated behind three prerequisites: (1) city filled, (2) at least one service selected (step 2), (3) at least one participant gender filled (step 2). Until all three are met, the date/time section renders in disabled state with helper text. Once prerequisites are met, selecting a date fires a `GET /api/availability` request with `{ date, serviceIds, participantGenders, city }` — **the same endpoint the customer-facing booking form uses**. The response drives a time-slot grid where available slots are selectable and unavailable slots are greyed out. Each slot label shows therapist availability by gender: "2 therapists available" (single gender) or "1 male, 1 female available" (mixed gender group). For mixed-gender groups, only slots where all required genders are simultaneously available are shown as bookable.
+
+**Override flow (step 3):** When no slots are available for the selected date, an "Override this date" Ghost button appears. Clicking it opens an Attention-family confirmation sheet: "Override availability? This booking will be created unassigned — a therapist will need to accept it." + "Override" (Attention Primary) + "Cancel" (Secondary). On confirm: the date/time inputs unlock to accept any date/time; an Attention-family banner persists below the inputs. On submission, a hidden `override_availability` field (`value="on"`) is included in the form. A persistent "Override availability" Ghost link also appears in the date/time section header as an always-available escape hatch. **Backend dependency:** `createManualBooking` must pass `overrideAvailability: true` through `createBookingTransaction.ts` to the RPC as `p_override_availability: true`, bypassing the therapist-count check. See §10 Q6 and plan file `BUILD-booking-create-override-flag.md`. Until this backend change ships, the override path results in a server error caught gracefully by the form.
+
+**Confirmation review (step 4):** Summary cards show completed data in `AdminDescriptionList` format (Work Sans 500 labels / Work Sans 400 values). Each "Edit" Ghost link navigates back to the corresponding step. If override mode is active, the review step shows a persistent Attention-family "Booking will be unassigned" notice above the submit button.
 
 ## 8. Content Requirements
 
@@ -86,9 +100,9 @@ A **four-step wizard** with a persistent step rail at the top of the content are
 
 Step 1: Booking source / Full name / Email address / Phone number / Booking for (Self / Group)
 
-Step 2: Services / Number of people / Per participant: Participant label, Client gender, Required therapist gender, Services for this participant
+Step 2: Services / Number of people / Per participant: Participant label, Client gender, Services for this participant. (`Required therapist gender` is **not** a form field — it is derived automatically from client gender inside the RPC and shown as a read-only "Same-gender required" chip.)
 
-Step 3: Date / Start time / Address / Postcode / City / Area / Access notes (optional) / Parking notes (optional)
+Step 3: Address / Postcode / City / Area / Access notes (optional) / Parking notes (optional) — then, once city + participant genders + services are filled: Date (via availability calendar) / Start time (via time-slot grid). Override mode adds: hidden `override_availability` field.
 
 Step 4: Customer notes (optional) / Health notes (optional) / Consent acknowledged / Send confirmation email
 
@@ -119,6 +133,8 @@ Step 4: Customer notes (optional) / Health notes (optional) / Consent acknowledg
 3. **Health notes visibility.** Should `health_notes` be visible to all three permitted roles at creation, or gated by an additional permission? Recommendation: visible to all three at creation (intake data from the caller); sensitivity gating applies on the client detail page.
 4. **Participant row limit.** Cap at 6 in the UI with a client-side note. Confirm with the data model that `number_of_people` has no server-side constraint that conflicts.
 5. **Enquiry conversion audit.** When `?enquiryId=` is present, confirm `createManualBooking` writes `enquiry_converted_to_booking` to `audit_logs` when `enquiry_id` is in the form payload (RECON §6.2).
+6. **Override availability backend flag.** The `create_booking_request` RPC currently throws a Postgres exception when `v_required_male > v_available_male` or `v_required_female > v_available_female`. Override mode requires `p_override_availability boolean default false` added to the RPC (skipping those two checks when true), threaded through `createBookingTransaction.ts` as `overrideAvailability?: boolean`, and read from the form as `formData.get("override_availability") === "on"` in `createManualBooking`. Plan file: `BUILD-booking-create-override-flag.md` (Zone 2, non-blocking — until built, the override path hits a server error caught and displayed by the form).
+7. **`BOOKING_SOURCES` enum update.** The current `actions.ts` array is `['phone','whatsapp','instagram','referral','admin','manual','other']`. Per previous session decision: change to `['phone','whatsapp','facebook','instagram','referral','admin','other']` (add `facebook`, remove `manual`). Requires updating `BOOKING_SOURCES` constant in `actions.ts` and the `BookingSource` type in `createBookingTransaction.ts`.
 
 ---
 
@@ -208,13 +224,29 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 - `manual_admin_booking_created` — fires on every successful submission
 - `enquiry_converted_to_booking` — fires when `enquiry_id` is present in payload
 
+**Availability API (admin form uses the same endpoint as the customer booking flow — do not invent a separate one):**
+- `GET /api/availability?date=YYYY-MM-DD&serviceIds[]=slug&participantGenders[]=male&participantGenders[]=female&city=Luton`
+- Response drives the date/time slot grid; `availableStaffByGender` drives the slot labels
+- Called client-side on date selection; not called until city + participant genders + services are all filled
+
+**Override availability (pending §10 Q6 backend change):**
+- Hidden input `name="override_availability"` value `"on"` when admin activates override mode
+- `createManualBooking` reads: `formData.get("override_availability") === "on"`
+- Threaded to `createBookingTransaction.ts` as `overrideAvailability?: boolean`
+- Threaded to RPC as `p_override_availability: overrideAvailability ?? false`
+- Until backend change ships: override path gracefully surfaces the RPC error to the user
+
+**Group booking (automatic — no additional field required):**
+- When `number_of_people > 1`, `createManualBooking` forces `bookingFor: "group"` → `group_booking = true` in DB
+- No separate group-booking checkbox or field needed in the form
+
 ### Information hierarchy (per step)
 
 **Step 1 — Contact & source:** Booking source (frames context first) → client identity (name, email, phone) → booking-for scope (individual/group)
 
-**Step 2 — Services & participants:** Service selection → participant count → per-participant rows: identity label → client gender → required therapist gender (clinical requirement, never buried) → services for that participant
+**Step 2 — Services & participants:** Service selection → participant count → per-participant rows: identity label → client gender → "Same-gender required" chip auto-derives from gender (clinical requirement, never buried, never a separate input) → services for that participant
 
-**Step 3 — Location & time:** Date → start time → address → city/area → access and parking notes (supplementary)
+**Step 3 — Location & time:** Address → postcode → city → area → access and parking notes (supplementary) → [availability unlocks once city + genders + services filled] → date → start time (or override mode)
 
 **Step 4 — Review & confirm:** Step summaries (verify) → optional notes → health notes → consent acknowledgement (gate) → send email toggle → submit
 
@@ -274,7 +306,7 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 **Mobile (375px)**
 - Step rail: "Step 2 of 4 — Services" text + full-width `border-subtle` track with `action-primary` fill; no individual circles
 - `AdminPanel` sections: full-width, `md` (16px) horizontal padding
-- Participant rows: fields stack vertically within each row (label → client gender → therapist gender → services); each row is its own `AdminPanel` card
+- Participant rows: fields stack vertically within each row (label → client gender → services); "Same-gender required" chip shows inline beneath gender select; each row is its own `AdminPanel` card
 - Navigation: "Continue"/"Create booking" + "Back" move to `AdminMobileActionBar` — sticky bottom, full-width stacked (primary above, secondary below) or side-by-side at 44px height
 - Pre-fill chips: below each input, full row width
 - Step 4 summaries: each step's summary in its own `AdminPanel`, stacked vertically; "Edit" link in panel header right-aligned
@@ -287,7 +319,7 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 **Desktop (1440px)**
 - Content max-width: `--content-width-lg` (form does not spread full-bleed)
 - Step rail: full horizontal track, four labelled circles, centred within content width
-- Participant rows: horizontal grid — label (20%) / client gender (20%) / therapist gender (20%) / services (32%) / remove (8%)
+- Participant rows: horizontal grid — label (25%) / client gender (20%) / services (42%) / remove (13%); "Same-gender required" chip displays inline below the gender select, not as a separate column
 - Step 4: two-column layout — summary cards left (55%) / notes + consent + submit right (45%)
 - Navigation strip: `xl` (32px) top margin from last field group, left/right aligned within content width
 
@@ -298,7 +330,7 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 - Pre-fill from `?enquiryId=`: fields arrive populated with `surface-selected` tint; "From enquiry" chip visible; typing removes tint and chip
 - Back navigation: complete step 1, advance to step 2, click "Back" — step 1 values preserved, step rail shows correct active/completed states
 - Participant rows: add second row, remove it — minimum 1 row enforced; attempt to add 7 rows — 6-row cap with note visible
-- Gender-match chip: set `requiredTherapistGender` — "Same-gender required" chip appears inline
+- Gender-match chip: set participant gender select → "Same-gender required" chip appears inline automatically (no `requiredTherapistGender` input)
 - Full submission: complete all four steps → "Create booking" → spinner → redirect → "Booking created." toast
 - Permission check: sign in as Therapist → `/admin/bookings/new` → `AdminAccessDenied` renders, no form fields present
 
@@ -326,7 +358,7 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 ### Form labels
 
 **Step 1 — Contact & source:**
-- `Booking source *` (select; options `Phone call`, `WhatsApp`, `Walk-in`, `Referral`, `Repeat client`, `Other`)
+- `Booking source *` (select; options `Phone call`, `WhatsApp`, `Facebook`, `Instagram`, `Referral`, `Repeat client`, `Other`)
 - `Full name *` — placeholder `As the client would like it on their record`
 - `Email address` — placeholder `sara@example.com` (helper: `Used for confirmations and reminders.`)
 - `Phone number *` — placeholder `07…` (helper: `Used for WhatsApp and SMS.`)
@@ -335,7 +367,7 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 **Step 2 — Services & participants:**
 - `Services *` (multi-select; primary selection that applies to the booking as a whole)
 - `Number of people *` — helper `For groups, add one row per person below.`
-- Per-row: `Participant label *` (placeholder `Client 1`, `Husband`, `Daughter`), `Client's gender *`, `Required therapist gender *`, `Services for this person *`.
+- Per-row: `Participant label *` (placeholder `Client 1`, `Husband`, `Daughter`), `Client's gender *`, `Services for this person *`. `Required therapist gender` is derived automatically from client gender (shown as read-only "Same-gender required" chip, Restricted family — not a form input).
 
 **Step 3 — Location & time:**
 - `Date *` (date picker, helper `From today onwards`)
@@ -365,6 +397,10 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 | Step 4 "edit" link per summary | `Edit` (with chevron) | Ghost |
 | Cancel-out leave dialog | `Leave` (Destructive) + `Keep going` (Secondary) | — |
 | Retry on submit failure | `Retry` | Ghost (on toast) |
+| Override availability | `Override this date` | Ghost (below no-availability banner) |
+| Override confirmation | `Override` (confirm sheet) | Attention family Primary |
+| Override persistent link | `Override availability` | Ghost (always visible in date/time section header) |
+| Different address toggle | `Different address for this person?` | disclosure toggle, Ghost style |
 
 ### Error messages
 
@@ -379,18 +415,20 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 - Number of people empty / less than 1: `Enter the number of people (at least 1).`
 - Participant row missing label: `Label this person so the therapist knows who's who (e.g. "Client 1", "Husband").`
 - Participant row missing client gender: `Pick the client's gender so we can match the right therapist.`
-- Participant row missing required-therapist-gender: `Pick the therapist gender this person needs.`
 - Participant row missing services: `Pick at least one service for this person.`
 - Over 6 rows attempted: `For larger groups, contact us directly.`
 
 **Step 3:**
+- City not yet entered (date/time picker disabled): `Enter the client's city first to see available slots.`
+- No slots available on selected date: `No therapists available on {date}. Pick another date, or override.` (Attention banner above the time-slot grid)
+- Override confirmation sheet body: `This booking will be created unassigned — a therapist will need to accept it before the visit.`
+- Override mode active banner: `No availability checked — this booking will be unassigned until a therapist accepts it.`
 - Date in past: `Pick a date from today onwards.`
 - Date beyond booking window: `That date is past the {N}-day booking window. Pick an earlier date, or extend the window in Settings.`
-- Time outside working hours: `That time is outside clinic working hours. Pick another, or check the availability page.`
-- Time inside an existing override / closure: `The clinic is closed on that date. Pick another.`
 - Address empty: `Street address is needed so the therapist can find them.`
 - Postcode malformed: `Postcode doesn't look right. Try the format LU1 1AA.`
 - City outside allowed list: `We don't currently serve {city}. Update Allowed cities in settings if you want to add it.`
+- Override server error (before backend flag is built): `No therapists are available for that slot. Pick another date, or contact the owner to force-assign manually.`
 
 **Step 4 / submit:**
 - Consent unchecked: `Confirm the consent box before booking.`

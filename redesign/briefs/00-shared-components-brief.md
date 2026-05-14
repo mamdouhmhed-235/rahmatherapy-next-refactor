@@ -101,7 +101,7 @@ Primitive-by-primitive state inventory. Per-page briefs reference these by name;
 | Inputs | Default · Filled · Focus (Focus Azure border + ring) · Error (Cancelled border + `<div role="alert" aria-live="polite" aria-atomic="true">` below) · Disabled · Read-only | Required marker: `<span aria-hidden="true">*</span>` in Cancelled text colour. |
 | `AdminStatusBadge` | One state per family: Confirmed / Pending / Cancelled / Completed / Unassigned-Attention / Restricted | Always pill + bg tint + Lucide icon (`aria-hidden="true"`) + visible text label. No interactive state. |
 | `EmptyState` | Default (illustration + Urbanist title + Soft Slate body + optional Primary CTA) · Loading-hidden (renders nothing until parent resolves) | Replaces legacy `AdminEmptyState`. No dashed borders, no "0 items" copy. Voice: "All caught up", "Ready for your first booking", "No one added yet". |
-| `BookingListCard` (signature) | Default · Hover (card-hover shadow) · Focus-visible (Focus Azure card ring) · Mobile (stacked, sticky action bar) · With gender-match chip · Without gender-match chip | No `border-l-4`. Status badge top-right. Avatar inline with therapist name. |
+| `BookingListCard` (signature) | Default · Hover (card-hover shadow) · Focus-visible (Focus Azure card ring) · Mobile (stacked, sticky action bar) · With gender-match chip · Without gender-match chip · With group booking chip (Restricted family "Group · {N}" when `group_booking = true`) · Without group booking chip | No `border-l-4`. Status badge top-right. Avatar inline with therapist name. |
 | `AdminStat` | Default (label + Cormorant numeral) · With trend indicator (up/down icon + delta) · Loading (skeleton numeral) · Hidden-by-permission (renders nothing) | Cormorant Garamond 700, 3.157rem. Flat, no gradient text. |
 | `UrgentAttentionPanel` | Empty ("All caught up" — EmptyState compact variant) · 1-5 items · >5 items (5 visible + "See all N" link) · Loading · Error | Full-border card in status-family tint. Never `border-l-4`. |
 | `ConfirmActionModal` | Closed · Opening · Open (overlay + dialog) · Confirming (Primary button `aria-busy="true"`) · Error (toast) · Closing | Wires to destructive actions: cancel booking, deactivate staff, delete service, delete role. Currently orphan per RECON §4. |
@@ -165,10 +165,10 @@ Primitive-by-primitive state inventory. Per-page briefs reference these by name;
 
 | Context | Heading | Body |
 |---|---|---|
-| No bookings yet | `Ready for your first booking` | `Bookings you take by phone, walk-in, or referral land here.` |
+| No bookings yet | `Ready for your first booking` | `Bookings you take by phone, WhatsApp, or in person land here.` |
 | No bookings today | `All caught up` | `Nothing scheduled for today. Quiet days are healthy days.` |
 | No clients yet | `No clients yet` | `Add a client to start a history, or take a booking and we'll create one.` |
-| No enquiries | `No enquiries waiting` | `New leads from phone, WhatsApp, Instagram, or the website show up here.` |
+| No enquiries | `No enquiries waiting` | `New leads from phone, WhatsApp, Facebook, Instagram, or the website show up here.` |
 | No staff matches | `No one added yet` | `Add a therapist to assign work.` |
 | No privacy requests | `No requests to review` | `Right-to-erasure and access requests appear here when clients ask.` |
 | No audit events | `Nothing to show` | `Audit events appear here as the team works.` |
@@ -553,12 +553,12 @@ Reference name on the left; per-page briefs cite these names. Heading is Urbanis
 
 | Reference | Heading | Body | CTA |
 |---|---|---|---|
-| `no-bookings-yet` | `Ready for your first booking` | `Bookings you take by phone, walk-in, or referral land here.` | `New booking` → `/admin/bookings/new` |
+| `no-bookings-yet` | `Ready for your first booking` | `Bookings you take by phone, WhatsApp, or in person land here.` | `New booking` → `/admin/bookings/new` |
 | `no-bookings-today` | `All caught up` | `Nothing scheduled for today. Quiet days are healthy days.` | — |
 | `no-bookings-this-view` | `Nothing in this view` | `Try a different tab or clear your filters.` | `Clear filters` |
 | `no-clients-yet` | `No clients yet` | `Add a client to start a history, or take a booking and we'll create one.` | `New client` → `/admin/clients/new` |
 | `no-clients-match` | `No matches` | `Try a different search or clear your filters.` | `Clear filters` |
-| `no-enquiries` | `No enquiries waiting` | `New leads from phone, WhatsApp, Instagram, or the website show up here.` | `Record enquiry` (scrolls focus to form) |
+| `no-enquiries` | `No enquiries waiting` | `New leads from phone, WhatsApp, Facebook, Instagram, or the website show up here.` | `Record enquiry` (scrolls focus to form) |
 | `no-staff-yet` | `No one added yet` | `Add a therapist to start assigning bookings.` | `Add staff` |
 | `no-privacy-requests` | `No requests to review` | `Data access and deletion requests from clients appear here when submitted.` | — |
 | `no-audit-events` | `Nothing to show` | `Changes made by the team are recorded here as they happen.` | — |

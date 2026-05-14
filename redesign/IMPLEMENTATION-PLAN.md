@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 1 of 29 — 00-shared-components   ← update when you start a session (count by position from the top, not by label)
+Currently on: 2 of 29 — booking-new   ← update when you start a session (count by position from the top, not by label)
 
 ---
 
@@ -1155,19 +1155,20 @@ How to use:
 
 **— Layer 0: No plan-file dependencies, non-blocking —**
 
-14. [ ] **BUILD** — `BUILD-clients-sort-last-visit.md` — non-blocking — depended on by: clients — depends on: none
-15. [ ] **BUILD** — `BUILD-availability-this-week-chip.md` — non-blocking — depended on by: availability — depends on: none
-16. [ ] **BUILD** — `BUILD-settings-last-changed-by.md` — non-blocking — depended on by: settings — depends on: none
-17. [ ] **BUILD** — `BUILD-staff-workload-aggregates.md` — non-blocking — depended on by: staff — depends on: none
-18. [ ] **BUILD** — `BUILD-audit-target-existence.md` — non-blocking — depended on by: audit — depends on: none
-19. [ ] **BUILD** — `BUILD-rbac-permission-email-templates.md` — non-blocking — depended on by: email-templates *(required by row 22)* — depends on: none
-20. [ ] **BUILD** — `BUILD-delete-role.md` — non-blocking — depended on by: role-detail — depends on: none
+14. [ ] **BUILD** — `BUILD-booking-create-override-flag.md` — non-blocking — depended on by: booking-new (override availability mode) — depends on: none. Adds `p_override_availability boolean default false` to `create_booking_request` RPC; fully backwards-compatible. Until built, override path degrades to a server error gracefully surfaced by the form.
+15. [ ] **BUILD** — `BUILD-clients-sort-last-visit.md` — non-blocking — depended on by: clients — depends on: none
+16. [ ] **BUILD** — `BUILD-availability-this-week-chip.md` — non-blocking — depended on by: availability — depends on: none
+17. [ ] **BUILD** — `BUILD-settings-last-changed-by.md` — non-blocking — depended on by: settings — depends on: none
+18. [ ] **BUILD** — `BUILD-staff-workload-aggregates.md` — non-blocking — depended on by: staff — depends on: none
+19. [ ] **BUILD** — `BUILD-audit-target-existence.md` — non-blocking — depended on by: audit — depends on: none
+20. [ ] **BUILD** — `BUILD-rbac-permission-email-templates.md` — non-blocking — depended on by: email-templates *(required by row 23)* — depends on: none
+21. [ ] **BUILD** — `BUILD-delete-role.md` — non-blocking — depended on by: role-detail — depends on: none
 
 **— Layer 1: Depends on Layer 0 items, BLOCKS-REDESIGN —**
 
-21. [ ] **BUILD** — `BUILD-approve-reject-password-reset.md` — BLOCKS-REDESIGN — depended on by: account-password-requests — depends on: rows 1 + 2
-22. [ ] **BUILD** — `BUILD-email-templates-actions.md` — BLOCKS-REDESIGN — depended on by: email-templates — depends on: rows 6 + 19
-23. [ ] **BUILD** — `BUILD-email-templates-preview-route.md` — BLOCKS-REDESIGN — depended on by: email-templates — depends on: row 6 (soft)
+22. [ ] **BUILD** — `BUILD-approve-reject-password-reset.md` — BLOCKS-REDESIGN — depended on by: account-password-requests — depends on: rows 1 + 2
+23. [ ] **BUILD** — `BUILD-email-templates-actions.md` — BLOCKS-REDESIGN — depended on by: email-templates — depends on: rows 6 + 20
+24. [ ] **BUILD** — `BUILD-email-templates-preview-route.md` — BLOCKS-REDESIGN — depended on by: email-templates — depends on: row 6 (soft)
 
 ### DEFERRED items (reference only)
 See `/redesign/DEFERRED-COMPLETENESS.md`.

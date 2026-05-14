@@ -64,6 +64,10 @@ Page chrome (top to bottom):
   - `phone` (optional but advised, type=tel, label "Phone", inline helper "Used for WhatsApp and SMS.").
   - `address` (full-width, optional, label "Address").
   - `postcode` (label "Postcode", `max-w-[220px]` because it doesn't need full width).
+  - `city` (optional, label "City", placeholder "Luton", helper "Used to check service coverage for future bookings.").
+  - `area` (optional, label "Area", placeholder "e.g. Bury Park", helper "Optional — helps the therapist navigate.").
+
+  **Note:** `city` and `area` are net-new columns added by migration `20260513120000_add_client_city_area.sql`. They are optional at client creation. The `createClient` server action in `src/app/admin/clients/actions.ts` requires a small update to accept and insert these fields — this is a justified exception to the RECON §5 untouchable rule since the migration adds the columns and pre-fill from `?clientId=` in booking-new depends on them being populated.
 
 **Panel 3; "Internal notes"** (`AdminPanel`):
 - H2 "Internal notes" (Urbanist 600 heading step).
@@ -187,7 +191,7 @@ Therapist lacks `manage_clients_all`. Collapse to the **Denied state**.
 - **RECON §2 inventory row:** Client new — `src/app/admin/clients/new/page.tsx` (+ `ClientCreateForm.tsx`) — `/admin/clients/new` — Create profile without booking; flags duplicates.
 - **Access gate (RECON §3):** `canManageAllClients(profile)` (i.e. `manage_clients_all`). Owner / Admin/PM / Coordinator hold this; Therapist does not.
 - **Untouchable backend (RECON §5):** `createClient` server action at `src/app/admin/clients/actions.ts` (DO-NOT-TOUCH per RECON §5 client list). Duplicate-detection rules server-side. Validation schema server-side.
-- **Preserved IDs / form names (RECON §6.4):** `full_name`, `client_source`, `email`, `phone`, `address`, `postcode`, `source_detail`, `notes`, `confirm_duplicate` (conditional). `id="admin-main"` skip-link target preserved at layout level.
+- **Preserved IDs / form names (RECON §6.4):** `full_name`, `client_source`, `email`, `phone`, `address`, `postcode`, `source_detail`, `notes`, `confirm_duplicate` (conditional). **New fields (post-migration):** `city`, `area` — optional, not present before `20260513120000_add_client_city_area.sql`. `id="admin-main"` skip-link target preserved at layout level.
 - **URL params (RECON §6.5):** None on this page.
 - **Source enum (canonical):** website / phone / whatsapp / instagram / referral / manual / other; preserved verbatim, shared with `enquiries` and `bookings`.
 - **BASELINE-CRITIQUE carry-forwards landing on this page:** Sam #3 input-border WCAG 1.4.11 risk (Warm Veil → Form Seam); P0 form-error not announced (current `Field` renders plain text → `role="alert" aria-live="polite" aria-atomic="true"`); P0 required-field `*` markers missing. Soft fixes (Phase 6 cleanup): raw `var(--rahma-*)` token escapes throughout; `bg-white` on panels at `page.tsx` lines 40 and 81; raw `border-red-200`/`bg-red-50`/`text-red-600` form-error at line 19; raw `border-orange-200`/`bg-orange-50`/`text-orange-800` duplicate warning at line 25; raw `backdrop-blur` glass-default on save bar at line 87 (absolute-ban adjacent); raw permission identifier on `AdminAccessDenied` at `page.tsx:26`.
@@ -222,6 +226,8 @@ Therapist lacks `manage_clients_all`. Collapse to the **Denied state**.
 - `phone` → label `Phone`. Placeholder `07…`. Helper `Used for WhatsApp and SMS.`
 - `address` → label `Address` (full-width). Placeholder `Street name and number, building or flat`.
 - `postcode` → label `Postcode`. Placeholder `LU1 1AA`.
+- `city` → label `City`. Placeholder `Luton`. Helper `Used to check service coverage for future bookings.`
+- `area` → label `Area` (optional). Placeholder `e.g. Bury Park`. Helper `Helps the therapist navigate.`
 
 **Panel 3 — Internal notes:**
 - `notes` → textarea, visible H2 carries the affordance; `aria-label="Internal client notes"`. Placeholder `Anything admin staff should know. Avoid clinical health context here.` 5 rows.
