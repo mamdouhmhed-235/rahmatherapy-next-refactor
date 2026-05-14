@@ -90,7 +90,7 @@ Response shape (success):
 | postcodes.io field | Form field | Notes |
 |---|---|---|
 | `result.post_town` | City | Uppercase — normalise to title-case before setting: `toTitleCase(result.post_town)` |
-| `result.admin_district` | Area | Borough or unitary authority name |
+| ~~`result.admin_district`~~ | ~~Area~~ | **Not used** — `admin_district` returns borough/council names that don't match real area names used by the business (e.g. returns "Luton" instead of "Bury Park"). Area field remains manual-entry only. |
 
 **Error cases:**
 - 404 response → "Postcode not found. Fill in city and area manually."

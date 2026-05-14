@@ -92,7 +92,8 @@ Each participant sends at most 2 slugs via `participant_services_N[]`:
 `['phone','whatsapp','facebook','instagram','referral','admin','other']`
 
 ### Postcode auto-fill (client-side, no server change)
-`fetch("https://api.postcodes.io/postcodes/{postcode}")` on postcode blur → fills city + area
+`fetch("https://api.postcodes.io/postcodes/{postcode}")` on postcode blur → fills **city only** (`post_town`, title-cased).
+Area is manual-entry only — `admin_district` is too coarse.
 Full spec: `BUILD-postcode-lookup-client.md`
 
 ### Inline assignment threading (pending backend plan)

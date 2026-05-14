@@ -446,14 +446,33 @@ function TextareaField({
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+interface AssignableStaffMember {
+  id: string;
+  name: string;
+  gender: string;
+  can_take_bookings: boolean;
+}
+
 export function ManualBookingForm({
   services,
   prefillClient,
   enquiry,
+  canAssign = false,
+  assignableStaff = [],
+  currentUserId = "",
+  currentUserGender = "",
+  currentUserName = "",
+  currentUserIsBookable = false,
 }: {
   services: ServiceOption[];
   prefillClient: PrefillClient | null;
   enquiry: EnquiryPrefill | null;
+  canAssign?: boolean;
+  assignableStaff?: AssignableStaffMember[];
+  currentUserId?: string;
+  currentUserGender?: string;
+  currentUserName?: string;
+  currentUserIsBookable?: boolean;
 }) {
   const [state, action, pending] = useActionState(createManualBooking, {} as ManualBookingState);
 
@@ -518,6 +537,25 @@ export function ManualBookingForm({
   const [healthNotes, setHealthNotes] = useState("");
   const [consentAcknowledged, setConsentAcknowledged] = useState(false);
   const [sendConfirmationEmail, setSendConfirmationEmail] = useState(true);
+
+  // Per-participant assignment choices for step 4
+  type AssignmentChoice = "unassigned" | "assign" | "self";
+  const [assignmentChoices, setAssignmentChoices] = useState<AssignmentChoice[]>([]);
+  const [assignmentStaffIds, setAssignmentStaffIds] = useState<string[]>([]);
+
+  // Keep assignment arrays sized to participant count
+  useEffect(() => {
+    setAssignmentChoices((prev) => {
+      const next = [...prev];
+      while (next.length < participants.length) next.push("unassigned");
+      return next.slice(0, participants.length);
+    });
+    setAssignmentStaffIds((prev) => {
+      const next = [...prev];
+      while (next.length < participants.length) next.push("");
+      return next.slice(0, participants.length);
+    });
+  }, [participants.length]);
 
   // Derived
   const hasPrefill = !!(prefillClient || enquiry);
@@ -725,7 +763,7 @@ export function ManualBookingForm({
       const data = await res.json();
       const toTitleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
       if (!city.trim()) setCity(toTitleCase(data.result?.post_town ?? ""));
-      if (!area.trim()) setArea(data.result?.admin_district ?? "");
+      // Area is NOT auto-filled — postcodes.io admin_district is inaccurate for local areas
       setPostcodeLookupError("");
     } catch {
       setPostcodeLookupError("Couldn't check postcode. Fill in city and area manually.");
@@ -839,6 +877,14 @@ export function ManualBookingForm({
       <input type="hidden" name="health_notes" value={healthNotes} />
       <input type="hidden" name="consent_acknowledged" value={consentAcknowledged ? "on" : ""} />
       <input type="hidden" name="send_confirmation_email" value={sendConfirmationEmail ? "on" : ""} />
+      {participants.map((_, i) => {
+        const choice = assignmentChoices[i] ?? "unassigned";
+        const staffId =
+          choice === "self" ? currentUserId :
+          choice === "assign" ? (assignmentStaffIds[i] ?? "") :
+          "";
+        return <input key={`ta${i}`} type="hidden" name={`therapist_assignment_${i}`} value={staffId} />;
+      })}
     </>
   );
 
@@ -1028,11 +1074,6 @@ export function ManualBookingForm({
                   <option value="female">Female</option>
                   <option value="male">Male</option>
                 </SelectField>
-                {participant.gender && (
-                  <div>
-                    <SameGenderChip />
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1190,7 +1231,7 @@ export function ManualBookingForm({
             label="Postcode"
             required
             placeholder="LU1 1AA"
-            hint="We'll auto-fill city and area from this"
+            hint="We'll auto-fill city from this"
             value={postcode}
             error={stepErrors.postcode || postcodeLookupError || undefined}
             className={cn("sm:col-span-1", isPrefilled("postcode") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : "")}
@@ -1434,12 +1475,31 @@ export function ManualBookingForm({
         {/* Override mode (single group or combined) */}
         {(overrideAvailability || (isMixedGenderGroup && (femaleOverride || maleOverride))) && (
           <div className="grid gap-4">
-            <div className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-3 text-sm text-[oklch(26%_0.13_55)]">
-              <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-              <div>
-                <span className="font-medium">No availability checked</span>
-                <span className="ml-1">— this booking will be unassigned until a therapist accepts it.</span>
+            <div className="flex items-start justify-between gap-3 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-3">
+              <div className="flex items-start gap-2.5 text-sm text-[oklch(26%_0.13_55)]">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <div>
+                  <span className="font-medium">No availability checked</span>
+                  <span className="ml-1">— this booking will be unassigned until a therapist accepts it.</span>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setOverrideAvailability(false);
+                  setFemaleOverride(false);
+                  setMaleOverride(false);
+                  setBookingDate("");
+                  setStartTime("");
+                  setAvailChecked(false);
+                  setAvailSlots([]);
+                  setFemaleAvailChecked(false);
+                  setMaleAvailChecked(false);
+                }}
+                className="shrink-0 text-xs font-medium text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                Use available slots
+              </button>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <AdminInput id="booking_date" label="Date" required type="date" value={bookingDate} error={stepErrors.booking_date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setBookingDate(e.target.value)} />
@@ -1569,6 +1629,111 @@ export function ManualBookingForm({
                 value={healthNotes}
                 onChange={(e) => setHealthNotes(e.target.value)}
               />
+            </div>
+          </AdminPanel>
+
+          {/* ── Assignment panel ── */}
+          <AdminPanel
+            title="Booking assignment"
+            description="Choose what happens after submitting. You can always reassign from the booking detail page."
+          >
+            <div className="grid gap-4">
+              {participants.map((p, i) => {
+                const choice = assignmentChoices[i] ?? "unassigned";
+                // "Take myself" eligibility: current user is bookable and gender-matches this participant
+                const selfEligible =
+                  currentUserIsBookable &&
+                  p.gender &&
+                  (currentUserGender === p.gender);
+                // Gender-filtered staff for "assign" option
+                const eligibleStaff = assignableStaff.filter((s) =>
+                  !p.gender || s.gender === p.gender
+                );
+
+                return (
+                  <div
+                    key={i}
+                    className={cn(
+                      "grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] p-4",
+                      i > 0 && "mt-1"
+                    )}
+                  >
+                    {participants.length > 1 && (
+                      <p className="text-xs font-semibold text-[var(--admin-heading)]">
+                        {p.name || `Person ${i + 1}`}
+                        {p.gender && (
+                          <span className="ml-1 font-normal text-[var(--admin-text-muted)]">
+                            ({p.gender} therapist required)
+                          </span>
+                        )}
+                      </p>
+                    )}
+
+                    {/* Option: Leave unassigned */}
+                    <label className="flex cursor-pointer items-start gap-3 text-sm">
+                      <input
+                        type="radio"
+                        name={`assignment_choice_${i}`}
+                        value="unassigned"
+                        checked={choice === "unassigned"}
+                        onChange={() => setAssignmentChoices((prev) => { const n = [...prev]; n[i] = "unassigned"; return n; })}
+                        className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
+                      />
+                      <span>
+                        <span className="block font-medium text-[var(--admin-body)]">Leave unassigned</span>
+                        <span className="block text-xs text-[var(--admin-text-muted)]">Sent as a booking request — a therapist accepts it</span>
+                      </span>
+                    </label>
+
+                    {/* Option: Assign to a therapist (high-permission only) */}
+                    {canAssign && eligibleStaff.length > 0 && (
+                      <label className="flex cursor-pointer items-start gap-3 text-sm">
+                        <input
+                          type="radio"
+                          name={`assignment_choice_${i}`}
+                          value="assign"
+                          checked={choice === "assign"}
+                          onChange={() => setAssignmentChoices((prev) => { const n = [...prev]; n[i] = "assign"; return n; })}
+                          className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
+                        />
+                        <span className="flex-1">
+                          <span className="block font-medium text-[var(--admin-body)]">Assign to a therapist</span>
+                          {choice === "assign" && (
+                            <select
+                              value={assignmentStaffIds[i] ?? ""}
+                              onChange={(e) => setAssignmentStaffIds((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })}
+                              className="mt-2 flex h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+                            >
+                              <option value="">Choose a therapist…</option>
+                              {eligibleStaff.map((s) => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                          )}
+                        </span>
+                      </label>
+                    )}
+
+                    {/* Option: Take myself */}
+                    {selfEligible && (
+                      <label className="flex cursor-pointer items-start gap-3 text-sm">
+                        <input
+                          type="radio"
+                          name={`assignment_choice_${i}`}
+                          value="self"
+                          checked={choice === "self"}
+                          onChange={() => setAssignmentChoices((prev) => { const n = [...prev]; n[i] = "self"; return n; })}
+                          className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
+                        />
+                        <span>
+                          <span className="block font-medium text-[var(--admin-body)]">Take this booking myself</span>
+                          <span className="block text-xs text-[var(--admin-text-muted)]">Assigned to you ({currentUserName})</span>
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </AdminPanel>
 

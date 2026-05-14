@@ -115,7 +115,7 @@ See `BUILD-postcode-lookup-client.md` for API contract and error handling.
 
 **Package radio per participant:** Radio group per participant — selecting Supreme Combo, Hijama, or Fire deselects the other options within that participant's row. Selecting a package is independent of other participants. Massage toggle is a separate optional section below the package radio.
 
-**Postcode auto-fill flow (step 3):** On postcode field `onBlur`: if postcode ≥ 5 chars, `fetch("https://api.postcodes.io/postcodes/{postcode}")` is called client-side (no API key). On success: fills City (from `post_town`) and Area (from `admin_district`) only if those fields are currently empty — never overwrites user-typed values. Immediately validates city against allowed list after fill. On failure (not found / network error): shows inline error, manual entry unblocked.
+**Postcode auto-fill flow (step 3):** On postcode field `onBlur`: if postcode ≥ 5 chars, `fetch("https://api.postcodes.io/postcodes/{postcode}")` is called client-side (no API key). On success: fills City (from `post_town`, title-cased) only if City is currently empty — never overwrites user-typed value. Area is **manual-entry only** (`admin_district` is not granular enough to be useful). Immediately validates city against allowed list after fill. On failure (not found / network error): shows inline error, manual entry unblocked.
 
 **Availability check flow (step 3) — same-gender group:** Prerequisites: (1) city filled, (2) at least one service selected per participant, (3) at least one gender filled. On date selection: ONE `POST /api/availability` call with all participant genders combined. Response drives one time-slot grid. Available slots show combined gender-breakdown label.
 
@@ -428,9 +428,9 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `ma
 - `Required therapist gender` is derived automatically from client gender (shown as read-only "Same-gender required" chip, Restricted family, Lock icon — not a form input)
 
 **Step 3 — Location & time (postcode-first field order):**
-- `Postcode *` — placeholder `LU1 1AA` — helper: `We'll auto-fill city and area from this`
-- `City *` — placeholder `Luton` — auto-filled from postcodes.io `post_town`
-- `Area` — placeholder `e.g. Bury Park` — auto-filled from postcodes.io `admin_district`
+- `Postcode *` — placeholder `LU1 1AA` — helper: `We'll auto-fill city from this`
+- `City *` — placeholder `Luton` — auto-filled from postcodes.io `post_town` (title-cased)
+- `Area` — placeholder `e.g. Bury Park` — **manual entry only** (postcodes.io `admin_district` returns borough names, not meaningful local area names)
 - `Address *` — placeholder `Street name and number`
 - `Access notes` — placeholder `e.g. side door, ring the bell twice`
 - `Parking notes` — placeholder `e.g. free on-street after 6pm`
