@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, FilterX, ChevronLeft, ChevronRight, Loader2, FolderSearch } from "lucide-react";
+import { Search, FilterX, ChevronLeft, ChevronRight, Loader2, FolderSearch, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminButton, AdminEmptyState, AdminSkeleton, AdminActionGroup } from "./admin-ui";
 
@@ -284,5 +284,284 @@ export function MobileCardList({
     <div className={cn("grid gap-3 lg:hidden", className)}>
       {children}
     </div>
+  );
+}
+
+// ─── BookingCardSkeletonList ─────────────────────────────────────────────────
+// Approximates the BookingListCard shape so the layout doesn't reflow when
+// streamed data lands. Used inside the bookings page <Suspense> fallback.
+
+export function BookingCardSkeletonList({
+  rows = 5,
+  className,
+}: {
+  rows?: number;
+  className?: string;
+}) {
+  return (
+    <div className={cn("grid gap-3", className)} aria-busy="true" aria-live="polite">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div
+          key={index}
+          className="grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 sm:p-5"
+        >
+          <div className="grid gap-2">
+            <AdminSkeleton className="h-5 w-2/5" />
+            <AdminSkeleton className="h-3.5 w-3/5" />
+            <div className="flex flex-wrap gap-2 pt-1">
+              <AdminSkeleton className="h-5 w-20 rounded-full" />
+              <AdminSkeleton className="h-5 w-24 rounded-full" />
+              <AdminSkeleton className="h-5 w-16 rounded-full" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--admin-border)] pt-3">
+            <div className="flex items-center gap-2">
+              <AdminSkeleton className="size-8 shrink-0 rounded-full" />
+              <AdminSkeleton className="h-3.5 w-24" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <AdminSkeleton className="size-9 rounded-[var(--admin-radius-control)]" />
+              <AdminSkeleton className="h-9 w-20 rounded-[var(--admin-radius-control)]" />
+              <AdminSkeleton className="size-9 rounded-[var(--admin-radius-control)]" />
+            </div>
+          </div>
+        </div>
+      ))}
+      <span className="sr-only">Loading bookings…</span>
+    </div>
+  );
+}
+
+// ─── SavedViewBar ────────────────────────────────────────────────────────────
+// Pill row with inline Save + inline Remove confirmation (no modal). Used by
+// /admin/bookings as the secondary tab strip beneath the primary view tabs.
+
+export function SavedViewBar({
+  views,
+  activeId,
+  onApply,
+  onSave,
+  onRemove,
+  className,
+}: {
+  views: { id: string; label: string }[];
+  activeId: string | null;
+  onApply: (id: string) => void;
+  onSave: (name: string) => void;
+  onRemove: (id: string) => void;
+  className?: string;
+}) {
+  const [saving, setSaving] = React.useState(false);
+  const [removingId, setRemovingId] = React.useState<string | null>(null);
+  const [name, setName] = React.useState("");
+  const [error, setError] = React.useState<string | null>(null);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+  React.useEffect(() => {
+    if (saving) inputRef.current?.focus();
+  }, [saving]);
+
+  const SAVED_VIEW_LIMIT = 20;
+  const atLimit = views.length >= SAVED_VIEW_LIMIT;
+
+  function handleSaveSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError("Give this view a name.");
+      return;
+    }
+    if (trimmed.length > 40) {
+      setError("Keep view names under 40 characters.");
+      return;
+    }
+    if (views.some((view) => view.label.toLowerCase() === trimmed.toLowerCase())) {
+      setError(`You already have a view called "${trimmed}". Pick a different name.`);
+      return;
+    }
+    if (atLimit) {
+      setError(`You've reached the ${SAVED_VIEW_LIMIT} saved-view limit. Remove one first.`);
+      return;
+    }
+    onSave(trimmed);
+    setName("");
+    setError(null);
+    setSaving(false);
+  }
+
+  return (
+    <div
+      className={cn("flex flex-wrap items-center gap-2", className)}
+      role="group"
+      aria-label="Saved views"
+    >
+      {views.length === 0 && !saving ? (
+        <span className="text-xs text-[var(--admin-text-muted)]">
+          No saved views yet.
+        </span>
+      ) : null}
+
+      {views.map((view) => {
+        const isActive = view.id === activeId;
+        const isRemoving = removingId === view.id;
+
+        if (isRemoving) {
+          return (
+            <span
+              key={view.id}
+              role="alertdialog"
+              aria-label={`Remove view ${view.label}`}
+              className="rahma-chip-pop inline-flex items-center gap-1.5 rounded-full border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-3 py-1 text-xs"
+            >
+              <span className="text-[oklch(26%_0.14_25)]">
+                Remove &ldquo;{view.label}&rdquo;?
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  onRemove(view.id);
+                  setRemovingId(null);
+                }}
+                className="appearance-none rounded border-0 bg-transparent font-semibold text-[oklch(26%_0.14_25)] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                Remove
+              </button>
+              <button
+                type="button"
+                onClick={() => setRemovingId(null)}
+                className="appearance-none rounded border-0 bg-transparent text-[var(--admin-text-muted)] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                Keep
+              </button>
+            </span>
+          );
+        }
+
+        return (
+          <span key={view.id} className="inline-flex items-stretch">
+            <button
+              type="button"
+              onClick={() => onApply(view.id)}
+              aria-current={isActive ? "true" : undefined}
+              title="Apply this view"
+              className={cn(
+                "appearance-none rounded-l-full border border-r-0 px-3 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                isActive
+                  ? "border-[var(--admin-border-form)] bg-[oklch(92%_0.022_155)] text-[var(--admin-heading)]"
+                  : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]"
+              )}
+            >
+              {view.label}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRemovingId(view.id)}
+              title="Remove this view"
+              aria-label={`Remove view ${view.label}`}
+              className={cn(
+                "inline-flex appearance-none items-center justify-center rounded-r-full border pl-1 pr-2 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                isActive
+                  ? "border-[var(--admin-border-form)] bg-[oklch(92%_0.022_155)] text-[var(--admin-text-muted)] hover:text-[var(--admin-heading)]"
+                  : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
+              )}
+            >
+              <X className="size-3" aria-hidden="true" />
+            </button>
+          </span>
+        );
+      })}
+
+      {saving ? (
+        <form
+          onSubmit={handleSaveSubmit}
+          className="flex flex-wrap items-center gap-1.5"
+        >
+          <label className="sr-only" htmlFor="saved-view-name">
+            Name this view
+          </label>
+          <input
+            id="saved-view-name"
+            ref={inputRef}
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setError(null);
+            }}
+            placeholder="e.g. Today, unpaid"
+            aria-invalid={error ? "true" : undefined}
+            aria-describedby={error ? "saved-view-name-error" : undefined}
+            className="h-8 w-44 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-2.5 text-xs text-[var(--admin-body)] outline-none focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+          />
+          <button
+            type="submit"
+            className="inline-flex h-8 appearance-none items-center rounded-[var(--admin-radius-control)] border-0 bg-[var(--admin-primary)] px-3 text-xs font-semibold text-white outline-none hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Save view
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSaving(false);
+              setName("");
+              setError(null);
+            }}
+            className="inline-flex h-8 appearance-none items-center rounded-[var(--admin-radius-control)] border-0 bg-transparent px-2 text-xs font-medium text-[var(--admin-text-muted)] outline-none hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Cancel
+          </button>
+          {error ? (
+            <span
+              id="saved-view-name-error"
+              role="alert"
+              aria-live="polite"
+              className="basis-full text-xs text-[oklch(26%_0.14_25)]"
+            >
+              {error}
+            </span>
+          ) : null}
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setSaving(true)}
+          disabled={atLimit}
+          title={atLimit ? `Limit ${SAVED_VIEW_LIMIT} reached — remove one to add another.` : undefined}
+          className="inline-flex h-8 appearance-none items-center gap-1 rounded-full border-0 bg-transparent px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Plus className="size-3" aria-hidden="true" />
+          Save this view
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── ActiveFilterChip ────────────────────────────────────────────────────────
+// Restricted-family pill listing one active filter — text label plus a
+// dismissive trailing × that calls onClear.
+
+export function ActiveFilterChip({
+  label,
+  value,
+  onClear,
+}: {
+  label: string;
+  value: string;
+  onClear: () => void;
+}) {
+  return (
+    <span className="rahma-chip-pop inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2.5 py-1 text-xs text-[var(--admin-restricted)]">
+      <span className="font-medium">{label}:</span>
+      <span>{value}</span>
+      <button
+        type="button"
+        onClick={onClear}
+        title="Clear this filter"
+        aria-label={`Clear ${label} filter`}
+        className="ml-0.5 inline-flex size-4 appearance-none items-center justify-center rounded-full border-0 bg-transparent text-[var(--admin-restricted)] outline-none transition-colors hover:bg-[oklch(89%_0.014_78)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+      >
+        <X className="size-3" aria-hidden="true" />
+      </button>
+    </span>
   );
 }

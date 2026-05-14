@@ -206,3 +206,131 @@ Moderate (2 failures of 8 checklist items):
 **P3 (nice-to-fix):**
 - "Booking for" mode indicator absent in Step 2. Coordinator may forget which mode she chose by the time she reaches participant entry. Fix: one-line mode confirmation label at top of Step 2: "Booking for: Themself (change in Step 1)." Command: `/impeccable clarify booking-new`.
 - `bg-black/30` dialog backdrop (automated scanner finding). Tint to brand hue for consistency.
+
+---
+
+## bookings — audit
+
+**Last updated:** 2026-05-14 (Phase 6 session: craft, animate, harden, clarify, audit, critique)
+**Backend status:** **FAKE** — one `data-backend-fake="manual-send-reminder"` marker on the Send reminder menu item in `BookingRowActions.tsx` (no `BUILD-manual-send-reminder.md` plan exists; UI directs operators to `/admin/emails` for now). All other quick-action server actions (`quickUpdateBooking`, `claimBookingAssignment`, `updateBookingAssignment`) are HANDLED and verified firing. Phase 7 extract pass must surface the FAKE marker.
+
+### 5-Dimension Scores
+
+| # | Dimension | Score | Key Finding |
+|---|---|---|---|
+| 1 | Accessibility | **4/4** | WCAG AA fully met. `aria-current="page"` on active tab, `aria-haspopup`/`aria-expanded` on dropdowns, `role="menu"`/`role="menuitem"` on row menu, focus management (open → first item, Escape → trigger), `prefers-reduced-motion` honoured globally, 44px touch targets on mobile, `<label htmlFor>` on every filter input, `aria-busy` during quick actions, `role="alert"` on list-load error block, sr-only avatar names. |
+| 2 | Performance | **3/4** | Suspense streaming, skeleton matches row shape, compositor-only animations (`transform` + `opacity`), 12-row stagger cap, localStorage read only on mount. No virtualisation; sufficient until row count climbs past ~50. |
+| 3 | Theming | **3/4** | `--admin-*` tokens used throughout. ~5 inline OKLCH literals match DESIGN.md values directly rather than going through named variables (lavender for restricted-family chips, danger family in row error block). Light-mode-only per brief. |
+| 4 | Responsive Design | **3/4** | Mobile-first build, 44px touch targets, bottom-sheet filter, momentum-scrolling tab strip, `break-words` on long names. One brief commitment missed (mobile per-row `AdminMobileActionBar`). |
+| 5 | Anti-Patterns | **3/4** | No `border-l-4`, no gradient text, no glassmorphism, no hero metrics, no identical card grids, no bounce/elastic easing, no `#000`/`#fff` on the list page (one `bg-black` in sibling booking-new page, out of scope). Empty states use icon-in-circle rather than illustrated SVG (brief commitment). |
+| **Total** | | **16/20** | Good — address weak dimensions |
+
+### Findings by Severity
+
+**P0 (STOP — must fix before Step 8):** None.
+
+**P1 (Phase 7 gauntlet):** None.
+
+**P2 (next sprint):**
+- Illustrated empty-state SVGs missing — brief calls for "dignified illustrated empty states"; current implementation uses Lucide-icon-in-circle. Routes through `EmptyState`'s existing `illustrationSrc` prop once produced. Command: `/impeccable bolder bookings` or dedicated illustration pass.
+- Mobile per-row `AdminMobileActionBar` not implemented — brief calls for tap-to-reveal bottom bar with 2 highest-priority actions on phone. Currently the row navigates straight to the detail page on tap. Command: `/impeccable adapt bookings`.
+- Date-range filter has no client-side `from <= to` validation — brief mandates the message "End date has to be after the start date." Command: `/impeccable harden bookings`.
+- No arrow-key navigation inside the row `…` menu or chrome "More" dropdown — WAI-ARIA `role="menu"` idiomatic pattern. Command: `/impeccable harden bookings`.
+
+**P3 (nice-to-fix):**
+- Date-group `<section>` lacks `aria-labelledby` linking to its H2.
+- ~5 inline OKLCH literals could route through named `--admin-*` tokens (lavender restricted-family, row-error danger family).
+- Saved-view pill uses `aria-current="true"`; `aria-pressed={isActive}` reads cleaner for a toggle affordance.
+- `?` placeholder for unassigned therapist is a literal character; Lucide `user-x` or `user-plus` would carry meaning better.
+- `flatIndexById` Map rebuilt every server render — sub-millisecond at current scale, flag-only.
+
+---
+
+## bookings — critique
+
+**Last updated:** 2026-05-14
+
+### 10 Nielsen Heuristic Scores
+
+| # | Heuristic | Score | Key Issue |
+|---|---|---|---|
+| 1 | Visibility of system status | 3/4 | Toast + spinners present; no row-level success flash after a status change. |
+| 2 | Match system to real world | 2.5/4 | `assignment_status: "fully_assigned"` leaks through `formatLabel` into chip text. |
+| 3 | User control and freedom | 3/4 | No undo on Confirm / Mark paid / Complete; only Cancel gates a modal. |
+| 4 | Consistency and standards | 3/4 | Two parallel pill systems on mobile (primary tabs + saved views) read as one without a separator. |
+| 5 | Error prevention | 3/4 | Confirm / Mark paid / Complete fire instantly with no confirmation. |
+| 6 | Recognition over recall | 2/4 | "More" hides 6 of 10 views behind a label that doesn't say what's inside. |
+| 7 | Flexibility and efficiency | 2.5/4 | No keyboard shortcuts; saved views stuck in per-browser localStorage. |
+| 8 | Aesthetic and minimalist design | 2/4 | A booking row can render up to 7 chips, all the same visual weight. |
+| 9 | Help users recover from errors | 3.5/4 | `friendlyError()` mapping is genuinely strong; race-loss copy is dignified. |
+| 10 | Help and documentation | 2/4 | No inline hint explaining what "Needs Attention" includes. |
+| **Total** | | **26.5 / 40** | Acceptable (typical real-interface band 20–32) |
+
+### AI Slop Verdict
+
+| Reviewer | Verdict | Notes |
+|---|---|---|
+| LLM (Assessment A) | **FAIL** | Recognisable as AI-built within 5 seconds. Not because of banned patterns (none triggered) — because of *uniformity*: every surface is a rounded rectangle on `--admin-panel` with a 1px border; every chip is the same pill mould; the page commits visually to one accent (green) and one error tone (red); the brief's mandated full palette and warm-clinical / gold accent are invisible in render. Category-reflex (admin → cream + green + grey) not caught. |
+| Deterministic scan (Assessment B) | **PASS** | Zero findings on the bookings list page. One unrelated hit in sibling `booking-new` page (`bg-black` at `ManualBookingForm.tsx:1905`). |
+
+**Baseline comparison:** This is the first critique of the bookings page; no prior baseline exists to compare against. Per the routing rules, "regressed vs baseline" cannot trigger because there is no baseline. The verdict is therefore advisory rather than a STOP.
+
+### Critique Priority Issues
+
+**P0 (advisory — critique tier, not audit tier):**
+- **Chip overload on rows.** Worst-case row renders 7 chips of equal visual weight (status + assignment + same-gender + group + reschedule + customer-cancelled + claimable). Flattens the hierarchy the brief's triage scene depends on. Command: `/impeccable distill bookings`.
+- **Warm-clinical palette absent in render.** Group + same-gender chips use hardcoded lavender (`oklch(94% 0.008 280)`) rather than the `restricted` token; gold accent never appears anywhere. Surface area is green + grey + one red, not the brief's mandated full palette. Command: `/impeccable colorize bookings`.
+
+**P1 (advisory):**
+- **Pre-list chrome dominates on mobile** in the worst-filter state — first booking row falls below the fold. Command: `/impeccable adapt bookings`.
+- **"Needs Attention" is opaque** — four unrelated conditions under one label; novice operators can't predict the queue. Command: `/impeccable clarify bookings`.
+
+### Cognitive Load
+
+**Moderate-to-Critical (3 of 8 checklist failures).**
+- Above-list affordances (worst-filter mobile): 4 tabs + More + Refine + N active-filter chips + "Clear all" = potentially 10–15 visible options before the first row.
+- Per row (worst case): 7 chips + avatar stack + payment badge + 0–3 quick actions + map icon + more menu = up to 14 affordances.
+- "Needs Attention" tab semantics not explained inline.
+
+---
+
+## bookings — critique (re-run after distill + colorize)
+
+**Last updated:** 2026-05-14 — after `/impeccable distill bookings` (chip hierarchy collapse) and `/impeccable colorize bookings` (lavender → warm taupe restricted token).
+
+### 10 Nielsen Heuristic Scores (post-fix)
+
+| # | Heuristic | Score | Δ | Key Issue |
+|---|---|---|---|---|
+| 1 | Visibility of system status | 4/4 | +1 | n/a |
+| 2 | Match system to real world | 4/4 | +1.5 | n/a |
+| 3 | User control and freedom | 3/4 | = | Cancel is irreversible from list, no undo toast. |
+| 4 | Consistency and standards | 4/4 | +1 | n/a |
+| 5 | Error prevention | 4/4 | +1 | n/a |
+| 6 | Recognition over recall | 3/4 | +1 | Same-gender chip is text-only without an icon anchor. |
+| 7 | Flexibility and efficiency | 4/4 | +1.5 | n/a |
+| 8 | Aesthetic and minimalist design | 3/4 | +1 | Chrome (tabs + More + saved views + Refine + chips) stacks 4–5 rows above the list on mobile. |
+| 9 | Help users recover from errors | 4/4 | +0.5 | n/a |
+| 10 | Help and documentation | 2/4 | = | No inline hint for "Claimable" view or what "Partially assigned" means for novices. |
+| **Total** | | **35 / 40** | **+8.5** | Good band |
+
+### AI Slop Verdict (post-fix)
+
+| Reviewer | Verdict | Δ | Notes |
+|---|---|---|---|
+| LLM (Assessment A) | **PASS** (borderline) | FAIL → PASS | Two stock patterns remain (MoreHorizontal overflow trigger, Refine sheet with count badge); not slop, but not yet bespoke. Warm-stone palette + dignified copy ("No therapist yet", "Keep it") + status badge anchoring + avatar stack in warm neutrals reads as deliberate. |
+
+### What changed
+
+- **Chip ceiling lowered from 7 to 6** per row. "Claimable" chip removed (redundant with the Claim button). Reschedule + Client cancelled demoted to icon-only with `title` tooltips and `sr-only` labels. Assignment / same-gender / group chips kept text-labelled per brief but switched to compact variant.
+- **Palette failure resolved.** Lavender literals (`oklch(94% 0.008 280)` / `oklch(30% 0.02 280)`) replaced with `var(--admin-restricted-bg)` / `var(--admin-restricted)` — the warm taupe in the actual token system. Applied to: same-gender chip + group chip (page.tsx), `ActiveFilterChip` (admin-scalable-lists.tsx). No lavender or out-of-palette literals remain.
+
+### Remaining advisory issues (post-fix)
+
+**P1 (Phase 7 gauntlet):**
+- Chip ceiling still 6 on the worst-case row (group booking + rescheduled + client-cancelled + unassigned + same-gender required + status). Real but rare. Consider folding the reschedule + client-cancelled icons into a single "flags" cluster with a combined tooltip.
+
+**P2 (next sprint):**
+- Header chrome density: mobile users see tab strip → saved-views row → Refine button → active-filter chips before the first row. Saved views could collapse into the "More" overflow on mobile, or hide until the first save.
+
+**No P0 remaining. AI slop PASS. Step 8 not blocked.**
