@@ -15,7 +15,7 @@
 | Worktree | this checkout — branch `agent/dashboard-coordinator-redesign` off `redesign/start-state` |
 | Parent branch (rollback target) | `redesign/start-state` |
 | Main tree (DO NOT MODIFY — user works there) | `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor` |
-| Dev server port for this worktree | `3001` (user's main tree owns `3000`) |
+| Dev server port for this worktree | `3010` (user's main tree owns `3000`) |
 | node_modules | already junctioned from main tree to this worktree's `./node_modules` — do not reinstall |
 | Backend status | `N-A` for THIS session — read-only surface. Brief Open Question 1 flags an Active Enquiries data fetcher that may need a small read-only helper in `dashboard-data.ts` (RECON §5 untouchable). Default: flag in handoff and leave `dashboard-data.ts` untouched; if the helper is missing, render the tile with `0` and an empty state. |
 | Progress scratchpad | `/redesign/per-page-progress/dashboard-coordinator-progress.md` |
@@ -41,6 +41,58 @@
 6. **Preserve IDs (RECON §6.4):** `id="admin-main"` + skip-link, `id="admin-command-search"`, `id="attention-dialog-title"`, SVG `<linearGradient id="demandGradient">` (preserve when rendering for Owner/Admin even though not rendered for Coordinator).
 7. **Preserve permission gates verbatim:** `view_reports_revenue` must remain **false** for Coordinator (no Payment Health, no Export Ghost link). `manage_staff_profiles` must remain **false** (no Staff Capacity). `manage_enquiries` gates the new Active Enquiries tile.
 8. **`notification-bell.tsx` is shared infrastructure** — coordinate with `00-shared-components` and the `dashboard-owner-admin` session. If `border-l-4` line 403 has already been removed in start-state, skip that edit here.
+
+## Decision-making directives — when impeccable craft (or any tool) asks something not in the brief
+
+The /goal session is autonomous — there's no user mid-run to consult. When impeccable craft's `shape` phase asks discovery questions (Purpose / User / Content / Feeling / Constraints), or any step surfaces a question or conflict, follow this order:
+
+**Answer source priority (never invent):**
+1. The brief at `/redesign/briefs/dashboard-coordinator-brief.md` — quote the relevant section verbatim.
+2. `PRODUCT.md` (register, brand voice, anti-references) and `DESIGN.md` (tokens, components, patterns).
+3. `BUSINESS-COMPLETENESS.md` (Track A obligations).
+4. `/redesign/RECON.md` for codebase facts.
+5. If still uncovered: derive an answer using the *forward-looking criteria* below.
+
+**Forward-looking criteria for derived answers:**
+- Mobile-first; works at 375px before 1440px.
+- Scales when the underlying list/data grows (pagination, load-more, virtualisation cues).
+- Preserves named contracts: server-action signatures, form `name` attributes, IDs flagged in the recipe.
+- Doesn't introduce cross-page contradictions — use shared components (`AdminPanel`, `AdminEntityRow`, `EmptyState`, `BookingListCard`, `AdminStatusBadge`) instead of new local equivalents.
+- Uses DESIGN.md tokens, not raw colour/spacing/font literals.
+- WCAG 2.1 AA: contrast, focus-visible, labels, `role="alert"` + `aria-live` on form errors, required `*` markers.
+- Connects forward to Phase 7 (gauntlet/audit per `impeccable-v5-latest-stable.html`) and Phase 8 (extract/deploy) — don't bake decisions that contradict those phases' canonical scope.
+- Follows the **Design Route Directives** below.
+
+**Deferral protocol — when a question is NOT a Phase 6 blocker:**
+
+Some questions impeccable surfaces are open suggestions, polish opportunities, or post-launch concerns that belong to Phase 7 (`/impeccable audit admin`) or Phase 8 (`/impeccable extract admin`). Do NOT answer them — defer:
+
+1. Append to `/redesign/per-page-deferrals/dashboard-coordinator-deferrals.md` in this format:
+
+   ```
+   ## <Question summary>
+   - **Source:** <step number / skill / file:line>
+   - **Verbatim:** <what impeccable or the brief or your own observation said>
+   - **Defer to:** Phase 7 / Phase 8 / post-launch
+   - **Why deferred:** <one sentence>
+   - **Provisional Phase 6 answer used to continue this session:** <if any>
+   ```
+
+2. Proceed with the brief's documented Phase 6 answer (or the most conservative provisional that satisfies the forward-looking criteria).
+
+Phase 7's gauntlet agent will read all 26 deferral files and resolve them globally. This is the bridge that makes Phase 6 → Phase 7 connect cleanly.
+
+## Design Route Directives — design north star for this page
+
+These govern every visual + structural decision in steps 4–11. Read once; apply everywhere.
+
+1. **Beautiful, mobile-first.** 375px is the primary canvas — make it look intentional, not "the desktop scaled down". Enhance to 768 → 1440 from there.
+2. **Production-ready, business-workflow ready.** This is an operational CRM/backend. Every screen should look and feel like a finished professional product, not a wireframe or default-styled component drop.
+3. **Responsive, modern, reactive, interactive.** Use CSS transitions on hover/focus/tab states (DESIGN.md motion tokens — `duration-fast`, `ease-gentle`); respect `prefers-reduced-motion`. Feedback on every interactive element. Never static where motion would carry meaning.
+4. **Simple front door that opens into the full feature set.** Progressive disclosure. The first surface a staff member sees is calm and obvious; complexity unfolds when invited (panels, `<details>`, `AdminSheet`, modals). Never strip features — hide them behind a tap or click.
+5. **Professional CRM/backend feel — never awkward, weird, or mediocre.** No generic SaaS defaults. No identical-card grids. No decorative-blob-on-empty-state. Every visual element earns its place per PRODUCT.md anti-references.
+6. **Designed for lists that grow.** Where data lists exist, plan for 50+ rows: pagination/load-more, visible row density at scale, A–Z index strips where alphabetical, "show more" disclosures, virtualisation cues.
+7. **Polish without straying.** All improvements stay within the recipe's "Files to edit" scope, use existing DESIGN.md tokens (no new tokens without explicit user approval), and respect the brief's "Feature Preservation Manifest."
 
 ## STUCK clause
 
@@ -73,13 +125,24 @@ Known oversize files relevant to this recipe:
 - `redesign/IMPLEMENTATION-PLAN.md` (~29k tokens) → read lines 1–60 for "Currently on"; lines 540–580 for the dashboard rows
 - `src/app/admin/dashboard/dashboard-cards.tsx` may be oversize — use targeted Grep instead of full reads
 
+## MCP usage
+
+| MCP | Role | Used in |
+|---|---|---|
+| `playwright` | Screenshots, form fills, click-through, viewport resize, navigation | Steps 7, 7b, 8, 11b, 12c |
+| `chrome-devtools` | Console messages, network requests, performance trace, runtime metrics | Step 11c, optional Step 12c console replay |
+
+Both MCPs must be connected per `/mcp` in your session (preflight check in LAUNCH-SHEET Section 0b). They don't conflict — each does what it's best at. The earlier "playwright NOT chrome-devtools" guidance from older recipe drafts is retired.
+
+**Credentials:** every sign-in step references `/redesign/test-credentials.md`. The recipe inlines the specific account for clarity (the account that holds the RBAC permissions for this page), but the canonical source is always `test-credentials.md`.
+
 ---
 
 # Steps
 
 ## Step 0 — Skill availability check (FIRST, do not skip)
 
-**Action:** Verify these Skill-tool invocations resolve in this session:
+**Action:** Verify these Skill-tool invocations resolve in this session. **Use the Skill tool (not the slash-command shorthand) so each invocation appears as a `Skill(...)` event in the transcript the Haiku evaluator reads** — slash-command text alone is harder for the evaluator to distinguish from a mention. Invoke each with a no-op or dry argument string just to confirm it resolves:
 - `/impeccable craft`
 - `/impeccable adapt`
 - `/impeccable harden`
@@ -170,6 +233,8 @@ The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this 
 >   ## Files to NEVER touch
 >   - [path] — [reason]
 >
+> **Unrendered-file rule:** Coordinator variant does NOT render every shared dashboard file (`demand-trend-client.tsx` is Owner/Admin-only; certain panels and the Export Ghost are revenue-gated). If a file listed under "Files to edit" is not actually rendered for the Coordinator role at any viewport, write the entry as `[path] — no changes in this session (component not rendered for Coordinator; carry-forward fixes already landed by dashboard-owner-admin OR will land when that session runs)`. This keeps Step 13 SCOPE_CLEAN honest and prevents the agent from inventing edits to justify the listing.
+>
 > CRITICAL — how to handle craft's internal shape discovery: per the docs, `/impeccable craft` runs `/impeccable shape` internally as its first phase. When shape asks discovery questions (Purpose, User, Content, Feeling, Constraints), quote each section from `/redesign/briefs/dashboard-coordinator-brief.md` verbatim as your answer, but expect shape to expand or adjust them. Confirm each section back to chat, accept any expansions shape proposes, then proceed.
 >
 > Match DESIGN.md tokens exactly. If the brief conflicts with the codebase, STOP and report — do not guess.
@@ -205,7 +270,7 @@ The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this 
 **Action:** Invoke Skill with:
 
 ```
-/ralph-loop "Read the brief at /redesign/briefs/dashboard-coordinator-brief.md. Compare the current implementation to the brief's requirements (5 native sections + Recipe Context + Implementation Notes). Apply one focused improvement. Re-check against the brief. If all brief requirements are met, output <promise>PAGE-POLISH-COMPLETE</promise>." --max-iterations 8 --completion-promise "PAGE-POLISH-COMPLETE"
+/ralph-loop "Read the brief at /redesign/briefs/dashboard-coordinator-brief.md. Compare the current implementation to the brief's requirements (every section of the brief, including Recipe Context and Implementation Notes). Apply one focused improvement. Re-check against the brief. If all brief requirements are met, output <promise>PAGE-POLISH-COMPLETE</promise>." --max-iterations 8 --completion-promise "PAGE-POLISH-COMPLETE"
 ```
 
 **Evidence to surface:**
@@ -215,16 +280,18 @@ The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this 
 
 ---
 
-## Step 6 — Start dev server on port 3001 (in this worktree)
+## Step 6 — Start dev server on port 3010 (in this worktree)
 
 **Action:** node_modules is already junctioned. Start the dev server in the background:
 
+**Pre-flight (do this BEFORE the cd):** verify the worktree directory exists. If `Test-Path` (PowerShell) or `[ -d ... ]` (bash) returns false on `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-dashboard-coordinator-redesign`, emit `STUCK: 6 — worktree directory missing — re-run the worktree setup from LAUNCH-SHEET Section 1a` and STOP. Do not try to recreate the worktree from inside the agent.
+
 ```bash
 cd "C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-dashboard-coordinator-redesign"
-pnpm next dev -p 3001
+pnpm next dev -p 3010
 ```
 
-Use `run_in_background: true`. Poll `http://localhost:3001/admin/dashboard` (signed in as Coordinator) until it returns HTTP 200 (or 308 — that's a trailing-slash redirect which Playwright handles). Max wait: 60 seconds.
+Use `run_in_background: true`. Poll `http://localhost:3010/admin/dashboard` (signed in as Coordinator) until it returns HTTP 200 (or 308 — that's a trailing-slash redirect which Playwright handles). Max wait: 60 seconds.
 
 **If node_modules junction is broken** (junction got removed or stale), fall back to:
 ```powershell
@@ -233,14 +300,14 @@ cmd /c mklink /J node_modules "C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmat
 
 **Evidence to surface:**
 - The HTTP status code from the readiness poll printed to chat
-- Literal line `DEV_SERVER_READY at http://localhost:3001`
-- Append `step-6: COMPLETE — dev server on 3001` and cat progress file
+- Literal line `DEV_SERVER_READY at http://localhost:3010`
+- Append `step-6: COMPLETE — dev server on 3010` and cat progress file
 
 ---
 
-## Step 7 — Step 2 iterate (screenshots + named-axis decision)
+## Step 7 — Step 2 iterate (screenshots + multi-axis polish, max 4 axes)
 
-**Action:** Use the `playwright` MCP tool (NOT `chrome-devtools` — playwright handles redirects).
+**Action:** Use the `playwright` MCP tool.
 
 Sign in first as `test.coordinator@rahmatherapy.example.test` / `CoordinatorTest123!` (the Coordinator-variant dashboard requires this role). Then take screenshots and save to `/redesign/screenshots/dashboard-coordinator-redesign/`:
 - `chunk1-1440-default-collapsed.png` at 1440×900 (Tier 1 visible, Tier 2 "Active queues" collapsed)
@@ -252,7 +319,11 @@ Sign in first as `test.coordinator@rahmatherapy.example.test` / `CoordinatorTest
 - `chunk1-1440-no-export.png` at 1440×900 — verify "Export" Ghost link is ABSENT in filter strip (Coordinator lacks `view_reports_revenue`)
 - `chunk1-1440-empty-db.png` at 1440×900 (no bookings, no enquiries, no events)
 
-Self-assess against the brief. If you can identify ONE specific axis problem:
+Visually self-audit against the brief, PRODUCT.md, DESIGN.md, and the Design Route Directives at the top of this recipe.
+
+**Identify 2 to 4 axes** where the page has *visible* problems (not plausible improvements). Skip axes that contradict each other:
+- `bolder` + `quieter` contradict
+- `distill` + `delight` often contradict (distill removes; delight adds)
 
 | Symptom | Skill |
 |---|---|
@@ -267,12 +338,47 @@ Self-assess against the brief. If you can identify ONE specific axis problem:
 
 **Skip `/impeccable live`** — interactive only, doesn't work headless.
 
-If a refine runs, re-screenshot with `-after-refine` suffix.
+**For each chosen axis (sequential, not parallel):**
+1. Invoke the impeccable Skill tool with `<axis> dashboard-coordinator` args. Use the Skill tool (not the slash-command shorthand) so the invocation appears as a transcript event the Haiku evaluator can see.
+2. After it completes, take `chunk1-1440-after-<axis>.png` at 1440×900 and save to `/redesign/screenshots/dashboard-coordinator-redesign/`.
+3. Write one line stating whether the change addressed the targeted problem.
+4. If the axis did NOT resolve the targeted problem, do NOT run further axes on the same problem — emit `STUCK: 7 — <axis> did not resolve <problem>` and let the user guide.
+
+**Hard cap:** maximum 4 axes per page. If more would be needed, the brief is the wrong shape — emit `STUCK: 7 — page needs more than 4 axes; brief shape needs review` and stop.
+
+After all axes complete, take post-polish screenshots at all 3 viewports: `dashboard-coordinator-post-axes-{375,768,1440}.png` to `/redesign/screenshots/dashboard-coordinator-redesign/`.
 
 **Evidence to surface:**
-- 8+ screenshot file paths printed to chat (`ls redesign/screenshots/dashboard-coordinator-redesign/`)
-- Literal decision: `ITERATE_DECISION: no refine needed — <brief-justified reason>` OR `ITERATE_DECISION: ran /impeccable <axis> dashboard-coordinator because <reason>`
-- Append `step-7: COMPLETE — iterate decision logged` and cat progress file
+- All baseline + per-axis + post-polish screenshot file paths printed to chat (`ls redesign/screenshots/dashboard-coordinator-redesign/`)
+- Literal line: `AXES_APPLIED: <axis-1>, <axis-2>, …` followed by one-line rationale for each axis
+- Append `step-7: COMPLETE — axes applied: <list>` and cat progress file
+
+---
+
+## Step 7b — Visual polish loop (bounded refinement, max 2 iterations)
+
+**Action:** Now that axes are applied, look for visual discrepancies, design inconsistencies, frontend issues, layout gaps, and styling conflicts. The Design Route Directives at the top of this recipe are your north star.
+
+**Audit at all 3 viewports** (use the `playwright` MCP):
+- 375×812 — primary mobile
+- 768×1024 — tablet
+- 1440×900 — desktop
+
+**List specific issues found** in chat as `POLISH_ISSUES_ITER_<N>:` followed by bullet points. Be specific — e.g. "card padding inconsistent between Today panel and Attention panel at 1440px", "primary button label wraps at 375px because copy too long", "status pill icon misaligned with text at all viewports".
+
+**Apply fixes within existing scope only:**
+- No new files outside the recipe's "Files to edit" list.
+- No new components — use existing primitives.
+- No new DESIGN.md tokens (existing ones only).
+- Polish layout, spacing, alignment, consistency — not the feature set.
+
+**Re-audit, list remaining issues, fix again.** Loop maximum 2 iterations. If after 2 iterations there are still issues, append them to `/redesign/per-page-deferrals/dashboard-coordinator-deferrals.md` with **Defer to: Phase 7** and proceed.
+
+**Evidence to surface:**
+- `POLISH_ISSUES_ITER_1: <issues list>` followed by `POLISH_FIXES_ITER_1: <fixes applied>` (or `POLISH_ISSUES_ITER_1: none` if the first audit found nothing)
+- `POLISH_ISSUES_ITER_2: none — clean` (or the remaining-issues list, deferred to Phase 7 if any)
+- Final 3-viewport screenshots: `dashboard-coordinator-polish-final-{375,768,1440}.png` saved to `/redesign/screenshots/dashboard-coordinator-redesign/`
+- Append `step-7b: COMPLETE — polish loop done` and cat progress file
 
 ---
 
@@ -377,7 +483,7 @@ grep -nE 'bg-gray-\d+|text-gray-\d+' src/app/admin/dashboard/dashboard-cards.tsx
 grep -nE "font-family:\s*['\"]" src/app/admin/dashboard/page.tsx src/app/admin/dashboard/dashboard-cards.tsx
 
 # Raw spacing literals (canon: should match the spacing scale in DESIGN.md)
-grep -nE '(margin\|padding):\s*\d' src/app/admin/dashboard/page.tsx src/app/admin/dashboard/dashboard-cards.tsx
+grep -nE '(margin|padding):[[:space:]]*[0-9]' src/app/admin/dashboard/page.tsx src/app/admin/dashboard/dashboard-cards.tsx
 ```
 
 For each match, confirm the value comes from a DESIGN.md token. If a hardcoded value isn't backed by a token, FIX IT.
@@ -396,13 +502,13 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 - Verify `localStorage` key persists Tier 2 disclosure state per (user × variant)
 - Sign out via `/admin/signout` to leave a clean session for downstream pages
 
-### 11c — Console + Network
+### 11c — Console + Network (via `chrome-devtools` MCP)
 
-- Print last 20 console messages to chat — verify 0 NEW errors vs `/redesign/BASELINE-ISSUES.md` (warnings OK)
-- Print network requests during filter change — verify only GET navigation (no server action invocation)
+- Use `chrome-devtools__list_console_messages` to print the last 20 console messages to chat — verify 0 NEW errors vs `/redesign/BASELINE-ISSUES.md` (warnings OK)
+- Use `chrome-devtools__list_network_requests` during filter change — verify only GET navigation (no server action invocation)
 
 **Evidence to surface:**
-- All six grep results in chat with explicit `TOKEN_DRIFT: 0` (or list each match + fix); explicit `BORDER_L_4: 0`; explicit `BG_BLACK: 0`; explicit `RAW_TAILWIND_GRAY: 0`
+- All token-drift grep results in chat with explicit `TOKEN_DRIFT: 0` (or list each match + fix); explicit `BORDER_L_4: 0`; explicit `BG_BLACK: 0`; explicit `RAW_TAILWIND_GRAY: 0`
 - 4+ final screenshot files in `/redesign/screenshots/dashboard-coordinator-redesign/`: `dashboard-coordinator-final-{375,768,1280,1440}.png`
 - Console summary line: `CONSOLE_NEW_ERRORS: 0` (or list)
 - Network summary line: `NETWORK_BASELINE_MATCH: yes` (or list deltas)
@@ -410,40 +516,82 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 
 ---
 
-## Step 12 — `/impeccable audit dashboard-coordinator` + `/impeccable critique dashboard-coordinator` + functional smoke test
+## Step 12 — Audit + Critique (via subagents) + Smoke Test
 
-### 12a — Audit
-Invoke Skill with `/impeccable audit dashboard-coordinator`.
+This step dispatches subagents for the audit and critique commands. The reason: self-scoring inflation is a known failure mode (login self-scored 20/20 audit + 37/40 critique — almost certainly inflated by recency bias). Subagents start with no "I just did this work" bias and re-prime from disk fresh; the scores you bring back are objective.
 
-**Severity rubric — anchor every finding before tagging (impeccable v5 L884-890):**
-- **P0** Blocks release — fix before shipping anything
-- **P1** Fix this sprint — significant impact on users
-- **P2** Next cycle — noticeable but not blocking
-- **P3** Polish — minor, fix when time allows
+**Subagent model + thinking:** subagents inherit your model + thinking level. The user must already be on Opus 4.7 + medium thinking in `/config` (preflight in LAUNCH-SHEET Section 0b). The Agent tool does NOT expose a per-subagent thinking override.
 
-Append to `/redesign/PER-PAGE-SCORES.md` under heading `## dashboard-coordinator — audit`:
+**Why both — and how it lands in the transcript:** subagent internal turns are invisible to the parent /goal Haiku evaluator. Only the subagent's *returned summary* reaches the main transcript. Therefore: subagents do NOT write to PER-PAGE-SCORES.md (their writes are invisible to the parent loop); they return text; the main agent performs the append + prints the appended section to chat. That print is what the Haiku evaluator sees.
+
+### 12a — Audit (subagent)
+
+**Action:** Use the Agent tool with `subagent_type=general-purpose`. Subagent prompt (the slug `dashboard-coordinator` is already substituted below — pass this prompt verbatim):
+
+```
+You are auditing the redesign of admin page dashboard-coordinator for Phase 6 of the Rahma Therapy admin redesign. The page has just been crafted, polished, adapted, and hardened by another agent. Your job is an objective code + design audit — you have NO bias from doing the work.
+
+Re-prime (read these in order, in full):
+1. /redesign/briefs/dashboard-coordinator-brief.md
+2. PRODUCT.md
+3. DESIGN.md (full, including ## Admin-Specific Patterns)
+4. /redesign/IMPLEMENTATION-PLAN.md — find the dashboard-coordinator row to determine Backend status (N-A / FAKE / HANDLED) and any BUILD plan dependencies
+5. /redesign/BUSINESS-COMPLETENESS.md — to identify any Track A items this page contributes to
+6. The post-polish screenshots at /redesign/screenshots/dashboard-coordinator-redesign/dashboard-coordinator-polish-final-{375,768,1440}.png
+7. The current source code: src/app/admin/dashboard-coordinator/** and any other files in the recipe's "Files to edit" list
+
+Severity rubric (impeccable v5 L884-890 — quote it verbatim, do not paraphrase):
+- P0 — Blocks release — fix before shipping anything
+- P1 — Fix this sprint — significant impact on users
+- P2 — Next cycle — noticeable but not blocking
+- P3 — Polish — minor, fix when time allows
+
+Task: invoke the impeccable Skill with `audit dashboard-coordinator`. Score 5 dimensions and surface all P0/P1/P2/P3 findings with file:line references.
+
+Return format — the full audit text, formatted to be appendable to PER-PAGE-SCORES.md under heading `## dashboard-coordinator — audit`, with these required subsections:
 - 5 dimension scores
-- P0/P1/P2/P3 findings, each on its own line
-- Backend status: `N-A` (Active Enquiries flagged as possible follow-up if data fetcher is missing)
-- **P1 (tag for Phase 7 gauntlet):** subsection — list each P1 finding with location + file:line; if zero, write `none`. Phase 7 `/impeccable audit admin` re-scans this section.
-- **BUSINESS-COMPLETENESS impact:** subsection — name any `redesign/BUSINESS-COMPLETENESS.md` items this page newly contributes to (e.g. `2A-6` if form-level error `role="alert"` was implemented). Lets the universal flag flip `PARTIAL` → `HANDLED` when all form-bearing pages adopt.
-- Confirm Brief-06 carry-forwards remain resolved across the shared files
+- P0/P1/P2/P3 findings (each on its own line with file:line refs)
+- Backend status (N-A / FAKE / HANDLED — if FAKE, name the blocking BUILD plan filename(s) verbatim from IMPLEMENTATION-PLAN.md)
+- **P1 (tag for Phase 7 gauntlet):** subsection — list each P1 finding with location + file:line. If zero, write `none`. Phase 7 `/impeccable audit admin` re-scans this section.
+- **BUSINESS-COMPLETENESS impact:** subsection — name any Track A items this page newly contributes to (e.g. `2A-6` if form-level `role="alert" aria-live="polite"` was implemented). If none, write `none`.
 
-**Print the appended section to chat.**
+Do NOT write to PER-PAGE-SCORES.md. The main agent will perform the append. Return the full audit text verbatim.
+```
 
-**If any P0 finding: emit `P0_FOUND:` followed by the list and STOP.** Do not proceed to handoff. The user will decide whether to fix-now or defer.
+After the subagent returns:
+1. Read the returned audit text from the Agent tool result.
+2. Append it verbatim to `/redesign/PER-PAGE-SCORES.md` under heading `## dashboard-coordinator — audit`.
+3. **Print the appended section to chat verbatim.** This is critical — the subagent's internal turns are invisible to the parent /goal evaluator. Without surfacing the appended section, the audit is invisible to the parent loop.
+4. If any P0 finding exists: emit `P0_FOUND:` followed by the list and STOP. Do not proceed to 12b. The user decides fix-now vs defer.
 
-### 12b — Critique
-Invoke Skill with `/impeccable critique dashboard-coordinator`.
+### 12b — Critique (subagent)
 
-Append to `/redesign/PER-PAGE-SCORES.md` under heading `## dashboard-coordinator — critique`:
-- 10 Nielsen heuristic scores
-- AI-slop verdict (PASS / REGRESSED / FAIL)
-- Brief commentary
+**Action:** Use the Agent tool with `subagent_type=general-purpose`. Subagent prompt (`dashboard-coordinator` already substituted):
 
-**Print the appended section to chat.**
+```
+You are critiquing the redesign of admin page dashboard-coordinator for Phase 6. The page has been crafted + polished + adapted + hardened + audited by another agent. Your job is an objective UX critique — you have NO bias from doing the work.
 
-If AI-slop verdict is REGRESSED or FAIL: re-run `/impeccable bolder dashboard-coordinator` OR `/impeccable distill dashboard-coordinator` based on which fits the verdict's reasoning, then re-run `/impeccable critique dashboard-coordinator`. Loop max 2 times.
+Re-prime (read in full):
+1. /redesign/briefs/dashboard-coordinator-brief.md
+2. PRODUCT.md
+3. DESIGN.md (full)
+4. The post-polish screenshots at /redesign/screenshots/dashboard-coordinator-redesign/dashboard-coordinator-polish-final-{375,768,1440}.png
+5. The current source code: src/app/admin/dashboard-coordinator/**
+
+Task: invoke the impeccable Skill with `critique dashboard-coordinator`. Return:
+- 10 Nielsen heuristic scores (Visibility of system status; Match between system and real world; User control and freedom; Consistency and standards; Error prevention; Recognition rather than recall; Flexibility and efficiency; Aesthetic and minimalist design; Help users recognize, diagnose, and recover from errors; Help and documentation)
+- AI-slop verdict (PASS / REGRESSED / FAIL) with one-sentence reasoning
+- Brief commentary on UX-quality, mapping concrete observations to PRODUCT.md anti-references (no generic SaaS feel, no identical-card grids, no decorative blobs, etc.)
+
+Return format — the full critique text, formatted to be appendable to PER-PAGE-SCORES.md under heading `## dashboard-coordinator — critique`.
+
+Do NOT write to PER-PAGE-SCORES.md. Return the full critique text verbatim.
+```
+
+After the subagent returns:
+1. Append verbatim to `/redesign/PER-PAGE-SCORES.md` under heading `## dashboard-coordinator — critique`.
+2. **Print to chat verbatim** — same reasoning as 12a.
+3. If AI-slop verdict is REGRESSED or FAIL: re-run `/impeccable bolder dashboard-coordinator` or `/impeccable distill dashboard-coordinator` (whichever fits the verdict's reasoning), then re-dispatch the critique subagent with the same prompt. Loop max 2 times. If after 2 loops the verdict is still REGRESSED/FAIL, append the verdict + reasoning to `/redesign/per-page-deferrals/dashboard-coordinator-deferrals.md` with **Defer to: Phase 7** and proceed to 12c.
 
 ### 12c — Functional smoke test
 
@@ -476,29 +624,44 @@ Run through brief's Feature Preservation Manifest manually via Playwright + read
 
 ---
 
-## Step 13 — Handoff (NO COMMIT — wait for user approval)
+## Step 13 — Handoff (canon Step 8 — NO COMMIT, wait for user approval)
 
-**Action:**
-1. Run `git diff --stat` in the worktree — print to chat
-2. Compare changed-files list against `/redesign/per-page-scope/dashboard-coordinator-scope.md`. For any file changed that isn't in the scope file's "Files to edit" list: STOP and emit `SCOPE_VIOLATION: <file>`. Otherwise: `SCOPE_CLEAN: only scoped files changed`.
-3. Run `git diff` (full) and confirm nothing unexpected appears — print the diff to chat in collapsible form.
-4. Emit the handoff message to chat with:
-   - Dev server URL: `http://localhost:3001/admin/dashboard` (signed in as Coordinator)
-   - All screenshot paths
-   - Audit + critique key scores
-   - Active Enquiries data status (wired to real fetcher / placeholder with empty state / flagged for separate session)
-   - Operations Health link verification (resolves for Coordinator / 404s — flagged)
-   - Coordination note about shared files (`dashboard-cards.tsx`, `notification-bell.tsx`, `attention-group-client.tsx`)
-   - Any deviations from brief (or `DEVIATIONS: none`)
-5. **Emit the literal string `HANDOFF_READY — awaiting user approval`** — this is the `/goal` evaluator's final completion signal.
-6. **STOP. Do NOT stage anything. Do NOT commit.** Wait for the user to inspect the worktree and respond.
+> **Canon mapping:** this recipe's internal Step 13 corresponds to workflow-guide canon Step 8 (final handoff / commit decision per `phase6-admin-workflow-guide.html`). The recipe expands canon's 8 steps to 14 internal steps for autonomous-agent traceability. Full mapping: canon 1 → recipe 1 (re-prime), canon 2 → recipe 3 (framing), canon 3 → recipe 4 (craft), canon 4 → recipe 5 (ralph polish), canon 5 → recipes 7 / 7b / 8 / 9 / 10 (iterate / polish loop / adapt / harden / clarify), canon 6 → recipe 11 (verify), canon 7 → recipe 12 (audit / critique / smoke), canon 8 → recipe 13 (this handoff). The recipe is canonical to itself; the workflow guide is canon for the whole admin redesign.
+
+**Action — final preflight checklist before emitting `HANDOFF_READY`:**
+- [ ] Every literal string in this recipe's `/goal evaluator quick-reference` section has appeared in this transcript, each preceded by the tool output (or appended file section) that proves it. No retrospective summary-only emissions.
+- [ ] `git diff --stat` reviewed in the worktree; printed to chat.
+- [ ] **Source files** changed match the recipe's "Files to edit" scope. **Runtime support files** written per recipe instructions are EXPECTED and **NOT** scope violations even though they appear in `git diff` / `git status`. Expected runtime writes:
+    - `redesign/per-page-progress/<slug>-progress.md` — Step 0+ append per step
+    - `redesign/per-page-scope/<slug>-scope.md` — Step 3 writes
+    - `redesign/per-page-deferrals/<slug>-deferrals.md` — Decision-making + Step 13 (sentinel if no deferrals)
+    - `redesign/screenshots/<slug>-redesign/*.png` — Steps 7, 7b, 8, 11b, 12c
+    - `redesign/baseline/<slug>-adapt-after-{mobile,tablet}.png` — Step 8
+    - `redesign/HARDEN-RECS-<slug>.md` — Step 9
+    - `redesign/PER-PAGE-SCORES.md` — Step 12 audit + critique appends
+  Any **source file** (under `src/` or other code paths) changed outside the recipe's scope list → emit `SCOPE_VIOLATION: <file>` and STOP. Otherwise emit `SCOPE_CLEAN: only scoped source files + expected runtime support files changed`.
+- [ ] `git diff` (full) printed to chat in collapsible form; nothing surprising.
+- [ ] Screenshots present at expected paths (per Steps 7, 7b, 8, 11b, 12c — list them grouped by step in the handoff message).
+- [ ] PER-PAGE-SCORES.md sections appended (`## dashboard-coordinator — audit` + `## dashboard-coordinator — critique`) and printed to chat verbatim from the subagent results (Step 12a + 12b).
+- [ ] Deferral file written at `/redesign/per-page-deferrals/dashboard-coordinator-deferrals.md` — even if empty, write `(no deferrals — Phase 6 closed cleanly for dashboard-coordinator)`. The main agent and the Phase 7 gauntlet both read this; missing file = ambiguous closure.
+- [ ] No commit. No `git add`. The main agent in the user's primary session stages + commits scoped files after the user approves.
+
+**Handoff message — emit to chat in this shape:**
+- Dev server URL: `http://localhost:3010/admin/dashboard-coordinator`
+- All screenshot paths grouped by step (Step 7 baseline + per-axis + post-polish, Step 7b polish-final, Step 8 adapt-after, Step 11b final, Step 12c smoke)
+- Audit headline scores (5 dimensions) + critique headline (10 Nielsen heuristics + AI-slop verdict)
+- Any deviations from brief, or `DEVIATIONS: none`
+- Deferrals file path
+- Final literal line: `HANDOFF_READY — awaiting user approval`
+
+**STOP. Do NOT stage. Do NOT commit. Wait for the user.**
 
 **Evidence to surface:**
 - `git diff --stat` output
 - `SCOPE_CLEAN: only scoped files changed` (or `SCOPE_VIOLATION:`)
 - Full handoff message
 - The literal final line: `HANDOFF_READY — awaiting user approval`
-- Append `step-13: COMPLETE — handoff emitted, awaiting approval` (final line) and cat progress file
+- Append `step-13: COMPLETE — handoff emitted, awaiting approval` (final line in progress file) and cat progress file
 
 ---
 
@@ -513,15 +676,17 @@ The Haiku evaluator should see ALL of these literal strings in the transcript be
 5. `SCOPE_PROPOSAL:`
 6. `CRAFT_COMPLETE`
 7. `PAGE-POLISH-COMPLETE` (inside `<promise>` tags)
-8. `DEV_SERVER_READY at http://localhost:3001`
-9. `ITERATE_DECISION:`
-10. `HORIZONTAL_SCROLL_TABLET: false` and `HORIZONTAL_SCROLL_MOBILE: false`
-11. `TOKEN_DRIFT: 0` (or each drift explicitly addressed)
-12. `CONSOLE_NEW_ERRORS: 0`
-13. `## dashboard-coordinator — audit` and `## dashboard-coordinator — critique` headings appended (printed to chat from the file)
-14. `SMOKE_TEST: all PASS`
-15. `SCOPE_CLEAN: only scoped files changed`
-16. `HANDOFF_READY — awaiting user approval`
+8. `DEV_SERVER_READY at http://localhost:3010`
+9. `AXES_APPLIED:` (list of impeccable axes run with one-line rationale each)
+10. `POLISH_ISSUES_ITER_2: none — clean` (or the remaining-issues list, deferred to Phase 7 if any)
+11. `HORIZONTAL_SCROLL_TABLET: false` and `HORIZONTAL_SCROLL_MOBILE: false`
+12. `EXPORT_LINK_PRESENT: false` (Coordinator-only — Step 8 evidence verifies the revenue-gated Export Ghost is absent in the DOM)
+13. `TOKEN_DRIFT: 0` (or each drift explicitly addressed)
+14. `CONSOLE_NEW_ERRORS: 0`
+15. `## dashboard-coordinator — audit` and `## dashboard-coordinator — critique` headings appended (printed to chat from the file)
+16. `SMOKE_TEST: all PASS`
+17. `SCOPE_CLEAN: only scoped files changed`
+18. `HANDOFF_READY — awaiting user approval`
 
 If any of those is missing → keep working on the corresponding step. If the agent is repeating itself without progress, the user will `/goal clear` manually.
 

@@ -294,7 +294,7 @@ Moderate (2 failures of 8 checklist items):
 
 ---
 
-## bookings — critique (re-run after distill + colorize)
+## bookings — critique-rerun
 
 **Last updated:** 2026-05-14 — after `/impeccable distill bookings` (chip hierarchy collapse) and `/impeccable colorize bookings` (lavender → warm taupe restricted token).
 

@@ -8,22 +8,40 @@ For each page below: setup commands, the exact `/goal` command to paste, and any
 
 ## Section 0 — One-time preflight (do once, then reuse for every page)
 
-### 0a. Disable your existing Stop hook
+### 0a. Disable your existing Stop hook (REMOVE the entry, do NOT set `disableAllHooks: true`)
 
-`/goal` is itself a session-scoped Stop hook. Your existing Stop hook (the polish-loop instruction we saw fire earlier) will layer with `/goal` and confuse the evaluator. In `~/.claude/settings.local.json` (or wherever your Stop hook lives), comment out or rename the `Stop` key for the duration of `/goal` runs.
+`/goal` is itself a session-scoped prompt-based Stop hook (per Anthropic's [official docs](https://code.claude.com/docs/en/goal): *"a wrapper around a session-scoped prompt-based Stop hook"*). A second Stop hook in your `settings.local.json` fires alongside `/goal`'s and can vote "stop", short-circuiting the loop.
+
+**Correct approach:** open `~/.claude/settings.local.json` (or wherever your Stop hook lives) and **remove or comment out the `Stop` key entry** for the duration of `/goal` runs.
+
+**Wrong approach (will break `/goal`):** setting `"disableAllHooks": true` or `"allowManagedHooksOnly": true` disables `/goal` itself. CLI v2.1.140 surfaces a clear error in this case, but the failure mode is the same — your goal silently never starts.
 
 Verify with `/hooks` in any session — Stop hooks should be empty.
 
-### 0b. Verify Claude Code session config
+### 0b. Verify Claude Code session config (CLI version + model pins)
 
 In any fresh Claude Code window you'll use:
 ```
-/config       → set model = Opus 4.7, thinking = medium
-/skills       → confirm `impeccable` (with subcommands) and `ralph-loop` are listed
-/mcp          → confirm `playwright` is connected (chrome-devtools optional)
+claude --version  → confirm CLI ≥ 2.1.140 (v2.1.139 shipped a known-buggy /goal; v2.1.140
+                    fixes the silent-hang when disableAllHooks is set)
+/config           → set model = Opus 4.7, thinking = medium
+/skills           → confirm `impeccable` (with subcommands) and `ralph-loop` are listed
+/mcp              → confirm `playwright` is connected (chrome-devtools optional)
 ```
 
 If `impeccable` isn't listed, the page's `/goal` session will exit at Step 0 with `STUCK: 0 — skill impeccable unavailable`. Surface the plugin first.
+
+**Pin the Haiku evaluator model across all parallel worktrees** so each `/goal` evaluates against the same model revision. In each worktree's environment (or once globally in `~/.zshrc`/PowerShell `$PROFILE`):
+
+```powershell
+# PowerShell
+$env:ANTHROPIC_DEFAULT_HAIKU_MODEL = "claude-haiku-4-5-20251001"
+
+# Git Bash / WSL
+export ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-haiku-4-5-20251001
+```
+
+Anthropic's `haiku` alias updates over time; pinning a specific revision means parallel worktrees you launch this week will all use the same evaluator, even if Anthropic ships a new Haiku next week.
 
 ### 0c. Land the login work first if you haven't
 
@@ -53,18 +71,39 @@ Copy-Item "$mainTree\redesign\per-page-recipes\$slug-recipe.md" "$worktree\redes
 Copy-Item "$mainTree\redesign\per-page-progress\$slug-progress.md" "$worktree\redesign\per-page-progress\"
 ```
 
-### 1b. (Optional — for parallel runs only) reassign the dev port
+### 1b. Per-page port assignment (pre-baked — no manual swap needed)
 
-The recipes default to port 3001. If you're running multiple worktree sessions in parallel, give each a unique port (3001 / 3002 / 3003 …):
+Every per-page recipe is pre-assigned a unique localhost port so 26 parallel `/goal` sessions never collide. Port 3001 was the old global default; user's main tree owns 3000; per-page ports run **3002–3027**, alphabetical.
+
+| Port | Page slug |     | Port | Page slug |
+|---|---|---|---|---|
+| 3002 | account-password-requests | | 3015 | enquiries |
+| 3003 | audit                     | | 3016 | login |
+| 3004 | availability              | | 3017 | operations |
+| 3005 | booking-detail            | | 3018 | password-reset |
+| 3006 | calendar                  | | 3019 | privacy |
+| 3007 | client-detail             | | 3020 | reports |
+| 3008 | client-new                | | 3021 | role-detail |
+| 3009 | clients                   | | 3022 | roles |
+| 3010 | dashboard-coordinator     | | 3023 | services |
+| 3011 | dashboard-owner-admin     | | 3024 | settings |
+| 3012 | dashboard-therapist       | | 3025 | staff |
+| 3013 | email-templates           | | 3026 | staff-availability |
+| 3014 | emails                    | | 3027 | staff-detail |
+
+**No manual swap required** for parallel runs. The per-page recipe carries its port inline (Context table, Step 6 dev-server command, Step 11b verification URL, quick-reference `DEV_SERVER_READY` anchor).
+
+**If a port collides** with something else on your machine, override with a quick search-replace in the worktree's copy of the recipe:
 
 ```powershell
-# Change the dev port for this worktree from 3001 to e.g. 3002
-$port = 3002
+# Example: shift email-templates from 3013 to 3113 for this one run
+$oldPort = 3013
+$newPort = 3113
 $recipePath = "$worktree\redesign\per-page-recipes\$slug-recipe.md"
-(Get-Content $recipePath) -replace '3001', "$port" | Set-Content $recipePath
+(Get-Content $recipePath) -replace "\b$oldPort\b", "$newPort" | Set-Content $recipePath
 ```
 
-For single-page sequential runs, leave at 3001.
+Re-running the main-tree port-assignment script (`scripts/patch-recipes-port-assignment.mjs`) is idempotent — it only acts on the canonical 3001 default, so worktree overrides aren't undone.
 
 ### 1c. Open Claude Code in the worktree
 
@@ -77,8 +116,10 @@ In the new CC window: confirm Section 0 settings hold (`/config`, `/skills`, `/m
 
 ### 1d. Generic `/goal` command template (substitute `<SLUG>` — exactly one substitution if path is the same)
 
+The template below puts the **turn cap** and the **STUCK detection** *inside the goal condition itself*, not just in the kickoff prose. Per Anthropic's docs the Haiku evaluator only judges what it sees in the condition + transcript — burying termination rules in kickoff prose means the evaluator won't enforce them; it just keeps voting "no" until something else stops the loop.
+
 ```
-/goal STEP A (first, do not search): Read the recipe file with the Read tool using this exact absolute path — C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<SLUG>-redesign\redesign\per-page-recipes\<SLUG>-recipe.md — do NOT use Glob or search; the file exists at that exact path. STEP B: Execute every step in that recipe in order. All /redesign/... paths inside the recipe are RELATIVE TO YOUR CWD (the worktree) — they are NOT C: drive absolute paths. STEP C: Maintain the progress scratchpad at C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<SLUG>-redesign\redesign\per-page-progress\<SLUG>-progress.md — append "step-N: COMPLETE — <one-line>" after each step and cat the full file to chat. The goal is met when ALL literal strings in the recipe's "/goal evaluator quick-reference" section have appeared in this transcript (the recipe lists them). The "using-superpowers" skill is meta — loading it is NOT what SKILLS_OK requires; you must verify the /impeccable subcommands and /ralph-loop are individually invocable. Never modify the files in the recipe's "Files to NEVER touch" list. Never use git add . or git add -A. Never commit until I type "approved". If stuck, emit "STUCK: <step> — <reason>" and stop. Stop after 40 turns.
+/goal STEP A (first, do not search): Read the recipe file with the Read tool using this exact absolute path — C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<SLUG>-redesign\redesign\per-page-recipes\<SLUG>-recipe.md — do NOT use Glob or search; the file exists at that exact path. STEP B: Execute every step in that recipe in order. All /redesign/... paths inside the recipe are RELATIVE TO YOUR CWD (the worktree) — they are NOT C: drive absolute paths. STEP C: Maintain the progress scratchpad at C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<SLUG>-redesign\redesign\per-page-progress\<SLUG>-progress.md — append "step-N: COMPLETE — <one-line>" after each step and cat the full file to chat. The "using-superpowers" skill is meta — loading it is NOT what SKILLS_OK requires; you must verify the /impeccable subcommands and /ralph-loop are individually invocable via the Skill tool (not just the slash-command form). Never modify the files in the recipe's "Files to NEVER touch" list. Never use git add . or git add -A. Never commit until I type "approved". GOAL IS MET when ALL of these conditions hold: (1) every literal string in the recipe's "/goal evaluator quick-reference" section has appeared in this transcript, each preceded by the tool output that proves it (no retrospective summary blocks — fabrication shape); (2) the final assistant message contains "HANDOFF_READY — awaiting user approval". STOP IMMEDIATELY (do not take another turn) if any of these holds: (a) the most recent assistant message begins with "STUCK:"; (b) 40 main-model turns have elapsed since this goal was set (emit "TURN_CAP_REACHED — <summary of complete vs missing>" before stopping); (c) the user types "approved" or "/goal clear".
 ```
 
 ### 1e. Watch the first 3 turns live
@@ -294,7 +335,7 @@ If `git merge --ff-only` errors with "would be overwritten" — main tree has un
 **Recommended port:** 3001
 **Subagent flags:**
 - 2-file Owner-only restyle.
-- Step 11 explicitly notes sign-in must be as `test.owner@rahmatherapy.example.test` / appropriate password (NOT `test.admin@...`).
+- Step 11 explicitly notes sign-in must be as the Owner account from `/redesign/test-credentials.md` (`rahmatherapy@outlook.com` / `Password123`), NOT `test.admin@...`. There is no `test.owner@…` account.
 - Recipe adds evaluator anchors `BG_WHITE_HITS: 0`, `RAW_RED_HITS: 0`, `BACKDROP_BLUR_HITS: 0` per brief soft-fix carry-forwards.
 
 ---
@@ -458,7 +499,7 @@ If working sequentially, suggested order (mixes simple + complex; lands shared-i
 | **Wave 2 (dashboards)** | dashboard-owner-admin → dashboard-coordinator → dashboard-therapist | Run in this order so shared `dashboard-cards.tsx` / `notification-bell.tsx` fixes from owner-admin are inherited by the other two variants without re-doing them |
 | **Wave 3 (CRM stack)** | clients, client-detail, client-new | Run in this order; client-new ⚠ flag needs your decision before launching |
 | **Wave 4 (staff stack)** | staff, staff-detail, staff-availability | All Backend FAKE; brief any "blocked-dates" / "override" backend gaps |
-| **Wave 5 (Owner-only)** | roles, role-detail, services | Switch to `test.owner@…` creds; do these together while you're in owner mode |
+| **Wave 5 (Owner-only)** | roles, role-detail, services | Switch to the Owner account from `/redesign/test-credentials.md` (`rahmatherapy@outlook.com` / `Password123`); do these together while you're in owner mode |
 | **Wave 6 (admin lists)** | audit, enquiries, operations, privacy | All Backend FAKE with filter queries pending; similar shape |
 | **Wave 7 (comms — tab-coupled)** | emails ↔ email-templates | Both touch the tabs shell; decide ownership boundary first |
 | **Wave 8 (auth/access — FAKE)** | password-reset, account-password-requests | Both depend on un-built backend BUILDs; FAKE state with full DOM markers |
