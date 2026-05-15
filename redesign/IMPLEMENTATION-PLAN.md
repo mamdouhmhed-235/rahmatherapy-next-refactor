@@ -546,7 +546,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 15. [ ] login — commit: ____
+## 15. [x] login — commit: 7e7e930
 
 **Tier:** Tier 3 — pre-auth entry gate; brand wordmark gap (IMAGES-NEEDED); `?reason=inactive` voice fix
 
