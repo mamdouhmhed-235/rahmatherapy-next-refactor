@@ -450,3 +450,155 @@ None at the audit level. (Critique elevates mobile section-order to P1 from a UX
 - **Sam (first-time coordinator):** 9 panels on screen initially overwhelming; NextActionStrip rescues; tooltips don't reveal on focus so she clicks to learn what buttons do.
 
 **No P0 audit or critique findings. AI slop PASS, no regression. Backend N-A. Step 8 not blocked.**
+
+---
+
+## login — audit
+
+**Date:** 2026-05-15
+**Backend status:** N-A — login has no backend deps in Layer 3 review; consumes existing untouchable `signInAdmin` server action.
+
+### Audit Health Score
+
+| # | Dimension | Score | Key Finding |
+|---|-----------|-------|-------------|
+| 1 | Accessibility | 4 | WCAG 2.1 AA met — `role="alert"` form errors, `role="status"` inactive notice, visible required `*`, `aria-required`/`aria-invalid`/`aria-describedby` on inputs, `aria-busy` on submit, `aria-hidden` on decorative icons, single H1, labels bound by `htmlFor`/`id`, focus-visible ring on all interactives, Tab order email → password → Forgot → submit |
+| 2 | Performance | 4 | `next/image` priority on the wordmark; SVG asset already tracked (~21KB equivalent); no entrance animation; no new dependencies; client state local; Sentry monitoring is baseline |
+| 3 | Theming | 4 | All colour via `var(--admin-*)`; radii via `var(--admin-radius-sm/md)`; zero raw hex; zero raw `oklch()`; only px literals are brief-mandated widths (400 / 140 / 180) |
+| 4 | Responsive | 4 | `max-w-[400px]` caps width; logo rescales 140 → 180; card padding scales `p-6` → `sm:p-8`; no horizontal scroll at 375 / 768 / 1440; touch targets: Sign in 48px, inputs 44px, Forgot link 32px (acceptable for inline text link) |
+| 5 | Anti-Patterns | 4 | No side-stripe borders, no gradient text, no glassmorphism, no hero-metric template, no identical card grids, no modals, no em dashes in user-visible copy; the wordmark + ivory + Clinic Green submit reads unmistakably Rahma, not generic SaaS |
+| **Total** | | **20/20** | **Excellent** |
+
+### Anti-Patterns Verdict
+**PASS.** Could not generate this from category cues alone — the gold-and-blue wordmark on warm ivory canvas anchors the surface to Rahma's specific brand vocabulary, not the training-data healthcare-admin reflex (white + teal) or admin-tool reflex (dark navy + gradient accent). Second-order check passes too: avoids "healthcare-but-not-teal" → terminal-dark-mode trap.
+
+### Executive Summary
+- Audit Health Score: **20/20 (Excellent)**
+- Issues found: P0 = 0, P1 = 0, P2 = 0, P3 = 2
+- Top finding: clean across all five dimensions; two cosmetic P3 items below
+- Recommended next step: handoff (no fixes needed before handoff)
+
+### Detailed Findings by Severity
+
+#### P3 — Polish (no real user impact)
+
+**[P3] Forgot link touch target 32px**
+- Location: `src/app/admin/login/LoginForm.tsx` Link to `/admin/password-reset`
+- Category: Responsive
+- Impact: Below WCAG 2.5.8 Target Size (Enhanced) 44x44px; satisfies 2.5.5 Target Size (Minimum) 24x24px. Acceptable for inline text link; adjacent inline links are exempt from 44x44 strict.
+- WCAG/Standard: 2.5.8 AAA (not AA)
+- Recommendation: Leave as-is — brief explicitly mandates "label step" (12px) for the Forgot link; raising the visible text would deviate from brief
+- Suggested command: none
+
+**[P3] Sign in button disables during loading**
+- Location: `src/app/admin/login/LoginForm.tsx` via shared `Button` `loading` prop
+- Category: Anti-Pattern (minor)
+- Impact: Brief §6 Submitting state says "button not disabled (prevents double-submit UX but still accessible)" — current shared Button always disables when `loading={true}`. The `aria-busy="true"` is set, spinner replaces icon slot, text remains "Sign in"; only the visual opacity-50 disabled tint differs from brief.
+- WCAG/Standard: none (visual deviation only)
+- Recommendation: Fix lives in `00-shared-components` session — adjust the shared `Button` to honour `disabled={false}` when `loading={true}` is passed
+- Suggested command: defer to `00-shared-components` rework
+
+### Patterns & Systemic Issues
+None — the page is small enough that no systemic patterns emerge from a single audit.
+
+### Positive Findings
+- **Token discipline is exemplary.** Every colour, radius, and font-family resolves through DESIGN.md tokens. No hex anywhere, no raw `oklch()` literals, no font-family strings. The three brief-literal widths (400/140/180px) are explicitly brief-mandated.
+- **Error-region accessibility goes beyond baseline.** `role="alert" aria-live="polite" aria-atomic="true"` with `aria-describedby` linking each input to its per-field error — both layers covered, with the Cancelled-family region above the submit button doing the page-level work.
+- **Brief copy is verbatim.** All 20 user-facing strings match `## 10 Copy` literally, including the validation messages.
+- **Server-action contract preserved.** `signInAdmin(email, password)` called unchanged from the client form; `name="email"` and `name="password"` literal; no `fetch`/`XHR` substitute.
+
+### Recommended Actions
+None required before handoff. Defer the shared-Button loading-disable behaviour to the `00-shared-components` session.
+
+
+---
+
+## login — critique
+
+**Date:** 2026-05-15
+**Method:** single-head Nielsen heuristic scan + AI-slop verdict + 8-item cognitive-load check + 3-persona red-flag walkthrough. (Sub-agent isolation skipped per recipe-scoped budget; the brief is highly resolved and the surface is small.)
+
+### Design Health Score (Nielsen's 10)
+
+| # | Heuristic | Score | Key Issue |
+|---|-----------|-------|-----------|
+| 1 | Visibility of System Status | 4 | Submitting renders spinner + `aria-busy="true"`; error and inactive states announce via `role="alert"`/`role="status"`; success redirects immediately. State always visible. |
+| 2 | Match System / Real World | 4 | "Sign in", "Email address", "Forgot your password?" — plain English mental models; inactive copy explains what happened and what to do. |
+| 3 | User Control and Freedom | 4 | Forgot link offers escape; "Try again" reissues on server error; password cleared on auth fail so stale state doesn't block correction; browser back from password-reset returns here. |
+| 4 | Consistency and Standards | 4 | Standard form vocabulary; `autocomplete="username"`/`current-password` lets password managers autofill; standard `name` attrs survived; DESIGN.md tokens throughout. |
+| 5 | Error Prevention | 3 | Client validation blocks empty/malformed submissions; visible required `*`; submit disables during loading to block double-submit. Not 4 because we don't use the native browser email-validity tooltip (intentional — brief drives specific copy). |
+| 6 | Recognition Rather Than Recall | 4 | Email placeholder shows format; Forgot link visible at rest; inactive copy explicit and jargon-free. |
+| 7 | Flexibility and Efficiency | 3 | Enter submits from either field; Tab order logical; autocomplete attrs trigger autofill. No "remember me" (brief doesn't ask). |
+| 8 | Aesthetic and Minimalist Design | 4 | Nothing decorative — wordmark is brand identity, not decoration; one accent (Clinic Green submit); no shadow at rest; no glass; matches brief's "complete before you sign in" Stripe reference. |
+| 9 | Error Recovery | 4 | Brief copy specific ("Incorrect email or password." not "Login failed"); password cleared / email retained; rate-limit copy tells user *what to do*; server-error has explicit "Try again" Ghost button. |
+| 10 | Help and Documentation | 3 | Forgot link is the help surface; native `title="Reset your password"` adds tooltip discovery; no other inline help (brief doesn't request any). Acceptable for a login form. |
+| **Total** | | **37/40** | **Excellent** |
+
+### AI-Slop Verdict: **PASS**
+
+Could not generate this from category cues alone. Healthcare-admin's training-data reflex is white + teal; admin-tool's reflex is dark navy + gradient accent. This page is gold-and-blue wordmark on warm ivory with Clinic Green submit — specific to Rahma's identity vocabulary, not category default. Second-order ("healthcare-but-not-teal → terminal-dark-mode") avoided too. No regression vs the prior bookings (PASS, borderline) and booking-new (PASS) verdicts on this run.
+
+### Cognitive Load (8-item) — **LOW (0 failures)**
+
+| # | Item | Pass? |
+|---|---|---|
+| 1 | Single primary action | ✓ (Sign in) |
+| 2 | ≤7 visible elements above fold | ✓ (logo / H1 / 2 inputs / Forgot / Sign in / footer = 7) |
+| 3 | Progressive disclosure | ✓ (validation errors only on demand) |
+| 4 | Single visual focal point | ✓ (Clinic Green submit) |
+| 5 | Reading order matches flow | ✓ (top to bottom) |
+| 6 | No premature labels | ✓ |
+| 7 | Consistent grouping | ✓ (fields together; secondary action right-aligned) |
+| 8 | No competing CTAs | ✓ |
+
+### Overall Impression
+Brief-faithful. The page does exactly what it should: brand-anchor moment, then a calm form, then a quiet portal-name footer. Nothing extra, no decoration that doesn't earn its place. The single biggest opportunity is upstream (the shared Button's disable-on-loading behaviour), not here.
+
+### What's Working
+1. **Brand-anchor moment.** The wordmark is the design — no decorative scaffolding around it. Stripe Dashboard / Linear sign-in / Basecamp references absorbed cleanly: complete before you sign in.
+2. **Error vocabulary discipline.** Three distinct families used correctly: per-field `role="alert"` for validation, page-level Cancelled banner for server failures, page-level Restricted notice (server-rendered) for inactive accounts. Each carries an icon + text label, never colour-only.
+3. **Brief copy is verbatim.** All 20 user-facing strings (H1, labels, button, link, footer, 7 validation/error messages, inactive notice, tooltips) match `## 10 Copy` literally.
+
+### Priority Issues
+**P0: none. P1: none. P2: none.**
+
+#### P3 — Polish (only)
+
+**[P3] Sign in button disabled-during-loading deviates from brief**
+- Why it matters: Brief §6 Submitting state specifies "button not disabled (prevents double-submit UX but still accessible)". The shared `Button` component forces `disabled={true}` when `loading={true}`. `aria-busy="true"` and spinner + text-unchanged are present; only the visual opacity-50 tint deviates.
+- Fix: Adjust shared `Button` to honour `disabled={false}` override when `loading={true}` is passed.
+- Suggested command: defer to `00-shared-components` session — this is a primitive concern, not a login concern.
+
+**[P3] Forgot link visible touch height 32px**
+- Why it matters: Below WCAG 2.5.8 Target Size (Enhanced) 44x44px. Satisfies 2.5.5 Target Size (Minimum) 24x24px because it's an inline text link.
+- Fix: Leave as-is — brief mandates "label step" (12px) for the Forgot link.
+- Suggested command: none.
+
+### Persona Red Flags
+
+**Aisha (Therapist on a doorstep, phone in one hand):**
+- Mobile layout fast: 140px logo + tight card, single-column form. ✓
+- `autocomplete="username"` + `current-password` trigger iOS Passwords / Android autofill. ✓
+- Sign in button 48px tall — thumb-reachable. ✓
+- No autofocus avoids the keyboard popping up when she just opens to check details. ✓
+- No red flags.
+
+**Sam (first-time coordinator, just got password emailed):**
+- Forgot link visible at rest, not buried behind a hidden state. ✓
+- Error messages tell her what to do ("Add your email address." not "Field required"). ✓
+- Inactive notice (if her account got revoked) tells her who to contact. ✓
+- No red flags.
+
+**Mariam (Practice Manager switching accounts on desk):**
+- Tab/Enter keyboard-only sign-in works in three keystrokes (autofilled email + Tab + Enter). ✓
+- Password manager prompted via standard autocomplete vocabulary. ✓
+- "Forgot your password?" tooltip adds context on hover. ✓
+- No red flags.
+
+### Minor Observations
+- The Cancelled error banner's "Try again" Ghost button is text-only; could optionally carry a small refresh icon. Not worth the icon registry weight for a single rare state.
+- `title="Reset your password"` is only visible on hover (desktop); mobile users won't see it. Acceptable since the visible Forgot link copy is already explicit.
+
+### Questions to Consider
+None worth raising — the brief answered them all upstream during Phase 5.
+

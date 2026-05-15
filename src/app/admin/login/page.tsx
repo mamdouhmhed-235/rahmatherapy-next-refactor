@@ -1,4 +1,6 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
+import { Lock } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import { LoginForm } from "./LoginForm";
@@ -15,7 +17,6 @@ export default async function AdminLoginPage({ searchParams }: LoginPageProps) {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
-  // Already authenticated and active — send to dashboard
   if (profile?.active) {
     redirect("/admin/dashboard");
   }
@@ -32,61 +33,51 @@ export default async function AdminLoginPage({ searchParams }: LoginPageProps) {
   const inactiveReason = params.reason === "inactive";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--rahma-ivory)] px-4">
-      <div className="w-full max-w-sm">
-        {/* Logo / Brand mark */}
-        <div className="mb-8 text-center">
-          <div
-            className="mx-auto mb-4 flex size-12 items-center justify-center rounded-xl"
-            style={{ background: "var(--rahma-green)" }}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              aria-hidden="true"
-            >
-              <path
-                d="M12 3C7 3 3 7 3 12s4 9 9 9 9-4 9-9-4-9-9-9Z"
-                stroke="#ffffff"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-              <path
-                d="M12 8v8M8 12h8"
-                stroke="#ffffff"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </div>
-          <h1 className="font-display text-2xl font-semibold text-[var(--rahma-charcoal)]">
-            Rahma Therapy
-          </h1>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            Admin &amp; Staff Portal
-          </p>
-        </div>
-
-        {/* Card */}
+    <main className="flex min-h-[100dvh] flex-col items-center justify-center bg-[var(--admin-canvas)] px-6 py-12">
+      <div className="flex w-full max-w-[400px] flex-col">
         <div
-          className="rounded-2xl border bg-white px-8 py-8"
-          style={{
-            borderColor: "var(--rahma-border)",
-            boxShadow: "var(--shadow-card-token)",
-          }}
+          className="rounded-[var(--admin-radius-md)] border bg-[var(--admin-panel)] p-6 sm:p-8"
+          style={{ borderColor: "var(--admin-border)" }}
         >
-          <h2 className="mb-6 text-lg font-semibold text-[var(--rahma-charcoal)]">
-            Sign in to your account
-          </h2>
-          <LoginForm redirectTo={redirectTo} inactiveReason={inactiveReason} />
+          <div className="mb-8 flex justify-center">
+            <Image
+              src="/images/brand/rahma/logo-refined.svg"
+              alt="Rahma Therapy"
+              width={180}
+              height={66}
+              priority
+              className="h-auto w-[140px] sm:w-[180px]"
+            />
+          </div>
+
+          <h1 className="mb-6 text-center text-[1.778rem] font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
+            Staff sign in
+          </h1>
+
+          {inactiveReason ? (
+            <div
+              role="status"
+              className="mb-6 flex items-start gap-2.5 rounded-[var(--admin-radius-sm)] border bg-[var(--admin-restricted-bg)] p-4 text-sm text-[var(--admin-restricted)]"
+              style={{
+                borderColor:
+                  "color-mix(in oklab, var(--admin-restricted) 28%, transparent)",
+              }}
+            >
+              <Lock aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+              <span>
+                Your account has been deactivated. Contact the owner to regain
+                access.
+              </span>
+            </div>
+          ) : null}
+
+          <LoginForm redirectTo={redirectTo} />
         </div>
 
-        <p className="mt-6 text-center text-xs text-[var(--rahma-muted)]">
-          Staff access only. Contact your administrator if you need help.
+        <p className="mt-6 text-center text-xs text-[var(--admin-text-muted)]">
+          Rahma Therapy staff portal.
         </p>
       </div>
-    </div>
+    </main>
   );
 }
