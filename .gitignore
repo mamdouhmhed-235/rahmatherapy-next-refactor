@@ -51,3 +51,7 @@ cloudflare-env.d.ts
 .claude/launch.json
 .impeccable/
 .playwright-mcp/
+
+# Superpowers brainstorming skill + Kilo Code extension runtime state
+.superpowers/
+redesign/.kilo/
