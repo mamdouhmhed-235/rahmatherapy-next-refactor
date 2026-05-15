@@ -334,3 +334,119 @@ Moderate (2 failures of 8 checklist items):
 - Header chrome density: mobile users see tab strip → saved-views row → Refine button → active-filter chips before the first row. Saved views could collapse into the "More" overflow on mobile, or hide until the first save.
 
 **No P0 remaining. AI slop PASS. Step 8 not blocked.**
+
+---
+
+## booking-detail — audit
+
+**Last updated:** 2026-05-15 (Phase 6 session — harden + clarify + adapt + polish; mobile action bar duplication removed; alignment fix in Status & payment grid)
+**Backend status:** **N-A** — per RECIPE-PROGRESS.md Phase 5.5 booking-detail: COMPLETE (0 gaps, 0 plan files). All server actions (`updateBookingManagement`, `quickUpdateBooking`, `claimBookingAssignment`, `updateBookingAssignment`, `updateOwnAssignmentStatus`) and all 10 audit-log writes preserved verbatim per brief Feature Preservation Manifest.
+
+### 5-Dimension Scores
+
+| # | Dimension | Score | Key Finding |
+|---|---|---|---|
+| 1 | Accessibility | **4/4** | WCAG AA fully met. H1→H2 contiguous (no skips); `role="alert" aria-live="polite"` on every form error region; required `*` markers; `aria-busy` + `aria-disabled` on save buttons; `aria-current="page"` on breadcrumb; `aria-current="step"` on lifecycle pills; ConfirmActionModal wired via BaseDialog (auto aria-modal/labelledby/describedby); touch targets ≥44px on mobile via `min-h-11 sm:min-h-8`. Minor: `<time>` lacks `dateTime` attr (P3). |
+| 2 | Performance | **3/4** | Server-component data fetch; client components scoped to forms/interactions only. No layout-property animations (transform + opacity only). React keys on all lists. `ParticipantRow` re-filters `booking_items` per row (O(n·m), small in practice — P2). |
+| 3 | Theming | **3/4** | Strong token usage across borders/surfaces/typography. Status-family OKLCH literals repeated inline across `AssignmentRow` unassigned tile, `FormError`, `NEXT_ACTION_BG/TEXT` maps, `BookingDetailSidebar` Total, and three inline warnings — needs extract pass (P2). Light only by design (Theme decision locked). |
+| 4 | Responsive Design | **3/4** | Sticky sidebar `md:sticky md:top-4`; two-column at `md:` with `minmax(0,1fr)`. Cormorant numerals now have `min-w-0 break-words tabular-nums` (Step 2 harden). Mobile section order deviates from brief §5 — sidebar drops below entire main column on mobile, stranding Address card at page foot (P2 audit / P1 critique). |
+| 5 | Anti-Patterns | **4/4** | No side-stripe borders (Activity timeline uses 1px structural `border-l`, within spec). No gradient text, no decorative glass, no hero-metric template, no identical card grids. Cards varied by content type (SummaryCard Cormorant numeral, ClientCard avatar + tel/mail, AddressCard description-list rows). Cubic-bezier(0.16,1,0.3,1) easing — exponential ease-out, no bounce. No em dashes. No #fff/#000. |
+| **Total** | | **17/20** | Good |
+
+### Findings by Severity
+
+**P0 (blocking — fix before Step 8):**
+None. Step 8 not blocked.
+
+**P1 (tag for Phase 7 gauntlet — do not fix per-page):**
+None at the audit level. (Critique elevates mobile section-order to P1 from a UX-mobile-first lens — see critique section below.)
+
+**P2 (list here, next sprint):**
+- **Status-family colours not surfaced as CSS variables.** Six bg+text OKLCH pairs inlined across ~12 spots (AssignmentRow unassigned avatar tile `page.tsx:756`; Email error message `page.tsx:937`; `NEXT_ACTION_BG/NEXT_ACTION_TEXT` maps `page.tsx:1220-1233`; FormError, required-marker color, over-total warning, paid-with-zero warning, payment-status warning in `BookingManagementForm.tsx`; Total numeral `BookingDetailSidebar.tsx:103`). Theme-drift risk; values match DESIGN.md §2 spec but aren't tokenized. Fix via `/impeccable extract` after this page completes.
+- **Mobile section order deviates from brief §5.** Brief specifies interleaved order (Booking summary → Status & payment → Participants → Assignment → Client card → Notes → Address card → Email activity → Activity timeline). Implementation: `<div className="grid gap-6 md:grid-cols-[...]">` containing main column then `<BookingDetailSidebar>` collapses linearly on mobile, dropping all sidebar cards (Client + Address) below the entire main column. Therapist mobile workflow degraded — they scroll past Notes + Email + Activity to reach the Maps button.
+- **`ParticipantRow` re-filters items per row.** `page.tsx:589` runs `booking.booking_items.filter(item => item.booking_participant_id === participant.id)` inside each map iteration — O(n·m). Pre-bucketize once in `ParticipantsPanel`.
+- **`ConfirmActionModal` opens at fixed `top-[30vh]`** (`admin-ui-interactions.tsx:186`). On short mobile landscape viewports modal can clip below fold; on tall desktop sits visually high. Should centre via `top-1/2 -translate-y-1/2` with `max-h-[min(85vh,40rem)] overflow-y-auto`. Affects all admin modals.
+
+**P3 (nice-to-fix):**
+- `<time>` elements lack `dateTime={event.created_at}` attribute in Email activity (~`page.tsx:919`) and Activity timeline (~`page.tsx:998`).
+- Lifecycle pills lack `aria-label` indicating completed/current/upcoming step semantic state (`BookingManagementForm.tsx:486-518`). Visual state via colour + dot opacity only.
+- Inconsistent tabular-nums declarations: `[font-variant-numeric:tabular-nums]` in some places, `[font-feature-settings:'tnum']` in others. Pick one.
+- `formatLabel(participant.participant_gender)` renders "male"/"female" lowercase — inconsistent with capitalised status badges nearby (`page.tsx:609`).
+- Lifecycle pill row uses `overflow-x-auto` without `[-webkit-overflow-scrolling:touch]` momentum hint.
+- `status` select still uses `defaultValue` (uncontrolled) while `payment_status` was converted to controlled in this session. Reset semantics differ.
+- `BookingCreatedToast` uses `📋` emoji icon — cross-platform rendering drift. Use a Lucide icon via Sonner's `icon` slot.
+
+**Step 1–2 harden fixes applied during this session (resolved):**
+- Status & payment 2-column field grid mis-aligned (Payment method select shifted below by Match-total chip cell-stretch) → `items-start` on outer grid.
+- Email activity `error_message` overflow on long Resend error tokens → `break-words`.
+- Breadcrumb reference cell missing copy-the-full-id tooltip → `title={booking.id}`.
+- `AmountPaidInput` lacked over-total warning → inline `role="status"` Pending-family inline warning.
+- `payment_status: paid` + `amount_paid: 0` silently accepted → inline warning beneath Payment status select.
+- Save errors auto-dismissed with no recovery → persistent Sonner toast + Retry action (status & notes + therapist-scoped notes).
+- Cormorant numeral overflow risk on tight sidebar → `min-w-0 break-words tabular-nums` on SummaryCard Total + NextActionStrip numeral.
+- `ParticipantsPanel` returned `null` on empty → `EmptyState` ("No participants on file").
+- Activity timeline `<ol>` showed default decimals through green dots → `list-none`, action-label humanization map, tightened vertical rhythm.
+- Mobile sticky bar duplicated in-panel saves at doc-end → removed both `AdminMobileActionBar` blocks; preserved `pb-24 md:pb-0` for footer-nav clearance.
+- Uppercase shouting eyebrows (4 spots) → sentence-case.
+- "Booking confirmed" doneLabel → "Confirmed".
+- "Confirmed, but a therapist still needs assigning." → "Confirmed. A therapist still needs assigning."
+
+---
+
+## booking-detail — critique
+
+**Last updated:** 2026-05-15
+**Method:** Single in-head LLM review. Deterministic CLI (`npx impeccable`) not wired in this repo; playwright/Chrome session locked by existing user session — browser-overlay isolation unavailable. Methodology limit acknowledged in the critique report.
+
+### Nielsen's 10 Heuristics
+
+| # | Heuristic | Score | Key Issue |
+|---|---|---|---|
+| 1 | Visibility of System Status | **4/4** | Exemplary. NextActionStrip + lifecycle pills + status badges + loading aria-busy + optimistic Claim + Sonner toasts on every state change. |
+| 2 | Match System / Real World | **3/4** | `formatLabel` renders "male"/"female" lowercase next to capitalized status badges; email event_types ("booking_confirmation_customer") leak raw via `formatLabel`. |
+| 3 | User Control and Freedom | **3/4** | Modals cancel cleanly; back-link present. No `Undo` toast action on quick-actions; no notes-draft autosave. |
+| 4 | Consistency and Standards | **3/4** | `status` select uncontrolled while `payment_status` is now controlled; two `tabular-nums` syntaxes co-exist; touch-target classes applied unevenly. |
+| 5 | Error Prevention | **3/4** | Confirm modals + inline warnings + required markers + smart defaults. No transition-validity check on `status` (Pending → No-show is offerable). |
+| 6 | Recognition Rather Than Recall | **3/4** | Real names + real numbers + sticky sidebar + breadcrumb. Booking reference is 8-char short; full ID on `title=` only (not click-to-copy). |
+| 7 | Flexibility and Efficiency | **3/4** | "Match total" chip, split saves, sticky sidebar. No keyboard shortcuts (intentional per PRODUCT.md novice tech-level). |
+| 8 | Aesthetic and Minimalist | **3/4** | Disciplined Card-Board grammar. Lifecycle pills + status badge in panel header duplicate the same signal 36px apart. 9 cards total on full-scope view. |
+| 9 | Error Recovery | **4/4** | Persistent error toast with Retry, optimistic Claim with race-lost rollback, role=alert form errors, recovery copy in destructive modals. |
+| 10 | Help and Documentation | **2/4** | Inline note-field hints good. Quick-action tooltips are `title=` only (not focus-visible). No "why required?" hints. No formal docs surface. |
+| **Total** | | **31/40** | **Good** (28–35 band) |
+
+### AI Slop Verdict
+
+| Source | Verdict | Vs baseline | Notes |
+|---|---|---|---|
+| LLM (Assessment A) | **PASS** | Unchanged | Card-Board grammar is distinctive: full-border tinted panels, named status families, Cormorant marquee numeral, dignified avatars, sticky sidebar. NextActionStrip in particular (eyebrow + arrow + warm headline + numeral suffix) has personality that wouldn't appear in default-template SaaS. First-order trap (healthcare → white+teal) dodged via warm ivory + clinic green + sanctioned gold. Second-order trap (warm-clinical-healthcare → cream-and-eucalyptus) dodged by operator-tool restraint + Linear-sensibility + Stripe-state-word discipline. |
+
+**AI slop did not regress.** Consistent with the booking-new (PASS) and bookings (PASS, borderline) verdicts. No `/impeccable bolder` or `/impeccable distill` block triggered.
+
+### Cognitive Load (8-item)
+
+**1 failure = LOW.** Single overage: main column = 6 panels (within ≤7 "pushing boundary" zone). NextActionStrip funnels first attention, so chunking failure does not cascade.
+
+### Critique-level Findings by Severity
+
+**P0:** None. Step 8 not blocked.
+
+**P1 (tag for Phase 7 gauntlet — do not fix per-page):**
+- **Mobile section order strands Address card at page-bottom.** Therapist mobile workflow (PRODUCT.md: "mobile-first frequency, not mobile-as-fallback") requires fast access to Maps. Current scroll path passes 5 admin-only panels before reaching the visit address. Fix path: interleave Client + Address into main column on mobile, hide sidebar block at mobile width. (Audit graded this P2; UX-mobile-first lens elevates to P1.)
+
+**P2 (list here, next sprint):**
+- Quick actions (Confirm / Mark paid / Mark complete) fire instantly with no Sonner `Undo` action. Recovery requires re-editing the Status form. PRODUCT.md commits to "auditable AND reversible" — page satisfies auditable but not reversible-from-UI.
+- `status` select offers all 5 transitions regardless of current state. From "Pending" the operator can select "No-show" (nonsensical pre-visit). Should compute `allowedTransitions(currentStatus)` and disable invalid options inline.
+
+**P3 (nice-to-fix):**
+- Quick-action tooltips use native `title=` only — not focus-visible, not mobile-discoverable. PRODUCT.md tech-level (novice operators) requires visible affordances. Use Base UI Tooltip primitive or move critical hint copy inline.
+- Lifecycle pill row duplicates the status badge in the panel header (same signal, 36px apart). Distill candidate: keep one carrier.
+- Email activity event_type rendered via raw `formatLabel` — could mirror the Activity timeline humanization map.
+- Address `<dl>`-style rows are divs in a 2-col grid; real `<dl><dt><dd>` would surface the term-definition relationship to screen readers.
+
+### Persona red flags
+
+- **Mariam (Booking Coordinator):** Pending → No-show transition offerable; misclicking "Mark paid" forces 4-field re-edit; gender chip lowercase vs capitalized status badges; 5-value payment status from brief (Outstanding/Paid/**Partially paid**/Refunded/Waived) is 2 in code — partial-payment workflow unrepresentable.
+- **Aisha (Therapist, in transit):** Scrolls past 5 panels to reach Address card on mobile (P1 above); `tel:` link rendered as small text rather than a prominent Primary button.
+- **Sam (first-time coordinator):** 9 panels on screen initially overwhelming; NextActionStrip rescues; tooltips don't reveal on focus so she clicks to learn what buttons do.
+
+**No P0 audit or critique findings. AI slop PASS, no regression. Backend N-A. Step 8 not blocked.**
