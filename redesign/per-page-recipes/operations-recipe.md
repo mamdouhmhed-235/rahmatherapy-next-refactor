@@ -332,11 +332,14 @@ grep -nE '#[0-9a-fA-F]{3,8}' src/app/admin/operations/page.tsx <other-files-touc
 # Raw oklch() literals (should be 0 — colors come from tokens)
 grep -nE 'oklch\(' src/app/admin/operations/page.tsx <other-files-touched-this-page>
 
-# Raw px outside @media (allowed: tailwind arbitrary like `mt-[2px]` for icon alignment is borderline — flag, don't fail)
-grep -nE '\[[0-9]+px\]' src/app/admin/operations/page.tsx <other-files-touched-this-page>
+# Raw px values outside @media queries (canon: should be 0 outside @media rules)
+grep -nE '\\d+px' src/app/admin/operations/page.tsx <other-files-touched-this-page>
 
 # font-family literals (should be 0)
 grep -nE "font-family:\s*['\"]" src/app/admin/operations/page.tsx <other-files-touched-this-page>
+
+# Raw spacing literals (canon: should match the spacing scale in DESIGN.md)
+grep -nE '(margin\|padding):\s*\d' src/app/admin/operations/page.tsx <other-files-touched-this-page>
 
 # legacy raw rahma escapes (Phase-6 soft fix per brief §4)
 grep -nE 'var\(--rahma-' src/app/admin/operations/page.tsx <other-files-touched-this-page>
@@ -377,10 +380,18 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 ### 12a — Audit
 Invoke Skill with `/impeccable audit operations`.
 
+**Severity rubric — anchor every finding before tagging (impeccable v5 L884-890):**
+- **P0** Blocks release — fix before shipping anything
+- **P1** Fix this sprint — significant impact on users
+- **P2** Next cycle — noticeable but not blocking
+- **P3** Polish — minor, fix when time allows
+
 Append to `/redesign/PER-PAGE-SCORES.md` under heading `## operations — audit`:
 - 5 dimension scores
 - P0/P1/P2/P3 findings, each on its own line
 - Backend status: `FAKE — BUILD-operations-filter-query.md (BLOCKS-REDESIGN, Layer 0 row 10)`
+- **P1 (tag for Phase 7 gauntlet):** subsection — list each P1 finding with location + file:line; if zero, write `none`. Phase 7 `/impeccable audit admin` re-scans this section.
+- **BUSINESS-COMPLETENESS impact:** subsection — name any `redesign/BUSINESS-COMPLETENESS.md` items this page newly contributes to (e.g. `2A-6` if form-level error `role="alert"` was implemented). Lets the universal flag flip `PARTIAL` → `HANDLED` when all form-bearing pages adopt.
 
 **Print the appended section to chat.**
 

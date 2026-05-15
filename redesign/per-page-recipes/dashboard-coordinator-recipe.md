@@ -375,6 +375,9 @@ grep -nE 'bg-gray-\d+|text-gray-\d+' src/app/admin/dashboard/dashboard-cards.tsx
 
 # font-family literals (should be 0)
 grep -nE "font-family:\s*['\"]" src/app/admin/dashboard/page.tsx src/app/admin/dashboard/dashboard-cards.tsx
+
+# Raw spacing literals (canon: should match the spacing scale in DESIGN.md)
+grep -nE '(margin\|padding):\s*\d' src/app/admin/dashboard/page.tsx src/app/admin/dashboard/dashboard-cards.tsx
 ```
 
 For each match, confirm the value comes from a DESIGN.md token. If a hardcoded value isn't backed by a token, FIX IT.
@@ -412,10 +415,18 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 ### 12a — Audit
 Invoke Skill with `/impeccable audit dashboard-coordinator`.
 
+**Severity rubric — anchor every finding before tagging (impeccable v5 L884-890):**
+- **P0** Blocks release — fix before shipping anything
+- **P1** Fix this sprint — significant impact on users
+- **P2** Next cycle — noticeable but not blocking
+- **P3** Polish — minor, fix when time allows
+
 Append to `/redesign/PER-PAGE-SCORES.md` under heading `## dashboard-coordinator — audit`:
 - 5 dimension scores
 - P0/P1/P2/P3 findings, each on its own line
 - Backend status: `N-A` (Active Enquiries flagged as possible follow-up if data fetcher is missing)
+- **P1 (tag for Phase 7 gauntlet):** subsection — list each P1 finding with location + file:line; if zero, write `none`. Phase 7 `/impeccable audit admin` re-scans this section.
+- **BUSINESS-COMPLETENESS impact:** subsection — name any `redesign/BUSINESS-COMPLETENESS.md` items this page newly contributes to (e.g. `2A-6` if form-level error `role="alert"` was implemented). Lets the universal flag flip `PARTIAL` → `HANDLED` when all form-bearing pages adopt.
 - Confirm Brief-06 carry-forwards remain resolved across the shared files
 
 **Print the appended section to chat.**

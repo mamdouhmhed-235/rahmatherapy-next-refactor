@@ -368,6 +368,9 @@ grep -nE 'bg-gray-\d+|text-gray-\d+' src/app/admin/dashboard/dashboard-cards.tsx
 
 # font-family literals (should be 0)
 grep -nE "font-family:\s*['\"]" src/app/admin/dashboard/page.tsx src/app/admin/dashboard/dashboard-header.tsx src/app/admin/dashboard/dashboard-filters-client.tsx src/app/admin/dashboard/dashboard-cards.tsx
+
+# Raw spacing literals (canon: should match the spacing scale in DESIGN.md)
+grep -nE '(margin\|padding):\s*\d' src/app/admin/dashboard/page.tsx src/app/admin/dashboard/dashboard-header.tsx src/app/admin/dashboard/dashboard-filters-client.tsx src/app/admin/dashboard/dashboard-cards.tsx
 ```
 
 For each match, confirm the value comes from a DESIGN.md token. If a hardcoded value isn't backed by a token, FIX IT. Particular attention to: avatar hue tokenisation (12 hexes → `oklch(85% 0.035 var(--avatar-hue))`), chart accent `#5b8dd9` → `accent-amber` (`oklch(69% 0.142 72)`) or Focus Azure fallback, bar fill `#a8d1bd` → token, `bg-black` → `oklch(12% 0.014 155)`.
@@ -403,10 +406,18 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 ### 12a — Audit
 Invoke Skill with `/impeccable audit dashboard-owner-admin`.
 
+**Severity rubric — anchor every finding before tagging (impeccable v5 L884-890):**
+- **P0** Blocks release — fix before shipping anything
+- **P1** Fix this sprint — significant impact on users
+- **P2** Next cycle — noticeable but not blocking
+- **P3** Polish — minor, fix when time allows
+
 Append to `/redesign/PER-PAGE-SCORES.md` under heading `## dashboard-owner-admin — audit`:
 - 5 dimension scores
 - P0/P1/P2/P3 findings, each on its own line
 - Backend status: `N-A` (no BLOCKS-REDESIGN backend deps)
+- **P1 (tag for Phase 7 gauntlet):** subsection — list each P1 finding with location + file:line; if zero, write `none`. Phase 7 `/impeccable audit admin` re-scans this section.
+- **BUSINESS-COMPLETENESS impact:** subsection — name any `redesign/BUSINESS-COMPLETENESS.md` items this page newly contributes to (e.g. `2A-6` if form-level error `role="alert"` was implemented). Lets the universal flag flip `PARTIAL` → `HANDLED` when all form-bearing pages adopt.
 - Confirm BASELINE-CRITIQUE P1/P2 carry-forwards resolved: `border-l-4` × 3, `bg-black`, avatar hexes, chart raw colors, density limit (no longer 6+ tiers visible at first paint)
 
 **Print the appended section to chat.**

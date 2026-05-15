@@ -343,11 +343,14 @@ grep -nE '#[0-9a-fA-F]{3,8}' src/app/admin/clients/[clientId]/page.tsx src/app/a
 # Raw oklch() literals (should be 0 — colors come from tokens)
 grep -nE 'oklch\(' src/app/admin/clients/[clientId]/page.tsx src/app/admin/clients/[clientId]/ClientDetailForms.tsx
 
-# Raw px outside @media (allowed: tailwind arbitrary like `mt-[2px]` for icon alignment is borderline — flag, don't fail)
-grep -nE '\[[0-9]+px\]' src/app/admin/clients/[clientId]/page.tsx src/app/admin/clients/[clientId]/ClientDetailForms.tsx
+# Raw px values outside @media queries (canon: should be 0 outside @media rules)
+grep -nE '\\d+px' src/app/admin/clients/[clientId]/page.tsx src/app/admin/clients/[clientId]/ClientDetailForms.tsx
 
 # font-family literals (should be 0)
 grep -nE "font-family:\s*['\"]" src/app/admin/clients/[clientId]/page.tsx src/app/admin/clients/[clientId]/ClientDetailForms.tsx
+
+# Raw spacing literals (canon: should match the spacing scale in DESIGN.md)
+grep -nE '(margin\|padding):\s*\d' src/app/admin/clients/[clientId]/page.tsx src/app/admin/clients/[clientId]/ClientDetailForms.tsx
 
 # Forbidden `border-l-4` (BookingListCards must use full-border, brief §Implementation Notes)
 grep -nE 'border-l-4' src/app/admin/clients/[clientId]/page.tsx src/app/admin/clients/[clientId]/ClientDetailForms.tsx
@@ -391,10 +394,18 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 ### 12a — Audit
 Invoke Skill with `/impeccable audit client-detail`.
 
+**Severity rubric — anchor every finding before tagging (impeccable v5 L884-890):**
+- **P0** Blocks release — fix before shipping anything
+- **P1** Fix this sprint — significant impact on users
+- **P2** Next cycle — noticeable but not blocking
+- **P3** Polish — minor, fix when time allows
+
 Append to `/redesign/PER-PAGE-SCORES.md` under heading `## client-detail — audit`:
 - 5 dimension scores
 - P0/P1/P2/P3 findings, each on its own line
 - Backend status: `N-A` (no BLOCKS-REDESIGN backend deps)
+- **P1 (tag for Phase 7 gauntlet):** subsection — list each P1 finding with location + file:line; if zero, write `none`. Phase 7 `/impeccable audit admin` re-scans this section.
+- **BUSINESS-COMPLETENESS impact:** subsection — name any `redesign/BUSINESS-COMPLETENESS.md` items this page newly contributes to (e.g. `2A-6` if form-level error `role="alert"` was implemented). Lets the universal flag flip `PARTIAL` → `HANDLED` when all form-bearing pages adopt.
 - Confirm BASELINE-CRITIQUE Sam #1 H1→H3 skip is resolved on this page
 
 **Print the appended section to chat.**

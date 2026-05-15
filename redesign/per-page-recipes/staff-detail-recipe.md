@@ -344,8 +344,11 @@ Verify copy matches the brief's `## 8. Content Requirements` and `## Copy` secti
 ```bash
 grep -nE '#[0-9a-fA-F]{3,8}' src/app/admin/staff/\[staffId\]/page.tsx src/app/admin/staff/\[staffId\]/StaffProfileForm.tsx src/app/admin/staff/\[staffId\]/StaffPermissionOverridesForm.tsx
 grep -nE 'oklch\(' src/app/admin/staff/\[staffId\]/*.tsx
-grep -nE '\[[0-9]+px\]' src/app/admin/staff/\[staffId\]/*.tsx
+grep -nE '\\d+px' src/app/admin/staff/\[staffId\]/*.tsx
 grep -nE "font-family:\s*['\"]" src/app/admin/staff/\[staffId\]/*.tsx
+
+# Raw spacing literals (canon: should match the spacing scale in DESIGN.md)
+grep -nE '(margin\|padding):\s*\d' src/app/admin/staff/\[staffId\]/*.tsx
 grep -nE 'text-(emerald|orange|red|amber|green)-[0-9]+' src/app/admin/staff/\[staffId\]/*.tsx
 grep -nE 'border-l-4|border-b-2' src/app/admin/staff/\[staffId\]/*.tsx
 grep -nE 'view_staff' src/app/admin/staff/\[staffId\]/*.tsx
@@ -384,10 +387,18 @@ For each match, confirm the value comes from a DESIGN.md token. Particular atten
 ### 12a — Audit
 Invoke Skill with `/impeccable audit staff-detail`.
 
+**Severity rubric — anchor every finding before tagging (impeccable v5 L884-890):**
+- **P0** Blocks release — fix before shipping anything
+- **P1** Fix this sprint — significant impact on users
+- **P2** Next cycle — noticeable but not blocking
+- **P3** Polish — minor, fix when time allows
+
 Append to `/redesign/PER-PAGE-SCORES.md` under heading `## staff-detail — audit`:
 - 5 dimension scores
 - P0/P1/P2/P3 findings, each on its own line
 - Backend status: `HANDLED` (no BLOCKS-REDESIGN BUILD; §10 Q3 limit-bump non-blocking and applied if scope allows)
+- **P1 (tag for Phase 7 gauntlet):** subsection — list each P1 finding with location + file:line; if zero, write `none`. Phase 7 `/impeccable audit admin` re-scans this section.
+- **BUSINESS-COMPLETENESS impact:** subsection — name any `redesign/BUSINESS-COMPLETENESS.md` items this page newly contributes to (e.g. `2A-6` if form-level error `role="alert"` was implemented). Lets the universal flag flip `PARTIAL` → `HANDLED` when all form-bearing pages adopt.
 
 **Print the appended section to chat.**
 
