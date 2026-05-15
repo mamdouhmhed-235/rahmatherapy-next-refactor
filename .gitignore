@@ -46,3 +46,8 @@ phase*.err.log
 *.tsbuildinfo
 next-env.d.ts
 cloudflare-env.d.ts
+
+# Claude Code / Impeccable skill / Playwright MCP — per-machine runtime artifacts
+.claude/launch.json
+.impeccable/
+.playwright-mcp/
