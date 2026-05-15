@@ -780,6 +780,8 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 **Why this position:** Tabbed extension of /admin/emails sharing the same route; 9 template mappings from `src/lib/email/templates.ts`. Worked immediately before emails (row 22) since they share the `/admin/emails` parent route.
 
+> **⚠ Session-ordering footnote (added 2026-05-15):** Despite the alphabetical position above, the `emails` session (row 22) must run **FIRST**, then `email-templates` (this row). The `emails` brief Recipe Context explicitly states *"Phase 6 implementation order: this brief first (shell), Brief 02 second (Templates content drops into the prepared slot)"* — `emails` owns the tab shell + Delivery + Reminders bodies + a Templates-tab stub; `email-templates` does a scoped swap-in to replace the stub with the real Templates tab component. Running this row first would force `emails` to either rebuild or merge-around the structures established here. See `redesign/per-page-recipes/email-templates-recipe.md` Hard rule #8 and `redesign/per-page-recipes/emails-recipe.md` Step 4 framing for the coordination contract.
+
 Re-prime prompt (copy into a fresh Claude Code session):
 
 ```

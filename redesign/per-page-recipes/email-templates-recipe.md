@@ -10,7 +10,7 @@
 | Page row in IMPLEMENTATION-PLAN.md | row 21 of 29 (renumber based on chronological position, not numeric label) |
 | Brief | `/redesign/briefs/email-templates-brief.md` |
 | Workflow guide reference | `/redesign/phase6-admin-workflow-guide.html` (email-templates section) |
-| Source files to edit | `src/app/admin/emails/page.tsx` (tab shell), plus net-new component directory `src/app/admin/emails/components/` (TemplateBrowser, TemplatePreviewPanel, TemplateEditForm, ManualSendSheet) + `src/app/admin/email-templates/preview/[id]/route.ts` (preview route handler) + `src/app/admin/email-templates/actions.ts` (save + send server actions) |
+| Source files to edit | `src/app/admin/emails/components/` (net-new directory: TemplateBrowser, TemplatePreviewPanel, TemplateEditForm, ManualSendSheet) + `src/app/admin/email-templates/preview/[id]/route.ts` (preview route handler) + `src/app/admin/email-templates/actions.ts` (save + send server actions) + `src/app/admin/emails/page.tsx` (**scoped: swap-in only** — import `<TemplatesTab />` and replace the stub the `emails` session laid; do NOT rebuild the tab shell or touch Delivery / Reminders bodies) |
 | Worktree | this checkout — branch `agent/email-templates-redesign` off `redesign/start-state` |
 | Parent branch (rollback target) | `redesign/start-state` |
 | Main tree (DO NOT MODIFY — user works there) | `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor` |
@@ -34,6 +34,7 @@
 5. **Preserve the existing emails-page features in the tab shell:** `sendManualBookingReminder` wire-up on the Reminders tab; Resend delivery log display on the Delivery log tab; `<input type="hidden" name="booking_id">` on each reminder row.
 6. **`templates.ts` SERVER ONLY constraint:** the preview route handler must call `render*Email()` server-side. No import of `templates.ts` from any Client Component.
 7. **New audit writes** that Phase 6 must add when BUILDs land: `email_template_override_saved` and `email_template_sent_manually`. Mark the call sites in `actions.ts` so the audit-row insert happens server-side once the BUILDs are in place.
+8. **Run the `emails` session FIRST.** This recipe assumes `src/app/admin/emails/page.tsx` already contains a tab shell + a Templates-tab stub (laid by the emails session per its Step 4 framing). If you do not find the literal stub marker `Templates tab body — populated by the email-templates session` in `src/app/admin/emails/page.tsx`, emit `STUCK: <step> — emails session has not laid the tab shell; run the emails recipe first, then re-dispatch this one`. Your edit to `emails/page.tsx` is limited to: (a) import the new `<TemplatesTab />` from `./components`, (b) replace the stub JSX with `<TemplatesTab />`. That's it — no tab-shell rebuild, no Delivery/Reminders changes.
 
 ## STUCK clause
 
@@ -158,6 +159,9 @@ The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this 
 >   ## Files to NEVER touch
 >   - [path] — [reason]
 >
+> **Important scope note:** `src/app/admin/emails/page.tsx` belongs in "Files to edit" but with the **limited scope** of swapping the Templates-tab stub for the real `<TemplatesTab />` component (import + JSX replacement only — 2 lines maximum). The tab shell, Delivery body, and Reminders body were laid by the `emails` session and must NOT be re-styled or re-structured by THIS session. Document the swap-in scope explicitly in the scope file.
+>
+
 > CRITICAL — how to handle craft's internal shape discovery: per the docs, `/impeccable craft` runs `/impeccable shape` internally as its first phase. When shape asks discovery questions (Purpose, User, Content, Feeling, Constraints), quote each section from `/redesign/briefs/email-templates-brief.md` verbatim as your answer, but expect shape to expand or adjust them. Confirm each section back to chat, accept any expansions shape proposes, then proceed.
 >
 > Match DESIGN.md tokens exactly. If the brief conflicts with the codebase, STOP and report — do not guess.

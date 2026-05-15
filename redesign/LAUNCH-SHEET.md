@@ -167,16 +167,20 @@ If `git merge --ff-only` errors with "would be overwritten" — main tree has un
 
 ---
 
-### 2.07 — client-new (row 7) ⚠
+### 2.07 — client-new (row 7) ✅ resolved
 
 **Brief:** `redesign/briefs/client-new-brief.md`
 **Backend status:** N-A
 **RBAC:** test.admin (manage_clients_all)
 **Recommended port:** 3001
-**Subagent flags:**
-- **⚠ FLAG:** Brief has an internal contradiction — §5 calls for "a small update to accept and insert city/area" in `actions.ts`, while Recipe Context still lists `createClient` server action as untouchable. The recipe encodes a conservative default (treat `actions.ts` as NEVER-touch, render fields only) plus a STUCK trigger so the agent escalates if it reaches a wiring fork without prior user authorisation.
+**Resolution notes (investigation 2026-05-15):**
+- The earlier "brief contradiction" was over-flagged. Brief §5 explicitly authorises a small additive extension to `src/app/admin/clients/actions.ts` as a *"justified exception to the RECON §5 untouchable rule"* (the migration `supabase/migrations/20260513120000_add_client_city_area.sql` is in the repo; the booking-new pre-fill flow depends on `city`/`area` being populated).
+- Recipe now reflects this: the `actions.ts` extension is pre-authorised; the agent should place it in "Files to edit" without further user confirmation. Scope is strictly additive (read 2 FormData fields, add to insert payload — no validation/duplicate/signature changes).
+- STUCK trigger now narrows to the only actual blocker: if the migration is missing or the `city`/`area` columns don't exist when the schema is read.
 - postcodes.io integration explicitly out-of-scope per brief §4 (deferred to `BUILD-postcode-lookup-client.md`).
-- Before launching, decide whether you'll authorise the `actions.ts` exception — if yes, tell the agent in the `/goal` preface; if no, accept the STUCK exit at the relevant step.
+
+**`/goal` preface addendum (optional — recipe already covers it):**
+> "Brief §5 authorises a small extension to `src/app/admin/clients/actions.ts` to accept `city` and `area`. This is a sanctioned exception to RECON §5's blanket untouchable rule for this one file, this one session. Treat `actions.ts` as in-scope for additive field reads/inserts only; do not touch duplicate-detection, validation, or any other code path in that file."
 
 ---
 
@@ -330,27 +334,39 @@ If `git merge --ff-only` errors with "would be overwritten" — main tree has un
 
 ---
 
-### 2.21 — email-templates (row 21) ⚠ FAKE · tab-coupled
+### 2.21 — email-templates (row 21) ⚠ FAKE · runs SECOND in pair
 
 **Brief:** `redesign/briefs/email-templates-brief.md`
 **Backend status:** **FAKE** — four BLOCKS-REDESIGN BUILDs: `BUILD-email-template-overrides-table`, `BUILD-email-templates-actions`, `BUILD-email-templates-preview-route`, `BUILD-rbac-permission-email-templates`
 **RBAC:** test.admin OR test.owner
 **Recommended port:** 3001
+**Ordering (resolved 2026-05-15):** Run **AFTER** `emails` (row 22). The `emails` session lays the tab shell + Delivery + Reminders bodies + a literal Templates-tab stub. This session does a scoped swap-in to replace the stub with the real `<TemplatesTab />` component — no tab-shell rebuild. If the stub isn't present in `src/app/admin/emails/page.tsx` when this session starts, it will exit with `STUCK: <step> — emails session has not laid the tab shell`.
+
 **Subagent flags:**
 - Recipe adds extra evaluator anchor `SERVER_ONLY_GUARD:` for the `templates.ts` SERVER ONLY constraint.
-- **Tab-shell coupling with `emails`**: this page owns the Templates tab body; `emails` page owns the tab shell + Delivery + Reminders bodies. Recipe screenshots/dev-server URL route to `/admin/emails?tab=templates`. Brief Q1 unresolved (route at `/admin/emails` tabs vs separate `/admin/email-templates`) — recipe defers to Recipe Context's file placement under `src/app/admin/email-templates/`.
+- Recipe owns: `src/app/admin/emails/components/` (new directory: TemplateBrowser, TemplatePreviewPanel, TemplateEditForm, ManualSendSheet), `src/app/admin/email-templates/preview/[id]/route.ts`, `src/app/admin/email-templates/actions.ts`, plus a **two-line scoped edit** to `src/app/admin/emails/page.tsx` (import `<TemplatesTab />`, replace stub JSX).
+- Final route: `/admin/emails?tab=templates` for user-facing surface (helper routes under `/admin/email-templates/...`).
+
+**`/goal` preface addendum (recommended):**
+> "The `emails` session has already established the tab shell at `src/app/admin/emails/page.tsx` and rendered a stub for the Templates tab. Your scope for `emails/page.tsx` is limited to: (1) import the new `<TemplatesTab />` component you'll build under `src/app/admin/emails/components/`, (2) swap the stub for that import. Everything else lives under `src/app/admin/emails/components/` and `src/app/admin/email-templates/`. If the stub marker `Templates tab body — populated by the email-templates session` is missing, STOP and emit STUCK."
 
 ---
 
-### 2.22 — emails (row 22) ⚠ FAKE · tab-host
+### 2.22 — emails (row 22) ⚠ FAKE · tab-host · runs FIRST in pair
 
 **Brief:** `redesign/briefs/emails-brief.md`
 **Backend status:** **FAKE** — `BUILD-email-delivery-filter-query` + `BUILD-automated-booking-reminders` BLOCKS-REDESIGN
 **RBAC:** test.admin OR test.owner
 **Recommended port:** 3001
+**Ordering (resolved 2026-05-15):** Run **BEFORE** `email-templates` (row 21). This session owns `src/app/admin/emails/page.tsx` outright — the tab shell, Delivery body, Reminders body, and a literal Templates-tab stub. The `email-templates` session that runs after will do a scoped swap-in to replace the stub. (Despite the alphabetical position in IMPLEMENTATION-PLAN.md row 21/22, the briefs explicitly mandate this order — see footnote on row 21.)
+
 **Subagent flags:**
-- Owns the tab shell + Delivery + Reminders bodies; coupled with `email-templates` (which owns Templates tab body).
-- Run BEFORE or AFTER email-templates, but ensure both sessions agree on the tab shell ownership boundary (recipe carries a "Tabbed-shell coupling" note).
+- Owns the tab shell + Delivery + Reminders bodies. Templates tab body owned by `email-templates` (runs second).
+- **Required stub marker:** in `src/app/admin/emails/page.tsx`, render the Templates tab as a placeholder/EmptyState containing the literal text `Templates tab body — populated by the email-templates session`. The `email-templates` session greps for this marker; if missing, that session exits STUCK.
+- Recipe Step 13 handoff grep-verifies the stub is present before emitting `HANDOFF_READY`.
+
+**`/goal` preface addendum (recommended):**
+> "You own the tab shell at `src/app/admin/emails/page.tsx` for `/admin/emails`. Render a Templates tab body as a stub component or `EmptyState` containing the literal text `Templates tab body — populated by the email-templates session`. The `email-templates` session runs after yours and will swap your stub for the real Templates tab content. Do not implement template browsing, preview, or editing in this session."
 
 ---
 

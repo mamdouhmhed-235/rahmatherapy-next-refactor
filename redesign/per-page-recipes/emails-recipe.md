@@ -181,11 +181,20 @@ The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this 
 
 **Action:** Invoke Skill tool with `/impeccable craft redesign of admin page emails`. Feed the brief sections verbatim to shape discovery as they're requested. Let craft do its full build phase.
 
+**IMPORTANT — Templates tab stub (coordination with email-templates session):** The Templates tab body belongs to the `email-templates` recipe's session (it runs AFTER this one). For THIS session, render the Templates tab as a stub component or `EmptyState` containing the literal marker text:
+
+```
+Templates tab body — populated by the email-templates session
+```
+
+The email-templates session will later swap this stub for a real `<TemplatesTab />` component. Do NOT implement template browsing, preview, edit, or manual-send in this session. Treat the Templates tab as a placeholder slot.
+
 **Evidence to surface:**
 - The Skill invocation appears in transcript
 - After craft finishes, print `git diff --stat` to chat (only worktree-scoped files should appear)
 - Print the literal line `CRAFT_COMPLETE`
-- Append `step-4: COMPLETE — craft built page` and cat progress file
+- Verify the stub marker by running: `grep -n "Templates tab body — populated by the email-templates session" src/app/admin/emails/page.tsx` — should return 1 hit. Print the grep output to chat as confirmation.
+- Append `step-4: COMPLETE — craft built page (Templates tab is a stub for email-templates session)` and cat progress file
 
 ---
 
@@ -441,14 +450,20 @@ Run through brief's Feature Preservation Manifest manually via Playwright + read
 1. Run `git diff --stat` in the worktree — print to chat
 2. Compare changed-files list against `/redesign/per-page-scope/emails-scope.md`. For any file changed that isn't in the scope file's "Files to edit" list: STOP and emit `SCOPE_VIOLATION: <file>`. Otherwise: `SCOPE_CLEAN: only scoped files changed`.
 3. Run `git diff` (full) and confirm nothing unexpected appears — print the diff to chat in collapsible form.
-4. Emit the handoff message to chat with:
+4. **Verify the Templates-tab stub marker is in place** (this is the slot the email-templates session will fill — gates the next-session handoff):
+   ```
+   grep -n "Templates tab body — populated by the email-templates session" src/app/admin/emails/page.tsx
+   ```
+   Should return exactly 1 hit. Print the grep output to chat. If 0 hits: STOP and emit `STUCK: 13 — Templates tab stub marker missing from emails/page.tsx; email-templates session will not be able to swap in`.
+5. Emit the handoff message to chat with:
    - Dev server URL: `http://localhost:3001/admin/emails`
    - All screenshot paths
    - Audit + critique key scores
    - Backend status: `FAKE` until 2 BLOCKS-REDESIGN BUILDs land (`email-delivery-filter-query`, `automated-booking-reminders`); gates Phase 7
+   - Templates tab status: STUB, awaiting email-templates session swap-in
    - Any deviations from brief (or `DEVIATIONS: none`)
-5. **Emit the literal string `HANDOFF_READY — awaiting user approval`** — this is the `/goal` evaluator's final completion signal.
-6. **STOP. Do NOT stage anything. Do NOT commit.** Wait for the user to inspect the worktree and respond.
+6. **Emit the literal string `HANDOFF_READY — awaiting user approval`** — this is the `/goal` evaluator's final completion signal.
+7. **STOP. Do NOT stage anything. Do NOT commit.** Wait for the user to inspect the worktree and respond.
 
 **Evidence to surface:**
 - `git diff --stat` output

@@ -17,7 +17,7 @@
 | Main tree (DO NOT MODIFY — user works there) | `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor` |
 | Dev server port for this worktree | `3001` (user's main tree owns `3000`) |
 | node_modules | already junctioned from main tree to this worktree's `./node_modules` — do not reinstall |
-| Backend status | `N-A` for THIS session — the postcodes.io lookup integration (`BUILD-postcode-lookup-client.md`) is explicitly out of scope per brief §4. **`city` + `area` form fields ARE in scope** (new optional fields, post-migration `20260513120000_add_client_city_area.sql`); the brief flags a "justified exception" to extend `createClient` to accept them, but this must be confirmed with user before touching `actions.ts` — see STUCK clause. |
+| Backend status | `N-A` for THIS session — the postcodes.io lookup integration (`BUILD-postcode-lookup-client.md`) is explicitly out of scope per brief §4. **`city` + `area` form fields ARE in scope** (new optional fields, post-migration `20260513120000_add_client_city_area.sql`); brief §5 explicitly authorises a small **additive** extension to `createClient` in `src/app/admin/clients/actions.ts` (read 2 form fields, include in insert payload) as a sanctioned exception to RECON §5. See the "Sanctioned exception" note below. |
 | Progress scratchpad | `/redesign/per-page-progress/client-new-progress.md` |
 
 ## Hard rules — never violate these
@@ -25,7 +25,6 @@
 1. **NEVER commit. NEVER stage.** Not even `git add -p`. Final step is handoff. Commits happen only after the user explicitly types `approved` in this session.
 2. **NEVER use `git add .` or `git add -A`.** When the time comes (after approval), stage scoped files explicitly.
 3. **NEVER modify any of these files** (Feature Preservation Manifest + RECON untouchables):
-   - `src/app/admin/clients/actions.ts` — `createClient` server action. **EXCEPTION FLAG:** brief §5 calls for a small update to accept `city`/`area` fields. This is the only sanctioned deviation; treat it as STUCK if you can't verify the columns exist via `supabase/migrations/20260513120000_add_client_city_area.sql` and the user-confirmed scope file lists `actions.ts` in "Files to edit" with that note. Default: do NOT touch `actions.ts` — render `city`/`area` inputs but submit a form whose server-side discards them until confirmation. Flag in handoff.
    - Duplicate detection rules (server-side; matches on lowercased email or normalised phone) — preserved verbatim
    - `src/middleware.ts` — Supabase session refresh / route protection
    - `src/lib/auth/**`, `src/lib/supabase/**` — auth + DB layer (RECON §5)
@@ -37,15 +36,30 @@
 6. **Preserve the server-action contract:** `<form action={createClient}>` with `useActionState` must remain wired. No `fetch` / no `XHR` replacement. The `confirm_duplicate` checkbox must remain HTML-required when the duplicate warning state shows, so JS-off still gates submission.
 7. **NEVER introduce `backdrop-blur` on the sticky save bar.** The brief explicitly bans glass-default on this page (line 87 of current page is a flagged carry-forward fix).
 
+## Sanctioned exception — `src/app/admin/clients/actions.ts` is touchable for THIS session only
+
+Brief §5 explicitly authorises a **small additive extension** to `createClient` in `src/app/admin/clients/actions.ts`. This is documented as a "justified exception to the RECON §5 untouchable rule" because:
+
+- The migration `supabase/migrations/20260513120000_add_client_city_area.sql` is already in the repo and adds the `city` and `area` columns to `public.clients`.
+- The already-merged booking-new redesign's `?clientId=` pre-fill flow depends on these columns being populated when client-new creates a client.
+- Without the extension, the `city`/`area` form inputs render but the server discards them, which would be a P0 functional regression caught by the Phase 7 audit.
+
+**Scope of the authorised change is strictly:**
+- Extend `createClient`'s `FormData.get()` reads to pull `city` and `area`
+- Add them as optional strings to the insert payload
+- NO schema validation changes, NO duplicate-detection changes, NO signature change, NO `confirm_duplicate` flow changes — those remain part of the broader untouchable contract
+
+The scope file (`/redesign/per-page-scope/client-new-scope.md`) must list `src/app/admin/clients/actions.ts` in **"Files to edit"** with the change description (additive city/area reads + inserts).
+
 ## STUCK clause
 
-If you are genuinely blocked on any step (skill unavailable, brief contradicts codebase, server won't start, `actions.ts` extension is unclear, etc.) — **stop trying** and emit a literal line:
+If you are genuinely blocked on any step (skill unavailable, brief contradicts codebase, server won't start, etc.) — **stop trying** and emit a literal line:
 
 ```
 STUCK: <step number> — <specific, actionable reason>
 ```
 
-Specifically: if you reach a point where the `city`/`area` field wiring requires touching `src/app/admin/clients/actions.ts` and you cannot find evidence in the user-confirmed scope file that this is authorised, emit `STUCK: <step> — actions.ts extension for city/area not pre-authorised; please confirm scope`.
+Specifically about the `actions.ts` exception: if the migration `supabase/migrations/20260513120000_add_client_city_area.sql` is missing OR the `city`/`area` columns don't exist when you read the schema (e.g. the migration has been reverted), emit `STUCK: <step> — clients.city/area columns missing despite brief §5 claim; cannot wire actions.ts extension`. Otherwise the extension is pre-authorised by the brief — proceed without confirmation.
 
 The `/goal` evaluator will see this and end the loop cleanly. The user will then investigate and re-dispatch with the fix.
 
@@ -162,7 +176,7 @@ The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this 
 >   ## Files to NEVER touch
 >   - [path] — [reason]
 >
-> Decision required in the scope file: should `src/app/admin/clients/actions.ts` be in "Files to edit" (to accept `city`/`area`) or in "NEVER touch" (rendering the inputs but discarding them)? Default to NEVER touch unless the brief's flagged exception is explicitly authorised by user.
+> `src/app/admin/clients/actions.ts` goes in "Files to edit" per brief §5's sanctioned exception (the brief itself is the authorisation — see the "Sanctioned exception" note in this recipe's Hard rules section). Document the change as: "additive city/area reads from FormData + include in insert payload; no other changes". Do NOT list it under "NEVER touch".
 >
 > CRITICAL — how to handle craft's internal shape discovery: per the docs, `/impeccable craft` runs `/impeccable shape` internally as its first phase. When shape asks discovery questions (Purpose, User, Content, Feeling, Constraints), quote each section from `/redesign/briefs/client-new-brief.md` verbatim as your answer, but expect shape to expand or adjust them. Confirm each section back to chat, accept any expansions shape proposes, then proceed.
 >
