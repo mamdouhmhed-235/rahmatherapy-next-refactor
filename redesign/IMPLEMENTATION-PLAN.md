@@ -128,7 +128,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 4. [ ] booking-detail — commit: ____
+## 4. [x] booking-detail — commit: b415bb7
 
 **Tier:** Tier 2 — KEY_TASK 1 (Create bookings)
 
