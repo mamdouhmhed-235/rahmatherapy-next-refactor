@@ -50,7 +50,7 @@ export default async function AdminLoginPage({ searchParams }: LoginPageProps) {
             />
           </div>
 
-          <h1 className="mb-6 text-center text-[1.778rem] font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
+          <h1 className="mb-6 text-center font-display text-[1.778rem] font-semibold leading-tight tracking-tight text-[var(--admin-heading)]">
             Staff sign in
           </h1>
 
