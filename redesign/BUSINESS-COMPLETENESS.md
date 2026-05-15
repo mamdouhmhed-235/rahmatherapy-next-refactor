@@ -54,7 +54,7 @@ Discipline filter ✓ (regulatory: Equality Act 2010 / WCAG 2.1 AA, also blocks 
 **Phase 5 brief coverage (2026-05-12):** `clients-brief.md` §4 explicitly names this as a P0 fix: "The `location` filter input currently has no `<label>` or `aria-label` at runtime. Every filter input ships with a visible `<label>` element." Phase 6 session 5 (clients).
 
 ### 2A-6. Form errors silently fail to announce (aria-live missing)
-`BLOCKS-REDESIGN · Zone 1 · BROKEN` · **Evidence:** `A11Y-BASELINE.md` global finding A4. Every form-level error region (`LoginForm`, `ClientCreateForm`, `EnquiryForm`, `ManualBookingForm`, `SettingsForm`, `AvailabilityRulesManager`, `BookingManagementForm`, `BlockedDatesManager`, `AvailabilityOverridesManager`) renders error text as a plain `<p>` without `role="alert"` or `aria-live="polite"`.
+`BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** `A11Y-BASELINE.md` global finding A4. Every form-level error region (`LoginForm`, `ClientCreateForm`, `EnquiryForm`, `ManualBookingForm`, `SettingsForm`, `AvailabilityRulesManager`, `BookingManagementForm`, `BlockedDatesManager`, `AvailabilityOverridesManager`) renders error text as a plain `<p>` without `role="alert"` or `aria-live="polite"`. **Coverage:** 00-shared-components primitive shipped (`aa76451`); per-form audit live for: login (`role="alert" aria-live="polite" aria-atomic="true"` on LoginForm.tsx error region per `7e7e930`). Flip to `HANDLED` when remaining 23 form-bearing pages adopt; each per-page recipe's Step 12a `**BUSINESS-COMPLETENESS impact:**` subsection tracks new contributions.
 
 Discipline filter ✓ (regulatory). Highest-impact a11y fix because it touches every form.
 
@@ -75,7 +75,7 @@ Discipline filter ✓ (regulatory).
 **Phase 5 brief coverage (2026-05-12):** `staff-availability-brief.md` explicitly fixes the Profile/Availability tab strip (Sam #3). `bookings-brief.md` specifies `aria-current="page"` on all primary view tabs. `00-shared-components-brief.md` §5 View Tabs spec mandates `aria-current="page"` universally. `emails-brief.md`, `client-detail-brief.md`, `enquiries-brief.md`, and all other tab-bearing briefs carry this forward. Phase 6 session 1 (00-shared-components) establishes the pattern; inherited by all subsequent sessions.
 
 ### 2A-9. Required-field markers invisible
-`BLOCKS-REDESIGN · Zone 1 · BROKEN` · **Evidence:** `A11Y-BASELINE.md` global finding A5. `required` HTML attribute is present on `LoginForm`, `SettingsForm`, `ManualBookingForm`, `ClientCreateForm` etc. without an "*" or "(required)" visible marker.
+`BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** `A11Y-BASELINE.md` global finding A5. `required` HTML attribute is present on `LoginForm`, `SettingsForm`, `ManualBookingForm`, `ClientCreateForm` etc. without an "*" or "(required)" visible marker. **Coverage:** 00-shared-components primitive shipped (`aa76451`); per-form audit live for: login (visible `*` markers in Cancelled-family colour with `aria-hidden="true"` on LoginForm.tsx per `7e7e930`). Flip to `HANDLED` when remaining 23 form-bearing pages adopt; each per-page recipe's Step 12a `**BUSINESS-COMPLETENESS impact:**` subsection tracks new contributions.
 
 Discipline filter ✓ (regulatory, plus operator clarity).
 
