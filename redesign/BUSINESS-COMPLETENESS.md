@@ -40,7 +40,7 @@ Discipline filter ✓ (owner essential). A therapist between visits needs the da
 **Phase 5 brief coverage (2026-05-12):** `calendar-brief.md` specifies the responsive time-rail day view with 56px hourly tick gutter, momentum-scroll week strip, and mobile fallback for the unassigned sidebar. `dashboard-therapist-brief.md` provides the Therapist's mobile-first claimable strip and Next Visit hero. Phase 6 session 14 (calendar), 10 (dashboard-therapist).
 
 ### 2A-4. Heading hierarchy on shadcn-card pages
-`BLOCKS-REDESIGN · Zone 1 · BROKEN` · **Evidence:** `A11Y-BASELINE.md` finding A1: four pages (`/admin/settings`, `/admin/staff`, `/admin/availability`, `/admin/staff/[id]`) skip H1 → H3 because `src/components/ui/card.tsx CardTitle` renders as `<h3>`.
+`BLOCKS-REDESIGN · Zone 1 · HANDLED` · **Evidence:** `A11Y-BASELINE.md` finding A1: four pages (`/admin/settings`, `/admin/staff`, `/admin/availability`, `/admin/staff/[id]`) skip H1 → H3 because `src/components/ui/card.tsx CardTitle` renders as `<h3>`.
 
 Discipline filter ✓ (regulatory: Equality Act 2010 / WCAG 2.1 AA). Confirmed live during Phase 0 probe.
 

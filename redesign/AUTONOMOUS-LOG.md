@@ -40,3 +40,4 @@ Format: `item | file | what | why`
 | 2C-5 | BUSINESS-COMPLETENESS.md | Applied HANDLED status | Avatar initialled-token algorithm in 00-shared-components brief + per-page sessions |
 | 2C-6 | BUSINESS-COMPLETENESS.md | Applied HANDLED status | switch.tsx already created (confirmed at src/components/ui/switch.tsx) |
 | 2C-7 | src/app/admin/components/admin-status-chips.tsx | Deleted BookingStatusChip + AssignmentStatusChip exports | Confirmed zero consumers via grep; only definition site; dead code per RECON §4 |
+| 2A-4 | src/components/ui/card.tsx | Added `as` prop to CardTitle (default h3); consumers can now pass `as="h2"` (etc.) to fix heading hierarchy on shadcn-card pages | Resolves the root cause of H1→H3 skip flagged on /admin/settings, /admin/staff, /admin/availability, /admin/staff/[id] (A11Y-BASELINE A1, WCAG 2.1 AA). Per-page redesign sessions set `as="h2"` on their own section cards as part of their per-page work. |
