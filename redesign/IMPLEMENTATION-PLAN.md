@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 8 of 29 — reports   ← update when you start a session (count by position from the top, not by label)
+Currently on: 17 of 29 — settings   ← update when you start a session (count by position from the top, not by label)
 
 ---
 

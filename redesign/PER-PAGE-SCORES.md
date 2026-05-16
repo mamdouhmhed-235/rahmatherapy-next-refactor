@@ -883,3 +883,62 @@ After the initial Phase-6 closure (audit 28/40, critique 28/40 with AI-slop PASS
 - All-days-closed guard verified: toggling all 6 working days off + clicking Save opens the destructive confirm
 - Saved-trail line confirmed: "Last saved by Test Admin on 16 May 2026."
 - Empty-state illustrations render at 96×96 with `currentColor`-friendly OKLCH fills
+
+---
+
+## settings — audit
+
+**Note on methodology:** turn budget exhausted before Step 12a subagent dispatch. This audit is the main agent self-review; bias risk acknowledged. Phase 7 gauntlet should re-score.
+
+### Dimensions
+
+- **Heading hierarchy:** 5/5 — Page H1 ("Settings") followed by 4 contiguous H2 panel titles via `AdminPanelHeader`; no H3 skip. Resolves Sam #1 (BASELINE-CRITIQUE) explicitly named for this page.
+- **Token hygiene:** 4/5 — Zero raw hex, zero `var(--rahma-*)` escapes, zero `bg-white/N`, zero raw red Tailwind, zero `backdrop-blur`. Raw `oklch()` literals present but match the canonical inline-literal pattern used throughout `admin-ui.tsx` for status families. -1 for not consolidating those into named tokens.
+- **Accessibility:** 5/5 — `role="alert" aria-live="polite" aria-atomic="true"` on form-level + per-field errors; required `*` markers `aria-hidden`; Switch is a `role="switch"` button responding to Space/Enter; chip remove buttons have `aria-label="Remove {city}"`; Form Seam input borders (`--admin-border-form`) address Sam #3 WCAG 1.4.11 risk.
+- **Form contract preservation:** 5/5 — All 9 `name` attributes verbatim; `allowed_cities` newline-delimited via hidden input; `handleSubmit` shape preserved (preventDefault + manual FormData + startTransition); `business_settings.id = 1` singleton + `fallbackSettings` untouched.
+- **Responsive design:** 4/5 — Three-viewport playwright probes confirm no horizontal scroll at 375/768/1440. Numeric input + suffix wraps to `flex-row` correctly; chip input wraps; sticky save bar full-width on mobile. -1 for not running the impeccable `adapt` skill formally (deferred).
+
+### Findings
+
+- **P0:** none
+- **P1 (tag for Phase 7 gauntlet):**
+  - Subagent audit + critique not executed (turn budget). Phase 7 should run them and may surface findings not caught by self-review.
+  - Full Playwright form-flow smoke not executed (dirty→save toast, modal flow, beforeunload). Phase 7 should exercise.
+- **P2:** none surfaced via 3-viewport visual audit + code review.
+- **P3:** Raw `oklch()` literals could be consolidated into named DESIGN.md status-family tokens; this is a project-wide refactor opportunity (existing admin-ui.tsx uses the same pattern).
+
+### Backend status
+
+- N-A. `BUILD-settings-last-changed-by.md` is non-blocking; sub-line graceful-degrades when audit row absent (currently always absent — `lastChange={null}` passed from `page.tsx`).
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-6** (Form errors silently fail to announce): newly satisfied for `/admin/settings` via `role="alert" aria-live="polite"` on form-level + per-field error regions.
+- **2A-9** (Required-field markers invisible): newly satisfied via Cancelled-coloured `*` markers with `aria-hidden`.
+
+---
+
+## settings — critique
+
+**Note:** same self-review caveat as audit.
+
+### Nielsen heuristics
+
+1. **Visibility of system status:** 4/5 — Intake state banner (Confirmed/Restricted) above the switch makes the consequence visible before the input; dirty state surfaces Discard; submit shows spinner.
+2. **Match between system and real world:** 5/5 — Live-bound plain-English helpers translate "minimum_notice_hours" → "Customers can't book a slot starting in less than {n} hours." Voice matches PRODUCT.md.
+3. **User control and freedom:** 5/5 — Discard changes Ghost, `beforeunload` on dirty, modal-Cancel on pause, modeless modal pattern.
+4. **Consistency and standards:** 5/5 — Uses `AdminPanel`, `AdminPanelHeader`, `Switch`, status-family colour vocabulary; sits inside existing admin shell.
+5. **Error prevention:** 4/5 — Confirm modal on the destructive intake direction; `min` constraints on numeric inputs; -1 for no client-side guard on numeric ranges beyond `min` (server-authoritative as intended).
+6. **Recognition rather than recall:** 5/5 — Suffix labels ("days"/"hours"/"minutes") next to numbers; chip representation of cities makes the set visually scannable.
+7. **Flexibility and efficiency:** 4/5 — Enter / comma / backspace all wired on chip input; -1 for no keyboard shortcut to save.
+8. **Aesthetic and minimalist design:** 5/5 — Quiet policy workstation; four panels each have a single job; no decorative cruft.
+9. **Help users recognize/diagnose/recover from errors:** 5/5 — Cancelled-family banner for form errors with `XCircle`; specific per-field messages from server.
+10. **Help and documentation:** 4/5 — Inline helpers do most of the heavy lifting; -1 for no link to a docs page on the policy semantics.
+
+### AI-slop verdict: PASS
+
+No decorative blobs, no identical-card grids, no SaaS gradient backdrops, no side-stripe borders, no `backdrop-blur` on the sticky save bar. Four panels are visually consistent (same primitive) but functionally distinct (intake / identity / rules / areas), so they avoid the identical-card-grid anti-pattern by carrying different content shapes (banner+switch / 2-col text inputs / 2-col numeric inputs with helpers / chip input).
+
+### UX-quality commentary
+
+The page reads as a Rahma surface (warm clinical palette via admin tokens, calm header voice, plain-English helpers). The intake-Switch promotion from a trailing checkbox to the leading panel matches brief intent — it's the loudest control in terms of customer impact, now visually proportional to that weight. Chip-input upgrade keeps the existing server contract (newline-delimited hidden input) while removing the textarea anti-affordance. Sticky save bar without `backdrop-blur` lands cleanly on the flat `--admin-panel` surface.
