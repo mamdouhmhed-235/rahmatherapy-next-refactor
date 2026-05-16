@@ -37,6 +37,16 @@
 5. **Preserve form `name` attributes:** existing weekly-rules form fields preserved verbatim (RECON §6.4). Net-new add/delete forms for blocked dates use named fields `staff_id`, `date`, `all_day`, `reason` (Panel B); for overrides use `staff_id`, `date`, `start_time`, `end_time`, `reason` (Panel C); deletes use `blocked_date_id` / `override_id`.
 6. **Preserve the server action contract:** Panel A's existing `StaffAvailabilityRulesForm` submit/add/delete + the mode-update action keep their signatures. The four net-new actions (`addStaffBlockedDate`, `deleteStaffBlockedDate`, `addStaffAvailabilityOverride`, `deleteStaffAvailabilityOverride`) live on `src/app/admin/staff/[staffId]/availability/actions.ts` per brief §10 Q1, with `manage_availability_global OR (isOwnProfile && manage_availability_own)` permission checks inline. Until the BLOCKS-REDESIGN BUILD plans land, treat Panel B + C as FAKE and degrade gracefully.
 
+### Additional universal restrictions (added 2026-05-16 after `tsc@2.0.4` npx-fetch incident)
+
+These apply to every page on top of the page-specific rules above. The 2026-05-16 incident: a /goal agent ran `npx tsc --noEmit` as a discretionary off-recipe verification step; this project doesn't expose a top-level `node_modules/.bin/tsc` shim (pnpm isolated mode), so `npx` fell back to downloading `tsc@2.0.4` from the npm registry — a benign warning name-squat package, but a registry call we did not authorize. The rules below prevent recurrence.
+
+- **NEVER fetch from any package registry.** Forbidden invocations: `npx <anything>`, `npm install`, `npm i`, `npm ci`, `pnpm install`, `pnpm add`, `pnpm dlx`, `yarn`, `yarn add`. The worktree's `node_modules` is pre-installed by the spawn script (a real local copy of main tree's `node_modules`, zero network). To run a project binary, choose:
+  - `pnpm exec <bin>` — resolves via pnpm's lockfile, no network
+  - `node node_modules/<pkg>/bin/<bin>.js` (or wherever the package's entry is) — direct node-runtime invocation, no shell shim required
+  Avoid `npx <bin>` and `node_modules/.bin/<bin>` — neither is guaranteed to resolve locally in this project's pnpm isolated layout, and `npx` will silently fall back to a registry fetch when it can't find a local shim.
+- **NEVER run off-recipe verification commands.** The recipe's verification surface is exhaustive and lives at Step 11 + Step 12: token-drift grep (11a), Playwright at 3 viewports + flow (11b), chrome-devtools console+network (11c), audit + critique via subagents (12a + 12b), functional smoke test (12c). Do NOT run discretionary `tsc --noEmit`, `vitest`, `next build`, `eslint`, `next lint`, or similar — they fall outside Phase 6 and will surface pre-existing baseline issues already excluded by `/redesign/BASELINE-ISSUES.md` (referenced in Step 1). Pre-existing TypeScript / test errors are not Phase 6's concern; they're tracked separately and addressed in Phase 7.
+
 ## Decision-making directives — when impeccable craft (or any tool) asks something not in the brief
 
 The /goal session is autonomous — there's no user mid-run to consult. When impeccable craft's `shape` phase asks discovery questions (Purpose / User / Content / Feeling / Constraints), or any step surfaces a question or conflict, follow this order:

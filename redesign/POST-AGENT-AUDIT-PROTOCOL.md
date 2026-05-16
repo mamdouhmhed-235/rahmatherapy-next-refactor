@@ -124,18 +124,26 @@ If `git merge --ff-only` fails with "would be overwritten":
 
 ### 3A — Worktree cleanup after merge
 
-```powershell
-# Kill any leftover dev-server processes for this worktree (Windows-specific)
-Get-CimInstance Win32_Process | Where-Object {
-    $_.CommandLine -like "*rahmatherapy-$slug-redesign*" -and $_.Name -ne "powershell.exe"
-} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+> **NEVER `Remove-Item -Recurse -Force` on a worktree.** Worktree `node_modules/` is full of pnpm junctions into main tree's `.pnpm/<pkg>@<ver>/`. PowerShell's recursive force-remove follows them and deletes the real packages in main (canonical [pnpm/pnpm#10707](https://github.com/pnpm/pnpm/issues/10707)). On 2026-05-16 this destroyed `@alloc+quick-lru@5.2.0` + ~6 other `.pnpm/` entries; the next worktree's webpack pipeline then crashed. Use the pattern below.
 
+**Prerequisite (one-time, host-wide; applied 2026-05-16):** `git config --global core.longpaths true` — lets `git worktree remove --force` handle pnpm's deeply-nested long paths in one fast pass.
+
+```powershell
+# Kill processes (by worktree path + by per-page port — look up <port> in LAUNCH-SHEET §1b).
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*rahmatherapy-$slug-redesign*" -and $_.Name -ne "powershell.exe" -and $_.Name -ne "pwsh.exe" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Get-NetTCPConnection -LocalPort <port> -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 
-# Remove worktree dir + prune the worktree registry + delete the agent branch
-Remove-Item -Recurse -Force $worktree
-git worktree prune
-git branch -d "agent/$slug-redesign"
+# Remove worktree — git first, Node fs.rmSync fallback. Both treat junctions as links; never followed.
+git -C $mainTree worktree remove --force $worktree 2>$null
+if (Test-Path -LiteralPath $worktree) {
+    node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree
+}
+git -C $mainTree worktree prune
+git -C $mainTree branch -d "agent/$slug-redesign"
+
+# Auto-heal main — restores any .pnpm/ entry lost to past bad cleanups; no-op (~3 sec) when healthy.
+pnpm -C $mainTree install --frozen-lockfile --ignore-scripts
 ```
 
 ### 3B — Update tracking
@@ -338,14 +346,15 @@ cd $mainTree
 git merge --ff-only "agent/$slug-redesign"
 git log --oneline -3 redesign/start-state
 
-# Cleanup
-Get-CimInstance Win32_Process | Where-Object {
-    $_.CommandLine -like "*rahmatherapy-$slug-redesign*" -and $_.Name -ne "powershell.exe"
-} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+# Cleanup — see §3A.
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*rahmatherapy-$slug-redesign*" -and $_.Name -ne "powershell.exe" -and $_.Name -ne "pwsh.exe" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Get-NetTCPConnection -LocalPort <port> -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
-Remove-Item -Recurse -Force $worktree
-git worktree prune
-git branch -d "agent/$slug-redesign"
+git -C $mainTree worktree remove --force $worktree 2>$null
+if (Test-Path -LiteralPath $worktree) { node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree }
+git -C $mainTree worktree prune
+git -C $mainTree branch -d "agent/$slug-redesign"
+pnpm -C $mainTree install --frozen-lockfile --ignore-scripts
 ```
 
 ## Appendix B — Common transcript anchors and what they mean

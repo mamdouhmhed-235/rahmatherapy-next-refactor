@@ -1,5 +1,11 @@
 # Phase 6 autonomous-agent plan — recipe enhancements + main-agent protocol
 
+> **⚠ HISTORICAL — partially superseded 2026-05-16.** This doc was the design rationale for the script-based spawn + recipe-patching approach. The 15 `scripts/patch-recipes-*.mjs` one-shot scripts AND `scripts/spawn-worktree.mjs` were all deleted 2026-05-16 in favor of inline execution by the main agent. Their *outputs* (the hardened recipes themselves) remain — the scripts already did their work and the patches are baked into the 26 recipes under `redesign/per-page-recipes/`. The recipe-hardening Changes 1–8 described below ARE active in the recipes; only the *mechanism* (helper scripts) was retired.
+>
+> **For current workflow (how the main agent spawns worktrees today), read `MAIN-AGENT-CONTEXT.md §5A`.**
+>
+> This doc is preserved as historical record of the design decisions made when Phase 6 was being scaled up — useful for understanding *why* the recipes look the way they do, but not as a current operational guide.
+
 This plan consolidates the design decisions for running Phase 6 of the admin redesign as a fleet of parallel autonomous `/goal`-driven Claude Code agents, with a main agent (operating in the user's primary session) acting as quality-control + merge broker. It's the single source of truth for the upcoming recipe enhancements and main-agent workflow.
 
 **Scope:** all 26 per-page recipes under `redesign/per-page-recipes/` + LAUNCH-SHEET updates + one new protocol file + two new helper scripts. **Out of scope (immutable):** `redesign/phase6-admin-workflow-guide.html` and `redesign/impeccable-v5-latest-stable.html` — these are the canonical references; recipes follow them, never the reverse.

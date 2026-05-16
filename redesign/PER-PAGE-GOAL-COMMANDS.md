@@ -9,11 +9,7 @@ This sheet is the runtime companion to `redesign/LAUNCH-SHEET.md` (which holds t
 ## How to use this file
 
 1. Decide which page to redesign next (per LAUNCH-SHEET §3 — Wave 1 quick wins are: `calendar`, `availability`, `reports`, `settings`).
-2. From the main tree, spawn the worktree:
-   ```powershell
-   node scripts/spawn-worktree.mjs <slug>
-   ```
-   The script creates the worktree at `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<slug>-redesign`, junctions `node_modules`, and copies the latest recipe + progress + test-credentials files into it.
+2. Ask the main agent in your primary CC session to spawn the worktree by saying **"let's start the agent for `<slug>`"**. The main agent runs the full inline procedure documented in `MAIN-AGENT-CONTEXT.md §5A` — creates the worktree at `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<slug>-redesign`, robocopies `node_modules` from main tree as a real local directory (~2 min, no `pnpm install`, no network), creates the `.bin/` safety-net junction, and copies the latest recipe + progress + test-credentials + .env files into it. (There used to be a `scripts/spawn-worktree.mjs` script for this — deleted 2026-05-16 in favor of inline execution.)
 3. Open Claude Code in the worktree:
    ```powershell
    cd "C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<slug>-redesign"
@@ -388,4 +384,4 @@ If running sequentially, follow these waves. If running in parallel (3–4 workt
 
 ---
 
-End of per-page commands. If you add or rename a slug, update both this file and `scripts/spawn-worktree.mjs` (`PORT_BY_SLUG` map) in the same commit.
+End of per-page commands. If you add or rename a slug, update this file AND the port mapping in `LAUNCH-SHEET.md §1b` AND the relevant recipe at `redesign/per-page-recipes/<slug>-recipe.md` in the same commit. (There used to be a `scripts/spawn-worktree.mjs` with its own `PORT_BY_SLUG` map to keep in sync — that script was deleted 2026-05-16 along with all `patch-recipes-*.mjs` helpers; port assignment now lives only in LAUNCH-SHEET + the recipe files.)

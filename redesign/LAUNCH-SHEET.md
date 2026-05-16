@@ -51,23 +51,21 @@ The `redesign/start-state` HEAD must contain login before any other page runs. V
 
 ## Section 1 — Per-page workflow (common — substitute `<SLUG>` everywhere)
 
-### 1a. Worktree setup — use the spawn script (canonical path)
+### 1a. Worktree setup — main agent handles this inline
 
-From the main tree, run:
+**You don't run any commands here.** When you signal **"let's start the agent for `<slug>`"** to the main agent in your primary Claude Code session, the main agent will execute the full spawn procedure inline (full detail in `MAIN-AGENT-CONTEXT.md §5A`, which the main agent reads at session start).
 
-```powershell
-node scripts/spawn-worktree.mjs <slug>
-```
+What the main agent does, in your behalf:
 
-The script handles every step required to put a clean working worktree in place:
-- Verifies main-tree HEAD is `redesign/start-state`; refuses to spawn from anywhere else
+- Verifies preconditions (main-tree HEAD on `redesign/start-state`, worktree path free, branch free) — refuses to proceed if any fail
 - Creates the worktree at `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<slug>-redesign` on a fresh `agent/<slug>-redesign` branch off `redesign/start-state` HEAD
-- Removes any pre-existing `node_modules` in the worktree (junction, MSYS symlink, real dir — whatever shape) and creates a true Windows directory junction via Node-native `fs.symlinkSync(...,'junction')`. Verifies post-creation by resolving `next/package.json` through it AND by `cmd /c dir /AL` showing `<JUNCTION>`. Errors loudly with the exact recovery commands if anything fails
-- Copies current main-tree per-page recipe + progress stub + `test-credentials.md` + `.env` into the worktree (overwrites the stale-committed versions; `.env` is required for Supabase to work — without it admin pages 500 on first request)
+- **Robocopies `node_modules` from main tree as a real local directory** (`robocopy <src> <dst> /E /SL /SJ /R:1 /W:1 /MT:16 …` — ~2 min, no `pnpm install`, no network calls, no new packages introduced). Verifies post-copy by resolving `next/package.json` in the new local node_modules
+- Creates a top-level `node_modules/.bin/` junction inside the worktree (safety net against `npx` registry-fetches — see recipes' "no registry fetches" hard rule)
+- Copies current main-tree per-page recipe + progress stub + `test-credentials.md` + `.env` into the worktree (overwrites stale-committed versions; `.env` is required for Supabase to work — without it admin pages 500 on first request)
 - Ensures the deferrals directory exists
-- Prints the literal `/goal` kickoff command (slug + worktree path + port pre-substituted) for you to paste into the spawned Claude Code session
+- Generates the literal `/goal` kickoff command (slug + worktree path + port pre-substituted from §1b table) and prints it for you to paste into a new Claude Code session opened inside the worktree
 
-> **Why the spawn script is the canonical path:** the older manual setup used `cmd /c mklink /J` to junction `node_modules`. When invoked from a Git Bash parent shell (or any non-pure-cmd shell), `mklink` can produce an MSYS-style symlink instead of a true Windows directory junction. Webpack and Turbopack both reject MSYS symlinks (`Symlink is invalid, it points out of the filesystem root` / `Cannot find module`), and the spawned agent hits a compile-time blocker on Step 6. The spawn script bypasses this by using Node's native junction API — no shell involvement. **Use the script. Don't try to recreate the steps by hand.**
+> **Historical note (deleted 2026-05-16):** there used to be a `scripts/spawn-worktree.mjs` script that did all of the above. It was deleted in favor of inline execution by the main agent because the script accumulated edge cases across Next.js version bumps (junction-vs-Turbopack incompatibility, missing-`.bin/`-shim incident, opaque failure modes) and the cycle of patches outweighed the convenience. The inline approach is transparent — every command appears in chat, you can intervene per-page if needed, and there's no hidden script-state to debug.
 
 ### 1b. Per-page port assignment (pre-baked — no manual swap needed)
 
@@ -101,7 +99,7 @@ $recipePath = "$worktree\redesign\per-page-recipes\$slug-recipe.md"
 (Get-Content $recipePath) -replace "\b$oldPort\b", "$newPort" | Set-Content $recipePath
 ```
 
-Re-running the main-tree port-assignment script (`scripts/patch-recipes-port-assignment.mjs`) is idempotent — it only acts on the canonical 3001 default, so worktree overrides aren't undone.
+(The port assignment was originally landed by a one-shot `patch-recipes-port-assignment.mjs` script, deleted 2026-05-16 along with the other 14 `patch-recipes-*.mjs` historical scripts. The port mappings are baked into the 26 recipes; if a port ever needs changing, edit the recipe file directly.)
 
 ### 1c. Open Claude Code in the worktree
 
@@ -157,14 +155,21 @@ git diff --stat                                                            # con
 cd $mainTree
 git merge --ff-only "agent/$slug-redesign"
 
-# Kill any leftover dev-server processes (Next.js / postcss / webpack — they will hold the dir open)
-Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*rahmatherapy-$slug-redesign*" -and $_.Name -ne "powershell.exe" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+# Kill processes (by worktree path + by per-page port).
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like "*rahmatherapy-$slug-redesign*" -and $_.Name -ne "powershell.exe" -and $_.Name -ne "pwsh.exe" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+Get-NetTCPConnection -LocalPort <port-for-slug> -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 
-# Remove worktree dir + delete branch + prune registry
-Remove-Item -Recurse -Force $worktree
-git worktree prune
-git branch -d "agent/$slug-redesign"
+# Remove worktree — git first, Node fs.rmSync fallback. NEVER `Remove-Item -Recurse -Force` (pnpm#10707).
+git -C $mainTree worktree remove --force $worktree 2>$null
+if (Test-Path -LiteralPath $worktree) {
+    node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree
+}
+git -C $mainTree worktree prune
+git -C $mainTree branch -d "agent/$slug-redesign"
+
+# Auto-heal main.
+pnpm -C $mainTree install --frozen-lockfile --ignore-scripts
 ```
 
 If `git merge --ff-only` errors with "would be overwritten" — main tree has uncommitted edits on a file the branch changed. Restore that file (`git restore <path>`) if the change is stale; otherwise stash first.
@@ -538,7 +543,7 @@ Avoid running emails + email-templates in parallel (tab coupling).
 | Agent fabricates evidence (claims a step is done without doing it) | `/goal clear`. Reduce scope: send a corrected `/goal` that names ONLY the steps from where it went wrong. |
 | Agent emits `STUCK: N — <reason>` | Read the reason. Common: brief contradiction (resolve & give explicit direction), missing skill, missing test credentials. Re-launch with the fix. |
 | Goal hits 40-turn cap with progress | Read progress file. If close, raise cap manually (`/goal clear`, then re-paste with `Stop after 80 turns`). If far, root-cause first. |
-| Dev server fails to start | Check node_modules junction (`Get-Item <worktree>\node_modules`). If broken, recreate. If still fails, `pnpm install --prefer-offline` in the worktree. |
+| Dev server fails to start | Check `<worktree>\node_modules` exists as a real directory (not a junction) and contains `next\package.json`. If broken or missing, ping the main agent to tear down + re-spawn the worktree (the spawn script will re-robocopy `node_modules` fresh). Do NOT run `pnpm install` in the worktree — that's a security boundary we don't cross during Phase 6. |
 | Worktree won't delete after merge | Leftover Node processes hold files. Find them: `Get-CimInstance Win32_Process \| ? { $_.CommandLine -like "*<slug>-redesign*" }` and `Stop-Process -Force`. Then retry. |
 
 ---

@@ -43,7 +43,7 @@ You are NOT:
 - The agent that audits or critiques pages directly (those are subagents dispatched by the spawned per-page agent — see [§4 Autonomous-agent fleet](#4-the-autonomous-agent-fleet)).
 
 You ARE:
-- **The orchestrator** — when the user says "let's start the agent for X", you run `scripts/spawn-worktree.mjs <slug>` and surface the kickoff `/goal` command for the user to paste into a new Claude Code session.
+- **The orchestrator** — when the user says "let's start the agent for X", you **create the worktree manually inline** in the conversation (full procedure in §5A) and surface the kickoff `/goal` command for the user to paste into a new Claude Code session. There used to be a `scripts/spawn-worktree.mjs` script for this — it was deleted 2026-05-16 in favor of inline transparency + per-page flexibility.
 - **Quality control** — when the user says "agent for X is done" and pastes the agent's transcript / handoff, you run the POST-AGENT-AUDIT-PROTOCOL.md checklist against the worktree state.
 - **The merge broker** — when the user types "approved", you execute the scoped commit + `git merge --ff-only` + worktree cleanup. When conflicts surface, you analyze + present options to the user, never auto-resolve.
 - **The forward-looking thinker** — you watch for cross-page consistency (especially within the same wave, where shared infrastructure could diverge), do end-of-wave reconciliation, prepare the Phase 7 handoff at end-of-batch.
@@ -61,9 +61,9 @@ This session set up a hardened autonomous-agent infrastructure. What's in the wo
 | `redesign/MAIN-AGENT-CONTEXT.md` | This file |
 | `redesign/test-credentials.md` | Real test creds (Owner = `rahmatherapy@outlook.com` / `Password123`; 4 test roles) — there is **NO `test.owner@…` account** despite older recipe drafts referencing one |
 | `redesign/per-page-deferrals/` | Phase 6 → Phase 7 bridge directory; per-page deferral files written by spawned agents at runtime |
-| `scripts/spawn-worktree.mjs` | On-demand worktree spawner you call when user signals "start agent for X". Errors loudly (and best-effort cleans up the partial worktree) if a required source file is missing — no silent skips. |
-| `scripts/patch-recipes-*.mjs` (9 scripts) | The bulk-patch scripts that hardened the 26 recipes — kept for reproducibility / future re-runs. The most recent (`patch-recipes-step13-runtime-files.mjs`) clarified that runtime support files are expected writes, not scope violations. |
-| `redesign/PER-PAGE-GOAL-COMMANDS.md` | Static reference doc with all 26 ready-to-paste `/goal` commands (slug + paths + port pre-substituted). The user typically copies from here for ad-hoc planning; `spawn-worktree.mjs` prints the same command at spawn time, so you usually don't need to read this file — the user will. |
+| ~~`scripts/spawn-worktree.mjs`~~ (deleted 2026-05-16) | Was the on-demand worktree spawner. **Replaced by the inline §5A procedure.** Script broke across Next.js version bumps (junction → robocopy refactor, then a missing-`.bin/`-shim incident); the cycle of edge-case patches outweighed the convenience. Main agent now does it manually + transparently. |
+| ~~`scripts/patch-recipes-*.mjs` (15 scripts)~~ (all deleted 2026-05-16) | Were one-shot bulk-patch scripts that hardened the 26 recipes (port assignment, decision directives, multi-axis step 7, MCP split, subagent step 12, etc.). They already did their work and the patches are baked into the recipes. Kept for a while as reproducibility artifacts; deleted now since (a) they cluttered scripts/, (b) future recipe edits will be done by direct file edits, not patch scripts. |
+| `redesign/PER-PAGE-GOAL-COMMANDS.md` | Static reference doc with all 26 ready-to-paste `/goal` commands (slug + paths + port pre-substituted). The user typically copies from here for ad-hoc planning; the main agent also generates the same command inline at spawn time per §5A, so you usually don't need to read this file — the user will. |
 | 26 recipes in `redesign/per-page-recipes/` | All hardened with: per-page port assignment, Decision-making directives, Design Route Directives, multi-axis Step 7 + visual polish Step 7b, MCP role split (playwright + chrome-devtools), subagent-dispatched Step 12 audit/critique, canon-mapped Step 13 handoff with runtime-support-files clarification on the SCOPE_CLEAN check. Same step structure as before (0–13) but with substantially more autonomous-execution discipline baked in. `dashboard-coordinator-recipe.md` carries an extra `EXPORT_LINK_PRESENT: false` quick-ref anchor (Coordinator-only revenue-gate verification). |
 | `redesign/LAUNCH-SHEET.md` | Updated with port table (§1b, 3002–3027), Stop-hook handling clarification (§0a — REMOVE the entry, do NOT set `disableAllHooks: true`), CLI version + Haiku model pin (§0b), new `/goal` kickoff template with turn-cap (40) and STUCK detection inside the goal condition itself (§1d). |
 | `redesign/PER-PAGE-SCORES.md` | Already-tracked shared scores file. The `## bookings — critique-rerun` heading was renamed (was `## bookings — critique (re-run after distill + colorize)`) so the canonical regex `^## <slug> — (audit\|critique)$` from POST-AGENT-AUDIT-PROTOCOL §2C matches exactly two hits per page. |
@@ -112,9 +112,64 @@ The user drives the cadence. They will signal one of these states; you respond a
 
 ### 5A — "Let's start the agent for `<slug>`"
 
-1. Run: `node scripts/spawn-worktree.mjs <slug>` (foreground — let the output reach the user).
-2. The script handles preflight (verify `redesign/start-state` HEAD, worktree path free, branch free), creates the worktree, junctions `node_modules`, copies the current recipe + progress + test-credentials into the worktree, and prints the user's next steps + the literal `/goal` kickoff command to paste.
-3. Confirm to the user the spawn succeeded and remind them to run the preflight (`/config`, `/skills`, `/mcp`, `/hooks`) in the new session before pasting the kickoff.
+You create the worktree manually, inline in this conversation. There used to be a `scripts/spawn-worktree.mjs` script for this; it was deleted 2026-05-16 in favor of inline transparency. Procedure below — run as a sequence, surface every command's output to the user.
+
+**Constants for substitution:**
+- `<main>` = `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor`
+- `<worktree>` = `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<slug>-redesign`
+- `<port>` = look up in LAUNCH-SHEET §1b alphabetical table (3002–3027)
+
+**Procedure:**
+
+1. **Verify preconditions** (one PowerShell call; all three must pass):
+   - `git -C "<main>" rev-parse --abbrev-ref HEAD` returns `redesign/start-state`
+   - `Test-Path "<worktree>"` returns `False`
+   - `git -C "<main>" branch -a` does NOT include `agent/<slug>-redesign`
+   - If any fails: surface to user, stop. Don't ask the user to debug — give them the exact recovery command.
+
+2. **Create worktree:**
+   ```
+   git -C "<main>" worktree add "<worktree>" -b "agent/<slug>-redesign" redesign/start-state
+   ```
+
+3. **Robocopy `node_modules` from main tree** (~2 min, no `pnpm install`, no network, no new packages introduced):
+   ```
+   robocopy "<main>\node_modules" "<worktree>\node_modules" /E /SL /SJ /R:1 /W:1 /MT:16 /NFL /NDL /NJH /NJS /NP
+   ```
+   Robocopy exit codes 0–7 = success class; 8+ = real failure.
+   Verify post-copy: `Test-Path "<worktree>\node_modules\next\package.json"` must be `True`.
+
+4. **Create top-level `.bin/` junction inside the worktree** (safety net against `npx` registry-fetches — see recipes' "no registry fetches" hard rule):
+   ```
+   New-Item -ItemType Junction -Path "<worktree>\node_modules\.bin" -Value "<worktree>\node_modules\.pnpm\node_modules\.bin"
+   ```
+   Skip silently if the source `.pnpm\node_modules\.bin` doesn't exist — the recipe hard rule catches the rest.
+
+5. **Copy 4 files from main → worktree** (these override stale-committed versions and supply runtime config):
+   ```
+   Copy-Item "<main>\redesign\per-page-recipes\<slug>-recipe.md"     "<worktree>\redesign\per-page-recipes\<slug>-recipe.md"     -Force
+   Copy-Item "<main>\redesign\per-page-progress\<slug>-progress.md"  "<worktree>\redesign\per-page-progress\<slug>-progress.md"  -Force
+   Copy-Item "<main>\redesign\test-credentials.md"                   "<worktree>\redesign\test-credentials.md"                   -Force
+   Copy-Item "<main>\.env"                                           "<worktree>\.env"                                           -Force
+   ```
+
+6. **Ensure deferrals dir exists** (recipe writes here at runtime):
+   ```
+   New-Item -ItemType Directory -Force -Path "<worktree>\redesign\per-page-deferrals" | Out-Null
+   ```
+
+7. **Generate the `/goal` kickoff command** by substituting `<slug>` and `<worktree>` into the template at LAUNCH-SHEET §1d.
+
+8. **Surface to the user** (in a single end-of-spawn message):
+   - Worktree path + branch
+   - Dev URL: `http://localhost:<port>/admin/<slug>`
+   - The /goal command in a copy-paste-friendly fenced code block
+   - Reminder to run preflight in the new CC session (`/config`, `/skills`, `/mcp`, `/hooks`)
+   - Reminder: "Open a FRESH Claude Code session in the worktree — not the previous one."
+
+9. **Wait for the user.** Don't act on the spawn beyond this point. The user opens a new CC session, paste the /goal, the spawned agent runs the recipe. You do not run the recipe — the spawned agent does.
+
+**Tolerable variations:** in rare cases you may need to adjust (port conflict locally, recipe needs a manual edit before copy, etc.). Vary inline; surface the deviation to the user before proceeding.
 
 ### 5B — "Watch the first 3 turns" / "agent's running"
 
@@ -136,7 +191,7 @@ Present findings to the user as a numbered checklist with PASS/FAIL/WARN per ite
 Execute the [POST-AGENT-AUDIT-PROTOCOL §3](POST-AGENT-AUDIT-PROTOCOL.md#section-3--merge-protocol-success-path-after-user-approves) merge protocol:
 1. In worktree: stage scoped files by name (NEVER `git add .` / `-A`), commit with `redesign: <slug>` message.
 2. In main tree: `git merge --ff-only "agent/<slug>-redesign"`.
-3. Cleanup: kill leftover Node processes for the worktree (Windows `Get-CimInstance Win32_Process | … | Stop-Process`), remove worktree dir, `git worktree prune`, `git branch -d agent/<slug>-redesign`.
+3. Cleanup: kill leftover processes (`Get-CimInstance` by command-line + `Get-NetTCPConnection` on the per-slug port), then remove the worktree via `git -C $mainTree worktree remove --force $worktree`, falling back to `node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree` for any leftover (**NEVER `Remove-Item -Recurse -Force` — see §3A / [pnpm#10707](https://github.com/pnpm/pnpm/issues/10707)**), `git worktree prune`, `git branch -d agent/<slug>-redesign`, then **auto-heal** main with `pnpm -C $mainTree install --frozen-lockfile --ignore-scripts`. Requires `git config --global core.longpaths true` (host-wide; applied 2026-05-16).
 4. Update `redesign/IMPLEMENTATION-PLAN.md` (mark page row `[x]` with commit hash; advance "Currently on:").
 
 ### 5E — "STUCK" / "TURN_CAP_REACHED" / "P0_FOUND" surfaced by the agent
@@ -168,6 +223,7 @@ All 24 remaining pages merged. Run [POST-AGENT-AUDIT-PROTOCOL §7](POST-AGENT-AU
 7. **Always present options for novel conflicts.** If you can't resolve mechanically against the conflict-resolution playbook, surface the conflict + options + your recommendation; let the user pick.
 8. **The 5 already-merged pages should not be re-redesigned** unless the user explicitly asks. They're: `00-shared-components`, `booking-new`, `bookings`, `booking-detail`, `login`.
 9. **Don't burn parent context on mass file reads.** When you need to verify multi-recipe consistency or do bulk QC, dispatch a subagent with a bounded prompt and let it summarize.
+10. **Never `Remove-Item -Recurse -Force` on a worktree** (or any directory containing pnpm reparse points). Use `git -C $mainTree worktree remove --force $worktree`, then `node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree` for any leftover. PowerShell's recursive force-remove follows junctions and deletes real packages in main tree's `.pnpm/` (canonical [pnpm#10707](https://github.com/pnpm/pnpm/issues/10707)). Documented in POST-AGENT-AUDIT-PROTOCOL §3A. The merge protocol's auto-heal step (`pnpm install --frozen-lockfile --ignore-scripts`) catches any latent damage from a missed cleanup site.
 
 ---
 
@@ -189,7 +245,7 @@ Read these in order on session start. The first 4 are essential before respondin
 After these 8, you have the full operating picture. Don't read every recipe up front — read the per-page recipe only when you're about to spawn or QC that page (saves context).
 
 **Available on demand — NOT first-turn reading:**
-- `redesign/PER-PAGE-GOAL-COMMANDS.md` (~70 KB, 390 lines) — static doc with all 26 ready-to-paste `/goal` commands per page. The user typically copies from here for planning; `spawn-worktree.mjs` prints the same command at spawn time. Read only if the user asks you to surface a specific command without spawning.
+- `redesign/PER-PAGE-GOAL-COMMANDS.md` (~70 KB, 390 lines) — static doc with all 26 ready-to-paste `/goal` commands per page. The user typically copies from here for planning; the main agent also generates the same command inline at spawn time per §5A. Read only if the user asks you to surface a specific command without spawning.
 - `redesign/per-page-deferrals/README.md` — explains the Phase 6 → Phase 7 bridge format. Read if you need to verify a deferrals file's structure during QC.
 - Any per-page recipe (`redesign/per-page-recipes/<slug>-recipe.md`) — read just-in-time when spawning or QC-ing that page.
 - Any per-page brief (`redesign/briefs/<slug>-brief.md`) — read just-in-time when investigating QC findings (e.g. brief Feature Preservation Manifest cross-check).
@@ -216,9 +272,9 @@ The 8 first-turn files can be read in a single message with parallel tool calls.
 
 If 3 spawned agents finish at roughly the same time and the user says "QC all three", consider dispatching 3 parallel general-purpose subagents (one per page) — each verifies one page against POST-AGENT-AUDIT-PROTOCOL §2. Saves your parent context.
 
-### Spawn-worktree.mjs is idempotent on the safe side
+### Inline spawn procedure is idempotent on the safe side
 
-The script refuses to clobber an existing worktree path or existing branch. Safe to run anytime — if the args are wrong, it errors out with a clear recovery instruction.
+The §5A procedure's step 1 (preconditions) refuses to clobber an existing worktree path or existing branch. Safe to attempt anytime — if the args are wrong, you surface the failed precondition and stop. The procedure never deletes or overwrites existing project state on its own.
 
 ### Long-form ScheduleWakeup is rarely needed
 
@@ -263,12 +319,12 @@ Single source of truth, by topic:
 
 ## 10. Open considerations / known limitations
 
-1. **Worktree staleness.** Worktrees spawned early in a wave fall N commits behind `redesign/start-state` as later pages merge. The spawn script always spawns from current HEAD, so per-wave spawning avoids most of this. For long-running parallel batches across wave boundaries, you may need to rebase mid-batch — POST-AGENT-AUDIT-PROTOCOL §4D covers this.
+1. **Worktree staleness.** Worktrees spawned early in a wave fall N commits behind `redesign/start-state` as later pages merge. The §5A procedure always spawns from current HEAD, so per-wave spawning avoids most of this. For long-running parallel batches across wave boundaries, you may need to rebase mid-batch — POST-AGENT-AUDIT-PROTOCOL §4D covers this.
 2. **Subagent thinking-level inheritance.** The Agent tool doesn't expose per-subagent thinking override. The user must already be on Opus 4.7 + medium thinking in `/config` (LAUNCH-SHEET §0b preflight enforces this). If a subagent's audit/critique looks shallow, suspect thinking level was too low.
 3. **CLI version drift.** Per LAUNCH-SHEET §0b, pin Claude Code CLI ≥ 2.1.140 across all worktrees. v2.1.139 had a known-buggy `/goal`. If a spawned agent behaves erratically, check its CLI version.
 4. **Brief immutability under autonomy.** If a spawned agent thinks the brief is wrong, current protocol is STUCK. The agent stops; you (the main agent) resolve with the user. Open question: should we add a softer "agent proposes brief revision in deferrals file" channel? Not in scope today.
 5. **The 5 already-merged pages are immutable for now.** Re-running them would risk regressing the 8+ commits already on `redesign/start-state`. Only re-run on explicit user instruction with a clear reason.
-6. **The 26 patch scripts are reproducibility artifacts.** Don't run them again unless the user explicitly asks. They were one-shot recipe-hardening passes; re-running would be no-ops (idempotent) but adds noise.
+6. **Recipe edits are now done by direct file edits.** The 15 `scripts/patch-recipes-*.mjs` one-shot bulk-patch scripts were deleted 2026-05-16. Their patches are baked into the 26 recipes. If a recipe needs amending mid-Phase-6, edit the recipe file directly (and remember: spawned agents have their own copies, so a main-tree edit won't propagate into a running worktree without a re-spawn or a manual file copy).
 
 ---
 
