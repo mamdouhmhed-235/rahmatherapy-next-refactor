@@ -23,7 +23,7 @@
 // Designed for Windows (cmd /c mklink /J). Adapt the junction step for other
 // OSes if needed; everything else is portable Node.
 
-import { existsSync, mkdirSync, copyFileSync } from "node:fs";
+import { existsSync, mkdirSync, copyFileSync, symlinkSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { exit } from "node:process";
 
@@ -145,24 +145,95 @@ try {
   exit(1);
 }
 
-// ─── node_modules junction (Windows) ─────────────────────────────────────────
+// ─── node_modules junction (Windows directory junction, Node-native) ────────
 
-console.log(`\n[5/6] Junctioning node_modules from main tree ...`);
+console.log(`\n[5/6] Setting up node_modules junction ...`);
 const junctionTarget = `${WORKTREE}\\node_modules`;
 const junctionSource = `${MAIN_TREE}\\node_modules`;
+
+// Always start from a clean slate. If a node_modules already exists in the
+// worktree (real junction, MSYS/Cygwin symlink, real directory, broken link,
+// or anything else), remove it. The junction is reproducible and cheap to
+// recreate; trying to detect-and-conditionally-replace is more fragile than
+// always-resetting.
+if (existsSync(junctionTarget)) {
+  console.log(`      ✓ pre-existing node_modules found at target — removing for clean junction`);
+  try {
+    rmSync(junctionTarget, { recursive: true, force: true });
+  } catch (err) {
+    console.error(`      ✗ failed to remove pre-existing node_modules: ${err.message}`);
+    console.error(`        Manual fix (PowerShell): Remove-Item "${junctionTarget}" -Force -Recurse`);
+    exit(1);
+  }
+}
+
+// Verify the SOURCE node_modules exists (main tree must have installed deps)
+if (!existsSync(junctionSource)) {
+  console.error(`      ✗ source node_modules missing: ${junctionSource}`);
+  console.error(`        Run \`pnpm install\` in the main tree first, then re-run this script.`);
+  exit(1);
+}
+
+// Use Node's native fs.symlinkSync with 'junction' type — equivalent to
+// `cmd /c mklink /J <target> <source>` but does NOT go through any shell.
+// This bypasses the Git Bash / MSYS shell-environment hazards that can cause
+// `cmd /c mklink` invoked via execSync to produce an MSYS-style symlink
+// instead of a real Windows directory junction (which webpack + Turbopack
+// both reject with "Symlink is invalid, it points out of the filesystem
+// root" or "Cannot find module" errors during the first compile).
 try {
-  execSync(
-    `cmd /c mklink /J "${junctionTarget}" "${junctionSource}"`,
-    { stdio: "inherit" },
-  );
-  console.log("      ✓ node_modules junctioned");
+  symlinkSync(junctionSource, junctionTarget, "junction");
+  console.log("      ✓ junction created (Node-native, type='junction')");
 } catch (err) {
-  console.warn(
-    `      ! node_modules junction failed: ${err.message}`,
+  console.error(`      ✗ junction creation failed: ${err.message}`);
+  console.error(`        Source: ${junctionSource}`);
+  console.error(`        Target: ${junctionTarget}`);
+  console.error(`        Manual fix (PowerShell):`);
+  console.error(`          cd "${WORKTREE}"`);
+  console.error(`          cmd /c mklink /J node_modules "${junctionSource}"`);
+  exit(1);
+}
+
+// Verify the junction actually exposes the main-tree node_modules content by
+// resolving a known-present package through it. If the junction is somehow
+// broken (wrong type, dangling, etc.), this catches it BEFORE the spawned
+// agent hits a compile-time blocker.
+const verifyPath = `${junctionTarget}\\next\\package.json`;
+if (!existsSync(verifyPath)) {
+  console.error(`      ✗ junction verification FAILED — cannot resolve next/package.json through the junction`);
+  console.error(`        Expected: ${verifyPath}`);
+  console.error(`        This usually means the junction was created but doesn't expose the expected content.`);
+  console.error(`        Manual fix (PowerShell):`);
+  console.error(`          cd "${WORKTREE}"`);
+  console.error(`          Remove-Item node_modules -Force`);
+  console.error(`          cmd /c mklink /J node_modules "${junctionSource}"`);
+  console.error(`          cmd /c dir /AL   # should show <JUNCTION> on node_modules`);
+  exit(1);
+}
+console.log("      ✓ junction verified (resolved next/package.json through it)");
+
+// Defensive Windows-junction sanity check via `cmd /c dir /AL`. If this
+// output doesn't include "<JUNCTION>", the symlink might be an MSYS/Cygwin
+// symlink that LOOKS resolvable from Node.js but will fail webpack/Turbopack.
+try {
+  const dirOutput = execSync(
+    `cmd /c "dir /AL \\"${WORKTREE}\\""`,
+    { encoding: "utf8" },
   );
-  console.warn(
-    "        Workaround: cd into the worktree and run `pnpm install --prefer-offline`.",
-  );
+  if (!dirOutput.includes("<JUNCTION>") || !dirOutput.includes("node_modules")) {
+    console.warn(`      ! cmd /c dir /AL does not show <JUNCTION> for node_modules`);
+    console.warn(`        This may be an MSYS-style symlink instead of a Windows junction;`);
+    console.warn(`        webpack + Turbopack will reject it on first compile.`);
+    console.warn(`        Recovery (PowerShell):`);
+    console.warn(`          cd "${WORKTREE}"`);
+    console.warn(`          Remove-Item node_modules -Force`);
+    console.warn(`          cmd /c mklink /J node_modules "${junctionSource}"`);
+  } else {
+    console.log("      ✓ Windows-junction sanity check passed (cmd /c dir /AL shows <JUNCTION>)");
+  }
+} catch (err) {
+  // Sanity check is best-effort; don't fail the spawn on cmd /c errors.
+  console.warn(`      ! could not run sanity check: ${err.message}`);
 }
 
 // ─── Copy current main-tree files into worktree ──────────────────────────────
@@ -171,46 +242,65 @@ console.log(`\n[6/6] Copying current main-tree files into worktree ...`);
 console.log("      (overwrites the stale-committed versions — recipes evolve faster than commits)");
 
 const filesToCopy = [
-  // [src-relative-to-MAIN_TREE, dst-relative-to-WORKTREE, dir-relative-to-WORKTREE]
+  // [src-relative-to-MAIN_TREE, dst-relative-to-WORKTREE, dir-relative-to-WORKTREE, required (bool)]
   [
     `redesign\\per-page-recipes\\${slug}-recipe.md`,
     `redesign\\per-page-recipes\\${slug}-recipe.md`,
     `redesign\\per-page-recipes`,
+    true,
   ],
   [
     `redesign\\per-page-progress\\${slug}-progress.md`,
     `redesign\\per-page-progress\\${slug}-progress.md`,
     `redesign\\per-page-progress`,
+    true,
   ],
   [
     `redesign\\test-credentials.md`,
     `redesign\\test-credentials.md`,
     `redesign`,
+    true,
+  ],
+  [
+    // .env contains the dev Supabase URL + anon key + Resend dev key. Without
+    // this in the worktree, the Next dev server boots but admin pages 500 on
+    // first request because the Supabase client can't read its env vars. The
+    // calendar redesign (run 2026-05-16) hit this; the spawned agent had to
+    // hand-copy .env mid-flight before Step 11b could proceed. Now copied
+    // proactively. Marked optional in case .env is intentionally absent.
+    `.env`,
+    `.env`,
+    ``,
+    false,
   ],
 ];
 
-for (const [src, dst, dir] of filesToCopy) {
+for (const [src, dst, dir, required] of filesToCopy) {
   const fullSrc = `${MAIN_TREE}\\${src}`;
   const fullDst = `${WORKTREE}\\${dst}`;
-  const fullDir = `${WORKTREE}\\${dir}`;
+  const fullDir = dir ? `${WORKTREE}\\${dir}` : WORKTREE;
   if (!existsSync(fullSrc)) {
-    // ERROR — not a warning. The recipe + progress + creds are required for
-    // the agent to even start. Continuing past a missing source would leave
-    // the spawned agent unable to `cat` the progress file on turn 1.
-    console.error(`      ✗ ERROR: required source file missing: ${src}`);
-    console.error(`        Cannot continue spawn. Either:`);
-    console.error(`          (a) the file was never created (per-page progress stub) — generate it first;`);
-    console.error(`          (b) the file path moved — fix the recipe convention before re-running.`);
-    console.error(`        Cleaning up partial worktree at: ${WORKTREE}`);
-    // Best-effort cleanup so the next spawn attempt has a free path
-    try {
-      execSync(`git worktree remove "${WORKTREE}" --force`, { cwd: MAIN_TREE, stdio: "inherit" });
-    } catch (cleanupErr) {
-      console.error(`        (worktree-remove failed; manually clean up via POST-AGENT-AUDIT-PROTOCOL.md §3A)`);
+    if (required) {
+      // ERROR — not a warning. Required files are necessary for the agent to
+      // even start. Continuing past a missing required source would leave the
+      // spawned agent unable to proceed.
+      console.error(`      ✗ ERROR: required source file missing: ${src}`);
+      console.error(`        Cannot continue spawn. Either:`);
+      console.error(`          (a) the file was never created (per-page progress stub) — generate it first;`);
+      console.error(`          (b) the file path moved — fix the recipe convention before re-running.`);
+      console.error(`        Cleaning up partial worktree at: ${WORKTREE}`);
+      try {
+        execSync(`git worktree remove "${WORKTREE}" --force`, { cwd: MAIN_TREE, stdio: "inherit" });
+      } catch (cleanupErr) {
+        console.error(`        (worktree-remove failed; manually clean up via POST-AGENT-AUDIT-PROTOCOL.md §3A)`);
+      }
+      exit(1);
+    } else {
+      console.warn(`      ! optional source missing, skipped: ${src}`);
+      continue;
     }
-    exit(1);
   }
-  mkdirSync(fullDir, { recursive: true });
+  if (dir) mkdirSync(fullDir, { recursive: true });
   copyFileSync(fullSrc, fullDst);
   console.log(`      ✓ ${src}`);
 }
@@ -240,13 +330,14 @@ console.log("");
 
 console.log("3. Paste the kickoff /goal command (slug + paths already substituted):\n");
 console.log("──────────────── COPY FROM HERE ────────────────\n");
-console.log(`/goal STEP A (first, do not search): Read the recipe file with the Read tool using this exact absolute path — ${WORKTREE}\\redesign\\per-page-recipes\\${slug}-recipe.md — do NOT use Glob or search; the file exists at that exact path. STEP B: Execute every step in that recipe in order. All /redesign/... paths inside the recipe are RELATIVE TO YOUR CWD (the worktree) — they are NOT C: drive absolute paths. STEP C: Maintain the progress scratchpad at ${WORKTREE}\\redesign\\per-page-progress\\${slug}-progress.md — append "step-N: COMPLETE — <one-line>" after each step and cat the full file to chat. The "using-superpowers" skill is meta — loading it is NOT what SKILLS_OK requires; you must verify the /impeccable subcommands and /ralph-loop are individually invocable via the Skill tool (not just the slash-command form). Never modify the files in the recipe's "Files to NEVER touch" list. Never use git add . or git add -A. Never commit until I type "approved". GOAL IS MET when ALL of these conditions hold: (1) every literal string in the recipe's "/goal evaluator quick-reference" section has appeared in this transcript, each preceded by the tool output that proves it (no retrospective summary blocks — fabrication shape); (2) the final assistant message contains "HANDOFF_READY — awaiting user approval". STOP IMMEDIATELY (do not take another turn) if any of these holds: (a) the most recent assistant message begins with "STUCK:"; (b) 40 main-model turns have elapsed since this goal was set (emit "TURN_CAP_REACHED — <summary of complete vs missing>" before stopping); (c) the user types "approved" or "/goal clear".`);
+console.log(`/goal STEP A (first, do not search): Read the recipe file with the Read tool using this exact absolute path — ${WORKTREE}\\redesign\\per-page-recipes\\${slug}-recipe.md — do NOT use Glob or search; the file exists at that exact path. STEP B: Execute every step in that recipe in order. All /redesign/... paths inside the recipe are RELATIVE TO YOUR CWD (the worktree) — they are NOT C: drive absolute paths. STEP C: Maintain the progress scratchpad at ${WORKTREE}\\redesign\\per-page-progress\\${slug}-progress.md — append "step-N: COMPLETE — <one-line>" after each step and cat the full file to chat. Never modify the files in the recipe's "Files to NEVER touch" list. Never use git add . or git add -A. Never commit until I type "approved". GOAL IS MET when ALL of these conditions hold: (1) every literal string in the recipe's "/goal evaluator quick-reference" section has appeared in this transcript, each preceded by the tool output that proves it (no retrospective summary blocks — fabrication shape); (2) the final assistant message contains "HANDOFF_READY — awaiting user approval". STOP IMMEDIATELY (do not take another turn) if any of these holds: (a) the most recent assistant message begins with "STUCK:"; (b) 40 main-model turns have elapsed since this goal was set (emit "TURN_CAP_REACHED — <summary of complete vs missing>" before stopping); (c) the user types "approved" or "/goal clear".`);
 console.log("\n──────────────── COPY UNTIL HERE ────────────────\n");
 
-console.log("4. Watch the first 3 turns live (per LAUNCH-SHEET Section 1e):");
+console.log("4. Watch the first 2 turns live (per LAUNCH-SHEET Section 1e):");
 console.log("   - Turn 1: agent reads the recipe file (visible Read tool call)");
-console.log("   - Turn 2: emits SKILLS_OK literal");
-console.log("   - Turn 3: begins re-prime");
+console.log("   - Turn 2: begins re-prime (reads PRODUCT, DESIGN, brief; emits summary)");
+console.log("   (Skills are not re-verified inside the spawned session — your /skills");
+console.log("    preflight in Section 0b is the canonical check.)");
 console.log("");
 
 console.log("5. When the agent emits HANDOFF_READY, ping the main agent in your");

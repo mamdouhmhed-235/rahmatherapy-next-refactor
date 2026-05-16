@@ -29,7 +29,7 @@ claude --version  → confirm CLI ≥ 2.1.140 (v2.1.139 shipped a known-buggy /g
 /mcp              → confirm `playwright` is connected (chrome-devtools optional)
 ```
 
-If `impeccable` isn't listed, the page's `/goal` session will exit at Step 0 with `STUCK: 0 — skill impeccable unavailable`. Surface the plugin first.
+If `impeccable` isn't listed, the spawned agent will fail mid-execution at the first skill invocation and emit `STUCK: <step> — skill <name> unavailable`. Surface the plugin first to avoid that.
 
 **Pin the Haiku evaluator model across all parallel worktrees** so each `/goal` evaluates against the same model revision. In each worktree's environment (or once globally in `~/.zshrc`/PowerShell `$PROFILE`):
 
@@ -119,17 +119,18 @@ In the new CC window: confirm Section 0 settings hold (`/config`, `/skills`, `/m
 The template below puts the **turn cap** and the **STUCK detection** *inside the goal condition itself*, not just in the kickoff prose. Per Anthropic's docs the Haiku evaluator only judges what it sees in the condition + transcript — burying termination rules in kickoff prose means the evaluator won't enforce them; it just keeps voting "no" until something else stops the loop.
 
 ```
-/goal STEP A (first, do not search): Read the recipe file with the Read tool using this exact absolute path — C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<SLUG>-redesign\redesign\per-page-recipes\<SLUG>-recipe.md — do NOT use Glob or search; the file exists at that exact path. STEP B: Execute every step in that recipe in order. All /redesign/... paths inside the recipe are RELATIVE TO YOUR CWD (the worktree) — they are NOT C: drive absolute paths. STEP C: Maintain the progress scratchpad at C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<SLUG>-redesign\redesign\per-page-progress\<SLUG>-progress.md — append "step-N: COMPLETE — <one-line>" after each step and cat the full file to chat. The "using-superpowers" skill is meta — loading it is NOT what SKILLS_OK requires; you must verify the /impeccable subcommands and /ralph-loop are individually invocable via the Skill tool (not just the slash-command form). Never modify the files in the recipe's "Files to NEVER touch" list. Never use git add . or git add -A. Never commit until I type "approved". GOAL IS MET when ALL of these conditions hold: (1) every literal string in the recipe's "/goal evaluator quick-reference" section has appeared in this transcript, each preceded by the tool output that proves it (no retrospective summary blocks — fabrication shape); (2) the final assistant message contains "HANDOFF_READY — awaiting user approval". STOP IMMEDIATELY (do not take another turn) if any of these holds: (a) the most recent assistant message begins with "STUCK:"; (b) 40 main-model turns have elapsed since this goal was set (emit "TURN_CAP_REACHED — <summary of complete vs missing>" before stopping); (c) the user types "approved" or "/goal clear".
+/goal STEP A (first, do not search): Read the recipe file with the Read tool using this exact absolute path — C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<SLUG>-redesign\redesign\per-page-recipes\<SLUG>-recipe.md — do NOT use Glob or search; the file exists at that exact path. STEP B: Execute every step in that recipe in order. All /redesign/... paths inside the recipe are RELATIVE TO YOUR CWD (the worktree) — they are NOT C: drive absolute paths. STEP C: Maintain the progress scratchpad at C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<SLUG>-redesign\redesign\per-page-progress\<SLUG>-progress.md — append "step-N: COMPLETE — <one-line>" after each step and cat the full file to chat. Never modify the files in the recipe's "Files to NEVER touch" list. Never use git add . or git add -A. Never commit until I type "approved". GOAL IS MET when ALL of these conditions hold: (1) every literal string in the recipe's "/goal evaluator quick-reference" section has appeared in this transcript, each preceded by the tool output that proves it (no retrospective summary blocks — fabrication shape); (2) the final assistant message contains "HANDOFF_READY — awaiting user approval". STOP IMMEDIATELY (do not take another turn) if any of these holds: (a) the most recent assistant message begins with "STUCK:"; (b) 40 main-model turns have elapsed since this goal was set (emit "TURN_CAP_REACHED — <summary of complete vs missing>" before stopping); (c) the user types "approved" or "/goal clear".
 ```
 
-### 1e. Watch the first 3 turns live
+### 1e. Watch the first 2 turns live
 
-If the agent skips the recipe-file Read in turn 1, fabricates evidence, or claims `SKILLS_OK` without actually verifying skills — `/goal clear` immediately. Re-paste a corrected command or ask me before continuing.
+If the agent skips the recipe-file Read in turn 1, or fabricates evidence — `/goal clear` immediately. Re-paste a corrected command or ask me before continuing.
 
-Healthy signs in turns 1–3:
+Healthy signs in turns 1–2:
 - Turn 1: reads the recipe file (you'll see a Read tool call on the exact absolute path)
-- Turn 2: emits `SKILLS_OK: craft, adapt, harden, clarify, audit, critique, ralph-loop` literal
-- Turn 3: begins re-prime (reading the brief + foundation files)
+- Turn 2: begins re-prime (reads PRODUCT.md, DESIGN.md, the brief, foundation files; emits summary + the `PRODUCT.md register: product` + `BRIEF_S6_QUOTE:` literals)
+
+(Skills are not re-verified inside the spawned session — the user's `/skills` preflight in Section 0b is the canonical check. If a skill invocation fails mid-run, the agent emits `STUCK: <step> — skill <name> unavailable` and stops.)
 
 ### 1f. After `/goal` completes
 
@@ -536,7 +537,6 @@ Avoid running emails + email-templates in parallel (tab coupling).
 | Symptom | Action |
 |---|---|
 | Agent ignores recipe file path and starts searching | `/goal clear` immediately. Re-paste with the explicit "do NOT use Glob or search" instruction emphasised. |
-| Agent claims `SKILLS_OK` after only loading `using-superpowers` | `/goal clear`. Verify `/skills` shows `impeccable` + `ralph-loop`. Re-paste. |
 | Agent fabricates evidence (claims a step is done without doing it) | `/goal clear`. Reduce scope: send a corrected `/goal` that names ONLY the steps from where it went wrong. |
 | Agent emits `STUCK: N — <reason>` | Read the reason. Common: brief contradiction (resolve & give explicit direction), missing skill, missing test credentials. Re-launch with the fix. |
 | Goal hits 40-turn cap with progress | Read progress file. If close, raise cap manually (`/goal clear`, then re-paste with `Stop after 80 turns`). If far, root-cause first. |

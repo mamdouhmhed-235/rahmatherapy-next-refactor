@@ -131,25 +131,6 @@ Both MCPs must be connected per `/mcp` in your session (preflight check in LAUNC
 
 # Steps
 
-## Step 0 — Skill availability check (FIRST, do not skip)
-
-**Action:** Verify these Skill-tool invocations resolve in this session. **Use the Skill tool (not the slash-command shorthand) so each invocation appears as a `Skill(...)` event in the transcript the Haiku evaluator reads** — slash-command text alone is harder for the evaluator to distinguish from a mention. Invoke each with a no-op or dry argument string just to confirm it resolves:
-- `/impeccable craft`
-- `/impeccable adapt`
-- `/impeccable harden`
-- `/impeccable clarify`
-- `/impeccable audit`
-- `/impeccable critique`
-- `/ralph-loop`
-
-**If any are missing, STOP** and emit `STUCK: 0 — skill <name> unavailable`.
-
-**Evidence to surface:**
-- Literal line in chat: `SKILLS_OK: craft, adapt, harden, clarify, audit, critique, ralph-loop`
-- Append `step-0: COMPLETE — skills verified` to `/redesign/per-page-progress/clients-progress.md` and cat it.
-
----
-
 ## Step 1 — Turn 1: Re-prime (verbatim from workflow guide)
 
 > Fresh session — re-priming for Phase 6 (Implementation) of the admin redesign recipe.
@@ -279,11 +260,6 @@ pnpm next dev -p 3009
 ```
 
 Use `run_in_background: true`. Poll `http://localhost:3009/admin/clients` until it returns HTTP 200 (or 308 — that's a trailing-slash redirect which Playwright handles). Max wait: 60 seconds.
-
-**If node_modules junction is broken** (junction got removed or stale), fall back to:
-```powershell
-cmd /c mklink /J node_modules "C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor\node_modules"
-```
 
 **Evidence to surface:**
 - The HTTP status code from the readiness poll printed to chat
@@ -634,23 +610,22 @@ Run through brief's Feature Preservation Manifest manually via Playwright + read
 
 The Haiku evaluator should see ALL of these literal strings in the transcript before declaring the goal met:
 
-1. `SKILLS_OK: craft, adapt, harden, clarify, audit, critique, ralph-loop`
-2. `PRODUCT.md register: product`
-3. `BRIEF_S6_QUOTE: ` (with verbatim quoted text)
-4. `BROKEN_GUARD_RESULT:`
-5. `SCOPE_PROPOSAL:`
-6. `CRAFT_COMPLETE`
-7. `PAGE-POLISH-COMPLETE` (inside `<promise>` tags)
-8. `DEV_SERVER_READY at http://localhost:3009`
-9. `AXES_APPLIED:` (list of impeccable axes run with one-line rationale each)
-10. `POLISH_ISSUES_ITER_2: none — clean` (or the remaining-issues list, deferred to Phase 7 if any)
-11. `HORIZONTAL_SCROLL_TABLET: false` and `HORIZONTAL_SCROLL_MOBILE: false`
-12. `TOKEN_DRIFT: 0` (or each drift explicitly addressed)
-13. `CONSOLE_NEW_ERRORS: 0`
-14. `## clients — audit` and `## clients — critique` headings appended (printed to chat from the file)
-15. `SMOKE_TEST: all PASS`
-16. `SCOPE_CLEAN: only scoped files changed`
-17. `HANDOFF_READY — awaiting user approval`
+1. `PRODUCT.md register: product`
+2. `BRIEF_S6_QUOTE: ` (with verbatim quoted text)
+3. `BROKEN_GUARD_RESULT:`
+4. `SCOPE_PROPOSAL:`
+5. `CRAFT_COMPLETE`
+6. `PAGE-POLISH-COMPLETE` (inside `<promise>` tags)
+7. `DEV_SERVER_READY at http://localhost:3009`
+8. `AXES_APPLIED:` (list of impeccable axes run with one-line rationale each)
+9. `POLISH_ISSUES_ITER_2: none — clean` (or the remaining-issues list, deferred to Phase 7 if any)
+10. `HORIZONTAL_SCROLL_TABLET: false` and `HORIZONTAL_SCROLL_MOBILE: false`
+11. `TOKEN_DRIFT: 0` (or each drift explicitly addressed)
+12. `CONSOLE_NEW_ERRORS: 0`
+13. `## clients — audit` and `## clients — critique` headings appended (printed to chat from the file)
+14. `SMOKE_TEST: all PASS`
+15. `SCOPE_CLEAN: only scoped files changed`
+16. `HANDOFF_READY — awaiting user approval`
 
 If any of those is missing → keep working on the corresponding step. If the agent is repeating itself without progress, the user will `/goal clear` manually.
 

@@ -352,7 +352,6 @@ git branch -d "agent/$slug-redesign"
 
 | Anchor | Source step | Meaning |
 |---|---|---|
-| `SKILLS_OK: craft, adapt, harden, clarify, audit, critique, ralph-loop` | Step 0 | All required skills loaded |
 | `PRODUCT.md register: product` | Step 1 | Re-prime confirmed |
 | `BRIEF_S6_QUOTE: ...` | Step 1 | Verbatim quote proves the brief was actually re-read |
 | `BROKEN_GUARD_RESULT: ...` | Step 2 | Track A BROKEN items checked |

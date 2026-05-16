@@ -80,8 +80,7 @@ Each agent's contract is its per-page recipe at `redesign/per-page-recipes/<slug
 
 | Recipe step | Canon step | What happens |
 |---|---|---|
-| 0 | (preflight) | Skill availability check — verifies `/impeccable craft|adapt|harden|clarify|audit|critique` and `/ralph-loop` resolve via Skill tool |
-| 1 | 1 | Re-prime — read PRODUCT, DESIGN, brief, RECIPE-PROGRESS, BASELINE-ISSUES, IMAGES-NEEDED |
+| 1 | 1 | Re-prime — read PRODUCT, DESIGN, brief, RECIPE-PROGRESS, BASELINE-ISSUES, IMAGES-NEEDED. (Skills are pre-verified by the user's `/skills` preflight in LAUNCH-SHEET §0b — no in-recipe skill check; if a skill fails mid-run the agent emits `STUCK`.) |
 | 2 | (extra) | Ralph Zone 1 BROKEN guard (READ-ONLY) |
 | 3 | 2 | Framing — write per-page scope file, choose files to edit + never-touch |
 | 4 | 3 | `/impeccable craft redesign of admin page <slug>` |
