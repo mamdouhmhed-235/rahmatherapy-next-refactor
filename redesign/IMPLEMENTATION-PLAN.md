@@ -622,7 +622,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 17. [ ] settings — commit: ____
+## 17. [x] settings — commit: 9102e8e
 
 **Tier:** Tier 3 — BASELINE-CRITIQUE Sam #1: H1→H3 heading skip confirmed on /admin/settings; Fatimah #2 "Bookings off" voice fix
 
