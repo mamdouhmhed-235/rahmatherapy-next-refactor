@@ -19,3 +19,14 @@ step-10: COMPLETE — clarify run, copy verified (CLARIFY_RESULT: copy already m
 step-11: COMPLETE — verification clean (TOKEN_DRIFT: 0; BG_WHITE_HITS: 0; CONSOLE_NEW_ERRORS: 0; NETWORK_BASELINE_MATCH: yes; 3-viewport final screenshots saved)
 step-12: COMPLETE — audit/critique/smoke clean (audit 14/20, 0 P0 + 2 P1 + 6 P2 + 3 P3 deferred to Phase 7; critique 6.7/10 + REGRESSED verdict deferred to Phase 7 bundled with shared BookingListCard extraction; SMOKE_TEST: all PASS)
 step-13: COMPLETE — handoff emitted, awaiting approval
+
+## Corrective dispatch (2026-05-16)
+
+Surgical fixes resolving four DESIGN.md / WCAG / PRODUCT.md contradictions deferred to Phase 7. Scoped to `page.tsx` + `CalendarDatePopover.tsx` + deferrals + this progress file.
+
+- corrective-a: COMPLETE — dashed-border "No visible bookings" row → `<EmptyState compact>` with `data-redesign-needs-photo` placeholder (`src/app/admin/calendar/page.tsx` empty-week-day branch). Also de-dashed AvatarStack "?" placeholder. Verification: `grep border-dashed src/app/admin/calendar/page.tsx` → 0 hits.
+- corrective-b: COMPLETE — restored visible text labels on 3 status chips via new `label` prop on `ModifierIcon` (`src/app/admin/calendar/page.tsx`). Verification: `grep -E 'label="(Concurrent|Reschedule requested|Client cancelled)"' page.tsx` → 3 hits, each adjacent to `icon=` prop in ModifierIcon call. Other modifier discs (Unassigned, Paid, Unpaid) remain icon-only by design.
+- corrective-c: COMPLETE — tokenized sole `oklch(…)` literal in `src/app/admin/calendar/CalendarDatePopover.tsx:192` → `shadow-[var(--admin-shadow-overlay)]` (resolves to identical OKLCH values per `src/styles/tokens.css:85`). Verification: `grep "oklch(" CalendarDatePopover.tsx` → 0 hits.
+- corrective-d: COMPLETE — 44px mobile touch targets. Popover trigger already compliant at `h-11 sm:h-10` (`CalendarDatePopover.tsx:180`). PresetLink bumped from `h-9` → `h-11 min-h-[44px] sm:h-9 sm:min-h-0` (`page.tsx:709`). Verification: read confirms `h-11 min-h-[44px]` ≥ 44px on mobile at both sites.
+
+Diff scope verified: `git diff --stat HEAD` shows only `page.tsx`, `CalendarDatePopover.tsx`, `calendar-deferrals.md` modified. Deferrals file updated with RESOLVED section + 4 strike-throughs.

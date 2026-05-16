@@ -189,7 +189,7 @@ export function CalendarDatePopover({
         <div
           role="dialog"
           aria-label="Pick a date or date range"
-          className="fixed left-1/2 top-[5rem] z-50 w-[calc(100vw-1rem)] max-w-[20rem] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-2 shadow-[0_8px_24px_oklch(23%_0.073_155_/_0.12),0_1px_4px_oklch(23%_0.073_155_/_0.06)] sm:absolute sm:left-0 sm:top-[calc(100%+0.5rem)] sm:w-auto sm:max-w-none sm:translate-x-0"
+          className="fixed left-1/2 top-[5rem] z-50 w-[calc(100vw-1rem)] max-w-[20rem] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-2 shadow-[var(--admin-shadow-overlay)] sm:absolute sm:left-0 sm:top-[calc(100%+0.5rem)] sm:w-auto sm:max-w-none sm:translate-x-0"
         >
           <p className="px-2 pb-1 pt-1 text-[0.6875rem] text-[var(--admin-text-muted)]">
             Click one day for a single date. Click two to pick a range.

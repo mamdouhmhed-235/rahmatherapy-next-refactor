@@ -706,7 +706,7 @@ function PresetLink({
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "inline-flex h-9 items-center justify-center whitespace-nowrap rounded-[0.375rem] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+        "inline-flex h-11 min-h-[44px] items-center justify-center whitespace-nowrap rounded-[0.375rem] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:h-9 sm:min-h-0",
         active
           ? "bg-[var(--admin-primary)] text-white shadow-[0_1px_2px_oklch(23%_0.073_155_/_0.18)]"
           : "text-[var(--admin-body)] hover:bg-[var(--admin-panel)]"
@@ -778,10 +778,15 @@ function WeekAgenda({
           return (
             <div
               key={date}
-              className="flex flex-wrap items-baseline justify-between gap-2 rounded-[var(--admin-radius-control)] border border-dashed border-[var(--admin-border)] bg-transparent px-4 py-2.5 text-sm text-[var(--admin-text-muted)] print:break-inside-avoid"
+              data-redesign-needs-photo="/images/admin/empty-states/calendar-empty.svg"
+              className="print:break-inside-avoid"
             >
-              <span className="font-medium">{formatBusinessDate(date)}</span>
-              <span>No visible bookings</span>
+              <EmptyState
+                icon={CalendarCheck}
+                title="All quiet — no bookings in this range."
+                message="Quiet days are healthy days."
+                compact
+              />
             </div>
           );
         }
@@ -1423,6 +1428,7 @@ function CalendarBookingRow({
                 title={`Overlaps with another booking at ${startTime}`}
                 icon={CalendarClock}
                 tone="warning"
+                label="Concurrent"
               />
             ) : null}
             {booking.reschedule_status === "requested" ? (
@@ -1430,6 +1436,7 @@ function CalendarBookingRow({
                 title="Reschedule requested by the client"
                 icon={CalendarClock}
                 tone="warning"
+                label="Reschedule requested"
               />
             ) : null}
             {booking.customer_cancelled_at ? (
@@ -1437,6 +1444,7 @@ function CalendarBookingRow({
                 title="Client cancelled this booking"
                 icon={UserX}
                 tone="danger"
+                label="Client cancelled"
               />
             ) : null}
             {canSeePayment && booking.payment_status === "unpaid" ? (
@@ -1480,10 +1488,15 @@ function ModifierIcon({
   title,
   icon: Icon,
   tone,
+  label,
 }: {
   title: string;
   icon: React.ElementType;
   tone: "warning" | "success" | "danger";
+  /** When provided, renders a labelled pill (icon + non-breaking space + text)
+   *  per DESIGN.md §5 Named Status Rule. When omitted, renders the compact
+   *  icon-only disc with sr-only text. */
+  label?: string;
 }) {
   const bg =
     tone === "success"
@@ -1491,6 +1504,17 @@ function ModifierIcon({
       : tone === "danger"
         ? "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
         : "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]";
+  if (label) {
+    return (
+      <span
+        title={title}
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.75rem] font-medium ${bg} print:border print:border-[oklch(42%_0.025_80)] print:bg-transparent`}
+      >
+        <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+        <span>{" "}{label}</span>
+      </span>
+    );
+  }
   return (
     <span
       title={title}
@@ -1507,7 +1531,7 @@ function AvatarStack({ names }: { names: string[] }) {
     return (
       <span
         aria-hidden="true"
-        className="inline-flex size-7 items-center justify-center rounded-full border border-dashed border-[var(--admin-border)] text-[0.625rem] font-medium text-[var(--admin-text-muted)]"
+        className="inline-flex size-7 items-center justify-center rounded-full border border-[var(--admin-border)] text-[0.625rem] font-medium text-[var(--admin-text-muted)]"
       >
         ?
       </span>
