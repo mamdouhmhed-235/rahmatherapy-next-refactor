@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 17 of 29 — settings   ← update when you start a session (count by position from the top, not by label)
+Currently on: 9 of 29 — clients   ← update when you start a session (count by position from the top, not by label)
 
 ---
 
@@ -394,7 +394,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 11. [ ] reports — commit: ____
+## 11. [x] reports — commit: 92047e8
 
 **Tier:** Tier 2 — KEY_TASK 3 (CRM / business metrics)
 
