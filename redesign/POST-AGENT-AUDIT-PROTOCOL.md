@@ -215,7 +215,7 @@ Read the reason. Common causes + responses:
 | Brief contradicts codebase | Resolve the contradiction with the user, then re-dispatch into the SAME worktree with explicit corrective direction in the `/goal` command (e.g. "Brief §X says Y, codebase says Z; treat Y as canonical and update the code to match"). |
 | Missing migration / DB column | Verify the migration is committed to the main tree; verify the worktree has it (worktree pulls main-tree files at spawn); if missing, sync the migration into the worktree, then re-dispatch. |
 | Missing test credential | Verify `redesign/test-credentials.md` is in the worktree (it should have been copied at setup). If missing, copy from main tree, re-dispatch. |
-| Skill unavailable (Step 0) | Verify `/skills` in the spawned session shows `impeccable` + `ralph-loop`. If missing, the plugin isn't loaded — fix in user's CC config, restart spawned session, re-dispatch. |
+| Skill invocation failed mid-run (no in-recipe Step 0 anymore — skills are pre-verified by the user's `/skills` preflight in LAUNCH-SHEET §0b) | Have the user re-run `/skills` in the spawned session and confirm `impeccable` + `ralph-loop` are listed. If missing, the plugin isn't loaded — fix in user's CC config, restart spawned session, re-dispatch. |
 | Axis didn't resolve problem (Step 7) | The brief shape may be at fault. Read the agent's reasoning; if a different axis would work, suggest it in the re-dispatch. If no axis would work, the brief itself needs revising — escalate. |
 | FAKE backend not yet built | Confirm with the user whether to proceed with FAKE markers (the recipe's default), or defer the page until the BUILD plan lands. |
 

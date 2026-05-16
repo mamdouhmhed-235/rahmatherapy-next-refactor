@@ -591,7 +591,7 @@ Run through brief's Feature Preservation Manifest manually via Playwright + read
 - [ ] Every literal string in this recipe's `/goal evaluator quick-reference` section has appeared in this transcript, each preceded by the tool output (or appended file section) that proves it. No retrospective summary-only emissions.
 - [ ] `git diff --stat` reviewed in the worktree; printed to chat.
 - [ ] **Source files** changed match the recipe's "Files to edit" scope. **Runtime support files** written per recipe instructions are EXPECTED and **NOT** scope violations even though they appear in `git diff` / `git status`. Expected runtime writes:
-    - `redesign/per-page-progress/<slug>-progress.md` — Step 0+ append per step
+    - `redesign/per-page-progress/<slug>-progress.md` — Step 1+ append per step
     - `redesign/per-page-scope/<slug>-scope.md` — Step 3 writes
     - `redesign/per-page-deferrals/<slug>-deferrals.md` — Decision-making + Step 13 (sentinel if no deferrals)
     - `redesign/screenshots/<slug>-redesign/*.png` — Steps 7, 7b, 8, 11b, 12c
