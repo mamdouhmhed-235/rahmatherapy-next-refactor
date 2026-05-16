@@ -172,7 +172,7 @@ Self-acknowledge `primed — go` (no external user to wait for; you proceed in `
 
 The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this page. **Do NOT re-run the batch loop.** Run only the read-only BROKEN discrepancy guard:
 
-> Read `/redesign/BUSINESS-COMPLETENESS.md`. List every Track A / BLOCKS-REDESIGN item whose tag line includes Zone 1 and status BROKEN. For each item, report: item id/title, page sessions that cover it per its Phase 5 brief coverage note, whether the current page session (calendar) should handle it, and whether the normal Ralph Zone 1 command would miss it because it only selects NOT-STARTED/PARTIAL. Do not edit files. Do not modify the recipe Ralph command. Stop after the list.
+> Quick check: have you read `/redesign/BUSINESS-COMPLETENESS.md`? Note any Track A / BLOCKS-REDESIGN Zone 1 items still tagged BROKEN that this page should handle (typically `none` — login already flipped 2A-6 + 2A-9 to PARTIAL). Read-only; do not edit.
 
 **Evidence to surface:**
 - Literal line `BROKEN_GUARD_RESULT:` followed by either the bullet list of items or `none`
@@ -262,7 +262,7 @@ cd "C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-calendar-redesign"
 pnpm next dev -p 3006
 ```
 
-Use `run_in_background: true`. Poll `http://localhost:3006/admin/calendar` until it returns HTTP 200 (or 308 — that's a trailing-slash redirect which Playwright handles). Max wait: 60 seconds.
+Use `run_in_background: true`. Poll `http://localhost:3006/admin/calendar` until it returns HTTP 200 (or 308 — that's a trailing-slash redirect which Playwright handles). Max wait: 120 seconds (cold compile of admin routes in Next.js 15 can exceed 60s — be patient on a fresh worktree).
 
 **Evidence to surface:**
 - The HTTP status code from the readiness poll printed to chat
@@ -281,7 +281,7 @@ Sign in first as `test.admin@rahmatherapy.example.test` / `AdminTest123!`. Then 
 - `chunk1-768-default.png` at 768×1024
 - `chunk1-375-default.png` at 375×812 (sidebar should stack above day list per brief §5)
 - `chunk1-1440-empty.png` at 1440×900 navigating to a known-empty date (`/admin/calendar?view=day&date=2025-12-25`)
-- `chunk1-1440-print.png` at 1440×900 with `emulate_media({media: 'print'})` so the print stylesheet is exercised (nav / filter rail / sidebar hidden; `break-inside: avoid` per per-date panel)
+- `chunk1-1440-print.png` at 1440×900 rendered with the print stylesheet active. Use the playwright MCP to evaluate JavaScript in the page context that simulates print media (override `window.matchMedia` so `matchMedia('print').matches` returns `true`), then take the screenshot. Verify the print stylesheet is exercised (nav / filter rail / sidebar hidden; `break-inside: avoid` per per-date panel)
 
 Visually self-audit against the brief, PRODUCT.md, DESIGN.md, and the Design Route Directives at the top of this recipe.
 
@@ -336,7 +336,7 @@ After all axes complete, take post-polish screenshots at all 3 viewports: `calen
 - No new DESIGN.md tokens (existing ones only).
 - Polish layout, spacing, alignment, consistency — not the feature set.
 
-**Re-audit, list remaining issues, fix again.** Loop maximum 2 iterations. If after 2 iterations there are still issues, append them to `/redesign/per-page-deferrals/calendar-deferrals.md` with **Defer to: Phase 7** and proceed.
+**Re-audit, list remaining issues, fix again.** Loop maximum 2 iterations. If iteration 1 finds zero issues (the page already looks clean post-axes), emit `POLISH_ISSUES_ITER_1: none` AND `POLISH_ISSUES_ITER_2: none — clean (skipped, iteration 1 already clean)` and proceed directly to Step 8. If after 2 iterations there are still issues, append them to `/redesign/per-page-deferrals/calendar-deferrals.md` with **Defer to: Phase 7** and proceed.
 
 **Evidence to surface:**
 - `POLISH_ISSUES_ITER_1: <issues list>` followed by `POLISH_FIXES_ITER_1: <fixes applied>` (or `POLISH_ISSUES_ITER_1: none` if the first audit found nothing)
@@ -417,8 +417,8 @@ Verify copy matches the brief's `## Copy` section exactly (or has been tightened
 
 ### 11a — Token-drift lint
 
-For files changed in this redesign, grep:
-```bash
+For files changed in this redesign, search for these patterns using the **Grep tool** (do NOT execute them as literal shell pipelines — chained `grep | grep -v` commands behave inconsistently across Windows shell environments, and `TOKEN_DRIFT: 0` from a parsing failure is indistinguishable from a clean lint):
+```text
 # Raw hex (should be 0 outside comments)
 grep -nE '#[0-9a-fA-F]{3,8}' src/app/admin/calendar/page.tsx
 
@@ -452,13 +452,15 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 - Toggle Day/Week segmented control → `?view=` updates; deep-link `/admin/calendar?view=day&date=2026-05-15&paymentStatus=paid` reloads with all filters applied
 - Click a `BookingListCard` → navigates to `/admin/bookings/[id]`
 - Click an Unassigned sidebar "Assign →" Ghost → navigates to `/admin/bookings/[id]?focus=assignment`
-- Trigger print via `window.print()` or `emulate_media({media: 'print'})` → nav, filter rail, sidebar absent
-- Sign out via `/admin/signout` to leave a clean session for downstream pages
+- Trigger print mode using the playwright MCP — evaluate JavaScript in the page context that either calls `window.print()` or overrides `window.matchMedia` so `matchMedia('print').matches` returns `true` (the page's `@media print` rules then activate). Verify nav, filter rail, sidebar absent.
+- Sign out cleanly: use the playwright MCP to send a POST to `/admin/signout` from the browser context (the route is POST-only — a regular browser navigation would issue GET and receive 405, leaving the session intact). After the POST, navigate to `/admin/login` and verify the sign-in page renders. This leaves a clean session for downstream pages.
 
-### 11c — Console + Network (via `chrome-devtools` MCP)
+### 11c — Console + Network (via the chrome-devtools MCP)
 
-- Use `chrome-devtools__list_console_messages` to print the last 20 console messages to chat — verify 0 NEW errors vs `/redesign/BASELINE-ISSUES.md` (warnings OK)
-- Use `chrome-devtools__list_network_requests` during the view-toggle + date-step flow — verify same endpoints as `/redesign/RECON.md` baseline (GET `/admin/calendar?view=…&date=…&staffId=…&paymentStatus=…`)
+_Note for `NETWORK_BASELINE_MATCH`: Next.js 15 server actions don't appear as literal POSTs to the action endpoint — they go through the RSC stream as a POST to the page URL with a `next-action` header. Count EITHER the literal action POST OR an RSC POST with `next-action` header as a match._
+
+- Use the chrome-devtools MCP to read the last 20 console messages and print them to chat — verify 0 NEW errors vs `/redesign/BASELINE-ISSUES.md` (warnings OK)
+- Use the chrome-devtools MCP to inspect network requests during the view-toggle + date-step flow — verify same endpoints as `/redesign/RECON.md` baseline (GET `/admin/calendar?view=…&date=…&staffId=…&paymentStatus=…`)
 
 **Evidence to surface:**
 - All token-drift grep results in chat with explicit `TOKEN_DRIFT: 0` (or list each match + fix). `BG_WHITE_HITS: 0` literal line.

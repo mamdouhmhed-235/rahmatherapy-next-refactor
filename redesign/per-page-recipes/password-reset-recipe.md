@@ -174,7 +174,7 @@ Self-acknowledge `primed — go` (no external user to wait for; you proceed in `
 
 The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this page. **Do NOT re-run the batch loop.** Run only the read-only BROKEN discrepancy guard:
 
-> Read `/redesign/BUSINESS-COMPLETENESS.md`. List every Track A / BLOCKS-REDESIGN item whose tag line includes Zone 1 and status BROKEN. For each item, report: item id/title, page sessions that cover it per its Phase 5 brief coverage note, whether the current page session (password-reset) should handle it, and whether the normal Ralph Zone 1 command would miss it because it only selects NOT-STARTED/PARTIAL. Do not edit files. Do not modify the recipe Ralph command. Stop after the list.
+> Quick check: have you read `/redesign/BUSINESS-COMPLETENESS.md`? Note any Track A / BLOCKS-REDESIGN Zone 1 items still tagged BROKEN that this page should handle (typically `none` — login already flipped 2A-6 + 2A-9 to PARTIAL). Read-only; do not edit.
 
 **Evidence to surface:**
 - Literal line `BROKEN_GUARD_RESULT:` followed by either the bullet list of items or `none`
@@ -264,7 +264,7 @@ cd "C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-password-reset-redes
 pnpm next dev -p 3018
 ```
 
-Use `run_in_background: true`. Poll `http://localhost:3018/admin/password-reset` until it returns HTTP 200 (or 308 — that's a trailing-slash redirect which Playwright handles). Max wait: 60 seconds.
+Use `run_in_background: true`. Poll `http://localhost:3018/admin/password-reset` until it returns HTTP 200 (or 308 — that's a trailing-slash redirect which Playwright handles). Max wait: 120 seconds (cold compile of admin routes in Next.js 15 can exceed 60s — be patient on a fresh worktree).
 
 **Evidence to surface:**
 - The HTTP status code from the readiness poll printed to chat
@@ -342,7 +342,7 @@ After all axes complete, take post-polish screenshots at all 3 viewports: `passw
 - No new DESIGN.md tokens (existing ones only).
 - Polish layout, spacing, alignment, consistency — not the feature set.
 
-**Re-audit, list remaining issues, fix again.** Loop maximum 2 iterations. If after 2 iterations there are still issues, append them to `/redesign/per-page-deferrals/password-reset-deferrals.md` with **Defer to: Phase 7** and proceed.
+**Re-audit, list remaining issues, fix again.** Loop maximum 2 iterations. If iteration 1 finds zero issues (the page already looks clean post-axes), emit `POLISH_ISSUES_ITER_1: none` AND `POLISH_ISSUES_ITER_2: none — clean (skipped, iteration 1 already clean)` and proceed directly to Step 8. If after 2 iterations there are still issues, append them to `/redesign/per-page-deferrals/password-reset-deferrals.md` with **Defer to: Phase 7** and proceed.
 
 **Evidence to surface:**
 - `POLISH_ISSUES_ITER_1: <issues list>` followed by `POLISH_FIXES_ITER_1: <fixes applied>` (or `POLISH_ISSUES_ITER_1: none` if the first audit found nothing)
@@ -449,8 +449,8 @@ Voice anchors: NO "unfortunately", NO "sadly", NO "we're sorry"; NO technical te
 
 ### 11a — Token-drift lint
 
-For files changed in this redesign, grep:
-```bash
+For files changed in this redesign, search for these patterns using the **Grep tool** (do NOT execute them as literal shell pipelines — chained `grep | grep -v` commands behave inconsistently across Windows shell environments, and `TOKEN_DRIFT: 0` from a parsing failure is indistinguishable from a clean lint):
+```text
 # Raw hex (should be 0 outside comments)
 grep -nE '#[0-9a-fA-F]{3,8}' src/app/admin/password-reset/**/*.tsx
 
@@ -485,10 +485,12 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 - Navigate to `/admin/password-reset/<script>alert(1)</script>` (URL-encoded) → confirm state 5 renders with body "This link is no longer valid. Submit a new request below."; token NEVER appears in the rendered HTML
 - Click "Back to sign in" Ghost on state 1 → navigates to `/admin/login`
 
-### 11c — Console + Network (via `chrome-devtools` MCP)
+### 11c — Console + Network (via the chrome-devtools MCP)
 
-- Use `chrome-devtools__list_console_messages` to print the last 20 console messages to chat — verify 0 NEW errors vs `/redesign/BASELINE-ISSUES.md` (warnings OK)
-- Use `chrome-devtools__list_network_requests` during state 1 submit (both unknown-email and known-email) — confirm IDENTICAL response shape + status; both render state 2 (`UNIFORM_RESPONSE_PASS: true`)
+_Note for `NETWORK_BASELINE_MATCH`: Next.js 15 server actions don't appear as literal POSTs to the action endpoint — they go through the RSC stream as a POST to the page URL with a `next-action` header. Count EITHER the literal action POST OR an RSC POST with `next-action` header as a match._
+
+- Use the chrome-devtools MCP to read the last 20 console messages and print them to chat — verify 0 NEW errors vs `/redesign/BASELINE-ISSUES.md` (warnings OK)
+- Use the chrome-devtools MCP to inspect network requests during state 1 submit (both unknown-email and known-email) — confirm IDENTICAL response shape + status; both render state 2 (`UNIFORM_RESPONSE_PASS: true`)
 - Confirm no calls leave the localhost surface other than the form POST to the FAKE server action (BUILD plans not landed yet; no real email send)
 
 **Evidence to surface:**

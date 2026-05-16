@@ -10,8 +10,11 @@
 //      an in-progress agent).
 //   3. Creates the worktree at the canonical sibling-directory path off the
 //      current redesign/start-state HEAD, on branch agent/<slug>-redesign.
-//   4. Junctions node_modules from main tree (Windows mklink /J) so the
-//      worktree's dev server starts fast without a fresh `pnpm install`.
+//   4. Junctions node_modules from main tree as a true Windows directory
+//      junction (Node-native fs.symlinkSync(...,'junction'), with pre-existing
+//      removal + post-creation verification + cmd /c dir /AL sanity check),
+//      so the worktree's dev server starts fast without a fresh `pnpm install`
+//      and webpack/Turbopack accept it (MSYS-style symlinks would be rejected).
 //   5. Copies the CURRENT main-tree per-page recipe + progress file +
 //      test-credentials.md into the worktree (overwriting the stale-committed
 //      versions, since recipes evolve in the main tree faster than commits land).
@@ -20,8 +23,10 @@
 //      command (slug + worktree path + port already substituted) the user
 //      pastes into the new Claude Code session.
 //
-// Designed for Windows (cmd /c mklink /J). Adapt the junction step for other
-// OSes if needed; everything else is portable Node.
+// Designed for Windows (uses fs.symlinkSync with type 'junction' which is the
+// Windows-native directory-junction form). The 'junction' type is a Windows-only
+// symlink type; on other OSes you'd use type 'dir' or 'file' instead.
+// Everything else (file copies, git worktree add, validation) is portable Node.
 
 import { existsSync, mkdirSync, copyFileSync, symlinkSync, rmSync } from "node:fs";
 import { execSync } from "node:child_process";

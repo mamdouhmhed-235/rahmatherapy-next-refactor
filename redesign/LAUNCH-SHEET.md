@@ -51,25 +51,23 @@ The `redesign/start-state` HEAD must contain login before any other page runs. V
 
 ## Section 1 — Per-page workflow (common — substitute `<SLUG>` everywhere)
 
-### 1a. Worktree setup (PowerShell, run from main tree `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor`)
+### 1a. Worktree setup — use the spawn script (canonical path)
+
+From the main tree, run:
 
 ```powershell
-$slug = "<SLUG>"
-$mainTree = "C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor"
-$worktree = "C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-$slug-redesign"
-
-# 1. Create the worktree from current redesign/start-state HEAD
-git worktree add $worktree -b "agent/$slug-redesign" redesign/start-state
-
-# 2. Junction node_modules so dev server starts fast
-cmd /c mklink /J "$worktree\node_modules" "$mainTree\node_modules"
-
-# 3. Copy the per-page recipe + progress files into the worktree
-New-Item -ItemType Directory -Force "$worktree\redesign\per-page-recipes" | Out-Null
-New-Item -ItemType Directory -Force "$worktree\redesign\per-page-progress" | Out-Null
-Copy-Item "$mainTree\redesign\per-page-recipes\$slug-recipe.md" "$worktree\redesign\per-page-recipes\"
-Copy-Item "$mainTree\redesign\per-page-progress\$slug-progress.md" "$worktree\redesign\per-page-progress\"
+node scripts/spawn-worktree.mjs <slug>
 ```
+
+The script handles every step required to put a clean working worktree in place:
+- Verifies main-tree HEAD is `redesign/start-state`; refuses to spawn from anywhere else
+- Creates the worktree at `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-<slug>-redesign` on a fresh `agent/<slug>-redesign` branch off `redesign/start-state` HEAD
+- Removes any pre-existing `node_modules` in the worktree (junction, MSYS symlink, real dir — whatever shape) and creates a true Windows directory junction via Node-native `fs.symlinkSync(...,'junction')`. Verifies post-creation by resolving `next/package.json` through it AND by `cmd /c dir /AL` showing `<JUNCTION>`. Errors loudly with the exact recovery commands if anything fails
+- Copies current main-tree per-page recipe + progress stub + `test-credentials.md` + `.env` into the worktree (overwrites the stale-committed versions; `.env` is required for Supabase to work — without it admin pages 500 on first request)
+- Ensures the deferrals directory exists
+- Prints the literal `/goal` kickoff command (slug + worktree path + port pre-substituted) for you to paste into the spawned Claude Code session
+
+> **Why the spawn script is the canonical path:** the older manual setup used `cmd /c mklink /J` to junction `node_modules`. When invoked from a Git Bash parent shell (or any non-pure-cmd shell), `mklink` can produce an MSYS-style symlink instead of a true Windows directory junction. Webpack and Turbopack both reject MSYS symlinks (`Symlink is invalid, it points out of the filesystem root` / `Cannot find module`), and the spawned agent hits a compile-time blocker on Step 6. The spawn script bypasses this by using Node's native junction API — no shell involvement. **Use the script. Don't try to recreate the steps by hand.**
 
 ### 1b. Per-page port assignment (pre-baked — no manual swap needed)
 
@@ -297,7 +295,7 @@ If `git merge --ff-only` errors with "would be overwritten" — main tree has un
 **Recommended port:** 3001
 **Subagent flags:**
 - 4-file restyle.
-- Recipe adds evaluator anchor `BORDER_L4_HITS: 0` per brief's audit requirement.
+- Recipe adds evaluator anchor `BORDER_L_4: 0` per brief's audit requirement.
 
 ---
 
