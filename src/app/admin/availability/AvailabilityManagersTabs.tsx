@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 type TabKey = "hours" | "closed" | "adjustments";
@@ -23,6 +23,43 @@ export function AvailabilityManagersTabs({
   adjustmentsSlot,
 }: AvailabilityManagersTabsProps) {
   const [activeTab, setActiveTab] = useState<TabKey>("hours");
+  const tabRefs = useRef<Record<TabKey, HTMLButtonElement | null>>({
+    hours: null,
+    closed: null,
+    adjustments: null,
+  });
+
+  function moveFocus(targetKey: TabKey) {
+    setActiveTab(targetKey);
+    // Defer focus so React renders the active styles before we steal focus.
+    requestAnimationFrame(() => {
+      tabRefs.current[targetKey]?.focus();
+    });
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLUListElement>) {
+    const currentIndex = TABS.findIndex((t) => t.key === activeTab);
+    if (currentIndex < 0) return;
+    let nextIndex: number | null = null;
+    switch (event.key) {
+      case "ArrowLeft":
+        nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+        break;
+      case "ArrowRight":
+        nextIndex = (currentIndex + 1) % TABS.length;
+        break;
+      case "Home":
+        nextIndex = 0;
+        break;
+      case "End":
+        nextIndex = TABS.length - 1;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    moveFocus(TABS[nextIndex].key);
+  }
 
   return (
     <div className="grid gap-6">
@@ -32,6 +69,7 @@ export function AvailabilityManagersTabs({
       >
         <ul
           role="tablist"
+          onKeyDown={handleKeyDown}
           className="inline-flex min-w-full gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1"
         >
           {TABS.map((tab) => {
@@ -40,9 +78,14 @@ export function AvailabilityManagersTabs({
               <li key={tab.key} className="flex-1">
                 <button
                   type="button"
+                  id={`availability-tab-${tab.key}`}
+                  ref={(el) => {
+                    tabRefs.current[tab.key] = el;
+                  }}
                   role="tab"
                   aria-selected={isActive}
                   aria-controls={`availability-panel-${tab.key}`}
+                  tabIndex={isActive ? 0 : -1}
                   onClick={() => setActiveTab(tab.key)}
                   className={cn(
                     "inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-[0.375rem] px-3 text-sm font-medium outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",

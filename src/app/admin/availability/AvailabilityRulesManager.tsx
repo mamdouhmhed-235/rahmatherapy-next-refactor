@@ -330,62 +330,73 @@ function DayRow({
       </div>
 
       <div
+        // Outer wrapper drives the 160ms collapse via grid-template-rows
+        // (animatable in modern browsers; display:none would cancel transitions).
         className={cn(
-          "grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr] sm:gap-3 transition-[opacity,grid-template-rows,height] duration-[var(--motion-duration-fast)] ease-gentle",
+          "grid transition-[grid-template-rows,opacity] duration-[var(--motion-duration-fast)] ease-gentle motion-reduce:transition-none",
           day.isWorkingDay
-            ? "opacity-100"
-            : "pointer-events-none invisible hidden h-0 select-none opacity-0"
+            ? "[grid-template-rows:1fr] opacity-100"
+            : "pointer-events-none [grid-template-rows:0fr] select-none opacity-0"
         )}
         aria-hidden={!day.isWorkingDay}
       >
-        <div className="grid gap-1">
-          <label
-            htmlFor={startId}
-            className="text-xs font-medium text-[var(--admin-text-muted)]"
-          >
-            Opens
-          </label>
-          <input
-            id={startId}
-            name={`start_time_${day.dayOfWeek}`}
-            type="time"
-            value={day.startTime}
-            onChange={(event) => onStartChange(event.target.value)}
-            disabled={disabled || !day.isWorkingDay}
-            aria-invalid={error ? "true" : undefined}
-            aria-describedby={error ? errorId : undefined}
-            className={cn(
-              "h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
-              error
-                ? "border-[oklch(26%_0.14_25)]"
-                : "border-[var(--admin-border-form)]"
-            )}
-          />
-        </div>
-        <span aria-hidden="true" className="hidden text-sm text-[var(--admin-text-muted)] sm:block">
-          –
-        </span>
-        <div className="grid gap-1">
-          <label
-            htmlFor={endId}
-            className="text-xs font-medium text-[var(--admin-text-muted)]"
-          >
-            Closes
-          </label>
-          <input
-            id={endId}
-            name={`end_time_${day.dayOfWeek}`}
-            type="time"
-            value={day.endTime}
-            onChange={(event) => onEndChange(event.target.value)}
-            disabled={disabled || !day.isWorkingDay}
-            className={cn(
-              "h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
-              error
-                ? "border-[oklch(26%_0.14_25)]"
-                : "border-[var(--admin-border-form)]"
-            )}
-          />
+        <div className="min-h-0 overflow-hidden">
+          <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr] sm:gap-3">
+            <div className="grid gap-1">
+              <label
+                htmlFor={startId}
+                className="text-xs font-medium text-[var(--admin-text-muted)]"
+              >
+                Opens
+              </label>
+              <input
+                id={startId}
+                name={`start_time_${day.dayOfWeek}`}
+                type="time"
+                value={day.startTime}
+                onChange={(event) => onStartChange(event.target.value)}
+                disabled={disabled || !day.isWorkingDay}
+                tabIndex={day.isWorkingDay ? 0 : -1}
+                aria-invalid={error ? "true" : undefined}
+                aria-describedby={error ? errorId : undefined}
+                className={cn(
+                  "h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
+                  error
+                    ? "border-[oklch(26%_0.14_25)]"
+                    : "border-[var(--admin-border-form)]"
+                )}
+              />
+            </div>
+            <span
+              aria-hidden="true"
+              className="hidden text-sm text-[var(--admin-text-muted)] sm:block"
+            >
+              –
+            </span>
+            <div className="grid gap-1">
+              <label
+                htmlFor={endId}
+                className="text-xs font-medium text-[var(--admin-text-muted)]"
+              >
+                Closes
+              </label>
+              <input
+                id={endId}
+                name={`end_time_${day.dayOfWeek}`}
+                type="time"
+                value={day.endTime}
+                onChange={(event) => onEndChange(event.target.value)}
+                disabled={disabled || !day.isWorkingDay}
+                tabIndex={day.isWorkingDay ? 0 : -1}
+                className={cn(
+                  "h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
+                  error
+                    ? "border-[oklch(26%_0.14_25)]"
+                    : "border-[var(--admin-border-form)]"
+                )}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

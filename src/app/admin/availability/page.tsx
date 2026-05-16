@@ -555,30 +555,16 @@ function StaffCapacityList({
 }
 
 function CapacityPill({ label, title }: { label: string; title: string }) {
-  // Brief copy: "Male: {n}" / "Female: {n}". PRODUCT.md voice anchor: Cormorant
-  // Garamond on stats and marquee numbers.
-  const match = label.match(/^([^:]+):\s*(\d+)$/);
-  const noun = match?.[1] ?? label;
-  const count = match?.[2];
-
+  // Brief copy: "Male: {n}" / "Female: {n}". DESIGN.md "Cormorant Exception"
+  // reserves the serif for marquee dashboard stat-tile numerals only; pills
+  // are badge-text → render the count in the same Work Sans 500 label step.
   return (
     <span
       title={title}
       className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(93.5%_0.038_155)] px-3 py-1 text-xs font-medium text-[oklch(22%_0.085_155)]"
     >
       <Users className="size-3.5 shrink-0" aria-hidden="true" />
-      <span>{noun}</span>
-      {count ? (
-        <span
-          style={{
-            fontFamily:
-              "var(--font-admin-serif), Cormorant Garamond, Georgia, serif",
-          }}
-          className="text-[1.15rem] font-semibold leading-none tracking-[-0.01em]"
-        >
-          {count}
-        </span>
-      ) : null}
+      <span>{label}</span>
     </span>
   );
 }
@@ -636,6 +622,14 @@ function DeniedSurface({
       title="You don't have access to this section"
       message="Availability settings are managed by the owner or practice manager."
       variant="coordinator"
+      actions={
+        <Link
+          href="/admin/dashboard"
+          className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-canvas)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          Back to dashboard
+        </Link>
+      }
     />
   );
 }
