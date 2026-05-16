@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 6 of 29 — calendar   ← update when you start a session (count by position from the top, not by label)
+Currently on: 7 of 29 — availability   ← update when you start a session (count by position from the top, not by label)
 
 ---
 
@@ -508,7 +508,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 14. [ ] calendar — commit: ____
+## 14. [x] calendar — commit: b0ee32e
 
 **Tier:** Tier 3 — daily visual ops tool; PrintButton + @media print patterns; concurrent-booking Attention chip
 
