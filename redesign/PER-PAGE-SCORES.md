@@ -602,3 +602,140 @@ Brief-faithful. The page does exactly what it should: brand-anchor moment, then 
 ### Questions to Consider
 None worth raising — the brief answered them all upstream during Phase 5.
 
+
+
+---
+
+## calendar — audit
+
+**Date:** 2026-05-16 (re-audit on current state — supersedes prior 14/20 entry from earlier in this session)
+**Files audited:**
+- `src/app/admin/calendar/page.tsx` (1,892 lines)
+- `src/app/admin/calendar/CalendarDatePopover.tsx` (318 lines)
+- `src/app/admin/calendar/PrintButton.tsx` (18 lines)
+
+### 5-dimension scores
+
+| # | Dimension | Score | Key finding |
+|---|---|---|---|
+| 1 | Accessibility | 3 / 4 | DayPicker popover dialog missing `aria-modal` + focus trap; modifier icon cluster relies on `title` only (no hover on mobile) |
+| 2 | Performance | 3 / 4 | Day agenda renders the booking list twice (mobile stack + absolute desktop column); 34 inline `oklch(...)` literals defeat Tailwind class de-dup |
+| 3 | Theming | 2 / 4 | 34 raw `oklch(...)` color literals across `page.tsx`; status tints, banner colors, chips, and filter chips all bypass DESIGN.md tokens |
+| 4 | Responsive Design | 3 / 4 | Mobile `pb-12` (48px) doesn't clear the ~80px+safe-area bottom-nav (visible in `mobile-check-thismonth-v2.png` — More tab covering grid rows); WeekStrip forces `min-w-[42rem]` horizontal scroll on mobile despite the "vertical-stack fallback" commitment |
+| 5 | Anti-Patterns | 3 / 4 | Cormorant Garamond used on every booking card's time block + every month-grid day-number + every week-strip day-number; "The Cormorant Exception" reserves it for marquee numerals only. Dashed-border empty-day row at `page.tsx:770` violates the DESIGN.md dashed-border ban. |
+| **Total** | | **14 / 20** | **Good — address the weak dimensions (Theming, Anti-Patterns)** |
+
+### Anti-Patterns verdict
+
+Does this read as AI-generated? **No.** The card-board grammar, warm clinical palette, deliberate Mon-first ISO week, named status badge + modifier-icon stack, and Attention-tinted disclosure all read as considered Rahma craft. No gradient text, no hero-metric template, no glassmorphism, no `border-l-4`, no `bg-black`, no purple/blue. The single tell that creeps toward genericism is the Cormorant overuse across every card and every grid cell, which dilutes the brand's signature numeral typeface.
+
+### P0 findings (blockers — fix before shipping)
+
+none
+
+### P1 findings (fix this sprint)
+
+- **DayPicker popover is not a real modal** — `CalendarDatePopover.tsx:189-233` declares `role="dialog"` but lacks `aria-modal="true"`, has no focus trap (Tab leaks to the page behind), and the only dismiss paths are document-`mousedown` + Escape. Keyboard-only users land on background controls while the picker is "open." Category: Accessibility. WCAG 2.4.3 (Focus Order), 4.1.2 (Name, Role, Value).
+- **Mobile bottom-nav overlaps calendar content** — `page.tsx:393` sets `pb-12` (48px) on the page root but the mobile bottom-nav stack is ~64-80px plus iOS safe-area inset. `mobile-check-thismonth-v2.png` shows the "More" tab sitting on top of grid rows 16-17 and the Unassigned panel rows. Category: Responsive.
+- **Day-agenda time-rail no longer encodes start_time accurately** — `page.tsx:1111-1129` enforces `MIN_CARD_HEIGHT=140px` and stacks-below-on-overlap, so the second 30-minute booking is pushed below the first by `prev.height + CARD_GAP` rather than positioned at its true minute offset. The hourly tick rules at `page.tsx:1211-1218` no longer line up with the cards beneath them, breaking the brief §5 promise ("each `BookingListCard` aligns to its `start_time`"). Category: Anti-Pattern / correctness.
+- **Modifier icon cluster reads as color-only on mobile** — `page.tsx:1393-1445` and `ModifierIcon` at `page.tsx:1468-1492` stack up to 5 nearly-identical tinted glyphs (AlertCircle, Clock, UserX, CheckCircle) on each card. The `title` tooltip is the only inline disambiguator and tooltips don't fire on touch. `sr-only` covers screen readers but sighted touch users see "pending pill + four orange-tinted circles" with no inline labels. Visible in `range-view-1440.png`. Category: Accessibility / Anti-Pattern. DESIGN.md "Named Status Rule" (every status badge requires a text label).
+- **Dashed-border empty-day row** — `page.tsx:770` renders empty week-days with `border-dashed`. DESIGN.md §6 Don'ts: "Don't use dashed borders on empty states. A dashed border reads as 'placeholder' or 'unfinished'." Category: Anti-Pattern.
+- **Raw OKLCH color literals throughout** — 34 inline `oklch(...)` color values in `page.tsx` (validation banner `:536`, today's-roundup stats `:594, :599, :604`, active-filter chips `:557, :567`, concurrent banner `:1155, :1275`, day numerals `:905`, count badges `:944`, sidebar disclosure `:1540-1599`, status-tint pills throughout). Brief §9 explicitly flagged this as a Phase 6 cleanup. Category: Theming.
+
+### P2 findings (next cycle)
+
+- **Cormorant Garamond on non-marquee numerals** — every `CalendarBookingRow` time block (`page.tsx:1352-1366`), every month-grid day-number (`page.tsx:911-928`), every week-strip day-number (`page.tsx:1024-1033`). DESIGN.md §3 "The Cormorant Exception" reserves the typeface for "marquee dashboard stats and KPI numerals" and warns "preserve its rarity." Category: Anti-Pattern / Theming.
+- **WeekStrip horizontal scroll on mobile** — `page.tsx:1000` sets `min-w-[42rem]` (672px) and parents at `overflow-x-auto`. On a 360px phone this forces horizontal scroll for a strip the brief §3 says should follow "vertical-stack fallback on narrow viewports." Visible in `adapt-mobile-after.png` (Mon-Wed visible, Thu cut off). Category: Responsive.
+- **`PrintButton` below 44px touch target** — `PrintButton.tsx:12` uses `min-h-10` (40px). DESIGN.md "Density: Comfortable — 44px row height" and WCAG 2.5.5 floor. Category: Accessibility.
+- **Validation banner colors hard-coded** — `page.tsx:536` uses raw `oklch(88%_0.055_75)` border and `oklch(96%_0.038_75)` background instead of `status-pending-bg / status-pending-text`. Category: Theming.
+- **Concurrent banner colors hard-coded** — `page.tsx:1155, 1275` use raw `oklch(88%_0.06_65)` and `oklch(95%_0.05_65)` instead of `status-attention-bg / status-attention-text`. Category: Theming.
+- **`AvatarStack` empty marker uses dashed border** — `page.tsx:1499` renders the "?" placeholder with `border-dashed`. Same DESIGN.md ban. Category: Anti-Pattern.
+- **Sticky control rail at `top-0` collides with `AdminTopNav`** — `page.tsx:409` pins the filter rail at `top-0 z-20`, but the admin layout's top nav already occupies the top strip. Sticky offset should clear the topnav height. Category: Responsive.
+
+### P3 findings (polish)
+
+- **`text-white` literals** — `page.tsx:700, 930, 1545, 1591, 1646, 1683` use `text-white` instead of a token. DESIGN.md "never `#fff`." Category: Theming.
+- **DayAgenda renders the booking list twice** — `page.tsx:1192-1233` ships both `lg:hidden` and `hidden lg:block` copies. Category: Performance.
+- **`bg-white/70` on count badges in `SidebarDisclosure`** — `page.tsx:1545, 1591`. Category: Theming.
+- **Repeated `formatBusinessDate(date)` calls in render loops** — could be memoized; not measurable. Category: Performance.
+- **`PrintButton` copy is "Print day sheet"** — the brief §form-button-text spec is `Print` (Secondary). Minor copy drift. Category: Polish.
+
+### Backend status
+
+**N-A.** Calendar is presentation-only against `getReportData` / `parseReportFilters` / `addBusinessDays` / `formatBusinessDate` / `getBusinessDate` / `getAdminPageAccess` — all listed RECON §5 untouchable. The redesign joins therapist names from `data.assignments` client-side (`page.tsx:359-366`) explicitly to avoid mutating the selector. No new mutations, no new server actions. No BUILD plan filenames blocked.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- **DayPicker popover missing `aria-modal` + focus trap** — `CalendarDatePopover.tsx:189-233`
+- **Mobile `pb-12` doesn't clear the bottom-nav** — `page.tsx:393` (visible in `mobile-check-thismonth-v2.png`)
+- **Day-agenda time-rail / start_time positioning is off** — `page.tsx:1111-1129` (positioning) + `page.tsx:1211-1218` (tick rules)
+- **Modifier icon cluster is effectively color-only on mobile** — `page.tsx:1393-1445`, `ModifierIcon` at `page.tsx:1468-1492` (visible in `range-view-1440.png`)
+- **Dashed-border empty-day row** — `page.tsx:770`
+- **Raw `oklch(...)` color literals across the page (34 occurrences)** — multiple locations
+
+### BUSINESS-COMPLETENESS impact
+
+This page newly contributes to **Track A item 2A-3 — Mobile-optimised calendar / day view** (`redesign/BUSINESS-COMPLETENESS.md:35-36`). Current state advances 2A-3 from `HANDLED` toward verified mobile coverage, but the P1 bottom-nav overlap and the WeekStrip horizontal-scroll fallback are gaps that should be closed before 2A-3 is signed off as complete.
+
+---
+
+## calendar — critique
+
+**Date:** 2026-05-16 (re-critique on current state — supersedes prior 6.7/10 REGRESSED entry from earlier in this session)
+**Reviewer:** impeccable critique, fresh-eyes pass (no bias from prior work)
+**Inputs:** brief + PRODUCT.md + DESIGN.md + 9 screenshots + current source
+
+### Design Health Score — Nielsen heuristics
+
+| # | Heuristic | Score | Key Issue |
+|---|-----------|-------|-----------|
+| 1 | Visibility of System Status | 3 | Roundup strip + per-date count badges + active-preset highlight + filter chips do real work. Missing: "—" tile on a populated week-strip day is mute. |
+| 2 | Match Between System & Real World | 4 | "All visible staff", "Every visit has a therapist", "Quiet days are healthy days" — real clinic language. British date phrasing. No raw permission strings reach the surface. |
+| 3 | User Control & Freedom | 3 | DayPicker has Clear + Apply, arrow-key stepping works, validation banners recover hand-edited URLs silently. Missing: no Cancel button on the DayPicker (Escape exists but undiscoverable); preset segment has no way to un-select once active. |
+| 4 | Consistency & Standards | 3 | Cormorant on serial numerals is consistent. The `CalendarBookingRow` rhymes with `BookingListCard` but is not literally it (3-column layout, time gutter, modifier circles). Modifier dots layer a small icon-only language on top of the named badge — operators must memorise five glyphs. |
+| 5 | Error Prevention | 3 | Range soft-cap (31 days → snaps to month) and `to < from` swap are quiet, server-side, and correct. Date popover hint copy is genuinely helpful. Missing: clicking "Today" while already on today does nothing visible. |
+| 6 | Recognition Rather Than Recall | 2 | Page's softest score. Modifier-icon cluster requires hover or screen-reader to disambiguate — `AlertCircle` appears for *Unassigned*, *Reschedule requested*, and *Unpaid*, with title text the only differentiator. Three identical orange discs on a row force recall. |
+| 7 | Flexibility & Efficiency | 3 | Keyboard arrows on the stepper, deep-linkable URL state on every control, three presets for the 80% case, Pick-a-date for the 20%. Active-filter chips with individual ✕ + "Clear all" are exactly right. Print address microformat for the run sheet is a thoughtful affordance. |
+| 8 | Aesthetic & Minimalist Design | 3 | Page is calm. Empty state with the round mint icon, Attention-tinted disclosure, warm-ivory canvas under restrained Clinic Green chrome — looks like Rahma, not a template. Two visual ledgers running hot: status row can carry pill + up to five identical discs; time-block `border-r` + per-card border + per-panel border stacks borders into "fenced" reading. |
+| 9 | Help users recognize, diagnose & recover | 3 | Inline `role="status"` concurrent banner above the day panel + per-card modifier is good belt-and-braces. URL-error banners coerce silently and explain. `AdminAccessDenied` no longer leaks `view_bookings_all`. Missing: load-failure boundary (brief specifies "Couldn't load the calendar." Cancelled banner; no `error.tsx` in source). |
+| 10 | Help & Documentation | 2 | The `sr-only` stepper help text is the only discoverable hint; no visible legend for modifier icons, no tooltip on segmented control, no first-run nudge. For a novice operator base ("Tech level: Novice" per PRODUCT.md), the modifier-icon language is undocumented in-surface. |
+| **Total** | | **29 / 40** | **Solid — above the honest-band median, below "excellent." Specific friction in icon language and modifier overload.** |
+
+### AI-slop verdict
+
+**PASS.** No gradient text, no glass, no decorative blobs, no purple-and-blue, no hero-metric stack, no identical-card grids, no `border-l-4`, no `bg-black`, no shadcn defaults. Cormorant Garamond on numerals is the brand-signature appearance DESIGN.md sanctions, not a reflex serif. Empty state is dignified (round mint icon + encouraging two-line message + Secondary CTA) rather than a 0-of-x box. Deliberate copy ("All quiet", "Quiet days are healthy days", "Every visit has a therapist") proves a human voice. Second-order category check ("UK healthcare admin that's not white-and-teal") returns warm-ivory + deep clinic green — distinctly Rahma.
+
+### UX-quality commentary against PRODUCT.md anti-references
+
+- **"Generic SaaS / shadcn-default dashboards"** — cleared. Control rail and roundup strip do not read shadcn-default.
+
+- **"Identical-card grids"** — partially cleared. `CalendarBookingRow` is genuinely different from `SidebarRow` and from `MonthGrid` cell. Three distinct grammars per the brief. Caveat: inside the day/range/week panels, every booking is the same row shape stacked vertically; the modifier-disc row makes the bottom edge of every card look identical at a glance.
+
+- **"Color-only status signalling"** — cleared on the named badge, but **regressed on the modifier icons**. Three modifiers (Unassigned, Reschedule requested, Unpaid) all use the same warm-amber disc with `AlertCircle`. The `sr-only` `title` saves screen-reader users but a sighted operator sees three identical orange discs.
+
+- **"Decorative blobs / glassmorphism"** — cleared. No blur, no blobs.
+
+- **"Tools so spare they feel cold"** — cleared. Avatars on every assignment, dignified empty state, Cormorant on the marquee numerals, warm-amber tint on the mobile Unassigned disclosure — the surface has the disciplined warmth the brief asked for.
+
+- **"Side-stripe borders, gradient text"** — cleared. The card's `border-r` on the time block is an internal column separator, not a `border-l-4` colour accent. Acceptable per absolute-ban wording, though contributes to "fenced" feeling.
+
+- **"Everything-on-one-screen SaaS dashboards"** — cleared. Page does one job: agenda + triage. Filters live in a rail; range work lives in the popover; assignment work lives one click away on the booking detail.
+
+### Concrete observations worth fixing (severity-ranked, brief)
+
+1. **[P1] Modifier-icon collision.** Five possible discs, three sharing the same warm-amber `AlertCircle`. Per DESIGN.md §2 status-family icon vocabulary, give each modifier its sanctioned glyph (`user-x` for unassigned, `calendar-clock` for reschedule, distinct icon for unpaid) and consider promoting two-or-more-modifiers to a single named pill ("Needs attention · 3"). Currently violates the spirit of "icon supports scanning, text carries meaning."
+2. **[P2] Time-block border + card border + panel border** stack three vertical seams on the desktop day view. Drop the `border-r` on the time block; let whitespace separate the Cormorant numeral from content.
+3. **[P2] Day-view "no therapist assigned" placeholder** is a literal "?" inside a dashed circle. The brief prefers a labelled chip ("Therapist not yet assigned").
+4. **[P3] No visible legend** for the modifier icons. A small `(?)` popover near the roundup strip explaining the disc vocabulary would meet the novice-operator commitment.
+5. **[P3] Week-strip empty-day cells** show an em-dash where day cells show a count — fine until you compare to the month grid where empty cells show nothing. Pick one absence convention.
+
+### One-line gut
+
+A confident, calm, recognisably-Rahma operations agenda that lands the major brief moves (presets, range, month grid, mobile disclosure, dignified empty state) and slips on one specific anti-pattern: a modifier-icon dialect that asks operators to recall meaning the named-badge rule was meant to abolish. Fix the modifier vocabulary and this page moves from "solid" to "exemplary."
+
+### Delta vs. prior critique (earlier this session)
+
+- **Heuristic average: 6.7 → 7.25** (per-10 scale; +0.55, ~8% improvement)
+- **AI-slop verdict: REGRESSED → PASS** (the critical structural fixes — avatar-bearing cards, demoted pill cluster, distinct card grammars across views, Attention-tinted mobile disclosure — moved the page off the antipattern territory)
+- **New friction surfaced by current state:** modifier-icon collision (didn't exist before because old design used named-pill cluster with text); border-stacking on the new time-block (didn't exist before because old card was single-column)
+- **Resolved from prior:** identical-card-grid risk (now three distinct grammars), pure-typography main column (now has avatars + therapist names), dashed-border empty week rows (partially — `border-dashed` still on per-date empty rows + AvatarStack "?" but no longer dominates the surface)

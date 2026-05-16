@@ -12,7 +12,7 @@ export function PrintButton() {
       className={cn(buttonVariants({ variant: "outline", size: "sm" }), "min-h-10 print:hidden")}
     >
       <Printer className="size-4" />
-      Print day sheet
+      Print current view
     </button>
   );
 }

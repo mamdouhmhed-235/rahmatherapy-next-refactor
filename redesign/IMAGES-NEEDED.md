@@ -7,6 +7,7 @@ Phase 6 will append rows to this file as new imagery is introduced (dashboard he
 | Path | Size (KB) | Format | Alt? | Issue | Proposed Action |
 |---|---|---|---|---|---|
 | `public/images/brand/rahma/logo-mark.svg` | 21.0 | SVG | `alt=""` (decorative — paired with visible "Rahma Therapy" wordmark in the same link) | none | leave-alone |
+| `public/images/admin/empty-states/calendar-empty.svg` | — (TBD) | SVG | `alt="No bookings scheduled"` | net-new asset — placeholder needed for `/admin/calendar` `EmptyState` (calendar-with-check illustration, ~80–120px). Phase 6 calendar session adds `data-redesign-needs-photo` until asset lands. | add-asset |
 
 **Call site:** `src/app/admin/components/AdminTopNav.tsx:299` — `<Image>` inside `Brand()`, sized 24×24, classed `size-5 invert` (white-on-green inside a 36 px green tile). The empty `alt=""` is the **correct** WCAG pattern: the parent `<a>` already carries `aria-label="Rahma Therapy admin dashboard"` and the adjacent text node `<span>Rahma Therapy</span>` provides the link's accessible name. Decorative empty alt prevents redundant SR announcements.
 
