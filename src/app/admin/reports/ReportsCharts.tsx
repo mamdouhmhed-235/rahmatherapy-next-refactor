@@ -27,8 +27,8 @@ interface CountPoint {
 
 export function RevenueChart({ data }: { data: RevenuePoint[] }) {
   return (
-    <div className="h-72 w-full" aria-label="Revenue by period chart">
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={288}>
+    <div className="w-full" aria-label="Revenue by period chart">
+      <ResponsiveContainer width="100%" height={288} minWidth={0} minHeight={288}>
         <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e8dfd2" />
           <XAxis dataKey="period" tick={{ fontSize: 12 }} />
@@ -52,8 +52,8 @@ export function CountBarChart({
   label: string;
 }) {
   return (
-    <div className="h-72 w-full" aria-label={label}>
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={288}>
+    <div className="w-full" aria-label={label}>
+      <ResponsiveContainer width="100%" height={288} minWidth={0} minHeight={288}>
         <BarChart data={data.slice(0, 8)} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e8dfd2" />
           <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} angle={-20} height={62} />
