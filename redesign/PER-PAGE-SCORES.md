@@ -739,3 +739,147 @@ A confident, calm, recognisably-Rahma operations agenda that lands the major bri
 - **AI-slop verdict: REGRESSED → PASS** (the critical structural fixes — avatar-bearing cards, demoted pill cluster, distinct card grammars across views, Attention-tinted mobile disclosure — moved the page off the antipattern territory)
 - **New friction surfaced by current state:** modifier-icon collision (didn't exist before because old design used named-pill cluster with text); border-stacking on the new time-block (didn't exist before because old card was single-column)
 - **Resolved from prior:** identical-card-grid risk (now three distinct grammars), pure-typography main column (now has avatars + therapist names), dashed-border empty week rows (partially — `border-dashed` still on per-date empty rows + AvatarStack "?" but no longer dominates the surface)
+
+---
+
+## availability — audit
+
+**Brief:** `redesign/briefs/availability-brief.md`
+**Files reviewed:**
+- `src/app/admin/availability/page.tsx`
+- `src/app/admin/availability/AvailabilityManagersTabs.tsx`
+- `src/app/admin/availability/AvailabilityRulesManager.tsx`
+- `src/app/admin/availability/BlockedDatesManager.tsx`
+- `src/app/admin/availability/AvailabilityOverridesManager.tsx`
+- `src/app/admin/availability/actions.ts`
+- `src/app/admin/components/admin-ui.tsx` (consumed primitives only)
+
+**Severity rubric (verbatim from impeccable v5 L884-890):**
+- P0 — Blocks release — fix before shipping anything
+- P1 — Fix this sprint — significant impact on users
+- P2 — Next cycle — noticeable but not blocking
+- P3 — Polish — minor, fix when time allows
+
+### Dimension scores
+
+| Dimension | Score | Notes |
+|---|---|---|
+| Brand & design-system fidelity | 8 / 10 | Restrained palette, surface-selected open / status-restricted-bg closed tints correctly applied across both the 7-day preview strip and the working-hours grid; Confirmed-family capacity pills with the `users` icon match the brief; no `border-l-4`, no gradient text, no glass. Cormorant inside capacity pills (page.tsx:430-440) breaks DESIGN.md's "Cormorant Exception" (marquee numerals only). |
+| Layout, hierarchy & responsive craft | 8 / 10 | H1 -> H2 hierarchy contiguous via `AdminPageHeader` + `AdminPanel` h2; capacity preview, three stacked managers on >=md, tab strip below preview on <md, all match section 5 of the brief. 7-day strip's `min-w-[40rem]` mobile scroll, staff list as `AdminEntityRow`, working-hours grid with 9rem/28rem/1fr columns, all clean. |
+| Interaction & motion | 6 / 10 | Switch toggles, `aria-busy` on save, `revalidatePath` after every action, `ConfirmActionModal` on delete, all wired correctly. But the brief's required "160ms ease-gentle reveal" on working-hours time inputs is not actually animated: the closed-day branch (AvailabilityRulesManager.tsx:263-270) uses `hidden h-0 invisible`, and `display: none` (from `hidden`) cancels every transition the same line declares. The reveal snaps. Tab buttons have `role="tab"` / `role="tablist"` but no Left/Right/Home/End arrow-key handler. |
+| Accessibility | 7 / 10 | Strong: every form input labelled, required `*` in Cancelled text colour with `aria-hidden`, three independent `role="alert" aria-live="polite" aria-atomic="true"` regions, Switch has accessible label per day (`Monday, open`), 44px touch targets on Save/Add/delete buttons. Weak: `aria-labelledby` on the three tabpanels references tab button IDs that don't exist anywhere (AvailabilityManagersTabs.tsx:65 / 73 / 81 -> no `id="availability-tab-..."` is rendered on the buttons at 41-55); tab keyboard navigation incomplete. |
+| Copy & voice | 9 / 10 | Verbs-over-nouns, calm/direct. Toasts: "Working hours saved.", "Closed date added.", "Hour adjustment added.", "Removed." match the brief. Confirm copy matches brief verbatim. No em dashes. The only gap: Coordinator denied state has no Secondary "Back to dashboard" button (page.tsx:494-499); brief and Copy section both require one. |
+
+### P0 — Blocks release
+
+- none
+
+### P1 — Fix this sprint
+
+- `src/app/admin/availability/AvailabilityManagersTabs.tsx:62-85` — Three `<section role="tabpanel">` elements set `aria-labelledby="availability-tab-{hours|closed|adjustments}"`, but the corresponding tab buttons at `AvailabilityManagersTabs.tsx:41-55` carry no `id`. Every tabpanel has a dangling ARIA reference. Add `id={"availability-tab-${tab.key}"}` to the button.
+- `src/app/admin/availability/AvailabilityManagersTabs.tsx:33-59` — `role="tablist"` + `role="tab"` declared but no Left/Right/Home/End keyboard navigation handler is wired. Per ARIA Authoring Practices, tab widgets must support arrow-key navigation between tabs.
+
+### P2 — Next cycle
+
+- `src/app/admin/availability/AvailabilityRulesManager.tsx:263-270` — Closed-day branch combines `hidden h-0 invisible pointer-events-none` with `transition-[opacity,grid-template-rows,height]`. `display: none` (from Tailwind `hidden`) suppresses any transition. The brief mandates a "160ms ease-gentle reveal" on toggle; today the reveal snaps. Animate `grid-template-rows: 0fr -> 1fr` (or `max-height`) + `opacity` instead of `display: none`.
+- `src/app/admin/availability/page.tsx:430-440` — Capacity pill numerals are set in Cormorant Garamond. DESIGN.md "Cormorant Exception" reserves Cormorant for marquee dashboard stat-tile numerals only; pills are badge-text. Drop Cormorant from the pills.
+- `src/app/admin/availability/page.tsx:493-499` — Coordinator denied surface renders `AdminAccessDenied` with no `actions` prop. Brief role variants require a Secondary "Back to dashboard" -> `/admin/dashboard`. Add `actions={<Link href="/admin/dashboard">Back to dashboard</Link>}` matching the Therapist pattern.
+
+### P3 — Polish
+
+- `src/app/admin/availability/AvailabilityRulesManager.tsx:281,308` — DOM `name="start_time_0"`/`end_time_0"` diverges from the Feature Preservation Manifest's literal field names. Server-action wire is unaffected because `handleSave` constructs FormData with manifest-correct names. Either drop the per-day name suffix or remove the `name` attribute.
+- `src/app/admin/availability/BlockedDatesManager.tsx:223-225` and `src/app/admin/availability/AvailabilityOverridesManager.tsx:327-329` — List-row uses `bg-[var(--admin-panel)]` (surface-card). Brief's DESIGN-direction line "Staff list rows ... `surface-page`" suggests list rows should sit on canvas. Swap to `bg-[var(--admin-canvas)]`.
+- `src/app/admin/availability/AvailabilityManagersTabs.tsx:62-85` — `role="tabpanel"` is applied to always-visible desktop sections (>=md). Consider moving the role behind a viewport-based split so the semantics stay accurate.
+- `src/app/admin/availability/AvailabilityRulesManager.tsx:114-156` — `handleSave` fires seven independent `saveAvailabilityRule` POSTs via `Promise.all`. Brief section 7 says one form POST submits all seven rows together. Functionally equivalent; consolidate when actions.ts is next touched.
+
+### Backend status
+
+**HANDLED** — All six server actions exist in `src/app/admin/availability/actions.ts`, write the required audit rows, and call `revalidatePath('/admin/availability')` per the Feature Preservation Manifest. The IMPLEMENTATION-PLAN.md `BUILD-availability-this-week-chip.md` is marked non-blocking; the this-week chip is already implemented client-side in page.tsx:172-181 by intersecting fetched `blocked_dates` / `overrides` against the local ISO week range.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- **Tabpanel aria-labelledby targets are dangling** — `src/app/admin/availability/AvailabilityManagersTabs.tsx:62-85` reference `availability-tab-{key}` IDs that are not declared on the tab buttons at lines 41-55.
+- **Tab strip missing arrow-key keyboard navigation** — `src/app/admin/availability/AvailabilityManagersTabs.tsx:33-59` uses `role="tablist"` / `role="tab"` without an `onKeyDown` handler for ArrowLeft / ArrowRight / Home / End.
+
+### BUSINESS-COMPLETENESS impact
+
+none — every relevant Track A item (2A-4 heading hierarchy, 2A-6 `role="alert" aria-live`, 2A-8 active-tab a11y, 2A-9 required-field markers) was already marked HANDLED before this page. This page reinforces 2A-6 and 2A-9 by deploying the patterns inside three new forms, but does not unlock any item that wasn't already closed.
+
+---
+
+## availability — critique
+
+**Date:** 2026-05-16
+**Reviewer:** Independent UX critique (no bias from prior work on this page)
+**Artefacts reviewed:** brief, PRODUCT.md, DESIGN.md, post-polish screenshots at 375 / 768 / 1440, full source under `src/app/admin/availability/`
+
+### Nielsen heuristic scores
+
+| # | Heuristic | Score | Key observation |
+|---|---|---|---|
+| 1 | Visibility of system status | 3 / 4 | "This week's capacity" panel makes the live result of the rules legible above the editors. Working-hours rows shift background tint when toggled. "Save hours" carries spinner + `aria-busy`. Minor gap: no inline "unsaved changes" hint between Save and the toggles. |
+| 2 | Match system / real world | 4 / 4 | Vocabulary is operator-native: Opens / Closes, "Closed every Sunday", "Keep it", "Pick a date from today onwards." Plurals correct. UK long-form dates. No raw column names. |
+| 3 | User control & freedom | 3 / 4 | `ConfirmActionModal` guards every destructive deletion with context-aware copy. Toggling a day off does not destroy times. No undo on save, but the inverse action is one step. |
+| 4 | Consistency & standards | 3 / 4 | DESIGN.md tokens carried through: `surface-card`, `surface-input`, `border-form`, status family colours, Confirmed-family Cormorant numerals in the Male/Female pills. Add-form button height is `h-11` on mobile vs `h-10` on desktop on add-forms while Save is `h-11` throughout. Minor inconsistency. |
+| 5 | Error prevention | 3 / 4 | `min={today}` blocks past dates. Client-side checks: duplicate closed date, duplicate override, override on a closed weekly day, end-before-start. Missing: warn before saving with all 7 days off. |
+| 6 | Recognition rather than recall | 3 / 4 | Day name + toggle + Opens/Closes labels all visible. Mobile tab pills carry text labels. The "1 closure this week" Pending chip in the preview surfaces calendar events. Mild miss: no link/hover from 7-day strip into the editor. |
+| 7 | Flexibility & efficiency | 2 / 4 | "Save hours" submits all 7 rows in parallel via `Promise.all`. No keyboard shortcut, no copy-to-other-days pattern, no week-template. Six identical 08:00-20:00 days require twelve time-input edits. Brief never asked for this; reflects what shipped. |
+| 8 | Aesthetic & minimalist design | 2 / 4 | Single biggest weakness. The working-hours panel washes six consecutive rows in `oklch(93.5% 0.038 155)` Confirmed-family green and one row in `oklch(94% 0.008 280)` Restricted-family purple-grey. At 1440 it reads as a heavy green block with a grey footer. The 7-day strip tints six cells green, one grey, with 1px borders — adjacent to working-hours, the page reads as "two green blocks." Restraint promised in the brief tips into chroma overload when six rows in a column all carry the same tint. |
+| 9 | Help users recover from errors | 3 / 4 | Every error region wired with `role="alert" aria-live="polite" aria-atomic="true"` and Cancelled-family colour. Messages specific and actionable. Network failure copy plain ("Couldn't save the hours. Try again.") and toast-paired. No retry button on the save toast. |
+| 10 | Help & documentation | 2 / 4 | Description copy on each panel explains rule precedence. Tooltips on 7-day strip and Male/Female pills. No help article, no "How rules interact" inline explainer. Acceptable for audience; not strong. |
+| **Total** | | **28 / 40** | **Solid — top of mid-band. Heuristic floor is high; design ceiling held back by §8.** |
+
+### AI-slop verdict
+
+**PASS** — the page avoids every named anti-reference (no `border-l-4`, no gradient text, no glassmorphism, no decorative blobs, no hero-metric template, no identical icon-heading-text card grid, no purple-and-blue gradients, no dark theme, no SaaS-default shadcn appearance, no colour-only status, no dashed empty-state borders), and the composition reads as a clinic settings page rather than a generic SaaS dashboard. Reservation: the working-hours all-green-block aesthetic, while not slop, is the design's weakest moment.
+
+### Commentary on UX quality vs PRODUCT.md anti-references
+
+- **No generic SaaS / shadcn-default feel.** Achieved. Tokens visibly Rahma — warm ivory canvas, Clinic Green primary, Cormorant numerals on Male/Female pills, Work Sans / Urbanist throughout. Switch restyled to Clinic Green.
+- **No identical-card grids.** Achieved at page level — three differentiated panels with distinct internal compositions. Within working-hours, six consecutive day rows share identical structure and identical green tint — adjacent to but not the icon-heading-text antipattern.
+- **No decorative blobs / glassmorphism / hero-metric template.** Achieved.
+- **No colour-only status.** Achieved. "Closed" carries a text label on every 7-day strip cell. Mode and config chips are text + token. Pending chips carry plural text.
+- **Disciplined warmth.** Partial. Avatars present; Cormorant numerals on pills; voice copy plain and operator-grade. Empty states for Closed dates and Hour adjustments fall short of DESIGN.md §5's "dignified illustration" — render small Lucide icon in a circle.
+- **Cards must be varied and considered.** Mostly achieved. Capacity preview composed differently from three editors. Closed dates / adjustments panels share the inline-form-above-list pattern but column counts differ.
+- **Side-stripe borders, gradient text (impeccable absolute bans).** None present.
+- **Hover-revealed row actions.** None — every trash icon `size-11` visible at rest with tooltip and `aria-label`.
+
+### Specific finding worth flagging
+
+The working-hours panel and the 7-day preview strip both lean on the same `oklch(93.5% 0.038 155)` Confirmed-family tint at full saturation across most of their surface area. Stacked on the page, this creates a vertical band of nearly-identical green from row-1 of the preview to row-6 of the editor — roughly 60% of viewport height at 1440. Restraint per the brief was "Restrained — data should be scannable, not decorated." The current execution is decorating with the data, which is the inverse. A lower-saturation Confirmed tint, or limiting the tint to the day-label cell rather than the entire row, would let the page breathe.
+
+This is the single observation most worth a focused pass before ship.
+
+---
+
+## availability — post-handoff enhancements
+
+After the initial Phase-6 closure (audit 28/40, critique 28/40 with AI-slop PASS), a follow-up pass added six operator-value enhancements on top of the brief. None touch the recipe's "Files to NEVER touch" list; none modify shared primitives.
+
+| # | Addition | Resolves |
+|---|---|---|
+| E1 | Copy Monday → Tue–Sat Ghost button in Working hours | Critique heuristic 7 "Flexibility & efficiency" (2/4 → expect 3/4 next pass) |
+| E2 | Resolved-week 7-day strip (overlays this-week closures + overrides on the recurring template) | Critique "Specific finding worth flagging" — strip no longer "lies by omission" |
+| E3 | "Last saved by {actor} on {date}" trail under each manager panel | Critique heuristic 1 "Visibility of system status" gap |
+| E4 | All-days-closed save guard via ConfirmActionModal | Critique heuristic 5 "Error prevention" — fills the "no warning before saving with all 7 days off" gap |
+| E5 | Closed-day-with-bookings mismatch guard via inline Base UI Dialog + `bookingsByDate` prefetch | Critique heuristic 5 — prevents quiet operational mistake when blocking a day that already has bookings |
+| E6 | Dignified SVG empty-state illustrations (closed-dates / hour-adjustments / staff) replacing Lucide-icon-in-circle | Critique "Disciplined warmth — partial" + DESIGN.md §5 dignified-illustration requirement |
+
+**New files:**
+- `public/images/admin/empty-states/closed-dates.svg`
+- `public/images/admin/empty-states/hour-adjustments.svg`
+- `public/images/admin/empty-states/staff.svg`
+
+**Source files touched (still inside recipe scope):**
+- `src/app/admin/availability/page.tsx` (audit_logs + bookings prefetch; resolved-week computation; CapacityPreview rendering)
+- `src/app/admin/availability/AvailabilityRulesManager.tsx` (Copy Monday button + all-days-closed guard + lastSavedBy trail)
+- `src/app/admin/availability/BlockedDatesManager.tsx` (bookings-mismatch guard + lastSavedBy trail + empty-state illustration)
+- `src/app/admin/availability/AvailabilityOverridesManager.tsx` (lastSavedBy trail + empty-state illustration)
+
+**Live verification (1440 / 768 / 375):**
+- 0 horizontal scroll at any viewport (`scrollWidth ≤ innerWidth`)
+- 0 console errors
+- Copy Monday verified: setting Monday to 09:30→19:00 cascades to Tue/Wed/Thu/Fri/Sat
+- All-days-closed guard verified: toggling all 6 working days off + clicking Save opens the destructive confirm
+- Saved-trail line confirmed: "Last saved by Test Admin on 16 May 2026."
+- Empty-state illustrations render at 96×96 with `currentColor`-friendly OKLCH fills
