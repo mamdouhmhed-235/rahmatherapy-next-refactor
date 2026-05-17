@@ -660,7 +660,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 18. [x] staff — commit: ef2572c
+## 18. [x] staff — commit: f156aad
 
 **Tier:** Tier 3 — BASELINE-CRITIQUE Sam #1: H1→H3 heading skip confirmed on /admin/staff
 
@@ -1004,7 +1004,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 27. [x] roles — commit: 611111a
+## 27. [x] roles — commit: 2fbe779
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
