@@ -1675,3 +1675,112 @@ User-directed revision pass applied after the audit/critique landed. Captures wh
 - `src/app/admin/roles/[roleId]/**` — never opened.
 - `src/lib/auth/rbac.ts`, `src/lib/auth/**`, `src/lib/supabase/**`, `src/middleware.ts` — never opened.
 - `src/app/admin/components/admin-ui.tsx` + other shared primitives — never opened.
+
+## services — audit
+
+**Date:** 2026-05-17
+**Scope:** `src/app/admin/services/page.tsx`, `ServiceFormDialog.tsx`, `ServiceRowActions.tsx`, `DeleteServiceButton.tsx`, `actions.ts`
+**Screenshots:** `/redesign/screenshots/services-redesign/services-polish-final-{375,768,1440}.png`
+
+### Audit Health Score
+
+| # | Dimension | Score | Key Finding |
+|---|-----------|-------|-------------|
+| 1 | Accessibility | 3 | Form labelling, alert regions, focus visible, required markers all present; `<details>/<summary>` menu lacks `role="menu"` semantics for screen readers (shared primitive). |
+| 2 | Performance | 4 | Server component reads + single client island per row; no layout-property animation; no unbounded blur/shadow. |
+| 3 | Responsive Design | 3 | Mobile stacks correctly, touch targets ≥44px on Edit (`min-h-11` on mobile per `ServiceFormDialog.tsx:58`); three-dot menu trigger only 36px (`size-9`) — below the 44px floor for novice mobile operators. |
+| 4 | Theming | 4 | Every colour goes through `--admin-*` tokens or the OKLCH status family map; no hard-coded hex; no `rgba(0,0,0,X)` shadows. |
+| 5 | Anti-Patterns | 4 | No `border-l-4`, no gradient text, no glassmorphism, no hero-metric template, no identical-card grid (rows vary by content), no gold-on-light. |
+| **Total** | | **18/20** | **Excellent (minor polish)** |
+
+### Anti-Patterns Verdict
+
+**Pass.** Does not read as AI-generated. Grouped catalog with H2 group headers + list rows is a deliberate Stripe/Linear-product reference, executed in the Rahma palette. Letter-token leading dot (Hover Moss circle) is consistent with Brief 20 roles. No category-reflex tells. Status-badge composition (icon + label + tinted bg) honours the Named Status Rule end-to-end.
+
+### P0 findings
+
+- none
+
+### P1 findings
+
+- **Three-dot trigger touch target below 44px (mobile-first violation).** `src/app/admin/components/admin-ui-interactions.tsx:21` — `size-9` (36×36). Shared primitive; inflate to `size-11` on mobile or wrap in 44px hit area.
+- **`AdminActionMenu` uses native `<details>/<summary>` without menu semantics.** `src/app/admin/components/admin-ui-interactions.tsx:20-29` — no `role="menu"`, no `role="menuitem"`, no `aria-haspopup="menu"`, no `aria-expanded` mirroring, no arrow-key navigation, no outside-click close. Shared primitive used by every services row.
+
+### P2 findings
+
+- **Duration chip uses `tone="restricted"` (Lock icon + purple-grey).** `src/app/admin/services/page.tsx:208-212` — Lock glyph for "90 min" implies restriction; swap icon or move chip to neutral compact form.
+- **Gender chip uses `tone="info"` (Clock icon).** `src/app/admin/services/page.tsx:213-218` — Clock icon for "Any" gender has no semantic relationship; swap to gender-neutral glyph (Users / UserCheck) or drop icon.
+- **`ServiceFormDialog` does not use the shared `AdminSheet` primitive.** `src/app/admin/services/ServiceFormDialog.tsx:51-113` — re-implements right-side `BaseDialog.Popup` shell instead of consuming `AdminSheet`. (Note: `AdminSheet` is uncontrolled — needs `open`/`onOpenChange` props to be reusable here; that's a shared-primitive enhancement.)
+- **`Add service` Primary button is inlined, not `AdminButton`.** `ServiceFormDialog.tsx:64-71` — duplicates Primary token spec instead of using `<AdminButton variant="primary">`.
+- **Empty-state path uses inline panel chrome rather than `AdminPanel`.** `page.tsx:142-151` — wraps `EmptyState` in a raw `<div>` with panel tokens; should be `<AdminPanel>`.
+
+### P3 findings
+
+- **Letter-token tile uses raw OKLCH literal instead of token.** `page.tsx:186` — `bg-[oklch(95.5%_0.012_155)]` (Hover Moss); expose as `--admin-hover-moss` or reuse `--admin-panel-muted`.
+- **"In use" badge bypasses `AdminStatusBadge`.** `page.tsx:267-277` — hand-rolled Completed-family pill; would need a `completed` tone added to `AdminTone` for `AdminStatusBadge` consumption.
+- **Header section row count uppercase tracker.** `page.tsx:167-170` — "{N} SERVICES" in uppercase; DESIGN.md §Data-Table table-header rule cautions against uppercase shouting.
+- **Vertical separator between price and chips becomes orphaned on wrap.** `page.tsx:204-207` — `h-3 w-px` divider; hide on wrap at narrow viewports.
+- **`titleCase` collapses intentional casing.** `page.tsx:49-58` — "IASTM" would become "Iastm"; free-text `group_category` may benefit from literal pass-through.
+
+### Backend status
+
+**HANDLED.** Brief §4a contract honoured verbatim:
+- `createService` ← Add flow (`ServiceFormDialog.tsx:150`)
+- `updateService(serviceId, ...)` ← Edit + Activate/Deactivate + Hide/Show toggles with full-payload `buildFormData` (`ServiceRowActions.tsx:21-37, 46`)
+- `deleteService(serviceId)` ← Delete flow (`DeleteServiceButton.tsx:37`)
+
+No BUILD plan blocking. No FAKE adapter in use.
+
+### **P1 (tag for Phase 7 gauntlet):**
+
+- **Three-dot trigger touch target below 44px on mobile** — `src/app/admin/components/admin-ui-interactions.tsx:21` (`size-9` / 36px).
+- **`AdminActionMenu` lacks `role="menu"` / `role="menuitem"` / `aria-haspopup` / arrow-key navigation** — `src/app/admin/components/admin-ui-interactions.tsx:20-29`.
+
+### **BUSINESS-COMPLETENESS impact:**
+
+- **2A-6 (form errors `aria-live` announce)** — newly contributed. Services ships the universal pattern: form-level banner (`ServiceFormDialog.tsx:178-181`), gender select bespoke error region (`ServiceFormDialog.tsx:266-269`), and shared `AdminInput` error region — all carry the full `role="alert" aria-live="polite" aria-atomic="true"` triplet.
+
+---
+
+## services — critique
+
+**Scope:** post-polish state at `src/app/admin/services/{page,ServiceFormDialog,ServiceRowActions,DeleteServiceButton}.tsx`, audited against `redesign/briefs/services-brief.md`, PRODUCT.md, DESIGN.md, and the three `services-polish-final-{375,768,1440}.png` screenshots plus the add-sheet and delete-modal captures.
+
+### Nielsen heuristic scores
+
+| # | Heuristic | Score | Key issue |
+|---|---|---|---|
+| 1 | Visibility of system status | 3 | Toolbar/header summary + Sonner toasts on every mutation + per-group "N SERVICES" count gives strong scannable state. Three-dot toggles return zero in-row visual feedback during `isPending` (only toast). |
+| 2 | Match between system and real world | 3 | Plain-English copy throughout. "URL slug" hint is operator-honest. Minor mismatch: `#10 / #20 / #30` mono codes on rows read like database PKs to a novice. |
+| 3 | User control and freedom | 3 | Sheet has Cancel + close-X + backdrop dismiss; delete modal has "Keep it"; toggles reversible. No undo on delete (irreversible by contract). |
+| 4 | Consistency and standards | 3 | Tokens properly wired. `InUseBadge` hand-rolled instead of `AdminStatusBadge`. Duration `tone="restricted"` adjacent to gender `tone="info"` reads slightly arbitrary on first scan. |
+| 5 | Error prevention | 3 | Delete on `usage_count > 0` is `disabled` + `aria-disabled` + `title` + toast — defence-in-depth. Slug-change warning on in-use services not implemented (brief §10 marked optional). |
+| 6 | Recognition rather than recall | 4 | Letter token + group H2 + per-row name + price + duration chip + gender chip + status badges all visible at rest. No hover-reveal. |
+| 7 | Flexibility and efficiency | 2 | No keyboard accelerator for Add. No inline-edit-price. No search/filter (brief out of scope). No drag-reorder for `display_order`. |
+| 8 | Aesthetic and minimalist design | 3 | Restrained colour strategy: Clinic Green only on primary CTA; status tints only when state demands. Group H2 + count caption is a nice editorial touch. Five-chip meta row is dense for a row whose primary value is price. |
+| 9 | Help users recognize, diagnose, recover from errors | 3 | Per-field `role="alert" aria-live="polite" aria-atomic="true"`; cross-field error banner; "Couldn't save the service. Try again." toast with `duration: Infinity`. Persistent toast offers no Retry button (DESIGN.md §"Status Communication" calls for it). |
+| 10 | Help and documentation | 3 | Helper text on every consequential field. Tooltips on three-dot trigger and disabled Delete. No links to a broader admin guide; inline helpers carry the load. |
+| **Total** | | **30/40** | **Solid — ships, with Flexibility/Efficiency and slug-warning gaps as obvious follow-ups.** |
+
+### AI-slop verdict
+
+**PASS.** No purple-blue gradient, no `border-l-4`, no gradient text, no glassmorphism, no hero-metric tile, no identical icon-heading-text grid, no decorative blob, no dashed empty state, no color-only status. The grouped-list-with-letter-tokens grammar matches the Stripe/Linear/Shopify references the brief specified and reads as a deliberate catalog rather than a generic shadcn-default admin.
+
+### UX-quality commentary (PRODUCT.md anti-reference mapping)
+
+- **Generic SaaS / shadcn-default dashboards** — avoided. Rahma tokens unmistakable: ivory canvas, Clinic Green chrome, status families on chips. Letter-token bubble on Hover Moss is a Rahma-grammar move.
+- **Decorative blobs, glassmorphism, hero-metric template** — avoided. Page header is plain title + summary + CTA. The 35%-opacity green-tinted backdrop on sheet/modal is purposeful (focus the overlay), not decorative.
+- **Color-only status signalling** — avoided. Every chip carries text label AND icon.
+- **Side-stripe borders, gradient text** — clean. No `border-l-` rules; all card outlines are 1px full-border Warm Veil.
+- **Identical card grids** — avoided. Rows are list-row-cards on canvas with strong left-anchored composition + right-anchored action cluster. The earlier 2-column card grid the brief replaced was the antipattern; the redesign retires it cleanly.
+- **Tools so spare they feel cold** — handled. Letter token + editorial group H2 + per-row description keep page from feeling Linear-bare.
+- **Everything-on-one-screen SaaS dashboards** — avoided. Page does one thing (catalog review/edit); complexity deferred into AdminSheet. Empty state is encouraging.
+
+**Concrete observations the next polish pass should pick up:**
+
+1. Five-chip meta row is dense for a catalog whose primary value is price.
+2. `InUseBadge` should route through `AdminStatusBadge` (Completed family).
+3. Slug-change warning on in-use services unimplemented (brief §Copy).
+4. Server-error toast lacks the Retry affordance DESIGN.md calls for.
+5. "Any" gender chip leading with clock-style icon collides visually with "90 min" duration chip — distinct iconography needed.
+6. Mobile (375px) view: verify safe-area padding under bottom mobile nav so the last row of the first group is never occluded.

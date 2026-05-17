@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 14 of 29 — client-detail   ← update when you start a session (count by position from the top, not by label). In flight (parallel worktrees, 2026-05-17): services, privacy.
+Currently on: 14 of 29 — client-detail   ← update when you start a session (count by position from the top, not by label). In flight (parallel worktrees, 2026-05-17): privacy.
 
 ---
 
@@ -1042,7 +1042,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 28. [ ] services — commit: ____
+## 28. [x] services — commit: ____
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
