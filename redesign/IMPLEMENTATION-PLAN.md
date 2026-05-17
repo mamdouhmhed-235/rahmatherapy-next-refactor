@@ -852,7 +852,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 23. [ ] enquiries — commit: ____
+## 23. [x] enquiries — commit: 1ebc18f
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
