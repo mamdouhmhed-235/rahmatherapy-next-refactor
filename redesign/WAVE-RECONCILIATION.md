@@ -21,12 +21,11 @@ Cross-wave consistency notes per POST-AGENT-AUDIT-PROTOCOL §6. Updated at the c
 
 ---
 
-## Wave 6 — FAKE admin lists (3 of 4 merged 2026-05-17, privacy pending)
+## Wave 6 — FAKE admin lists (CLOSED 2026-05-17)
 
-**Pages merged:** enquiries (`1ebc18f`) · audit (`3c69da8`) · operations (`2a8b804`)
-**Pending:** privacy
+**Pages merged:** enquiries (`1ebc18f`) · audit (`3c69da8`) · operations (`2a8b804`) · privacy (`9238d14`, landed via the parallel-5 batch — see operational observations below)
 
-Wave 6 cannot fully close until privacy lands. Visual cross-page reconciliation deferred to that close.
+Wave 6 closed when privacy landed on `redesign/start-state`. Visual cross-page reconciliation across all four pages at 1440 / 768 / 375 deferred to Phase 7 (`/impeccable audit admin`) — the dev server was not exercised post-merge during the closing session.
 
 ### Brief-extension precedents now in `redesign/start-state`
 
@@ -110,4 +109,22 @@ Wave 6's batch spawned at `fd6d542` and each landed on a different main-tree HEA
 
 ---
 
-End of log. Next update: when privacy closes Wave 6, or when a new wave starts.
+## Parallel 5-page batch — 2026-05-17 (clients · staff · roles · services · privacy)
+
+Spawned 5 worktrees in parallel from `ffab338`. Landed across 15 commits in this order: clients (`e3c74f6`) → babe21d (mid-batch doc-fix) → staff (`f156aad`) → roles (`2fbe779`) → services (`d4cfd56`) → privacy (`9238d14`), plus 4 cosmetic hash-fix commits + 5 `[x]` marker commits. Final HEAD `55ec857`. Closed Wave 6 and made progress on Waves 3 (clients), 4 (staff), 5 (roles + services).
+
+### Operational observations
+
+1. **Worktree-isolation fix from 2026-05-17 (`9869649`) is fully validated** — 6 consecutive auto-heals reported **0/10 damaged** across the entire batch (including periods with 4 concurrent worktrees in flight). The cumulative-leaf-damage pattern from prior batches did not recur. Approach is production-ready.
+
+2. **Phase 5 audit gap caught + repaired mid-batch** — roles agent STUCK at Step 4 on the `createRole` phantom, gap-audit subagent found `saveService` was about to do the same to services, doc-fix commit `babe21d` resolved both before services hit it. Net 1-page outage (roles re-dispatch).
+
+3. **Rebase + 2-conflict loop is now mechanical** — same regex-based resolution for IMPLEMENTATION-PLAN "Currently on" + PER-PAGE-SCORES append every time. 4 rebases this batch all succeeded without manual intervention.
+
+4. **Post-handoff iteration pattern is now common** — 4 of 5 pages did Step 13b+ user-requested polish (only services finished cleanly on first pass). All pages produced 3 PER-PAGE-SCORES headings instead of canonical 2. Phase 7 tooling should expect this.
+
+5. **Hash drift per rebase** — every rebased agent leaves a stale commit-hash reference in the `[x]` row, fixed by a small follow-up commit. 4 hash-fix commits this batch.
+
+---
+
+End of log. Next update: when the next wave starts or a non-trivial cross-page consistency check runs.
