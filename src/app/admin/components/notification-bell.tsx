@@ -135,9 +135,11 @@ type NotificationTab = "all" | "unread" | "read" | "critical" | "emails" | "oper
 export function NotificationBell({
   items,
   staffId = "shared",
+  variant = "default",
 }: {
   items: NotificationItem[];
   staffId?: string;
+  variant?: "default" | "header-rail";
 }) {
   const [open, setOpen] = useState(false);
   const ids = useMemo(() => items.map((i) => i.id), [items]);
@@ -155,6 +157,15 @@ export function NotificationBell({
     setOpen(false);
   };
 
+  const isRail = variant === "header-rail";
+  const triggerClass = isRail
+    ? "inline-flex size-9 appearance-none items-center justify-center rounded-full border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+    : "inline-flex size-11 appearance-none items-center justify-center rounded-[var(--admin-radius-card)] border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35";
+  const innerClass = isRail
+    ? "relative inline-flex size-9 items-center justify-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)]"
+    : "relative inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)] shadow-[var(--admin-shadow-subtle)]";
+  const iconClass = isRail ? "size-[1rem]" : "size-[1.125rem]";
+
   return (
     <>
       <AdminPopover.Root
@@ -166,13 +177,13 @@ export function NotificationBell({
         <AdminPopover.Trigger
           ref={triggerRef}
           aria-label={unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up"}
-          className="inline-flex size-11 appearance-none items-center justify-center rounded-[var(--admin-radius-card)] border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+          className={triggerClass}
         >
-          <span className="relative inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)] shadow-[var(--admin-shadow-subtle)]">
+          <span className={innerClass}>
             {unreadCount > 0 ? (
-              <BellRing className="size-[1.125rem]" aria-hidden="true" />
+              <BellRing className={iconClass} aria-hidden="true" />
             ) : (
-              <Bell className="size-[1.125rem]" aria-hidden="true" />
+              <Bell className={iconClass} aria-hidden="true" />
             )}
             {unreadCount > 0 ? (
               <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] px-1 text-[11px] font-bold leading-none text-[oklch(26%_0.13_55)]" aria-hidden="true">

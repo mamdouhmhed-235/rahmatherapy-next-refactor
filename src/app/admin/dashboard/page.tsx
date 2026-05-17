@@ -11,6 +11,7 @@ import {
   canViewEmailLogs,
   canViewAllBookings,
   canViewAssignedBookings,
+  canViewRevenueReports,
   getStaffProfile,
 } from "@/lib/auth/rbac";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
@@ -19,7 +20,6 @@ import {
   AdminPageScaffold,
 } from "../components/admin-ui";
 import {
-  buildNotifications,
   findNextAppointment,
   formatNumber,
   getAttentionItems,
@@ -30,10 +30,10 @@ import {
   parseReportFilters,
   summarizeReports,
 } from "../reports/reporting";
-import type { NotificationItem } from "../reports/reporting";
 import {
   AttentionItemCard,
   BusinessPulseCard,
+  DemandTrendCard,
   OperationsHealthCard,
   PaymentHealthCard,
   StaffCapacityCard,
@@ -46,13 +46,13 @@ import type {
   AttentionSummaryRow,
 } from "./dashboard-cards";
 import {
-  MobileNotificationButton,
-  NotificationBell,
-} from "../components/notification-bell";
-import { DashboardFiltersClient } from "./dashboard-filters-client";
+  BusinessOverviewDisclosure,
+  DashboardFiltersClient,
+} from "./dashboard-filters-client";
 import { AdminErrorBoundary } from "../components/admin-error-boundary";
 import { DashboardHeader } from "./dashboard-header";
 import { getDashboardData, type DashboardVariant } from "./dashboard-data";
+import { buildDemandTrendData } from "./dashboard-helpers";
 import { TherapistDashboard } from "./TherapistDashboard";
 import { resolveAdminShellVariant } from "../shell-variant";
 
@@ -340,6 +340,7 @@ interface PermissionAccess {
   operations: boolean;
   staff: boolean;
   availability: boolean;
+  viewReportsRevenue: boolean;
 }
 
 function getPermissionAccess(profile: StaffProfile): PermissionAccess {
@@ -352,6 +353,7 @@ function getPermissionAccess(profile: StaffProfile): PermissionAccess {
     operations: canManageOperations(profile),
     staff: canViewStaff(profile),
     availability: getAdminPageAccess(profile, "availability").access,
+    viewReportsRevenue: canViewRevenueReports(profile),
   };
 }
 
@@ -372,23 +374,73 @@ function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
-function getDashboardCopy(variant: DashboardVariant) {
+function formatRangeLabel(range: string, from: string, to: string) {
+  const formatShort = (iso: string) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return iso;
+    return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", timeZone: "Europe/London" }).format(d);
+  };
+  const formatWeekday = (iso: string) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return iso;
+    return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" }).format(d);
+  };
+  const formatMonth = (iso: string) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    if (Number.isNaN(d.getTime())) return iso;
+    return new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric", timeZone: "Europe/London" }).format(d);
+  };
+  if (range === "today") return `Today (${formatWeekday(from)})`;
+  if (range === "this_week") return `This week (${formatShort(from)} – ${formatShort(to)})`;
+  if (range === "this_month") return `This month (${formatMonth(from)})`;
+  if (range === "last_30") return `Last 30 days (${formatShort(from)} – ${formatShort(to)})`;
+  return `${formatShort(from)} – ${formatShort(to)}`;
+}
+
+function formatBusinessDateSubtitle(today: string) {
+  const date = new Date(`${today}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return today;
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/London",
+  }).format(date);
+}
+
+function getDashboardCopy(variant: DashboardVariant, today: string) {
+  const formattedDate = formatBusinessDateSubtitle(today);
   if (variant === "coordinator") {
     return {
-      title: "Coordinator dashboard",
-      subtitle: "Booking queue, enquiries, email status and assignment gaps.",
+      title: "Today at Rahma",
+      subtitle: `${formattedDate} · Booking queue + enquiries`,
     };
   }
   if (variant === "therapist") {
     return {
-      title: "Therapist dashboard",
-      subtitle: "Assigned bookings, matching claimable work and own availability.",
+      title: "Today at Rahma",
+      subtitle: `${formattedDate} · Your work`,
     };
   }
   return {
-    title: "Dashboard",
-    subtitle: "Business-wide command centre for operations, bookings, staff and reports.",
+    title: "Today at Rahma",
+    subtitle: `${formattedDate} · Luton`,
   };
+}
+
+function getRoleLabel(profile: { roles?: { name?: string | null }[] | null; role?: string | null }) {
+  type RoleLike = { name?: string | null };
+  const rolesArr = (profile as { roles?: RoleLike[] | null }).roles;
+  const roleName =
+    (Array.isArray(rolesArr) && rolesArr[0]?.name) || profile.role || null;
+  if (!roleName) return null;
+  const lower = roleName.toLowerCase();
+  if (lower.includes("owner") || lower === "main_admin" || lower === "main admin") return "Owner";
+  if (lower.includes("admin") || lower.includes("manager")) return "Admin";
+  if (lower.includes("coordinator")) return "Coordinator";
+  if (lower.includes("therapist")) return "Therapist";
+  return roleName.charAt(0).toUpperCase() + roleName.slice(1);
 }
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
@@ -415,8 +467,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const { data, plan } = await getDashboardData(adminClient, profile, filters);
   const summary = summarizeReports(data);
   const attentionItems = getAttentionItems(data);
+  const dailySeries = buildDemandTrendData(data.bookings, filters.from, filters.to);
+  const rangeLabel = formatRangeLabel(filters.range, filters.from, filters.to);
+  const todayView: "list" | "timeline" = params.todayView === "timeline" ? "timeline" : "list";
 
   const todayAppointments: typeof data.bookings = [];
+  const upcomingInRange: typeof data.bookings = [];
   const nextSevenDays: typeof data.bookings = [];
   const needsAssignment: typeof data.bookings = [];
   const unassignedOnly: typeof data.bookings = [];
@@ -427,6 +483,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
 
   for (const booking of data.bookings) {
     if (booking.booking_date === today) todayAppointments.push(booking);
+    if (booking.booking_date >= today && booking.booking_date <= filters.to) {
+      upcomingInRange.push(booking);
+    }
     if (booking.booking_date >= today && booking.booking_date <= sevenDayLimit) {
       nextSevenDays.push(booking);
     }
@@ -486,7 +545,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const revenueAllowed = plan.includeRevenue;
   const assignedOnly = plan.variant === "therapist";
   const permissionAccess = getPermissionAccess(profile);
-  const dashboardCopy = getDashboardCopy(plan.variant);
+  const dashboardCopy = getDashboardCopy(plan.variant, today);
+  const roleLabel = getRoleLabel(profile as unknown as { roles?: { name?: string | null }[]; role?: string });
   const showStaffCapacity = plan.variant === "business" && permissionAccess.staff;
   // Coordinators don't see money — render the money card only when revenue
   // is actually viewable. Avoids the "Revenue hidden" carrot.
@@ -500,14 +560,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     minute: "2-digit",
     timeZone: "Europe/London",
   }).format(new Date());
-
-  const notifications: NotificationItem[] = buildNotifications({
-    assignments: data.assignments,
-    emailEvents: data.emailEvents,
-    operationalEvents: data.operationalEvents,
-    enquiries: data.enquiries,
-    bookings: data.bookings,
-  });
 
   const attentionGroups = buildAttentionGroups(attentionItems, permissionAccess, today);
   const attentionSummaryRows: AttentionSummaryRow[] = [
@@ -557,6 +609,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     });
   }
 
+  const scopeSummary = {
+    bookings: data.bookings.length,
+    attention: attentionItems.length,
+    outstanding: summary.outstandingRevenue,
+    clients: summary.repeatClients + summary.newClients,
+    rangeLabel,
+    revenueAllowed,
+  };
+
+  const filterQueryParams = new URLSearchParams();
+  if (filters.range) filterQueryParams.set("range", filters.range);
+  if (filters.from) filterQueryParams.set("from", filters.from);
+  if (filters.to) filterQueryParams.set("to", filters.to);
+  if (filters.city) filterQueryParams.set("city", filters.city);
+  if (filters.service) filterQueryParams.set("service", filters.service);
+  if (filters.staffId) filterQueryParams.set("staffId", filters.staffId);
+  if (filters.source) filterQueryParams.set("source", filters.source);
+  if (filters.status) filterQueryParams.set("status", filters.status);
+  if (filters.paymentStatus) filterQueryParams.set("paymentStatus", filters.paymentStatus);
+  const filterQuery = filterQueryParams.toString();
+
   const readiness = {
     confirmations: failedEmails.length > 0 ? `${formatNumber(failedEmails.length)} to review` : "All clear",
     staffCoverage: needsAssignment.length > 0 ? `${formatNumber(needsAssignment.length)} need assignment` : "Well covered",
@@ -568,31 +641,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           : "No activity yet",
   };
 
-  const notificationButton = (
-    <>
-      <div className="xl:hidden">
-        <AdminErrorBoundary sectionName="Notifications">
-          <MobileNotificationButton items={notifications} variant="icon" />
-        </AdminErrorBoundary>
-      </div>
-      <div className="hidden xl:block">
-        <AdminErrorBoundary sectionName="Notifications">
-          <NotificationBell items={notifications} />
-        </AdminErrorBoundary>
-      </div>
-    </>
-  );
-
   return (
-    <AdminPageScaffold className="gap-4">
+    <AdminPageScaffold className="min-w-0 gap-4 grid-cols-[minmax(0,1fr)] pb-24 md:pb-8">
       <DashboardHeader
         title={dashboardCopy.title}
         subtitle={dashboardCopy.subtitle}
         lastChecked={lastChecked}
-        showReports={permissionAccess.reports}
-        showCalendar={permissionAccess.calendar}
-        showSettings={permissionAccess.operations}
-        notificationButton={notificationButton}
+        roleLabel={roleLabel}
+        rangeLabel={rangeLabel}
+        updatedAtIso={new Date().toISOString()}
       />
 
       <AdminErrorBoundary sectionName="Dashboard filters">
@@ -605,6 +662,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           paymentOptions={paymentOptions}
           cityOptions={data.cityOptions}
           today={today}
+          canExport={permissionAccess.viewReportsRevenue}
+          scopeSummary={scopeSummary}
         />
       </AdminErrorBoundary>
 
@@ -618,6 +677,21 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             status: booking.assignment_status,
             href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
           }))}
+          upcomingAppointments={upcomingInRange.map((booking) => ({
+            date: booking.booking_date,
+            time: booking.start_time.slice(0, 5),
+            endTime: booking.end_time?.slice(0, 5),
+            title: booking.contact_full_name ?? "Unknown contact",
+            detail: booking.service_city ?? "No city recorded",
+            status: booking.assignment_status,
+            href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
+          }))}
+          rangeKind={filters.range}
+          rangeLabel={rangeLabel}
+          dailySeries={dailySeries.map((d) => d.bookings)}
+          filterQuery={filterQuery}
+          scopeCount={data.bookings.length}
+          todayView={todayView}
           todayCount={todayAppointments.length}
           weekCount={nextSevenDays.length}
           nextAppointment={
@@ -632,67 +706,89 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           permissionAccess={permissionAccess}
           readiness={readiness}
         />
-        <UrgentAttentionPanel rows={attentionSummaryRows} groups={attentionGroups} />
+        <UrgentAttentionPanel rows={attentionSummaryRows} groups={attentionGroups} filterQuery={filterQuery} />
       </section>
 
-      <section className="grid min-w-0 items-start gap-4 lg:grid-cols-2 xl:grid-cols-3">
-        {showStaffCapacity ? (
-          <div className="order-2 xl:order-1">
-            <StaffCapacityCard
-              genderCapacity={genderCapacity}
-              staffWorkload={staffWorkload.map((row) => ({
-                staffName: row.staffName,
-                assignments: row.assignments,
-                completed: row.completed,
-              }))}
-              permissionAccess={permissionAccess}
-            />
+      <BusinessOverviewDisclosure
+        staffId={profile.id}
+        hasActivity={
+          (showStaffCapacity && staffWorkload.length > 0) ||
+          (showPaymentHealth && (summary.bookedRevenue > 0 || unpaidBookings.length > 0)) ||
+          (showOperationsHealth &&
+            (failedEmails.length > 0 ||
+              openOperationalErrors.length > 0 ||
+              staffAvailabilityGaps.length > 0 ||
+              newEnquiries.length > 0)) ||
+          services.length > 0 ||
+          data.bookings.length > 0
+        }
+      >
+        <section className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
+          {showStaffCapacity ? (
+            <div className="order-2 xl:order-1">
+              <StaffCapacityCard
+                genderCapacity={genderCapacity}
+                staffWorkload={staffWorkload.map((row) => ({
+                  staffName: row.staffName,
+                  assignments: row.assignments,
+                  completed: row.completed,
+                }))}
+                permissionAccess={permissionAccess}
+              />
+            </div>
+          ) : null}
+          {showPaymentHealth ? (
+            <div className="order-3 xl:order-2">
+              <PaymentHealthCard
+                summary={{
+                  bookedRevenue: summary.bookedRevenue,
+                  collectedRevenue: summary.collectedRevenue,
+                  outstandingRevenue: summary.outstandingRevenue,
+                }}
+                unpaidCount={unpaidBookings.length}
+                unpaidCompletedCount={unpaidCompleted.length}
+                revenueAllowed={revenueAllowed}
+                canReviewBookings={permissionAccess.bookings}
+                canViewReports={permissionAccess.reports}
+              />
+            </div>
+          ) : null}
+          {showOperationsHealth ? (
+            <div className="order-1 xl:order-3">
+              <OperationsHealthCard
+                failedEmails={failedEmails.length}
+                openEnquiries={newEnquiries.length}
+                openOperations={openOperationalErrors.length}
+                availabilityGaps={staffAvailabilityGaps.length}
+                permissionAccess={permissionAccess}
+              />
+            </div>
+          ) : null}
+          <div className="order-4">
+            <AdminErrorBoundary sectionName="Demand trend">
+              <DemandTrendCard
+                bookings={data.bookings}
+                dateRange={{ from: filters.from, to: filters.to }}
+                rangeLabel={rangeLabel}
+              />
+            </AdminErrorBoundary>
           </div>
-        ) : null}
-        {showPaymentHealth ? (
-          <div className="order-3 xl:order-2">
-            <PaymentHealthCard
-              summary={{
-                bookedRevenue: summary.bookedRevenue,
-                collectedRevenue: summary.collectedRevenue,
-                outstandingRevenue: summary.outstandingRevenue,
-              }}
-              unpaidCount={unpaidBookings.length}
-              unpaidCompletedCount={unpaidCompleted.length}
-              revenueAllowed={revenueAllowed}
-              canReviewBookings={permissionAccess.bookings}
-              canViewReports={permissionAccess.reports}
-            />
-          </div>
-        ) : null}
-        {showOperationsHealth ? (
-          <div className="order-1 lg:col-span-2 xl:order-3 xl:col-span-1">
-            <OperationsHealthCard
-              failedEmails={failedEmails.length}
-              openEnquiries={newEnquiries.length}
-              openOperations={openOperationalErrors.length}
-              availabilityGaps={staffAvailabilityGaps.length}
-              permissionAccess={permissionAccess}
-            />
-          </div>
-        ) : null}
-      </section>
+        </section>
 
-      <AdminErrorBoundary sectionName="Business pulse">
-        <BusinessPulseCard
-          services={services}
-          clients={{
-            repeatClients: summary.repeatClients,
-            newClients: summary.newClients,
-            noShowCancelled: noShowCancelledCount,
-            newEnquiries: newEnquiries.length,
-          }}
-          bookings={data.bookings}
-          dateRange={{ from: filters.from, to: filters.to }}
-          revenueAllowed={revenueAllowed}
-          canViewReports={permissionAccess.reports}
-        />
-      </AdminErrorBoundary>
+        <AdminErrorBoundary sectionName="Service & client mix">
+          <BusinessPulseCard
+            services={services}
+            clients={{
+              repeatClients: summary.repeatClients,
+              newClients: summary.newClients,
+              noShowCancelled: noShowCancelledCount,
+              newEnquiries: newEnquiries.length,
+            }}
+            revenueAllowed={revenueAllowed}
+            canViewReports={permissionAccess.reports}
+          />
+        </AdminErrorBoundary>
+      </BusinessOverviewDisclosure>
 
     </AdminPageScaffold>
   );

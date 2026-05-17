@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { Clock, FileText, CalendarDays, Settings } from "lucide-react";
-import { cn } from "@/lib/utils";
+"use client";
+
+import { useEffect, useState } from "react";
 
 interface DashboardHeaderProps {
   title: string;
@@ -10,70 +10,88 @@ interface DashboardHeaderProps {
   showCalendar?: boolean;
   showSettings?: boolean;
   notificationButton?: React.ReactNode;
+  roleLabel?: string | null;
+  scopeLabel?: string | null;
+  rangeLabel?: string;
+  updatedAtIso?: string;
 }
 
 export function DashboardHeader({
   title,
   subtitle,
-  lastChecked,
-  showReports,
-  showCalendar,
-  showSettings,
-  notificationButton,
+  roleLabel,
+  scopeLabel,
+  rangeLabel,
+  updatedAtIso,
 }: DashboardHeaderProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <h1 className="admin-display text-xl font-bold leading-tight text-[var(--admin-heading)] sm:text-2xl">
+        <h1 className="admin-display text-2xl font-bold leading-tight tracking-tight text-[var(--admin-heading)] sm:text-[1.875rem]">
           {title}
         </h1>
-        <p className="mt-1 text-sm leading-5 text-[var(--admin-text-muted)]">
+        <span
+          aria-hidden="true"
+          className="mt-2 block h-[2px] w-8 rounded-full bg-[var(--admin-accent)]"
+        />
+        <p className="mt-2 text-sm leading-5 text-[var(--admin-text-muted)]">
           {subtitle}
         </p>
+        {scopeLabel ? (
+          <p className="mt-1 text-xs font-medium text-[var(--admin-text-muted)]/85">
+            {scopeLabel}
+          </p>
+        ) : null}
+        {updatedAtIso ? (
+          <UpdatedAgo
+            absoluteIso={updatedAtIso}
+            className="mt-1.5 block text-[11px] uppercase tracking-[0.1em] text-[var(--admin-text-muted)]/70"
+          />
+        ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-        <div className="hidden items-center gap-1.5 text-xs text-[var(--admin-text-muted)] sm:flex mr-2">
-          <Clock className="size-3.5" aria-hidden="true" />
-          <span>Last synced: {lastChecked}</span>
-        </div>
-
-        {showReports && (
-          <Link
-            href="/admin/reports"
-            className={cn(
-              "inline-flex h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            )}
-          >
-            <FileText className="size-4" />
-            Reports
-          </Link>
-        )}
-
-        {showCalendar && (
-          <Link
-            href="/admin/calendar"
-            className={cn(
-              "inline-flex h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            )}
-          >
-            <CalendarDays className="size-4" />
-            Calendar
-          </Link>
-        )}
-
-        {notificationButton}
-
-        {showSettings && (
-          <Link
-            href="/admin/settings"
-            className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            aria-label="Settings"
-          >
-            <Settings className="size-4" />
-          </Link>
-        )}
-      </div>
+      {roleLabel ? (
+        <span
+          className="hidden h-7 items-center gap-1.5 self-start rounded-full bg-[var(--admin-restricted-bg)] px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--admin-restricted)] sm:shrink-0 md:inline-flex"
+          aria-label={`Signed in as ${roleLabel}`}
+        >
+          <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--admin-restricted)]" />
+          {roleLabel}
+        </span>
+      ) : null}
     </div>
   );
+}
+
+function UpdatedAgo({ absoluteIso, className }: { absoluteIso: string; className?: string }) {
+  const [now, setNow] = useState(() => Date.parse(absoluteIso));
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const t = Date.parse(absoluteIso);
+  const diffMs = now - t;
+  const label = formatRelative(diffMs);
+
+  return (
+    <span className={className} title={new Date(t).toLocaleString("en-GB", { timeZone: "Europe/London" })}>
+      Updated {label}
+    </span>
+  );
+}
+
+function formatRelative(diffMs: number) {
+  const seconds = Math.round(diffMs / 1000);
+  if (seconds < 30) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 1) return "just now";
+  if (minutes === 1) return "1 min ago";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours === 1) return "1 hr ago";
+  if (hours < 24) return `${hours} hr ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
 }

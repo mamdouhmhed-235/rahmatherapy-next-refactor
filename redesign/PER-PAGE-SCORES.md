@@ -1887,3 +1887,160 @@ User requested the top-5 recommendations from the post-handoff visual review be 
 **Files updated:** `src/app/admin/privacy/page.tsx` (avatar helpers + staff lookup + stat-strip rework + row composition + motion tokens).
 
 **Files unchanged in this pass:** `PrivacyStatusForm.tsx`, `PrivacyFilterBar.tsx`, `PrivacyRequestNote.tsx`, `actions.ts` (Feature Preservation Manifest holds).
+
+## dashboard-owner-admin — audit
+
+Audit date: 2026-05-17 · Auditor: independent reviewer (no implementation context)
+Files reviewed: src/app/admin/dashboard/page.tsx, dashboard-header.tsx, dashboard-filters-client.tsx, dashboard-cards.tsx, attention-group-client.tsx, demand-trend-client.tsx, src/app/admin/components/notification-bell.tsx
+Screenshots reviewed: dashboard-owner-admin-polish-final-{375,768,1440}.png
+
+### Severity rubric (impeccable v5 L884-890, verbatim)
+
+- P0 — Blocks release — fix before shipping anything
+- P1 — Fix this sprint — significant impact on users
+- P2 — Next cycle — noticeable but not blocking
+- P3 — Polish — minor, fix when time allows
+
+### 5 dimension scores (out of 4 each, total /20)
+
+| Dimension | Score | Note |
+|---|---|---|
+| Brief fidelity | 1 / 4 | Marquee Cormorant numeral absent; Today panel shows a time-rail visualisation, not the compressed BookingListCard list the brief specifies; Urgent Attention panel lacks the mandated Pending-family background tint; Tier 2 ships a 3-tile row + a separate BusinessPulseCard instead of the 2x2 grid; right-rail header carries unspecified Reports/Calendar/Settings buttons; H2 reads "Today at a glance" not "Today"; Export Ghost was not gated on view_reports_revenue (now fixed in-session). |
+| Design system adherence | 2 / 4 | border-l-4 and bg-black cleared; avatar tints tokenised; Recharts minHeight 288 applied. But legacy AdminEmptyState used throughout instead of consolidated EmptyState (2A-17), raw oklch literals in classNames bypass the token layer. |
+| Accessibility | 2 / 4 | aria-current="page" on date presets; dialog has aria-labelledby; disclosure has aria-expanded + aria-controls; presets in fieldset/legend. But zero role="alert" aria-live="polite" instances anywhere in src/app/admin/dashboard/ (brief §6 + BUSINESS-COMPLETENESS 2A-6 unmet); date-preset momentum strip on mobile clips Custom off-screen. |
+| Visual quality | 2 / 4 | Header rhythm, status palette, chip group read calmly at 1440. But mobile bottom-nav z-index occludes Day readiness on 375; marquee numeral rendered as Urbanist 24px not 3.157rem Cormorant; Urgent Attention panel lacks warm Pending tint. |
+| Code quality | 2 / 4 | canExport gate added in-session; BusinessOverviewDisclosure ships hidden=!hydrated?!false:!expanded confusing dead syntax; demand-trend raw ms arithmetic ignores BST/GMT timezone; redirect logic, error boundaries, RBAC preserved. |
+
+Total: 9 / 20
+
+### P0 findings
+
+- FIXED in-session: src/app/admin/dashboard/dashboard-cards.tsx empty-state border-dashed removed; replaced with solid border.
+- FIXED in-session: src/app/admin/dashboard/page.tsx added viewReportsRevenue field to PermissionAccess, imported canViewRevenueReports, threaded canExport={permissionAccess.viewReportsRevenue}.
+
+### P1 findings (tag for Phase 7 gauntlet)
+
+- src/app/admin/dashboard/dashboard-cards.tsx:220-225 — H2 "Today at a glance" not "Today"; marquee numeral not Cormorant 3.157rem
+- src/app/admin/dashboard/dashboard-cards.tsx:397-415 — UrgentAttentionPanel missing Pending-family tint + status-pending border
+- src/app/admin/dashboard/page.tsx:683-742 — Tier 2 ships 3-tile row + separate BusinessPulseCard, not the brief's 2x2 grid
+- src/app/admin/dashboard/dashboard-header.tsx:70-104 — header rail scope creep (Reports/Calendar/Settings)
+- No role="alert" aria-live="polite" anywhere in src/app/admin/dashboard/** — brief §6 + 2A-6 unmet
+- Mobile bottom-nav overlap on Today panel Day readiness — shell-level (per deferrals)
+
+### P2 findings
+
+- src/app/admin/dashboard/dashboard-filters-client.tsx:339-341 — active-filter count uses warning tone not Pending family
+- src/app/admin/dashboard/dashboard-cards.tsx:914-1022 — BusinessPulseCard ships 24-bar conic-gradient + stacked-bar legend not in brief
+- src/app/admin/dashboard/dashboard-filters-client.tsx:555 — hidden=!hydrated?!false:!expanded double-negation
+- src/app/admin/dashboard/demand-trend-client.tsx:32-35 — raw ms arithmetic ignores BST/GMT
+- Legacy AdminEmptyState imports throughout (2A-17 regression)
+- Mobile date-preset chips clip Custom without scroll-affordance
+
+### P3 findings
+
+- src/app/admin/dashboard/dashboard-cards.tsx:133-135, 423-425 — raw oklch literals in classNames; should use status family CSS vars
+- src/app/admin/dashboard/page.tsx:529-533 — lastChecked rendered as if it were a freshness signal
+- src/app/admin/dashboard/dashboard-cards.tsx:713 — "+12% vs last week" hardcoded stub string
+- src/app/admin/dashboard/dashboard-header.tsx:65-68 — "Last synced" Clock chip duplicates lastChecked
+
+### Backend status
+
+N-A — read-only Server Component. No server actions, no audit log writes, no mutations. dashboard-data.ts untouched per Files-to-NEVER-touch. No BUILD plan blocks this page.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- H2 + marquee numeral spec drift — src/app/admin/dashboard/dashboard-cards.tsx:220-225 (and MetricMini L341-348)
+- UrgentAttentionPanel Pending-family tint — src/app/admin/dashboard/dashboard-cards.tsx:397-415
+- Tier 2 structure mismatch — src/app/admin/dashboard/page.tsx:683-742
+- Header rail scope creep — src/app/admin/dashboard/dashboard-header.tsx:70-104
+- Missing role="alert" aria-live="polite" — entire src/app/admin/dashboard/**
+- Mobile bottom-nav overlap — shell-level (per deferrals)
+
+### BUSINESS-COMPLETENESS impact
+
+none — this page newly contributes to no Track A items. 2A-6 not advanced (Grep: 0 matches under src/app/admin/dashboard/). 2A-7 (Recharts minHeight 288) was previously HANDLED. 2A-8 (aria-current="page") inherits from shared-components.
+
+## dashboard-owner-admin — critique
+
+Date: 2026-05-17
+Reviewed: redesign/screenshots/dashboard-owner-admin-redesign/dashboard-owner-admin-polish-final-{375,768,1440}.png, page.tsx + dashboard-header.tsx + dashboard-filters-client.tsx + dashboard-cards.tsx + attention-group-client.tsx + demand-trend-client.tsx + notification-bell.tsx
+
+### Nielsen heuristic scores (out of 5 each, total /50)
+
+| # | Heuristic | Score | Notes |
+|---|---|---|---|
+| 1 | Visibility of system status | 4 / 5 | Live date subtitle, "Last synced 18:54", aria-current on active preset, aria-busy on filter strip, role badge in header, attention count tied to dialog title. Half-point off: empty Urgent Attention panel still surfaces a saturated primary-green "Review signals" CTA even when every signal reads "All clear". |
+| 2 | Match between system and real world | 4 / 5 | H1 "Today at Rahma" voice-anchored; copy is plain. Half off: "High priority signals that may need your action" is engineery; an operator would say "Anything that needs you". |
+| 3 | User control and freedom | 4 / 5 | Disclosure persists per user via localStorage; date filter set is GET-driven so deep links survive; More filters sheet has Apply + Clear all; Custom range exposes From/To. Loses a point because attention dialog has no visible Cancel/Close beyond small ×. |
+| 4 | Consistency and standards | 3 / 5 | Tokens wired, border-l-4 + bg-black removed, deterministic avatar tints replace 12 hex strings. But header right rail breaks navigation grammar: at 1440 it carries cmd-K chip + Last synced clock + Reports + Calendar + Bell + Settings adjacent to AdminTopNav which already owns global search + bell + avatar. ⌘K appears twice. Bell appears twice. Cormorant marquee numeral the brief designates as the panel signature is replaced with a sans `text-xl`. |
+| 5 | Error prevention | 4 / 5 | Custom date submit guards against from>to silently, aria-busy blocks pointer events while routing, attention links pre-gated by getAccessibleAttentionHref. Could gain a point with an inline validation message on date misorder. |
+| 6 | Recognition rather than recall | 3 / 5 | Active preset chip is high-contrast green-filled, active-filters badge shows numeric count. But header rail's trailing icon buttons land as unlabelled cluster at 1440; the Urgent Attention zero-state stacks three rows that all look identical — identical-card-grid failure mode applied to a list. |
+| 7 | Flexibility and efficiency of use | 3.5 / 5 | Disclosure remembers preference; cmd-K still reachable; presets one click; export carries current filter state. Loses points because Today panel has no quick path to specific bookings on empty state and duplicates bell/search/Reports/Calendar between top nav and header rail. |
+| 8 | Aesthetic and minimalist design | 2.5 / 5 | Most-regressed heuristic. (a) Header right rail is loud — cmd-K chip + Last synced clock + Reports + Calendar + Bell + Settings cog beside three more icons in top nav; brief specified Bell + cmd-K chip + role badge. (b) "Today at a glance" panel is internally subdivided into 0/0 stat strip, two CTAs, empty-state card, and three-tile Day Readiness strip — five visual zones in one tier-1 card. (c) Urgent Attention panel renders three identical icon-circle + heading + text + 0 + dotted-meter rows — exact identical-card-grid antipattern PRODUCT.md + DESIGN.md §6 ban. (d) Cormorant marquee numeral absent. The page reads competent and tidy but generic; does not yet read as Rahma. |
+| 9 | Help users recognize, diagnose, recover | 3.5 / 5 | AdminErrorBoundary wraps each major section; attention rows have impact lines; custom date submit silently bails when invalid — that's the diagnose-and-recover miss. Tile-level "Couldn't load this section. Try refreshing." copy per brief not visible in happy-path screenshots. |
+| 10 | Help and documentation | 3 / 5 | Tooltips on cmd-K chip, Export, role badge, and disclosure are present. The brief lists native title tooltips on date presets, marquee numeral, attention icons and demand-trend bars — most aren't wired. No in-page hint that the disclosure persists. |
+
+Total: 34.5 / 50
+
+### AI-slop verdict
+
+REGRESSED.
+
+Reasoning: structurally the page hits brief targets (two-tier surface, disclosure, preset chips, absolute bans removed, deterministic avatar tints) but visually it has slid into three named PRODUCT.md anti-patterns simultaneously — an icon+heading+text identical-row grid inside Urgent Attention, a header right rail that has expanded into a second navbar with duplicated controls, and the absence of the Cormorant marquee numeral that was the panel's named brand signature. Calm and dignified became neat and generic.
+
+### UX-quality commentary — mapping to PRODUCT.md anti-references
+
+- "No identical card grids" — Urgent Attention zero-state shows three rows with identical composition (round-bg icon + bold heading + grey subtitle + "0" + "All clear" + dotted progress meter). Day Readiness sub-strip inside Today panel does the same in miniature.
+- "No generic SaaS feel" — 1440 header right rail reads as SaaS dashboard chrome bar. Dotted 5-pip "progress meter" on each Attention row at 0/0 reads as SaaS metric widget.
+- "AdminStat tiles are flat, two-row, numeral-led" — Today panel "0 today / 0 this week" pair is small hero-metric in sans, not the Cormorant-led marquee numeral the brief explicitly named.
+- "Don't expose more than two card tiers simultaneously" — respected at page level but Today panel internally hosts five zones and Urgent Attention hosts four.
+- "Decoration that carries meaning" — dotted 5-pip meters on each Urgent Attention row at value 0 carry no information.
+- "Voice anchors — verbs over nouns" — "Enjoy a quiet day. Great time for admin and planning." nails it. "High priority signals that may need your action" doesn't.
+- Mobile (375) overlap — bottom mobile tab nav overlaps lower half of Today panel.
+
+Highest-leverage fixes (deferred to Phase 7 — see deferrals file): (1) restore Cormorant marquee numeral on Today panel; (2) collapse header rail to bell + role badge + cmd-K chip per brief; (3) replace three identical icon-heading-text-0-meter rows in Urgent Attention zero-state with single "All caught up" empty state; (4) fix mobile bottom-tab overlap.
+
+## dashboard-owner-admin — critique (re-run)
+
+Source verified: src/app/admin/dashboard/page.tsx, dashboard-header.tsx, dashboard-filters-client.tsx, dashboard-cards.tsx, attention-group-client.tsx, demand-trend-client.tsx, src/app/admin/components/notification-bell.tsx
+Screenshots reviewed: dashboard-owner-admin-final-{375,768,1280,1440}.png and dashboard-owner-admin-polish-final-{375,768,1440}.png
+
+Fix verification (vs prior REGRESSED critique):
+- Header rail collapsed to brief §5 spec — Bell + ⌘K chip + role badge only; Reports/Calendar/Settings + Last synced removed. VERIFIED in source + screenshots.
+- TodayAtAGlanceCard H2 reads "Today" (dashboard-cards.tsx:223) per brief §8. VERIFIED.
+- Cormorant marquee numeral wired via admin-display + clamp(2.75rem, 4.5vw, 3.157rem). Renders as Cormorant italic serif across all four final screenshots. VERIFIED.
+- This-week stat demoted to text-base font-semibold with vertical divider — supporting role. VERIFIED.
+- UrgentAttentionPanel allClear branch collapses 3 identical rows to single AdminEmptyState; Review signals CTA hidden. VERIFIED across 375/768/1280/1440 screenshots.
+- Tier 2 sub-tile titles verbatim brief: "Staff capacity", "Payment health", "Operations health". VERIFIED.
+
+### Nielsen heuristic scores (out of 5 each, total /50)
+
+| # | Heuristic | Score | Note |
+|---|---|---|---|
+| 1 | Visibility of system status | 4.5 / 5 | Active preset aria-current+green fill; aria-busy on filter strip; Day readiness line states current status at a glance. Half-off: disclosure-disabled state may still show expanded children if localStorage was previously true. |
+| 2 | Match between system and real world | 4.5 / 5 | H1 "Today at Rahma" + Sunday-date subtitle reads like an operator's morning briefing; empty-state copy ("Quiet day…", "All caught up") is plain-English encouraging. |
+| 3 | User control and freedom | 4.5 / 5 | Five date presets + Custom + More-filters sheet; Clear-all one click; URL deep-linkable; ESC + outside-click close attention dialog. |
+| 4 | Consistency and standards | 4 / 5 | AdminDashboardPanel + AdminStatusBadge + AdminEmptyState + AdminIconBadge consistently applied. Minor: Demand trend H3 is a p tag (demand-trend-client.tsx:47), heading hierarchy slip; Operations health uses 4 identical AdminHealthTile in 2x2 grid — pre-existing antipattern, not new. |
+| 5 | Error prevention | 4.5 / 5 | Custom-date submit guards from>to silently; restricted attention items render a Restricted pill instead of dead link; severity tints preview destructive routes before click. Half-off: silent return on date misorder, no role=alert. |
+| 6 | Recognition rather than recall | 5 / 5 | Role badge explicit; preset chips show absolute ranges via title; ⌘K chip shows modifier; status families pair tint+icon+label per Named Status Rule. |
+| 7 | Flexibility and efficiency | 4 / 5 | Preset chips, sheet, localStorage disclosure, deep-linkable URLs, ⌘K. Lost half on disclosure transition feeling mechanical; lost half on Export not previewing row count. |
+| 8 | Aesthetic and minimalist design | 4 / 5 | Tier 1 honours brief: marquee numeral large+serif, this-week supporting, right-rail single quiet illustration, header rail spare. Day readiness inside Today (3 icon-heading-text items) and Operations health (4-tile 2x2) edge toward identical-card-grid antipattern — pre-existing, not new regressions. |
+| 9 | Help users recognize, diagnose, recover | 3.5 / 5 | AdminErrorBoundary wraps filters + notifications; restricted attention rows show Restricted affordance. Per-tile "Couldn't load this section. Try refreshing." inline not visibly implemented; date validation silent. |
+| 10 | Help and documentation | 3.5 / 5 | Tooltips on Export + ⌘K chip; aria-label on bell. Brief's tooltip set for Staff Capacity bars, Demand Trend bars, Payment Health outstanding figure not implemented. |
+
+Total: 42 / 50
+
+### AI-slop verdict
+
+PASS — all three concrete findings from the prior REGRESSED critique are resolved at source and visible across all four final screenshots; residual issues (identical-card-grid inside Operations health, demand-trend heading-level slip, disabled-disclosure edge) are pre-existing or out of scope of the distill/bolder axes the agent ran, not new degradations.
+
+### UX-quality commentary mapped to PRODUCT.md anti-references
+
+- Identical card grids anti-reference: Urgent Attention zero state no longer hits this; collapses to one quiet illustration. Operations health (4-tile 2x2) and Day readiness row (3 icon-label-value) still echo the antipattern. Pre-existing, limits ceiling, scored at 4 on heuristic 8.
+- Hero-metric template anti-reference: Today header is on the right side of this line. Saved by the readiness row sitting in a separate inset card and the marquee numeral being deliberately serif/restrained.
+- Everything-on-one-screen SaaS dashboards: Tier 1/Tier 2 split honours discipline. Tier 1 alone is calm above the fold at 1440 and 1280.
+- Side-stripe borders / gradient text (impeccable absolute bans): none observed.
+- PRODUCT.md Calm/Scannable/Dignified: final screenshots read as a quiet operational tool. Cormorant numeral + single all-clear illustration deliver the "quietly competent" voice.
+- Empty states encourage, never apologise: "All caught up" / "Quiet day. Great time for admin and planning." all hit the voice anchor.
+
+Net: the cycle is a genuine recovery from REGRESSED. Remaining work is incremental, not corrective.

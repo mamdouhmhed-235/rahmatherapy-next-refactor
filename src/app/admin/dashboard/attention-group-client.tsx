@@ -141,7 +141,7 @@ export function AttentionReviewButton({
 
       {expanded ? (
         <div
-          className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[oklch(12%_0.01_165)]/35 p-3 sm:p-6"
+          className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[oklch(12%_0.014_155)]/35 p-3 sm:p-6"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setExpanded(false);

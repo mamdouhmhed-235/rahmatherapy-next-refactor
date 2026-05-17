@@ -80,20 +80,24 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function avatarColor(name: string) {
-  const colors = [
-    "bg-[#e8d5e0] text-[#8b4a6b]",
-    "bg-[#d5e0e8] text-[#4a6b8b]",
-    "bg-[#d5e8d8] text-[#4a8b5e]",
-    "bg-[#e8e0d5] text-[#8b6b4a]",
-    "bg-[#d8d5e8] text-[#5e4a8b]",
-    "bg-[#e8d8d5] text-[#8b4a4a]",
-  ];
+// Deterministic avatar tint per name. Hue uses (index * 37) mod 360 then clamps
+// to the brand-adjacent ranges 75-165 (greens/teals) and 30-80 (warm sand/amber),
+// skipping purples/magentas. Background sits at L=85 C=0.035, text at L=28 C=0.085
+// for accessible contrast (WCAG AA on body text inside the badge).
+function avatarTintStyle(name: string): React.CSSProperties {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
-  return colors[Math.abs(hash) % colors.length];
+  const index = Math.abs(hash);
+  const rawHue = (index * 37) % 360;
+  const greenBand = 75 + (rawHue % 91);
+  const warmBand = 30 + (rawHue % 51);
+  const hue = rawHue % 2 === 0 ? greenBand : warmBand;
+  return {
+    backgroundColor: `oklch(85% 0.035 ${hue})`,
+    color: `oklch(28% 0.085 ${hue})`,
+  };
 }
 
 export function AttentionItemCard({
@@ -184,22 +188,40 @@ export function AttentionItemCard({
   );
 }
 
+type SnapshotAppointment = {
+  time: string;
+  endTime?: string;
+  title: string;
+  detail: string;
+  status: string;
+  href: string | null;
+};
+
+type SnapshotUpcoming = SnapshotAppointment & { date: string };
+
 export function TodayAtAGlanceCard({
   appointments,
+  upcomingAppointments,
+  rangeKind,
+  rangeLabel,
+  dailySeries,
+  filterQuery,
+  scopeCount,
+  todayView = "list",
   nextAppointment,
   todayCount,
   weekCount,
   permissionAccess,
   readiness,
 }: {
-  appointments: {
-    time: string;
-    endTime?: string;
-    title: string;
-    detail: string;
-    status: string;
-    href: string | null;
-  }[];
+  appointments: SnapshotAppointment[];
+  upcomingAppointments?: SnapshotUpcoming[];
+  rangeKind?: string;
+  rangeLabel?: string;
+  dailySeries?: number[];
+  filterQuery?: string;
+  scopeCount?: number;
+  todayView?: "list" | "timeline";
   nextAppointment?: { date: string; time: string; title: string } | null;
   todayCount: number;
   weekCount: number;
@@ -210,123 +232,400 @@ export function TodayAtAGlanceCard({
     paymentCollection: string;
   };
 }) {
-  const timeTicks = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"];
+  const isToday = rangeKind === "today" || rangeKind === undefined;
+  const qs = filterQuery ? `?${filterQuery}` : "";
+  const heroCount = isToday ? todayCount : (scopeCount ?? appointments.length);
+  const heroAriaLabel = isToday
+    ? `${heroCount} booking${heroCount === 1 ? "" : "s"} today`
+    : `${heroCount} booking${heroCount === 1 ? "" : "s"} in ${rangeLabel ?? "this range"}`;
+  const upcomingCount = isToday ? weekCount : (upcomingAppointments?.length ?? 0);
+  const eyebrowLabel = isToday
+    ? "SNAPSHOT · TODAY"
+    : `SNAPSHOT · ${(rangeLabel ?? "").toUpperCase()}`;
 
   return (
-    <AdminDashboardPanel className="min-h-[20rem]">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <AdminPanelHeader icon={CalendarDays} title="Today at a glance" />
-        <div className="flex flex-wrap items-start justify-end gap-4">
-          <div className="grid grid-cols-2 divide-x divide-[var(--admin-border)] text-center">
-            <MetricMini value={todayCount.toString()} label="today" />
-            <MetricMini value={weekCount.toString()} label="this week" />
+    <AdminDashboardPanel className="min-h-[22rem]">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+          <div className="flex items-center gap-3">
+            <AdminIconBadge icon={CalendarDays} tone="default" className="size-9" />
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+                {eyebrowLabel}
+              </p>
+              <p
+                className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
+                style={{ fontSize: "clamp(3rem, 4.5vw, 4.75rem)" }}
+                aria-label={heroAriaLabel}
+              >
+                {heroCount}
+              </p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {permissionAccess?.calendar ? (
-              <Link className="admin-action-outline" href="/admin/calendar">
-                View calendar
-              </Link>
-            ) : null}
-            {permissionAccess?.bookings ? (
-              <Link className="admin-action-primary" href="/admin/bookings">
-                View bookings
-              </Link>
+          <div className="flex items-center gap-4 pb-1">
+            <div className="text-sm text-[var(--admin-text-muted)]">
+              <span className="font-semibold text-[var(--admin-heading)] tabular-nums">{upcomingCount}</span>{" "}
+              {isToday ? "this week" : "upcoming"}
+            </div>
+            {dailySeries && dailySeries.length > 1 ? (
+              <Sparkline points={dailySeries.slice(-7)} />
             ) : null}
           </div>
+        </div>
+        <div className="flex flex-wrap gap-2 lg:shrink-0">
+          {permissionAccess?.calendar ? (
+            <Link className="admin-action-outline" href={`/admin/calendar${qs}`}>
+              View calendar
+            </Link>
+          ) : null}
+          {permissionAccess?.bookings ? (
+            <Link className="admin-action-primary" href={`/admin/bookings${qs}`}>
+              View bookings
+            </Link>
+          ) : null}
         </div>
       </div>
 
       <div className="mt-6">
-        <div className="hidden sm:block">
-          <div className="grid grid-cols-7 text-center text-sm font-semibold text-[var(--admin-text-muted)]">
-            {timeTicks.map((tick) => (
-              <span key={tick}>{tick}</span>
-            ))}
-          </div>
-          <div className="relative mt-2 h-[8rem] overflow-visible">
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundImage:
-                  "repeating-linear-gradient(90deg, transparent 0, transparent calc(8.333% - 1px), var(--admin-border) calc(8.333% - 1px), var(--admin-border) 8.333%)",
-                opacity: 0.75,
-              }}
-            />
-            {appointments.length > 0 ? (
-              appointments.map((appointment) => {
-                const content = (
-                  <span className="block truncate rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-success-bg)] px-3 py-2 text-xs font-semibold text-[var(--admin-primary)] shadow-[var(--admin-shadow-subtle)]">
-                    {appointment.time} {appointment.title}
-                  </span>
-                );
-                const style = appointmentStyle(appointment.time, appointment.endTime);
-                return appointment.href ? (
-                  <Link
-                    key={`${appointment.time}-${appointment.title}`}
-                    href={appointment.href}
-                    className="absolute top-8 min-w-[7rem] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                    style={style}
-                  >
-                    {content}
-                  </Link>
-                ) : (
-                  <div
-                    key={`${appointment.time}-${appointment.title}`}
-                    className="absolute top-8 min-w-[7rem]"
-                    style={style}
-                  >
-                    {content}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="absolute inset-x-0 top-8">
-                <AdminEmptyState
-                  icon={CalendarDays}
-                  title="No appointments today"
-                  message={
-                    nextAppointment
-                      ? `Next booking: ${nextAppointment.date} at ${nextAppointment.time}`
-                      : "Enjoy a quiet day. Great time for admin and planning."
-                  }
-                  tone="muted"
-                />
-              </div>
-            )}
-          </div>
-        </div>
+        {isToday && appointments.length > 0 ? (
+          <SnapshotViewToggle currentView={todayView} filterQuery={filterQuery} />
+        ) : null}
 
-        <div className="grid gap-2 sm:hidden">
-          {appointments.length > 0 ? (
-            appointments.map((appointment) => (
-              <AppointmentMobileRow key={`${appointment.time}-${appointment.title}`} appointment={appointment} />
-            ))
-          ) : (
-            <AdminEmptyState
-              icon={CalendarDays}
-              title="No appointments today"
-              message={
-                nextAppointment
-                  ? `Next booking: ${nextAppointment.date} at ${nextAppointment.time}`
-                  : "Enjoy a quiet day. Great time for admin and planning."
-              }
-              tone="muted"
-            />
-          )}
-        </div>
+        {!isToday ? (
+          <UpcomingRangeList
+            appointments={upcomingAppointments ?? []}
+            rangeLabel={rangeLabel ?? "this range"}
+            filterQuery={filterQuery}
+            canViewBookings={permissionAccess?.bookings ?? false}
+          />
+        ) : todayView === "timeline" ? (
+          <TodayTimeline appointments={appointments} nextAppointment={nextAppointment} />
+        ) : (
+          <TodayList
+            appointments={appointments}
+            nextAppointment={nextAppointment}
+            canViewCalendar={permissionAccess?.calendar ?? false}
+          />
+        )}
       </div>
 
-      <div className="mt-5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
-        <p className="mb-3 text-sm font-semibold text-[var(--admin-heading)]">
-          Day readiness
-        </p>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <ReadinessItem icon={Mail} label="Client confirmations" value={readiness.confirmations} />
-          <ReadinessItem icon={Users} label="Staff coverage" value={readiness.staffCoverage} />
-          <ReadinessItem icon={PoundSterling} label="Payment collection" value={readiness.paymentCollection} />
-        </div>
+      <div
+        className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-2.5"
+        aria-label="Day readiness"
+      >
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--admin-text-muted)]">
+          Ready
+        </span>
+        <ReadinessChip icon={Mail} label="Confirmations" value={readiness.confirmations} />
+        <ReadinessChip icon={Users} label="Coverage" value={readiness.staffCoverage} />
+        <ReadinessChip icon={PoundSterling} label="Payments" value={readiness.paymentCollection} />
       </div>
     </AdminDashboardPanel>
+  );
+}
+
+function Sparkline({ points }: { points: number[] }) {
+  if (points.length < 2) return null;
+  const width = 80;
+  const height = 24;
+  const max = Math.max(...points, 1);
+  const step = width / (points.length - 1);
+  const path = points
+    .map((v, i) => {
+      const x = i * step;
+      const y = height - (v / max) * height;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+  const lastX = (points.length - 1) * step;
+  const lastY = height - (points[points.length - 1] / max) * height;
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label="7-day booking trend"
+      className="shrink-0"
+    >
+      <path d={path} fill="none" stroke="var(--admin-success)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+      <circle cx={lastX} cy={lastY} r="2.25" fill="var(--admin-success)" />
+    </svg>
+  );
+}
+
+function SnapshotViewToggle({ currentView, filterQuery }: { currentView: "list" | "timeline"; filterQuery?: string }) {
+  const baseParams = new URLSearchParams(filterQuery ?? "");
+  const listParams = new URLSearchParams(baseParams);
+  listParams.delete("todayView");
+  const timelineParams = new URLSearchParams(baseParams);
+  timelineParams.set("todayView", "timeline");
+  const listHref = `/admin/dashboard?${listParams.toString()}`;
+  const timelineHref = `/admin/dashboard?${timelineParams.toString()}`;
+  return (
+    <div
+      role="group"
+      aria-label="Today view mode"
+      className="mb-3 inline-flex items-center gap-0.5 rounded-full border border-[var(--admin-border)] bg-white p-0.5"
+    >
+      <Link
+        href={listHref}
+        scroll={false}
+        aria-current={currentView === "list" ? "page" : undefined}
+        className={cn(
+          "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
+          currentView === "list"
+            ? "bg-[var(--admin-primary)] text-white"
+            : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)]"
+        )}
+      >
+        List
+      </Link>
+      <Link
+        href={timelineHref}
+        scroll={false}
+        aria-current={currentView === "timeline" ? "page" : undefined}
+        className={cn(
+          "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
+          currentView === "timeline"
+            ? "bg-[var(--admin-primary)] text-white"
+            : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)]"
+        )}
+      >
+        Timeline
+      </Link>
+    </div>
+  );
+}
+
+function TodayList({
+  appointments,
+  nextAppointment,
+  canViewCalendar,
+}: {
+  appointments: SnapshotAppointment[];
+  nextAppointment?: { date: string; time: string; title: string } | null;
+  canViewCalendar: boolean;
+}) {
+  if (appointments.length === 0) {
+    return (
+      <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-4 py-8">
+        <AdminEmptyState
+          icon={CalendarDays}
+          title="No appointments today"
+          message={
+            nextAppointment
+              ? `Next booking: ${nextAppointment.date} at ${nextAppointment.time}`
+              : "Enjoy a quiet day. Great time for admin and planning."
+          }
+          tone="muted"
+        />
+      </div>
+    );
+  }
+  const visible = appointments.slice(0, 5);
+  return (
+    <div className="grid gap-2">
+      {visible.map((a) => (
+        <SnapshotListRow key={`${a.time}-${a.title}`} appointment={a} />
+      ))}
+      {appointments.length > 5 && canViewCalendar ? (
+        <div className="pt-1">
+          <Link className="admin-link-action text-sm" href="/admin/calendar">
+            See all {appointments.length} for today →
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function UpcomingRangeList({
+  appointments,
+  rangeLabel,
+  filterQuery,
+  canViewBookings,
+}: {
+  appointments: SnapshotUpcoming[];
+  rangeLabel: string;
+  filterQuery?: string;
+  canViewBookings: boolean;
+}) {
+  const qs = filterQuery ? `?${filterQuery}` : "";
+  if (appointments.length === 0) {
+    return (
+      <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-4 py-8">
+        <AdminEmptyState
+          icon={CalendarDays}
+          title={`No upcoming appointments in ${rangeLabel}`}
+          message="Once bookings are scheduled they will appear here."
+          tone="muted"
+        />
+      </div>
+    );
+  }
+  const visible = appointments.slice(0, 5);
+  return (
+    <div className="grid gap-2">
+      {visible.map((a) => (
+        <SnapshotListRow key={`${a.date}-${a.time}-${a.title}`} appointment={a} withDate />
+      ))}
+      {appointments.length > 5 && canViewBookings ? (
+        <div className="pt-1">
+          <Link className="admin-link-action text-sm" href={`/admin/bookings${qs}`}>
+            See all {appointments.length} in {rangeLabel} →
+          </Link>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SnapshotListRow({
+  appointment,
+  withDate = false,
+}: {
+  appointment: SnapshotAppointment & { date?: string };
+  withDate?: boolean;
+}) {
+  const isUnconfirmed = appointment.status !== "fully_assigned";
+  const timeRange = appointment.endTime ? `${appointment.time}–${appointment.endTime}` : appointment.time;
+  const dateChip = withDate && appointment.date ? formatRowDate(appointment.date) : null;
+  const initials = getInitials(appointment.title);
+  const tintStyle = avatarTintStyle(appointment.title);
+
+  const content = (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2.5 transition-all duration-150",
+        appointment.href && "hover:-translate-y-px hover:bg-[var(--admin-panel-muted)]/60 hover:shadow-[var(--admin-shadow-subtle)]"
+      )}
+      title={`${dateChip ? `${dateChip} · ` : ""}${timeRange} · ${appointment.title}${isUnconfirmed ? " (awaiting confirmation)" : ""}`}
+    >
+      <div
+        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+        style={tintStyle}
+        aria-hidden="true"
+      >
+        {initials}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          {isUnconfirmed ? (
+            <span aria-label="Awaiting confirmation" className="inline-block size-1.5 shrink-0 rounded-full bg-[var(--admin-accent)]" />
+          ) : null}
+          <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">{appointment.title}</p>
+        </div>
+        <p className="truncate text-xs text-[var(--admin-text-muted)]">
+          {dateChip ? <span className="font-medium text-[var(--admin-body)]">{dateChip} · </span> : null}
+          <span className="tabular-nums">{timeRange}</span>
+          {appointment.detail ? <span> · {appointment.detail}</span> : null}
+        </p>
+      </div>
+      <AdminStatusBadge
+        value={appointment.status}
+        tone={appointment.status === "fully_assigned" ? "success" : "warning"}
+        className="shrink-0"
+      />
+    </div>
+  );
+
+  return appointment.href ? (
+    <Link href={appointment.href} className="block outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 rounded-[var(--admin-radius-card)]">
+      {content}
+    </Link>
+  ) : (
+    content
+  );
+}
+
+function formatRowDate(iso: string) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" }).format(d);
+}
+
+function TodayTimeline({
+  appointments,
+  nextAppointment,
+}: {
+  appointments: SnapshotAppointment[];
+  nextAppointment?: { date: string; time: string; title: string } | null;
+}) {
+  const timeTicks = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"];
+  if (appointments.length === 0) {
+    return (
+      <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-4 py-8">
+        <AdminEmptyState
+          icon={CalendarDays}
+          title="No appointments today"
+          message={
+            nextAppointment
+              ? `Next booking: ${nextAppointment.date} at ${nextAppointment.time}`
+              : "Enjoy a quiet day. Great time for admin and planning."
+          }
+          tone="muted"
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="hidden sm:block">
+      <div className="grid grid-cols-7 text-center text-sm font-semibold text-[var(--admin-text-muted)] tabular-nums">
+        {timeTicks.map((tick) => (
+          <span key={tick}>{tick}</span>
+        ))}
+      </div>
+      <div className="relative mt-2 h-[8rem] overflow-visible">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage:
+              "repeating-linear-gradient(90deg, transparent 0, transparent calc(8.333% - 1px), var(--admin-border) calc(8.333% - 1px), var(--admin-border) 8.333%)",
+            opacity: 0.75,
+          }}
+        />
+        {appointments.map((appointment) => {
+          const isUnconfirmed = appointment.status !== "fully_assigned";
+          const timeRange = appointment.endTime ? `${appointment.time}–${appointment.endTime}` : appointment.time;
+          const content = (
+            <span
+              className={cn(
+                "flex items-center gap-1.5 truncate rounded-[var(--admin-radius-control)] border px-3 py-2 text-xs font-semibold shadow-[var(--admin-shadow-subtle)] transition-colors tabular-nums",
+                isUnconfirmed
+                  ? "border-[var(--admin-warning-bg)] bg-[var(--admin-warning-bg)]/45 text-[var(--admin-heading)] hover:bg-[var(--admin-warning-bg)]/70"
+                  : "border-[var(--admin-border)] bg-[var(--admin-success-bg)] text-[var(--admin-primary)] hover:bg-[var(--admin-success-bg)]/80"
+              )}
+              title={`${timeRange} · ${appointment.title}${isUnconfirmed ? " (awaiting confirmation)" : ""}`}
+            >
+              {isUnconfirmed ? (
+                <span aria-label="Awaiting confirmation" className="inline-block size-1.5 shrink-0 rounded-full bg-[var(--admin-accent)]" />
+              ) : null}
+              <span className="truncate">{timeRange}</span>
+            </span>
+          );
+          const style = appointmentStyle(appointment.time, appointment.endTime);
+          return appointment.href ? (
+            <Link
+              key={`${appointment.time}-${appointment.title}`}
+              href={appointment.href}
+              className="absolute top-8 min-w-[7rem] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+              style={style}
+            >
+              {content}
+            </Link>
+          ) : (
+            <div
+              key={`${appointment.time}-${appointment.title}`}
+              className="absolute top-8 min-w-[7rem]"
+              style={style}
+            >
+              {content}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -346,10 +645,19 @@ function AppointmentMobileRow({
 }: {
   appointment: { time: string; title: string; detail: string; status: string; href: string | null };
 }) {
+  const isUnconfirmed = appointment.status !== "fully_assigned";
   const content = (
     <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold text-[var(--admin-heading)]">{appointment.time}</span>
+        <span className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-heading)]">
+          {isUnconfirmed ? (
+            <span
+              aria-label="Awaiting confirmation"
+              className="inline-block size-1.5 rounded-full bg-[var(--admin-accent)]"
+            />
+          ) : null}
+          {appointment.time}
+        </span>
         <AdminStatusBadge
           value={appointment.status}
           tone={appointment.status === "fully_assigned" ? "success" : "warning"}
@@ -368,7 +676,7 @@ function AppointmentMobileRow({
   );
 }
 
-function ReadinessItem({
+function ReadinessChip({
   icon: Icon,
   label,
   value,
@@ -378,45 +686,74 @@ function ReadinessItem({
   value: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-3">
-      <AdminIconBadge icon={Icon} tone="default" className="size-9" />
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-[var(--admin-heading)]">{label}</p>
-        <p className="text-sm text-[var(--admin-text-muted)]">{value}</p>
-      </div>
-    </div>
+    <span
+      className="inline-flex items-center gap-1.5 text-sm text-[var(--admin-body)]"
+      title={`${label}: ${value}`}
+    >
+      <Icon aria-hidden="true" className="size-3.5 text-[var(--admin-text-muted)]" />
+      <span className="font-medium text-[var(--admin-heading)]">{label}</span>
+      <span className="text-[var(--admin-text-muted)]">{value}</span>
+    </span>
   );
 }
 
 export function UrgentAttentionPanel({
   rows,
   groups,
+  filterQuery,
 }: {
   rows: AttentionSummaryRow[];
   groups: AttentionGroup[];
+  filterQuery?: string;
 }) {
-  const visibleRows = rows.slice(0, 5);
+  const severityRank: Record<string, number> = { critical: 0, warning: 1, info: 2, clear: 3 };
+  const sortedRows = [...rows].sort(
+    (a, b) => (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9)
+  );
+  const activeRows = sortedRows.filter((r) => r.severity !== "clear");
+  const clearRows = sortedRows.filter((r) => r.severity === "clear");
+  const visibleRows = activeRows.slice(0, 5);
   const activeGroups = groups.filter((group) => group.count > 0);
+  const allClear = rows.length > 0 && activeRows.length === 0;
+  const qs = filterQuery ? `?${filterQuery}` : "";
+  const appendFilterQuery = (href?: string | null) => {
+    if (!href) return href ?? null;
+    if (!filterQuery) return href;
+    return href.includes("?") ? `${href}&${filterQuery}` : `${href}${qs}`;
+  };
 
   return (
-    <AdminDashboardPanel className="min-h-[20rem]">
+    <AdminDashboardPanel className="min-h-[22rem]">
       <AdminPanelHeader
         icon={ShieldAlert}
-        title="Urgent attention"
-        description="High priority signals that may need your action."
-        tone={visibleRows.some((row) => row.severity === "critical") ? "danger" : "warning"}
+        title="Needs your attention"
+        description={allClear ? undefined : "High priority signals that may need your action."}
+        tone={visibleRows.some((row) => row.severity === "critical") ? "danger" : allClear ? "default" : "warning"}
       />
 
+      {allClear ? (
+        <div className="mt-5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-success-bg)]/35 px-5 py-10">
+          <AdminEmptyState
+            icon={ShieldAlert}
+            title="All caught up"
+            message="Nothing needs your attention right now."
+            tone="muted"
+          />
+        </div>
+      ) : (
       <div className="mt-5 grid gap-2">
         {visibleRows.map((row) => {
           const tone = severityTone(row.severity);
+          const href = appendFilterQuery(row.href);
           const content = (
             <div
               className={cn(
-                "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3",
+                "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3 transition-all duration-150",
                 row.severity === "critical" && "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/30",
                 row.severity === "warning" && "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/30",
-                row.severity === "clear" && "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)]/20"
+                row.severity === "info" && "border-[var(--admin-border)] bg-white",
+                row.severity === "clear" && "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)]/20",
+                href && "hover:-translate-y-px hover:shadow-[var(--admin-shadow-subtle)]"
               )}
             >
               <AdminIconBadge
@@ -431,7 +768,7 @@ export function UrgentAttentionPanel({
                 <p className="truncate text-sm text-[var(--admin-text-muted)]">{row.detail}</p>
               </div>
               <div className="grid justify-items-end gap-1">
-                <p className="text-2xl font-semibold leading-none text-[var(--admin-heading)]">
+                <p className="text-2xl font-semibold leading-none text-[var(--admin-heading)] tabular-nums">
                   {row.count}
                 </p>
                 <span
@@ -453,8 +790,8 @@ export function UrgentAttentionPanel({
             </div>
           );
 
-          return row.href ? (
-            <Link key={row.key} href={row.href} className="outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35">
+          return href ? (
+            <Link key={row.key} href={href} className="block outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 rounded-[var(--admin-radius-card)]">
               {content}
             </Link>
           ) : (
@@ -462,10 +799,29 @@ export function UrgentAttentionPanel({
           );
         })}
       </div>
+      )}
 
-      <div className="mt-5">
-        <AttentionReviewButton groups={activeGroups.length > 0 ? activeGroups : groups} />
-      </div>
+      {!allClear && clearRows.length > 0 ? (
+        <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
+          <span className="font-semibold uppercase tracking-[0.1em] text-[var(--admin-success)]">All clear:</span>{" "}
+          {clearRows.map((row) => row.label).join(" · ")}
+        </p>
+      ) : null}
+
+      {!allClear && activeRows.length > 5 ? (
+        <p className="mt-3 text-right text-xs text-[var(--admin-text-muted)]">
+          Showing top 5. <span className="font-semibold text-[var(--admin-body)]">{activeRows.length - 5} more</span> in review.
+        </p>
+      ) : null}
+
+      {!allClear ? (
+        <div className="mt-5">
+          <AttentionReviewButton
+            groups={activeGroups.length > 0 ? activeGroups : groups}
+            label={rows.length > 5 ? `See all ${rows.length} signals →` : undefined}
+          />
+        </div>
+      ) : null}
     </AdminDashboardPanel>
   );
 }
@@ -492,17 +848,23 @@ export function StaffCapacityCard({
   const openSlots = totalUnassigned;
 
   return (
-    <AdminDashboardPanel>
+    <AdminDashboardPanel className="min-h-[22rem]">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <AdminIconBadge icon={Users} tone="default" />
           <div>
-            <h2 className="admin-display text-[1.35rem] font-bold leading-7 text-[var(--admin-heading)]">
-              Staff Capacity
-            </h2>
-            <p className="text-sm text-[var(--admin-text-muted)]">
-              {staffWorkload.length} active · Today
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+              Staff
+            </p>
+            <p
+              className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
+              style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
+            >
+              {formatPercent(overallUtilisation)}
+            </p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+              {staffWorkload.length} active · {totalAssignments}/{totalSlots} slots
             </p>
           </div>
         </div>
@@ -549,7 +911,7 @@ export function StaffCapacityCard({
         {staffWorkload.length > 0 ? (
           staffWorkload.map((staff) => {
             const initials = getInitials(staff.staffName);
-            const colorClass = avatarColor(staff.staffName);
+            const tintStyle = avatarTintStyle(staff.staffName);
             const workloadPercent = staff.assignments > 0
               ? safeDivide(staff.completed, staff.assignments)
               : 0;
@@ -572,12 +934,12 @@ export function StaffCapacityCard({
               <div
                 key={staff.staffName}
                 className="flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-3"
+                title={`${staff.staffName}: ${staff.completed} of ${staff.assignments} bookings completed (${formatPercent(workloadPercent)}) - ${statusText}`}
               >
                 <div
-                  className={cn(
-                    "inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                    colorClass
-                  )}
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                  style={tintStyle}
+                  aria-hidden="true"
                 >
                   {initials}
                 </div>
@@ -658,20 +1020,25 @@ export function PaymentHealthCard({
       : canReviewBookings && unpaidCount > 0
         ? "/admin/bookings?payment_status=unpaid"
         : null;
-  const collectedDegrees = total > 0 ? (summary.collectedRevenue / total) * 360 : 0;
   const collectionRate = total > 0 ? safeDivide(summary.collectedRevenue, total) : 0;
 
   return (
-    <AdminDashboardPanel>
+    <AdminDashboardPanel className="min-h-[22rem]">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <AdminIconBadge icon={PoundSterling} tone="default" />
           <div>
-            <h2 className="admin-display text-[1.35rem] font-bold leading-7 text-[var(--admin-heading)]">
-              Payment Health
-            </h2>
-            <p className="text-sm text-[var(--admin-text-muted)]">This week</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+              This period
+            </p>
+            <p
+              className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
+              style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
+            >
+              {formatMoney(summary.outstandingRevenue)}
+            </p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">Outstanding</p>
           </div>
         </div>
         {actionHref && (
@@ -693,7 +1060,7 @@ export function PaymentHealthCard({
               <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-[#5b8dd9]" />
+                    <span className="size-2.5 rounded-full bg-[var(--admin-info)]" />
                     <span className="text-sm font-semibold text-[var(--admin-heading)]">Booked</span>
                   </div>
                   <span className="text-lg font-bold text-[var(--admin-heading)]">
@@ -701,11 +1068,10 @@ export function PaymentHealthCard({
                   </span>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--admin-progress-neutral)]">
-                  <span className="block h-full rounded-full bg-[#5b8dd9]" style={{ width: "100%" }} />
+                  <span className="block h-full rounded-full bg-[var(--admin-info)]" style={{ width: "100%" }} />
                 </div>
-                <div className="mt-1.5 flex items-center justify-between">
+                <div className="mt-1.5">
                   <span className="text-xs text-[var(--admin-text-muted)]">Total value of bookings</span>
-                  <span className="text-xs font-medium text-[var(--admin-success)]">+12% vs last week</span>
                 </div>
               </div>
 
@@ -735,7 +1101,10 @@ export function PaymentHealthCard({
               </div>
 
               {/* Outstanding */}
-              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
+              <div
+                className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3"
+                title={`Outstanding: ${formatMoney(summary.outstandingRevenue)} awaiting collection across ${unpaidCount} booking${unpaidCount === 1 ? "" : "s"}${(unpaidCompletedCount ?? 0) > 0 ? ` (${unpaidCompletedCount} already completed)` : ""}`}
+              >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 rounded-full bg-[var(--admin-warning)]" />
@@ -756,39 +1125,6 @@ export function PaymentHealthCard({
                   {summary.outstandingRevenue > 0 && (
                     <span className="text-xs font-medium text-[var(--admin-warning)]">Requires follow-up</span>
                   )}
-                </div>
-              </div>
-            </div>
-
-            {/* Pie chart summary */}
-            <div className="mt-4 flex items-center justify-center gap-6 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-4">
-              <div
-                className="grid size-24 place-items-center rounded-full"
-                role="img"
-                aria-label={`Total payment value ${formatMoney(total)}`}
-                style={{
-                  background: `conic-gradient(var(--admin-success) ${collectedDegrees}deg, var(--admin-progress-neutral) 0deg)`,
-                }}
-              >
-                <div className="grid size-16 place-items-center rounded-full bg-[var(--admin-panel)] text-center">
-                  <span className="text-base font-bold leading-none text-[var(--admin-heading)]">
-                    {formatMoney(total)}
-                  </span>
-                  <span className="text-[10px] text-[var(--admin-text-muted)]">Total</span>
-                </div>
-              </div>
-              <div className="grid gap-1.5">
-                <div className="flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-[#5b8dd9]" />
-                  <span className="text-xs text-[var(--admin-text-muted)]">Booked</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-[var(--admin-success)]" />
-                  <span className="text-xs text-[var(--admin-text-muted)]">Collected</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-[var(--admin-warning)]" />
-                  <span className="text-xs text-[var(--admin-text-muted)]">Outstanding</span>
                 </div>
               </div>
             </div>
@@ -828,77 +1164,180 @@ export function OperationsHealthCard({
   availabilityGaps: number;
   permissionAccess?: { emails: boolean; operations: boolean; staff: boolean; enquiries: boolean };
 }) {
-  const overall = failedEmails > 0 || openOperations > 0 || availabilityGaps > 0
-    ? "Needs attention"
-    : "All clear";
-  const warningDots = Math.min(4, [failedEmails, openOperations, availabilityGaps].filter(Boolean).length + (failedEmails > 0 ? 1 : 0));
+  type Severity = "critical" | "warning" | "info" | "clear";
+  type Row = {
+    key: string;
+    icon: React.ElementType;
+    label: string;
+    value: number;
+    severity: Severity;
+    status: string;
+    href: string | null;
+  };
+
+  const rows: Row[] = [
+    {
+      key: "emails",
+      icon: Mail,
+      label: "Emails",
+      value: failedEmails,
+      severity: failedEmails > 0 ? "critical" : "clear",
+      status: failedEmails > 0 ? "Delivery failures" : "All clear",
+      href: permissionAccess?.emails ? "/admin/emails" : null,
+    },
+    {
+      key: "operations",
+      icon: Wrench,
+      label: "Operations",
+      value: openOperations,
+      severity: openOperations > 0 ? "warning" : "clear",
+      status: openOperations > 0 ? "Open errors" : "All clear",
+      href: permissionAccess?.operations ? "/admin/operations" : null,
+    },
+    {
+      key: "staff",
+      icon: Users,
+      label: "Staff gaps",
+      value: availabilityGaps,
+      severity: availabilityGaps > 0 ? "warning" : "clear",
+      status: availabilityGaps > 0 ? "Coverage gaps" : "Well covered",
+      href: permissionAccess?.staff ? "/admin/staff" : null,
+    },
+    {
+      key: "enquiries",
+      icon: UserRound,
+      label: "Enquiries",
+      value: openEnquiries,
+      severity: openEnquiries > 0 ? "info" : "clear",
+      status: openEnquiries > 0 ? "Awaiting response" : "All clear",
+      href: permissionAccess?.enquiries ? "/admin/enquiries" : null,
+    },
+  ];
+
+  const severityRank: Record<Severity, number> = { critical: 0, warning: 1, info: 2, clear: 3 };
+  const sorted = [...rows].sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+  const activeRows = sorted.filter((row) => row.severity !== "clear");
+  const clearRows = sorted.filter((row) => row.severity === "clear");
+  const overall: { label: string; tone: "success" | "warning" | "danger" } = failedEmails > 0
+    ? { label: "Needs attention", tone: "danger" }
+    : openOperations > 0 || availabilityGaps > 0
+      ? { label: "Needs attention", tone: "warning" }
+      : { label: "All systems quiet", tone: "success" };
 
   return (
-    <AdminDashboardPanel>
-      <AdminPanelHeader
-        icon={HeartPulse}
-        title="Operational health"
-        action={
-          permissionAccess?.operations ? (
-            <Link className="admin-link-action" href="/admin/operations">
-              View details
-            </Link>
-          ) : null
-        }
-      />
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <AdminHealthTile
-          icon={Mail}
-          label="Emails"
-          value={failedEmails}
-          status={failedEmails > 0 ? "Critical" : "All clear"}
-          tone={failedEmails > 0 ? "danger" : "success"}
-          href={permissionAccess?.emails ? "/admin/emails" : null}
-        />
-        <AdminHealthTile
-          icon={Wrench}
-          label="Operations"
-          value={openOperations}
-          status={openOperations > 0 ? "Warning" : "All clear"}
-          tone={openOperations > 0 ? "warning" : "success"}
-          href={permissionAccess?.operations ? "/admin/operations" : null}
-        />
-        <AdminHealthTile
-          icon={UserRound}
-          label="Enquiries"
-          value={openEnquiries}
-          status={openEnquiries > 0 ? "Open" : "All clear"}
-          tone={openEnquiries > 0 ? "info" : "success"}
-          href={permissionAccess?.enquiries ? "/admin/enquiries" : null}
-        />
-        <AdminHealthTile
-          icon={Users}
-          label="Staff gaps"
-          value={availabilityGaps}
-          status={availabilityGaps > 0 ? "Warning" : "All clear"}
-          tone={availabilityGaps > 0 ? "warning" : "success"}
-          href={permissionAccess?.staff ? "/admin/staff" : null}
-        />
+    <AdminDashboardPanel className="min-h-[22rem]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <AdminIconBadge icon={HeartPulse} tone={overall.tone === "success" ? "success" : overall.tone === "danger" ? "danger" : "warning"} />
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+              Status
+            </p>
+            <p
+              className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
+              style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
+            >
+              {activeRows.length}
+            </p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">{activeRows.length === 1 ? "active issue" : "active issues"}</p>
+          </div>
+        </div>
+        {permissionAccess?.operations ? (
+          <Link className="admin-link-action" href="/admin/operations">
+            View details
+          </Link>
+        ) : null}
       </div>
-      <div className="mt-3 flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
-        <span className="inline-flex gap-1.5" aria-hidden="true">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <span
-              key={index}
-              className={cn(
-                "size-2 rounded-full",
-                index < warningDots ? "bg-[var(--admin-warning)]" : "bg-[var(--admin-progress-neutral)]"
-              )}
-            />
-          ))}
+
+      <div
+        className={cn(
+          "mt-4 flex items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3",
+          overall.tone === "danger" && "border-[var(--admin-danger-bg)] bg-[var(--admin-danger-bg)]/40",
+          overall.tone === "warning" && "border-[var(--admin-warning-bg)] bg-[var(--admin-warning-bg)]/40",
+          overall.tone === "success" && "border-[var(--admin-success-bg)] bg-[var(--admin-success-bg)]/40"
+        )}
+      >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "inline-flex size-7 items-center justify-center rounded-full",
+            overall.tone === "danger" && "bg-[var(--admin-danger)] text-white",
+            overall.tone === "warning" && "bg-[var(--admin-warning)] text-white",
+            overall.tone === "success" && "bg-[var(--admin-success)] text-white"
+          )}
+        >
+          <HeartPulse className="size-3.5" />
         </span>
         <p className="text-sm font-semibold text-[var(--admin-body)]">
           Overall status:{" "}
-          <span className={overall === "Needs attention" ? "text-[var(--admin-warning)]" : "text-[var(--admin-success)]"}>
-            {overall}
+          <span
+            className={cn(
+              overall.tone === "danger" && "text-[var(--admin-danger)]",
+              overall.tone === "warning" && "text-[var(--admin-warning)]",
+              overall.tone === "success" && "text-[var(--admin-success)]"
+            )}
+          >
+            {overall.label}
           </span>
         </p>
       </div>
+
+      {activeRows.length > 0 ? (
+        <ul className="mt-3 grid list-none gap-2 pl-0">
+          {activeRows.map((row) => {
+            const Icon = row.icon;
+            const content = (
+              <div
+                className={cn(
+                  "flex items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3 transition-colors",
+                  row.severity === "critical" && "border-[var(--admin-danger-bg)] bg-[var(--admin-danger-bg)]/30 hover:bg-[var(--admin-danger-bg)]/55",
+                  row.severity === "warning" && "border-[var(--admin-warning-bg)] bg-[var(--admin-warning-bg)]/30 hover:bg-[var(--admin-warning-bg)]/55",
+                  row.severity === "info" && "border-[var(--admin-border)] bg-white hover:bg-[var(--admin-panel-muted)]/60"
+                )}
+              >
+                <AdminIconBadge
+                  icon={Icon}
+                  tone={row.severity === "critical" ? "danger" : row.severity === "warning" ? "warning" : "info"}
+                  className="size-9"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-[var(--admin-heading)]">{row.label}</p>
+                  <p className="truncate text-xs text-[var(--admin-text-muted)]">{row.status}</p>
+                </div>
+                <p
+                  className={cn(
+                    "text-xl font-semibold leading-none",
+                    row.severity === "critical" && "text-[var(--admin-danger)]",
+                    row.severity === "warning" && "text-[var(--admin-warning)]",
+                    row.severity === "info" && "text-[var(--admin-info)]"
+                  )}
+                  aria-label={`${row.value} ${row.label.toLowerCase()}`}
+                >
+                  {row.value}
+                </p>
+              </div>
+            );
+            return (
+              <li key={row.key}>
+                {row.href ? (
+                  <Link href={row.href} className="block outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35">
+                    {content}
+                  </Link>
+                ) : (
+                  content
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
+      {clearRows.length > 0 ? (
+        <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
+          <span className="font-semibold uppercase tracking-[0.1em] text-[var(--admin-success)]">All clear:</span>{" "}
+          {clearRows.map((row) => row.label).join(" · ")}
+        </p>
+      ) : null}
     </AdminDashboardPanel>
   );
 }
@@ -906,8 +1345,6 @@ export function OperationsHealthCard({
 export function BusinessPulseCard({
   services,
   clients,
-  bookings,
-  dateRange,
   revenueAllowed,
   canViewReports,
 }: {
@@ -918,8 +1355,6 @@ export function BusinessPulseCard({
     noShowCancelled: number;
     newEnquiries: number;
   };
-  bookings: { booking_date: string }[];
-  dateRange: { from: string; to: string };
   revenueAllowed: boolean;
   canViewReports?: boolean;
 }) {
@@ -927,21 +1362,22 @@ export function BusinessPulseCard({
     clients.repeatClients + clients.newClients + clients.newEnquiries + clients.noShowCancelled;
 
   return (
-    <AdminDashboardPanel>
-      <AdminPanelHeader
-        icon={HeartPulse}
-        title="Business pulse"
-        description="Understand demand, client mix and trends."
-        action={
-          canViewReports ? (
-            <Link className="admin-link-action" href="/admin/reports">
-              View full reports
-            </Link>
-          ) : null
-        }
-      />
+    <section
+      aria-label="Service and client mix"
+      className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/40 p-4"
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+          Mix snapshot · Service &amp; client
+        </span>
+        {canViewReports ? (
+          <Link className="admin-link-action text-xs" href="/admin/reports">
+            View full reports →
+          </Link>
+        ) : null}
+      </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[0.9fr_1.35fr_1.25fr]">
+      <div className="grid gap-5 xl:grid-cols-2">
         <div className="min-w-0">
           <p className="mb-3 text-sm font-semibold text-[var(--admin-body)]">Service mix</p>
           {services.length > 0 ? (
@@ -975,7 +1411,7 @@ export function BusinessPulseCard({
           )}
         </div>
 
-        <div className="min-w-0 border-y border-[var(--admin-border)] py-4 xl:border-x xl:border-y-0 xl:px-5 xl:py-0">
+        <div className="min-w-0 border-t border-[var(--admin-border)] pt-5 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
           <p className="mb-3 text-sm font-semibold text-[var(--admin-body)]">Client mix</p>
           {clientTotal > 0 ? (
             <>
@@ -983,16 +1419,16 @@ export function BusinessPulseCard({
                 label="Client mix"
                 segments={[
                   { label: "Repeat", value: clients.repeatClients, className: "bg-[var(--admin-primary)]" },
-                  { label: "New", value: clients.newClients, className: "bg-[#a8d1bd]" },
+                  { label: "New", value: clients.newClients, className: "bg-[var(--admin-success)]" },
                   { label: "Enquiries", value: clients.newEnquiries, className: "bg-[var(--admin-client-accent)]" },
-                  { label: "No-show / Cancelled", value: clients.noShowCancelled, className: "bg-[#bdbab4]" },
+                  { label: "No-show / Cancelled", value: clients.noShowCancelled, className: "bg-[var(--admin-restricted)]" },
                 ]}
               />
               <div className="mt-5 grid gap-3 sm:grid-cols-4">
                 <ClientMixLegend label="Repeat" value={clients.repeatClients} total={clientTotal} color="bg-[var(--admin-primary)]" />
-                <ClientMixLegend label="New" value={clients.newClients} total={clientTotal} color="bg-[#a8d1bd]" />
+                <ClientMixLegend label="New" value={clients.newClients} total={clientTotal} color="bg-[var(--admin-success)]" />
                 <ClientMixLegend label="Enquiries" value={clients.newEnquiries} total={clientTotal} color="bg-[var(--admin-client-accent)]" />
-                <ClientMixLegend label="No-show / Cancelled" value={clients.noShowCancelled} total={clientTotal} color="bg-[#bdbab4]" />
+                <ClientMixLegend label="No-show / Cancelled" value={clients.noShowCancelled} total={clientTotal} color="bg-[var(--admin-restricted)]" />
               </div>
             </>
           ) : (
@@ -1005,6 +1441,41 @@ export function BusinessPulseCard({
           )}
         </div>
 
+      </div>
+    </section>
+  );
+}
+
+export function DemandTrendCard({
+  bookings,
+  dateRange,
+  rangeLabel,
+}: {
+  bookings: { booking_date: string }[];
+  dateRange: { from: string; to: string };
+  rangeLabel?: string;
+}) {
+  const totalBookings = bookings.length;
+  return (
+    <AdminDashboardPanel className="min-h-[22rem]">
+      <div className="flex items-start gap-3">
+        <AdminIconBadge icon={HeartPulse} tone="default" />
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+            Bookings per day
+          </p>
+          <p
+            className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
+            style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
+          >
+            {totalBookings}
+          </p>
+          <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+            {rangeLabel ? `Across ${rangeLabel}` : "Across the selected range"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-4">
         <DemandTrendClient
           bookings={bookings}
           from={dateRange.from}
