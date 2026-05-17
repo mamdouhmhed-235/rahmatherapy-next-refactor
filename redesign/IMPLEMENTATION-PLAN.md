@@ -1004,7 +1004,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 27. [ ] roles — commit: ____
+## 27. [x] roles — commit: 611111a
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
