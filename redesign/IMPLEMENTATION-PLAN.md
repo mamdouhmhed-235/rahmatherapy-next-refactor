@@ -166,7 +166,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 5. [ ] clients — commit: ____
+## 5. [x] clients — commit: e3c74f6
 
 **Tier:** Tier 2 — KEY_TASK 2 (Rebook existing clients)
 
