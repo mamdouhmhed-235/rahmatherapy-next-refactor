@@ -660,7 +660,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 18. [ ] staff — commit: ____
+## 18. [x] staff — commit: ef2572c
 
 **Tier:** Tier 3 — BASELINE-CRITIQUE Sam #1: H1→H3 heading skip confirmed on /admin/staff
 
