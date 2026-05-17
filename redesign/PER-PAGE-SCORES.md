@@ -1,4 +1,4 @@
-﻿# Per-Page Scores â€” Phase 6
+# Per-Page Scores â€” Phase 6
 
 Scores appended after each page session completes audit + critique.
 
@@ -1426,3 +1426,138 @@ Row line 1 prefers "Last visit {date}" (when a completed visit exists), falls ba
 **Files modified in revision pass**
 - `src/app/admin/clients/page.tsx` — booking-status helpers, page padding, row display, AdminSheet trigger, stats strip, pagination, decorative group headings.
 - `redesign/per-page-deferrals/clients-deferrals.md` — moved resolved items to a "Resolved" subsection; remaining deferrals are: true `AdminMobileActionBar` pattern, overflow menu items requiring untouchable server actions, browser-extension hydration warning.
+
+---
+
+## staff — audit
+
+**Backend status:** FAKE — staff list/filter and aggregates are filter/sliced client-side after a full page-load read. Blocking BUILD plans (verbatim from IMPLEMENTATION-PLAN.md):
+- `BUILD-staff-filter-query.md` (BLOCKS-REDESIGN)
+- `BUILD-staff-workload-aggregates.md` (non-blocking)
+
+Both are referenced inline in the code via `data-redesign-backend="FAKE"` markers at `page.tsx:421-422` (workload aggregates) and `page.tsx:471-472` (filter form). The client-side fallbacks (`workloadFor`, `aggregate`, `matches*`) are graceful and produce the visible result the user expects.
+
+### Severity rubric (verbatim, impeccable v5 L884–890)
+
+- **P0** — Blocks release — fix before shipping anything
+- **P1** — Fix this sprint — significant impact on users
+- **P2** — Next cycle — noticeable but not blocking
+- **P3** — Polish — minor, fix when time allows
+
+### 5 dimension scores
+
+| # | Dimension | Score | Key finding |
+|---|---|---|---|
+| 1 | Accessibility | 3 | H1→H2 hierarchy resolved; `role="alert" aria-live="polite"` on form + list error; Named-Status icons + labels present. Decorative avatar tints reuse status-family colours (signal/decoration conflict). |
+| 2 | Performance | 3 | Server-rendered list, no client JS for sort/filter; `<details>` for inactive group avoids JS. Whole staff list is loaded then filtered in JS — fine at <50 rows, hot path for the documented BUILD-staff-filter-query swap-in. |
+| 3 | Responsive | 2 | Workload-strip horizontally scrolls on 375; mobile filter strip stacks instead of brief AdminSheet trigger. Touch targets generally ≥40px. |
+| 4 | Theming | 3 | Tokens used throughout; raw oklch literals where AdminStatusBadge would have done it. |
+| 5 | Anti-patterns | 2 | UL bullets visible; uppercase tracking on workload-strip labels contradicts DESIGN.md Admin-Specific Patterns Data Table; workload-strip becomes a stat-tile row, the brief's anti-pattern. |
+
+**Total: 13/20 — Acceptable (significant work needed before Phase 7 audit).**
+
+### P0/P1/P2/P3 findings
+
+#### P0 — Blocks release
+- *none.*
+
+#### P1 — Fix this sprint
+- List-style `disc` bullets visible on every row (`src/app/admin/staff/page.tsx:614`, `:645`, `:425`).
+- Workload-at-a-glance is a stat-tile row, not the brief's prose (`src/app/admin/staff/page.tsx:418-453` + `:692-707`).
+- Uppercase `tracking-[0.04em]` segment labels (`src/app/admin/staff/page.tsx:699`).
+- Workload-strip horizontally scrolls on mobile (`src/app/admin/staff/page.tsx:425`).
+- Avatar decorative tints sampled from Status-family colours (`src/app/admin/staff/page.tsx:716-721`).
+
+#### P2 — Next cycle
+- Workload-strip card is full-bordered, not the "thin band with border-subtle top + bottom" brief specified.
+- `<h2 className="sr-only">Workload at a glance</h2>` duplicates `aria-label`.
+- Active filter chips use raw `oklch(...)` literals.
+- `WorkloadPill` colour ladder hardcoded with raw `oklch(...)` literals.
+- Mobile filter strip stacks; brief required AdminSheet trigger.
+- No `aria-busy` on `Apply filters` submit.
+- Member-name `<h2>` is `text-base` (16px) instead of DESIGN.md Title step (1.333rem).
+- Inactive disclosure summary lacks count tone differentiation.
+- `q` minLength validation chip not surfaced.
+- Specialties chip row uses Restricted-family colour for decoration only.
+
+#### P3 — Polish
+- `EmptyState` title is `<p>`, not a heading element.
+- `<details>` for specialties on mobile lacks a chevron affordance.
+- `WorkloadPill` "in the next 7 days" qualifier only in tooltip (unreliable on touch).
+- `AVATAR_TINTS` comment claims "Restricted" tint is grey-purple "muted" but identical to Inactive status-chip background.
+- `<h2 className="break-words">` on long names — too aggressive break style for a heading.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- UL `disc` bullets visible on every row — `src/app/admin/staff/page.tsx:614`, `:645`, `:425`.
+- Workload-strip rendered as stat-tile row, not prose — `src/app/admin/staff/page.tsx:418-453` + `:692-707`.
+- Uppercase tracking on workload-strip segment labels — `src/app/admin/staff/page.tsx:699`.
+- Workload-strip horizontal scroll on mobile — `src/app/admin/staff/page.tsx:425`.
+- Avatar decorative tints reuse Status-family colours — `src/app/admin/staff/page.tsx:716-721`.
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-4 (heading hierarchy)** — contributes: page H1 → row `<h2>` is now contiguous; the `<h3>` skip recorded in A11Y-BASELINE for `/admin/staff` is fixed.
+- **2A-6 (form errors aria-live)** — contributes: form-level error region in `NewStaffForm.tsx` and per-field `FieldError` are wrapped in `role="alert" aria-live="polite" aria-atomic="true"`. The list-load error region at `page.tsx:566-582` also carries the same triad.
+- **2A-9 (required-field visible markers)** — contributes: `FieldLabel` in `NewStaffForm.tsx` renders a visible `*` in Cancelled text adjacent to every required label.
+
+## staff — critique (first pass)
+
+| # | Heuristic | Score | Key Issue |
+|---|-----------|-------|-----------|
+| 1 | Visibility of System Status | 3 | Workload pill colour ladder, status chips with icon+text, active filter chips, and the `staffLoadError` inline alert all surface state legibly. |
+| 2 | Match System / Real World | 4 | Voice lands: "Bookings off," "{n} upcoming," "Onboarding 5/6," "Inactive members (2)." Plain, clinical, never patronising. |
+| 3 | User Control and Freedom | 3 | Each filter chip removes itself; "Clear filters" Ghost present when active; Inactive disclosure is native `<details>`; URL is the source of truth. |
+| 4 | Consistency and Standards | 3 | Rows reuse AdminEntityRow grammar; status chip families come from DESIGN.md §2. Workload-strip drifts from brief: specified as prose, ships as 4 equal tiles with uppercase tracking — the same uppercase shouting DESIGN.md §Admin-Specific-Patterns/Data Table forbids. |
+| 5 | Error Prevention | 3 | NewStaffForm validates client-side, maps "already" server error to email field, marks required `*`, search `minLength={2}` enforced. |
+| 6 | Recognition Rather Than Recall | 3 | Filter labels visible, every status carries text label not just colour, role chip + gender spelled out. Avatar initials carry no surname recognition. |
+| 7 | Flexibility and Efficiency | 3 | GET-param deep-linking, workload-strip cross-link to filters, role filter accepts `?roleId=` from `/admin/roles`, Inactive disclosure for HR contexts. |
+| 8 | Aesthetic and Minimalist Design | 2 | The list rows themselves are calm. Above the list, four chrome layers before the team appears. Workload-strip is loud where brief asked for quiet prose. |
+| 9 | Error Recovery | 3 | Inline `role="alert" aria-live="polite"` on both list-load failure and form submission; Cancelled-tone copy with leading `XCircle`; "Try again" Ghost on list error. |
+| 10 | Help and Documentation | 2 | Native `title` tooltips carry contextual help on chips, avatars, workload pill. No first-time empty-state walkthrough. Tooltip-only help is fragile on touch. |
+| **Total** | | **29/40** | **Solid — ships, with two real regressions to address** |
+
+### AI-slop verdict
+
+**REGRESSED — PASS for the rows, FAIL for the chrome above them.** The list-row directory itself is unmistakably Rahma. The workload-strip imports the AI-default "four KPI tiles divided by vertical rules, uppercase tickers, right-aligned numerals" silhouette that PRODUCT.md anti-references list verbatim and that the brief told the implementer to avoid in favour of a single prose sentence.
+
+### UX-quality commentary (mapped to PRODUCT.md anti-references)
+
+- **Hero-metric template:** Workload-strip is the hero-metric template in disguise — four equal tiles with uppercase tracking label + bold count. Brief said one prose sentence.
+- **Identical card grids:** Rows themselves vary, but the four workload-strip tiles violate it directly.
+- **Color-only status signalling:** Honoured throughout — every chip pairs tone + icon + text.
+- **Pure-typography (Linear-bare):** Avoided — initialled avatars, deterministic tint, EmptyState with Users Lucide icon.
+- **Side-stripe borders / gradient text:** Clean. All three BASELINE-CRITIQUE absolute-bans flagged for this page are resolved.
+- **Everything-on-one-screen:** Page header + workload-strip + filter bar + chips + list defensible on desktop but on 375 it's "four screens of chrome before the team."
+
+**One-sentence verdict:** The directory itself is a clean PASS on the absolute-ban list; the workload-strip drags an otherwise on-brand page from 33/40 to 29/40 — collapsing those four tiles to the single prose sentence the brief specified would close most of the gap.
+
+## staff — critique (post-distill iter 2)
+
+**Nielsen heuristic scores (out of 5):**
+
+1. Visibility of system status — 4.5
+2. Match between system and the real world — 4.5
+3. User control and freedom — 4
+4. Consistency and standards — 4.5
+5. Error prevention — 4
+6. Recognition rather than recall — 4.5
+7. Flexibility and efficiency of use — 4
+8. Aesthetic and minimalist design — 4.5
+9. Help users recognise, diagnose, recover from errors — 4
+10. Help and documentation — 3.5
+
+**Total: 42 / 50 (≈ 33.6 / 40 on the 10×4 scale)**
+
+**AI-slop verdict: PASS** — workload-strip prose now sits as one quiet line on canvas with bold weight reserved for actionable counts only, rows are true list-row dividers with no card-on-card chrome, and the avatar collapses to a single Hover Moss token so decorative colour never competes with the named-status chips (PRODUCT.md "color-only status signalling" anti-reference avoided; DESIGN.md Tonal Lift Rule honoured; identical-card-grid anti-pattern from PRODUCT.md decisively replaced).
+
+**Brief commentary (concrete observations → PRODUCT.md anti-references):**
+- Workload strip is a single `<p>` with middle-dot separators — no `surface-card` band, no border-y. Direct removal of the "hero-metric template / stat-tile row" anti-reference.
+- `WorkloadSegment` only applies `font-semibold` when `tone === "info"` or `"warning"`; muted segments stay at surrounding weight. Bold-on-attention now means something.
+- `StaffRow` is a flex `<Link>` inside `divide-y divide-[var(--admin-border)]`. No per-row border/bg/shadow at rest — matches DESIGN.md §Admin-Specific Patterns "rows sit on canvas — they are not nested cards" exactly.
+- `Avatar` uses a single Hover Moss for active members and panel-muted for inactive. No per-id rotation; decoration carries no false status signal.
+- Filter chips use Restricted-family neutral grey-purple — chips read as metadata, not status.
+- `AdminAccessDenied` plain-English copy; no raw `view_staff` identifier leaked.
+- `NewStaffForm` wraps both form-level and per-field errors in `role="alert" aria-live="polite" aria-atomic="true"`.
+- Mobile screenshot (375px): NewStaffForm Primary becomes full-width below header per brief §5; filter strip stacks natively. No horizontal-scroll regression.
+- Heading hierarchy: page H1 → row `<h2>`. Sam #1 heading skip resolved.
