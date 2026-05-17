@@ -1784,3 +1784,106 @@ No BUILD plan blocking. No FAKE adapter in use.
 4. Server-error toast lacks the Retry affordance DESIGN.md calls for.
 5. "Any" gender chip leading with clock-style icon collides visually with "90 min" duration chip — distinct iconography needed.
 6. Mobile (375px) view: verify safe-area padding under bottom mobile nav so the last row of the first group is never occluded.
+
+## privacy — audit
+
+### 5 Dimension Scores
+
+| # | Dimension | Score | Key Finding |
+|---|-----------|-------|-------------|
+| 1 | Accessibility | 3 | Touch target on Show more/Show less inside long-note disclosure was `min-h-8` (32px), below WCAG 2.5.5 floor on mobile (PrivacyRequestNote.tsx:41). Heading chain on mobile collapsed for sensitive-note rail (rail title was `<span>` not heading at <xl, page.tsx:513). Otherwise strong: alert region wired for queue load, form-level alerts wired (PrivacyFilterBar.tsx:335 / 348), `aria-busy` on form, dedicated `sr-only role="status" aria-live="polite"` for save announce (PrivacyStatusForm.tsx:157), `aria-pressed` on date chips, raw permission string sanitiser in AdminAccessDenied. |
+| 2 | Performance | 4 | Server component fetches three queries with explicit `.returns<>()`, single grouping pass, no expensive layout animations. Client islands are scoped (filter bar, status form, note expand). Only motion is `transition-transform` / `transition-colors` (paint-only). No images requiring lazy-load. |
+| 3 | Theming | 3 | Tokens used heavily (70 occurrences across 4 files) but six raw `oklch(...)` literals remain for the danger-family Cancelled error region and chip strip (page.tsx:393,395,398,403; PrivacyFilterBar.tsx:337,350,364; PrivacyStatusForm.tsx:79,109). DESIGN.md §2 defines `status-cancelled-bg/text` and `status-restricted-bg/text`; the redesign brief §4 explicitly carries forward raw `var(--rahma-*)` token escapes as a soft fix. These literals mirror admin-ui.tsx implementation pattern (codebase-canonical). |
+| 4 | Responsive Design | 3 | xl-breakpoint 2-col then stacked single-col works; filter strip collapses to `AdminSheet` on `<md`; sensitive notes collapse to `<details>` on `<xl`; touch targets on Open client and Update status use `min-h-12 sm:min-h-9` (48 then 36px) which is correct. 375px screenshot showed the sticky bottom `AdminBottomNav` overlapping the Received panel summary; missing bottom padding to clear the bar (page.tsx top-level wrapper, no `pb-20` / `pb-24` for mobile). |
+| 5 | Anti-Patterns | 4 | No side-stripe borders, no gradient text, no glassmorphism, no hero-metric template (stat tiles are flat two-row), no identical card grid, no nested cards (rows sit on canvas inside the panel), no bounce easing. Cards vary across the page: stat tiles (numeral-led), status panels (`<details>`-grouped run), request rows (verbatim-quote block), sensitive notes list (sticky-note pictogram + line-clamp). No `border-l-4`. Cormorant only on numerals. |
+
+**Total: 17 / 20 — Good (address weak dimensions).**
+
+### P0 / P1 / P2 / P3 Findings
+
+**P0 — Blocks release — fix before shipping anything**
+- none
+
+**P1 — Fix this sprint — significant impact on users**
+- Bottom-nav occludes content on mobile — sticky `AdminBottomNav` overlapped the first status panel summary at 375px (visible in `redesign/screenshots/privacy-redesign/privacy-polish-final-375.png`). Category: Responsive. WCAG 1.4.10 reflow / functional obstruction. **FIXED in audit follow-up:** page.tsx wrapper bumped to `pb-24 sm:pb-0`.
+- Touch target below 44px on long-note expand — `PrivacyRequestNote.tsx:41` used `min-h-8` (32px). The collapse toggle is the only way to see the full customer request quote; mobile-first operators tap this. **FIXED in audit follow-up:** `min-h-11 sm:min-h-8` applied.
+
+**P2 — Next cycle — noticeable but not blocking**
+- Six raw `oklch(...)` literals for the Cancelled / Restricted families bypass the named token system. Category: Theming. **Deferred** — codebase-canonical pattern mirrors admin-ui.tsx implementation; tokenisation is a tokens.css concern outside this page's scope.
+- Sensitive-notes rail title was not a heading on mobile/tablet — page.tsx:513 rendered as `<span>` inside `<details><summary>`, breaking the H1 then H2 then H3 chain on `<xl` viewports. **FIXED in audit follow-up:** `<h2>` applied to mobile rail title.
+- Single-letter `<li>` bullet on row markers — screenshots showed a bullet glyph leading each row (default `<ul>` style leak). Redundant with the type chip. **FIXED in audit follow-up:** `list-none pl-0` applied to both `<ul>`s.
+
+**P3 — Polish — minor, fix when time allows**
+- Update status `<details>` summary uses `min-h-12 sm:min-h-9` (correct); chevron rotation reads inverted to the eye (closed = -90deg right, open = 0deg down). The brief and pattern are correct.
+- Quote pictogram in `PrivacyRequestNote.tsx:22` uses `float-left` for the icon next to a `whitespace-pre-wrap blockquote`. Works but floats are fragile alongside `line-clamp`; a CSS grid `[auto_1fr]` layout would be more robust.
+- `PrivacyFilterBar.tsx:413-415` uses `<details><summary>` for the multi-select dropdown without `role="listbox"` / `aria-multiselectable` semantics. Functional via native disclosure.
+
+### Backend status
+
+**FAKE** — `BUILD-privacy-filter-query.md` (per `redesign/IMPLEMENTATION-PLAN.md` BLOCKS-REDESIGN entry for privacy). The filter bar is wired end-to-end (URL params, chips, mobile sheet) and the page reads the params, but the queue server query at `page.tsx:201-208` orders by `created_at` desc and applies no `request_type` / `status` / `from` / `to` / `q` predicates. Filter strip is marked `data-redesign-fake="filter-query"` at `PrivacyFilterBar.tsx:152`. The stat-tile filter shortcuts (page.tsx:286-288) likewise build URLs the server currently ignores.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- none (both P1s closed in audit follow-up: page wrapper `pb-24 sm:pb-0` added; long-note expand toggle `min-h-11 sm:min-h-8` applied).
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-6** (form errors silently fail to announce — `aria-live` missing). The page newly contributes a form-level alert region on the filter strip (`PrivacyFilterBar.tsx:332-341` for short-query errors and `:343-354` for invalid date-range), and the page-level queue load failure wires `role="alert" aria-live="polite"` (page.tsx:391-392). PrivacyStatusForm's inline error path surfaces via Sonner persistent retry per brief §6 (intentional pattern divergence). Counts as a 2A-6 contribution across three form/error surfaces.
+
+## privacy — critique
+
+| # | Heuristic | Score | Key Issue |
+|---|-----------|-------|-----------|
+| 1 | Visibility of System Status | 3 | Status panels, badges, relative-time, pending toast and `aria-busy` all present; the four "Empty" labels stacked down the right side restate what each panel header already says (count badge `0` + "No X requests"), which is over-signalling rather than informing. |
+| 2 | Match System / Real World | 4 | "Received / Reviewing / Completed / Declined", "Awaiting longest", "These notes don't enter exports or operational logs" — plain regulator language, no jargon, no raw `manage_privacy_operations` leak. |
+| 3 | User Control and Freedom | 3 | Per-row `<details>` form, confirm modal on Complete/Decline, retry toast, URL-driven filters, `expand=all` escape hatch — all good. No undo on a wrong status mutation though (and the action is audit-logged but not reversible from the row). |
+| 4 | Consistency and Standards | 3 | Status family colours, badge vocabulary, AdminPanel chrome consistent with the rest of the admin. Two breaks: the bare `<li>` bullet showing as a default browser disc in front of "Data export 6 days ago" (visible on every viewport — addressed in audit follow-up), and the warning-tinted Date preset for "Today" — a chosen-pill in primary green sits next to neutral-pills, but the cream-peach stat tiles use a different warning shade than the Received badge dot, so the eye doesn't bind them as the same status family. |
+| 5 | Error Prevention | 4 | Destructive transitions gated by `ConfirmActionModal`; non-finalising ones (Received / Reviewing) are instant — correct asymmetry. Search < 3 chars and inverted date range each render a `role="alert"` line. Contact-detail line silently omitted when permission is absent (no "hidden" hint to leak the gate). |
+| 6 | Recognition Rather Than Recall | 3 | Request_type chip on every row, request-note quoted in a tinted well, last-actor on badge tooltip — recognition-first. Tooltip-only metadata (oldest-request client name, last-actor) is a recall trap for users who don't hover. |
+| 7 | Flexibility and Efficiency | 3 | Stat-tile shortcuts to filters, URL-deeplinkable filters, `expand=all`, active-chip dismiss, mobile filter sheet, keyboard-native `<details>` — solid. No bulk actions, no keyboard shortcut row, no saved filter — fine for clinic scale per PRODUCT.md ("avoid power-user keyboard shortcuts as a primary path"). |
+| 8 | Aesthetic and Minimalist Design | 3 | Tinted neutrals, Cormorant numerals, restrained palette, single warm accent on open-queue tiles, sensitive notes a quiet rail — on-brief. Drag: the three-up stat strip with Cormorant `1 / 6d / 0` is one millimetre away from the hero-metric template; the default-data view (one Received row + three empty panels stacked) makes the page look thinner than it is and pushes the eye onto the warning tiles. |
+| 9 | Error Recovery | 3 | Persistent failure toast with explicit Retry; queue-load failure path renders a Cancelled-family `role="alert"` region with "Try again" link. Concurrent-edit ("That request was just updated by {actor}") copy specified in the brief but not implemented in the visible code path (deferred to Phase 7 per `redesign/per-page-deferrals/privacy-deferrals.md`). |
+| 10 | Help and Documentation | 3 | Page description, panel description on the sensitive-note rail, modal copy that explains *why* (ICO escalation, audit integrity), tooltips on chips/times/badges. No "what is a deletion review?" inline explainer for a novice operator who hits the page for the first time, but PRODUCT.md positions this surface as senior-only, so the bar is correctly set lower. |
+| **Total** | | **32 / 40** | **Solid — production-ready with a few visible drags** |
+
+### AI-slop verdict: **PASS (with caveats)**
+
+The surface reads as a calm regulator workstation with deliberate copy and a real composition (queue + quiet review rail), not a templated dashboard; the most generic surfaces — gradient text, decorative blobs, glassmorphism, side-stripe borders, identical icon-heading-text card grids — are all absent. **Caveat**: the three-tile stat strip is the closest thing on the page to AI default, and the Cormorant `1 / 6d / 0` reads more like the banned hero-metric template than it should — on richer real data it will look distinctive, on the empty dev fixture it borrows the silhouette. (Note: three-tile strip is brief §5 mandated — `'Open requests' / 'Awaiting longest' / 'Sensitive notes reviewed this month'` — can't drop without contradicting the brief.)
+
+### UX-quality commentary against PRODUCT.md anti-references
+
+- **"Generic SaaS / shadcn-default dashboards"** — avoided. The status-grouped queue with `<details>` panels, the quoted request-note well with a single Quote glyph, and the sensitive-note rail are all specific to this page, not boilerplate.
+- **"Hero-metric template (big number / small label / supporting stats stacked decoratively)"** — *brushed*. Three stat tiles in a row, each a label + Cormorant numeral + sub-note + icon, is the exact silhouette PRODUCT.md names. Mitigations are real (two of three are warning-tinted, the third stays neutral; values are clickable filter shortcuts with real semantics; the "All caught up" empty-state replaces "0d" on the middle tile). But on the as-shipped screenshot, the three-up reads template-shaped.
+- **"Identical card grids"** — avoided in spirit, brushed in the stat strip. Status panels are uniform-by-design (the user needs to scan four buckets in the same shape — a *list of panels* is the correct affordance), but the three stat tiles are functionally identical cards with different numerals.
+- **"Decorative blobs, glassmorphism, gradient text, side-stripe borders"** — all absent. The Quote glyph in the request-note well is the only decorative shape and it carries meaning ("verbatim customer words"). Tick.
+- **"Color-only status signalling"** — avoided. Each status panel pairs colour with a text label + count badge + chevron; the request-type chip is always text-first.
+- **"Loud palettes, dense admin defaults, table-of-everything home pages"** — avoided. Tinted neutrals dominate; the only saturated surfaces are the two open-queue stat tiles and the green Date preset pill when active. Density is appropriately low for a regulator queue.
+- **"Tools so spare they feel cold"** — avoided. The Cormorant numerals, the quoted-note well, the StickyNote pictogram on the rail, the human relative-times all add the "disciplined warmth" PRODUCT.md asks for without ornament.
+- **"Everything-on-one-screen SaaS dashboards — 30 cards, no hierarchy"** — avoided. Hierarchy is honest: stats → filters → status-grouped queue → quiet review rail.
+- **"Cards must be varied and considered"** — partial. Status panels are intentionally uniform (they earn it); the stat-tile row earns less but is brief-mandated.
+
+### Concrete drags surfaced (status after critique follow-up)
+
+1. **Default browser bullet `•`** on the request row — **FIXED in audit follow-up:** `list-none pl-0` on both `<ul>`s.
+2. **Three-up stat strip** — brief §5 mandates three tiles verbatim; cannot drop without contradicting brief. Acknowledged as a structural drag held by the brief.
+3. **Mobile nav overlay** — **FIXED in audit follow-up:** `pb-24 sm:pb-0` on page wrapper.
+4. **Four-times "Empty" caption** redundancy — **FIXED in critique follow-up:** caption now renders only when panel has rows (Show {N} / Hide {N}); empty panels show count badge `0` + inline "No X requests." line only.
+5. **`bg-[oklch(94%_0.008_280)]`** raw OKLCH escapes — codebase-canonical pattern (mirrors admin-ui.tsx status-family implementation). Deferred to Phase 7 tokenisation pass.
+
+## privacy — post-handoff improvements
+
+User requested the top-5 recommendations from the post-handoff visual review be applied surgically before commit. Landed as the final pass:
+
+| # | Improvement | Implementation |
+|---|-------------|----------------|
+| #20 | Avatar / initial token next to client name | Added `initials()` + `avatarTint()` helpers in `page.tsx` (deterministic hue from client id, oklch 88% bg + oklch 26% text). 40px tinted chip leads the request-row header. Mirrors `BookingDetailSidebar.tsx` `ClientAvatar` pattern. |
+| #1 | Varied stat-tile composition | Three-up identical-card strip replaced with anchor numeral tile (Open requests, Cormorant) + 2-row context panel ("Awaiting longest: 6d · Client" / "Sensitive notes this month: N reviewed"). Closes the "hero-metric template" silhouette flagged by critique without breaking brief §5 stat-tile labels. |
+| #10 | Subtle motion | Panel chevrons → `transition-transform duration-200 [transition-timing-function:cubic-bezier(0.16,1,0.3,1)]` (ease-out-quart). Status panels → `transition-shadow duration-200 ease-out hover:shadow-[0_2px_8px_oklch(23%_0.073_155_/_0.06)]`. Anchor stat tile + Awaiting-longest link → `hover:shadow-md` + opacity-fade-in `→` arrow. Honours global `prefers-reduced-motion`. |
+| #6 | Note authorship caption | Added `staff_profiles` lookup (resolves `created_by_staff_id` → name). Caption below the quoted note well reads `From the customer directly.` (when `created_by_staff_id` is null) or `Transcribed by {Name}.` (when staff transcribed). Italic Soft Slate. |
+| #5 | Copy-ID + mailto / tel | New client wrapper `src/app/admin/privacy/CopyIdButton.tsx` — clipboard copy of full UUID with Sonner success toast + Copy → Check icon swap. Email + phone in the contact line now render as `mailto:` / `tel:` anchors with hover-underline. |
+
+**New file:** `src/app/admin/privacy/CopyIdButton.tsx` (in scope; net-new client wrapper under `src/app/admin/privacy/`).
+
+**Files updated:** `src/app/admin/privacy/page.tsx` (avatar helpers + staff lookup + stat-strip rework + row composition + motion tokens).
+
+**Files unchanged in this pass:** `PrivacyStatusForm.tsx`, `PrivacyFilterBar.tsx`, `PrivacyRequestNote.tsx`, `actions.ts` (Feature Preservation Manifest holds).
