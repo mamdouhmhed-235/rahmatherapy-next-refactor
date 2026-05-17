@@ -168,8 +168,8 @@ if (Test-Path -LiteralPath $worktree) {
 git -C $mainTree worktree prune
 git -C $mainTree branch -d "agent/$slug-redesign"
 
-# Auto-heal main.
-pnpm -C $mainTree install --frozen-lockfile --ignore-scripts
+# Auto-heal main — paste §3A's hybrid leaf-sweep + escalation block here. NEVER use bare --frozen-lockfile
+# alone (misses empty-leaf damage where the package dir exists but contents are wiped).
 ```
 
 If `git merge --ff-only` errors with "would be overwritten" — main tree has uncommitted edits on a file the branch changed. Restore that file (`git restore <path>`) if the change is stale; otherwise stash first.

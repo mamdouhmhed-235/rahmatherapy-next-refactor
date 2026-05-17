@@ -142,8 +142,49 @@ if (Test-Path -LiteralPath $worktree) {
 git -C $mainTree worktree prune
 git -C $mainTree branch -d "agent/$slug-redesign"
 
-# Auto-heal main — restores any .pnpm/ entry lost to past bad cleanups; no-op (~3 sec) when healthy.
-pnpm -C $mainTree install --frozen-lockfile --ignore-scripts
+# Auto-heal main — hybrid: 10-package leaf sweep, escalate to --force if damaged, else --frozen-lockfile.
+# `--frozen-lockfile` alone only checks "is the package directory installed?" — it does NOT detect
+# empty-leaf damage (directory preserved, files gone).
+#
+# Confirmed parallel-worktree-side-effect (2026-05-17 observation, after 5 consecutive worktree-merge
+# cleanups in one session): every cleanup triggered the --force escalation. The first 4 (with concurrent
+# worktrees in flight) reported 10/10 sampled leaves damaged; the last (after zero in-flight worktrees)
+# reported 8/10. The damage is concurrent-worktree junctions reaching back into main tree's .pnpm/ and
+# polluting it as worktrees come and go. Earlier "cumulative past Remove-Item runs" hypothesis is
+# superseded by this pattern.
+#
+# Mitigation upstream: spawning a worktree now runs `pnpm install --frozen-lockfile --ignore-scripts`
+# post-robocopy (see MAIN-AGENT-CONTEXT.md §5A step 3, added 2026-05-17) — once worktrees no longer share
+# .pnpm/ junctions with main, main's --force runs shouldn't ripple. Validate on the next batch.
+#
+# Clean ≈3s; damaged ≈60-90s (pnpm install --force re-fetches every package, ~1280 packages).
+$pkgsToCheck = @(
+    @{prefix='next@16.';               leaf='next'},
+    @{prefix='react@19';               leaf='react'},
+    @{prefix='react-dom@19';           leaf='react-dom'},
+    @{prefix='@tailwindcss+postcss@';  leaf='@tailwindcss/postcss'},
+    @{prefix='tailwindcss@';           leaf='tailwindcss'},
+    @{prefix='postcss@8';              leaf='postcss'},
+    @{prefix='typescript@';            leaf='typescript'},
+    @{prefix='@supabase+supabase-js@'; leaf='@supabase/supabase-js'},
+    @{prefix='lucide-react@';          leaf='lucide-react'},
+    @{prefix='@alloc+quick-lru@';      leaf='@alloc/quick-lru'}
+)
+$damaged = @()
+foreach ($p in $pkgsToCheck) {
+    $dir = Get-ChildItem "$mainTree\node_modules\.pnpm" -Directory -ErrorAction SilentlyContinue | Where-Object Name -like "$($p.prefix)*" | Select-Object -First 1
+    if (-not $dir) { $damaged += "$($p.prefix) (MISSING dir)"; continue }
+    $pkgJson = "$($dir.FullName)\node_modules\$($p.leaf)\package.json"
+    $info = Get-Item -LiteralPath $pkgJson -ErrorAction SilentlyContinue
+    if (-not $info -or $info.Length -eq 0) { $damaged += "$($p.prefix) (EMPTY leaf)" }
+}
+if ($damaged.Count -gt 0) {
+    Write-Host "Damage in $($damaged.Count) leaf(ves) — escalating to --force:"
+    $damaged | ForEach-Object { Write-Host "  - $_" }
+    pnpm -C $mainTree install --force --ignore-scripts
+} else {
+    pnpm -C $mainTree install --frozen-lockfile --ignore-scripts
+}
 ```
 
 ### 3B — Update tracking
@@ -354,7 +395,8 @@ git -C $mainTree worktree remove --force $worktree 2>$null
 if (Test-Path -LiteralPath $worktree) { node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree }
 git -C $mainTree worktree prune
 git -C $mainTree branch -d "agent/$slug-redesign"
-pnpm -C $mainTree install --frozen-lockfile --ignore-scripts
+# Auto-heal: paste §3A's hybrid leaf-sweep + escalation block here. NEVER use bare --frozen-lockfile —
+# it misses empty-leaf damage (directory exists, files wiped). The sweep is required.
 ```
 
 ## Appendix B — Common transcript anchors and what they mean

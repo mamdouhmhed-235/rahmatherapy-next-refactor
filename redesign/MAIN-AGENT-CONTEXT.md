@@ -132,12 +132,22 @@ You create the worktree manually, inline in this conversation. There used to be 
    git -C "<main>" worktree add "<worktree>" -b "agent/<slug>-redesign" redesign/start-state
    ```
 
-3. **Robocopy `node_modules` from main tree** (~2 min, no `pnpm install`, no network, no new packages introduced):
+3. **Robocopy `node_modules` from main tree, then rebuild the local pnpm store so the worktree is truly independent of main** (~3 min total).
+
+   First (~2 min, fast bulk-copy of files):
    ```
    robocopy "<main>\node_modules" "<worktree>\node_modules" /E /SL /SJ /R:1 /W:1 /MT:16 /NFL /NDL /NJH /NJS /NP
    ```
    Robocopy exit codes 0–7 = success class; 8+ = real failure.
-   Verify post-copy: `Test-Path "<worktree>\node_modules\next\package.json"` must be `True`.
+
+   Then (~30–90s, rewrites junctions to point at the worktree's own `.pnpm/` — no network if the global pnpm store is warm):
+   ```
+   pnpm -C "<worktree>" install --frozen-lockfile --ignore-scripts
+   ```
+
+   **Why both** (added 2026-05-17 after the audit-dev-server incident): `robocopy /SJ` preserves junctions verbatim, so a robocopy-only worktree's `node_modules/<pkg>` are junctions with absolute paths into main tree's `.pnpm/<pkg>@<ver>/`. The worktree thus has a hidden dependency on main tree's `.pnpm/` staying stable. Any `pnpm install --force` in main (the cleanup auto-heal path in POST-AGENT-AUDIT-PROTOCOL §3A) rewrites main's `.pnpm/` and the worktree's webpack module resolution breaks mid-flight — confirmed when audit's dev server emitted `Module not found: Can't resolve 'next/dist/pages/_app'` after settings/reports/enquiries cleanups had cumulatively rewritten main's `.pnpm/`. The post-robocopy `pnpm install --frozen-lockfile` rewrites the worktree's junctions to point at its own `.pnpm/` (no cross-worktree dependency).
+
+   Verify post-install: `Test-Path "<worktree>\node_modules\next\package.json"` is `True` AND `(Get-Item "<worktree>\node_modules\next" -Force).Target` starts with `<worktree>` rather than `<main>` — the second check confirms true isolation.
 
 4. **Create top-level `.bin/` junction inside the worktree** (safety net against `npx` registry-fetches — see recipes' "no registry fetches" hard rule):
    ```
@@ -191,7 +201,7 @@ Present findings to the user as a numbered checklist with PASS/FAIL/WARN per ite
 Execute the [POST-AGENT-AUDIT-PROTOCOL §3](POST-AGENT-AUDIT-PROTOCOL.md#section-3--merge-protocol-success-path-after-user-approves) merge protocol:
 1. In worktree: stage scoped files by name (NEVER `git add .` / `-A`), commit with `redesign: <slug>` message.
 2. In main tree: `git merge --ff-only "agent/<slug>-redesign"`.
-3. Cleanup: kill leftover processes (`Get-CimInstance` by command-line + `Get-NetTCPConnection` on the per-slug port), then remove the worktree via `git -C $mainTree worktree remove --force $worktree`, falling back to `node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree` for any leftover (**NEVER `Remove-Item -Recurse -Force` — see §3A / [pnpm#10707](https://github.com/pnpm/pnpm/issues/10707)**), `git worktree prune`, `git branch -d agent/<slug>-redesign`, then **auto-heal** main with `pnpm -C $mainTree install --frozen-lockfile --ignore-scripts`. Requires `git config --global core.longpaths true` (host-wide; applied 2026-05-16).
+3. Cleanup: kill leftover processes (`Get-CimInstance` by command-line + `Get-NetTCPConnection` on the per-slug port), then remove the worktree via `git -C $mainTree worktree remove --force $worktree`, falling back to `node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree` for any leftover (**NEVER `Remove-Item -Recurse -Force` — see §3A / [pnpm#10707](https://github.com/pnpm/pnpm/issues/10707)**), `git worktree prune`, `git branch -d agent/<slug>-redesign`, then **auto-heal** main via the §3A **hybrid** (Test-Path sweep across 10 key package leaves → `pnpm install --force --ignore-scripts` when any leaf is empty/missing, else `--frozen-lockfile --ignore-scripts`). The sweep is required because `--frozen-lockfile` alone does **not** detect empty-leaf damage (directory preserved, files wiped). Requires `git config --global core.longpaths true` (host-wide; applied 2026-05-16).
 4. Update `redesign/IMPLEMENTATION-PLAN.md` (mark page row `[x]` with commit hash; advance "Currently on:").
 
 ### 5E — "STUCK" / "TURN_CAP_REACHED" / "P0_FOUND" surfaced by the agent
@@ -223,7 +233,7 @@ All 24 remaining pages merged. Run [POST-AGENT-AUDIT-PROTOCOL §7](POST-AGENT-AU
 7. **Always present options for novel conflicts.** If you can't resolve mechanically against the conflict-resolution playbook, surface the conflict + options + your recommendation; let the user pick.
 8. **The 5 already-merged pages should not be re-redesigned** unless the user explicitly asks. They're: `00-shared-components`, `booking-new`, `bookings`, `booking-detail`, `login`.
 9. **Don't burn parent context on mass file reads.** When you need to verify multi-recipe consistency or do bulk QC, dispatch a subagent with a bounded prompt and let it summarize.
-10. **Never `Remove-Item -Recurse -Force` on a worktree** (or any directory containing pnpm reparse points). Use `git -C $mainTree worktree remove --force $worktree`, then `node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree` for any leftover. PowerShell's recursive force-remove follows junctions and deletes real packages in main tree's `.pnpm/` (canonical [pnpm#10707](https://github.com/pnpm/pnpm/issues/10707)). Documented in POST-AGENT-AUDIT-PROTOCOL §3A. The merge protocol's auto-heal step (`pnpm install --frozen-lockfile --ignore-scripts`) catches any latent damage from a missed cleanup site.
+10. **Never `Remove-Item -Recurse -Force` on a worktree** (or any directory containing pnpm reparse points). Use `git -C $mainTree worktree remove --force $worktree`, then `node -e "require('fs').rmSync(process.argv[1], { recursive: true, force: true })" -- $worktree` for any leftover. PowerShell's recursive force-remove follows junctions and deletes real packages in main tree's `.pnpm/` (canonical [pnpm#10707](https://github.com/pnpm/pnpm/issues/10707)). Documented in POST-AGENT-AUDIT-PROTOCOL §3A. The auto-heal step is a **hybrid**: Test-Path sweep across 10 key package leaves first, then `pnpm install --force --ignore-scripts` if any leaf is empty or missing, else `--frozen-lockfile --ignore-scripts`. **Honest limitation:** `--frozen-lockfile` alone catches only MISSING package directories — it cannot see EMPTY-leaf damage (directory preserved, files wiped). On 2026-05-16, 176 `.pnpm/` packages were in that emptied state from cumulative past Remove-Item runs; `--frozen-lockfile` said "Already up to date" while webpack crashed at first compile. The leaf sweep + `--force` escalation is what catches that class.
 
 ---
 
