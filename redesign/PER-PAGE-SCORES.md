@@ -1561,3 +1561,117 @@ Both are referenced inline in the code via `data-redesign-backend="FAKE"` marker
 - `NewStaffForm` wraps both form-level and per-field errors in `role="alert" aria-live="polite" aria-atomic="true"`.
 - Mobile screenshot (375px): NewStaffForm Primary becomes full-width below header per brief §5; filter strip stacks natively. No horizontal-scroll regression.
 - Heading hierarchy: page H1 → row `<h2>`. Sam #1 heading skip resolved.
+
+## roles — audit
+
+**Dimension scores (0-4):**
+- Typography: 3 — page H1, role H2, mono `DB role`, label-step counts; correct font roles. Minor: chip labels likely default through primitive.
+- Color & contrast: 3 — Soft Slate body 5.9:1, named status families used, no gold-as-text, no color-only signalling. Raw `oklch(95.5%...)` escapes inline.
+- Layout & spacing: 3 — list-row paradigm respected, no shadow at rest (Tonal Lift OK), 44px touch on staff link, mobile stack collapse implemented. Inactive list `gap-2` vs active `gap-1` jars.
+- Interactivity & accessibility: 2 — Cancel button is a no-op; "press N" sr-only tip points to a non-existent keydown handler; form error region present and ARIA-correct but `sr-only` would hide future visual errors.
+- Responsive behaviour: 3 — mobile counts collapse below description per brief, full-width CTA on mobile, chevron pinned. 375 view legible.
+
+**P0:** none
+
+**P1 (tag for Phase 7 gauntlet):**
+- Cancel button in create-role sheet does not close the sheet — no `onClick`/data attribute, no form reset. Breaks brief §6 cancel contract. `src/app/admin/roles/CreateRoleSheet.tsx:159-164`
+- `<p class="sr-only">Tip: press the letter N…</p>` advertises a keyboard shortcut that no JS handler implements; `aria-keyshortcuts="n"` on the trigger button is decorative-only. Untruthful affordance to screen-reader users. `src/app/admin/roles/page.tsx:110-112` + `src/app/admin/roles/CreateRoleSheet.tsx:28`
+
+**P2:**
+- Form-level error region permanently `className="sr-only"` (CreateRoleSheet.tsx:48) — even once `createRole` wires up, validation errors will not be visually announced; DESIGN.md §Status Communication mandates visible inline error region. `src/app/admin/roles/CreateRoleSheet.tsx:43-49`
+- Raw `oklch(...)` colour escapes for hover/letter-token fills bypass the token system (`var(--admin-*)`). `src/app/admin/roles/page.tsx:178` (`hover:bg-[oklch(95.5%_0.012_155)]`), `:193`, `:294` (NestedStaffLink hover). Carry-forward of the same anti-pattern the brief soft-flagged.
+- `<form noValidate>` plus `disabled` submit means client-side `required`/`pattern` never fires; once backend lands, removing `noValidate` is a one-line follow-up but easy to miss. `src/app/admin/roles/CreateRoleSheet.tsx:42`
+
+**P3:**
+- `<details>` summary `title="Show inactive roles"` never flips to "Hide inactive roles" on open. Brief §Tooltip text lists both strings. `src/app/admin/roles/page.tsx:146`
+- Vertical rhythm inconsistency: active list `gap-1` (page.tsx:130) vs inactive list `gap-2` (page.tsx:154). Same row component, two cadences.
+- "Active" inline meta label appears as plain text beside the System chip ("Client Care / Booking Coordinator System  Active") in 768 screenshot wrapping awkwardly under the chip line — chip vs. plain-text-`Active` distinction isn't visible; the live render shows `AdminStatusBadge value="Active"` but the visual weight is light enough to read as label not chip. Worth a glance at primitive padding. `src/app/admin/roles/page.tsx:209-213`
+- Sheet description ("You'll assign permissions on the next screen.") not in brief copy spec; tolerable but extra.
+
+**Backend status:** FAKE — BUILD-create-role.md is the blocking plan (`createRole` server action does not yet exist; submit carries `data-redesign-fake="create-role"` and is disabled per brief §4a). Confirmed at `src/app/admin/roles/CreateRoleSheet.tsx:167-174` and pending-note at `:176-185`.
+
+**BUSINESS-COMPLETENESS impact:**
+- 2A-6 (form errors aria-live announce) — partial contribution: form-level error region is wrapped in `role="alert" aria-live="polite" aria-atomic="true"` at `src/app/admin/roles/CreateRoleSheet.tsx:43-49`. Will fully count once submit is unblocked AND the region drops `sr-only` so sighted users see errors too.
+- 2A-9 (required-field visible `*` markers) — contribution: visible `*` in Cancelled-family colour with `aria-hidden="true"` on `display_label` (CreateRoleSheet.tsx:57-59) and `name` (`:81-83`).
+- 2A-4 (heading hierarchy) — contribution: role names rendered as `<h2>` at `src/app/admin/roles/page.tsx:203`, resolving BASELINE-CRITIQUE Sam #1 on this page.
+
+---
+
+## roles — critique
+
+**Date:** 2026-05-17
+**Files in scope:** `src/app/admin/roles/page.tsx`, `src/app/admin/roles/CreateRoleSheet.tsx`
+**Screenshots reviewed:** roles-polish-final-{375, 768, 1440}.png
+
+### Nielsen heuristics (0–4)
+
+1. **Visibility of system status — 3.** Summary line ("5 active roles. 11 staff assigned across all roles.") gives an honest at-a-glance state; per-row permission and staff counts tell the operator what each role contains. The "Inactive" subhead renders even when zero inactive exist on screenshot (in fact the seed shows all 5 Active, including "Inactive / Suspended" labelled Active — the chip says Active when DB role name is Inactive, which mildly muddies status). No load/skeleton visible, but populated state suffices.
+2. **Match between system and real world — 3.** "DB role:" line is operator-accurate and earns its keep; "permissions" / "staff" are plain. "Inactive / Suspended" as a display label fights itself when the row also shows an "Active" chip — labelling drift, not a redesign artefact, but jarring on screen.
+3. **User control and freedom — 3.** Row click navigates; staff-count nested link `stopPropagation`s correctly; details disclosure is native. Sheet has Cancel. No undo concept needed (creation is non-destructive).
+4. **Consistency and standards — 3.** AdminEntityRow-style row, status family chips, Urbanist H2, Form Seam input borders, ChevronRight trailing — matches DESIGN.md and other admin surfaces. Letter token on Hover Moss reads consistent with avatar grammar. The disabled submit is a controlled deviation, declared inline.
+5. **Error prevention — 3.** Required asterisks, `pattern="[a-z_]+"` on DB name, `maxLength=60` on label, numeric sort_order with step=10, default-checked Active with helper. `noValidate` is fine given the disabled submit; once wired, server validation must populate the live region.
+6. **Recognition rather than recall — 3.** Counts, chips, descriptions, DB role line — operator never has to remember anything; the `n` keyboard shortcut is surfaced via SR-only text (discoverable for SR users, hidden for sighted — slightly asymmetric).
+7. **Flexibility and efficiency — 3.** Whole-row link + nested staff pivot to filtered staff list is genuinely fast. Keyboard hint exists. No bulk actions (correctly out of scope).
+8. **Aesthetic and minimalist design — 3.** Quiet directory. No blobs, no gradients, no decorative tiles, no border-l-4. Letter token is subtle. Right-rail counts breathe. One nitpick: at 1440 the right-rail counts sit ~700px away from row content — a lot of negative white space that reads slightly empty rather than considered.
+9. **Help users recognize, diagnose, recover from errors — 2.** Live region exists (`role=alert aria-live=polite`) but is sr-only and empty; with submit disabled there is no demonstrable error path. AdminAccessDenied copy is fixed (no raw `manage_role_templates`). Empty-state copy is correct. Score reflects unwired state.
+10. **Help and documentation — 3.** Helpers under every field, tooltips on chips/counts, explicit pending-backend note with `BUILD-create-role.md` reference — honest about the seam.
+
+### AI-slop verdict
+
+**PASS.** Restrained list-row directory with named status chips, mono DB identifiers, and varied row interior (avatar + heading + chips + description + DB line + right rail) — none of the anti-references (identical-card grid, blobs, gradient text, hero-metric template, color-only status) appear.
+
+### UX-quality commentary (PRODUCT.md anti-reference map)
+
+The page reads as a Rahma surface, not a generic shadcn directory: ivory canvas, deep-green chrome top, Urbanist H2 per role, named Restricted/Confirmed chips with text labels — color-only signalling is avoided cleanly. No identical-card grid: the row is intentionally horizontal with a left letter-token, centre stack of heading + chips + description + mono DB line, and a right rail of icon-led counts plus chevron. No decorative blobs, no border-l-4, no gradient text. The letter token on Hover Moss earns its keep as a typographic anchor without competing with the H2, matching the "decoration that carries meaning" rule.
+
+Two soft frictions worth flagging: (1) the "Inactive / Suspended" seeded role displays an "Active" status chip — that is data-layer drift, but it embarrasses the redesign visually; consider hiding the Active chip on `is_system && name === 'Inactive'` or honouring the row's semantic role. (2) At 1440, the right rail of counts feels orphaned across a wide gap; pulling the rail closer (or capping the row max-width) would tighten scanability. The disabled-submit pending-note is honest and correctly scoped — does not undermine the surface. Mobile reflow is clean: counts move below description, single chevron pinned right, full-width Primary. Matches "front-desk first, mobile-first frequency."
+
+---
+
+## roles — revision pass (2026-05-17, post-audit)
+
+User-directed revision pass applied after the audit/critique landed. Captures which audit findings were resolved in-session and which were intentionally deferred.
+
+### Audit findings resolved in this pass
+
+- **Active chip noise (audit P3) — RESOLVED.** Active chip dropped page-wide; only the Inactive chip remains, and only inside the `<details>` disclosure. Result: less visual noise per row; the section header carries the active/inactive meaning.
+- **"Inactive / Suspended" Active-chip drift (critique commentary) — RESOLVED.** New `isInactiveSystemRole` + `treatAsInactive` helpers coerce `is_system && name === 'Inactive'` into the inactive list regardless of the DB `active` flag. Letter-token skip logic now keys off the same predicate. Summary line correctly shows "4 active, 1 inactive".
+- **Right-rail orphan at 1440 (critique #8) — RESOLVED.** Row layout switched to `grid-cols-[auto_minmax(0,1fr)_auto]`; right column now sits flush against the centre column. No more 700px gap.
+- **Letter-token / H2 misalignment (audit-adjacent) — RESOLVED.** Dropped the `mt-0.5` nudge; grid `items-center` aligns the token with the H2 baseline.
+- **`<details>` chevron-only affordance — RESOLVED.** Replaced rotation-only chevron with explicit "Show ▾" / "Hide ▴" text affordance via `group-open:` toggles. Tooltip text from brief §Tooltip now matches both visible states.
+- **Mobile counts row prose-feel (critique #6) — RESOLVED.** Two-line stacked metadata (`<ul>` of three `<li>`s) replaces the dot-separated prose. Permissions / staff / Activity each on its own line.
+- **Page summary line caption-feel (critique #7) — RESOLVED.** Leading `Users` icon added; `leading-snug` tightens vertical rhythm. Brief copy preserved verbatim.
+- **Hover state too loud (critique #8) — RESOLVED.** Border-color change dropped; hover affects only `bg` + `shadow`.
+- **Empty-state missing Create-role CTA (audit gap) — RESOLVED.** New inline `RolesEmptyState` component mirrors the EmptyState primitive's look and includes the `CreateRoleSheet` trigger directly. Primitive untouched.
+- **Focus styling under-spec (audit #7) — RESOLVED.** Row + details summary bumped to `ring-[3px] ring-offset-2 ring-offset-[var(--admin-canvas)]` per DESIGN.md §4 focus-ring spec.
+- **System role tooltip body missing (audit #8) — RESOLVED.** `AdminStatusBadge` wrapped in `<span title="System role. Comes with the clinic; can be edited but not deleted.">` — tooltip-on-wrapper sidesteps the primitive's lack of a `title` prop.
+- **Visual tier hierarchy (improvement #1) — RESOLVED.** New `tierOf` + `groupByTier` helpers derive Privileged (Owner+Admin) / Operational (Coordinator+Therapist) from `role.name`; uppercase Soft Slate label-step subheads emit between tier groups only when both tiers exist. Sort_order ordering preserved (brief §5 constraint respected).
+- **URL pivot to audit log (audit gap) — RESOLVED.** New `NestedActivityLink` per row → `/admin/audit?target_type=roles&target_id=<id>` (using the params the audit brief §11 reserves). Z-2 nested-link pattern matches the existing staff-count link.
+
+### Audit P1 / P2 items still deferred (now in roles-deferrals.md)
+
+- Cancel button in Create-role sheet does not close (audit P1)
+- "Press N" keyboard shortcut is sr-only-advertised but unwired (audit P1)
+- Form-level error region is `sr-only` while submit is FAKE-degraded (audit P2)
+- Raw `oklch(...)` colour escapes for Hover Moss / Selected Sage (audit P2)
+- `<form noValidate>` removal once `createRole` lands (audit P2)
+- Vertical rhythm `gap-1` vs `gap-2` between lists (audit P3) — partially resolved (both lists now use `gap-1`)
+
+### Audit findings intentionally NOT applied (and why)
+
+- **AdminAccessDenied icon → `Lock` (audit visual #10).** `<ShieldCheck>` is hardcoded inside the shared primitive `src/app/admin/components/admin-ui.tsx:899`. Recipe Hard Rule prohibits modifying shared primitives. Logged for the `00-shared-components` follow-up session.
+- **Duplicate role affordance (missing feature #6).** Would require authoring a new `duplicateRole` server action. Crosses the Phase 6 ↔ BUILD autonomy boundary (same constraint that put `createRole` into `BUILD-create-role.md`). Out of agent scope.
+- **Capability summary on hover/expand (improvement #5).** Would require fetching the actual permission list per role (not just count). Significant data-layer change risking the shared Supabase query shape. Recommend Phase 7.
+
+### Files added in revision pass
+- _(none — both new files were authored in the original craft pass)_
+
+### Files modified in revision pass
+- `src/app/admin/roles/page.tsx` — tier helpers, inactive coercion, empty-state inline, activity link, summary icon, mobile-metadata stack, 3-col row grid, quieter hover, stronger focus ring.
+- `src/app/admin/roles/CreateRoleSheet.tsx` — Primary trigger height to `h-11` on mobile (44px touch); form inputs no longer `disabled` (only the submit is); full-width on mobile.
+
+### Files unchanged (Feature Preservation Manifest holds)
+- `src/app/admin/roles/actions.ts` — never opened.
+- `src/app/admin/roles/[roleId]/**` — never opened.
+- `src/lib/auth/rbac.ts`, `src/lib/auth/**`, `src/lib/supabase/**`, `src/middleware.ts` — never opened.
+- `src/app/admin/components/admin-ui.tsx` + other shared primitives — never opened.
