@@ -27,7 +27,7 @@ Gate: `manage_privacy_operations` OR `canManageSensitiveClientNotes`. Admin/PM s
 - **Contact details leaking for profiles without `canViewClientContactDetails`:** the query must strip email and phone columns when this permission is absent. Never rely on the frontend to hide them.
 - **`from`/`to` filter applied to the Received panel but not the stat tiles:** the stat tiles should always show current totals regardless of active filters. Keep stat-tile queries separate from the filtered panel queries.
 - **Unknown `request_type` value:** treat as "all types" (ignore unknown values).
-- **Privacy request table name mismatch:** RECON §6.1 lists `requestClientPrivacyAction` which writes to an unknown table name. Verify the actual table name in `supabase/migrations/**` before writing the query.
+- **Privacy request table name mismatch:** RECON §6.1 lists `createClientPrivacyRequest` which writes to an unknown table name. Verify the actual table name in `supabase/migrations/**` before writing the query.
 
 ## How to verify it works
 1. Create one privacy request of each status type → all four panels render with correct counts.

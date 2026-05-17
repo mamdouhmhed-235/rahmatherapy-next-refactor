@@ -16,7 +16,7 @@
 | Main tree (DO NOT MODIFY — user works there) | `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor` |
 | Dev server port for this worktree | `3023` (user's main tree owns `3000`) |
 | node_modules | already junctioned from main tree to this worktree's `./node_modules` — do not reinstall |
-| Backend status | `N-A` — services has no BLOCKS-REDESIGN BUILD plan. `saveService` and `deleteService` already exist and are untouchable (RECON §5). No FAKE markers required on this page. |
+| Backend status | `HANDLED` — services has no BLOCKS-REDESIGN BUILD plan and no FAKE markers, BUT the brief's `saveService` references are incorrect (no such action exists). Source has `createService(prev, formData)`, `updateService(serviceId, prev, formData)`, `deleteService(serviceId)`. The "Add service" form wires to `createService`; the "Edit" form + the three-dot menu activate/deactivate + show/hide toggles all wire to `updateService` with a full payload (flipping just the relevant boolean while passing every other field unchanged). The "Delete" three-dot item wires to `deleteService` when `usage_count === 0`. There is NO `archiveService` / `restoreService` — "deactivate" is `updateService` with `is_active: false`. See brief §4a for the full override. |
 | RBAC scope | Owner only (`manage_services` is owner-exclusive per RECON.md §2). Test creds must be the owner account, not the admin seed. |
 | Progress scratchpad | `/redesign/per-page-progress/services-progress.md` |
 
@@ -25,14 +25,14 @@
 1. **NEVER commit. NEVER stage.** Not even `git add -p`. Final step is handoff. Commits happen only after the user explicitly types `approved` in this session.
 2. **NEVER use `git add .` or `git add -A`.** When the time comes (after approval), stage scoped files explicitly.
 3. **NEVER modify any of these files** (Feature Preservation Manifest + RECON untouchables):
-   - `src/app/admin/services/actions.ts` — `saveService`, `deleteService` (and archive/restore variant) server actions; do not change action names, signatures, or field bindings (RECON §5)
+   - `src/app/admin/services/actions.ts` — `createService(prev, formData)`, `updateService(serviceId, prev, formData)`, `deleteService(serviceId)` server actions; do not change action names, signatures, or field bindings (RECON §5). Note: the brief and recipe drafts referenced a single `saveService` and an "archive/restore variant" — neither exists. See brief §4a + Backend status above for the actual mapping.
    - `src/middleware.ts`
    - `src/lib/auth/**`, `src/lib/supabase/**` — auth + DB layer (RECON §5)
    - `src/components/ui/card.tsx` and other shared primitives — out of scope (fixes live in `00-shared-components` session)
    - All build/config files (`next.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `package.json`, etc.)
 4. **NEVER modify files in the main tree.** Your CWD is the worktree; keep it that way.
 5. **Preserve form `name` attributes:** ALL 12 `ServiceFormDialog` field `name` attributes must remain literal and verbatim — `name`, `slug`, `group_category`, `gender_restrictions`, `price`, `duration_mins`, `display_order`, `is_active`, `is_visible_on_frontend`, `short_description`, `full_description`, `suitable_for_notes` (RECON §2 + brief Feature Preservation Manifest).
-6. **Preserve the server action contracts:** create + edit modes both call `saveService`; `DeleteServiceButton` calls `deleteService`. No `fetch` / no `XHR` replacement. The `usage_count > 0` delete guard stays: if `usage_count > 0`, block `deleteService` call and show Sonner toast `This service has booking history and can't be deleted. Deactivate it instead.` — do NOT show `ConfirmActionModal` in this path.
+6. **Preserve the server action contracts:** "Add service" (create mode) calls `createService(prev, formData)`. "Edit service" (edit mode) calls `updateService(serviceId, prev, formData)`. The three-dot toggle items (Activate / Deactivate / Show on website / Hide from website) ALSO call `updateService(serviceId, prev, formData)` — read the row's current values, flip the relevant boolean (`is_active` or `is_visible_on_frontend`), submit the full payload. `DeleteServiceButton` calls `deleteService(serviceId)`. No `fetch` / no `XHR` replacement. The `usage_count > 0` delete guard stays: if `usage_count > 0`, block `deleteService` call and show Sonner toast `This service has booking history and can't be deleted. Deactivate it instead.` — do NOT show `ConfirmActionModal` in this path.
 
 ### Additional universal restrictions (added 2026-05-16 after `tsc@2.0.4` npx-fetch incident)
 
@@ -464,7 +464,7 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 _Note for `NETWORK_BASELINE_MATCH`: Next.js 15 server actions don't appear as literal POSTs to the action endpoint — they go through the RSC stream as a POST to the page URL with a `next-action` header. Count EITHER the literal action POST OR an RSC POST with `next-action` header as a match._
 
 - Use the chrome-devtools MCP to read the last 20 console messages and print them to chat — verify 0 NEW errors vs `/redesign/BASELINE-ISSUES.md` (warnings OK)
-- Use the chrome-devtools MCP to inspect network requests during the create + edit + delete flow — verify POSTs to `saveService` (create + edit + deactivate) and `deleteService` (delete)
+- Use the chrome-devtools MCP to inspect network requests during the create + edit + delete flow — verify POSTs to `createService` (Add flow), `updateService` (Edit flow AND the activate/deactivate toggle AND the show/hide toggle — each toggle is a full-payload `updateService` call), and `deleteService` (Delete flow). NOT a single `saveService` — that name does not exist in source; the brief drafts were incorrect (see brief §4a).
 
 **Evidence to surface:**
 - All grep results in chat with explicit `TOKEN_DRIFT: 0` (or list each match + fix)
@@ -557,8 +557,10 @@ After the subagent returns:
 Run through brief's Feature Preservation Manifest manually via Playwright + read-the-code:
 
 - [ ] All 12 `ServiceFormDialog` field `name` attributes preserved verbatim in DOM: `name`, `slug`, `group_category`, `gender_restrictions`, `price`, `duration_mins`, `display_order`, `is_active`, `is_visible_on_frontend`, `short_description`, `full_description`, `suitable_for_notes`
-- [ ] `<form action={saveService}>` preserved in both create and edit modes
-- [ ] `DeleteServiceButton` calls `deleteService` action; binding preserved
+- [ ] `<form action={createService}>` wired in the Add flow (create mode)
+- [ ] `<form action={updateService.bind(null, serviceId)}>` wired in the Edit flow (edit mode) AND in the Activate/Deactivate + Show/Hide toggles (full-payload re-submission with one flipped boolean)
+- [ ] `DeleteServiceButton` calls `deleteService(serviceId)`; binding preserved
+- [ ] **No** form anywhere on the page calls `saveService` — that action does not exist in source (see brief §4a)
 - [ ] `usage_count > 0` delete guard: option disabled with native `title` "Has booking history — deactivate instead"; if somehow triggered, Sonner `This service has booking history and can't be deleted. Deactivate it instead.` fires (no `ConfirmActionModal`)
 - [ ] Group section headings are H2 elements (no H1→H3 skip)
 - [ ] All form fields have `<label for="…">` with matching `id`; required fields show `*` in Cancelled text colour

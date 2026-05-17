@@ -16,7 +16,7 @@
 | Main tree (DO NOT MODIFY — user works there) | `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor` |
 | Dev server port for this worktree | `3022` (user's main tree owns `3000`) |
 | node_modules | already junctioned from main tree to this worktree's `./node_modules` — do not reinstall |
-| Backend status | `N-A` — roles has no BLOCKS-REDESIGN BUILD plan. `createRole` already exists and is untouchable (RECON §5). No FAKE markers required on this page. |
+| Backend status | `FAKE` — `BUILD-create-role.md` (non-blocking, IMPLEMENTATION-PLAN.md row 25, authored 2026-05-17) tracks the missing `createRole` server action. The Create-role Primary + AdminSheet UI ships in full but the submit renders with `data-redesign-fake="create-role"`, is `disabled`, and shows an inline "Create-role backend coming soon" note. Roles list, inactive `<details>`, row staff-count Ghost link, and `AdminAccessDenied` copy fix all ship normally — no FAKE markers on those. See brief §4a. |
 | RBAC scope | Owner only (`manage_role_templates` is owner-exclusive). Test creds must be the owner account, not the admin seed. |
 | Progress scratchpad | `/redesign/per-page-progress/roles-progress.md` |
 
@@ -25,7 +25,7 @@
 1. **NEVER commit. NEVER stage.** Not even `git add -p`. Final step is handoff. Commits happen only after the user explicitly types `approved` in this session.
 2. **NEVER use `git add .` or `git add -A`.** When the time comes (after approval), stage scoped files explicitly.
 3. **NEVER modify any of these files** (Feature Preservation Manifest + RECON untouchables):
-   - `src/app/admin/roles/actions.ts` — `updateRoleMetadata`, `togglePermissionForRole`, `createRole` server actions (RECON §5 explicit DO-NOT-TOUCH)
+   - `src/app/admin/roles/actions.ts` — `updateRoleMetadata`, `toggleRolePermission` server actions (RECON §5 explicit DO-NOT-TOUCH). Note: `createRole` was historically listed here but does NOT exist in the file (verified 2026-05-17); it is now FAKE-tracked by `redesign/backend-plans/BUILD-create-role.md`. Do NOT author `createRole` from this recipe — that crosses the Phase 6 ↔ BUILD autonomy boundary.
    - `src/lib/auth/rbac.ts` — `canManageRoleTemplates`, `getRoleDisplayName` helpers preserved
    - `src/app/admin/roles/[roleId]/**` — the role-detail page lives at its own session; do not touch sibling subroute files
    - `src/middleware.ts`
@@ -33,8 +33,8 @@
    - `src/components/ui/card.tsx` and other shared primitives — out of scope (fixes live in `00-shared-components` session)
    - All build/config files (`next.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `package.json`, etc.)
 4. **NEVER modify files in the main tree.** Your CWD is the worktree; keep it that way.
-5. **Preserve form `name` attributes:** the Create-role `AdminSheet` keeps `display_label`, `name`, `description`, `sort_order`, `active` (RECON §6.4). No rename of any input.
-6. **Preserve the server action contract:** the Create-role form stays wired to `createRole`. No `fetch` / no `XHR` replacement. The 5-role seed (Owner / Admin / Coordinator / Therapist / Inactive) cannot be deleted from this page (delete lives on the detail surface). Inactive role grouping is `<details>`-based; do not introduce drag-to-reorder.
+5. **Preserve form `name` attributes:** the Create-role `AdminSheet` keeps `display_label`, `name`, `description`, `sort_order`, `active` (RECON §6.4). No rename of any input. Field names stay correct even though the receiving `createRole` action is FAKE — they are the contract the BUILD plan will wire to.
+6. **Preserve the server action contract for what exists:** the role-detail page (separate session) keeps `<Switch>` wired to `toggleRolePermission`. On THIS page (the list), the Create-role form's `action={createRole}` is the *intended* binding but `createRole` does not yet exist (BUILD plan pending) — see Step 3 BACKEND FAKE MARKER. The 5-role seed (Owner / Admin / Coordinator / Therapist / Inactive) cannot be deleted from this page (delete lives on the detail surface). Inactive role grouping is `<details>`-based; do not introduce drag-to-reorder.
 
 ### Additional universal restrictions (added 2026-05-16 after `tsc@2.0.4` npx-fetch incident)
 
@@ -221,11 +221,12 @@ The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this 
 >
 > IMAGE HANDLING: `roles-empty.svg` (shield-and-people) is listed in IMAGES-NEEDED for the render-safe empty state. If it isn't on disk yet, mark the slot with `data-redesign-needs-photo` and degrade gracefully to the EmptyState's text-only fallback. The letter token (first letter of `display_label` on Hover Moss) uses no SVG.
 >
-> BACKEND FAKE MARKER: roles has no FAKE-tagged backend features. Skip.
+> BACKEND FAKE MARKER: the Create-role AdminSheet submit is FAKE pending `BUILD-create-role.md` (see brief §4a + Backend status in this recipe's Context table). Render the AdminSheet + form fields per brief §5/§7, mark the submit button with `data-redesign-fake="create-role"`, set `disabled`, and add an inline note under the button: "Create-role backend coming soon — `BUILD-create-role.md` pending." Print to chat as `BACKEND_FAKE_SURFACES: create-role` so the Haiku evaluator can see the marker landed.
 
 **Evidence to surface:**
 - Literal line `SCOPE_PROPOSAL:` followed by the files-to-edit list
 - `/redesign/per-page-scope/roles-scope.md` written; print its contents to chat
+- Literal line `BACKEND_FAKE_SURFACES: create-role` printed to chat (per BACKEND FAKE MARKER above)
 - `git diff redesign/IMPLEMENTATION-PLAN.md` shows the "Currently on" line update
 - Append `step-3: COMPLETE — scope written, plan updated` and cat progress file
 
@@ -452,8 +453,8 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 - Sign in first at `/admin/login` with owner credentials (roles is owner-only; admin seed will hit `AdminAccessDenied`).
 - Navigate to `/admin/roles` at each viewport
 - Save final-state screenshots: `roles-final-{375,768,1440}.png` to `/redesign/screenshots/roles-redesign/`
-- Exercise the primary action: click "Create role" Primary → `AdminSheet` slides in from right → fill `display_label = "Test Role"`, `name = "test_role_<timestamp>"`, leave description blank, accept default sort_order, leave active checked → click `Create role` (Primary) → verify Sonner `Role "Test Role" created. Add permissions next.` and redirect to `/admin/roles/<new_id>`
-- Navigate back to `/admin/roles` and verify the new row appears in the active section
+- Exercise the primary action: click "Create role" Primary → `AdminSheet` slides in from right → fill `display_label = "Test Role"`, `name = "test_role_<timestamp>"`, leave description blank, accept default sort_order, leave active checked → **the submit button MUST be disabled** (`data-redesign-fake="create-role"` per Step 3) with the inline "Create-role backend coming soon" note visible. Verify the AdminSheet opens, the form accepts input, the submit is visibly disabled with the inline note, and clicking the disabled button produces no network call. Print: `CREATE_ROLE_FAKE_DEGRADE: submit disabled, no POST attempted`. No success toast, no redirect — backend is pending.
+- Navigate back to `/admin/roles` and verify the active-section row count is unchanged (no row added since the submit was blocked).
 - Click the "Inactive roles (N)" `<details>` to expand it; verify the inactive section opens
 - Click the staff-count Ghost link on a role with `staff_count > 0` → verify navigation to `/admin/staff?roleId=<id>` (NOT to the role detail) — confirms `event.stopPropagation()` works
 - Take a verification screenshot of the create-role success: `roles-create-success.png`
@@ -464,7 +465,7 @@ For each match, confirm the value comes from a DESIGN.md token. If a hardcoded v
 _Note for `NETWORK_BASELINE_MATCH`: Next.js 15 server actions don't appear as literal POSTs to the action endpoint — they go through the RSC stream as a POST to the page URL with a `next-action` header. Count EITHER the literal action POST OR an RSC POST with `next-action` header as a match._
 
 - Use the chrome-devtools MCP to read the last 20 console messages and print them to chat — verify 0 NEW errors vs `/redesign/BASELINE-ISSUES.md` (warnings OK)
-- Use the chrome-devtools MCP to inspect network requests during the create-role flow — verify POST to `createRole` server action
+- Use the chrome-devtools MCP to inspect network requests during the create-role flow — verify **zero** POSTs to any server action (the FAKE-degraded submit must NOT fire a network call). The expected network during a click attempt on the disabled submit is: no request. If a POST does fire, the FAKE degrade is broken — emit `STUCK: 11 — create-role FAKE degrade fired a network POST` and stop.
 
 **Evidence to surface:**
 - All grep results in chat with explicit `TOKEN_DRIFT: 0` (or list each match + fix)
@@ -559,8 +560,9 @@ Run through brief's Feature Preservation Manifest manually via Playwright + read
 - [ ] Role-row name renders as `<h2>` (BASELINE-CRITIQUE Sam #1 fix — verify in DOM)
 - [ ] Active roles render in `sort_order`; inactive roles inside the `<details>` "Inactive roles ({n})" collapsed by default
 - [ ] "Create role" Primary opens `AdminSheet` from the right on desktop, from the bottom on mobile
-- [ ] Create-role form posts to `createRole` server action with fields `display_label`, `name`, `description`, `sort_order`, `active` (verify in network panel)
-- [ ] Server validation error (e.g. duplicate `name`) → inline `role="alert"` region above the form's first invalid field; sheet stays open with data intact
+- [ ] Create-role form has `action={createRole}` written in source (the binding the BUILD plan will activate) BUT the submit button is `disabled` and carries `data-redesign-fake="create-role"` — verify in DOM and verify zero network POSTs fire when the disabled button is clicked
+- [ ] Inline note "Create-role backend coming soon — `BUILD-create-role.md` pending." visible under the disabled submit
+- [ ] Server validation error rendering is in the source for the future wiring (`role="alert"` region present in DOM even when empty) — full server-validation round-trip cannot be smoke-tested until BUILD-create-role.md lands
 - [ ] Row-level `<Link>` to `/admin/roles/<id>` works; nested staff-count link to `/admin/staff?roleId=<id>` does NOT trigger the outer row navigation
 - [ ] System chip (Restricted family) appears beside the active/inactive chip on system roles
 - [ ] Tonal Lift Rule: rows have NO shadow at rest; hover applies `card-hover` shadow

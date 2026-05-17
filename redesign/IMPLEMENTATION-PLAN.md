@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 13 of 29 — clients   ← update when you start a session (count by position from the top, not by label)
+Currently on: 14 of 29 — client-detail   ← update when you start a session (count by position from the top, not by label). In flight (parallel worktrees, 2026-05-17): staff, roles, services, privacy.
 
 ---
 
@@ -1168,6 +1168,7 @@ How to use:
 22. [ ] **BUILD** — `BUILD-audit-target-existence.md` — non-blocking — depended on by: audit — depends on: none
 23. [ ] **BUILD** — `BUILD-rbac-permission-email-templates.md` — non-blocking — depended on by: email-templates *(required by row 26)* — depends on: none
 24. [ ] **BUILD** — `BUILD-delete-role.md` — non-blocking — depended on by: role-detail — depends on: none
+25. [ ] **BUILD** — `BUILD-create-role.md` — non-blocking — depended on by: roles (Create-role AdminSheet) — depends on: none. Authored 2026-05-17 after roles Phase 6 agent STUCK at Step 4 confirmed `createRole` was declared untouchable in RECON §6.1 + roles-brief §144 but never actually existed in `src/app/admin/roles/actions.ts`. Until landed, the Create-role Primary + AdminSheet render with `data-redesign-fake="create-role"` graceful degrade (disabled submit + tooltip).
 
 **— Layer 1: Depends on Layer 0 items, BLOCKS-REDESIGN —**
 

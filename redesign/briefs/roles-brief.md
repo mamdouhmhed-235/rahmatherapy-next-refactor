@@ -29,11 +29,28 @@ In:
 - Heading fix: page H1 already correct; role-row name becomes H2 (resolves Sam #1 from BASELINE-CRITIQUE).
 
 Out (unchanged):
-- `updateRoleMetadata`, `togglePermissionForRole`, `createRole` server actions and their form contracts (RECON §5 untouchable, §6.4 preserved field names).
+- `updateRoleMetadata`, `toggleRolePermission`, `createRole` server actions and their form contracts (RECON §5 untouchable, §6.4 preserved field names).
 - The 5-role seed (Owner / Admin / Coordinator / Therapist / Inactive) and their `is_system=true` flag.
 - Permission catalogue. Edits happen on the detail page, not here.
 - No bulk operations on roles. Roles are not bulk-managed.
 - No drag-to-reorder; `sort_order` is editable on the detail page only.
+
+## 4a. Backend status (added 2026-05-17 — overrides any "createRole exists / is untouchable" assertion below)
+
+The `createRole` server action referenced throughout this brief does **NOT** currently exist in `src/app/admin/roles/actions.ts`. Only `updateRoleMetadata` and `toggleRolePermission` are present (the toggle was previously misnamed in RECON §6.1 as `togglePermissionForRole` — corrected). RECON §6.1 and the original brief drafts assumed `createRole` already existed; reality is it never landed.
+
+**Phase 6 contract for the `roles` page agent:**
+- Build the full "Create role" Primary + `AdminSheet` UI as specified in §5 and §7 (form, validation, helpers, copy all per brief).
+- Render the submit button with `data-redesign-fake="create-role"` and **disable** it; the AdminSheet may still open and accept input for visual completeness, but the form must NOT post.
+- A small inline note under the submit button: "Create-role backend coming soon — `BUILD-create-role.md` pending."
+- The agent must NOT author `createRole` itself (that violates the Phase 6 ↔ BUILD autonomy boundary).
+- All other roles-page surfaces (the row list, the `<details>` inactive section, the `AdminAccessDenied` denied state, the row staff-count Ghost link, the access-denied copy fix) ship as normal — no FAKE markers required on those.
+
+**BUILD plan tracking:** `redesign/backend-plans/BUILD-create-role.md` (authored 2026-05-17, non-blocking row 25 in IMPLEMENTATION-PLAN.md). Once that BUILD lands, remove the `data-redesign-fake` marker + re-enable the submit. The form contract (`display_label`, `name`, `description`, `sort_order`, `active`) and field validation in this brief are correct and ready for the future wiring.
+
+**Inverse:** `toggleRolePermission` (the actual function name) does exist and IS untouchable — wire it for the role-detail page; do not touch it from the roles list page (the list doesn't toggle individual permissions).
+
+---
 
 ## 5. Layout Strategy
 
@@ -141,7 +158,7 @@ Admin (Practice Manager), Booking Coordinator, Therapist, and Inactive all hit `
 
 - **RECON §2 inventory row:** Roles list — `src/app/admin/roles/page.tsx` — `/admin/roles` — All roles with permission + staff counts. Note: role name renders as `<p>`, not `<h2>` (RECON §8 / BASELINE-CRITIQUE Sam #1).
 - **Access gate (RECON §3):** `canManageRoleTemplates(profile)` (owner-exclusive). Single-role page. Collapses to Owner + Denied per recipe.
-- **Untouchable backend (RECON §5):** `updateRoleMetadata`, `togglePermissionForRole`, `createRole` server actions at `src/app/admin/roles/actions.ts` (explicit DO-NOT-TOUCH). RBAC helpers at `src/lib/auth/rbac.ts` (`canManageRoleTemplates`, `getRoleDisplayName`) preserved.
+- **Untouchable backend (RECON §5):** `updateRoleMetadata`, `toggleRolePermission`, `createRole` server actions at `src/app/admin/roles/actions.ts` (explicit DO-NOT-TOUCH). RBAC helpers at `src/lib/auth/rbac.ts` (`canManageRoleTemplates`, `getRoleDisplayName`) preserved.
 - **Preserved IDs / form names (RECON §6.4):** Create-role form fields `display_label`, `name`, `description`, `sort_order`, `active`. Role-edit form fields per the detail brief, not this page. `id="admin-main"` skip-link target preserved at layout level.
 - **URL params (RECON §6.5):** None currently; redesign adds none. Cross-link to `/admin/staff?roleId=<id>` is a net-new query param introduced by the (forthcoming) staff brief, but reachable from here.
 - **BASELINE-CRITIQUE carry-forwards landing on this page:** Sam #1 heading skip (role-row name `<p>` → `<h2>`) resolves here; specifically called out at `/admin/roles` in RECON §8 / line 367. Soft fixes (Phase 6 cleanup): raw `var(--rahma-*)` token escapes throughout (every line), raw `bg-white` on the row Link at `page.tsx:60`, raw `var(--shadow-soft-token)` on resting rows (violates Tonal Lift Rule; rows should be flat at rest), raw `var(--rahma-green)` decorative tile fill at `page.tsx:69`, raw `text-white` on tile icon, raw permission identifier on `AdminAccessDenied` at `page.tsx:26`.

@@ -241,12 +241,12 @@ Nothing in this section can be silently dropped during redesign.
 | `/admin/login` | `signInAdmin(email, password)` (calls `supabase.auth.signInWithPassword`) |
 | Layout / chrome | `searchAdminCommand(query)` (cmd-K) |
 | `/admin/bookings*` | `updateBookingManagement`, `quickUpdateBooking`, `claimBookingAssignment`, `updateBookingAssignment`, `updateOwnAssignmentStatus`, `createManualBooking` |
-| `/admin/clients*` | `createClient`, `updateClient`, `addClientNote`, `requestClientPrivacyAction` |
+| `/admin/clients*` | `createClient`, `addClientNote`, `createClientPrivacyRequest` (note: `updateClient` was listed historically but does NOT exist — the clients list page wires no edit form; removed 2026-05-17. Privacy action name was previously written as `requestClientPrivacyAction` across briefs/recipes/RECON; corrected 2026-05-17 to actual `createClientPrivacyRequest` from `src/app/admin/clients/actions.ts:268`.) |
 | `/admin/availability` | `saveAvailabilityRule`, `deleteAvailabilityRule`, `createBlockedDate`, `deleteBlockedDate`, `createAvailabilityOverride`, `deleteAvailabilityOverride` |
-| `/admin/services` | `saveService`, `deleteService` (and archive/restore variant) |
+| `/admin/services` | `createService(prev, formData)`, `updateService(serviceId, prev, formData)`, `deleteService(serviceId)` (note: brief and recipe drafts referenced a single `saveService` for both create + edit and an "archive/restore variant"; reality is the split shown here, and `is_active` toggling goes through `updateService` with a full payload — no separate archive action exists. Corrected 2026-05-17.) |
 | `/admin/settings` | `updateBusinessSettings` |
-| `/admin/staff*` | `createStaffMember`, `updateStaffProfile`, `updateStaffPermissionOverrides`, plus staff availability rule actions |
-| `/admin/roles*` | `createRole`, `updateRoleMetadata`, `togglePermissionForRole` |
+| `/admin/staff*` | `createStaffProfile`, `updateStaffProfile`, `updateStaffPermissionOverride` (singular), plus staff availability rule actions (note: prior names `createStaffMember` and `updateStaffPermissionOverrides` (plural) corrected 2026-05-17; the staff brief and recipe reference these via component names — `NewStaffForm`, `StaffPermissionOverridesForm` — so the staff agent is not blocked by this) |
+| `/admin/roles*` | `updateRoleMetadata`, `toggleRolePermission` (note: `createRole` was listed here historically but does NOT exist in `src/app/admin/roles/actions.ts`; tracked by `redesign/backend-plans/BUILD-create-role.md` since 2026-05-17, rendered FAKE in the UI until the BUILD lands. Toggle name corrected from `togglePermissionForRole`.) |
 | `/admin/enquiries` | `createEnquiry`, `updateEnquiryStatus` |
 | `/admin/emails` | `sendManualBookingReminder` |
 | `/admin/operations` | `updateOperationalEventStatus` |

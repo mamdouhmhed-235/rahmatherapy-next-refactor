@@ -17,7 +17,7 @@
 | Main tree (DO NOT MODIFY — user works there) | `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor` |
 | Dev server port for this worktree | `3007` (user's main tree owns `3000`) |
 | node_modules | already junctioned from main tree to this worktree's `./node_modules` — do not reinstall |
-| Backend status | `N-A` (server actions `addClientNote` + `createClientPrivacyRequest`/`requestClientPrivacyAction` are untouchable; brief introduces a GET-only `?tab=` URL param, no new server work) |
+| Backend status | `N-A` (server actions `addClientNote` + `createClientPrivacyRequest`/`createClientPrivacyRequest` are untouchable; brief introduces a GET-only `?tab=` URL param, no new server work) |
 | Progress scratchpad | `/redesign/per-page-progress/client-detail-progress.md` |
 
 ## Hard rules — never violate these
@@ -25,7 +25,7 @@
 1. **NEVER commit. NEVER stage.** Not even `git add -p`. Final step is handoff. Commits happen only after the user explicitly types `approved` in this session.
 2. **NEVER use `git add .` or `git add -A`.** When the time comes (after approval), stage scoped files explicitly.
 3. **NEVER modify any of these files** (Feature Preservation Manifest + RECON untouchables):
-   - `src/app/admin/clients/actions.ts` — `addClientNote`, `createClientPrivacyRequest` / `requestClientPrivacyAction` (verify name against RECON §6.1)
+   - `src/app/admin/clients/actions.ts` — `addClientNote`, `createClientPrivacyRequest` / `createClientPrivacyRequest` (verify name against RECON §6.1)
    - `src/app/admin/clients/access.ts`, `src/app/admin/clients/format.ts` — client access helpers; read-only references
    - `src/middleware.ts` — Supabase session refresh / route protection
    - `src/lib/auth/**`, `src/lib/supabase/**` — auth + DB layer (RECON §5)
@@ -34,7 +34,7 @@
    - All build/config files (`next.config.ts`, `tsconfig.json`, `eslint.config.mjs`, `package.json`, etc.)
 4. **NEVER modify files in the main tree.** Your CWD is the worktree; keep it that way.
 5. **Preserve form `name` attributes:** ClientNoteForm — `client_id`, `note`. ClientPrivacyRequestForm — `client_id`, `request_type`, `request_note`. All must remain literal.
-6. **Preserve the server-action contract:** `<form action={addClientNote}>` and `<form action={createClientPrivacyRequest}>` (or `requestClientPrivacyAction` — verify) must keep being wired. No `fetch` / no `XHR` replacement.
+6. **Preserve the server-action contract:** `<form action={addClientNote}>` and `<form action={createClientPrivacyRequest}>` (or `createClientPrivacyRequest` — verify) must keep being wired. No `fetch` / no `XHR` replacement.
 
 ### Additional universal restrictions (added 2026-05-16 after `tsc@2.0.4` npx-fetch incident)
 
@@ -215,7 +215,7 @@ The Ralph Zone 1 batch loop was run once near the start of Phase 6, before this 
 >
 > CRITICAL — how to handle craft's internal shape discovery: per the docs, `/impeccable craft` runs `/impeccable shape` internally as its first phase. When shape asks discovery questions (Purpose, User, Content, Feeling, Constraints), quote each section from `/redesign/briefs/client-detail-brief.md` verbatim as your answer, but expect shape to expand or adjust them. Confirm each section back to chat, accept any expansions shape proposes, then proceed.
 >
-> Match DESIGN.md tokens exactly. If the brief conflicts with the codebase, STOP and report — do not guess. Open Question 3 in the brief flags a name discrepancy on the privacy server action (`requestClientPrivacyAction` per RECON §6.1 vs `createClientPrivacyRequest` per current `ClientDetailForms.tsx`); verify the exported name from `src/app/admin/clients/actions.ts` before wiring.
+> Match DESIGN.md tokens exactly. If the brief conflicts with the codebase, STOP and report — do not guess. Open Question 3 in the brief flags a name discrepancy on the privacy server action (`createClientPrivacyRequest` per RECON §6.1 vs `createClientPrivacyRequest` per current `ClientDetailForms.tsx`); verify the exported name from `src/app/admin/clients/actions.ts` before wiring.
 >
 > RESPONSIVE STRATEGY: **mobile-first** — build 375px first, then enhance to 768 → 1024. Two-column layout activates at ≥1024px (sidebar 24rem fixed + main flexible).
 >
@@ -565,7 +565,7 @@ Run through brief's Feature Preservation Manifest manually via Playwright + read
 - [ ] ClientNoteForm `name` attributes present: `client_id`, `note`
 - [ ] ClientPrivacyRequestForm `name` attributes present: `client_id`, `request_type`, `request_note`
 - [ ] `<form action={addClientNote}>` wired and fires on submit (network tab confirms server action invocation)
-- [ ] `<form action={createClientPrivacyRequest}>` (or `requestClientPrivacyAction` — whichever is exported) wired and fires on submit
+- [ ] `<form action={createClientPrivacyRequest}>` (or `createClientPrivacyRequest` — whichever is exported) wired and fires on submit
 - [ ] URL contract: `?tab=upcoming|past|all` works; unknown value silently coerces to `upcoming`
 - [ ] Deep-link `/admin/bookings/new?clientId={clientId}` works from header CTA + empty-tab CTAs
 - [ ] "Add note" expandable: collapsed → expanded on click; collapsed on save success; collapsed on Cancel without mutation

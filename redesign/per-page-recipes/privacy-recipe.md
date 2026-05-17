@@ -25,7 +25,7 @@
 2. **NEVER use `git add .` or `git add -A`.** When the time comes (after approval), stage scoped files explicitly.
 3. **NEVER modify any of these files** (Feature Preservation Manifest + RECON untouchables):
    - `src/app/admin/privacy/actions.ts` — `updatePrivacyRequestStatus` server action, must remain wired (RECON §5)
-   - `src/app/admin/clients/[clientId]/actions.ts` (or wherever `requestClientPrivacyAction` lives) — creation never happens on this page (RECON §5 + §6.4)
+   - `src/app/admin/clients/[clientId]/actions.ts` (or wherever `createClientPrivacyRequest` lives) — creation never happens on this page (RECON §5 + §6.4)
    - `client_notes` write paths — sensitive notes are reviewed here, not edited
    - `src/middleware.ts`
    - `src/lib/auth/**`, `src/lib/supabase/**` — auth + DB layer (RECON §5); `canViewClientContactDetails` gate preserved

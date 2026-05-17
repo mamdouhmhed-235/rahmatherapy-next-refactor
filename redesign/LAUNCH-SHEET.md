@@ -208,7 +208,7 @@ If `git merge --ff-only` errors with "would be overwritten" — main tree has un
 **RBAC:** test.admin (most permission-varied page after booking-detail)
 **Recommended port:** 3001
 **Subagent flags:**
-- Brief Open-Question-3 flags a server-action name discrepancy: `requestClientPrivacyAction` (RECON §6.1) vs `createClientPrivacyRequest` (current `ClientDetailForms.tsx`). Recipe routes the agent to verify the exported name from `src/app/admin/clients/actions.ts` at Step 3 before wiring, and surface the resolved name in Step 13 handoff.
+- Brief Open-Question-3 flags a server-action name discrepancy: `createClientPrivacyRequest` (RECON §6.1) vs `createClientPrivacyRequest` (current `ClientDetailForms.tsx`). Recipe routes the agent to verify the exported name from `src/app/admin/clients/actions.ts` at Step 3 before wiring, and surface the resolved name in Step 13 handoff.
 
 ---
 
@@ -451,7 +451,7 @@ If `git merge --ff-only` errors with "would be overwritten" — main tree has un
 ### 2.26 — role-detail (row 26) ⚠ FAKE · Owner-only
 
 **Brief:** `redesign/briefs/role-detail-brief.md`
-**Backend status:** **FAKE** for `deleteRole` only (non-blocking `BUILD-delete-role`)
+**Backend status:** **FAKE** for `deleteRole` (non-blocking `BUILD-delete-role`). Note: `createRole` is also absent from source per the 2026-05-17 audit (tracked by `BUILD-create-role.md`), but role-detail does NOT use `createRole` (it edits an existing role, never creates one) so the absence is harmless for this session. Toggle action correctly named `toggleRolePermission` (corrected 2026-05-17 from prior `togglePermissionForRole` references).
 **RBAC:** **test.owner ONLY**
 **Recommended port:** 3001
 **Subagent flags:**
@@ -460,25 +460,29 @@ If `git merge --ff-only` errors with "would be overwritten" — main tree has un
 
 ---
 
-### 2.27 — roles (row 27) · Owner-only
+### 2.27 — roles (row 27) · Owner-only · ⚠ FAKE
 
 **Brief:** `redesign/briefs/roles-brief.md`
-**Backend status:** N-A (`createRole` already exists, untouchable)
+**Backend status:** **FAKE** — `BUILD-create-role.md` (non-blocking, IMPLEMENTATION-PLAN.md row 25, authored 2026-05-17 after the roles Phase 6 agent STUCK at Step 4). The `createRole` server action does NOT exist in `src/app/admin/roles/actions.ts` despite earlier docs asserting it as untouchable; only `updateRoleMetadata` and `toggleRolePermission` are present. Roles list, inactive `<details>`, denied-state copy fix all ship normally — only the "Create role" Primary + AdminSheet submit is FAKE-degraded.
 **RBAC:** **test.owner ONLY**
-**Recommended port:** 3001
-**Subagent flags:** none.
+**Recommended port:** 3022
+**Subagent flags:**
+- Recipe Step 3 mandates the Create-role submit render with `data-redesign-fake="create-role"`, `disabled`, and an inline "Create-role backend coming soon" note. Print `BACKEND_FAKE_SURFACES: create-role` for the Haiku evaluator.
+- Step 11b expects ZERO POSTs from the disabled submit; if a POST fires, the FAKE degrade is broken (emit STUCK).
+- See roles-brief §4a for the full Backend-status override and BUILD-create-role.md for the contract the future BUILD will satisfy.
 
 ---
 
 ### 2.28 — services (row 28) · Owner-only
 
 **Brief:** `redesign/briefs/services-brief.md`
-**Backend status:** N-A
+**Backend status:** **HANDLED** (corrected 2026-05-17 — actions exist but were misnamed in earlier drafts). The brief originally referenced a single `saveService` action for both create and edit, plus an "archive/restore variant"; reality is the actions are `createService(prev, formData)`, `updateService(serviceId, prev, formData)`, `deleteService(serviceId)` — no `saveService`, no archive action. See brief §4a for the full override. No FAKE markers, no BUILD plan needed; only doc amendments.
 **RBAC:** **test.owner ONLY**
-**Recommended port:** 3001
+**Recommended port:** 3023
 **Subagent flags:**
 - Brief lacks explicit "Brief number" header (other briefs read "Brief number: NN of 29 (Phase 5)") — agent ok to proceed; row position confirmed in IMPLEMENTATION-PLAN row 28.
 - All 12 form `name` attributes called out for preservation.
+- The "Add service" form wires to `createService` (no serviceId); the "Edit service" form + the activate/deactivate + show/hide toggle items wire to `updateService(serviceId, prev, formData)` with a FULL payload (re-submit every field, flipping just the relevant boolean). The "Delete" three-dot item wires to `deleteService(serviceId)`. Step 11b/12c verification expects POSTs to these three distinct actions, NOT to `saveService`.
 
 ---
 

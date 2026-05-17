@@ -25,7 +25,7 @@
 1. **NEVER commit. NEVER stage.** Not even `git add -p`. Final step is handoff. Commits happen only after the user explicitly types `approved` in this session.
 2. **NEVER use `git add .` or `git add -A`.** When the time comes (after approval), stage scoped files explicitly.
 3. **NEVER modify any of these files** (Feature Preservation Manifest + RECON untouchables):
-   - `src/app/admin/roles/actions.ts` — `updateRoleMetadata`, `togglePermissionForRole`, `createRole` server actions (RECON §5 explicit DO-NOT-TOUCH)
+   - `src/app/admin/roles/actions.ts` — `updateRoleMetadata`, `toggleRolePermission` server actions (RECON §5 explicit DO-NOT-TOUCH). Note: `createRole` was historically listed here but does NOT exist (verified 2026-05-17 — tracked by `BUILD-create-role.md`); it is not used on this page anyway (role-detail edits an existing role, never creates one) so its absence is harmless for this session. Similarly `deleteRole` does not yet exist (`BUILD-delete-role.md` non-blocking) — the danger-zone Delete button degrades via `data-redesign-fake="delete-role"` per Step 3 BACKEND FAKE MARKER below.
    - `src/lib/auth/rbac.ts` — `canManageRoleTemplates`, `getRoleDisplayName` helpers preserved
    - `permissions` catalogue source (categories, scope, risk_level enums)
    - `src/middleware.ts`

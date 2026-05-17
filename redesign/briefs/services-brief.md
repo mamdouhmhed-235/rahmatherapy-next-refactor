@@ -23,6 +23,29 @@ The services page is the treatment catalog for Rahma Therapy — the canonical l
 
 Production-ready. Restructures `page.tsx` from card grid to grouped list. Converts `ServiceFormDialog.tsx` from Dialog to `AdminSheet`. Routes `DeleteServiceButton.tsx` through `ConfirmActionModal`. All 12 form field names preserved verbatim.
 
+## 4a. Backend status (added 2026-05-17 — overrides any `saveService` / archive-variant assertion below)
+
+The `saveService` server action referenced throughout this brief (§7 four times, §8 once, §10 Q3, the Recipe Context, the Feature Preservation Manifest, Verification steps) does **NOT** exist in `src/app/admin/services/actions.ts`. Reality:
+- `createService(prev, formData)` — used for the "Add service" flow (no `serviceId` arg)
+- `updateService(serviceId, prev, formData)` — used for the "Edit service" flow AND for the activate/deactivate, show/hide toggles (full payload, not partial; the toggle wraps `updateService` with the current values plus the flipped boolean)
+- `deleteService(serviceId)` — used for permanent removal
+
+There is **NO** `archiveService` / `restoreService` server action — the "(and archive/restore variant)" language in RECON §6.1 was speculative; deactivation in this codebase is just `updateService` with `is_active: false`. The audit-log `action_type` values `service_archived` and `service_restored` (RECON §6.2) are likely also speculative; the actual audit types depend on what `updateService` writes — verify in source if needed but treat them as out of scope for this redesign.
+
+**Phase 6 contract for the `services` page agent:**
+- Wire the "Add service" Primary + AdminSheet (create mode) to `createService` (no serviceId).
+- Wire the "Edit" Ghost button + AdminSheet (edit mode) to `updateService(serviceId, prev, formData)`.
+- Wire the "Activate / Deactivate" three-dot menu toggle to `updateService(serviceId, prev, formData)` with a full payload that includes the flipped `is_active` boolean (read the row's current values, flip `is_active`, pass the whole thing).
+- Same pattern for the "Show on website / Hide from website" toggle (flip `is_visible_on_frontend`).
+- Wire the "Delete" three-dot menu item (when `usage_count === 0`) to `deleteService(serviceId)`.
+- All 12 form `name` attributes per §8 stay verbatim — the field contract is correct, only the action-name mapping was wrong in the original brief.
+
+**No BUILD plan needed** — every action this page needs already exists in `src/app/admin/services/actions.ts`. The fix is purely a doc-amendment.
+
+**For the recipe:** Backend status flips from `N-A` to `HANDLED` (not FAKE — the actions are present; the brief just used the wrong names). Step 11b verification expects POSTs to `createService` (Add flow), `updateService` (Edit + toggle flows), and `deleteService` (Delete flow) — NOT to a single `saveService`.
+
+---
+
 ## 5. Layout Strategy
 
 **Single-column content area.** No persistent sidebar — this is a catalog, not a two-task page. Page header: H1 "Services" + summary prose ("{N} active, {M} inactive across {X} categories") + "Add service" Primary button (top-right header actions slot).

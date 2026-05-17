@@ -175,7 +175,7 @@ Rendered for: Therapist role, Inactive accounts, and any custom role without `cl
 
 ### Files to NEVER touch
 
-- `src/app/admin/clients/actions.ts` — `createClient`, `updateClient`, `addClientNote`, `requestClientPrivacyAction`
+- `src/app/admin/clients/actions.ts` — `createClient`, `updateClient`, `addClientNote`, `createClientPrivacyRequest`
 - `src/app/admin/clients/access.ts`, `format.ts` — client scope helpers and format utilities
 - `src/lib/auth/**`, `src/lib/supabase/**`, `src/middleware.ts` — standard untouchables (RECON §5)
 - `supabase/migrations/**`

@@ -31,7 +31,7 @@ In:
 
 Out (unchanged):
 - `updatePrivacyRequestStatus` server action and its `request_id` / `status` POST contract (RECON §5 untouchable; `src/app/admin/privacy/actions.ts`).
-- `requestClientPrivacyAction` (creation) lives on the client detail page; this page never creates a request (RECON §5 + §6.4). The Created intro stays "Create a request from a client detail page."
+- `createClientPrivacyRequest` (creation) lives on the client detail page; this page never creates a request (RECON §5 + §6.4). The Created intro stays "Create a request from a client detail page."
 - `client_notes` writes; sensitive notes are reviewed here, not edited. All edit affordances route to the client detail.
 - The four-status enum (Received / Reviewing / Completed / Declined). No new statuses, no new transitions.
 - The contact-detail visibility gate (`canViewClientContactDetails`); preserved per RECON §6.
@@ -178,7 +178,7 @@ Therapist holds neither permission by default. Collapse to the **Denied state**.
 
 - **RECON §2 inventory row:** Privacy — `src/app/admin/privacy/page.tsx` (+ `PrivacyStatusForm.tsx`) — `/admin/privacy` — GDPR triage + sensitive-note review.
 - **Access gate (RECON §3):** `hasPermission(profile, PERMISSIONS.MANAGE_PRIVACY_OPERATIONS) || canManageSensitiveClientNotes(profile)`. Owner holds both by default; Admin/PM and below hold neither unless granted via role template.
-- **Untouchable backend (RECON §5):** `updatePrivacyRequestStatus` server action at `src/app/admin/privacy/actions.ts` (explicit DO-NOT-TOUCH). Creation of privacy requests happens via `requestClientPrivacyAction` on the client detail page; never on this page. Sensitive-note writes also live on the client detail page.
+- **Untouchable backend (RECON §5):** `updatePrivacyRequestStatus` server action at `src/app/admin/privacy/actions.ts` (explicit DO-NOT-TOUCH). Creation of privacy requests happens via `createClientPrivacyRequest` on the client detail page; never on this page. Sensitive-note writes also live on the client detail page.
 - **Preserved IDs / form names (RECON §6.4):** `<input type="hidden" name="request_id">` and `<input type="hidden" name="status">` on every status form, preserved verbatim. `id="admin-main"` skip-link target preserved at layout level.
 - **URL params (RECON §6.5):** Currently none. The redesign **adds** GET params `request_type`, `status`, `from`, `to`, `q`, plus optional `sort=created_at_asc` and `expand=all`; all additive, no rename.
 - **Permission-derived data shape (RECON §6):** `canViewClientContactDetails` toggles the `email, phone` columns on the clients query. Preserved verbatim; the redesign only changes whether the contact-detail line renders, not the query shape.

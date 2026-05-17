@@ -25,7 +25,7 @@
 1. **NEVER commit. NEVER stage.** Not even `git add -p`. Final step is handoff. Commits happen only after the user explicitly types `approved` in this session.
 2. **NEVER use `git add .` or `git add -A`.** When the time comes (after approval), stage scoped files explicitly.
 3. **NEVER modify any of these files** (Feature Preservation Manifest + RECON untouchables):
-   - `src/app/admin/clients/actions.ts` — `createClient`, `updateClient`, `addClientNote`, `requestClientPrivacyAction`
+   - `src/app/admin/clients/actions.ts` — `createClient`, `updateClient`, `addClientNote`, `createClientPrivacyRequest`
    - `src/app/admin/clients/access.ts`, `src/app/admin/clients/format.ts` — client scope helpers and format utilities
    - `src/middleware.ts` — Supabase session refresh / route protection
    - `src/lib/auth/**`, `src/lib/supabase/**` — auth + DB layer (RECON §5)

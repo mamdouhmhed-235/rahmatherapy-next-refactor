@@ -109,7 +109,7 @@ The sidebar is the **reference column** (who is this client, what are their cons
 
 2. **Stats card revenue figures.** Does "Client Summary" include financial totals (total paid, outstanding balance)? If so, are those gated by `view_reports_revenue` (hiding them from Coordinators)? Confirm before wiring the stats query.
 
-3. **Privacy action name.** RECON.md §6.1 lists the action as `requestClientPrivacyAction`; the live `ClientDetailForms.tsx` shows `createClientPrivacyRequest`. Phase 6 must verify the exported name from `actions.ts` before wiring the form.
+3. **Privacy action name.** RECON.md §6.1 lists the action as `createClientPrivacyRequest`; the live `ClientDetailForms.tsx` shows `createClientPrivacyRequest`. Phase 6 must verify the exported name from `actions.ts` before wiring the form.
 
 4. **"New booking" for Coordinator.** Confirm Booking Coordinator holds `manage_bookings_all` (and therefore sees the "New booking" CTA). RECON.md lists Coordinators as "manages enquiries and bookings" — this should be true, but validate against the live RBAC matrix before rendering the button.
 
@@ -178,7 +178,7 @@ The sidebar is the **reference column** (who is this client, what are their cons
 
 ### Files to NEVER touch
 
-- `src/app/admin/clients/actions.ts` — `addClientNote`, `createClientPrivacyRequest` (or `requestClientPrivacyAction` — verify name); do not change action names, signatures, or field bindings
+- `src/app/admin/clients/actions.ts` — `addClientNote`, `createClientPrivacyRequest` (or `createClientPrivacyRequest` — verify name); do not change action names, signatures, or field bindings
 - `src/app/admin/clients/access.ts`, `src/app/admin/clients/format.ts` — client access helpers; read-only references
 - `src/lib/auth/**`, `src/lib/supabase/**` — standard untouchables (RECON §5)
 - All build/config files
@@ -193,7 +193,7 @@ The sidebar is the **reference column** (who is this client, what are their cons
 
 **Server action wire-up:**
 - `addClientNote` — `<form action={addClientNote}>` must be preserved
-- `createClientPrivacyRequest` (verify export name in `actions.ts` against RECON §6.1 `requestClientPrivacyAction`) — `<form action={...}>` must be preserved
+- `createClientPrivacyRequest` (verify export name in `actions.ts` against RECON §6.1 `createClientPrivacyRequest`) — `<form action={...}>` must be preserved
 
 **URL contract:**
 - `?tab=upcoming|past|all` — new GET param introduced by this brief; default `upcoming`; read server-side in `page.tsx`

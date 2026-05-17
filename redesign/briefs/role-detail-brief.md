@@ -36,7 +36,7 @@ In:
 - Carry-forward soft fixes per Phase 6: raw `var(--rahma-*)` token escapes, raw `var(--rahma-green)` decorative tile, `bg-red-100`/`text-red-700` inactive chip → Cancelled/Restricted family, raw permission identifier on the denied screen.
 
 Out (unchanged):
-- `updateRoleMetadata`, `togglePermissionForRole`, `createRole` server actions and their form contracts (RECON §5 untouchable, §6.4 preserved).
+- `updateRoleMetadata`, `toggleRolePermission`, `createRole` server actions and their form contracts (RECON §5 untouchable, §6.4 preserved).
 - `permissions` catalogue (categories, scope, risk_level enums). Read-only on this page; no permission editing.
 - Inactive staff still appear in the staff sidebar with the inactive chip; not filtered out.
 - `is_system` editing rules; the existing hidden `active=on` shadow stays.
@@ -149,7 +149,7 @@ Page chrome (top to bottom):
 
 ## 10. Open Questions
 
-1. **`deleteRole` server action.** RECON §5 lists `updateRoleMetadata`, `togglePermissionForRole`, `createRole` as untouchable; but not `deleteRole`. Either (a) it already exists and RECON missed it; (b) it doesn't exist and Phase 6 adds it as a net-new server action. Need a one-line confirmation from the backend audit. Proposal: assume (b); Phase 6 adds `deleteRole(roleId)` with explicit guards (`!is_system && staff_count === 0`) plus an audit_log write. Flag for confirmation before implementation.
+1. **`deleteRole` server action.** RECON §5 lists `updateRoleMetadata`, `toggleRolePermission` as untouchable; previously listed `createRole` too but **`createRole` does NOT exist in source either** (confirmed 2026-05-17 — see `BUILD-create-role.md`; the roles-list page handles it via FAKE-degrade pattern). For `deleteRole`: also doesn't exist; Phase 6 adds it via `BUILD-delete-role.md` (already authored). For this page (role-detail), the Delete-role button in the danger zone renders with `data-redesign-fake="delete-role"` graceful degrade (disabled + inline note) until BUILD-delete-role lands. **Note for this recipe:** `createRole` is NOT used on the role-detail page — role-detail only edits an existing role's metadata + permissions; it does not create roles. The presence of `createRole` in the "untouchable backend" list below is historical (RECON inheritance); the action's absence does not block this page.
 2. **High-risk grant confirmation.** Confirming every high-risk grant adds friction for an Owner who is intentionally configuring a new role. Proposal: keep the confirm on grant only (revoke is safe); critical always confirms. If real-world usage proves this too clicky, lower to critical-only in Phase 7.
 3. **Sticky category headers inside a scroll panel.** Works well at desktop heights; on mobile, the panel's `max-h-[70vh]` keeps headers visible but introduces a nested scroll context that can fight the page scroll. Proposal: drop the panel scroll on mobile (no `max-h`) and let categories scroll with the page; sticky behaviour applies on `lg:` and above only.
 
@@ -178,7 +178,7 @@ Admin (Practice Manager), Booking Coordinator, Therapist, and Inactive all hit `
 
 - **RECON §2 inventory row:** Role detail — `src/app/admin/roles/[roleId]/page.tsx` (+ `RoleMetadataForm.tsx`, `PermissionRow.tsx`) — `/admin/roles/<id>` — Edit metadata, toggle individual permissions, see members.
 - **Access gate (RECON §3):** `canManageRoleTemplates(profile)` (owner-exclusive). Single-role page. Collapses to Owner + Denied per recipe.
-- **Untouchable backend (RECON §5):** `updateRoleMetadata`, `togglePermissionForRole`, `createRole` server actions at `src/app/admin/roles/actions.ts` (explicit DO-NOT-TOUCH). RBAC helpers `canManageRoleTemplates`, `getRoleDisplayName` preserved.
+- **Untouchable backend (RECON §5):** `updateRoleMetadata`, `toggleRolePermission`, `createRole` server actions at `src/app/admin/roles/actions.ts` (explicit DO-NOT-TOUCH). RBAC helpers `canManageRoleTemplates`, `getRoleDisplayName` preserved.
 - **Preserved IDs / form names (RECON §6.4):** `RoleMetadataForm` fields `role_id`, `display_label`, `description`, `sort_order`, `active` (with hidden `active=on` shadow when system role). `PermissionRow` calls `toggleRolePermission(roleId, permissionId, permissionName)` server action; signature preserved verbatim. `id="admin-main"` skip-link target preserved at layout level.
 - **URL params (RECON §6.5):** None currently. Redesign **adds** GET params `category`, `risk_level`, `granted_only`, `q` for permissions filtering; all additive, no rename.
 - **Deep-link patterns preserved (RECON §6.5):** `/admin/roles/<id>` reachable from `/admin/roles` rows; `/admin/staff/<id>` reachable from each staff sidebar entry.

@@ -4,7 +4,7 @@
 
 ## Files to NEVER touch
 
-- `src/app/admin/clients/actions.ts` — `createClient`, `updateClient`, `addClientNote`, `requestClientPrivacyAction` server actions (Feature Preservation Manifest)
+- `src/app/admin/clients/actions.ts` — `createClient`, `updateClient`, `addClientNote`, `createClientPrivacyRequest` server actions (Feature Preservation Manifest)
 - `src/app/admin/clients/access.ts` — client scope helpers (RECON §5)
 - `src/app/admin/clients/format.ts` — format utilities (RECON §5)
 - `src/middleware.ts` — Supabase session refresh / route protection (RECON §5)
