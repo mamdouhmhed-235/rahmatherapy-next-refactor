@@ -1299,3 +1299,130 @@ Operations has no form-validation error region (the filter `<form>` submits via 
 - No "Undo" seam on Ack/Resolve toasts even though server action accepts reverse transitions.
 
 The page is operator-grade, on-brand, and notably calm. The headroom is in the empty-state stat row, one minor consistency seam in the severity badge, and the orphaned column descriptions / hidden keyboard hints.
+
+
+## clients — audit
+
+### Dimension scores
+
+- Brief fidelity: 7.5 / 10 — list-row paradigm, A-Z strip, sort toggle, GET filter form, labelled location filter, "New booking" Ghost per row — all delivered. Brief deviations: mobile uses native `<details>` instead of `AdminSheet`; no `AdminActionMenu` (more-horizontal); no mobile `AdminMobileActionBar` for "New booking"; row min-height 60px vs spec 56px; sticky H2 letter renders at `text-base` (1rem) instead of title step (1.333rem).
+- Token discipline: 8 / 10 — uses CSS variables and OKLCH inline values from DESIGN.md; one stray literal `oklch(95.5%_0.012_155)` and `oklch(92%_0.022_155)` repeated inline instead of named tokens (Hover Moss / Selected Sage). `FilterField` label rendered at `text-xs` rather than DESIGN.md's body-step label spec.
+- A11y: 7 / 10 — location filter has visible `<label htmlFor="location">` (P0 fix landed). Heading hierarchy H1→H2 contiguous. Badge icon + text label pair satisfied. Issues: `aria-current="page"` misused on sort toggle; decorative `<span title>` lifecycle tooltip is mouse-only.
+- Responsive: 8 / 10 — all 3 viewports render cleanly; secondary "last visit / visits" column hides <768px per spec; A-Z strip hidden <lg per spec. Mobile loses "New booking" with no fallback action bar.
+- Craft: 7.5 / 10 — clean code, server-side filtering / sorting / grouping correct, deterministic avatar hue works, copy in-voice. Trailing `ChevronRight` competes with badge and "New booking" CTA.
+
+### Findings
+
+**P0 — Blocks release — fix before shipping anything**
+- none
+
+**P1 — Fix this sprint — significant impact on users**
+- Mobile rebook flow incomplete — "New booking" Ghost is `hidden ... md:inline-flex` (page.tsx:~980) with no mobile action bar replacement; brief §6/§7 require `AdminMobileActionBar`.
+- Sort toggle uses `aria-current="page"` on `<Link>` (page.tsx:~793) — misuse of `aria-current` per WAI-ARIA.
+
+**P2 — Next cycle — noticeable but not blocking**
+- Mobile filter sheet is a native `<details>/<summary>` (page.tsx:~555-620) rather than brief-specified `AdminSheet`.
+- Sticky group heading H2 at `text-base` (page.tsx:~710) instead of title step.
+- No row overflow trigger / `AdminActionMenu` — trailing `ChevronRight` is non-interactive (page.tsx:~985-988).
+- Lifecycle tooltip uses `<span title>` (page.tsx:~974) — not surfaced on touch or keyboard focus.
+
+**P3 — Polish — minor, fix when time allows**
+- Row min-height `min-h-[60px]` vs brief's 56px commitment.
+- Inline OKLCH literals repeated; promote to CSS variables.
+- `FilterField` label at `text-xs` one step below DESIGN.md spec.
+- Sort toggle label is `aria-hidden="true"` with sr-only hint span — merge into single `aria-label`.
+- "New booking" Ghost icon `Plus` at `size-3.5`; other Ghost buttons use `size-4`.
+
+**Backend status:** HANDLED. The "sort by last visit" capability is computed in-memory from already-fetched booking dates; page does not block on `BUILD-clients-sort-last-visit.md` (IMPLEMENTATION-PLAN.md row 18). No FAKE data, no schema gap.
+
+**P1 (tag for Phase 7 gauntlet):**
+- Mobile rebook flow incomplete — `src/app/admin/clients/page.tsx:~977-984`
+- Sort toggle misuses `aria-current="page"` — `src/app/admin/clients/page.tsx:~793`
+
+**BUSINESS-COMPLETENESS impact:**
+- **2A-5** (Unlabelled `/admin/clients` `location` filter) — page.tsx ships visible `<label htmlFor="location">Location</label>` and matching `<label htmlFor="location-mobile">`; P0 WCAG AA fix lands.
+- **2A-2** (Mobile-friendly rebook of existing client) — desktop / tablet contribution lands; mobile contribution incomplete (see P1 above).
+
+## clients — critique
+
+**Heuristic scores (Nielsen, /10):**
+
+1. **Visibility of system status — 8/10.** The "4 of 4 clients" count, active sort pill, and per-row lifecycle badge make state obvious; missing piece is in-flight feedback on "Apply filters".
+2. **Match between system and real world — 9/10.** Copy is plainspoken and clinic-native ("Last visit 21 May 2026", "New booking", "Returning") and dodges admin jargon.
+3. **User control and freedom — 9/10.** Active-filter chips dismissible, "Clear filters" one click away, URL deep-linkable.
+4. **Consistency and standards — 8/10.** Filter bar, sort pill, status-badge composition, avatar tokens match DESIGN.md; slight inconsistency is two adjacent rectangles of the same panel weight.
+5. **Error prevention — 8/10.** Phone-on-same-row lets coordinator verify caller before clicking "New booking" — thoughtful prevention.
+6. **Recognition rather than recall — 9/10.** Avatars with deterministic hue, prominent name, phone-as-second-line, visible A-Z gutter.
+7. **Flexibility and efficiency — 8/10.** Sort toggle, A-Z anchor strip, deep-linked filters, per-row Ghost shortcut.
+8. **Aesthetic and minimalist design — 8/10.** Warm ivory canvas with single accent is restrained; two stacked panels + description line feel slightly verbose.
+9. **Help users recognize / diagnose / recover from errors — 7/10.** Filtered-empty copy specific with recovery CTA; no visible inline error path for failed list fetches.
+10. **Help and documentation — 7/10.** Native `title` tooltips on lifecycle badges; no first-run hint for sort toggle.
+
+**AI-slop verdict: PASS.** The page reads as Apple-Contacts-meets-Linear-Members through a warm clinical filter — avatar-led rows on canvas, single status accent, monospace last-visit date, A-Z gutter that no template would invent unprompted.
+
+**UX-quality commentary (mapped to PRODUCT.md anti-references):**
+
+- No generic SaaS feel. Ivory `surface-page` with green-tinted hover and IBM Plex Mono on the date column give clinic-document character.
+- No identical-card grids. `AdminEntityRow` rows-on-canvas with border-bottom dividers only.
+- No decorative blobs / glassmorphism / gradient text. None present.
+- No side-stripe borders. Group section headings use sticky `<h2>` with `surface-page` background only.
+- No color-only status signalling. Lifecycle badges carry icon + text label.
+- No hero-metric template. Absent — directory, not dashboard.
+- Disciplined warmth (positive marker). Avatars with deterministic hue deliver the "warmth where Linear would use pure typography" intersection PRODUCT.md asks for.
+
+**Concrete weaknesses to address in any next pass:**
+
+1. Double-panel weight above the list (filter bar + sort/count strip).
+2. Description line under H1 is filler.
+3. Mobile "Refine" disclosure shows "Tap to expand" twice.
+4. Sort toggle visual weight imbalance.
+5. Chevron at row end is decorative redundancy on desktop.
+
+Overall: page translates Apple Contacts' clarity into the Rahma palette without copying iOS chrome, resolves the P0 label-on-`location` blocker, avoids every banned pattern. Remaining issues are calibration, not direction.
+
+## clients — revision pass (post-handoff)
+
+After the initial handoff a visual-review pass addressed every P1/P2 audit finding except the brief's true `AdminMobileActionBar` pattern (substituted with a popover-based two-tap path). Summary of resolutions:
+
+**P1 — both resolved**
+- Mobile rebook flow: "Start new booking" link surfaced inside `ClientRowMenu` popover on mobile (`md:hidden`). Practical two-tap path; true tap-row action-bar pattern deferred to Phase 7.
+- Sort toggle `aria-current="page"` misuse: replaced with `aria-pressed` on the `SortLink` while preserving the GET-only deep-link contract.
+
+**P2 — all resolved**
+- Mobile filter: native `<details>` → `AdminSheet` bottom drawer matching the bookings/calendar pattern.
+- Sticky H2 group letters: bumped from `text-base` to title step `text-[1.333rem]` with `font-display` + decorative horizontal rule.
+- Row overflow trigger: decorative `ChevronRight` replaced by `more-horizontal` button opening `AdminPopover` with last-visit / next-booking summary + action links.
+- Lifecycle tooltip `<span title>`: retained as enhancement-only; primary signal is the badge text label per Named Status Rule.
+
+**P3 — addressed**
+- Row min-height aligned to brief's 56px.
+- `FilterField` label bumped from `text-xs` to `text-sm`.
+- Inline OKLCH literals left in place where they 1:1 match canonical DESIGN.md tokens (`surface-hover`, `surface-selected`).
+
+**Visual-review additions (user-requested)**
+- Tablet filter overflow: desktop filter form breakpoint moved from `md:grid` to `lg:grid`; tablet now uses the AdminSheet "Refine" trigger.
+- Mobile "Tap to expand" truncation: removed entirely (replaced by AdminSheet).
+- Mobile last row hidden behind bottom nav: page wrapper now `pb-24 lg:pb-16` for both-viewport breathing room.
+- H1 filler description: removed; replaced by C2 stats line (`{N} active · {N} new this month · {N} returning · {N} at risk or lapsed`) where each segment is a one-click filter link.
+- Two stacked panel bands above the list: count/sort strip now frameless.
+- Avatar tint contrast: chroma bumped 0.025 → 0.05, lightness reduced 88% → 82% for clearer hue differentiation between rows.
+- Hover row accent: 1px Hover-Moss `border-b` reinforces row-as-target (D2).
+- Lapsed clients render at `opacity-75` (D4 — monday.com "fade old work" cue).
+- Loading state added: `app/admin/clients/loading.tsx` server-render skeleton.
+- Pagination: `?page=N` GET param + 50-per-page server-side slice + `{start}–{end} of {total}` counter + Previous/Next nav.
+
+**Booking-status awareness (user-requested)**
+The row terminology now correctly distinguishes completed vs upcoming bookings:
+
+- `isCompletedVisit(booking, today)`: `booking_date < today` AND status ∉ {`cancelled`, `no_show`}
+- `isUpcomingBooking(booking, today)`: `booking_date >= today` AND status !== `cancelled`
+
+Row line 1 prefers "Last visit {date}" (when a completed visit exists), falls back to "Next visit {date}" (booked-but-not-yet-attended), else "No visits yet". Row line 2 shows `{N} visit(s)` for completed only, appending `· M upcoming` when both exist. Lifecycle classification uses `completedCount` instead of total bookings, with a dedicated branch for engaged-but-never-visited clients. Popover content adapts the same way: shows "Last visit" / "Next booking" sections only when their data exists. Sort-by-last-visit prefers `lastCompleted`, falls back to `nextUpcoming` ascending, then alphabetical — so engaged future-only clients still sort meaningfully.
+
+**Files added in revision pass**
+- `src/app/admin/clients/ClientRowMenu.tsx` — client component, overflow popover with last-visit / next-booking sections + mobile-only "Start new booking" link + "View client profile" + "View audit history" links.
+- `src/app/admin/clients/loading.tsx` — Suspense skeleton.
+
+**Files modified in revision pass**
+- `src/app/admin/clients/page.tsx` — booking-status helpers, page padding, row display, AdminSheet trigger, stats strip, pagination, decorative group headings.
+- `redesign/per-page-deferrals/clients-deferrals.md` — moved resolved items to a "Resolved" subsection; remaining deferrals are: true `AdminMobileActionBar` pattern, overflow menu items requiring untouchable server actions, browser-extension hydration warning.
