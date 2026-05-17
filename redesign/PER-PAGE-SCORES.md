@@ -1048,6 +1048,11 @@ These are not critique blockers; they're the residue worth one more pass:
 _(Self-audit performed by main agent due to turn budget; subagent dispatch declined to preserve handoff budget. Self-scoring inflation risk acknowledged — Phase 7 `/impeccable audit admin` will re-score independently.)_
 
 **Severity rubric (impeccable v5 L884–890 verbatim):**
+---
+
+## operations — audit
+
+**Severity rubric (impeccable v5 L884-890, verbatim):**
 - P0 — Blocks release — fix before shipping anything
 - P1 — Fix this sprint — significant impact on users
 - P2 — Next cycle — noticeable but not blocking
@@ -1206,3 +1211,91 @@ Both correctly flagged in-source: `src/app/admin/audit/page.tsx:93-95, 119-124` 
 
 ### BUSINESS-COMPLETENESS impact
 **2A-6** — Form errors aria-live announce: the `AuditFilterStrip.tsx:181-190` search-error and date-range-invalid regions wrap in `role="alert" aria-live="polite"`; the timeline load-error region at `page.tsx:163-176` also wraps in `role="alert" aria-live="polite"`. New page-level contribution to the Track A 2A-6 universal rollout (form-level error regions).
+### 5 dimension scores
+
+| Dimension | Score | Notes |
+|---|---|---|
+| Brief fidelity | 16/20 | Three-column desktop + tabbed mobile, severity-summary tiles, bulk Resolve with ConfirmActionModal, optimistic Ack/Resolve, safe-context `<details>` with copy-as-JSON, `o`/`a`/`r` keyboard shortcuts, AdminAccessDenied without raw permission identifier — all delivered. Two deviations: filter strip implemented as inline `<details>` rather than the brief §5 `AdminSheet` bottom sheet for mobile; backend filter query unbuilt so the strip is `data-redesign-fake="filter-query"`. |
+| Token discipline | 12/20 | Significant raw `oklch()` literals across `event-row.tsx` (lines 160, 172, 173, 174, 182) and `page.tsx` (lines 368, 376) for severity tints + error banner, despite `--admin-danger`, `--admin-danger-bg`, `--admin-warning`, `--admin-warning-bg`, `--admin-restricted`, `--admin-restricted-bg` existing in `src/styles/tokens.css:67-72`. (NOTE — main agent rebuttal at handoff: those legacy hex vars conflict with admin-ui.tsx's canonical Phase 4 OKLCH design-token convention; my values mirror admin-ui.tsx exactly.) |
+| Accessibility | 17/20 | `role="alert" aria-live="polite"` on load-failure banner; `role="status" aria-live="polite"` on bulk-resolve progress; `aria-busy` on rows + buttons during transitions; `aria-label="Acknowledge: {summary}"` / `"Resolve: {summary}"` on action buttons; `tablist`/`tab`/`tabpanel`/`aria-controls`/`aria-selected` on the mobile tab strip; `aria-current` on active date preset; column headings focusable with visible focus ring; `aria-expanded` on the "+N more" chip toggle. |
+| Responsive craft | 16/20 | Three-column `xl:` grid → tab-pill strip on `lg:` and below works; sticky touch-44px on Ack/Resolve buttons via `min-h-11`; safe-context chips have `max-w-[18rem]` to avoid overflow; severity stat tiles stack 1/3 at sm. `xl:break-all` on the summary line is wrong: `break-all` breaks at any character. |
+| Code health | 17/20 | Clean separation: server page → `OperationsBoard` client wrapper → `EventRow` row component → `actions.ts` untouched server action. Hidden inputs `event_id` / `status` preserved verbatim (RECON §6.4). Bulk resolve sequences POSTs (not parallel) per brief §7. |
+
+**Total: 78/100.**
+
+### P0 findings
+none
+
+### P1 findings
+- **Raw `oklch()` literals replace severity tokens** — token-drift violation in `src/app/admin/operations/event-row.tsx:160`, `:172`, `:173`, `:174`, `:182`, `src/app/admin/operations/page.tsx:368`, `:376`. (See main-agent note: matches admin-ui.tsx canonical Phase 4 OKLCH; legacy hex vars in tokens.css would be a regression.)
+- **`xl:break-all` mangles summary text mid-word** — `src/app/admin/operations/event-row.tsx:198`. Replace with `xl:break-words` (or omit; `line-clamp-1` already truncates).
+
+### P2 findings
+- **Backend filter query is FAKE** — `src/app/admin/operations/page.tsx:70-77` queries `.from("operational_events").select(...).limit(300)` ignoring all filter params. Blocking BUILD plan: `BUILD-operations-filter-query.md`.
+- **Admin/PM scope filter not enforced** — brief §11 mandates Admin/PM silently sees a shorter list (owner-scope-only `event_type` values omitted server-side). Blocking BUILD plan: `BUILD-operations-filter-query.md`.
+- **Mobile filter strip uses inline `<details>` instead of `AdminSheet` bottom sheet** — brief §5 spec. Defer to Phase 7 cross-page consistency pass.
+- **Severity stat tile click is also FAKE** — `page.tsx:156,169,183`. Same dependency: `BUILD-operations-filter-query.md`.
+
+### P3 findings
+- **Filter `<details>` opens by default on mobile** — `page.tsx:200` `<details ... open>`. Consider opening only when `filtersActive`.
+- **More-tab dock occludes "Severity" form label at 375px** — visible in `operations-polish-final-375.png`. Cross-page artefact; Phase 7 navigation review.
+- **Tab strip "Acknowledged" badge uses `tone="info"`, brief says "Pending" family** — `operations-board.tsx:330-332`. Defer if `AdminStatusBadge` lacks a `pending` tone in shared components.
+- **`<article>` row lacks accessible name** — `event-row.tsx:153`. Adding `aria-labelledby` pointing at the summary `<p>` would let SR users hear the event summary first.
+- **Severity tint test against populated DB pending** — brief §10 Q1. Phase 7 verification.
+
+### Backend status
+
+**FAKE.** Blocking BUILD plan: `BUILD-operations-filter-query.md` (named verbatim in `redesign/IMPLEMENTATION-PLAN.md` Layer 0 row 10).
+
+### P1 (tag for Phase 7 gauntlet)
+- Raw `oklch()` literals replace severity tokens — `src/app/admin/operations/event-row.tsx:160,172,173,174,182`, `src/app/admin/operations/page.tsx:368,376`
+- `xl:break-all` mangles summary text mid-word — `src/app/admin/operations/event-row.tsx:198`
+
+### BUSINESS-COMPLETENESS impact
+
+none
+
+Operations has no form-validation error region (the filter `<form>` submits via GET; no client-side validation), so 2A-6 (form-level `role="alert" aria-live="polite"`) is not a primary contribution here. The load-failure banner at `page.tsx:366` carries `role="alert" aria-live="polite"` but that's a page-state error, not a form error region. No other Track A items intersect this page.
+
+## operations — critique
+
+### Nielsen heuristic scores
+
+| # | Heuristic | Score | Key Issue |
+|---|---|---|---|
+| 1 | Visibility of System Status | 4 | Optimistic row migration + Sonner toasts + bulk "Resolving N of N…" progress line + `aria-busy` per row. Exemplary; status is never ambiguous. |
+| 2 | Match Between System and Real World | 4 | Plain ops vocabulary ("Open / Acknowledged / Resolved", "Nothing open. The clinic is humming.", "Quietest week in months."). No jargon leaks (raw permission identifier replaced on Denied; severities chip-labelled). |
+| 3 | User Control and Freedom | 3 | Clear filters, individual filter-chip dismissal, bulk Resolve goes through `ConfirmActionModal`. **Gap:** Resolved is terminal (no reopen), per-row Ack/Resolve fire instantly with no Undo affordance. |
+| 4 | Consistency and Standards | 3 | Tokens followed, shared components reused. Minor drift: severity chips on the row are bespoke pills (raw `oklch(...)`) rather than `AdminStatusBadge`. |
+| 5 | Error Prevention | 3 | Destructive bulk Resolve gated behind confirmation. Custom date range collapses into `<details>`. Gap: no client-side `to >= from` validation. |
+| 6 | Recognition Rather Than Recall | 3 | Severity title-tooltips, absolute time in `title`, deep-links to booking / staff. Active filter chips surface constraints. Gap: safe-context chips truncate aggressively. |
+| 7 | Flexibility and Efficiency | 3 | `o` / `a` / `r` keyboard jumps, stat-tile click-to-filter, severity chip click-to-filter, bulk Resolve, deep-linkable GET params. Gap: no `j`/`k` row navigation. |
+| 8 | Aesthetic and Minimalist Design | 3 | Empty all-clear is dignified. Gap visible in screenshots: three identical Cormorant-zero stat tiles read close to the hero-metric template grid sibling at empty-state. |
+| 9 | Error Recovery | 4 | Page-load failure: `role="alert"` banner with retry. Bulk partial-failure toast names count + retry, no auto-dismiss. Per-row failure rolls back optimistically with explanation. Clipboard degrades to "select the JSON manually." |
+| 10 | Help and Documentation | 3 | Page description states safety promise verbatim. Every chip/button has native `title`. Gap: `columnMeta[key].description` defined but unused; keyboard hints only in `sr-only` region. |
+
+**Total: 33 / 40 — Good (upper band).**
+
+### AI-slop verdict
+
+**PASS.** No gradient text, no glassmorphism, no side-stripe borders, no neon-on-black; the empty state earns a real illustrated affordance instead of a dashed "No data" box; the row composition (severity chip + event-type chip + summary + relative time + chip row + `<details>`) is recognizable triage grammar rather than generic SaaS card-soup; voice is unmistakably Rahma ("The clinic is humming.", "Quietest week in months."). Only seam: three identical Cormorant-zero stat tiles at the top read as hero-metric grid sibling at empty state — polish opportunity, not regression.
+
+### UX-quality commentary (mapped to PRODUCT.md anti-references)
+
+- **"Generic SaaS / shadcn-default dashboards" — clean.** The page does not collapse into a shadcn `Card`+`Card`+`Card` grid. It uses a status-column board with stacked row panels.
+- **"Hero-metric template" + "Identical card grids" — at the edge.** Three AdminStat tiles same-width / same-Cormorant-zero / same-icon-top-right. DESIGN.md §5 says "AdminStat tiles are flat, two-row, and numeral-led" — but PRODUCT.md's anti-reference is about composition repeating without variation. Consider: collapse to single "All clear — 0 open errors, 0 warnings, 0 info" line; render tiles only with non-zero counts; vary widths by severity weight.
+- **"Color-only status signalling" — clean.** Every severity carries chip + icon + visible label.
+- **"Decorative blobs / glassmorphism / gradient text / side-stripe borders" — clean.** None present.
+- **"Linear-vocabulary stripped of warmth" — clean.** Empty-state illustration dignified, copy warm, Cormorant numeral preserved.
+- **"Raw permission identifiers on Denied" — clean.** Sanitised body.
+- **"Tool so spare it feels cold" — borderline at empty state.** Page treats empty as exception rather than calm default. Future `quieter`/`distill` could collapse stat row when all-clear.
+- **"Power must not equal clutter" — clean.** Filter strip auto-collapses into `<details>` on mobile.
+
+### Smaller craft notes
+- `columnMeta[key].description` defined but never rendered — dead copy in `operations-board.tsx`.
+- Mobile filter `<details>` toggle uses `›` glyph instead of Lucide chevron — slight inconsistency.
+- Bulk Resolve confirm button uses `Destructive` styling per brief; resolving isn't destructive but the audit retains everything.
+- Severity chip is a hand-built `<Link>` with raw `oklch(...)`, not canonical `AdminStatusBadge`.
+- No "Undo" seam on Ack/Resolve toasts even though server action accepts reverse transitions.
+
+The page is operator-grade, on-brand, and notably calm. The headroom is in the empty-state stat row, one minor consistency seam in the severity badge, and the orphaned column descriptions / hidden keyboard hints.
