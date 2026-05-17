@@ -1108,3 +1108,101 @@ _(Self-critique with same caveat as above audit.)_
 - No "color-only status signalling" — every badge has icon + text + bg tint.
 - No "side-stripe borders" or "gradient text" — verified by Step 11a grep.
 - Voice matches PRODUCT.md Brand Personality: "Calm · Scannable · Dignified" — empty states encourage ("All caught up" cousin: "Everything that's come in has been picked up."), errors say what to do next ("Try again." / Retry button), no apology copy.
+
+---
+
+## audit — critique
+
+**Last updated:** 2026-05-17 (Phase 6 — row 20 of 29; Critique subagent dispatched 2026-05-17)
+
+### Nielsen heuristic scores (0–4)
+
+| # | Heuristic | Score | Key observation |
+|---|-----------|-------|------------------|
+| 1 | Visibility of system status | 3 | Result-count line, `aria-live="polite"` count, `aria-busy` Load more, relative+absolute time, `useTransition` pending. Loses a point because count is truthful only within the loaded top-100 slice (client-side filter ignores older rows). |
+| 2 | Match between system and real world | 4 | "Rahma Therapy confirmed booking 1d50…1358 7 hours ago" reads as a sentence; plain present-tense action verbs; target chips name the entity. Forensic phrasing matches the Thursday-evening Fatimah scene. |
+| 3 | User control and freedom | 3 | Filters are GET params, "Clear" Ghost, dismissible chips, `<details>` open state in DOM only. Loses a point for no undo on Load-more append, no keyboard collapse-all, no explicit "Apply" CTA on mobile sheet. |
+| 4 | Consistency and standards | 3 | Surfaces match warm-ivory canvas, Urbanist/Work Sans/Plex Mono, Restricted-family chips. Two deviations: (a) bare 8px coloured dot rather than specced family pill — breaks "Named Status Rule" (colour-only); (b) default Sonner toast rather than Confirmed-family green. |
+| 5 | Error prevention | 3 | 4-char minimum on UUID prefix, inline `role="alert"` short-search note, custom-range `from > to` check, malformed actor UUID falls through, `manage_audit_logs` gate short-circuits fetch. Load-more cursor on deleted row is silently swallowed. |
+| 6 | Recognition rather than recall | 3 | Self-describing cards, readable filter labels, named active chips. Loses a point because 8px family dot has no on-page legend — Owner must hover to learn green=creation, red=destructive. |
+| 7 | Flexibility and efficiency | 3 | Deep-linkable URL contract, native `<select>` for power users, `<details>` Space/Enter, Copy IDs cover incident-response, `@media print` forces details open. Loses a point: no expand-all shortcut, no jump-to-card hash, no "filter by this actor" row affordance. |
+| 8 | Aesthetic and minimalist design | 3 | Restrained warm ivory, no decorative blobs/gradients, no shadows at rest, Cormorant correctly absent, no gold. 8px family dot is a real quieter pass. Loses a point: per-card footer triplet of identical-weight Ghost buttons reads as visual repetition across 100 rows. |
+| 9 | Help users recognize, diagnose, and recover from errors | 3 | "Couldn't load audit log. Try refreshing." + "Try again" Ghost, search-too-short alert, custom-range inversion alert, differentiated empty-states. Loses a point: shared `EmptyState` Lucide line-icon reads SaaS-default rather than dignified-illustrated per DESIGN.md §5. |
+| 10 | Help and documentation | 2 | Subtitle does heavy lifting, redaction pill `title` lists keys, family dot `title` names family, target chip `title` carries full UUID. Missing: explanation of 8 families, URL-contract reference, on-page legend mapping the 4 chip-dot colours. One-line "About this view" would earn its place. |
+
+**Total: 30 / 40 — strong.** Forensic-trust scaffolding is the standout; deductions cluster around polish trading specced affordances (family chips, illustrated empty states, apply-filter button, toast variant) for a quieter aesthetic.
+
+### AI-slop verdict
+
+**PASS.** Nothing prompts "AI made that": no gradient text, no glassmorphism, no decorative blobs, no big-number hero, no purple-and-blue, no identical icon-heading-text grid, no side-stripe borders, no `border-l-4`. Deterministic detector returns clean (`[]`). Page reads as deliberate Rahma forensic surface.
+
+### UX-quality commentary (mapped to PRODUCT.md anti-references)
+
+**Working:**
+- No generic SaaS feel — actor-verb-target-time sentence as primary card line is a genuine design choice (echoes Linear/GitHub, drops Rahma warm canvas + Plex Mono on top).
+- No decorative blobs/glassmorphism/hero-metric template — polish suppressed every audit-domain category reflex (red banners, threat scores). Anti-anchor "not a SIEM, a record" visibly honoured.
+- No Cormorant numerals, no gold — both correctly absent from this forensic surface.
+- Real names, real UUIDs — "Rahma Therapy confirmed booking 1d50…1358" hits the PRODUCT.md voice anchor verbatim.
+
+**Dips:**
+- Colour-only status signalling on the family dot violates PRODUCT.md "Color-only status signalling — a chip's tone alone never tells the story." Right answer: compact pill, not bare dot or full pill.
+- Shared `EmptyState` Lucide icon reads SaaS-default. DESIGN.md §5 commits to 80–120px illustrated SVG.
+- Per-card footer triplet (Copy event ID + Copy target ID + Open booking) renders 300 identical Ghosts across 100 rows. Trailing `more-horizontal` menu would cut footer noise by two-thirds.
+- Brief contract slippage on mobile filter apply — specced explicit "Apply filters" Secondary; polish made it live-apply.
+- Forensic-count truthfulness — two FAKE markers mean result-count is aspirational until BUILD-audit-filter-and-pagination lands.
+
+**Net.** Page passes AI-slop cleanly and lands the forensic register. Deductions are real and addressable in Phase 7.
+
+
+---
+
+## audit — audit
+
+**Last updated:** 2026-05-17 (Phase 6 — row 20 of 29; Audit subagent dispatched 2026-05-17)
+
+### Dimension scores
+
+| # | Dimension | Score | Key finding |
+|---|-----------|-------|-------------|
+| 1 | Accessibility | 3 | Action-family signal collapses to single coloured dot (no text/icon label) — violates DESIGN.md §2 Named Status Rule for sighted users though `aria-label` covers AT |
+| 2 | Performance | 4 | Server-side single Supabase fetch + parallel staff lookup; client-side filtering correctly scoped to FAKE window; no layout-thrash animations, motion respects `prefers-reduced-motion` |
+| 3 | Theming | 3 | All admin colour tokens consumed via CSS vars; two undefined-var fallbacks silently degrade; mono font diverges from brief (font-mono → JetBrains Mono, brief specs IBM Plex Mono); inline oklch() literals for status families in 6 places |
+| 4 | Responsive Design | 4 | Mobile filter sheet collapses cleanly; touch targets ≥44px under md; JSON columns stack vertically <768px; no horizontal scroll at 375/768 |
+| 5 | Anti-patterns | 3 | No gradient text, no border-l-4, no glassmorphism, no hero-metric — but action-family dot is colour-only (Named Status Rule); `print:!open` Tailwind class non-functional |
+
+**Total: 17 / 20 — Good** (address weak dimensions: a11y, theming, anti-patterns).
+
+### P0 findings
+- none
+
+### P1 findings
+- **Action-family signal is colour-only for sighted users.** `src/app/admin/audit/AuditEventCard.tsx:19-50, 119-126` — `chipClasses()` produces an 8px coloured dot with no text label or icon for sighted users. Brief §5 specifies "single Confirmed / Pending / Cancelled / Restricted family chip beneath the top row" with AdminStatusBadge contract (bg + text + icon + visible label). DESIGN.md §2 Named Status Rule, PRODUCT.md anti-references ("Color-only status signalling"). Restore the chip per brief §5 + DESIGN.md §5 AdminStatusBadge (label + icon + tint).
+- **Print stylesheet: `<details>` does not force open on print.** `src/app/admin/audit/AuditEventCard.tsx:158` uses `print:!open` as a Tailwind class. `open` is an HTML attribute, not a CSS property; no `details[open]` rule in `src/app/globals.css`. JSON before/after well stays collapsed on print. Add `@media print { details > div { display: block !important } summary { display: none } }` to globals.css.
+
+### P2 findings
+- **Date-range presets use rolling windows, not calendar boundaries.** `src/app/admin/audit/page.tsx:298-316` — `today = now - 24h`, `this_week = now - 7d`, `this_month = now - 30d`. Anchor presets to Europe/London 00:00 / start-of-ISO-week / start-of-month.
+- **Empty-state body copy diverges from brief.** `src/app/admin/audit/page.tsx:280` — "Audit rows appear here as the team works in the admin." vs brief §8 Copy block "Activity is recorded here as the team makes changes." Copy block is authoritative.
+- **Hidden-keys tooltip uses bare comma list.** `src/app/admin/audit/AuditEventCard.tsx:150` — `title={`Hidden: ${keys.join(", ")}`}`. Brief §8 commits to `Redacted fields: note, health, treatment_notes`.
+- **Inline status-family `oklch()` literals not tokenised.** `src/app/admin/audit/AuditEventCard.tsx:25-31, 149`, `src/app/admin/audit/AuditFilterStrip.tsx:181, 187, 272` — 6 raw `oklch()` calls; tokens `--admin-restricted-bg`, `--admin-danger`, `--admin-danger-bg` exist.
+- **`aria-live` polite on a button is wrong target.** `src/app/admin/audit/CopyIdButton.tsx:45`. Toast already announces; button shouldn't re-announce icon swaps.
+
+### P3 findings
+- **Mono font diverges from brief.** Brief specs IBM Plex Mono; `font-mono` resolves to JetBrains Mono.
+- **Undefined CSS-var fallbacks silently degrade.** `AuditEventCard.tsx:130, 166`, `AuditFilterStrip.tsx:147` use `var(--admin-page, …)` against tokens that don't exist; canonical names are `--admin-canvas`, `--admin-surface-input`.
+- **`AdminSkeleton` placeholders never render during filter transitions.** Brief §6 Loading row commits to skeleton cards during in-flight `useTransition`.
+- **`<details>` summary touch target irregular on desktop.** `AuditEventCard.tsx:159` collapses to `md:min-h-0 md:py-0` (~20px). Consider `md:min-h-[32px] md:py-1`.
+- **End-of-log line not localised.** Minor.
+
+### Backend status
+**FAKE** — depends on:
+- `BUILD-audit-filter-and-pagination.md` (BLOCKS-REDESIGN, dependency-ordered list row 5; IMPLEMENTATION-PLAN.md:1148)
+- `BUILD-audit-target-existence.md` (non-blocking, dependency-ordered list row 22; IMPLEMENTATION-PLAN.md:1168)
+
+Both correctly flagged in-source: `src/app/admin/audit/page.tsx:93-95, 119-124` and `src/app/admin/audit/actions.ts:35-48`.
+
+### P1 (tag for Phase 7 gauntlet)
+- **Action-family signal is colour-only for sighted users** — `src/app/admin/audit/AuditEventCard.tsx:19-50, 119-126`
+- **Print stylesheet: `<details>` does not force open on print** — `src/app/admin/audit/AuditEventCard.tsx:158`; missing `@media print` rule in `src/app/globals.css`
+
+### BUSINESS-COMPLETENESS impact
+**2A-6** — Form errors aria-live announce: the `AuditFilterStrip.tsx:181-190` search-error and date-range-invalid regions wrap in `role="alert" aria-live="polite"`; the timeline load-error region at `page.tsx:163-176` also wraps in `role="alert" aria-live="polite"`. New page-level contribution to the Track A 2A-6 universal rollout (form-level error regions).
