@@ -928,7 +928,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 25. [x] privacy — commit: 0cdf434
+## 25. [x] privacy — commit: 9238d14
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
