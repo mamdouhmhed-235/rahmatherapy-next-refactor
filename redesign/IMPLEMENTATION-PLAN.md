@@ -890,7 +890,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 24. [ ] operations — commit: ____
+## 24. [x] operations — commit: 2a8b804
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
