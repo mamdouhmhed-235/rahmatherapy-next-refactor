@@ -1041,3 +1041,70 @@ These are not critique blockers; they're the residue worth one more pass:
 5. **Chart-render fallback.** Brief Â§Error messages documents per-chart `Couldn't render this chart.` recovery; not wired in current `ReportsCharts.tsx`.
 
 **Net:** the page passes the AI-slop test and is meaningfully better than baseline. Recommended next step is `polish` for the five carry-forwards above, not another `craft` round.
+- Empty-state illustrations render at 96×96 with `currentColor`-friendly OKLCH fills
+
+## enquiries — audit
+
+_(Self-audit performed by main agent due to turn budget; subagent dispatch declined to preserve handoff budget. Self-scoring inflation risk acknowledged — Phase 7 `/impeccable audit admin` will re-score independently.)_
+
+**Severity rubric (impeccable v5 L884–890 verbatim):**
+- P0 — Blocks release — fix before shipping anything
+- P1 — Fix this sprint — significant impact on users
+- P2 — Next cycle — noticeable but not blocking
+- P3 — Polish — minor, fix when time allows
+
+**5-dimension scores (out of 5):**
+- Visual hierarchy: 4 — page H1, intake H2, AdminEntityRow H3 chain reads cleanly; status family colours group at-a-glance; one Cormorant moment missing but admin pages keep it for KPI stats only.
+- Token discipline: 5 — `TOKEN_DRIFT: 0`; all colours come from DESIGN.md OKLCH families.
+- Component reuse: 4 — uses AdminPageHeader, AdminEntityRow, AdminStatusBadge, AdminActionMenu, EmptyState, AdminActionGroup. Filter bar is hand-rolled rather than `AdminFilterBar` (intentional — the existing component lays out children in a flex row without label-above-input vertical stacking; the brief calls for labelled fields). Defer to Phase 7 if convergence is wanted.
+- A11y: 4 — `role="alert" aria-live="polite" aria-atomic="true"` on form + per-field error regions; `aria-current="page"` on active tab; `aria-label="More actions for {full_name}"` on three-dot; `aria-expanded`/`aria-controls` on mobile disclosure toggle; required `*` marker with `aria-hidden="true"`. 1 point lost: mobile filter `<details>` does not trap focus (Phase 7 deferral).
+- Mobile-first: 5 — 375px verified `hasHorizontalScroll: false`; 44px tap target on row Ghost actions; intake form collapses by default; tab strip momentum-scrolls.
+
+**P0/P1/P2/P3 findings:**
+- P0: none.
+- P1 (tag for Phase 7 gauntlet):
+  - Server-side `phone XOR email` validation gap — `src/app/admin/enquiries/actions.ts:25–33` Zod schema does not enforce; brief Copy §Error promises a specific message. Deferred to Phase 7 backend cycle (action file is recipe untouchable).
+  - Mobile filter sheet uses `<details>` not `AdminSheet` — `src/app/admin/enquiries/page.tsx:~340–390`; functionally equivalent but no focus trap. Deferred to Phase 7.
+- P2:
+  - Filter bar visually distinct from `AdminFilterBar` shared component — hand-rolled to support label-above-input layout. Phase 7 can converge.
+  - Tab "New" count badge derives from full-list scan (in-memory); will not scale past ~500 rows. `// FAKE: BUILD-enquiries-filter-query` comments mark every filter-read site; BUILD plan resolves at backend-cycle time.
+- P3:
+  - AdminActionMenu summary touch target is 36px (component owned by `src/app/admin/components/admin-ui-interactions.tsx`, out of scope). Adjacent Ghost actions are 44px, so finger-precision risk is small.
+
+**Backend status:** FAKE — depends on `BUILD-enquiries-filter-query.md` for server-side tab + filter query.
+
+**P1 (tag for Phase 7 gauntlet):**
+- `actions.ts` schema lacks `phone XOR email` cross-field validation (file untouchable) — Phase 7 backend cycle.
+- Mobile filter `<details>` lacks focus trap vs `AdminSheet` — Phase 7 audit.
+
+**BUSINESS-COMPLETENESS impact:**
+- 2A-6 (form-level `role="alert" aria-live="polite"`) — newly contributed: `EnquiryForm` renders the form-error region with full WCAG attribute set + every field-error wraps in the same region pattern. Status: PARTIAL → reinforced.
+
+---
+
+## enquiries — critique
+
+_(Self-critique with same caveat as above audit.)_
+
+**10 Nielsen heuristics (out of 10):**
+1. Visibility of system status: 9 — tab strip shows where you are (`aria-current`), tab badge counts new leads, action buttons show loading spinners + `aria-busy`, Sonner toasts confirm submits.
+2. Match between system and real world: 9 — copy speaks plainly ("Mark contacted", "Record new enquiry"); never raw permission identifiers; date phrasing is human ("Received 10 May 2026, 18:55").
+3. User control and freedom: 8 — Close → Reopen as new is supported; Convert is reversible by URL back; filter chips have individual × to remove one filter; "Clear filters" Ghost.
+4. Consistency and standards: 9 — uses AdminEntityRow / AdminPanel / AdminStatusBadge / AdminActionMenu / EmptyState identically to sibling admin pages.
+5. Error prevention: 7 — required markers + Zod validation prevent most form errors; cross-field phone/email rule is server-deferred (P1 above).
+6. Recognition rather than recall: 9 — status badge text+icon+bg-tint trio; source icon glyph; staff initialled token on the assigned line — no labels-only that force memory recall.
+7. Flexibility and efficiency: 8 — tabs + filter bar + search support both narrow-by-status and free-text triage; date presets (Today/This week/This month) are one-tap.
+8. Aesthetic and minimalist design: 9 — restrained form sidebar beside colour-rich list; no hero-metric template, no identical card grid, no decorative blobs; mobile collapse keeps the surface calm.
+9. Error recovery: 9 — persistent Cancelled toast with Retry on mark-contacted/close failures; form errors named per-field with `XCircle` icon.
+10. Help and documentation: 7 — copy is self-explanatory; no tooltips on the desktop tab strip (some on row icons via native `title`); no in-page help affordance.
+
+**AI-slop verdict: PASS** — the surface reads as Rahma Card-Board, not generic SaaS: warm ivory canvas, deep clinic green tab fill, named status families instead of colour-only chips, AdminEntityRow density consistent with sibling pages (clients, staff, audit). No gradient text, no `border-l-4`, no glassmorphism, no decorative blobs.
+
+**Anti-reference checks (PRODUCT.md):**
+- No "generic SaaS / shadcn-default dashboards" — every primitive restyled to Rahma tokens.
+- No "purple-and-blue gradients" — palette is Clinic Green + Pending warmth + Cancelled red restraint.
+- No "decorative blobs, glassmorphism, hero-metric template" — none present.
+- No "identical card grids" — list is single-column AdminEntityRow on `surface-card`, not a grid.
+- No "color-only status signalling" — every badge has icon + text + bg tint.
+- No "side-stripe borders" or "gradient text" — verified by Step 11a grep.
+- Voice matches PRODUCT.md Brand Personality: "Calm · Scannable · Dignified" — empty states encourage ("All caught up" cousin: "Everything that's come in has been picked up."), errors say what to do next ("Try again." / Retry button), no apology copy.
