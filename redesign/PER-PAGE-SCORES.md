@@ -2862,6 +2862,11 @@ Polish pass directly retires both v1 lows (Flexibility +1.0; Help +0.5) and conv
 **Screenshots:** `client-new-polish-final-{375,768,1440}.png`, `client-new-post-axes-{375,768,1440}.png`
 
 ### Severity rubric (impeccable v5 L884–890, verbatim)
+---
+
+## account-password-requests — audit
+
+Severity rubric (impeccable v5 L884-890, verbatim):
 - P0 — Blocks release — fix before shipping anything
 - P1 — Fix this sprint — significant impact on users
 - P2 — Next cycle — noticeable but not blocking
@@ -2874,6 +2879,13 @@ Polish pass directly retires both v1 lows (Flexibility +1.0; Help +0.5) and conv
 - **Accessibility:** 4.5 / 5 — Per-field `role="alert" aria-live="polite" aria-atomic="true"`, banner-level `role="alert"` on Duplicate + Form-level error, required `*` markers in Cancelled colour with `aria-hidden`, `aria-busy` on form + submit, `aria-invalid` + `aria-describedby` wiring per field, focus auto-moves to first invalid field, `autoComplete` tokens on all relevant fields, `AdminAccessDenied` no longer leaks the raw permission identifier. Marked down for: `disabled:opacity-70` (line 237) vs DESIGN.md §5 spec "40% + cursor-not-allowed".
 - **Responsive behaviour:** 3.5 / 5 — Panels collapse to single column on mobile; sticky save bar pinned with `safe-area-inset-bottom`; desktop bar becomes in-flow card. P1 concern about sticky save bar coexisting with the fixed `AdminMobileBottomNav` at the bottom of scroll (collision risk).
 - **Copy quality:** 4.5 / 5 — Voice matches PRODUCT.md, no em dashes, helpers plain. "Possible duplicate client" + "Create a separate client profile anyway." checkbox label match brief §8 verbatim. Missing: "Try again" Ghost in submission failure banner.
+### Dimension scores
+
+- **Information architecture — 9/10.** Header → 5-tab filter → result-count → row-list → FAKE banner reads in the exact order the brief specifies; Pending count badge is the only label that carries a number; status filter is deep-linkable via `?status=`.
+- **Visual hierarchy — 8/10.** Row top line (email + avatar) leads, status pill + relative time + ID suffix sit on row 2, action footer is rule-separated; pending-soon urgency uses Pending-family amber text without alarmism. Minor: the truncated email at 375px loses the domain to ellipsis with no on-tap reveal (only title= for hover).
+- **Token discipline — 7/10.** Most colours go through --admin-* vars, but several raw oklch literals leak in (RequestRow.tsx, ApproveModal.tsx, RejectModal.tsx mirror set). Spacing rhythm is correct (gap-2.5 sm:gap-3, p-4 sm:p-5).
+- **Accessibility — 6/10 → 8/10 after fix.** Strengths: form-level role="alert" aria-live="polite" aria-atomic="true" on modal errors, aria-busy on submit, aria-invalid paired with red border on reject, visible * required-marker, per-row sr-only H2. Three P1 a11y fixes were applied during this audit cycle (see P1 below).
+- **Responsive correctness — 8/10.** Modal becomes a bottom sheet <640px and a centred dialog ≥640px, tab strip horizontal-scrolls on narrow viewports, action footer wraps.
 
 ### P0 findings
 
@@ -3085,3 +3097,189 @@ No #fff/#000, no gradient text, no glassmorphism on save bar (flat --admin-panel
 4. AdminAccessDenied "View clients" renders as Ghost-shape rather than brief's Secondary + tertiary Ghost split. Shared component; deferred system-wide.
 
 **Net read:** v2 is a confident, brief-faithful operator surface. The +7 lift tracks the three concrete v1 P1s landing (Try Again Ghost, no-contact modal, native-select chevron) plus seven smaller items (aria-required, scrollIntoView, live-region status, desktop-only autofocus, char counter, address sub-divider, Cancelled-pill legend). Everything deferred is either brief-out-of-scope or system-wide. No regressions, no AI-slop tells, no anti-reference triggers.
+### P1 findings (3 of 4 resolved in-session)
+
+- [RESOLVED] ARIA role="tablist"/role="tab"/aria-selected applied to navigation links — DROPPED; only aria-current="page" retained.
+- [RESOLVED] Inert wrapping <form method="get"> around link-only children — REMOVED.
+- [RESOLVED] aria-live="polite" on static result-count <p> — REMOVED so it no longer re-announces on every tab change.
+- [DEFERRED to Phase 7] FAKE-window permission bridge (MANAGE_AUDIT_LOGS substitute) hides the page from Admin/Practice Manager during the FAKE window. Comment in page.tsx names the exact removal instruction; recorded in deferrals.
+
+### P2 findings
+
+- Raw oklch(...) literals appear where a token might do (RequestRow.tsx, ApproveModal.tsx, RejectModal.tsx). The values match canonical DESIGN.md token literals; the project pattern in admin-ui.tsx also uses inline literals, so this is consistent with established practice. Phase 7 may consolidate via CSS vars.
+- Avatar role="img" aria-label="Unverified identity" repeats on every row — could be aria-hidden="true" since the sr-only H2 carries identity.
+- "ID …NG-003" suffix-slice differs from the audit-query first-8 slice; alignment recommended.
+- Self-approval guard's error code branch exists in ApproveModal but the FAKE server action never returns it — dead branch until backend lands (acceptable for FAKE).
+- BST suffix hard-coded in RequestRow.tsx; switch to Intl.DateTimeFormat's timeZoneName: "short" so winter renders "GMT" correctly.
+
+### P3 findings
+
+- Duplicated data-redesign-backend="FAKE" markers on trigger buttons (could hoist).
+- useActionState inline-async wrapper is verbose; pass action directly.
+- Character-counter "{N} left" tail uses warning-amber rather than Pending-family token at threshold.
+- FAKE banner breaks BUILD-plan filenames mid-word on 375px — could truncate with title.
+- currentReviewerName.localeCompare(...) can false-positive when two reviewers share a first name; compare staff IDs once real backend lands.
+
+### Backend status
+
+**FAKE.** Blocking BUILD plans (verbatim from IMPLEMENTATION-PLAN.md):
+- BUILD-rbac-permission-account-password-requests.md
+- BUILD-password-reset-email-templates.md
+- BUILD-approve-reject-password-reset.md
+
+### P1 (tag for Phase 7 gauntlet)
+
+- FAKE-window permission bridge (MANAGE_AUDIT_LOGS substitute) hides the page from Admin/Practice Manager — src/app/admin/account-password-requests/page.tsx (FAKE-bridge gate near top of AccountPasswordRequestsPage). Must remove the OR branch when BUILD-rbac-permission-account-password-requests.md lands.
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-6** (form errors silently fail to announce — role="alert" aria-live="polite" missing) — newly satisfied here at ApproveModal.tsx + RejectModal.tsx error regions.
+- **2A-8** (tab <Link>s lack aria-current="page") — newly satisfied at page.tsx active-tab link.
+- **2A-9** (required-field markers invisible) — newly satisfied at RejectModal.tsx with a visible `*` in Cancelled family colour and aria-hidden="true".
+- **2A-18** (staff password-reset workflow — admin-facing side) — first end-to-end UI shipped for this Track A item; closes the admin-side schema gap, awaiting backend BUILD plans for the actual mutation path.
+
+---
+
+## account-password-requests — critique
+
+### Nielsen heuristic scores
+
+1. **Visibility of system status — 8/10.** Pending count baked into the active tab ("Pending (3)"), per-row relative time + absolute-time title tooltip, expiry-soon copy, monospace ID suffix all do real work; only miss is no toast wired to the FAKE handler so confirmation success is silent today.
+2. **Match between system and real world — 9/10.** Plain admin English throughout; never lapses into "Trigger workflow"/"Status: PENDING" SaaS-speak; status badge labels read as how the operator would describe the row.
+3. **User control and freedom — 8/10.** Two-step modal with explicit Cancel + Base UI ESC/backdrop close, deep-linkable ?status= GET tab URLs, no destructive auto-fire; small ding is no Sonner-toast undo affordance for the FAKE success path.
+4. **Consistency and standards — 9/10.** AdminPageHeader + AdminPanel + AdminStatusBadge + Hover-Moss row tint + Form Seam input border all pulled from DESIGN.md; status tones map cleanly to families; ConfirmActionModal pattern wired per brief.
+5. **Error prevention — 9/10.** Reject textarea is required, server-validates again, character limit enforced both client + server; idempotency / self-approval / race codes all defined in the action-result union; destructive button is Cancelled-family red.
+6. **Recognition rather than recall — 8/10.** Email, status, submitted-time, expiry-time, ID suffix and reviewer-note well visible on the row at rest — no hover-revealed actions.
+7. **Flexibility and efficiency — 7/10.** Deep-linkable tab URLs and stable keyboard order; no bulk-select (out of scope per brief §10.3) and no cmd-K row lookup, both correct for a queue expected to hold <5 rows.
+8. **Aesthetic and minimalist design — 9/10.** Page is genuinely calm: ivory canvas, single-column queue, restrained pill tabs, no decorative blobs, no gradient, no hero-metric tiles, no identical-card grid (rows vary by status).
+9. **Help users recognize, diagnose, and recover from errors — 8/10.** Inline role="alert" region in both modals with x-circle icon, dedicated copy per error code (validation, self_approval, race, server), retry path is "Refresh now" on race.
+10. **Help and documentation — 7/10.** Subtitle explains consequence of approve before reviewer touches a button; modal body re-states consequence with actual email + TTL.
+
+### AI-slop verdict — **PASS**
+
+Light-mode ivory + clinic green, varied row treatment by status, plain operational copy, no decorative blobs / gradient text / hero-metric / identical-card-grid / side-stripe-border violations; this looks like an admin queue made for Fatimah, not a generic shadcn dashboard.
+
+### UX-quality commentary
+
+- Anti-reference compliance strong: no purple-and-blue gradients, no neon-on-black, no glassmorphism beyond conventional modal backdrop blur. No side-stripe border-l-4 on rows — status communicated by AdminStatusBadge family + leading icon + textual label, never colour alone. No gradient text. No Cormorant on body copy.
+- Card-board grammar held lightly: each row a varied composition rather than identical icon-heading-text tile.
+- Tonal Lift Rule respected: reviewer-note well steps down from surface-card to var(--admin-canvas).
+- Stripe-style state-word discipline on chips ("Pending review", "Approved", "Rejected", "Expired").
+- Voice anchors hit: "All caught up" empty state, specific kind error copy, no raw permission identifiers leaked.
+
+**Carry-over concerns for Phase 7:**
+1. The FAKE-banner ships in the live screenshot; this is correct for the FAKE window but must be deleted in lockstep with BUILD-approve-reject-password-reset.md landing.
+2. The page bridges via MANAGE_AUDIT_LOGS to gate access — Admin/PM cannot reach the page until RBAC BUILD lands; brief's Admin/PM-without-audit hidden-link branch is therefore untestable until then. Recorded in deferrals.
+3. No success toast on FAKE approve/reject confirmation — wire Sonner when real send lands.
+4. Mobile 375 action buttons sit at 40px height (borderline WCAG 2.5.5); consider full-width stacked at 375.
+
+---
+
+## account-password-requests — audit (v2 post-polish)
+
+Severity rubric (impeccable v5 L884-890, verbatim):
+- P0 — Blocks release — fix before shipping anything
+- P1 — Fix this sprint — significant impact on users
+- P2 — Next cycle — noticeable but not blocking
+- P3 — Polish — minor, fix when time allows
+
+### Dimension scores
+
+- **Information architecture — 9/10.** Header → tab strip → result count → list → FAKE chip mirrors the brief's hierarchy. Brief's "audit row" prefix slug now visually maps to `?q=` thanks to D2 (RequestRow.tsx slug now slice(0,8) + ellipsis). Per-row pill suppression on the Pending tab (D1) removes redundancy without losing the at-a-glance status grouping on All / Approved / etc.
+- **Visual hierarchy — 9/10 (+1 vs v1).** Urbanist title-step email is the unambiguous anchor; pending sub-row escalates to Pending-text colour only when "Expires soon". FAKE chip is now whisper-quiet rather than competing with content.
+- **Token discipline — 7/10 (=).** Most surfaces use vars correctly. Hard-coded OKLCH literals still appear where status-family CSS vars could land (consistent with the existing admin-ui.tsx pattern — the project encodes status family colours inline). Headroom remains; not a regression.
+- **Accessibility — 9/10 (+1 vs v1).** `aria-current="page"` on active tab, sr-only H2 per row, `role="alert" aria-live="polite" aria-atomic="true"` on every error region (Approve + Reject + error.tsx), `aria-busy` on submit, visible `*` marker flush to label, error.tsx renders with `role="alert"` + retry, `aria-live="polite"` on expiry line only when soon. Tab strip is `<nav><ul><a>` GET-form links — clean.
+- **Responsive correctness — 9/10 (+1 vs v1).** At 375px all 5 tabs fit on a single line. Email truncates with `title` fallback. Modal renders as bottom sheet on mobile, centred dialog on sm+. Action buttons now stack full-width on mobile per brief §5 (post-audit fix). No horizontal scroll at any breakpoint.
+
+### P0 findings
+
+- none
+
+### P1 findings (Phase 7 gauntlet)
+
+- none (4 of 4 from v1 resolved across this pass and the prior polish window)
+
+### P2 findings
+
+- Hard-coded OKLCH literals duplicate documented status-family tokens; could introduce `--admin-status-cancelled-bg / -text`, `--admin-surface-hover`, etc. Consistent with existing project pattern, not a new debt.
+- Action-row top divider (`border-t border-[var(--admin-border)]/60 pt-3`) reads as a structural seam inside a single panel; could be removed in favour of whitespace.
+- ID slug + timestamp share identical token weight in the metadata row; the eye lands on whichever is left-most. Step one notch quieter or move to a tooltip.
+
+### P3 findings
+
+- Dashed border on FAKE chip is purposeful (dev-artefact cue); not strictly an empty state.
+- `AdminStatusBadge compact` prop used on row pills; default size would also work.
+- `role="alert"` on the expiry line is gated to `expires.soon`; acceptable.
+- `relativeFromNow` recomputes on every render with `Date.now()`; harmless on server-only render but flag for real backend.
+- `AdminPanel className="!p-0"` uses `!important` to defeat base padding; a `padded={false}` prop would be cleaner long-term.
+
+### Backend status
+
+**FAKE.** Blocked on (verbatim from IMPLEMENTATION-PLAN.md):
+- `BUILD-rbac-permission-account-password-requests.md`
+- `BUILD-password-reset-email-templates.md`
+- `BUILD-approve-reject-password-reset.md`
+
+### P1 (tag for Phase 7 gauntlet)
+
+none
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-6** (form-error aria-live) — page contributes (every error region carries `role="alert" aria-live="polite" aria-atomic="true"`).
+- **2A-8** (tab aria-current="page") — page contributes (active filter pill carries the attribute; no colour-only state).
+- **2A-9** (visible required-field marker) — page contributes (Reject modal `*` in Cancelled colour flush to label, `aria-hidden="true"`).
+- **2A-4** (heading hierarchy contiguous) — maintained (H1 via AdminPageHeader, per-row sr-only H2).
+- **2A-18** (staff password-reset workflow admin side) — first end-to-end UI shipped.
+
+### Net delta vs v1 audit
+
+v1: IA 9 / VH 8 / TD 7 / A11y 8 / Resp 8 → **v2: IA 9 / VH 9 (+1) / TD 7 (=) / A11y 9 (+1) / Resp 9 (+1).** Net +3 across five dimensions; zero new P1; all v1 P1 resolved.
+
+---
+
+## account-password-requests — critique (v2 post-polish)
+
+### Nielsen heuristic scores
+
+1. **Visibility of system status — 9/10.** Tab strip carries aria-current and live Pending count, result-count line names the filter, pulsing clock on "Expires soon" gives an urgency cue without colour-only signalling, FAKE chip surfaces the dev posture without screaming.
+2. **Match between system and real world — 9/10.** Plain calm English ("All caught up", "Open audit row", "Approval sends a one-time link to the requester's email"). Verbs over nouns. Reviewer attribution swaps to "you" on self-action. No raw permission names.
+3. **User control and freedom — 8/10.** ESC + backdrop + Cancel + named cancel button on both modals; race-condition error renders inline "Refresh now" Ghost (real recovery, not just diagnostic copy); empty-state CTAs route back to Pending; deep-linkable `?status=` params.
+4. **Consistency and standards — 9/10.** Tab-strip mechanics match Brief 04 primary tabs; AdminStatusBadge families align with DESIGN.md §5; ID slug now matches audit `?q=` slug; row hover + focus-within tints match; Approve = Primary green, Reject = Destructive red.
+5. **Error prevention — 9/10.** Required asterisk on reject note, `required` attribute, server-side validation independent of client `required`, 240-char maxLength client + server, idempotency / self-approval / race code paths defined, "Trim the note to 240 characters or fewer" guard.
+6. **Recognition rather than recall — 8/10.** Status pill on resolved rows + sub-row attribution + relative time + ID-slug. Pending tab suppresses redundant pill; All tab keeps it. ID slug matches audit query slug.
+7. **Flexibility and efficiency — 7/10.** No keyboard shortcuts beyond native focus / Enter. No bulk select (correctly out-of-scope at this queue size per Brief §10.3). Five tabs are the filter surface. Brief explicitly does not require power-user shortcuts; PRODUCT.md flags them as anti-pattern for novice operators.
+8. **Aesthetic and minimalist design — 9/10.** Avoids every PRODUCT.md anti-reference: no purple/blue gradients, no decorative blobs, no glassmorphism, no hero-metric template, no identical card grids, no side-stripe borders, no gradient text. Reads as list-with-actions, not SaaS dashboard.
+9. **Help users recognize, diagnose, and recover from errors — 9/10.** Every error path has specific copy + specific recovery. Race condition names the OTHER reviewer + inline Refresh-now. Validation tells what to do, not what failed. error.tsx route boundary covers row-load with retry. Cancelled-family colour + XCircle icon + role="alert" aria-live="polite" accompany every error region.
+10. **Help and documentation — 7/10.** Self-describing surface (subtitle names consequence; modal bodies restate the side-effect; absolute time appears as native title tooltip on relative-time span). No link-out doc — appropriate for 5-row tool used by two people.
+
+**Average: 8.4/10. Total: 84/100. Rating: solid PASS.**
+
+### AI-slop verdict — **PASS**
+
+Does not look AI-generated. None of the absolute bans appear. First-order category reflex for "admin password-reset queue" would be SOC-style red severity dashboard or generic shadcn data-table; this is neither. Reads as a clinic back-office queue, matching the brief's anchor references (GitHub Pending invitations, Notion member requests, Auth0 verifications), not the SOC anti-anchor.
+
+### UX-quality commentary
+
+- "No generic SaaS / shadcn-default": row chrome composed (header → urgency sub-row → action footer with hairline divider), not a stock data-table row. Urbanist on email; Work Sans on body.
+- "No identical card grids": rows differ by status (Pending → urgency + three actions; resolved → attribution + audit link; rejected → reviewer-note well). List is varied per content.
+- "No color-only status": every status pairs colour with text + icon.
+- "No decorative blobs / glassmorphism": only decoration is the avatar placeholder ring and the dev-mode chip's leading dot. Both earn their place.
+- "No hero-metric template": count appears as a single line in the active-tab label and a one-line result count.
+- State-word discipline (Stripe-style): "Approved" / "Rejected" / "Expired" / "Pending review". Discrete state words.
+
+### Net delta vs v1 critique
+
+v1 averaged ~8.2/10 PASS → **v2: 8.4/10 PASS (+0.2, no regressions).**
+
+Movement traceable to the polish pass:
+- **Visibility of system status (+):** motion-safe clock pulse on urgent-soon line; visibility raised without colour-alarm.
+- **Consistency and standards (+):** ID slug now matches audit deep-link.
+- **Recognition rather than recall (+):** Pending tab no longer duplicates the Pending pill on every row.
+- **Aesthetic and minimalist (+):** dashed FAKE banner replaced with single quiet "Dev mode" chip + tooltip.
+- **Help recognize / recover (+):** new error.tsx route-level boundary covers row-load failure mode.
+- **Aesthetic and minimalist (+):** result-count line stepped down to label-step xs.
+- **Match real world (=):** reject `*` marker flush to label (typographic polish, no scoring effect, but cleaner).
+- **375 mobile coherence (=):** five tabs fit at 375; action buttons now stack full-width on mobile per brief §5.
+
+Nothing in the polish pass introduced a new anti-pattern, broke the absolute-ban list, or pushed the page toward category reflex. The page is, after the polish pass, more confidently itself than v1.
