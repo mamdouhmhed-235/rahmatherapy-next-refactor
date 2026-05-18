@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 8 of 29 — dashboard-owner-admin   ← update when you start a session (count by position from the top, not by label). In flight: dashboard-owner-admin (agent/dashboard-owner-admin-redesign worktree).
+Currently on: 6 of 29 — client-detail   ← update when you start a session (count by position from the top, not by label). In flight: client-detail, staff-detail, staff-availability, role-detail (parallel-4 batch, post dashboard-owner-admin merge).
 
 ---
 
@@ -280,7 +280,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 8. [ ] dashboard-owner-admin — commit: ____
+## 8. [x] dashboard-owner-admin — commit: 670915d (+ d28ef50 handoff/polish + a11ba6a out-of-scope script cleanup)
 
 **Tier:** Tier 2 — KEY_TASK 3 (CRM / business metrics)
 
