@@ -1,15 +1,23 @@
 import Link from "next/link";
 import {
+  AlertCircle,
   AlertTriangle,
+  ArrowRight,
+  AtSign,
   CalendarDays,
   ChevronRight,
+  Clock,
+  Globe,
   HeartPulse,
   Info,
   Mail,
+  MessageSquare,
+  Phone,
   Plus,
   PoundSterling,
   ShieldAlert,
   UserRound,
+  UserX,
   Users,
   Wrench,
 } from "lucide-react";
@@ -196,9 +204,20 @@ type SnapshotAppointment = {
   detail: string;
   status: string;
   href: string | null;
+  // Coordinator-emphasis extras (optional; populated only for coordinator variant
+  // where unassigned-first sort + assignment chip apply).
+  assignmentStatus?: string;
+  bookingStatus?: string;
+  requiredGender?: string | null;
 };
 
 type SnapshotUpcoming = SnapshotAppointment & { date: string };
+
+export interface TodayCoordinatorCounts {
+  unassigned: number;
+  confirmed: number;
+  pending: number;
+}
 
 export function TodayAtAGlanceCard({
   appointments,
@@ -214,6 +233,10 @@ export function TodayAtAGlanceCard({
   weekCount,
   permissionAccess,
   readiness,
+  unassignedFirst = false,
+  coordinatorCounts,
+  revenueAllowed,
+  showPaymentsReadiness = true,
 }: {
   appointments: SnapshotAppointment[];
   upcomingAppointments?: SnapshotUpcoming[];
@@ -232,6 +255,10 @@ export function TodayAtAGlanceCard({
     staffCoverage: string;
     paymentCollection: string;
   };
+  unassignedFirst?: boolean;
+  coordinatorCounts?: TodayCoordinatorCounts;
+  revenueAllowed?: boolean;
+  showPaymentsReadiness?: boolean;
 }) {
   const isToday = rangeKind === "today" || rangeKind === undefined;
   const qs = filterQuery ? `?${filterQuery}` : "";
@@ -240,9 +267,18 @@ export function TodayAtAGlanceCard({
     ? `${heroCount} booking${heroCount === 1 ? "" : "s"} today`
     : `${heroCount} booking${heroCount === 1 ? "" : "s"} in ${rangeLabel ?? "this range"}`;
   const upcomingCount = isToday ? weekCount : (upcomingAppointments?.length ?? 0);
+  // Coordinator variant uses brief-spec H2 "Today" instead of eyebrow.
+  const useCoordinatorHeading = unassignedFirst && isToday;
   const eyebrowLabel = isToday
     ? "SNAPSHOT · TODAY"
     : `SNAPSHOT · ${(rangeLabel ?? "").toUpperCase()}`;
+  // Marquee size: Coordinator uses brief-spec 3.157rem; on 0-state, downsize so
+  // the absence of work doesn't shout (V-1, brief PRODUCT.md anti-marquee on empty).
+  const marqueeFontSize = useCoordinatorHeading
+    ? heroCount === 0
+      ? "clamp(1.5rem, 2.5vw, 1.875rem)"
+      : "clamp(2rem, 3.5vw, 3.157rem)"
+    : "clamp(2.75rem, 6vw, 4.5rem)";
 
   return (
     <AdminDashboardPanel className="min-h-[22rem]">
@@ -251,13 +287,20 @@ export function TodayAtAGlanceCard({
           <div className="flex items-center gap-3">
             <AdminIconBadge icon={CalendarDays} tone="default" className="size-9" />
             <div className="min-w-0">
-              <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-                {eyebrowLabel}
-              </h2>
+              {useCoordinatorHeading ? (
+                <h2 className="text-lg font-semibold leading-snug text-[var(--admin-heading)]">
+                  Today
+                </h2>
+              ) : (
+                <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+                  {eyebrowLabel}
+                </h2>
+              )}
               <p
-                className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
-                style={{ fontSize: "clamp(2.75rem, 6vw, 4.5rem)" }}
+                className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums [font-variant-numeric:tabular-nums_lining-nums]"
+                style={{ fontSize: marqueeFontSize }}
                 aria-label={heroAriaLabel}
+                title={isToday ? `${heroCount} booking${heroCount === 1 ? "" : "s"} today` : heroAriaLabel}
               >
                 {heroCount}
               </p>
@@ -272,6 +315,9 @@ export function TodayAtAGlanceCard({
               <Sparkline points={dailySeries.slice(-7)} />
             ) : null}
           </div>
+          {isToday && coordinatorCounts ? (
+            <TodayCoordinatorSubLine counts={coordinatorCounts} />
+          ) : null}
         </div>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:shrink-0">
           {permissionAccess?.calendar ? (
@@ -306,6 +352,7 @@ export function TodayAtAGlanceCard({
             appointments={appointments}
             nextAppointment={nextAppointment}
             canViewCalendar={permissionAccess?.calendar ?? false}
+            unassignedFirst={unassignedFirst}
           />
         )}
       </div>
@@ -319,7 +366,9 @@ export function TodayAtAGlanceCard({
         </span>
         <ReadinessChip icon={Mail} label="Confirmations" value={readiness.confirmations} />
         <ReadinessChip icon={Users} label="Coverage" value={readiness.staffCoverage} />
-        <ReadinessChip icon={PoundSterling} label="Payments" value={readiness.paymentCollection} />
+        {showPaymentsReadiness && revenueAllowed !== false ? (
+          <ReadinessChip icon={PoundSterling} label="Payments" value={readiness.paymentCollection} />
+        ) : null}
       </div>
     </AdminDashboardPanel>
   );
@@ -403,38 +452,67 @@ function TodayList({
   appointments,
   nextAppointment,
   canViewCalendar,
+  unassignedFirst = false,
 }: {
   appointments: SnapshotAppointment[];
   nextAppointment?: { date: string; time: string; title: string } | null;
   canViewCalendar: boolean;
+  unassignedFirst?: boolean;
 }) {
   if (appointments.length === 0) {
+    const title = unassignedFirst ? "Quiet day" : "No appointments today";
+    const message = unassignedFirst
+      ? "Nothing scheduled. Use the time to follow up on enquiries."
+      : nextAppointment
+        ? `Next booking: ${nextAppointment.date} at ${nextAppointment.time}`
+        : "Enjoy a quiet day. Great time for admin and planning.";
     return (
-      <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-4 py-8">
-        <AdminEmptyState
-          icon={CalendarDays}
-          title="No appointments today"
-          message={
-            nextAppointment
-              ? `Next booking: ${nextAppointment.date} at ${nextAppointment.time}`
-              : "Enjoy a quiet day. Great time for admin and planning."
-          }
-          tone="muted"
-        />
+      <div className="flex flex-col items-center px-4 py-8 text-center">
+        <CalendarDays className="mb-3 size-7 text-[var(--admin-text-muted)]" aria-hidden="true" />
+        <p className="text-base font-semibold text-[var(--admin-heading)]">{title}</p>
+        <p className="mt-1 max-w-[45ch] text-sm leading-6 text-[var(--admin-text-muted)]">
+          {message}
+        </p>
+        {unassignedFirst ? (
+          <Link
+            href="/admin/enquiries"
+            className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+          >
+            Open enquiries
+          </Link>
+        ) : null}
       </div>
     );
   }
-  const visible = appointments.slice(0, 5);
+  const ordered = unassignedFirst
+    ? [...appointments].sort((a, b) => {
+        const aUn = a.assignmentStatus === "unassigned" ? 0 : 1;
+        const bUn = b.assignmentStatus === "unassigned" ? 0 : 1;
+        if (aUn !== bUn) return aUn - bUn;
+        return a.time.localeCompare(b.time);
+      })
+    : appointments;
+  const visible = ordered.slice(0, 5);
   return (
     <div className="grid gap-2">
       {visible.map((a) => (
-        <SnapshotListRow key={a.id ?? `${a.time}-${a.title}-${visible.indexOf(a)}`} appointment={a} />
+        <SnapshotListRow
+          key={a.id ?? `${a.time}-${a.title}-${visible.indexOf(a)}`}
+          appointment={a}
+          showAssignmentChip={unassignedFirst}
+        />
       ))}
-      {appointments.length > 5 && canViewCalendar ? (
+      {appointments.length > 5 ? (
         <div className="pt-1">
-          <Link className="admin-link-action text-sm" href="/admin/calendar">
-            See all {appointments.length} for today →
-          </Link>
+          {canViewCalendar ? (
+            <Link className="admin-link-action text-sm" href="/admin/calendar">
+              See all {appointments.length} for today →
+            </Link>
+          ) : (
+            <Link className="admin-link-action text-sm" href="/admin/bookings?view=today">
+              See all {appointments.length} for today →
+            </Link>
+          )}
         </div>
       ) : null}
     </div>
@@ -455,7 +533,7 @@ function UpcomingRangeList({
   const qs = filterQuery ? `?${filterQuery}` : "";
   if (appointments.length === 0) {
     return (
-      <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-4 py-8">
+      <div className="px-4 py-8">
         <AdminEmptyState
           icon={CalendarDays}
           title={`No upcoming appointments in ${rangeLabel}`}
@@ -485,15 +563,22 @@ function UpcomingRangeList({
 function SnapshotListRow({
   appointment,
   withDate = false,
+  showAssignmentChip = false,
 }: {
   appointment: SnapshotAppointment & { date?: string };
   withDate?: boolean;
+  showAssignmentChip?: boolean;
 }) {
   const isUnconfirmed = appointment.status !== "fully_assigned";
+  const isUnassigned = appointment.assignmentStatus === "unassigned";
+  const sameGenderRequired = isUnassigned && Boolean(appointment.requiredGender);
   const timeRange = appointment.endTime ? `${appointment.time}–${appointment.endTime}` : appointment.time;
   const dateChip = withDate && appointment.date ? formatRowDate(appointment.date) : null;
   const initials = getInitials(appointment.title);
   const tintStyle = avatarTintStyle(appointment.title);
+  const assignmentLabel = sameGenderRequired
+    ? "Unassigned · same-gender required"
+    : "Unassigned";
 
   const content = (
     <div
@@ -503,13 +588,23 @@ function SnapshotListRow({
       )}
       title={`${dateChip ? `${dateChip} · ` : ""}${timeRange} · ${appointment.title}${isUnconfirmed ? " (awaiting confirmation)" : ""}`}
     >
-      <div
-        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-        style={tintStyle}
-        aria-hidden="true"
-      >
-        {initials}
-      </div>
+      {showAssignmentChip && isUnassigned ? (
+        <div
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--admin-surface-hover,var(--admin-panel-muted))] text-[var(--admin-warning)]"
+          aria-hidden="true"
+          title="No therapist assigned yet"
+        >
+          <UserX className="size-4" />
+        </div>
+      ) : (
+        <div
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+          style={tintStyle}
+          aria-hidden="true"
+        >
+          {initials}
+        </div>
+      )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           {isUnconfirmed ? (
@@ -522,19 +617,31 @@ function SnapshotListRow({
           <span className="tabular-nums">{timeRange}</span>
           {appointment.detail ? <span> · {appointment.detail}</span> : null}
         </p>
-        <div className="mt-1.5 sm:hidden">
-          <AdminStatusBadge
-            value={appointment.status}
-            tone={appointment.status === "fully_assigned" ? "success" : "warning"}
-            className="text-[10px]"
-          />
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:hidden">
+          {showAssignmentChip && isUnassigned ? (
+            <AssignmentChip label={assignmentLabel} sameGenderRequired={sameGenderRequired} />
+          ) : (
+            <AdminStatusBadge
+              value={appointment.status}
+              tone={appointment.status === "fully_assigned" ? "success" : "warning"}
+              className="text-[10px]"
+            />
+          )}
         </div>
       </div>
-      <AdminStatusBadge
-        value={appointment.status}
-        tone={appointment.status === "fully_assigned" ? "success" : "warning"}
-        className="hidden shrink-0 sm:inline-flex"
-      />
+      {showAssignmentChip && isUnassigned ? (
+        <AssignmentChip
+          label={assignmentLabel}
+          sameGenderRequired={sameGenderRequired}
+          className="hidden shrink-0 sm:inline-flex"
+        />
+      ) : (
+        <AdminStatusBadge
+          value={appointment.status}
+          tone={appointment.status === "fully_assigned" ? "success" : "warning"}
+          className="hidden shrink-0 sm:inline-flex"
+        />
+      )}
     </div>
   );
 
@@ -553,6 +660,224 @@ function formatRowDate(iso: string) {
   return new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "Europe/London" }).format(d);
 }
 
+function AssignmentChip({
+  label,
+  sameGenderRequired,
+  className,
+}: {
+  label: string;
+  sameGenderRequired: boolean;
+  className?: string;
+}) {
+  // Brief Section 5.3 calls for Attention family; in this codebase Attention is
+  // aliased to --admin-warning (same hue family per tokens.css).
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full bg-[var(--admin-warning-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--admin-warning)]",
+        className
+      )}
+      title={sameGenderRequired ? "Needs a same-gender therapist" : "Open the booking to assign a therapist"}
+    >
+      <UserX className="size-3" aria-hidden="true" />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function TodayCoordinatorSubLine({ counts }: { counts: TodayCoordinatorCounts }) {
+  const unassignedTone =
+    counts.unassigned > 0 ? "text-[var(--admin-warning)]" : "text-[var(--admin-success)]";
+  return (
+    <p className="basis-full text-sm text-[var(--admin-text-muted)]">
+      <span className="text-[var(--admin-text-muted)]/85">of which </span>
+      <span
+        className={cn("inline-flex items-center gap-1 font-semibold tabular-nums", unassignedTone)}
+        title="These bookings need a therapist"
+      >
+        {counts.unassigned > 0 ? (
+          <AlertCircle className="size-3" aria-hidden="true" />
+        ) : null}
+        {counts.unassigned} unassigned
+      </span>
+      <span aria-hidden="true"> · </span>
+      <span className="font-semibold tabular-nums text-[var(--admin-success)]">
+        {counts.confirmed} confirmed
+      </span>
+      <span aria-hidden="true"> · </span>
+      <span className="font-semibold tabular-nums text-[var(--admin-body)]">
+        {counts.pending} pending
+      </span>
+    </p>
+  );
+}
+
+export type ActiveEnquirySource = "website" | "phone" | "whatsapp" | "instagram" | "referral" | "admin" | "manual" | "other" | string;
+export type ActiveEnquiryStatus = "new" | "contacted" | string;
+
+export interface ActiveEnquiryRow {
+  id: string;
+  fullName: string;
+  source: ActiveEnquirySource;
+  status: ActiveEnquiryStatus;
+  createdAt: string;
+}
+
+function enquirySourceIcon(source: ActiveEnquirySource): {
+  Icon: React.ElementType;
+  label: string;
+} {
+  const normalized = source.toLowerCase();
+  if (normalized === "phone") return { Icon: Phone, label: "From phone" };
+  if (normalized === "whatsapp" || normalized === "sms") return { Icon: MessageSquare, label: "From WhatsApp" };
+  if (normalized === "instagram") return { Icon: AtSign, label: "From Instagram" };
+  if (normalized === "website") return { Icon: Globe, label: "From website" };
+  if (normalized === "referral") return { Icon: UserRound, label: "From referral" };
+  return { Icon: Mail, label: `From ${source}` };
+}
+
+function formatEnquiryAge(iso: string): string {
+  const created = new Date(iso);
+  if (Number.isNaN(created.getTime())) return "";
+  const diffMs = Date.now() - created.getTime();
+  const diffMin = Math.max(1, Math.round(diffMs / 60000));
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay === 1) return "1 day ago";
+  if (diffDay < 7) return `${diffDay} days ago`;
+  const diffWk = Math.round(diffDay / 7);
+  if (diffWk === 1) return "1 wk ago";
+  return `${diffWk} wks ago`;
+}
+
+export function ActiveEnquiriesCard({
+  enquiries,
+  totalActive,
+  canManageEnquiries,
+  hasAnyHandled,
+}: {
+  enquiries: ActiveEnquiryRow[];
+  totalActive: number;
+  canManageEnquiries: boolean;
+  hasAnyHandled?: boolean;
+}) {
+  const visible = enquiries.slice(0, 2);
+  return (
+    <AdminDashboardPanel className="min-h-[18rem] bg-[var(--admin-canvas)]">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <div className="flex min-w-0 items-start gap-3">
+          <AdminIconBadge icon={UserRound} tone="info" />
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold leading-snug text-[var(--admin-heading)]">
+              Active enquiries
+            </h3>
+            <p
+              className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums [font-variant-numeric:tabular-nums_lining-nums]"
+              style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
+              aria-label={`${totalActive} active ${totalActive === 1 ? "enquiry" : "enquiries"}`}
+              title={`${totalActive} active ${totalActive === 1 ? "enquiry" : "enquiries"}`}
+            >
+              {totalActive}
+            </p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+              {totalActive === 1 ? "needs follow-up" : "need follow-up"}
+            </p>
+          </div>
+        </div>
+        {canManageEnquiries ? (
+          <Link
+            className="admin-link-action inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-sm"
+            href="/admin/enquiries"
+            aria-label="Open all enquiries"
+          >
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+            <span>All enquiries</span>
+          </Link>
+        ) : null}
+      </div>
+
+      {totalActive === 0 ? (
+        <div className="mt-4 flex flex-col items-center px-4 py-8 text-center">
+          <UserRound className="mb-3 size-7 text-[var(--admin-text-muted)]" aria-hidden="true" />
+          <p className="text-base font-semibold text-[var(--admin-heading)]">
+            {hasAnyHandled ? "All enquiries handled" : "No active enquiries"}
+          </p>
+          <p className="mt-1 max-w-[45ch] text-sm leading-6 text-[var(--admin-text-muted)]">
+            {hasAnyHandled
+              ? "New leads will show up here."
+              : "Anything new will appear here when it lands."}
+          </p>
+        </div>
+      ) : (
+        <ul className="mt-4 grid list-none gap-2 pl-0">
+          {visible.map((enquiry) => {
+            const { Icon, label } = enquirySourceIcon(enquiry.source);
+            const lifecycleLabel = enquiry.status === "contacted" ? "Contacted" : "New";
+            const lifecycleTitle =
+              enquiry.status === "contacted"
+                ? "Contacted: a response is pending"
+                : "New: hasn't been contacted yet";
+            const convertHref = canManageEnquiries
+              ? `/admin/bookings/new?enquiryId=${encodeURIComponent(enquiry.id)}`
+              : null;
+            const initials = getInitials(enquiry.fullName || "New enquiry");
+            const tint = avatarTintStyle(enquiry.fullName || enquiry.id);
+            return (
+              <li key={enquiry.id}>
+                <div className="flex flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2.5 sm:flex-nowrap">
+                  <span
+                    className="relative inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                    style={tint}
+                    aria-hidden="true"
+                  >
+                    {initials}
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 inline-flex size-4 items-center justify-center rounded-full bg-[var(--admin-canvas)] text-[var(--admin-text-muted)] ring-1 ring-[var(--admin-border)]"
+                      title={label}
+                    >
+                      <Icon className="size-2.5" />
+                    </span>
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">
+                      {enquiry.fullName || "New enquiry"}
+                    </p>
+                    <p className="truncate text-xs text-[var(--admin-text-muted)]">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-warning-bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--admin-warning)]"
+                        title={lifecycleTitle}
+                      >
+                        <Clock className="size-2.5" aria-hidden="true" />
+                        {lifecycleLabel}
+                      </span>
+                      <span aria-hidden="true"> · </span>
+                      <span>{label}</span>
+                      <span aria-hidden="true"> · </span>
+                      <span className="tabular-nums">{formatEnquiryAge(enquiry.createdAt)}</span>
+                    </p>
+                  </div>
+                  {convertHref ? (
+                    <Link
+                      href={convertHref}
+                      className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:w-auto"
+                      title="Open the booking form with this enquiry pre-filled"
+                    >
+                      <span>Convert</span>
+                      <ArrowRight className="size-3.5" aria-hidden="true" />
+                    </Link>
+                  ) : null}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </AdminDashboardPanel>
+  );
+}
+
 function TodayTimeline({
   appointments,
   nextAppointment,
@@ -563,7 +888,7 @@ function TodayTimeline({
   const timeTicks = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"];
   if (appointments.length === 0) {
     return (
-      <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-4 py-8">
+      <div className="px-4 py-8">
         <AdminEmptyState
           icon={CalendarDays}
           title="No appointments today"
@@ -1197,12 +1522,18 @@ export function OperationsHealthCard({
               Operations health
             </h3>
             <p
-              className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
+              className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums [font-variant-numeric:tabular-nums_lining-nums]"
               style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
             >
-              {activeRows.length}
+              {overall.tone === "success" ? 0 : activeRows.length}
             </p>
-            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">{activeRows.length === 1 ? "active issue" : "active issues"}</p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+              {overall.tone === "success"
+                ? "All systems quiet"
+                : activeRows.length === 1
+                  ? "active issue"
+                  : "active issues"}
+            </p>
           </div>
         </div>
         {permissionAccess?.operations ? (

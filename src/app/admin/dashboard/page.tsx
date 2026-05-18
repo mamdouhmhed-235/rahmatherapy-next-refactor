@@ -31,6 +31,7 @@ import {
   summarizeReports,
 } from "../reports/reporting";
 import {
+  ActiveEnquiriesCard,
   AttentionItemCard,
   BusinessPulseCard,
   DemandTrendCard,
@@ -41,6 +42,7 @@ import {
   UrgentAttentionPanel,
 } from "./dashboard-cards";
 import type {
+  ActiveEnquiryRow,
   AttentionGroup,
   AttentionSeverity,
   AttentionSummaryRow,
@@ -414,7 +416,7 @@ function getDashboardCopy(variant: DashboardVariant, today: string) {
   if (variant === "coordinator") {
     return {
       title: "Today at Rahma Therapy",
-      subtitle: `${formattedDate} · Booking queue + enquiries`,
+      subtitle: `${formattedDate} · Luton`,
     };
   }
   if (variant === "therapist") {
@@ -545,7 +547,17 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const revenueAllowed = plan.includeRevenue;
   const permissionAccess = getPermissionAccess(profile);
   const dashboardCopy = getDashboardCopy(plan.variant, today);
-  const roleLabel = getRoleLabel(profile as unknown as { roles?: { name?: string | null }[]; role?: string });
+  // Profile-derived label first (Owner vs Admin requires role.name); fall back
+  // to variant-derived label when profile shape doesn't expose role string.
+  const variantRoleLabelFallback: Record<DashboardVariant, string | null> = {
+    business: "Admin",
+    coordinator: "Coordinator",
+    therapist: "Therapist",
+    blocked: null,
+  };
+  const roleLabel =
+    getRoleLabel(profile as unknown as { roles?: { name?: string | null }[]; role?: string }) ??
+    variantRoleLabelFallback[plan.variant];
   const showStaffCapacity = plan.variant === "business" && permissionAccess.staff;
   // Coordinators don't see money — render the money card only when revenue
   // is actually viewable. Avoids the "Revenue hidden" carrot.
@@ -597,7 +609,11 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       href: permissionAccess.bookings ? "/admin/bookings?view=unassigned" : null,
     });
   }
-  if (plan.variant !== "therapist" && unpaidBookings.length > 0) {
+  // Coordinator never sees revenue surface (brief Section 11). Gate the
+  // money-coded attention row on the same predicate as the Payments
+  // ReadinessChip — `revenueAllowed` collapses correctly to `false` for
+  // coordinator via plan.includeRevenue.
+  if (revenueAllowed && unpaidBookings.length > 0) {
     attentionSummaryRows.push({
       key: "payments",
       label: "Payment follow up",
@@ -629,16 +645,60 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   if (filters.paymentStatus) filterQueryParams.set("paymentStatus", filters.paymentStatus);
   const filterQuery = filterQueryParams.toString();
 
+  // Coordinator never sees revenue surface per brief Section 11; suppress payment string entirely
+  // (RBAC + voice — Coordinator lacks view_reports_revenue, so this row should not synthesise
+  // anything related to money, even copy).
+  const showPaymentsReadiness = plan.variant !== "coordinator";
   const readiness = {
     confirmations: failedEmails.length > 0 ? `${formatNumber(failedEmails.length)} to review` : "All clear",
     staffCoverage: needsAssignment.length > 0 ? `${formatNumber(needsAssignment.length)} need assignment` : "Well covered",
-    paymentCollection:
-      plan.variant === "therapist"
+    paymentCollection: !showPaymentsReadiness
+      ? ""
+      : plan.variant === "therapist"
         ? "Assigned work only"
         : unpaidBookings.length > 0
           ? `${formatNumber(unpaidBookings.length)} to collect`
           : "No activity yet",
   };
+
+  // Coordinator-emphasis Today panel data: per-booking required gender
+  // (derived from assignments), plus today inline count breakdown.
+  const isCoordinatorVariant = plan.variant === "coordinator";
+  const requiredGenderByBooking = new Map<string, string>();
+  if (isCoordinatorVariant) {
+    for (const assignment of data.assignments) {
+      if (
+        assignment.required_therapist_gender &&
+        assignment.required_therapist_gender !== "any" &&
+        !requiredGenderByBooking.has(assignment.booking_id)
+      ) {
+        requiredGenderByBooking.set(assignment.booking_id, assignment.required_therapist_gender);
+      }
+    }
+  }
+  const coordinatorTodayCounts = isCoordinatorVariant
+    ? {
+        unassigned: todayAppointments.filter((b) => b.assignment_status === "unassigned").length,
+        confirmed: todayAppointments.filter((b) => b.status === "confirmed").length,
+        pending: todayAppointments.filter((b) => b.status === "pending").length,
+      }
+    : undefined;
+
+  // Coordinator-variant Tier 2 data: active (new + contacted) enquiries.
+  const activeEnquiries: ActiveEnquiryRow[] = isCoordinatorVariant
+    ? data.enquiries
+        .filter((e) => e.status === "new" || e.status === "contacted")
+        .map((e) => ({
+          id: e.id,
+          fullName: e.full_name,
+          source: e.source,
+          status: e.status,
+          createdAt: e.created_at,
+        }))
+    : [];
+  const coordinatorHasAnyHandledEnquiries = isCoordinatorVariant
+    ? data.enquiries.some((e) => e.status !== "new" && e.status !== "contacted")
+    : false;
 
   return (
     <AdminPageScaffold className="min-w-0 gap-4 grid-cols-[minmax(0,1fr)] pb-24 md:pb-8">
@@ -676,6 +736,9 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             detail: booking.service_city ?? "No city recorded",
             status: booking.assignment_status,
             href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
+            assignmentStatus: booking.assignment_status,
+            bookingStatus: booking.status,
+            requiredGender: requiredGenderByBooking.get(booking.id) ?? null,
           }))}
           upcomingAppointments={upcomingInRange.map((booking) => ({
             id: booking.id,
@@ -706,10 +769,61 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           }
           permissionAccess={permissionAccess}
           readiness={readiness}
+          unassignedFirst={isCoordinatorVariant}
+          coordinatorCounts={coordinatorTodayCounts}
+          revenueAllowed={revenueAllowed}
+          showPaymentsReadiness={showPaymentsReadiness}
         />
         <UrgentAttentionPanel rows={attentionSummaryRows} groups={attentionGroups} filterQuery={filterQuery} />
       </section>
 
+      {isCoordinatorVariant ? (
+        <BusinessOverviewDisclosure
+          staffId={profile.id}
+          variantKey="coordinator-"
+          labelActive="Active queues"
+          labelQuiet="Active queues (nothing right now)"
+          hint={
+            activeEnquiries.length > 0 || openOperationalErrors.length > 0 || failedEmails.length > 0
+              ? [
+                  activeEnquiries.length > 0
+                    ? `${activeEnquiries.length} enquir${activeEnquiries.length === 1 ? "y" : "ies"}`
+                    : null,
+                  openOperationalErrors.length + failedEmails.length > 0
+                    ? `${openOperationalErrors.length + failedEmails.length} ops issue${openOperationalErrors.length + failedEmails.length === 1 ? "" : "s"}`
+                    : null,
+                ].filter(Boolean).join(" · ")
+              : "Active enquiries and operational signals."
+          }
+          emptyHint="New enquiries and operational signals will appear here when they land."
+          showAriaLabel="Show active queues"
+          hideAriaLabel="Hide active queues"
+          hasActivity={
+            activeEnquiries.length > 0 ||
+            failedEmails.length > 0 ||
+            openOperationalErrors.length > 0 ||
+            staffAvailabilityGaps.length > 0
+          }
+        >
+          <section className="grid min-w-0 items-start gap-4 md:grid-cols-2">
+            <ActiveEnquiriesCard
+              enquiries={activeEnquiries}
+              totalActive={activeEnquiries.length}
+              canManageEnquiries={permissionAccess.enquiries}
+              hasAnyHandled={coordinatorHasAnyHandledEnquiries}
+            />
+            {showOperationsHealth ? (
+              <OperationsHealthCard
+                failedEmails={failedEmails.length}
+                openEnquiries={0}
+                openOperations={openOperationalErrors.length}
+                availabilityGaps={staffAvailabilityGaps.length}
+                permissionAccess={permissionAccess}
+              />
+            ) : null}
+          </section>
+        </BusinessOverviewDisclosure>
+      ) : (
       <BusinessOverviewDisclosure
         staffId={profile.id}
         hasActivity={
@@ -790,6 +904,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           />
         </AdminErrorBoundary>
       </BusinessOverviewDisclosure>
+      )}
 
     </AdminPageScaffold>
   );

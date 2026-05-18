@@ -542,10 +542,12 @@ export function DashboardFiltersClient({
             <ScopeStat icon={PoundSterling} value={formatPounds(scopeSummary.outstanding)} label="outstanding" />
           ) : null}
           <ScopeStat icon={Users} value={scopeSummary.clients.toLocaleString("en-GB")} label={`client${scopeSummary.clients === 1 ? "" : "s"}`} />
-          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-panel)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--admin-heading)] shadow-[var(--admin-shadow-subtle)]">
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--admin-success)]" />
-            {scopeSummary.rangeLabel}
-          </span>
+          {scopeSummary.rangeLabel.startsWith("Today") ? null : (
+            <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-panel)] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--admin-heading)] shadow-[var(--admin-shadow-subtle)]">
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--admin-success)]" />
+              {scopeSummary.rangeLabel}
+            </span>
+          )}
         </div>
       ) : null}
 
@@ -627,12 +629,26 @@ export function BusinessOverviewDisclosure({
   staffId,
   hasActivity,
   children,
+  variantKey,
+  labelActive,
+  labelQuiet,
+  hint,
+  emptyHint,
+  showAriaLabel,
+  hideAriaLabel,
 }: {
   staffId: string;
   hasActivity: boolean;
   children: ReactNode;
+  variantKey?: string;
+  labelActive?: string;
+  labelQuiet?: string;
+  hint?: string;
+  emptyHint?: string;
+  showAriaLabel?: string;
+  hideAriaLabel?: string;
 }) {
-  const storageKey = `${DISCLOSURE_STORAGE_PREFIX}${staffId}`;
+  const storageKey = `${DISCLOSURE_STORAGE_PREFIX}${variantKey ?? ""}${staffId}`;
   const [expanded, setExpanded] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -666,15 +682,23 @@ export function BusinessOverviewDisclosure({
     }
   }
 
-  const headingLabel = hasActivity ? "Business overview" : "Business overview (no activity yet)";
-  const buttonLabel = expanded ? "Hide business overview" : "Show business overview";
+  const activeLabel = labelActive ?? "Business overview";
+  const quietLabel = labelQuiet ?? `${activeLabel} (no activity yet)`;
+  const showLabel = showAriaLabel ?? `Show ${activeLabel.toLowerCase()}`;
+  const hideLabel = hideAriaLabel ?? `Hide ${activeLabel.toLowerCase()}`;
+  const activeHint =
+    hint ?? "Staff capacity, payment health, operational signals, demand trend.";
+  const quietHint =
+    emptyHint ?? "Sub-tiles unlock as bookings, payments and operational events accumulate.";
+  const headingLabel = hasActivity ? activeLabel : quietLabel;
+  const buttonLabel = expanded ? hideLabel : showLabel;
   const disabled = !hasActivity;
   const showChildren = hasActivity && hydrated && expanded;
 
   return (
     <section
       aria-labelledby="business-overview-heading"
-      className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-subtle)]"
+      className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)]/60 bg-[var(--admin-panel)]"
     >
       <button
         type="button"
@@ -698,9 +722,7 @@ export function BusinessOverviewDisclosure({
             {headingLabel}
           </h2>
           <p className="mt-1 text-xs text-[var(--admin-text-muted)] sm:text-sm">
-            {hasActivity
-              ? "Staff capacity, payment health, operational signals, demand trend."
-              : "Sub-tiles unlock as bookings, payments and operational events accumulate."}
+            {hasActivity ? activeHint : quietHint}
           </p>
         </div>
         <ChevronDown

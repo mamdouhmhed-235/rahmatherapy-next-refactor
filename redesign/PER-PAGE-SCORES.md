@@ -3291,6 +3291,19 @@ Until both land, `submitPasswordResetRequest` (`actions.ts:47-90`) does not writ
 - **Token discipline — 7/10 (=).** Most surfaces use vars correctly. Hard-coded OKLCH literals still appear where status-family CSS vars could land (consistent with the existing admin-ui.tsx pattern — the project encodes status family colours inline). Headroom remains; not a regression.
 - **Accessibility — 9/10 (+1 vs v1).** `aria-current="page"` on active tab, sr-only H2 per row, `role="alert" aria-live="polite" aria-atomic="true"` on every error region (Approve + Reject + error.tsx), `aria-busy` on submit, visible `*` marker flush to label, error.tsx renders with `role="alert"` + retry, `aria-live="polite"` on expiry line only when soon. Tab strip is `<nav><ul><a>` GET-form links — clean.
 - **Responsive correctness — 9/10 (+1 vs v1).** At 375px all 5 tabs fit on a single line. Email truncates with `title` fallback. Modal renders as bottom sheet on mobile, centred dialog on sm+. Action buttons now stack full-width on mobile per brief §5 (post-audit fix). No horizontal scroll at any breakpoint.
+## dashboard-coordinator — audit
+
+### Audit Health Score
+
+| # | Dimension | Score | Key Finding |
+|---|-----------|-------|-------------|
+| 1 | Accessibility | 3 | Form-level `role="alert" aria-live="polite"` present on custom-date error; heading hierarchy intact (H1 → H2s → H3) but `<h2>` "SNAPSHOT · TODAY" is an eyebrow misused as a heading |
+| 2 | Performance | 4 | Server-rendered, no expensive client effects; disclosure uses compositor-friendly grid-rows transition; no layout-property animation |
+| 3 | Responsive Design | 3 | Single-column reflow works at 375; touch targets >=36px on chips and >=40px on disclosure trigger; date-preset row uses overflow-x snap; minor: role pill hidden below md (`md:inline-flex`) so it never shows on mobile |
+| 4 | Theming | 4 | Tokens used throughout (`var(--admin-*)`); no `#000`/`#fff`/`bg-black`; only stray hard-coded color is a `rgba(0,0,0,0.02)` chip shadow in filters |
+| 5 | Anti-Patterns | 4 | No `border-l-*` of any width as colour accent; no gradient text; no `bg-clip-text`; no glassmorphism as default (only sticky filter strip uses `backdrop-blur-md`); no nested AdminPanels; no hero-metric template; no identical card grid |
+
+**Total: 18/20 — Excellent (minor polish)**
 
 ### P0 findings
 
@@ -3478,3 +3491,257 @@ Re-scored against the same Nielsen rubric used for v1 (45/50). Source: PasswordR
 - **AI-slop verdict: PASS held.** The refinement pass closed brief-alignment gaps without introducing flair.
 - **What's still uncapped.** Flexibility (4/5) and Help (4/5) are structural ceilings of a 6-state pre-auth surface for novice operators; raising either would require flow-level additions the brief explicitly does not request.
 - **What v2 quietly fixed beyond the 10 named gaps.** State 4 footer breathing (A-2) and the expired-inline copy delta (C-7) also de-noise the page rhythm in a way the v1 critique flagged only obliquely.
+### P1 findings
+
+- **Role pill is profile-role-driven, not variant-driven** — `src/app/admin/dashboard/page.tsx:550` resolves `roleLabel = getRoleLabel(profile)` (string-matching on role name), then passes to header at `src/app/admin/dashboard/dashboard-header.tsx:53-61`. Brief Section 8 + Recipe Context mandate the pill copy resolves from `getDashboardCopy(plan.variant).rolePill`; today `getDashboardCopy` only returns `{title, subtitle}` (page.tsx:414-432) with no `rolePill` slot. If a Coordinator user's `roles[0].name` is missing or non-conforming, the "Coordinator" pill silently drops.
+- **Role pill positioned under page H1, not in the chrome header rail** — `src/app/admin/dashboard/dashboard-header.tsx:53-61`. Brief Section 5.1 and Section 8 require the role pill in the AdminTopNav right rail (alongside NotificationBell + cmd-K hint). Current placement under H1 breaks the "same chrome across variants" inheritance from the Owner/Admin brief.
+- **Role pill hidden on `<md` viewports** — `src/app/admin/dashboard/dashboard-header.tsx:54` uses `hidden ... md:inline-flex`, so a Coordinator on a 375px phone (the brief's explicit mobile-first persona) never sees their role context.
+
+### P2 findings
+
+- **Hero Today numeral exceeds spec size for Coordinator variant** — `src/app/admin/dashboard/dashboard-cards.tsx:281` sets `clamp(2.75rem, 6vw, 4.5rem)` (up to 72px). Brief Section 5.3 + tokens specs Cormorant Garamond 700 at **3.157rem (~50px)** for the Coordinator variant ("Chronicle, no gold").
+- **`<h2 class="text-[10px] uppercase">SNAPSHOT . TODAY</h2>` is an eyebrow styled as a heading** — `src/app/admin/dashboard/dashboard-cards.tsx:276-278`. Brief Section 8 names the Tier-1 H2 as "Today", not "SNAPSHOT . TODAY".
+- **AssignmentChip and TodayCoordinatorSubLine "unassigned" tone use raw `--admin-warning` token, not the Attention family (`status-attention-bg`/`status-attention-text`)** — `src/app/admin/dashboard/dashboard-cards.tsx:563, 645, 658, 666`. Brief Section 5.3 + carry-forward calls for `status-attention-bg` / `status-attention-text` token pair.
+
+### P3 findings
+
+- **Hardcoded `rgba(0,0,0,0.02)` and `rgba(0,0,0,0.04)` chip shadows on inactive date-preset pills** — `src/app/admin/dashboard/dashboard-filters-client.tsx:346`. DESIGN.md asks for `oklch(23% 0.073 155 / X)`.
+- **Filter strip uses `backdrop-blur-md` + `bg-gradient-to-b` for sticky chrome** — `src/app/admin/dashboard/dashboard-filters-client.tsx:317-318`. Borderline glassmorphism; sticky filter qualifies as purposeful use.
+- **Cormorant Garamond "0" hero numeral renders visually ambiguous** at very large sizes. Cosmetic only.
+- **`getDashboardCopy(variant, today)` returns the same `subtitle: "${date} . Luton"` for `coordinator` and Owner/Admin default branch** — page.tsx:416-432. Refactor opportunity.
+- **`coordinator-` `variantKey` passed at `page.tsx:762` has trailing dash that gets concatenated as `coord-staffId`** — works correctly but looks like a typo for future maintainers.
+
+### Backend status
+
+**N-A.** Read-only dashboard surface. Existing `getDashboardData` aggregator returns `data.enquiries` and `data.assignments`; no server action, no migration, no new helper. No BUILD plan files block this page.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- Role pill is profile-role-driven, not variant-driven — `src/app/admin/dashboard/page.tsx:550` + `dashboard-header.tsx:53-61`
+- Role pill positioned under page H1, not in the chrome header rail — `src/app/admin/dashboard/dashboard-header.tsx:53-61`
+- Role pill hidden on `<md` viewports — `src/app/admin/dashboard/dashboard-header.tsx:54`
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-6** preserved on the custom date-range error path (dashboard-filters-client.tsx:378-380, 527-528). No regression.
+- **2A-7** not directly exercised on the coordinator variant (no `DemandTrendCard` renders); carry-forward preserved upstream.
+- **2A-8** applied on the `SnapshotViewToggle` List/Timeline links (dashboard-cards.tsx:401, 414) and on the date-preset chip group (dashboard-filters-client.tsx:340).
+
+No newly-introduced Track A contributions; preserves universal patterns from earlier sessions.
+
+
+## dashboard-coordinator — critique
+
+**Verdict on AI slop:** **PASS** — the surface reads as a Rahma-shaped coordinator triage board, not a generic SaaS dashboard: warm ivory canvas, Cormorant numeral as the lone serif accent, varied (not identical) card shapes, status families with text + icon, no gradient text, no glassmorphism, no `border-l-4`, no hero-metric template, no decorative blobs.
+
+### Nielsen heuristic scores
+
+| # | Heuristic | Score | Key issue |
+|---|---|---|---|
+| 1 | Visibility of system status | 3 | UPDATED + active filter pills + counts strip are clear; assignment-status colour on Today vanishes when no bookings exist. |
+| 2 | Match between system and real world | 4 | Operator vocabulary throughout; "SNAPSHOT . TODAY" eyebrow is the only dashboard-speak. |
+| 3 | User control and freedom | 3 | Tier 2 disclosure persists per user/variant; filter "Clear filters" works. No pin to keep Active Enquiries default-open. |
+| 4 | Consistency and standards | 3 | Three different numeral treatments across three tiles (Cormorant/Cormorant/Work-Sans-bold); three different "everything's fine" phrasings in one viewport. |
+| 5 | Error prevention | 3 | Read-only surface; minimal risk. |
+| 6 | Recognition rather than recall | 3 | Source icons + lifecycle chips are recognition-grade; enquiry rows use generic `user-round` glyph rather than initialled avatars. |
+| 7 | Flexibility and efficiency | 2 | cmd-K + "More filters" + presets work; no inline assign-therapist on Today row (Coordinator's primary daily decision). |
+| 8 | Aesthetic and minimalist design | 3 | Restrained warmth passes the AI-slop test. Quiet-day card shows five horizontally-separated "nothing" signals. |
+| 9 | Help users recognize/diagnose/recover from errors | 2 | No errors visible; spec promises inline alert regions + persistent toast for stale-enquiry convert. |
+| 10 | Help and documentation | 2 | No tooltip on role pill, no first-run hint on Tier 2 disclosure, tooltips on chips require hover. |
+| **Total** | | **28 / 40** | Solid; room to climb on consistency, efficiency, and help. |
+
+### Anti-references cross-check (PRODUCT.md)
+
+- **Generic SaaS / shadcn-default dashboards** — avoided. Cormorant numeral + warm-ivory tonal lift + green action-primary chrome are unmistakably Rahma.
+- **Hero-metric template** — avoided as a template; Today panel uses varied composition.
+- **Identical card grids** — avoided. Tier 1 is 60/40 with visually distinct cards. Tier 2 sub-grid differs in structure (list-first vs summary-first).
+- **Decorative blobs / glassmorphism / gradient text** — none observed.
+- **Side-stripe borders** — none observed in source.
+- **Colour-only status signalling** — passes. AssignmentChip pairs `UserX` + label; lifecycle chip carries "New"/"Contacted"; source icons sit beside source-bearing row.
+- **Tools so spare they feel cold (avatars)** — partially avoided. Enquiry rows show category icons where brief commits to avatars; biggest warmth-deficit finding.
+- **Power must not equal clutter** — honoured. Tier 2 collapsed by default; first viewport at 1440 is Tier 1 only.
+- **Empty states encourage rather than abandon** — strong ("Quiet day" + "Use the time to follow up on enquiries"; "All caught up").
+
+### Concrete observations
+
+1. Cormorant `0` on empty-state inverts hierarchy — absence of work rendered as the day's headline; a `heroCount === 0 && isToday` guard would protect the Cormorant's earned rarity.
+2. Mobile (375) header rail loses the role pill; PRODUCT.md role-clarity success metric depends on legibility at every breakpoint.
+3. Three "everything's fine" copies in one viewport ("All clear" / "All systems quiet" / "All caught up") — state-word discipline would pick one.
+4. Enquiry rows render `user-round` glyph for every row; brief mandates avatars on assignment/team/booking-ownership surfaces.
+5. Today panel's "View calendar / View bookings" CTA pair competes with empty-state's implicit CTA; a quiet-day variant would tighten rhythm.
+6. Tier 2 "Active queues" + subtitle gives no glimpse of contents when collapsed; a small count chip on the header would let Coordinators scan-and-skip.
+7. `AssignmentChip` is `hidden sm:inline-flex` on the row body — mobile rows fall back to plain status badge.
+
+### One-sentence overall
+
+The page is a credibly Rahma-shaped Coordinator triage surface that wins on warmth, restraint, and brief-fidelity (no anti-pattern violations, no AI-slop tells), and loses points on three repeated *consistency* slips (avatars missing from enquiry rows, three "all clear" copies in one viewport, the Cormorant `0` shouting on quiet days) that a single `clarify` + a small `consistency` pass would close.
+
+
+## dashboard-coordinator — audit (post-fix)
+
+**Files audited:** `src/app/admin/dashboard/page.tsx`, `dashboard-cards.tsx`, `dashboard-header.tsx`, `dashboard-filters-client.tsx`, `attention-group-client.tsx`, `src/app/admin/components/notification-bell.tsx`. Screenshots: `dashboard-coordinator-polish-final-{375,768,1440}.png`.
+
+### Severity rubric (impeccable v5 L884-890, verbatim)
+- **P0 - Blocks release - fix before shipping anything**
+- **P1 - Fix this sprint - significant impact on users**
+- **P2 - Next cycle - noticeable but not blocking**
+- **P3 - Polish - minor, fix when time allows**
+
+### 5 dimension scores
+
+| Dimension | Score | Notes |
+|---|---:|---|
+| Visual hierarchy & rhythm | 8.0/10 | Tier 1 reads first; H2 "Today" lands at spec scale; eyebrow→H2 swap correctly applied for coordinator. Marginal: zero-state Cormorant glyph collapses visually. |
+| Token & component fidelity | 8.5/10 | Tokens used throughout; AdminDashboardPanel reused; lifecycle chip token-family is codebase-collapsed (Pending aliased to warning at runtime). |
+| Information density & calm | 8.0/10 | Coordinator chrome is calmer than Owner/Admin: 2 sub-tiles, no DemandTrend/StaffCapacity/PaymentHealth. Enquiry-count duplication fixed by passing openEnquiries=0 to Operations Health. |
+| Empty / loading / error states | 7.5/10 | "Quiet day" pivot works; "Open enquiries" Secondary CTA below; per-tile error boundary still gap on coordinator branch. |
+| Accessibility (WCAG 2.1 AA) | 8.0/10 | Skip-link, attention-dialog-title, role pill aria-label all preserved; assignment + lifecycle chips now carry Lucide icon + label (Named Status Rule met post-fix). |
+
+**Overall craft:** 8.0/10.
+
+### P0 - Blocks release
+- *(none)*
+
+### P1 - Fix this sprint
+- **Tier 1/Tier 2 cards on coordinator variant not wrapped in `AdminErrorBoundary`** - `src/app/admin/dashboard/page.tsx:721, 767, 805-813`. Deferred to Phase 7 (cross-variant resilience pattern).
+
+### P2 - Next cycle
+- **0-state Cormorant numeral on Today panel reads as narrow vertical strokes, not as a digit "0"** - `dashboard-cards.tsx:274-278`. Either swap typeface to Work Sans on 0-state, or render an em-dash instead.
+- **Today panel "READY" row is a nested rounded surface** - `dashboard-cards.tsx:357-369`. Treat as inline row or step to canvas tone.
+
+### P3 - Polish
+- **Header H1 size uses `text-2xl ... sm:text-[1.875rem]` instead of DESIGN.md display token clamp** - `dashboard-header.tsx:30`.
+- **Pending vs Attention token-family distinction** - codebase only defines `--admin-warning-*`; defer to Phase 4 design-system token expansion.
+
+### Backend status
+**N-A.** Read-only by brief commitment. `getDashboardData` already exposes coordinator-variant payload with enquiries. No BUILD plan reference.
+
+### P1 (tag for Phase 7 gauntlet)
+- Tier 1/Tier 2 dashboard cards on coordinator variant not wrapped in `AdminErrorBoundary` - `src/app/admin/dashboard/page.tsx:721, 767, 805-813`
+
+### BUSINESS-COMPLETENESS impact
+- Track A item 1 (Heading hierarchy contiguous) - H2 on Tier 1 + Tier 2; H3 on sub-tiles.
+- Track A item 2 (Form errors aria-live) - filter strip uses `role="alert"` aria-live on custom-date error.
+- Track A item 7 (Recharts empty-data) - N-A; Demand Trend not rendered for coordinator.
+- Track A item 9 (Tab `aria-current="page"`) - applied on SnapshotViewToggle + date preset chips.
+- No net-new Track A contribution.
+
+### Delta vs first audit
+First-audit P1s (3, all role-pill chrome) all closed. Second-pass added P1s (lifecycle chip icon, lifecycle chip token-family, OH "active issues" wording, missing AdminErrorBoundary); 3 of 4 closed in this third pass (Clock icon added, OH wording switched to "All systems quiet" on success, enquiry-count duplication removed via openEnquiries=0). One P1 remains (AdminErrorBoundary wrap), deferred to Phase 7.
+
+
+## dashboard-coordinator — critique (post-fix)
+
+### Nielsen heuristic scores (post-fix)
+
+| # | Heuristic | Score | Note |
+|---|---|---|---|
+| 1 | Visibility of system status | 9/10 | Live date + "Updated just now"; persistent Coordinator role pill (variant fallback); chip selection unmistakable; Tier 2 count preview legible without expansion. |
+| 2 | Match between system and real world | 9/10 | Verb-led actions throughout. Operations Health now says "All systems quiet" on success (post-fix). |
+| 3 | User control and freedom | 8/10 | Disclosure persists per user/variant; filter chips reversible; Convert preserves enquiryId. |
+| 4 | Consistency and standards | 9/10 | Same chrome as Owner/Admin; Cormorant strictly numerals; Tier 2 tonal lift to surface-page; lining-nums + tabular-nums. |
+| 5 | Error prevention | 8/10 | Payments Ready chip gated; Export RBAC-hidden; OH drops contradiction on success. |
+| 6 | Recognition rather than recall | 9/10 | Initialled avatars + source-icon corner badge on enquiry rows; absolute-date tooltip on chips; role pill permanent; Tier 2 count preview. |
+| 7 | Flexibility and efficiency | 8/10 | cmd-K, filter chips one-tap, Convert is one click. Mobile Filters reachable without horizontal scroll. |
+| 8 | Aesthetic and minimalist design | 8/10 | Two-tier composition, Cormorant numerals balanced, no shadows at rest, Tonal Lift honoured. |
+| 9 | Help users recognize/diagnose/recover from errors | 8/10 | Empty states recover gracefully; OH "ALL CLEAR" footer is exact diagnostic granularity. |
+| 10 | Help and documentation | 7/10 | Native title tooltips on chips, role pill, source icons, chevron. |
+
+**Heuristic average: 8.3 / 10.**
+
+### AI-slop verdict: **PASS**
+
+The surface no longer matches any default category-reflex coordinator dashboard. Warm-ivory card-board grammar, two-tier disclosure, gold absent by deliberate restraint, no gradient text, no hero-metric stack, no identical card grid, no decorative blobs, no `border-l-4`. Signature serif numeral + initialled avatars + source-icon corner badges + voice-anchored copy read as Rahma, not as "AI made a coordinator dashboard."
+
+### UX-quality commentary (mapped to PRODUCT.md anti-references)
+
+- **Generic SaaS / shadcn-default - avoided.** Urbanist + Work Sans + Cormorant on warm-ivory canvas with deep clinic green chrome bar.
+- **Identical card grids - avoided.** Tier 1 asymmetric (Today taller, content-led; Attention shorter, status-led). Tier 2 sub-tiles read as numerals tile vs diagnostic tile.
+- **Decorative blobs / glassmorphism / hero-metric template - avoided.**
+- **Color-only status signalling - avoided.** Every status carries text + icon (assignment chip + lifecycle chip both now icon-led post-fix).
+- **Pure-typography stripped-bare Linear - avoided.** Initialled avatars, source-icon corner badge, leading-icon medallions.
+- **Everything-on-one-screen - avoided.** Two tiers, one collapsed by default.
+
+### Delta vs first critique
+
+First-pass critique flagged: redundant TODAY pill, missing role pill at breakpoints, prominent gold dash, hard disclosure border, Payments Ready leak, nameless enquiry rows, weak Convert link, oversize Cormorant numeral. Second pass closed every one. Third pass (this round) added Clock icon on lifecycle chip (Named Status Rule), switched OH success copy from "active issues" to "All systems quiet", de-duplicated enquiry count between adjacent sub-tiles.
+
+
+## dashboard-coordinator — audit (corrective round)
+
+**Files audited:** `src/app/admin/dashboard/page.tsx`, `src/app/admin/dashboard/dashboard-cards.tsx`, `src/app/admin/dashboard/dashboard-header.tsx`, `src/app/admin/dashboard/dashboard-filters-client.tsx`. Screenshots: `redesign/screenshots/dashboard-coordinator-redesign/dashboard-coordinator-polish-final-{375,768,1440}.png`.
+
+### Severity rubric (impeccable v5 L884-890, verbatim)
+- **P0 - Blocks release - fix before shipping anything**
+- **P1 - Fix this sprint - significant impact on users**
+- **P2 - Next cycle - noticeable but not blocking**
+- **P3 - Polish - minor, fix when time allows**
+
+### 5 dimension scores
+
+| Dimension | Score | Notes |
+|---|---:|---|
+| Visual hierarchy & rhythm | 8.5/10 | Tier 1 reads first; Cormorant Today numeral correctly demoted on 0-state; Tier 2 collapsed by default with live hint preview ("2 enquiries"); empty wrappers de-nested. |
+| Token & component fidelity | 8.5/10 | Tokens used throughout; AdminDashboardPanel, AdminIconBadge, AdminEmptyState, AdminStatusBadge reused; Convert action uses --admin-radius-control + --admin-focus. |
+| Information density & calm | 8.0/10 | FIX 2 removes ReadinessChip leak. UrgentAttentionPanel Payment-follow-up row leak now also closed (gate tightened to revenueAllowed). |
+| Empty / loading / error states | 7.5/10 | "Quiet day" + "Open enquiries" Secondary pivot present; "All caught up" Confirmed tint; "No active enquiries" + handled-vs-fresh wording correct. Per-tile error boundary not wrapped on Coordinator branch sub-tree. |
+| Accessibility (WCAG 2.1 AA) | 8.5/10 | Skip-link, admin-main, attention-dialog-title, admin-command-search preserved; role pill aria-label intact; Convert link satisfies WCAG 2.5.5 (min-h-11 = 44px). Assignment chip carries text + icon. Custom-date error uses role="alert" aria-live="polite". |
+
+**Overall craft:** 8.2/10.
+
+### P0 - Blocks release
+- *(none)*
+
+### P1 - Fix this sprint
+- **Tier 1 + Tier 2 cards on Coordinator variant still not wrapped in `AdminErrorBoundary`** - `src/app/admin/dashboard/page.tsx:725-774, 776-821`. Carried from prior rounds; tagged for Phase 7 gauntlet.
+
+### P2 - Next cycle
+- **0-state Cormorant numeral on Today panel reads as narrow vertical strokes** - `src/app/admin/dashboard/dashboard-cards.tsx:277-281`. Either swap face to Work Sans on 0-state or substitute an em-dash glyph.
+- **Today panel "READY" row is a nested rounded surface on a surface-card parent** - `src/app/admin/dashboard/dashboard-cards.tsx:360-372`. Mild nested-card pattern.
+- **Tier 2 sub-tiles read as twin rectangles** - Active Enquiries pane height roughly equals Operations Health pane height. Brief promises asymmetric reading.
+
+### P3 - Polish
+- **Header H1 uses `text-2xl ... sm:text-[1.875rem]` instead of DESIGN.md display-token clamp** - `dashboard-header.tsx:30`.
+- **`hover:-translate-y-px` on enquiry/today rows with `transition-all`** - dashboard-cards.tsx:586-588, 1044. Switch to `transition-transform, box-shadow, background-color` for explicit intent.
+- **Two raw oklch literals for severity tints** - dashboard-cards.tsx:141-143, 1040-1043. Pre-existing baseline; defer to Phase 4 token expansion.
+- **Active Enquiries lifecycle chip background reuses `--admin-warning-bg`** - dashboard-cards.tsx:849. Codebase aliases Pending→warning; defer to Phase 4 token rename.
+
+### Backend status
+**N-A.** Read-only by brief commitment. `getDashboardData` already returns coordinator-variant payload. No BUILD plan reference.
+
+### P1 (tag for Phase 7 gauntlet)
+- Per-tile `AdminErrorBoundary` wrap on Coordinator branch - `src/app/admin/dashboard/page.tsx:725-774, 776-821`
+
+### BUSINESS-COMPLETENESS impact
+- Track A item 1 (Heading hierarchy contiguous): H1 → H2 → H3 contiguous.
+- Track A item 2 (Form errors aria-live): filter strip custom-date error uses role="alert" aria-live="polite".
+- Track A item 7 (Recharts empty-data): N-A.
+- Track A item 9 (Tab aria-current="page"): applied on SnapshotViewToggle + date-preset chips.
+- Track A item 10 (WCAG 2.5.5 44px touch targets): Convert link upgrade to min-h-11 px-4 is a positive contribution.
+- No net-new Track A debt introduced.
+
+### Delta vs post-fix audit
+Corrective round closed V-7 (TodayTimeline + UpcomingRangeList empty wrappers de-nested), V-10/M-6 (Convert link now satisfies WCAG 2.5.5 at min-h-11 px-4 gap-1.5), and V-8 fully (both ReadinessChip and the audit-discovered residual UrgentAttentionPanel Payment-follow-up row are now revenue-gated). AdminErrorBoundary P1 remains tagged for Phase 7.
+
+
+## dashboard-coordinator — critique (corrective round)
+
+| # | Heuristic | Score | Key Issue |
+|---|-----------|-------|-----------|
+| 1 | Visibility of System Status | 4 | "Updated just now" + live counts in filter strip + Today inline sub-line clearly signal state; nothing hidden. |
+| 2 | Match System / Real World | 4 | Front-desk language throughout ("Active queues", "Active enquiries", "Convert", "Quiet day"); no system jargon. |
+| 3 | User Control and Freedom | 3 | Tier-2 disclosure remembers preference; filter clearing present; still no inline undo for assignment actions (out of scope here, lives on booking detail). |
+| 4 | Consistency and Standards | 4 | Empty-state wrappers now plain px-4 py-8 matching the parent panel's interior treatment; no more card-in-card asymmetry against UrgentAttentionPanel. |
+| 5 | Error Prevention | 3 | Coordinator can no longer accidentally see Payment-follow-up rows in UrgentAttentionPanel (revenue-gated at source); Convert link target is a pre-filled flow, not a destructive op. |
+| 6 | Recognition Rather Than Recall | 4 | Source icons + lifecycle chips + named status badges keep enquiry context glanceable; no codes to remember. |
+| 7 | Flexibility and Efficiency | 3 | cmd-K + date presets + Filters sheet; Convert is one tap from dashboard to pre-filled booking wizard. Touch target now 44px so thumb-driven mobile use is no longer a penalty. |
+| 8 | Aesthetic and Minimalist Design | 4 | Tier-2 sub-tiles read as wells inside the parent panel, no double-bordered frames competing for attention; the Coordinator surface is visibly quieter than the Owner variant, as briefed. |
+| 9 | Error Recovery | 3 | Inline empty states + stale-enquiry toast contract documented; no destructive ops on this surface to recover from. |
+| 10 | Help and Documentation | 3 | Tooltip layer is rich (role pill, assignment chip, source icon, lifecycle chip); no in-product help center, which is consistent with PRODUCT.md's "no tutorial chrome" principle. |
+| **Total** | | **35/40** | **Excellent - production-ready** |
+
+**AI-slop verdict: PASS.** The Coordinator surface now reads as a role-narrowed front-desk queue with consistent panel grammar, no nested-card stutter, no revenue ghost-rows, and tap targets that respect the kitchen-counter scene sentence — none of the residual tells from the previous round survive.
+
+**UX-quality mapping to PRODUCT.md anti-references.** The fixes pull the page further away from PRODUCT.md's named anti-references: stripping the empty-state card frames closes the "boxes inside boxes" SaaS-cliché the doc warns against; gating Payments at both `showPaymentsReadiness` and the `attentionSummaryRows` source closes a Notion-style "show everything to everyone and let them filter mentally" leak that contradicted Coordinator's revenue scope; and the 44px Convert chip honours the brief's explicit "phone in one hand, tea in the other" scene rather than the desktop-mouse default that would have been the lazy AI reflex. The result is a surface that earns its place beside the Owner variant by being demonstrably *narrower*, not just visually muted.
+
+**Delta vs post-fix critique.** Three open observations from the post-fix round closed cleanly. V-7 (Tier-2 sub-tiles nesting bordered cards inside the parent disclosure) is resolved: both `UpcomingRangeList` and `TodayTimeline` empty-state wrappers render as plain padded regions. V-8 (Payments RBAC leak) is resolved at two layers: `showPaymentsReadiness` gates the ReadinessChip, and the audit-discovered residual leak through `attentionSummaryRows` is now bounded by `revenueAllowed && unpaidBookings.length > 0`. V-10/M-6 (Convert touch target under WCAG 2.5.5) is resolved: chips read as substantial pill buttons with full-width mobile treatment and `sm:w-auto` desktop sizing, matching the briefed `min-h-11 px-4 gap-1.5`. No regressions introduced.

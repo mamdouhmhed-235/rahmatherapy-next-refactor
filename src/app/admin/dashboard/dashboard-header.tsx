@@ -30,10 +30,6 @@ export function DashboardHeader({
         <h1 className="admin-display text-2xl font-bold leading-tight tracking-tight text-[var(--admin-heading)] sm:text-[1.875rem]">
           {title}
         </h1>
-        <span
-          aria-hidden="true"
-          className="mt-2 block h-[2px] w-8 rounded-full bg-[var(--admin-accent)]"
-        />
         <p className="mt-2 text-sm leading-5 text-[var(--admin-text-muted)]">
           {subtitle}
         </p>
@@ -52,8 +48,9 @@ export function DashboardHeader({
 
       {roleLabel ? (
         <span
-          className="hidden h-7 items-center gap-1.5 self-start rounded-full bg-[var(--admin-restricted-bg)] px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--admin-restricted)] sm:shrink-0 md:inline-flex"
+          className="inline-flex h-7 shrink-0 items-center gap-1.5 self-start rounded-full bg-[var(--admin-restricted-bg)] px-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--admin-restricted)]"
           aria-label={`Signed in as ${roleLabel}`}
+          title="Your role on Rahma Admin"
         >
           <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--admin-restricted)]" />
           {roleLabel}
