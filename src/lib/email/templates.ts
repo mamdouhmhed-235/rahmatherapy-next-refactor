@@ -330,3 +330,110 @@ ${input.manageUrl ? `Manage booking: ${input.manageUrl}\n\n` : ""}${
     input.contactEmail ? `Contact: ${input.contactEmail}` : ""
   }${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
 }
+
+// ─── Password-reset email templates ──────────────────────────────────────────
+// FAKE: structure only. Real Resend send wiring lands with
+// BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).
+// The on-page voice (see /redesign/briefs/password-reset-brief.md §11) and the
+// email-template voice must stay aligned; cross-brief consistency is checked at
+// Phase 7 Gate 2 clarify.
+
+export interface PasswordResetApprovedEmailInput {
+  companyName: string;
+  recipientName: string;
+  resetLinkUrl: string;
+  expiresInHours: number;
+}
+
+export interface PasswordResetRejectedEmailInput {
+  companyName: string;
+  recipientName: string;
+  reviewerNote: string | null;
+  retryUrl: string;
+}
+
+export function renderPasswordResetApprovedSubject(): string {
+  return "Your password-reset request has been approved";
+}
+
+export function renderPasswordResetApprovedHtml(
+  input: PasswordResetApprovedEmailInput
+): string {
+  // escapeHtml is already defined at the top of this file.
+  const name = escapeHtml(input.recipientName);
+  const company = escapeHtml(input.companyName);
+  const url = escapeHtml(input.resetLinkUrl);
+  return `<!DOCTYPE html>
+<html lang="en">
+  <body style="font-family: 'Work Sans', Arial, sans-serif; color: #313731; background: #fbf8f2; padding: 32px;">
+    <div style="max-width: 480px; margin: 0 auto; background: #fffefa; border: 1px solid #e8dfd3; border-radius: 10px; padding: 32px;">
+      <h1 style="font-family: 'Urbanist', Arial, sans-serif; color: #151b18; font-size: 1.5rem; margin: 0 0 16px;">Your password-reset request has been approved</h1>
+      <p style="margin: 0 0 16px;">Hi ${name},</p>
+      <p style="margin: 0 0 16px;">An Owner has approved your password-reset request. Use the link below to set a new password. The link works for ${input.expiresInHours} hours.</p>
+      <p style="margin: 24px 0;"><a href="${url}" style="display: inline-block; background: #073d2a; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;">Set a new password</a></p>
+      <p style="margin: 0 0 16px; color: #5e625e; font-size: 0.875rem;">If the button doesn't work, paste this address into your browser: ${url}</p>
+      <p style="margin: 24px 0 0; color: #5e625e; font-size: 0.875rem;">${company} staff portal.</p>
+    </div>
+  </body>
+</html>`;
+}
+
+export function renderPasswordResetApprovedText(
+  input: PasswordResetApprovedEmailInput
+): string {
+  return `Your password-reset request has been approved
+
+Hi ${input.recipientName},
+
+An Owner has approved your password-reset request. Use the link below to set a new password. The link works for ${input.expiresInHours} hours.
+
+Set a new password: ${input.resetLinkUrl}
+
+${input.companyName} staff portal.`;
+}
+
+export function renderPasswordResetRejectedSubject(): string {
+  return "Update on your password-reset request";
+}
+
+export function renderPasswordResetRejectedHtml(
+  input: PasswordResetRejectedEmailInput
+): string {
+  const name = escapeHtml(input.recipientName);
+  const company = escapeHtml(input.companyName);
+  const retry = escapeHtml(input.retryUrl);
+  const note = input.reviewerNote ? escapeHtml(input.reviewerNote) : null;
+  const noteBlock = note
+    ? `<div style="margin: 16px 0; padding: 16px; background: #fbf8f2; border: 1px solid #e8dfd3; border-radius: 8px;"><p style="margin: 0 0 8px; font-weight: 500; color: #313731;">Note from the reviewer:</p><p style="margin: 0; white-space: pre-wrap;">${note}</p></div>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+  <body style="font-family: 'Work Sans', Arial, sans-serif; color: #313731; background: #fbf8f2; padding: 32px;">
+    <div style="max-width: 480px; margin: 0 auto; background: #fffefa; border: 1px solid #e8dfd3; border-radius: 10px; padding: 32px;">
+      <h1 style="font-family: 'Urbanist', Arial, sans-serif; color: #151b18; font-size: 1.5rem; margin: 0 0 16px;">Update on your password-reset request</h1>
+      <p style="margin: 0 0 16px;">Hi ${name},</p>
+      <p style="margin: 0 0 16px;">An Owner reviewed your request and decided not to approve it this time.</p>
+      ${noteBlock}
+      <p style="margin: 24px 0;"><a href="${retry}" style="display: inline-block; background: #073d2a; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;">Submit a new request</a></p>
+      <p style="margin: 24px 0 0; color: #5e625e; font-size: 0.875rem;">${company} staff portal.</p>
+    </div>
+  </body>
+</html>`;
+}
+
+export function renderPasswordResetRejectedText(
+  input: PasswordResetRejectedEmailInput
+): string {
+  const noteBlock = input.reviewerNote
+    ? `\n\nNote from the reviewer:\n${input.reviewerNote}`
+    : "";
+  return `Update on your password-reset request
+
+Hi ${input.recipientName},
+
+An Owner reviewed your request and decided not to approve it this time.${noteBlock}
+
+Submit a new request: ${input.retryUrl}
+
+${input.companyName} staff portal.`;
+}

@@ -7,8 +7,12 @@ export async function middleware(request: NextRequest) {
   const isLoginPath = pathname === "/admin/login" || pathname === "/admin/login/";
   const isSignoutPath =
     pathname === "/admin/signout" || pathname === "/admin/signout/";
+  const isPasswordResetPath =
+    pathname === "/admin/password-reset" ||
+    pathname === "/admin/password-reset/" ||
+    pathname.startsWith("/admin/password-reset/");
 
-  if (isLoginPath || isSignoutPath) {
+  if (isLoginPath || isSignoutPath || isPasswordResetPath) {
     return supabaseResponse;
   }
 

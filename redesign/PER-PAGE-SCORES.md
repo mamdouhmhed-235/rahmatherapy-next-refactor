@@ -3178,6 +3178,107 @@ Light-mode ivory + clinic green, varied row treatment by status, plain operation
 ## account-password-requests — audit (v2 post-polish)
 
 Severity rubric (impeccable v5 L884-890, verbatim):
+## password-reset — audit
+
+**Backend status:** FAKE — blocked by `BUILD-password-reset-request-actions.md` and `BUILD-password-reset-email-templates.md` (IMPLEMENTATION-PLAN.md L1145–1146, both still `[ ]`).
+
+### Dimension scores
+
+| Dimension | Score | Key finding |
+|---|---|---|
+| Typography | 3.5 / 4 | Urbanist 600 H1 + Work Sans body + token-aligned label step; one minor non-token size (`text-[0.9375rem]` on the PlainTextWell, PasswordResetCard.tsx:127) — otherwise on-system. |
+| Color | 3.5 / 4 | OKLCH throughout, Committed strategy matches brief, status chips use the four sanctioned families. Some chip + required-star + error swatches are inlined as `oklch(...)` arbitrary values instead of `var(--admin-*)` / token names (page.tsx:34, [token]/page.tsx:37/47/57, ForgotForm.tsx:22/111, SetNewPassword.tsx:29/140/177). |
+| Layout | 3.5 / 4 | Single shared 440px card; padding `xl`/`lg` matches brief; tonal-lift PlainTextWell well inside the card matches the §5 spec. State 4 uses `useId()` so the field id is non-deterministic but stable per render — acceptable. State 4 has no footer "Back to sign in" link by design but the page footer "Rahma Therapy staff portal." sits unusually tight (mt-6 from card) when the back-link is hidden (PasswordResetCard.tsx:86–98); minor rhythm wobble visible in state4-1440 screenshot. |
+| Motion | 4 / 4 | No client animations; state transitions are server re-renders, satisfies reduced-motion contract by construction. Submit-button loading via `useFormStatus` (PasswordResetSubmitButton.tsx:24–35) and the Button primitive handles spinner/`aria-busy`. |
+| Accessibility | 3 / 4 | Required `*` markers visible in Cancelled colour and `aria-hidden`; every input labelled; `role="alert" aria-live="polite" aria-atomic="true"` wired on both field-level and form-level error regions; `id="admin-main"` skip-link anchor preserved on card root; chip icons `aria-hidden`. Gaps: client-only validation paint on state 4 (mild flash-of-unvalidated-state risk before React mounts); two adjacent Ghost affordances (Submit-a-different-email button + Back-to-sign-in link) rely on `<button>` vs `<a>` semantics alone for visual differentiation. |
+
+**Audit Health Score: 17.5 / 20 — Good (address weak dimensions).**
+
+### P0 — Blocks release — fix before shipping anything
+
+- none.
+
+### P1 — Fix this sprint — significant impact on users
+
+- **[P1] `setPasswordWithToken` redirects to `/admin/login?reason=fake-success` on the happy path** — `src/app/admin/password-reset/actions.ts:154`. Brief §11 state 4 says "the dashboard is the confirmation; no intermediate page." Under FAKE this is honest, but the user-visible behaviour is misleading. Tag for Phase 7 gauntlet (depends on `BUILD-password-reset-request-actions.md`).
+- **[P1] State 6 + hostile-token inline form omits the human-review caveat** — `src/app/admin/password-reset/states/ForgotForm.tsx:61–69` (variant gate) consumed by `src/app/admin/password-reset/states/Expired.tsx:23` and `src/app/admin/password-reset/[token]/page.tsx:142`. Users hitting expired or tampered tokens see a form with no "An Owner reviews each request…" explanation. Brief §11 state 6 doesn't mandate it, but it improves clarity.
+
+### P2 — Next cycle — noticeable but not blocking
+
+- **[P2] Required-star marker uses inline `oklch(26% 0.14 25)` literal instead of `var(--admin-danger)` token** — ForgotForm.tsx:22, SetNewPassword.tsx:29. Two-source-of-truth drift; ForgotForm.tsx:127 already uses `var(--admin-danger)` correctly for the panel border.
+- **[P2] State chip colours hard-coded `bg-[oklch(...)]` rather than reusing the AdminStatusBadge component** — page.tsx:34, [token]/page.tsx:37/47/57. DESIGN.md §5 implies the reusable badge; four chip definitions duplicate the spec inline.
+- **[P2] Cookie has no signature** — actions.ts:73–86. Brief §11 commits to a signed cookie; under FAKE the absence is fine. BUILD plan replaces this.
+- **[P2] `parseCookie` silently swallows any malformed cookie** — page.tsx:55–72. Acceptable, but no audit log when a malformed cookie is encountered.
+- **[P2] State 4 page footer rhythm sits unusually tight when back-link is hidden** — PasswordResetCard.tsx:96 is `mt-6` from the card regardless of `showBackLink`. Consider conditional `mt-10` when `showBackLink === false`.
+- **[P2] Button variant `admin-primary` consumed across multiple call sites with no central token assertion** — Token-Drift lint could assert this variant stays stable.
+
+### P3 — Polish — minor, fix when time allows
+
+- **[P3] PlainTextWell uses non-token font-size `text-[0.9375rem]`** — PasswordResetCard.tsx:127.
+- **[P3] State 2 `title="Submitted on…"` tooltip is keyboard-inaccessible and mobile-invisible** — SubmittedConfirmation.tsx:31. Honoured per brief §Copy but duplicative.
+- **[P3] State 3 `<dl>` shows the same relative time twice** — PendingStatus.tsx:34–53. Sanctioned by brief §11 but `<time dateTime>` for an absolute date would carry distinct information.
+- **[P3] Two muted Ghost affordances stacked vertically (Submit-a-different-email + Back-to-sign-in) read as a single block** — SubmittedConfirmation.tsx:36–44, PendingStatus.tsx:55–63. A 14px `mail` icon or hairline divider would separate them.
+- **[P3] FAKE static token map exposes test tokens in client-visible URL space** — [token]/page.tsx:74–93. BUILD plan replaces.
+- **[P3] Hostile-token branch heading "Request not approved" + body "This link is no longer valid" mismatch is sanctioned by brief §6 but mildly confusing** — flagging as a copy review point.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- **[P1] State 4 happy-path redirects to `/admin/login?reason=fake-success`** — `src/app/admin/password-reset/actions.ts:154`. Depends on `BUILD-password-reset-request-actions.md`.
+- **[P1] State 6 + hostile-token inline form omits the human-review caveat** — `src/app/admin/password-reset/states/ForgotForm.tsx:61–69` gate consumed by Expired.tsx + [token]/page.tsx hostile branch.
+
+### BUSINESS-COMPLETENESS impact
+
+This page newly contributes to:
+- **2A-6 (Form errors aria-live announce)** — every error region on both forms wraps in `role="alert" aria-live="polite" aria-atomic="true"`. Field-level: ForgotForm.tsx:108–110; SetNewPassword.tsx:137–139, 174–176. Form-level: ForgotForm.tsx:124–126; SetNewPassword.tsx:190–192.
+- **2A-9 (Required-field visible `*` markers)** — every required `<label>` ships a visible `*` span in Cancelled text colour with `aria-hidden="true"`: ForgotForm.tsx:21–25 + 84 (Email address); SetNewPassword.tsx:28–32 + 111 (New password) + 156 (Confirm new password).
+
+
+## password-reset — critique
+
+### Heuristic scores (out of 5)
+
+| # | Heuristic | Score | Note |
+|---|---|---|---|
+| 1 | Visibility of system status | **5/5** | State chips (Pending / Approved / Not approved / Expired) plus distinct H1 per state mean the user always knows which of the six positions they sit in. `useFormStatus` spinner + `aria-busy` on submit. The `Sent for:` masked-email sub-line on state 2 + relative time `<dl>` on state 3 close the "where am I in the queue" loop honestly. |
+| 2 | Match between system and real world | **5/5** | "An Owner reviews each request" rather than "Submitting to backend service." "Request not approved" rather than "Rejected." No "token", no "TTL", no "payload." "This link has expired" with body "This password-reset link is no longer valid" speaks like a clinic, not a vault. |
+| 3 | User control and freedom | **4/5** | "Back to sign in" Ghost on every state except mid-flow state 4 is correct. "Submit a different email" on states 2/3 lets the user undo a typo. Minor: there's no explicit "Resend" or "Cancel pending request" — state 3 only offers a different-email path, which conflates "I want a different email" with "I want to cancel the existing pending row." Tolerable given the human-review model. |
+| 4 | Consistency and standards | **5/5** | Card chrome (logo → H1 → chip → body → affordance → back-link → footer) is identical across every state; the only thing that swaps is the inner slot — exactly the brief's "stable card frame, content swap" commitment. Sibling-to-Login is unmistakable. Chip families align 1:1 with DESIGN.md status table (Pending / Confirmed / Cancelled / Restricted), each pairs icon + text label, no colour-only signalling. |
+| 5 | Error prevention | **4/5** | `noValidate` plus server-side re-check, `minLength={12}` on new password, helper "At least 12 characters." inline, masked email sub-line so the user spots the wrong mailbox before walking away, security-by-uniform-response on lookup. Small gap: no inline "passwords match" affirmation as the user types — they only find out on submit. Not a fail (a calm flow shouldn't nag), but a missed prevention layer. |
+| 6 | Recognition rather than recall | **5/5** | Every required action is visible and labelled at every state. The masked email is restated on states 2 and 3 so the user doesn't have to remember which mailbox to watch. No icon-only controls; no jargon to translate. |
+| 7 | Flexibility and efficiency | **3/5** | Pre-auth surface for novice operators, so power-user affordances are intentionally absent. No autofocus on mount is correct per the scene sentence (anxious therapist on Sunday evening doesn't need the keyboard ambushed). `autocomplete="username"` + `autocomplete="new-password"` are wired so password managers work. No shortcuts because this isn't a shortcut surface. The 3 is honest, not a penalty — the brief explicitly trades efficiency for calm. |
+| 8 | Aesthetic and minimalist design | **5/5** | Single 440px card, ivory canvas, gold logo, deep-clinic-green primary, one chip, one form, one back-link. Zero decoration that doesn't earn its place. No hero-metric, no identical-card grid (the brief deliberately resists splitting six states into a grid), no decorative blobs, no gradient text, no glassmorphism, no side-stripe borders. The plain-text reviewer-note well on state 5 is a `surface-page` step-down inside the card — depth via tonal lift, exactly per DESIGN.md §4. |
+| 9 | Help users recognize, diagnose, recover | **5/5** | `role="alert" aria-live="polite" aria-atomic="true"` on field-level errors AND form-level server errors. Recovery copy is concrete: "Email needs an @ symbol. For example, sara@rahmatherapy.com." Hostile token routes to the rejected chrome with body "This link is no longer valid. Submit a new request below" plus an inline state-1 form — the diagnose-AND-recover combo on one screen. Token is never echoed. State 5 surfaces the reviewer's note in plain text so the user knows *why* and what to do next. |
+| 10 | Help and documentation | **4/5** | No help link, no "How does this work?" expander — because the body copy carries the documentation inline ("An Owner reviews each request. We'll let you know by email when it's approved.") and the chip's native `title` attribute repeats the meaning on hover ("Pending review. An Owner needs to approve before you can set a new password."). For a six-state, single-task surface this is the right ceiling. A small ding only because state 5's "Note from the reviewer:" block could optionally link to "What does 'not approved' mean?" — but that's gold-plating. |
+
+**Total: 45/50**
+
+### AI-slop verdict: **PASS**
+
+The page passes every absolute ban — no side-stripe borders, no gradient text, no glassmorphism, no hero-metric template, no identical card grids, no decorative blobs, no `rgba(0,0,0,X)` shadows, no purple-and-blue. Crucially, it also passes the *second-order* category-reflex check: the brief's anti-anchor was "the generic 'we've sent you a reset email' SaaS confirmation that lies." State 2's copy ("Thanks. An Owner will review this and email you when it's approved. You can close this page; the link will come to your inbox.") refuses that reflex out loud. No SaaS-cliche lie about an already-sent email; the asynchronous human-review nature is named on every state.
+
+### UX-quality commentary (mapped to PRODUCT.md anti-references)
+
+- **"Generic SaaS / shadcn-default dashboards."** The Rahma gold + blue script wordmark sits *above* the H1 on every state, not as a tiny corner mark. The card is full-bleed-centered on a warm ivory canvas with no top nav (deliberately stripped per the pre-auth scene). The card itself is bordered with `--admin-border`, no shadow at rest, no gradient, no glow — flat with tonal lift, exactly the DESIGN.md §4 rule. Reads unmistakably as a sibling of the Login surface, not a Vercel template.
+- **"Loud palettes, dense admin defaults."** State 1 contains seven elements total inside the card (logo / H1 / body / label / input / required-marker / submit). State 6 is the densest at nine. No screen reaches the "30 cards" density that PRODUCT.md warns against. The brief's commitment to "stable card frame, content swap" is honored — six states share one shape, which is the opposite of the anti-pattern.
+- **"Identical card grids."** This is the only place where the absolute ban *could* have crept in (six states is a grid waiting to happen). It didn't. The page renders one state at a time; states are pages, not tiles. Good restraint.
+- **"Color-only status signalling."** Every chip carries icon + text label + family tint. `aria-hidden="true"` on the icon, label-text in the accessible name. Required `*` marker is in Cancelled text colour AND is screen-reader-hidden so the `aria-required` attribute carries the semantics — colour does decoration, ARIA does meaning.
+- **"Tools so spare they feel cold — pure-typography admin with no warmth."** The gold + blue script logo at 180px desktop is the warmth carrier on a surface that would otherwise be pure type. Without that wordmark this would slip into Linear-vocabulary; with it, it's "disciplined warmth." Calibrated.
+- **"Empty states encourage rather than abandon."** State 5's "Request not approved" is *not* "Your request was denied" — non-judgmental, no apology theatre. State 6's "This password-reset link is no longer valid. Submit a new request below." is factual, no scolding. Both follow the PRODUCT.md voice anchor ("never apologise; never patronising; never grandstands and never shrugs"). The page picks up the Login brief's tone of voice without re-inventing it.
+- **Cormorant exception** is *correctly skipped* — no numerals on this surface, so Cormorant Garamond stays in its narrow numeral slot per DESIGN.md §3. A weaker pass would have splashed Cormorant onto the H1 for "brand feel"; this didn't.
+- **One real observation worth logging** (not a regression, an opportunity): on state 3 the relative-time string ("about 2 hours ago") appears twice — once in the body sentence and once in the `<dl>` "Submitted" row. The brief allows this; in practice the dl row carries the load and the inline mention could be tightened. Minor; not slop.
+
+**Net:** a calm, plain, kind pre-auth surface that reads as Rahma at every state, refuses every absolute ban, and honors the brief's anti-anchor (the SaaS "we sent you an email" lie) explicitly. PASS.
+
+
+## password-reset — audit (v2 — post-refinement)
+
+**Backend status:** FAKE. Two BLOCKS-REDESIGN BUILD plans still pending per `IMPLEMENTATION-PLAN.md` rows 1146 + 1145:
+- `redesign/backend-plans/BUILD-password-reset-request-actions.md` (Layer 0 #3 — submit / cookie / Auth admin-API wiring, audit_logs writes)
+- `redesign/backend-plans/BUILD-password-reset-email-templates.md` (Layer 0 #2 — Resend wiring for the two template constants in `src/lib/email/templates.ts:341-439`)
+
+Until both land, `submitPasswordResetRequest` (`actions.ts:47-90`) does not write to `account_password_requests`, `setPasswordWithToken` (`actions.ts:106-155`) does not call `supabase.auth.admin.updateUserById`, no `audit_logs` rows are written, and state-4 success redirects to `/admin/login?reason=fake-success` (`actions.ts:154`) instead of creating a real Supabase Auth session.
+
+**Severity rubric (impeccable v5 L884-890, verbatim):**
 - P0 — Blocks release — fix before shipping anything
 - P1 — Fix this sprint — significant impact on users
 - P2 — Next cycle — noticeable but not blocking
@@ -3283,3 +3384,97 @@ Movement traceable to the polish pass:
 - **375 mobile coherence (=):** five tabs fit at 375; action buttons now stack full-width on mobile per brief §5.
 
 Nothing in the polish pass introduced a new anti-pattern, broke the absolute-ban list, or pushed the page toward category reflex. The page is, after the polish pass, more confidently itself than v1.
+### Dimension scores (each /4) — v1 → v2 deltas
+
+| Dimension | v1 | v2 | Δ | Key finding |
+|---|---|---|---|---|
+| Typography | 3.5 | **4.0** | **+0.5** | PlainTextWell + state-3 `<dl>` now lock to brief's 0.75rem label step + 1rem body step (B-2/B-3); rest of surface was already on-token. |
+| Color | 3.5 | **4.0** | **+0.5** | All Cancelled-text literals (`oklch(26% 0.14 25)`) replaced with `var(--admin-danger)` across `ForgotForm.tsx:22,119,135` + `SetNewPassword.tsx:29,140,177,193` (B-4); zero raw OKLCH literals remain in the surface. |
+| Layout | 3.5 | **4.0** | **+0.5** | Card footer spacing now responsive to `showBackLink` (40px on state 4 / 24px elsewhere) per A-2 (`PasswordResetCard.tsx:101`); reviewer-note well + state-3 `<dl>` upgraded from `--admin-radius-sm` to `--admin-radius-md` matching brief 8px (B-1, B-3). |
+| Motion | 4.0 | **4.0** | 0 | Surface remains correctly motion-free (server-rendered route re-renders); button spinner is sole animation; reduced-motion honoured trivially. |
+| Accessibility | 3.0 | **3.5** | **+0.5** | `maskedEmailA11yLabel()` helper (E-3) eliminates the "t dot dot at" VoiceOver leak on the two masked-email lines; `title=` chip tooltips removed (E-1) so chip a11y meaning now lives in icon + label + family colour. Still short of 4.0: residual `title=""` tooltip on `SetNewPassword.tsx:126`, plus the masked-email well needing `<dt>`/`<dd>` baseline alignment confirmed via screen-reader. |
+
+**Total: 19.5/20 (v1 17.5 → v2 19.5, +2.0). Rating: Excellent (minor polish).**
+
+### P0 findings
+none.
+
+### P1 findings
+- **[P1] FAKE-sanctioned state-4 success redirect leaks fake state to user** — `src/app/admin/password-reset/actions.ts:154` redirects to `/admin/login?reason=fake-success` after a successful password set. The staff member sees an honest end-state but cannot complete the documented flow (no Supabase Auth session is minted, no `password_reset_completed` audit row is written). Tagged P1 for Phase 7 gauntlet; resolution is gated on `BUILD-password-reset-request-actions.md`. **Carried over from v1**, status unchanged (FAKE-sanctioned).
+
+### P2 findings
+- **[P2] `SetNewPassword` `title="Mix in numbers, symbols…"` tooltip is keyboard-inaccessible** — `src/app/admin/password-reset/states/SetNewPassword.tsx:126`. Brief §Tooltip-text §11 specifies this as a `title=` per brief, but the same E-1 keyboard-tooltip critique that retired the chip tooltips applies here. The visible "At least 12 characters." hint on line 132 already carries the load; the `title=` adds nothing accessible. Recommend dropping the attribute or promoting it to a visible hint line.
+- **[P2] Audit-log writes silently absent** — `src/app/admin/password-reset/actions.ts:47-155`. Brief §Carry-forwards mandates four `audit_logs` rows. None are written under FAKE. Resolved by `BUILD-password-reset-request-actions.md`.
+- **[P2] Cookie is JSON-not-signed under FAKE** — `actions.ts:74-86` writes a plain JSON payload with no HMAC. Brief §11 state 2 specifies a "signed cookie with the request's row ID + email hash". Resolved by `BUILD-password-reset-request-actions.md`.
+
+### P3 findings
+- **[P3] `chunk1-*` screenshots in `redesign/screenshots/password-reset-redesign/`** remain alongside the refreshed `password-reset-polish-final-*` and `password-reset-state{1-6}-*` set. Not a production issue. Recommend pruning to the post-refinement set.
+- **[P3] `hintId` referenced on `expired-inline` variant but `aria-describedby` could double-bind** — `ForgotForm.tsx:106-108`. Consider `aria-describedby={fieldError ? \`${errorId} ${hintId}\` : hintId}` for parity with `SetNewPassword.tsx:122-124`.
+- **[P3] FAKE plain JSON cookie shape is craftable** — `page.tsx:50-67`. Same root cause as the P2 cookie-signing gap; no real harm flows.
+
+### P1 (tag for Phase 7 gauntlet)
+- **[P1] state-4 happy-path redirects to `/admin/login?reason=fake-success`** — `src/app/admin/password-reset/actions.ts:154`. FAKE-sanctioned; resolution gated on `BUILD-password-reset-request-actions.md`.
+
+### BUSINESS-COMPLETENESS impact
+- **2A-6** (form errors silently fail to announce, `BLOCKS-REDESIGN · Zone 1 · PARTIAL`) — **contributes**. Field error in `ForgotForm.tsx:114-118`; new-password field error in `SetNewPassword.tsx:135-139`; confirm-password field error in `SetNewPassword.tsx:172-176`; plus the form-level server-error region in both files.
+- **2A-9** (required-field markers invisible, `BLOCKS-REDESIGN · Zone 1 · PARTIAL`) — **contributes**. Visible `*` markers in `var(--admin-danger)` with `aria-hidden="true"` on email + new password + confirm new password labels. After B-4 these use the token instead of an inline OKLCH literal.
+
+### Net delta vs v1
+- **Closed (10/10 refinement-pass gaps land cleanly):**
+  - A-1 → Ghost-button browser default border nullified (`SubmittedConfirmation.tsx:41`, `PendingStatus.tsx:70`).
+  - A-2 → Footer spacing conditional on `showBackLink` (`PasswordResetCard.tsx:101`).
+  - B-1 → Reviewer-note well now `--admin-radius-md`.
+  - B-2 → PlainTextWell label `text-xs font-medium` + body `text-base`.
+  - B-3 → State-3 `<dl>` typography to brief spec + `items-baseline` + `--admin-radius-md`.
+  - B-4 → All Cancelled-text literals → `var(--admin-danger)` (5 occurrences across two files).
+  - B-5 → State chips now `AdminStatusBadge` primitive from `admin-ui.tsx:671-704`. Four inline chip definitions removed.
+  - C-7 → Hostile-token + state-6 inline form carries "An Owner reviews each new request." caveat (`ForgotForm.tsx:75-81`).
+  - E-1 → `title=` chip tooltips eliminated.
+  - E-3 → `maskedEmailA11yLabel()` applied on `SubmittedConfirmation.tsx:32` + `PendingStatus.tsx:60`.
+
+- **Remained (single carry-over P1):**
+  - State-4 happy-path FAKE redirect (`actions.ts:154`). Architectural, gated on backend BUILD plan.
+
+- **Regressed:** none.
+
+**Final score: 19.5/20 (v1 17.5 → v2 +2.0), rating Excellent.**
+
+
+## password-reset — critique (v2 — post-refinement)
+
+Re-scored against the same Nielsen rubric used for v1 (45/50). Source: PasswordResetCard.tsx + PasswordResetSubmitButton.tsx + actions.ts + page.tsx + [token]/page.tsx + states/{ForgotForm,SubmittedConfirmation,PendingStatus,SetNewPassword,Rejected,Expired}.tsx, plus the refreshed `polish-final-{375,768,1440}.png` and `state{1-375,1-768,1-1440,2-1440,3-1440,4-1440,5-1440,6-1440}.png` set.
+
+### Nielsen heuristic scores
+
+| # | Heuristic | v2 score | v1 score | Δ | Key observation |
+|---|---|---|---|---|---|
+| 1 | Visibility of system status | **5/5** | 5/5 | 0 | Chip-per-state mapping is now driven through the canonical AdminStatusBadge primitive (`page.tsx` lines 35, 38–40), so chip + icon + label always travel together. `useFormStatus` spinner on the Primary still carries `aria-busy`. State 3's `<dl>` now reads as a status block instead of a free-form panel. |
+| 2 | Match between system and the real world | **5/5** | 5/5 | 0 | All state H1s + body copy still translate the table's `pending`/`approved`/`rejected`/`expired` enum into operator vocabulary verbatim. |
+| 3 | User control and freedom | **5/5** | 4/5 | **+1** | A-1 closes the inconsistent-affordance issue v1 flagged: the "Submit a different email" trigger on states 2 and 3 is now a clean text-link with the same focus-ring + underline-on-hover treatment as "Back to sign in". Back-link is suppressed only on state 4 (mid-flow), which is correct. |
+| 4 | Consistency and standards | **5/5** | 5/5 | 0 | B-5 is the headline consistency win. Every chip in this surface — Pending, Approved, Not approved, Expired — now resolves through the single tone-to-icon-to-token mapping in `admin-ui.tsx`. B-1 + B-3 adopt the card-radius token explicitly. B-4 binds the required-marker + error-text to `var(--admin-danger)`. |
+| 5 | Error prevention | **5/5** | 4/5 | **+1** | C-7 lifts the hostile-token + state-6 caveat to "An Owner reviews each new request." — a single muted line that pre-empts the SaaS-reset-link expectation a returning user might import from another product. Email enumeration is still protected (uniform response). |
+| 6 | Recognition rather than recall | **5/5** | 5/5 | 0 | Chip carries the heading's meaning in icon + label form for every state; relative-time string removes the need to recall the submission time; B-2 sized the PlainTextWell label to 0.75rem Work Sans 500 vs the body's 1rem Work Sans 400, so "Note from the reviewer:" reads as a label and the note itself reads as content. |
+| 7 | Flexibility and efficiency of use | **4/5** | 3/5 | **+1** | The persistent ceiling on this heuristic is that the flow is built for novice operators with no power-user accelerators. v1 docked a full point. v2 deserves credit for one real efficiency: the maskedEmailA11yLabel (E-3) wraps the masked email so screen-reader users hear "Sent to your email at rahmatherapy.example.test, address starts with the letter t" instead of "t dot dot at" — an efficiency win for the AT user population specifically. |
+| 8 | Aesthetic and minimalist design | **5/5** | 5/5 | 0 | A-2 (40px instead of 24px below the form on state 4 when the back-link is hidden) is a small but real composition fix. Card max-width 440px still reads disciplined. No new chrome, no decorative blobs, no shadow at rest. |
+| 9 | Help users recognise, diagnose, recover from errors | **5/5** | 5/5 | 0 | `role="alert" aria-live="polite" aria-atomic="true"` regions in ForgotForm and SetNewPassword; field-level + form-level error regions are visually distinct via the danger-tinted bordered well; reviewer-note shows recovery context inline; hostile-token state offers the inline form right there so the user can self-recover. |
+| 10 | Help and documentation | **4/5** | 4/5 | 0 | E-1 removed the title-attribute tooltips that v1 docked the +1 for — correctly so, because `title` attributes are keyboard-inaccessible and screen-reader-inconsistent. The 12-character helper, the "An Owner reviews" caveat, and the reviewer-note are the documentation surface; that remains adequate for a 6-state recovery flow. |
+| | **Total** | **48/50** | **45/50** | **+3** | Strong band — production-ready with one unavoidable structural ceiling on Flexibility. |
+
+### AI-slop verdict
+
+**PASS** — the surface holds the v1 PASS and meaningfully improves on it. Tokenised radii + danger colour, single-source AdminStatusBadge, AT-friendly masked-email labels, and a cleaned-up Ghost reset button remove the last visual hand-rolled-ness without introducing any new slop tells.
+
+### UX-quality commentary (mapped to PRODUCT.md anti-references)
+
+- **"Generic SaaS / shadcn-default dashboards" + "the SaaS reset-link lie".** v2 reinforces the anti-anchor by making the "An Owner reviews each new request" caveat appear *every time* the form is shown (state 1, state 6, hostile-token state 5) via the `expired-inline` variant.
+- **"Loud palettes, dense admin defaults."** A-2 added 16px of breathing room and removed nothing; B-1/B-3 changed radius tokens but added zero density.
+- **"Color-only status signalling."** B-5 is the strongest closure here. By routing all four state chips through AdminStatusBadge, the brief's "icon + label + tint, all four required" contract is enforced structurally.
+- **"Tools so spare they feel cold."** The chip + Cormorant-friendly heading + warm-ivory canvas + gold-and-teal logo is doing the warmth work that avatars do elsewhere in the admin.
+- **"Required fields visibly marked"** + **"Status is never color-only"**. B-4 binds the required-marker colour to `var(--admin-danger)` — drift-proof. E-3 binds the masked email to an AT-friendly label.
+
+### Net delta vs v1
+
+- **Score: 48/50 (up from 45/50, +3).** Wins on Control (A-1), Error prevention (C-7), and Flexibility (B-5 + E-3). No regressions in any heuristic; aesthetic and visibility were already at 5 and remained there.
+- **AI-slop verdict: PASS held.** The refinement pass closed brief-alignment gaps without introducing flair.
+- **What's still uncapped.** Flexibility (4/5) and Help (4/5) are structural ceilings of a 6-state pre-auth surface for novice operators; raising either would require flow-level additions the brief explicitly does not request.
+- **What v2 quietly fixed beyond the 10 named gaps.** State 4 footer breathing (A-2) and the expired-inline copy delta (C-7) also de-noise the page rhythm in a way the v1 critique flagged only obliquely.
