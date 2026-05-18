@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 9 of 29 — dashboard-coordinator   ← update when you start a session (count by position from the top, not by label). In flight: dashboard-coordinator, password-reset, emails (parallel-3 from second batch; account-password-requests + client-new merged. 23 of 29 done, 6 remaining: dashboard-coordinator, dashboard-therapist, password-reset, email-templates, emails).
+Currently on: 9 of 29 — dashboard-coordinator   ← update when you start a session (count by position from the top, not by label). In flight: dashboard-coordinator, emails (parallel-2 from second batch; password-reset + account-password-requests + client-new merged. 24 of 29 done, 5 remaining: dashboard-coordinator, dashboard-therapist, email-templates, emails).
 
 ---
 
@@ -584,7 +584,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 16. [ ] password-reset — commit: ____
+## 16. [x] password-reset — commit: 56530c7
 
 **Tier:** Tier 3 — greenfield pre-auth; closes `account_password_requests` schema gap (staff-facing side)
 
