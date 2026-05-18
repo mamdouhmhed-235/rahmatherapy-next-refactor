@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 10 of 29 — dashboard-therapist   ← update when you start a session (count by position from the top, not by label). In flight: emails (only remaining from second batch; dashboard-coordinator + password-reset + account-password-requests + client-new merged. 25 of 29 done, 4 remaining: dashboard-therapist, email-templates, emails).
+Currently on: 10 of 29 — dashboard-therapist   ← update when you start a session (count by position from the top, not by label). In flight: (none — second parallel-5 batch complete: client-new + dashboard-coordinator + account-password-requests + password-reset + emails all merged. 26 of 29 done, 3 remaining: dashboard-therapist, email-templates. Tab-shell stub at src/app/admin/emails/page.tsx:874 is ready for email-templates session to grep + swap).
 
 ---
 
@@ -814,7 +814,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 22. [ ] emails — commit: ____
+## 22. [x] emails — commit: 546574f
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
