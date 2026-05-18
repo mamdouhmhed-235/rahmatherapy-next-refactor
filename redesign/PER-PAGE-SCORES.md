@@ -2853,3 +2853,235 @@ Three shape-varied managers, plain operator copy, status-paired pill + segmented
 ### Net delta vs v1
 Polish pass directly retires both v1 lows (Flexibility +1.0; Help +0.5) and converts the v1 PASS into a stronger PASS — every heuristic now sits at 4 or above, with three full or half-step gains in Error-prevention / Flexibility / Aesthetic.
 
+
+
+## client-new — audit
+
+**Audit date:** 2026-05-18
+**Reviewed:** `src/app/admin/clients/new/page.tsx`, `src/app/admin/clients/new/ClientCreateForm.tsx`, `src/app/admin/clients/actions.ts` (additive city/area extension)
+**Screenshots:** `client-new-polish-final-{375,768,1440}.png`, `client-new-post-axes-{375,768,1440}.png`
+
+### Severity rubric (impeccable v5 L884–890, verbatim)
+- P0 — Blocks release — fix before shipping anything
+- P1 — Fix this sprint — significant impact on users
+- P2 — Next cycle — noticeable but not blocking
+- P3 — Polish — minor, fix when time allows
+
+### 5 dimension scores
+
+- **Visual hierarchy:** 4.5 / 5 — Three intentionally-named panels stack cleanly; H1 → H2 panel headings preserved; required-field legend leads; banner-then-panels-then-save-bar order matches brief. The desktop save bar styled as a card competes a little with the three content panels, costing 0.5.
+- **Token discipline:** 4 / 5 — `--admin-border-form` (Form Seam) drives every input border via `inputBase`. No `border-l-4`, no `backdrop-blur`, no glassmorphism, no gradient text, no `bg-white` on panels. Token escapes remain: status-family colours hard-coded as inline `oklch()` constants at lines 12–17; `text-white` literal on submit button (line 237); Attention border re-derived locally.
+- **Accessibility:** 4.5 / 5 — Per-field `role="alert" aria-live="polite" aria-atomic="true"`, banner-level `role="alert"` on Duplicate + Form-level error, required `*` markers in Cancelled colour with `aria-hidden`, `aria-busy` on form + submit, `aria-invalid` + `aria-describedby` wiring per field, focus auto-moves to first invalid field, `autoComplete` tokens on all relevant fields, `AdminAccessDenied` no longer leaks the raw permission identifier. Marked down for: `disabled:opacity-70` (line 237) vs DESIGN.md §5 spec "40% + cursor-not-allowed".
+- **Responsive behaviour:** 3.5 / 5 — Panels collapse to single column on mobile; sticky save bar pinned with `safe-area-inset-bottom`; desktop bar becomes in-flow card. P1 concern about sticky save bar coexisting with the fixed `AdminMobileBottomNav` at the bottom of scroll (collision risk).
+- **Copy quality:** 4.5 / 5 — Voice matches PRODUCT.md, no em dashes, helpers plain. "Possible duplicate client" + "Create a separate client profile anyway." checkbox label match brief §8 verbatim. Missing: "Try again" Ghost in submission failure banner.
+
+### P0 findings
+
+- none
+
+### P1 findings
+
+- **Sticky save bar collides with fixed `AdminMobileBottomNav` at mobile bottom of scroll** — `ClientCreateForm.tsx:224` (`sticky bottom-0 z-20`). With the admin layout's fixed mobile bottom nav, the save bar will sit behind or above the nav depending on stacking context.
+- **`AdminAccessDenied` missing the Secondary "Back to dashboard" CTA** — `page.tsx:26-33` only renders a Ghost "View clients" link. Brief §11 specifies *Secondary "Back to dashboard" → /admin/dashboard* as the primary CTA, with "View clients" as the tertiary.
+- **Submission failure "Try again" Ghost missing from `FormErrorBanner`** — `ClientCreateForm.tsx:296-313`. Brief §8 and §6 require a retry affordance inside the banner.
+
+### P2 findings
+
+- **Status-family colour values inlined as `oklch()` constants** — `ClientCreateForm.tsx:12-17`. DESIGN.md doesn't yet expose CSS variables for status backgrounds (admin-ui.tsx:315 inlines the same Cancelled bg). System gap to canonicalise in Phase 7.
+- **`text-white` literal on submit button** — `ClientCreateForm.tsx:237`. PRODUCT.md anti-references and impeccable shared design laws ban `#fff`/`#000`; Field White token is `oklch(99.5% 0.003 88)`.
+- **Submit button `disabled:opacity-70` undercuts the disabled affordance** — `ClientCreateForm.tsx:237`. DESIGN.md §5 spec is "40% opacity + cursor-not-allowed".
+- **Textarea double-labelled with both `<label htmlFor>` and `aria-label`** — `ClientCreateForm.tsx:203-210`. Brief §5 specified `aria-label` alone.
+- **Postcode `max-w-[14rem]` (224px) vs brief §5 `max-w-[220px]`** — `ClientCreateForm.tsx:177`. 4px drift.
+
+### P3 findings
+
+- **Desktop save bar renders as a card** with `md:border md:bg-[var(--admin-panel)] md:rounded` — slightly competes with the three content panels.
+- **`focus-visible:ring-2` instead of `ring-3`** vs DESIGN.md §4 spec.
+- **Soft warning "no contact channel" not implemented** — Deferred per brief §10 Q2.
+- **`focus-visible:ring-[var(--admin-focus)]/30` on inputs vs `/55` on buttons** — Inconsistent ring-opacity within the same form.
+
+### Backend status
+
+- **HANDLED** — `createClient` server action in `src/app/admin/clients/actions.ts` accepts the new `city` and `area` form fields via the sanctioned additive Zod-schema extension (lines 46-47, 134-135, 195-196), preserves all RECON §6.4 field names verbatim, keeps duplicate-detection rules server-side, redirects to `/admin/clients/<id>` on success, and audit-logs the create. No FAKE / N-A blockers; no `BUILD-*.md` dependency for this page's core path. `BUILD-postcode-lookup-client.md` is explicitly out of scope per brief §4.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- Sticky save bar / `AdminMobileBottomNav` collision at mobile viewport bottom — `ClientCreateForm.tsx:224`
+- `AdminAccessDenied` missing Secondary "Back to dashboard" CTA — `page.tsx:26-33`
+- `FormErrorBanner` missing "Try again" Ghost retry button — `ClientCreateForm.tsx:296-313`
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-6** — Form errors aria-live announce: `ClientCreateForm.tsx` wraps the form-level error banner and duplicate-warning banner in `role="alert" aria-live="polite" aria-atomic="true"`, every per-field error carries the same triple. Eligible to flip from PARTIAL to coverage-row HANDLED.
+- **2A-9** — Required-field markers visible: `ClientCreateForm.tsx` renders `<span aria-hidden="true">*</span>` in Cancelled-family text colour adjacent to every required label; legend "* means required." at top of form. Eligible to flip from PARTIAL to coverage-row HANDLED.
+
+
+## client-new — critique
+
+**Date:** 2026-05-18
+**Surface:** `/admin/clients/new`
+**Files reviewed:** `src/app/admin/clients/new/page.tsx`, `src/app/admin/clients/new/ClientCreateForm.tsx`, `src/app/admin/clients/actions.ts`
+**Screenshots reviewed:** `client-new-polish-final-{375,768,1440}.png`, `client-new-post-axes-{375,768,1440}.png`
+**Brief:** `redesign/briefs/client-new-brief.md` (user-confirmed)
+
+### Nielsen heuristic scores (0–4)
+
+| # | Heuristic | Score | Note |
+|---|---|---|---|
+| 1 | Visibility of system status | 3 | aria-busy on form + submit, spinner replaces Save icon, duplicate banner + required checkbox, focus auto-jump to first invalid field |
+| 2 | Match between system and real world | 4 | Plain admin English; "Who they are / How to reach them / Internal notes" is how a receptionist describes the page |
+| 3 | User control and freedom | 3 | Cancel anchor (no ambush), back breadcrumb, duplicate path explicit-checkbox-gated; deferred "no contact channel" soft warning would lift this to 4 |
+| 4 | Consistency and standards | 3 | Inputs match DESIGN.md §5 spec; native `<select>` chevron is browser-default — minor inconsistency |
+| 5 | Error prevention | 3 | Server-side duplicate detection works; required checkbox hard-locked; autoComplete set; deferred no-contact soft modal |
+| 6 | Recognition rather than recall | 4 | All fields labelled, `(optional)` markers explicit, inline helpers on email/phone/city/area, source-conditional helpers, concrete placeholder examples |
+| 7 | Flexibility and efficiency | 2 | Tab-order matches scan order; no keyboard shortcut (acceptable per PRODUCT.md "Tech level: Novice"); postcode auto-fill deferred per brief §10 Q3 |
+| 8 | Aesthetic and minimalist design | 3 | Calm, no gradients/blobs/glass/shadows; three stacked panels of same composition drift toward shape repetition (near-miss, not violation) |
+| 9 | Help users recognize, diagnose, recover | 3 | Cancelled-family banner + x-circle, role=alert + aria-live=polite + aria-atomic=true; duplicate banner names matched record; missing brief-promised "Try again" Ghost in FormErrorBanner |
+| 10 | Help and documentation | 3 | Self-documenting via inline helpers + panel descriptions; internal-notes panel description carries the dignified guardrail |
+
+**Total: 31 / 40.**
+
+### AI-slop verdict: **PASS**
+
+The page reads as a calm clinic-intake form built on the Rahma palette, not a generic SaaS form: no gradient text, no glassmorphism, no decorative blobs, no hero-metric template, no side-stripe borders, no color-only status, no purple-blue-or-neon. The only category-reflex tell is the three-stacked-rounded-panels rhythm, which sits adjacent to (but does not commit) the "identical card grids" anti-reference — the panel content is intentionally differentiated by copy, so it's a near-miss rather than a hit.
+
+### UX-quality commentary (mapped to PRODUCT.md anti-references)
+
+- **"Generic SaaS / shadcn-default dashboards":** avoided. Primary button is Clinic Green not shadcn-blue; input border is Form Seam (oklch 55%) not shadcn-default `border-input`. All seven token-escape soft-fixes from the brief (raw `bg-white`, raw `border-red-200`, raw `border-orange-200`, raw `backdrop-blur`, raw `manage_clients_all` leak) are resolved.
+- **"Decorative blobs, glassmorphism":** clean. The previous build's `backdrop-blur` save bar is gone; current bar is `bg-[var(--admin-panel)]` with 1px `border-[var(--admin-border)]` top edge.
+- **"Hero-metric template":** not applicable (no stats); Cormorant Garamond correctly absent (numerals only per DESIGN.md).
+- **"Identical card grids":** *watchout, not a violation.* Three AdminPanels stacked with the same title+description+grid composition is a single-page case of the shape PRODUCT.md warns against. Content differentiates by copy. Polish hedge: drop Panel 3's description (textarea placeholder already carries the meaning) for visible rhythm-break.
+- **"Color-only status signalling":** clean. Duplicate pairs Attention tint + `alert-circle` + "Possible duplicate client" label + prose + checkbox. Required `*` paired with literal "means required" legend.
+- **"Side-stripe borders, gradient text":** absent (source-grep clean).
+- **"Tools so spare they feel cold":** the form leans to the cold end of disciplined-warmth (no avatars yet — correct — pre-record creation; no illustration — correct — always-in-input). Warmth lives on the destination /admin/clients/<id>.
+- **"Raw permission identifier on denied screen":** resolved. `page.tsx:24-25` plain English; no `manage_clients_all` string anywhere.
+- **Form contract / RECON §6.4 preservation:** all field `name` attributes preserved verbatim + new `city`/`area` additive. Server action signature intact. `useActionState` preserved.
+
+**Concrete observations that did not land vs brief:**
+1. `Try again` Ghost on `FormErrorBanner` missing (brief §6).
+2. postcodes.io auto-fill deferred (brief §10 Q3) — flagged in brief for Phase 7.
+3. "No contact channel" soft-warning modal deferred (brief §10 Q2) — flagged in brief for Phase 7.
+4. Native `<select>` chevron is browser-default (rest of form is Rahma-tokenised).
+5. Panel-shape repetition — watchout, not fix-now.
+
+
+## client-new — audit (v2 post-enhancement)
+
+### Audit Health Score
+
+| # | Dimension | v2 Score | v1 Score | Δ | Key Finding |
+|---|-----------|----------|----------|---|-------------|
+| 1 | Accessibility | 5/5 | 4.5/5 | +0.5 | role=alert + aria-live on per-field, form-level, and submission-status regions; aria-required on required inputs; scrollIntoView on first invalid field; desktop-only autofocus (pointer:fine guard) |
+| 2 | Performance | 4/5 | 4/5 | 0 | Clean; opacity-only banner pop-in respects reduced-motion globally |
+| 3 | Responsive Design | 5/5 | 4.5/5 | +0.5 | `bottom-14 z-30` save bar correctly stacks above the `h-14` fixed AdminMobileBottomNav; `pb-32` reflow buffer; safe-area inset honoured |
+| 4 | Theming | 4/5 | 3.5/5 | +0.5 | Status-family backgrounds still inlined as `oklch()` literals (system-level deferral); `text-white` literal resolved → `text-[oklch(99.5%_0.003_88)]` |
+| 5 | Anti-Patterns | 5/5 | 4.5/5 | +0.5 | No glass, no gradient text, no `border-l-4`, no hero-metric stack; native `<select>` chevron replaced with tokenised `ChevronDown`; banners full-border (not side-stripe) |
+| **Total** | | **23/25** | **21/25** | **+2** | **Excellent — minor polish only** |
+
+### Anti-Patterns Verdict
+
+**PASS.** Could not be guessed as AI-generated. The form is calm clinic-intake grammar: warm ivory canvas, two intentionally-named panels plus a third for notes, full-bordered Cancelled-family error banner with `XCircle` + inline Ghost "Try again", full-bordered Attention-family duplicate banner with `AlertCircle` + visible label + required confirm-checkbox. No glass on the sticky save bar (flat `surface-card` with 1px top border). No side-stripe accents. The "* means required" legend rendered as a Cancelled-tinted pill is a Rahma-native touch. The native `<dialog>` for the no-contact modal is deliberately minimal. The address sub-section divider breaks panel sameness without inventing a 4th panel.
+
+### Executive Summary
+- Audit Health Score: **23/25** (Excellent — minor polish only)
+- Total issues: P0 = 0 · P1 = 0 · P2 = 3 · P3 = 4
+- All three v1 P1s are **resolved** in the enhancement pass
+
+### Detailed Findings by Severity
+
+#### P0 — Blocks release
+- _none_
+
+#### P1 — Fix this sprint
+- _none_ (all three v1 P1s resolved — see Net delta below)
+
+#### P2 — Next cycle
+
+- **[P2] Status-family colour values inlined as oklch() literals** — `ClientCreateForm.tsx:26-31`. System-level gap; add `--admin-cancelled-*` / `--admin-attention-*` to `tokens.css` in Phase 7.
+- **[P2] Server duplicate-warning prose does not match brief template** — `actions.ts:182-184`. Brief §Copy specifies `"{field} matches an existing record for {existing client name}"`; server returns `"{name} ({contact})"`. Out of scope per RECON §5; Phase 7 server-message sweep.
+- **[P2] Server-side Zod messages don't match brief §Copy strings** — `actions.ts:41,43`. Client-side pre-validation now covers email/phone/postcode with brief-verbatim copy; full_name/client_source server messages still diverge. Phase 7.
+
+#### P3 — Polish
+
+- **[P3] `AdminAccessDenied` "Back to dashboard" CTA renders as Ghost-shape, not Secondary-shape** — `admin-ui.tsx:914-919`. Shared-component fix; Phase 7 polish.
+- **[P3] postcodes.io postcode → city/area autofill not wired** — `ClientCreateForm.tsx`. Brief §4 Out: explicitly out of scope; follow-up via `BUILD-postcode-lookup-client.md`.
+- **[P3] Backdrop tint on no-contact `<dialog>` uses inline oklch literal** — `ClientCreateForm.tsx`. Add `--admin-dialog-backdrop` token in Phase 7.
+- **[P3] `rahma-fade-up` / `rahma-pop-in` keyframes not documented in DESIGN.md §Motion** — Documentation gap; Phase 7 or 8.
+
+### Backend status
+
+**HANDLED — no change.** `createClient` server action signature unchanged. `city`/`area` columns accepted via the sanctioned schema additive. Duplicate detection, validation rules, and audit-log write untouched.
+
+### P1 (tag for Phase 7 gauntlet)
+
+**none.** All three v1 P1s resolved:
+- Sticky bar / mobile bottom-nav collision → resolved (`bottom-14 z-30` + `pb-32`)
+- AdminAccessDenied missing Secondary CTA → resolved at page level via shared component default + custom `actions` slot
+- FormErrorBanner missing "Try again" Ghost → resolved (`RotateCcw` + brief-verbatim label)
+
+### BUSINESS-COMPLETENESS impact
+
+**Confirmed contributions:**
+- **2A-6** Form errors aria-live announce — duplicate, form-level, per-field regions all wrap in `role="alert" aria-live="polite" aria-atomic="true"`; sr-only `role="status"` submission live region added beyond the minimum.
+- **2A-9** Required-field visible `*` markers — `<span aria-hidden="true">*</span>` adjacent to every required label, plus Cancelled-tinted "* means required" pill legend; `aria-required="true"` set universally on every required input as a strict superset of the 2A-9 commitment.
+
+### Net delta vs v1 audit
+
+| Aspect | v1 | v2 | Delta |
+|---|---|---|---|
+| Total score | 21/25 | 23/25 | +2 |
+| P0 count | 0 | 0 | 0 |
+| P1 count | 3 | 0 | -3 (all resolved) |
+| P2 count | ~3 | 3 | 0 |
+| P3 count | unknown | 4 | n/a |
+
+**16 specific improvements landed:** sticky-bar mobile clearance · "Try again" Ghost · AdminAccessDenied tertiary CTA · client-side pre-validation · sr-only submission live region · `aria-required` · `scrollIntoView` · desktop-only autofocus · custom select chevron · disabled-state opacity 0.4 + cursor-not-allowed · submit `active:scale-[0.98]` · banner mount animation · character counter on Notes · "* means required" pill · address sub-section divider · `text-white` → Field White token.
+
+**Bottom line:** Excellent. The enhancement pass resolved every Phase 6 P1, raised the score from 21/25 to 23/25, and introduced no new P0/P1. Remaining items are system-level cleanups appropriate for Phase 7.
+
+
+## client-new — critique (v2 post-enhancement)
+
+**Re-prime sources:** brief 23/29 (Phase 5), PRODUCT.md, DESIGN.md, `client-new-deferrals.md`, three responsive screenshots (375/768/1440), `client-new-no-contact-modal.png`, `client-new-enhanced-duplicate.png`, and live source (`page.tsx`, `ClientCreateForm.tsx`, `actions.ts`).
+
+### Nielsen heuristic scores
+
+| # | Heuristic | v1 | v2 | Δ | Key observation |
+|---|---|---|---|---|---|
+| 1 | Visibility of system status | 3 | 4 | +1 | aria-busy + spinner + sr-only role=status live region ("Saving client…" / "Couldn't save client."); press-state active:scale; multi-modal status |
+| 2 | Match between system and real world | 3 | 4 | +1 | Operator language; new "Address" sub-heading; "Where did this client come from?" translates enum to question |
+| 3 | User control and freedom | 2 | 4 | +2 | "Try again" Ghost in FormErrorBanner; NoContactDialog with real "Add contact details" off-ramp; Cancel anchor still escapes cleanly |
+| 4 | Consistency and standards | 3 | 4 | +1 | Hoisted CANCELLED_*/ATTENTION_* constants; custom ChevronDown; text-white → Field White token; all inputs use --admin-border-form |
+| 5 | Error prevention | 2 | 4 | +2 | Three layers: HTML required + aria-required, client-side preValidate (email/phone/postcode brief-verbatim), soft no-contact modal; desktop-only autofocus |
+| 6 | Recognition rather than recall | 3 | 4 | +1 | autoComplete on every relevant field; realistic placeholders; conditional source-detail helper surfaces right prompt at need |
+| 7 | Flexibility and efficiency | 3 | 3 | 0 | Tab order clean; 2000-char counter; deliberately no power-user shortcuts per PRODUCT.md |
+| 8 | Aesthetic and minimalist | 3 | 4 | +1 | Three panels with rahma-fade-up + Panel 2 sub-divider; Cancelled-tinted "* means required" pill the biggest single aesthetic upgrade |
+| 9 | Help users recognize, diagnose, recover | 2 | 4 | +2 | role=alert + aria-live + focus + scrollIntoView; brief-mandated "Couldn't create client. {server message}" prefix; Try Again Ghost; sr-only fail announcement |
+| 10 | Help and documentation | 3 | 3 | 0 | Inline helpers; "We'll redirect…" microcopy; right scale for small-team admin (no glossary) |
+
+**Total: v1 31/40 → v2 38/40 (+7).** Lift concentrated in heuristics 3, 5, 9 — exactly the three the v1 critique named.
+
+### AI-slop verdict: **PASS**
+
+No #fff/#000, no gradient text, no glassmorphism on save bar (flat --admin-panel with 1px Subtle Loam top per brief), no side-stripe borders, no decorative blobs, no purple-and-blue, no hero-metric template, no identical-card grid. Modal exists but earns its place per brief §10 Q2 — destructive-omission catch, not "modal as first thought." Status families use icon + label + tint composition, never colour-only. Sticky save bar uses bottom-14 z-30 to clear AdminMobileBottomNav, matching SettingsForm.tsx pattern. Reads as a Rahma surface, not generic admin.
+
+### UX-quality commentary mapped to PRODUCT.md anti-references
+
+**Calm · Scannable · Dignified honoured:**
+- *Calm.* No live-validation chatter; errors after submit only. Panels mount via rahma-fade-up (320ms ease-out-quart). prefers-reduced-motion honoured globally.
+- *Scannable.* 2-col grid md:+, single col mobile, Urbanist 600 titles, Soft Slate descriptions. "Address" sub-heading inside Panel 2 helps eye find postal info.
+- *Dignified.* "All caught up" voice throughout. No system-speak, no apology, no patronising. Denied state no longer leaks `manage_clients_all`.
+
+**Anti-references actively rejected:**
+- *Generic SaaS / shadcn-default dashboards* — custom ChevronDown removes most obvious shadcn-cliché.
+- *Color-only status signalling* — Duplicate banner pairs AlertCircle + label + tint + checkbox (four cues). Form-error pairs XCircle + prefix copy + tint + retry. Required `*` flanked by visible label + Cancelled-tinted "* means required" pill.
+- *Glassmorphism, hero-metric, side-stripe* — None.
+- *Tools so spare they feel cold* — Legend pill, panel mounts, Cormorant H1, conditional source helper — small warmth signals throughout.
+
+**Concrete observations still deferred (none are regressions):**
+1. Server Zod messages diverge from brief Copy — client-side preValidate covers format path with brief-verbatim copy; schema-required path falls through to Zod defaults. Phase 7 server-message canonicalisation.
+2. Server duplicate prose template still "{name} ({contact})" instead of "{field} matches an existing record for {existing client name}". Banner heading carries the label so user-facing surface is intact. Server-side, deferred.
+3. Status-family oklch inlined as TS constants — system-wide gap (admin-ui.tsx:315 and staff/availability/lib.ts use same pattern). Phase 7 tokens.css canonicalisation.
+4. AdminAccessDenied "View clients" renders as Ghost-shape rather than brief's Secondary + tertiary Ghost split. Shared component; deferred system-wide.
+
+**Net read:** v2 is a confident, brief-faithful operator surface. The +7 lift tracks the three concrete v1 P1s landing (Try Again Ghost, no-contact modal, native-select chevron) plus seven smaller items (aria-required, scrollIntoView, live-region status, desktop-only autofocus, char counter, address sub-divider, Cancelled-pill legend). Everything deferred is either brief-out-of-scope or system-wide. No regressions, no AI-slop tells, no anti-reference triggers.

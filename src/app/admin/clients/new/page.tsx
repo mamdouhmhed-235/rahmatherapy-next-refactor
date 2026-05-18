@@ -22,24 +22,31 @@ export default async function NewClientPage() {
     return (
       <AdminAccessDenied
         title="Client creation limited"
-        message="You need client management permission to create clients."
-        permission="manage_clients_all"
+        message="Creating client records is restricted to admin staff with client management permission. Ask the owner if you need it."
+        actions={
+          <Link
+            href="/admin/clients"
+            className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] px-4 text-sm font-medium text-[var(--admin-body)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            View clients
+          </Link>
+        }
       />
     );
   }
 
   return (
-    <div>
+    <div className="max-w-[640px]">
       <Link
         href="/admin/clients"
-        className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-[var(--rahma-muted)] transition-colors hover:text-[var(--rahma-green)]"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--admin-text-muted)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:text-[var(--admin-primary)] focus-visible:text-[var(--admin-primary)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
       >
-        <ArrowLeft className="size-4" />
-        Back to clients
+        <ArrowLeft className="size-4" aria-hidden="true" />
+        Clients
       </Link>
       <AdminPageHeader
         title="Create client"
-        description="Create a CRM profile without creating a booking. Duplicate email or phone matches are flagged before save."
+        description="Create a CRM profile without booking. Duplicate email or phone matches are flagged before save."
       />
       <ClientCreateForm />
     </div>
