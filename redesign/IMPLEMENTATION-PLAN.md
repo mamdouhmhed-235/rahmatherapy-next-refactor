@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 7 of 29 — client-new   ← update when you start a session (count by position from the top, not by label). In flight: staff-detail, staff-availability, role-detail (parallel-3 batch, post client-detail + dashboard-owner-admin merges).
+Currently on: 7 of 29 — client-new   ← update when you start a session (count by position from the top, not by label). In flight: staff-availability, role-detail (parallel-2 batch, post staff-detail + client-detail + dashboard-owner-admin merges).
 
 ---
 
@@ -698,7 +698,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 19. [ ] staff-detail — commit: ____
+## 19. [x] staff-detail — commit: dd9dded
 
 **Tier:** Tier 3 — BASELINE-CRITIQUE Sam #1: mixed H2/H3 order confirmed on /admin/staff/[id]
 
