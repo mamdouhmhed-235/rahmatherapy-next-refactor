@@ -2301,3 +2301,236 @@ Caveat: only Owner default state was screenshotted in audit window; Therapist / 
 - Source code is clean: no nested AdminPanels, single H1, `list-none` on every `<ul>`, `aria-current="page"` + `aria-selected` on tabs, `whatsappHref` normalises UK leading-zero numbers, and unknown URL params silently coerce instead of erroring.
 
 > **Note:** The v1 audit + critique entries above remain in this file for traceability. The v2 entries supersede them for Phase 7 reading.
+
+## staff-detail — audit
+
+### Dimension scores (0-4 each)
+
+- **Visual hierarchy:** 3 — Two-column workstation is clean, sticky right rail works, header retired the decorative banner. Loss of half a point because brief §5 mandated H3 on rail panels (R1–R5) and H2 on main panels (L1–L3), but `AdminPanel` always emits `<h2>` so the rail flattens to H2. Profile-completion / Onboarding checklists ship as plain icon+label rows rather than the brief §4 `AdminStatusBadge`-shape pills.
+- **Accessibility:** 3 — `aria-current="page"` on active tab (Sam #3), `role="alert" aria-live="polite" aria-atomic="true"` on both form error regions (2A-6), visible `*` markers in Cancelled text on required fields with `sr-only` "(required)" (2A-9), skip-link target preserved, focus rings present everywhere. Half point lost: checklist icons rely on shape + colour without the AdminStatusBadge pill the Named Status Rule wants.
+- **Responsive design:** 3 — 375/768/1440 all clean (no horizontal scroll). Right rail stacks R1->R2->R3->R4 below main on mobile. Tab strip `overflow-x-auto`. Save / chips ≥ 40px (DESIGN.md AdminButton spec). Half point lost: `--admin-top-offset` sticky variable referenced with fallback (1.5rem) but layout may not define the var.
+- **Brand alignment:** 3 — Warm ivory canvas, Clinic Green primary on active tab + Save, Restricted family for read-only chip rails. Half point lost: avatar tile hardcoded Confirmed-green for every staff (page.tsx:388) defeats the deterministic-hue token; L2 EmptyState uses Lucide `CalendarRange` (page.tsx:491) rather than the `assignments-quiet.svg` illustration.
+- **Code quality:** 3 — RECON §5 untouchables intact, form field `name` attributes verbatim, server-action contracts untouched, risk-tier matrix wired via `ConfirmActionModal`, isOwnProfile + scope matrix preserved across all seven §11 cells. Half point lost: raw OKLCH literals in `ChecklistRow` (page.tsx:774-775); `border-dashed` on past-assignments `<details>` (page.tsx:511) clashes with DESIGN.md "no dashed borders".
+
+### P0 findings
+
+- none
+
+### P1 findings
+
+- Profile-completion + Onboarding checklist rows ship as plain icon + text (page.tsx:769-794) instead of `AdminEntityRow` + `AdminStatusBadge`-shape Confirmed/Cancelled pill brief §4 mandates. Raw OKLCH at page.tsx:774-775.
+- Right-rail panel headings render as `<h2>` (via `AdminPanel`, admin-ui.tsx:293) while brief §5 R1–R5 specifies H3.
+- Avatar tile (page.tsx:386-392) uses a single hardcoded Confirmed-family green for every staff member instead of the deterministic `hash(staff.id) % 360` hue algorithm.
+
+### P2 findings
+
+- L2 EmptyState uses Lucide `CalendarRange` (page.tsx:491) rather than `assignments-quiet.svg`.
+- L2 EmptyState in admin scope omits "Show all assignments ->" CTA when count is zero (page.tsx:489-499).
+- "Past assignments" `<details>` (page.tsx:511) uses `border-dashed` against DESIGN.md.
+- Status panel title is `"Status"` (page.tsx:587) while brief §5 calls it `"Status & identity"`.
+- R4 sub-line reads `"Inherits N permissions from role."` (page.tsx:684-687) — brief specifies `"Inherits {n} permission(s)"` without "from role".
+- Admin-section Role + Gender radiogroups (StaffProfileForm.tsx:387-444) auto-save on click while safe-field subset requires explicit "Save profile" — inconsistent commit affordance.
+- `--admin-top-offset` sticky var (page.tsx:585) may not be defined upstream.
+
+### P3 findings
+
+- `UserIcon` import (page.tsx:15) only renders when initials are empty — consider always-rendered initials.
+- Inactive banner uses `ShieldCheck` (page.tsx:424); `Lock` from Restricted family would carry Named Status semantics better.
+- `AssignmentCard` uses `Clock` icon next to city (page.tsx:937) — semantic mismatch.
+- `permissions.map(p => p.replace(/_/g, " "))` at page.tsx:709 — share with `readableName()` helper from StaffPermissionOverridesForm.tsx:58.
+- `relativeTime()` (page.tsx:131-145) returns empty string on NaN — empty `<time>` element.
+
+### Backend status
+
+HANDLED — staff-detail has no BLOCKS-REDESIGN BUILD dependency. RECON §5 untouchable helpers and both form server-action contracts wired verbatim. §10 Q3 soft adjustment (`limit(8)` -> `limit(16)`) applied at page.tsx:281 — non-blocking.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- Checklist rows missing `AdminStatusBadge`-shape Confirmed/Cancelled pill — `src/app/admin/staff/[staffId]/page.tsx:769-794` (raw OKLCH at :774-775).
+- Rail panels render as H2 instead of brief-specified H3 — `src/app/admin/staff/[staffId]/page.tsx` panels at :587/:624/:651/:678/:724/:731 (via `AdminPanel` title at `src/app/admin/components/admin-ui.tsx:293`).
+- Avatar tile uses single hardcoded Confirmed-family tint instead of deterministic-hue algorithm — `src/app/admin/staff/[staffId]/page.tsx:386-392`.
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-6** — Form-level `role="alert" aria-live="polite" aria-atomic="true"` wrapped on both `StaffProfileForm` (StaffProfileForm.tsx:188-197) and `StaffPermissionOverridesForm` (StaffPermissionOverridesForm.tsx:106-116).
+- **2A-8** — Active tab carries `aria-current="page"` and uses Clinic Green fill (page.tsx:436-437), not colour-only `border-b-2`. Sam #3 carry-forward landed.
+- **2A-9** — Required `*` markers in Cancelled text with `aria-hidden="true"` + `sr-only "(required)"` adjacent to Full name and Gender labels (StaffProfileForm.tsx:483-487).
+
+
+## staff-detail — critique
+
+**Date:** 2026-05-18
+**Phase:** 6 (post-polish)
+**Reviewer:** independent Nielsen audit (no bias from build)
+**Artefacts reviewed:** brief, PRODUCT.md, DESIGN.md, polish-final screenshots at 1440 / 768 / 375, `page.tsx`, `StaffProfileForm.tsx`.
+
+### Nielsen heuristic scores (0–4)
+
+| # | Heuristic | Score | One-line evidence |
+|---|---|---|---|
+| 1 | Visibility of system status | 4 | Status family chip in the header + identical chip on rail R1 + inactive banner + "n of N done" counts on both checklists + `aria-current="page"` on the active tab — the operator can never wonder what state they're in. |
+| 2 | Match between system and real world | 3 | Voice is plain and clinical ("Bookings off", "No assigned bookings yet"). One leak: the role panel emits the raw mono slug `admin_practice_manager` under the display label — engineer-facing token. |
+| 3 | User control and freedom | 3 | Breadcrumb, tab strip, "Add ->" jump-to-field, past-assignments `<details>`. No "Discard changes" affordance on the dirty profile form. |
+| 4 | Consistency and standards | 3 | Layout mirrors `/admin/clients/<id>` and `/admin/staff/<id>/availability` per brief, status colours come from the token system. Slips: past-assignments `<details>` uses `border-dashed` (banned), and the active gender pill uses `bg-primary/10` text-on-tint while the active role pill uses solid Clinic Green fill — two different "selected pill" treatments. |
+| 5 | Error prevention | 3 | Self-overrides editor swaps for a Restricted-tone banner; inactive banner above the tab strip; required `*` markers. The override `ConfirmActionModal` risk-tier matrix is wired on critical-grant/revoke and high-grant per brief §6, low/medium one-click. |
+| 6 | Recognition rather than recall | 4 | Right rail keeps role, gender, status, availability link, completion %, and onboarding % permanently in view. Audit verbs are pre-mapped to English phrases. Initials avatar on the header carries identity. |
+| 7 | Flexibility and efficiency | 3 | "Add ->" deep-links, "Show all assignments ->" / "Open audit trail ->" / "Open availability ->" cross-link to the right destinations with prefilters, "Show all permissions" disclosure keeps the chip thicket optional. No keyboard shortcuts (on-spec for novice operator surface). |
+| 8 | Aesthetic and minimalist design | 3 | Flat header + breadcrumb + tab strip + 1fr/22rem grid lands a calm workstation rhythm. Two density complaints: at 1440 the right rail shows four panels of similar visual weight stacked tightly; on 768 the rail reflows under the empty Audit history so the operator scrolls past empty content to reach Status. |
+| 9 | Help users recognize, diagnose, recover | 2 | Form-level error region is wired with `role="alert" aria-live="polite"` and toast fallbacks fire on save failure. No per-field validation copy in the live form (brief specifies "Add their full name.", "Phone number is too short. Include the area code.", "Trim the bio to 600 characters or fewer." — none appear inline). The 600-char counter is informational rather than blocking. |
+| 10 | Help and documentation | 2 | Inline hint copy on every field is genuinely useful ("Inactive staff can't sign in.", "Off pauses new assignments without deactivating the account.", "Used for same-gender booking matching."). `title` tooltips on the avatar and cross-link Ghosts give micro-help. R5 override panel sub-line is one sentence and doesn't explain what an override does for a novice operator. |
+
+**Total: 30 / 40.**
+
+### AI-slop verdict: **PASS**
+
+The redesign reads as a hand-shaped Rahma workstation, not a stock SaaS staff-detail template — varied panel compositions (form vs `dl` vs checklist vs chip cluster vs override switches), no decorative blobs, no purple/blue gradients, status is always badge+icon+label not colour alone, and the brief's panel order is honoured.
+
+### Concrete commentary against PRODUCT.md anti-references
+
+- **Generic SaaS / shadcn-default feel — clean.** The flat header, ivory canvas, Clinic Green active tab, and `AdminPanel` framing read as Rahma, not a stock CRUD page. The initials token on Hover-Moss-equivalent green is the right warmth gesture.
+- **Identical-card grids — partial concern.** On 1440 the right rail's four stacked panels (Status, Profile completion, Onboarding, Role and permissions) read at very similar visual weight. The brief diversifies them (chip cluster on R4, icon-led rows on R2/R3, dl on R1), and they *are* different on close inspection, but the eye still parses "four panels of the same shape stacked".
+- **Decorative blobs / glassmorphism — clean.** None present.
+- **Colour-only status signalling — clean.** Every chip carries a text label, the checklist rows use `CheckCircle2` / `XCircle` Lucide icons paired with sr-only "complete" / "missing" text — Named Status Rule honoured well.
+- **Side-stripe `border-l-4` — clean.** None.
+- **Hero-metric template — clean.** Completion / onboarding ratios render as small compact badges + per-row lists, not as 4xl Cormorant numerals with supporting stacked stats.
+- **Cormorant-as-decoration — n/a here.** Cormorant is correctly absent (this page has no marquee numerals).
+- **Generic dashed-border empty hint — slip.** The past-assignments `<details>` shell uses `border-dashed` — small surface but a leftover on a page that bans dashed borders elsewhere.
+- **Raw permission identifiers / engineer tokens on operator surfaces — partial slip.** Brief explicitly de-leaks `view_staff` on access-denied (done), but R4 still renders `admin_practice_manager` mono slug as a code chip under the display label.
+- **Cards must be varied and considered — mostly honoured.** L1 form, L2 list with collapsible past, L3 audit ledger, R1 status + dl, R4 chip-cluster disclosure — variety is real. R2/R3 sibling pair is the closest to the failure mode.
+- **"Calm, scannable, dignified" — honoured.** No shouting, no neon, type hierarchy intact, copy is plain.
+
+### Headline issues worth fixing before merge
+
+1. **Add inline per-field validation copy** (brief §11 Error messages) — the recovery heuristic is the weakest score and the copy is already specified.
+2. **Drop the mono `role.name` slug** from R4 or move it to a `title` tooltip — operator-facing engineer leakage.
+3. **Replace `border-dashed` on the past-assignments disclosure** with a solid 1px Warm Veil border + tonal lift.
+4. **Reconsider the gender pill's "active = tint, no fill" treatment** so it matches the role pill's "active = solid Clinic Green fill" — one selected-pill pattern per form.
+5. **Tablet (768) panel order** — rail collapses below an empty Audit history; either reorder for ≤xl or hide Audit when empty.
+
+
+## staff-detail — audit (rev 2)
+
+**Date:** 2026-05-18
+**Reviewer:** independent code+design audit (no build bias)
+**Artefacts reviewed:** brief, PRODUCT.md, DESIGN.md (incl. Admin-Specific Patterns), IMPLEMENTATION-PLAN.md row 19, BUSINESS-COMPLETENESS.md Track A, screenshots `improvements-{1440,768,375}.png` + `public-removed-1440.png`, `page.tsx`, `StaffProfileForm.tsx`, `StaffPermissionOverridesForm.tsx`, `RolePermissionsPanel.tsx`, `StaffDetailShortcuts.tsx`, `admin-ui.tsx` AdminPanel.
+
+### Dimension scores (0-4 each)
+
+- **Visual hierarchy:** 3 — Two-column workstation reads calm and ordered: breadcrumb → flat header with avatar + status pill + last-modified caption + prev/next arrows → tab strip → 1fr/22rem grid. Variety is real: form (L1), list with collapsible past (L2), audit ledger or empty pill-row (L3), dl + link (R1), tinted-pill checklists (R2/R3), chip-cluster disclosure (R4), tri-state override editor (R5). Half-point loss: rail panels still render as `<h2>` via `AdminPanel` (admin-ui.tsx:293), brief §5 R1-R5 = H3 contract unmet; on 1440 the four stacked rail panels still parse at similar visual weight.
+- **Accessibility:** 3 — `aria-current="page"` on active tab, `role="alert" aria-live="polite" aria-atomic="true"` on both form error regions, visible `*` markers + sr-only "(required)", `aria-label` on prev/next arrows, `aria-checked` on radiogroups, `sr-only "complete"/"missing"` on checklist rows, `aria-busy` on save, skip-link target preserved. Half-point loss: shortcut handler's "Save" lookup `textContent?.trim().startsWith("Save profile")` (StaffDetailShortcuts.tsx:49-52) is brittle and Cmd+S can fail silently with no announcement; static last-modified caption has no `<time dateTime>` element (page.tsx:480-486).
+- **Responsive design:** 3 — All three breakpoints clean, no horizontal scroll, rail collapses below main on <xl. Sticky save bar on mobile when dirty with ≥44px tap targets; tab strip `overflow-x-auto`; header collapses on <sm; prev/next arrows shrink-0. Half-point loss: `xl:sticky xl:top-[var(--admin-top-offset,1.5rem)]` (page.tsx:717) depends on a layout-provided var that isn't asserted; 768 reflows the rail under an empty Audit pill (rev 1 critique slip #5 still present, though pill is smaller than the prior full panel).
+- **Brand alignment:** 3 — Warm ivory canvas, Clinic Green active tab + Save, Restricted-family decorative chips on read-only profile, status families consistent, no `border-l-4`, no gradient text, no dashed borders (rev 1 P2 cleared), green-tinted shadow on the mobile sticky bar. Half-point loss: avatar tint uses deterministic-hue token (hash % 360) but single saturation+lightness pair, so all avatars read at near-identical chroma; L2 EmptyState still uses Lucide `CalendarRange` (page.tsx:615) instead of `assignments-quiet.svg`.
+- **Code quality:** 3 — RECON §5 untouchables intact, server-action contracts preserved, named form fields verbatim, risk-tier matrix wired, all seven §11 cells gated, deterministic-hue avatar implemented, dirty-state derived from useMemo, audit empty state collapsed to inline pill. Half-point loss: keyboard-shortcut Save couples a global hotkey to a button label string (StaffDetailShortcuts.tsx:49-52); raw OKLCH literals at page.tsx:891-892 leak design-token-bypass; `siblingStaff` query (page.tsx:307-310) reads all staff with no `active`/scope filter, so prev/next can jump to a denied page.
+
+### P0 findings
+
+- none
+
+### P1 findings
+
+- Right-rail panel headings still render as `<h2>` instead of brief-specified H3 (R1-R5) — `src/app/admin/components/admin-ui.tsx:293` flows to `src/app/admin/staff/[staffId]/page.tsx` panels at :720, :758, :785, :811, :841, :848. **Unchanged from rev 1.**
+- Prev/next sibling query (`page.tsx:307-310`) selects from `staff_profiles` with no `active`/scope filter; arrow can route an Assignment-scope coordinator or same_gender_team therapist to a staff URL that immediately renders the out-of-scope denied surface.
+- Cmd+S shortcut (`StaffDetailShortcuts.tsx:49-57`) couples to button `textContent` and to `!btn.disabled`; on a clean form the hotkey is a silent no-op with no toast or aria-live announcement.
+
+### P2 findings
+
+- L2 EmptyState uses Lucide `CalendarRange` (page.tsx:615) instead of brief's `assignments-quiet.svg`.
+- Checklist rows (page.tsx:886-911) ship as plain `Icon + label + sr-only` without the `AdminStatusBadge`-shape Confirmed/Cancelled pill brief §4 specifies; raw OKLCH at :891-892.
+- Last-modified caption wraps the relative time in a `<p>` rather than `<time dateTime={...}>`.
+- Toggle label `Show phone on public profile` (StaffProfileForm.tsx:263) still says "public profile" though the rev-2 polish-pass removed phantom public-facing references; label now mismatches the field hint at :264 which talks about "staff-profile visibility".
+- `--admin-top-offset` sticky var consumed with `1.5rem` fallback — verify the admin layout defines this var.
+- 768 layout reflows the rail under an empty Audit history pill — rev 1 critique slip #5 still present (smaller surface now, but reflow remains).
+- Inactive banner uses `ShieldCheck` icon — `Lock` from Restricted family would carry Named Status semantics; rev 1 P3 unaddressed.
+
+### P3 findings
+
+- Avatar deterministic hue uses fixed lightness/chroma — all avatars land at near-identical perceptual chroma despite hue rotation.
+- `relativeTime()` returns empty string on NaN — empty captions on header and audit rows for malformed timestamps.
+- `permissions.map(...)` in page.tsx:322-324 vs `readableName()` in `StaffPermissionOverridesForm.tsx:58` and `RolePermissionsPanel.tsx:11` — three copies of the same trivial transform.
+- `_staffId: staffId` in `StaffDetailShortcuts.tsx:25` is an unused prop.
+- `AssignmentCard` uses `Clock` icon next to city — semantic mismatch.
+- `UserIcon` import only renders when initials are empty (effectively dead branch since deterministic-hue avatar always emits initials).
+- ToggleRow knob `shadow-sm` (StaffProfileForm.tsx:648) bypasses the green-tinted shadow rule.
+
+### Backend status
+
+HANDLED — no BLOCKS-REDESIGN BUILD dependency. RECON §5 untouchable helpers intact; both form server-action contracts preserved verbatim; §10 Q3 soft adjustment (`limit(8)` → `limit(16)`) applied at page.tsx:294; new `siblingStaff` + `lastModifiedRows` queries are additive reads on existing tables.
+
+### Prior P1 status
+
+- **Checklist pills missing AdminStatusBadge shape** — **partially resolved.** Per-panel header now carries a Confirmed/Pending/Cancelled `AdminStatusBadge` pill via `checklistTone()` (page.tsx:762-767, 788-793). Per-row remains plain Lucide icon + raw OKLCH literals (page.tsx:888-895).
+- **Rail H2/H3 contract** — **unchanged.** `AdminPanel.title` still emits `<h2>`. Brief §5 R1-R5 = H3 requirement unmet.
+- **Deterministic-hue avatar** — **resolved.** `hueFromId()` implemented at page.tsx:102-108 with hash(staff.id) % 360 per Brief 00 §4.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- Rail panels render as H2 instead of brief-specified H3 — `src/app/admin/components/admin-ui.tsx:293` flows to `src/app/admin/staff/[staffId]/page.tsx` panels at :720, :758, :785, :811, :841, :848.
+- Prev/next sibling query has no `active`/scope filter — `src/app/admin/staff/[staffId]/page.tsx:307-310`.
+- Cmd+S shortcut silent no-op on clean form / disabled save — `src/app/admin/staff/[staffId]/StaffDetailShortcuts.tsx:49-57`.
+
+### BUSINESS-COMPLETENESS impact
+
+No newly-contributed Track A items in this revision pass. Rev 1 contributions stand (2A-6, 2A-8, 2A-9).
+
+
+## staff-detail — critique (rev 2)
+
+**Date:** 2026-05-18
+**Phase:** 6 (post-second-pass polish — public-facing UX removed, dirty-state save bar, sibling arrows, deterministic avatar hue, category-grouped overrides, filter inputs)
+**Reviewer:** independent Nielsen audit (no bias from build)
+
+### Nielsen heuristic scores (0–4)
+
+| # | Heuristic | Score | Evidence |
+|---|---|---|---|
+| 1 | Visibility of system status | 4 | Status chip in header + on R1 + inactive banner + tinted "n of N done" badges + `aria-current="page"` + dirty-state Save + last-modified caption + per-row Effective/Not-effective chip on overrides. |
+| 2 | Match between system and real world | 4 | Plain clinic language throughout. The rev-1 leak (mono `admin_practice_manager` slug under role display) is removed from the live surface; both R1 and R4 keep it in `title` only. |
+| 3 | User control and freedom | 4 | Breadcrumb, prev/next sibling arrows, tab strip, anchor-link Add jump-to-field, past-assignments `<details>`, three-mode override radiogroup, Discard changes on dirty form, sticky mobile Discard+Save bar, Cmd+S / Cmd+] / Cmd+arrow shortcuts. |
+| 4 | Consistency and standards | 4 | Layout mirrors `/admin/clients/<id>` and `/admin/staff/<id>/availability`. Past-assignments `<details>` now solid 1px border; Role + Gender pills share solid Clinic Green fill on active. `aria-orientation="horizontal"` declared on both radiogroups. |
+| 5 | Error prevention | 3 | Self-overrides lockout banner; inactive banner; required `*` markers; ConfirmActionModal risk-tier matrix on critical-any + high-grant; bio textarea hard-caps with live counter. Gap: no client-side validation gate before submit. |
+| 6 | Recognition rather than recall | 4 | Right rail keeps gender, role, status, availability link, completion %, onboarding %, role-permissions count, override delta permanently in view. Filter inputs on both R4 chip thicket and R5 overrides list. |
+| 7 | Flexibility and efficiency | 4 | Add deep-links scroll-and-focus; cross-link Ghosts with prefilters; Show all permissions disclosure; filter inputs on both permission surfaces; prev/next sibling arrows; Cmd-shortcuts layered on visible UI. |
+| 8 | Aesthetic and minimalist design | 3 | Flat header + 1fr/22rem grid lands a calm rhythm; varied card compositions across L1-L3 / R1-R5. Residual density at 1440: R2 (Profile completion) and R3 (Onboarding) remain twin-shaped. Empty-audit inline pill (rev-2 lift) fixes the worst-case tablet reflow. |
+| 9 | Help users recognize, diagnose, recover | 3 | Form-level `role="alert"` region wired; toast fallback on save failure; per-override row failure toasts. Risk-tier confirms surface plain-English consequence copy. Still missing: brief-specified per-field inline validation copy. |
+| 10 | Help and documentation | 3 | Inline hint copy on every field; R5 carries scope + risk + effective chips with leading icons doubling as micro-help; `title` tooltips on avatar, cross-link Ghosts, prev/next arrows, database-role badge. R5 sub-line could spell out *what* an override is for a novice. |
+
+**Total: 36 / 40.**
+
+### AI-slop verdict: **PASS (improved)**
+
+The redesign reads as a hand-shaped Rahma workstation, not a stock SaaS staff-detail template — varied panel compositions, no decorative blobs, no purple/blue gradients, status is always badge+icon+label not colour alone, the brief's panel order is honoured, and rev-2 specifically removed the residual engineer leakage (mono role slug) and the residual generic-CRUD slip (dashed `<details>` border, two-treatment selected-pill). Deterministic-hue initials avatar is a small but real signature gesture that no scaffold would emit.
+
+### Concrete commentary against PRODUCT.md anti-references
+
+- **Generic SaaS / shadcn-default feel — clean.** Flat header, ivory canvas, Clinic Green active tab, deterministic-hue initials token, `AdminPanel` framing throughout — reads as Rahma. Sibling arrows + last-modified caption are clinic-workstation gestures.
+- **Identical-card grids — partial concern, narrower than rev 1.** R2 (Profile completion) and R3 (Onboarding) remain visually sibling-shaped — both "ratio badge + icon-led row list with leading status icons". The brief diversifies the other rail panels; only R2↔R3 reads as twins.
+- **Decorative blobs / glassmorphism — clean.** Mobile sticky save bar uses `backdrop-blur` + green-tinted shadow per DESIGN.md — purposeful, not decorative.
+- **Colour-only status signalling — clean.** ChecklistRow pairs `CheckCircle2`/`XCircle` with sr-only "complete"/"missing"; override rows pair Effective/Not-effective chips with tonal differentiation + textual label.
+- **Side-stripe `border-l-4` — clean.** None.
+- **Hero-metric template — clean.** Completion/onboarding ratios are compact `AdminStatusBadge` pills.
+- **Cormorant-as-decoration — n/a here.** Correctly absent.
+- **Generic dashed-border empty hint — clean (rev-2 fix).** Past-assignments `<details>` uses 1px solid border + `--admin-panel-muted/60` tonal lift.
+- **Raw permission identifiers — clean on R1/R4, defensible on R5.** Brief de-leaks `view_staff` on access-denied; mono `role.name` hidden into `title` tooltip on R1 + R4. The slug still appears under each row title inside the R5 overrides editor — admin-on-admin surface, durable identifier.
+- **Cards must be varied and considered — honoured.** L1 form, L2 list with collapsible past, L3 audit ledger or empty inline pill, R1 dl, R4 chip-cluster disclosure with filter, R5 category-grouped switch list with filter.
+- **"Calm, scannable, dignified" — honoured.** No shouting, no neon, type hierarchy intact, plain copy. Dirty-state Discard stays muted Ghost; only Save carries primary fill.
+
+### Delta vs rev 1
+
+- **H1 Visibility:** 4 → **4 (same)**. Already at ceiling.
+- **H2 Real world:** 3 → **4 (up)**. Mono role slug leak removed from live surface (now in `title` only).
+- **H3 Control & freedom:** 3 → **4 (up)**. Rev-2 added dirty-state Discard, sticky mobile bar, sibling arrows, Cmd-shortcuts.
+- **H4 Consistency:** 3 → **4 (up)**. Both rev-1 slips fixed: dashed `<details>` border replaced with solid; Role + Gender selected pills now share solid Clinic Green fill.
+- **H5 Error prevention:** 3 → **3 (same)**. Matrix wired already in rev 1; no new client-side validation gate added.
+- **H6 Recognition:** 4 → **4 (same)**. Already at ceiling; deterministic-hue avatar + filter inputs strengthen the floor.
+- **H7 Flexibility & efficiency:** 3 → **4 (up)**. Prev/next arrows, Cmd-shortcuts, filter inputs on R4 and R5 — efficient-use lifts.
+- **H8 Aesthetic & minimalist:** 3 → **3 (same)**. Tablet panel-order partially addressed (empty audit collapsed to inline pill); R2/R3 twin shape still present.
+- **H9 Recognize/diagnose/recover:** 2 → **3 (up)**. Per-override-row failure toasts with permission-specific copy; risk-tier confirm bodies add diagnostic specificity.
+- **H10 Help & documentation:** 2 → **3 (up)**. Per-row scope/risk/effective chips embed micro-help; tooltip layer expanded.
+
+**Δ total: 30 → 36 (+6).** Every rev-1 headline-issue fix landed; only per-field validation copy and R2/R3 twin-panel rhythm remain.
+
+### Headline issues still worth fixing before merge
+
+1. **Add inline per-field validation copy** (brief §11 Error messages) — empty Full name, malformed Phone, missing Gender all fall through to server toast.
+2. **Differentiate R2 (Profile completion) from R3 (Onboarding)** — the only sibling-shape pair in a varied page.
+3. **Spell out the R5 sub-line for novices** — "Overrides sit on top of the fixed role bundle" assumes the operator already knows what the role bundle is.

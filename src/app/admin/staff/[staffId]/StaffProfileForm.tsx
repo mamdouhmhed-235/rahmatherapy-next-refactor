@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { updateStaffProfile } from "../actions";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { User, ShieldCheck, Info } from "lucide-react";
+import { Megaphone, ShieldCheck, User as UserIcon, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -38,6 +37,8 @@ interface StaffProfileFormProps {
   canAssignRoles: boolean;
 }
 
+const BIO_MAX = 600;
+
 export function StaffProfileForm({
   staff,
   roles,
@@ -49,15 +50,51 @@ export function StaffProfileForm({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [currentStaff, setCurrentStaff] = useState(staff);
-  const [profileDraft, setProfileDraft] = useState({
-    name: staff.name ?? "",
-    phone: staff.phone ?? "",
-    show_phone_on_profile: Boolean(staff.show_phone_on_profile),
-    short_bio: staff.short_bio ?? "",
-    specialties: (staff.specialties ?? []).join(", "),
-    languages: (staff.languages ?? []).join(", "),
-    service_areas: (staff.service_areas ?? []).join(", "),
-  });
+  const initialDraft = useMemo(
+    () => ({
+      name: currentStaff.name ?? "",
+      phone: currentStaff.phone ?? "",
+      show_phone_on_profile: Boolean(currentStaff.show_phone_on_profile),
+      short_bio: currentStaff.short_bio ?? "",
+      specialties: (currentStaff.specialties ?? []).join(", "),
+      languages: (currentStaff.languages ?? []).join(", "),
+      service_areas: (currentStaff.service_areas ?? []).join(", "),
+    }),
+    [currentStaff]
+  );
+  const [profileDraft, setProfileDraft] = useState(initialDraft);
+  const isDirty = useMemo(
+    () =>
+      (Object.keys(initialDraft) as (keyof typeof initialDraft)[]).some(
+        (key) => initialDraft[key] !== profileDraft[key]
+      ),
+    [initialDraft, profileDraft]
+  );
+
+  function handleDiscard() {
+    setProfileDraft(initialDraft);
+    setError(null);
+  }
+
+  // Honour deep-links from R2 "Add →" checklist Ghosts (anchor `#field-<name>`).
+  const formRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    function handleHashLink(event: Event) {
+      const target = event.target as HTMLElement | null;
+      const fieldName = target?.closest<HTMLElement>("[data-staff-focus-field]")?.dataset
+        .staffFocusField;
+      if (!fieldName || !formRef.current) return;
+      const input = formRef.current.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        `[name="${fieldName}"]`
+      );
+      if (!input) return;
+      event.preventDefault();
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+      input.focus({ preventScroll: true });
+    }
+    document.addEventListener("click", handleHashLink);
+    return () => document.removeEventListener("click", handleHashLink);
+  }, []);
 
   async function handleSafeProfileSave() {
     startTransition(async () => {
@@ -77,7 +114,7 @@ export function StaffProfileForm({
           languages: splitList(profileDraft.languages),
           service_areas: splitList(profileDraft.service_areas),
         }));
-        toast.success("Profile updated");
+        toast.success("Profile saved.");
         router.refresh();
       }
     });
@@ -97,7 +134,7 @@ export function StaffProfileForm({
           active: nextActive,
           can_take_bookings: nextActive ? current.can_take_bookings : false,
         }));
-        toast.success(`Account ${nextActive ? "activated" : "deactivated"}`);
+        toast.success(nextActive ? "Account activated." : "Account deactivated.");
         router.refresh();
       }
     });
@@ -119,9 +156,7 @@ export function StaffProfileForm({
           can_take_bookings: nextCanTakeBookings,
         }));
         toast.success(
-          nextCanTakeBookings
-            ? "Now visible for bookings"
-            : "Now hidden from bookings"
+          nextCanTakeBookings ? "Now accepting bookings." : "Bookings paused."
         );
         router.refresh();
       }
@@ -138,7 +173,7 @@ export function StaffProfileForm({
       } else {
         setError(null);
         setCurrentStaff((current) => ({ ...current, role_id: roleId }));
-        toast.success("Role updated");
+        toast.success("Role updated.");
         router.refresh();
       }
     });
@@ -154,274 +189,468 @@ export function StaffProfileForm({
       } else {
         setError(null);
         setCurrentStaff((current) => ({ ...current, gender }));
-        toast.success("Gender updated");
+        toast.success("Gender updated.");
         router.refresh();
       }
     });
   }
 
+  const disabled = isPending || !canEditSafeProfile;
+  const bioRemaining = BIO_MAX - profileDraft.short_bio.length;
+
   return (
-    <div className="space-y-6">
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 flex items-center gap-3">
-          <Info className="size-4 shrink-0" />
-          {error}
+    <div ref={formRef} className="grid gap-6">
+      {error ? (
+        <div
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-3 text-sm text-[oklch(26%_0.14_25)]"
+        >
+          <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p>{error}</p>
         </div>
-      )}
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <User className="size-5 text-[var(--rahma-green)]" />
-            Profile Details
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium text-[var(--rahma-charcoal)]">Display name</span>
-              <input
-                value={profileDraft.name}
-                onChange={(event) =>
-                  setProfileDraft((current) => ({
-                    ...current,
-                    name: event.target.value,
-                  }))
-                }
-                disabled={isPending || !canEditSafeProfile}
-                className="h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20 disabled:bg-gray-50"
-              />
-            </label>
-            <label className="grid gap-1.5 text-sm">
-              <span className="font-medium text-[var(--rahma-charcoal)]">Phone</span>
-              <input
-                value={profileDraft.phone}
-                onChange={(event) =>
-                  setProfileDraft((current) => ({
-                    ...current,
-                    phone: event.target.value,
-                  }))
-                }
-                disabled={isPending || !canEditSafeProfile}
-                className="h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20 disabled:bg-gray-50"
-              />
-            </label>
-          </div>
+      {/* Identity & contact */}
+      <section aria-labelledby="profile-identity-heading" className="grid gap-4">
+        <h3
+          id="profile-identity-heading"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--admin-heading)]"
+        >
+          <UserIcon className="size-3.5 text-[var(--admin-text-muted)]" aria-hidden="true" />
+          Identity &amp; contact
+        </h3>
 
-          <label className="flex items-center gap-3 text-sm text-[var(--rahma-charcoal)]">
-            <input
-              type="checkbox"
-              checked={profileDraft.show_phone_on_profile}
-              onChange={(event) =>
-                setProfileDraft((current) => ({
-                  ...current,
-                  show_phone_on_profile: event.target.checked,
-                }))
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field
+            id="field-name"
+            label="Full name"
+            required
+            hint="As they'd like it on their record."
+          >
+            <Input
+              name="name"
+              value={profileDraft.name}
+              onChange={(value) =>
+                setProfileDraft((current) => ({ ...current, name: value }))
               }
-              disabled={isPending || !canEditSafeProfile}
-              className="size-4 rounded border-[var(--rahma-border)]"
+              disabled={disabled}
+              placeholder="As they'd like it on their record"
             />
-            Show phone on profile surfaces when contact visibility allows it
-          </label>
+          </Field>
 
-          <label className="grid gap-1.5 text-sm">
-            <span className="font-medium text-[var(--rahma-charcoal)]">Short bio</span>
-            <textarea
-              value={profileDraft.short_bio}
-              onChange={(event) =>
-                setProfileDraft((current) => ({
-                  ...current,
-                  short_bio: event.target.value,
-                }))
+          <Field
+            id="field-phone"
+            label="Phone"
+            hint="Always visible to admins; the toggle below controls staff-profile visibility."
+          >
+            <Input
+              name="phone"
+              type="tel"
+              value={profileDraft.phone}
+              onChange={(value) =>
+                setProfileDraft((current) => ({ ...current, phone: value }))
               }
-              rows={4}
-              maxLength={600}
-              disabled={isPending || !canEditSafeProfile}
-              className="rounded-md border border-[var(--rahma-border)] bg-white px-3 py-2 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20 disabled:bg-gray-50"
+              disabled={disabled}
+              placeholder="07…"
             />
-          </label>
+          </Field>
+        </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <ListInput
-              label="Specialties/services"
+        <ToggleRow
+          name="show_phone_on_profile"
+          label="Show phone to other staff"
+          hint="Off keeps the phone admin-only; on marks it for staff-profile visibility."
+          checked={profileDraft.show_phone_on_profile}
+          onChange={(value) =>
+            setProfileDraft((current) => ({ ...current, show_phone_on_profile: value }))
+          }
+          disabled={disabled}
+        />
+      </section>
+
+      {/* Profile details (descriptive fields shared on staff-profile surfaces) */}
+      <section aria-labelledby="profile-details-heading" className="grid gap-4">
+        <h3
+          id="profile-details-heading"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--admin-heading)]"
+        >
+          <Megaphone className="size-3.5 text-[var(--admin-text-muted)]" aria-hidden="true" />
+          Profile details
+        </h3>
+
+        <Field
+          id="field-short_bio"
+          label="Short bio"
+          hint={`A short paragraph about them and their work. ${bioRemaining} characters remaining.`}
+        >
+          <textarea
+            id="field-short_bio"
+            name="short_bio"
+            value={profileDraft.short_bio}
+            onChange={(event) =>
+              setProfileDraft((current) => ({
+                ...current,
+                short_bio: event.target.value,
+              }))
+            }
+            rows={4}
+            maxLength={BIO_MAX}
+            disabled={disabled}
+            placeholder="A short paragraph about this team member and their work."
+            className="min-h-[6rem] w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm leading-6 text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-60"
+          />
+        </Field>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Field
+            id="field-specialties"
+            label="Specialties"
+            hint="e.g. Cupping, Postnatal, Sports massage"
+          >
+            <Input
+              name="specialties"
               value={profileDraft.specialties}
-              disabled={isPending || !canEditSafeProfile}
               onChange={(value) =>
                 setProfileDraft((current) => ({ ...current, specialties: value }))
               }
+              disabled={disabled}
+              placeholder="Add separated by commas"
             />
-            <ListInput
-              label="Languages"
+          </Field>
+          <Field
+            id="field-languages"
+            label="Languages"
+            hint="e.g. English, Arabic, Urdu"
+          >
+            <Input
+              name="languages"
               value={profileDraft.languages}
-              disabled={isPending || !canEditSafeProfile}
               onChange={(value) =>
                 setProfileDraft((current) => ({ ...current, languages: value }))
               }
+              disabled={disabled}
+              placeholder="Add separated by commas"
             />
-            <ListInput
-              label="Service areas"
+          </Field>
+          <Field
+            id="field-service_areas"
+            label="Service areas"
+            hint="e.g. Luton, Dunstable, Houghton Regis"
+          >
+            <Input
+              name="service_areas"
               value={profileDraft.service_areas}
-              disabled={isPending || !canEditSafeProfile}
               onChange={(value) =>
                 setProfileDraft((current) => ({ ...current, service_areas: value }))
               }
+              disabled={disabled}
+              placeholder="Add separated by commas"
             />
+          </Field>
+        </div>
+      </section>
+
+      {canEditSafeProfile ? (
+        <>
+          {/* Inline action row — right-aligned on sm+; on mobile, hidden when dirty (sticky bar takes over) */}
+          <div
+            className={cn(
+              "sm:flex sm:items-center sm:justify-end sm:gap-2",
+              isDirty ? "hidden" : "flex flex-col-reverse gap-2"
+            )}
+          >
+            {isDirty ? (
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={handleDiscard}
+                className="inline-flex min-h-10 w-full items-center justify-center rounded-[var(--admin-radius-control)] px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              >
+                Discard changes
+              </button>
+            ) : null}
+            <button
+              type="button"
+              disabled={isPending || !isDirty}
+              onClick={handleSafeProfileSave}
+              aria-busy={isPending || undefined}
+              className="inline-flex min-h-10 w-full items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+            >
+              {isPending ? "Saving…" : "Save profile"}
+            </button>
           </div>
 
-          <div className="rounded-lg bg-[var(--rahma-ivory)]/70 p-3 text-xs text-[var(--rahma-muted)]">
-            Profile photo path: {currentStaff.profile_photo_path ?? "reserved for Phase 8 upload"}
-          </div>
-
-          {canEditSafeProfile ? (
-            <div>
+          {/* Sticky mobile save bar — only when dirty (Brief §6 save-success path preserves toast). */}
+          {isDirty ? (
+            <div
+              className="sticky bottom-20 z-30 -mx-4 mt-2 flex gap-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)]/95 px-4 py-3 shadow-[0_-8px_24px_oklch(23%_0.073_155_/_0.06)] backdrop-blur sm:hidden"
+              role="region"
+              aria-label="Unsaved profile changes"
+            >
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={handleDiscard}
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Discard
+              </button>
               <button
                 type="button"
                 disabled={isPending}
                 onClick={handleSafeProfileSave}
-                className="rounded-md bg-[var(--rahma-green)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                aria-busy={isPending || undefined}
+                className="inline-flex min-h-11 flex-[2] items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Save profile details
+                {isPending ? "Saving…" : "Save profile"}
               </button>
             </div>
           ) : null}
-        </CardContent>
-      </Card>
+        </>
+      ) : null}
 
+      {/* Admin-only sections */}
       {canManageUsers || canAssignRoles ? (
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Status & Access */}
-        {canManageUsers ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <ShieldCheck className="size-5 text-[var(--rahma-green)]" />
-              Account Status & Access
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Active Toggle */}
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="font-medium text-[var(--rahma-charcoal)]">Active Account</p>
-                <p className="text-xs text-[var(--rahma-muted)]">Allow this user to log into the admin panel.</p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={currentStaff.active}
-                disabled={isPending || !canManageUsers}
-                onClick={handleToggleActive}
-                className={cn(
-                  "relative h-6 w-11 rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50",
-                  currentStaff.active ? "bg-[var(--rahma-green)]" : "bg-[var(--rahma-border)]"
-                )}
-              >
-                <span
-                  className={cn(
-                    "block size-4 rounded-full bg-white shadow-sm transition-transform duration-200",
-                    currentStaff.active ? "translate-x-5" : "translate-x-0"
-                  )}
-                />
-              </button>
-            </div>
+        <section
+          aria-labelledby="profile-admin-heading"
+          className="grid gap-4 border-t border-[var(--admin-border)] pt-6"
+        >
+          <h3
+            id="profile-admin-heading"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--admin-heading)]"
+          >
+            <ShieldCheck className="size-3.5 text-[var(--admin-text-muted)]" aria-hidden="true" />
+            Account &amp; role
+          </h3>
 
-            {/* Bookings Toggle */}
-            <div className="flex items-center justify-between py-2 border-t border-[var(--rahma-border)] pt-6">
-              <div>
-                <p className="font-medium text-[var(--rahma-charcoal)]">Accepting Bookings</p>
-                <p className="text-xs text-[var(--rahma-muted)]">Allow clients to book appointments with this therapist.</p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={currentStaff.can_take_bookings}
+          {canManageUsers ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ToggleRow
+                name="active"
+                label="Active account"
+                hint="Inactive staff can't sign in."
+                checked={currentStaff.active}
+                onChange={handleToggleActive}
                 disabled={isPending || !canManageUsers}
-                onClick={handleToggleBookings}
-                className={cn(
-                  "relative h-6 w-11 rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-ring/40 disabled:opacity-50",
-                  currentStaff.can_take_bookings ? "bg-[var(--rahma-green)]" : "bg-[var(--rahma-border)]"
-                )}
-              >
-                <span
-                  className={cn(
-                    "block size-4 rounded-full bg-white shadow-sm transition-transform duration-200",
-                    currentStaff.can_take_bookings ? "translate-x-5" : "translate-x-0"
-                  )}
-                />
-              </button>
+                inline
+              />
+              <ToggleRow
+                name="can_take_bookings"
+                label="Can take bookings"
+                hint="Off pauses new assignments without deactivating the account."
+                checked={currentStaff.can_take_bookings}
+                onChange={handleToggleBookings}
+                disabled={isPending || !canManageUsers}
+                inline
+              />
             </div>
-          </CardContent>
-        </Card>
-        ) : null}
+          ) : null}
 
-        {/* Role & Personal */}
-        {canManageUsers || canAssignRoles ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold flex items-center gap-2">
-              <User className="size-5 text-[var(--rahma-green)]" />
-              Role & Identification
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Role Selection */}
-            {canAssignRoles ? (
-            <div className="space-y-3">
-              <p className="text-sm font-medium text-[var(--rahma-charcoal)]">Assigned Role</p>
-              <div className="flex flex-wrap gap-2">
+          {canAssignRoles ? (
+            <Field id="field-role_id" label="Role" hint="Determines default permissions.">
+              <div
+                role="radiogroup"
+                aria-label="Role"
+                aria-orientation="horizontal"
+                className="grid grid-cols-2 gap-1.5 sm:grid-cols-3"
+              >
                 {roles.map((role) => (
                   <button
                     key={role.id}
                     type="button"
+                    role="radio"
+                    aria-checked={currentStaff.role_id === role.id}
+                    name="role_id"
+                    data-role-value={role.id}
                     disabled={isPending || !canAssignRoles}
                     onClick={() => handleRoleChange(role.id)}
                     className={cn(
-                      "rounded-full px-4 py-1.5 text-xs font-semibold tracking-wider uppercase border transition-all",
+                      "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border px-3 text-center text-xs font-semibold leading-tight outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
                       currentStaff.role_id === role.id
-                        ? "bg-[var(--rahma-green)] text-white border-[var(--rahma-green)]"
-                        : "bg-white text-[var(--rahma-muted)] border-[var(--rahma-border)] hover:border-[var(--rahma-green)] hover:text-[var(--rahma-green)]"
+                        ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white"
+                        : "border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:border-[var(--admin-primary)]/35 hover:bg-[var(--admin-panel-muted)]"
                     )}
                   >
                     {role.display_label ?? role.name}
                   </button>
                 ))}
               </div>
-            </div>
-            ) : null}
+            </Field>
+          ) : null}
 
-            {/* Gender Selection */}
-            {canManageUsers ? (
-            <div className="space-y-3 border-t border-[var(--rahma-border)] pt-6">
-              <p className="text-sm font-medium text-[var(--rahma-charcoal)]">Therapist Gender</p>
-              <div className="flex gap-2">
-                {["male", "female"].map((g) => (
+          {canManageUsers ? (
+            <Field
+              id="field-gender"
+              label="Gender"
+              required
+              hint="Used for same-gender booking matching."
+            >
+              <div
+                role="radiogroup"
+                aria-label="Gender"
+                aria-orientation="horizontal"
+                className="flex gap-2"
+              >
+                {(["female", "male"] as const).map((g) => (
                   <button
                     key={g}
                     type="button"
+                    role="radio"
+                    aria-checked={currentStaff.gender === g}
+                    name="gender"
+                    data-gender-value={g}
                     disabled={isPending || !canManageUsers}
-                    onClick={() => handleGenderChange(g as "male" | "female")}
+                    onClick={() => handleGenderChange(g)}
                     className={cn(
-                      "flex-1 rounded-xl py-2 text-sm font-medium border transition-all capitalize",
+                      "inline-flex min-h-10 flex-1 items-center justify-center rounded-[var(--admin-radius-control)] border px-3 text-sm font-medium capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
                       currentStaff.gender === g
-                        ? "bg-[var(--rahma-ivory)] text-[var(--rahma-green)] border-[var(--rahma-green)]"
-                        : "bg-white text-[var(--rahma-muted)] border-[var(--rahma-border)] hover:border-[var(--rahma-muted)]"
+                        ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white"
+                        : "border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:border-[var(--admin-primary)]/35 hover:bg-[var(--admin-panel-muted)]"
                     )}
                   >
                     {g}
                   </button>
                 ))}
               </div>
-              <p className="text-[10px] text-[var(--rahma-muted)] flex items-center gap-1.5">
-                <Info className="size-3" />
-                Required for gender-matched treatment rules.
-              </p>
-            </div>
-            ) : null}
-          </CardContent>
-        </Card>
-        ) : null}
-      </div>
+            </Field>
+          ) : null}
+        </section>
       ) : null}
+    </div>
+  );
+}
+
+// ─── Field shell with label + hint slot ──────────────────────────────────────
+
+function Field({
+  id,
+  label,
+  required = false,
+  hint,
+  children,
+}: {
+  id: string;
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  const hintId = `${id}-hint`;
+  return (
+    <div className="grid gap-1.5">
+      <label
+        htmlFor={id}
+        className="text-sm font-medium text-[var(--admin-heading)]"
+      >
+        {label}
+        {required ? (
+          <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+            *
+          </span>
+        ) : null}
+        {required ? <span className="sr-only"> (required)</span> : null}
+      </label>
+      {children}
+      {hint ? (
+        <p id={hintId} className="text-xs text-[var(--admin-text-muted)]">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function Input({
+  name,
+  value,
+  onChange,
+  disabled,
+  placeholder,
+  type = "text",
+}: {
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  type?: string;
+}) {
+  return (
+    <input
+      id={`field-${name}`}
+      name={name}
+      type={type}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      disabled={disabled}
+      placeholder={placeholder}
+      className="flex h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-60"
+    />
+  );
+}
+
+function ToggleRow({
+  name,
+  label,
+  hint,
+  checked,
+  onChange,
+  disabled,
+  inline = false,
+}: {
+  name: string;
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: ((value: boolean) => void) | (() => void);
+  disabled?: boolean;
+  inline?: boolean;
+}) {
+  function handleToggle() {
+    if (disabled) return;
+    if (onChange.length === 0) {
+      (onChange as () => void)();
+    } else {
+      (onChange as (value: boolean) => void)(!checked);
+    }
+  }
+  return (
+    <div
+      className={cn(
+        "rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/50 px-3 py-2.5",
+        inline ? "" : ""
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-[var(--admin-heading)]">{label}</p>
+          {hint ? (
+            <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">{hint}</p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          name={name}
+          aria-checked={checked}
+          disabled={disabled}
+          onClick={handleToggle}
+          className={cn(
+            "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-transparent transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60",
+            checked ? "bg-[var(--admin-primary)]" : "bg-[var(--admin-border)]"
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              "block size-4 rounded-full bg-white shadow-sm transition-transform",
+              checked ? "translate-x-5" : "translate-x-0.5"
+            )}
+          />
+        </button>
+      </div>
     </div>
   );
 }
@@ -431,29 +660,4 @@ function splitList(value: string) {
     .split(",")
     .map((item) => item.replace(/\s+/g, " ").trim())
     .filter(Boolean);
-}
-
-function ListInput({
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  disabled: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid gap-1.5 text-sm">
-      <span className="font-medium text-[var(--rahma-charcoal)]">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
-        placeholder="Comma separated"
-        className="h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20 disabled:bg-gray-50"
-      />
-    </label>
-  );
 }
