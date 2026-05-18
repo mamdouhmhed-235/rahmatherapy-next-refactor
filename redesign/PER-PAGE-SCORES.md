@@ -3745,3 +3745,101 @@ Corrective round closed V-7 (TodayTimeline + UpcomingRangeList empty wrappers de
 **UX-quality mapping to PRODUCT.md anti-references.** The fixes pull the page further away from PRODUCT.md's named anti-references: stripping the empty-state card frames closes the "boxes inside boxes" SaaS-cliché the doc warns against; gating Payments at both `showPaymentsReadiness` and the `attentionSummaryRows` source closes a Notion-style "show everything to everyone and let them filter mentally" leak that contradicted Coordinator's revenue scope; and the 44px Convert chip honours the brief's explicit "phone in one hand, tea in the other" scene rather than the desktop-mouse default that would have been the lazy AI reflex. The result is a surface that earns its place beside the Owner variant by being demonstrably *narrower*, not just visually muted.
 
 **Delta vs post-fix critique.** Three open observations from the post-fix round closed cleanly. V-7 (Tier-2 sub-tiles nesting bordered cards inside the parent disclosure) is resolved: both `UpcomingRangeList` and `TodayTimeline` empty-state wrappers render as plain padded regions. V-8 (Payments RBAC leak) is resolved at two layers: `showPaymentsReadiness` gates the ReadinessChip, and the audit-discovered residual leak through `attentionSummaryRows` is now bounded by `revenueAllowed && unpaidBookings.length > 0`. V-10/M-6 (Convert touch target under WCAG 2.5.5) is resolved: chips read as substantial pill buttons with full-width mobile treatment and `sm:w-auto` desktop sizing, matching the briefed `min-h-11 px-4 gap-1.5`. No regressions introduced.
+## emails — audit
+
+### Dimension scores (out of 5)
+
+- **Brief fidelity:** 3 / 5 — Tab shell, Delivery feed grouping, Reminders list, status families, copy strings, FAKE markers all present and accurate. Two deviations cost it: PAGE_SIZE still 100 instead of the brief's 50-at-a-time "Load more" (replaced by a FAKE sentinel — acceptable rationale for BUILD-pending state but not what the brief asked), and EmptyState uses a Lucide-in-pill icon instead of the brief's named `emails-empty.svg` / `reminders-empty.svg` dignified illustrations.
+- **DESIGN.md token discipline:** 3 / 5 — Status family tones via AdminStatusBadge are clean. Drift: inline `oklch(...)` literals across multiple files for danger / warning / confirmed contexts where the token pair already exists; `text-white` (Tailwind preset) instead of `--text-inverse`; inline shadow strings instead of named token; `bg-white/15` in TabStrip badge.
+- **Accessibility:** 3 / 5 — `aria-current="page"` on active tab, `role="alert" aria-live="polite"` on filter-error region, `aria-busy` on resend, sr-only legends, focus rings, mono ID copy button labelled. Drift: avatar `<span aria-hidden="true" title="…">` (title on hidden + non-focusable element is dead), and the preset-chip handler crashed before the audit subagent's run (fixed by main agent after audit return, see P0 note).
+- **Production-readiness / functional correctness:** 1 / 5 — `submit` ReferenceError in `FilterInputs` (`DeliveryFilterStrip.tsx:419`) crashed the Delivery tab when any preset chip ("Today" / "Last 7 days" / "Last 30 days") was clicked. (Fixed post-audit by main agent: `submit` now passed as a prop into `FilterInputs`; preset chips verified working at `?tab=delivery&range=today` via Playwright re-test.) Everything else can ship.
+- **Visual craft & anti-slop:** 3.5 / 5 — Per-day grouped panels, mono provider IDs, status pill clusters, and the green-tinted spike-badge all land. Identical-card feed risk (8 stacked rows in the screenshot are nearly indistinguishable shapes) sits at the edge of the brief's stated grammar (audit-style log) so it's defensible. Em-dashes in user-visible `title` attributes nick the shared-laws "no em dashes" rule.
+
+### P0 findings
+
+- **`src/app/admin/emails/DeliveryFilterStrip.tsx:419` — RESOLVED post-audit.** `submit(next)` was called from inside `FilterInputs` but `submit` was declared only inside the parent `DeliveryFilterStrip`. The main agent passed `submit` as a prop into `FilterInputs` and verified via Playwright that clicking the "Today" preset chip now navigates to `?tab=delivery&range=today` without throwing. No remaining P0.
+
+### P1 findings
+
+- **`src/app/admin/emails/page.tsx:62`** — `PAGE_SIZE = 100`. Brief §4: "Pagination: Delivery moves from hard `limit(100)` to a Load more 50-at-a-time". Implementation kept the 100-row hard limit and replaced "Load more" with a dashed-border "BUILD pending" sentinel. Documented in HARDEN-RECS-emails.md §6 as a Phase 7 follow-up tied to `BUILD-email-delivery-filter-query.md`.
+- **`src/app/admin/components/EmptyState.tsx:46-61` (consumed by `page.tsx:421-479,709-717`)** — Empty state uses a Lucide icon in a green circle, not the named `emails-empty.svg` / `reminders-empty.svg` dignified illustration. IMAGES-NEEDED.md rows for both assets were added in Step 3.
+
+### P2 findings
+
+- **`DeliveryFilterStrip.tsx:35`** — Adds an undocumented `range` GET param. Brief §4 lists only `tab, event_type, delivery_status, recipient_role, from, to, q`. Either add `range` to the brief contract or collapse to `from`/`to` server-side.
+- **`page.tsx:317, DeliveryFilterStrip.tsx:192, ReminderResendForm.tsx:112`** — `text-white` Tailwind preset instead of `--text-inverse` token.
+- **`page.tsx:317`** — Active tab pill carries a resting shadow. DESIGN.md §4 Tonal Lift Rule: shadows are exclusively for state.
+- **`page.tsx:549`** — `border-dashed` on the BUILD-pending sentinel. Brand prefers solid borders.
+- **`page.tsx` + `DeliveryFilterStrip.tsx`** — Inline `oklch(...)` literals for cancelled/attention contexts where named tokens exist.
+- **User-visible em-dashes** at `page.tsx:603,771,790` and `CopyEventId.tsx:27`. (Project voice uses em-dashes; impeccable shared-law deviation is intentional.)
+- **`page.tsx:758`** — `<span aria-hidden="true" title="…">` on the avatar dead-ends both AT announcement and pointer tooltip on non-focusable element.
+- **`page.tsx:330,332`** — TabStrip badge uses `bg-white/15 text-white` decorative Tailwind preset instead of token-derived values.
+
+### P3 findings
+
+- **`page.tsx:582,753`** — Inline hover shadows should use the named `card-hover` shadow.
+- **`page.tsx:662-666,688-692` and `CopyEventId.tsx:42-45`** — Double-applied font-family (Tailwind arbitrary + inline style).
+- **`DeliveryFilterStrip.tsx:96-107`** — Custom range chip renders even with empty from/to (no-op filter).
+- **`page.tsx:537`** — `<ol>` for event log without semantic ordinal; `<ul>` is more honest.
+
+### Backend status
+
+`FAKE` — blocking BUILD plan filenames (verbatim from IMPLEMENTATION-PLAN.md L1150-1151):
+
+- `BUILD-email-delivery-filter-query.md`
+- `BUILD-automated-booking-reminders.md`
+
+FAKE markers present at `page.tsx:134-139` (filter call site, comment-only), `DeliveryFilterStrip.tsx:120-128` (`data-redesign-backend="FAKE"` on wrapper), `page.tsx:550` (`data-redesign-backend="FAKE"` on Load-more sentinel), and `ReminderResendForm.tsx:55-58` (FAKE-FAILURE-PATH on the toast.error branch). The manual `sendManualBookingReminder` server action remains wired verbatim (untouchable, RECON §5/§6.4 honoured).
+
+### P1 (tag for Phase 7 gauntlet)
+
+- PAGE_SIZE deviation from brief's 50-at-a-time "Load more" — `src/app/admin/emails/page.tsx:62` (FAKE sentinel at `page.tsx:547-561`)
+- EmptyState illustrations missing the named `emails-empty.svg` / `reminders-empty.svg` per brief Recipe Context — `src/app/admin/components/EmptyState.tsx:46-61` (consumed at `page.tsx:434-479,712-716`)
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-6** — `role="alert" aria-live="polite"` on the filter-error region (`DeliveryFilterStrip.tsx:215-221, 307-315`). New contribution.
+- **2A-8** — `aria-current="page"` on the active tab pill (`page.tsx:313`). New contribution.
+- **2A-9** — N/A. No required form fields on this surface.
+
+## emails — critique
+
+### Design Health Score
+
+| # | Heuristic | Score | Key Issue |
+|---|-----------|-------|-----------|
+| 1 | Visibility of System Status | 4 | Failed-24h count on Delivery tab badge, Reminders count on its tab, "Showing 9 recent events" live region, `aria-busy` on resend, "Last reminder" sub-line, copy-to-clipboard toast. Status is loud where it should be. |
+| 2 | Match System / Real World | 3 | "Provider error" / "provider message ID" are vendor-engineer terms surfaced to a novice operator who calls Resend "the email thing"; "Accepted" vs "Delivered" both render as green pills with no distinguishing copy on the row to explain why a customer might still report not receiving it. Per-day grouping ("Friday 15 May") nails the audit-grammar pairing the brief asked for. |
+| 3 | User Control and Freedom | 3 | Filter chips with individual X clears are excellent; tab links are full-document nav (predictable). No undo on resend, but the brief explicitly forbids confirmation modals because resends are cheap/idempotent — defensible. Custom date range needs an explicit Apply after picking from/to, which is correct but undocumented in UI (no helper text). |
+| 4 | Consistency and Standards | 3 | Tab pill grammar matches the rest of the admin; AdminPanel + AdminStatusBadge composition is on-vocab. Two divergences: the inline error banner on Delivery load failure uses raw oklch literals rather than a Cancelled-family token alias (functional but token-leaky), and the badge tone on the Delivery tab uses a bespoke `bg-[oklch(95.5%_0.028_20)]` rather than the AdminStatusBadge `danger` tone the rest of the page already consumes — same family, two construction paths. |
+| 5 | Error Prevention | 3 | Resend button hidden when `hasRecipient` is false and replaced with an "Add an email on the booking" link to the booking detail — exactly the right move. Min-4-char search guard prevents accidental zero-result trips. No prevention against double-resend if the operator gets impatient and clicks twice across a slow network (the optimistic spinner helps but the form is not disabled across mounts). |
+| 6 | Recognition Rather Than Recall | 3 | The Range row reads "Today / Last 7 days / Last 30 days / Custom" with `aria-pressed` and a visible active-pill — excellent recognition affordance. Active filter chips beneath the strip remove the recall burden entirely. The mono `provider_message_id` token is recognisable as a copy target only after hover; no leading copy-icon on the resting state. |
+| 7 | Flexibility and Efficiency | 3 | GET-param contract makes deep-links from `/admin/bookings/[id]` workable (brief promise honoured). Mobile collapses filters into an AdminSheet with a count badge — efficient on phones. No `j`/`k` keyboard nav (correctly deferred per PRODUCT.md's "no power-user shortcuts" line). One missed efficiency: there is no per-row link from a Delivery event back to its source booking, even though `booking_id` is on the event payload. |
+| 8 | Aesthetic and Minimalist Design | 3 | The page reads as a calm operational log — exactly the brief's "calm scannable" target. Page-header H1 in Cormorant carries register; pills and panels are restrained; tinted neutrals all stay in the warm-clinical lane. Two costs: the mobile screenshot shows the description sub-line being truncated mid-word ("template l…") because the page-header doesn't reflow at 375 — a real density bug, not a polish question. And the Reminders header line is centred on desktop (`mx-auto … max-w-720`) but the helper sentence floats unanchored above a left-aligned list — the centre-on-desktop card column with left-aligned helper looks like two layouts colliding. |
+| 9 | Error Recovery | 3 | Delivery-load failure has a Cancelled-family inline alert + "Try again" link that preserves the tab strip — strong. Resend failure spec says persistent toast with Retry Ghost; the form-level component (not read here) is the only way to verify it actually wired. Search-too-short routes to an EmptyState with a Clear filters CTA — overshoot in disguise: the search box still holds the offending characters and the EmptyState is the only signal a person sees on desktop, where the inline `aria-invalid` message would be the cleaner recovery path. |
+| 10 | Help and Documentation | 2 | The Reminders intro line ("Sends the existing reminder template. No private email bodies are stored.") is the only inline help on the page, and it lives in the middle column under the helper-floats-above-cards layout flaw above. Delivery has no inline help at all — a novice operator landing on a wall of nine "Accepted" green pills has no in-context explanation for why three flavours of green ("Accepted", "Delivered", "Opened") exist. The brief's tooltip table promises native `title` enhancements; those don't help a touch user. |
+| **Total** | | **30/40** | **Good — production-acceptable, refinement opportunities in copy / help / mobile reflow** |
+
+### AI-slop verdict
+
+**PASS.** This does not read as a generic AI-generated dashboard: the per-day grouped panels with day labels (instead of a flat table or hero-metric card row), the deliberate pairing of event-type-and-status badges side-by-side with a tinted recipient icon, the in-row `<details>` Provider-error expansion, and the Reminders avatar+name+date+CTA card all break out of the identical-card-grid reflex the anti-references explicitly forbid; no gradient text, no glassmorphism, no side-stripe borders, no hero-metric template, no purple-and-blue gradients, and Cormorant on the page title carries the Rahma fingerprint into a surface that would default to Inter-everything in slop hands.
+
+### UX-quality commentary (mapped to PRODUCT.md anti-references)
+
+- **"No generic SaaS / shadcn-default dashboards."** Surface clears this. The combination of warm ivory canvas, deep-green tab pill with white text, Cormorant H1, and AdminPanel day-grouped feed lands closer to the brief's "Trello (de-cluttered) + Linear's Triage" reference than to a stock shadcn admin template. Tab pills are correctly *pill*-shaped, not the boxy underlined tabs shadcn ships by default.
+- **"No identical-card grids."** Cleared *between sections*: Delivery is a vertically stacked timeline inside grouped panels; Reminders is a 720-max single-column list with a distinct row layout (avatar + name + datetime + Primary CTA). Within Delivery, however, every event row currently looks identical because the polish pass settled on the same icon-circle treatment regardless of `event_type`. The brief calls for the *status badge* to carry the truth; it does, but the row silhouettes don't vary enough between an "Accepted" and a "Bounced" event to draw the eye to failure when scanning — failures need to *catch* the operator, not just be findable.
+- **"No decorative blobs / glassmorphism / hero-metric template."** None present. Icon-circles are functional (event-type signifier), not decorative; the Delivery panel headers are real H3 dates with real event-count badges, not a "127 events sent today" stat card.
+- **"Color-only status signalling — a chip's tone alone never tells the story."** The page passes: every chip is icon + label + tone. The compliance is *consistent*, which is rare.
+- **"Side-stripe borders, gradient text (absolute bans)."** Cleared. Errors use full-border tinted containers, not left-stripes; the inline Provider-error `<details>` uses a tinted background + full border on the open state.
+- **"Tools so spare they feel cold."** Reminders carries the avatar warmth the PRODUCT.md asks for (initialled circle in warm ochre tint). Delivery does not — every row leads with an event-type icon in a generic tinted circle; there is no human signal until the recipient email line. A small portrait or sender-domain favicon next to the recipient address would close the gap without crowding the row.
+- **"Everything-on-one-screen SaaS dashboards."** Cleared by the tab split. The page does one thing per tab.
+- **Brand voice ("Empty states encourage").** "No upcoming bookings need a reminder. Everyone's confirmed." nails the Voice Anchor exactly. "No failed events in this range — Your emails are all getting through." likewise. This is the strongest copy on the page.
+
+**Identified regressions / soft fixes still outstanding:**
+- Mobile (375) page-header sub-line truncates "library." mid-character — adapt pass didn't catch the reflow.
+- Reminders desktop layout puts the helper sentence in a different visual lane (centred container, left-aligned text inside) from the cards — small but reads like two layouts.
+- Inline oklch literals on the Delivery-load error banner bypass the Cancelled-family token.
+- "Provider error" / mono `provider_message_id` reads as engineer-speak; a one-line gloss in the open `<details>` body would help.
+- No deep-link from a Delivery event row back to its booking, despite `booking_id` being on the event payload.
+
+**One-line opportunity:** make failure rows feel *louder* on a calm page — without breaking the calm — by adding a stronger border-tint on bounce/failed/complained rows, paired with a Cormorant numeral count of "{N} failed today" in the Delivery panel header when the day contains any.
