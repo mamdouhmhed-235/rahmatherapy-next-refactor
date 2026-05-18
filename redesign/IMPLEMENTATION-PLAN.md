@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 9 of 29 — dashboard-coordinator   ← update when you start a session (count by position from the top, not by label). In flight: dashboard-coordinator, account-password-requests, password-reset, emails (parallel-4 from second batch; client-new just merged. 22 of 29 done, 7 remaining: dashboard-coordinator, dashboard-therapist, account-password-requests, password-reset, email-templates, emails).
+Currently on: 9 of 29 — dashboard-coordinator   ← update when you start a session (count by position from the top, not by label). In flight: dashboard-coordinator, password-reset, emails (parallel-3 from second batch; account-password-requests + client-new merged. 23 of 29 done, 6 remaining: dashboard-coordinator, dashboard-therapist, password-reset, email-templates, emails).
 
 ---
 
@@ -432,7 +432,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 12. [ ] account-password-requests — commit: ____
+## 12. [x] account-password-requests — commit: 015dbea
 
 **Tier:** Tier 3 — BASELINE-CRITIQUE: orphaned `account_password_requests` table (1 pending row in production, zero UI)
 
