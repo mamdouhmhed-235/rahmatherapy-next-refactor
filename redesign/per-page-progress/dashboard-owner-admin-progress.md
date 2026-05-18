@@ -28,3 +28,11 @@ step-11: COMPLETE (re-run) — token-drift clean, Playwright at 4 viewports + in
 step-12: COMPLETE (re-run) — audit/critique/smoke (critique re-run: PASS verdict, 42/50, all 3 prior REGRESSED findings resolved)
 step-13: COMPLETE (re-run) — handoff emitted, awaiting approval
 
+step-final-1: brief §11 amendments appended (documents shipped state vs original spec)
+step-final-2: deferrals file refreshed to current state (Phase 7 items separated from intentional brief deviations)
+step-final-3: audit + critique subagents dispatched against final state
+step-final-4: handoff preflight in progress
+step-final-5: audit subagent returned 17/20; critique subagent returned 44/50 PASS
+step-final-6: P1 fixes applied in-session (h2 on Snapshot, h3 on Tier 2 tiles, aria-label on filter strip, dead code removed)
+step-final-7: token-drift grep verified clean (0 border-l-4, 0 bg-black, 0 raw gray)
+step-13: handoff emitted + commit

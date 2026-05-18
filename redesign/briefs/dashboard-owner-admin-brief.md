@@ -302,3 +302,80 @@ This page mutates nothing. No `ConfirmActionModal` instances. Tier-2 disclosure 
 - Filter applied: no toast — re-render is the feedback.
 - Export clicked: no toast — browser download notification is the feedback.
 - Tier 2 expanded/collapsed: no toast.
+
+---
+
+## §11. Implementation amendments (Phase 6 build, May 2026)
+
+This section records what actually shipped vs. the original spec above, with rationale. Every change here is faithful to the brief's intent (calm two-tier surface, filter cohesion, RBAC discipline, brand voice) but adjusts implementation details where Phase 6 iterations exposed better patterns or filled gaps the original spec didn't anticipate. Phase 7's audit gauntlet should treat this section as the canonical "what's actually in the code" reference.
+
+### A. Editorial-warm rebuild (replaces "Tier 1 layout details")
+
+After the initial craft + polish loop, the Tier 1 surface read as generic SaaS chrome — the brief's Cormorant marquee numeral was rendered as a small sans `text-2xl`, the header right rail had accreted Reports/Calendar/Settings buttons that duplicated the global nav, and the Today panel's timeline grid was visually heavy for a sub-5-booking day. The shipped redesign:
+
+- **Editorial masthead.** H1 `"Today at Rahma Therapy"` (post-build amendment: originally `"Today at Rahma"`; expanded for brand specificity) in `admin-display` Cormorant 700 at clamp(1.875rem, 4vw, 2.5rem). 2px × 32px gold accent rule (`bg-[var(--admin-accent)]`) anchors the H1 to the brand. Subtitle `Sunday, 17 May 2026 · Luton`. New `<UpdatedAgo>` client component renders `UPDATED <relative-time>` and refreshes every 60s.
+- **Snapshot panel** (component named `TodayAtAGlanceCard` for import compatibility, but now range-aware): eyebrow caps `SNAPSHOT · <RANGE LABEL>` + Cormorant marquee numeral at clamp(2.75rem, 6vw, 4.5rem) + `<N> upcoming` + pure-SVG 7-day sparkline (hidden when all-zero). Replaces the brief's static "Today only" panel with a panel whose count, list, and label change with the active filter range. When `range === "today"` exposes a List ↔ Timeline view toggle via `?todayView=` URL param (URL-driven, no client state); other ranges show a list of upcoming bookings in the range.
+- **Booking list rows** (replaces the brief's "compressed BookingListCard" spec, faithful to its intent): 36px deterministic-tint avatar (existing `avatarTintStyle`) + gold accent dot before the client name when `assignment_status !== "fully_assigned"` + tabular-nums time range + status family pill. Whole row is `<Link>` with hover-lift (`hover:-translate-y-px hover:shadow-[var(--admin-shadow-subtle)]`). Mobile stacks the status pill below the time line; sm+ shows it inline on the right.
+- **Day readiness ribbon** (replaces "3-tile icon grid" spec): condensed to a single inline status strip beneath the booking list — `READY` eyebrow + three `ReadinessChip` inline labels (Mail/Users/£ icon + label + value). Reason: the original 3-tile grid hit the identical-card-grid anti-pattern PRODUCT.md bans.
+- **Header rail discipline** (closes brief §5 deviation flagged in audit): bell, search, ⌘K hint, role badge all live in the global `AdminTopNav`. Dashboard's own header now contains H1 + accent rule + subtitle + `UPDATED` caption + role pill only. No duplicates.
+
+### B. Filter cohesion contract (NEW — addresses the biggest brief gap)
+
+The original brief specified a filter strip but didn't define a contract for how each panel respected it. In practice the "Today" panel hardcoded `booking_date === today` and the Demand-trend tile carried its own competing 7/30 toggle — so the date range visually filtered Tier 2 only, leaving Tier 1 frozen. Shipped:
+
+- **Single source of truth**: `parseReportFilters(searchParams) → getDashboardData(filters) → derived scopeBookings / upcomingInRange / dailySeries / scopeSummary / filterQuery` flow once in `page.tsx` and threads into every panel + every outbound drill-down link.
+- **Demand-trend tile loses its toggle.** The chart now spans whatever `filters.from..filters.to` is.
+- **Drill-down preservation.** Every "View calendar / View bookings / View details" link appends the current `filterQuery` so scope rides through.
+- **Sticky filter strip** with subtle warm gradient backdrop + `backdrop-blur-md`, pins on scroll under the global top nav.
+- **Active filter pills row** appears under the chip strip when any of `city/service/staffId/source/status/paymentStatus` is set — one removable pill per active filter (× button per pill, `Clear all` link when ≥2 pills). Warm tinted band so it reads as a state-change rather than chrome.
+- **Scope summary line** beneath the chips: 4 inline stats (`10 bookings · 5 attention · £430 outstanding · 11 clients`) with `tabular-nums` and a range-label pill (`● THIS MONTH (MAY 2026)`) anchored right. Makes the active lens explicit.
+- **Date preset chips** as proper bordered button-style controls (40px tall) with `active:scale-[0.97]` press feedback and lift-on-hover; the active chip is filled brand-green with inner highlight + soft drop shadow.
+
+### C. Tier 2 unification (refines "Tier 2 sub-tiles")
+
+- Eyebrow + Cormorant marquee header pattern applied uniformly: `STAFF / 0% / 0 active · 0/5 slots`, `THIS PERIOD / £430.00 / Outstanding`, `STATUS / 2 / active issues`, `BOOKINGS PER DAY / 10 / Across This month (May 2026)`.
+- Each tile carries `min-h-[22rem]` so the 2×2 grid aligns on the bottom edge.
+- **Operations Health** rebuilt: was a 2×2 identical-card grid of `AdminHealthTile` (the brief's spec, but a real identical-card-grid antipattern). Now: an overall-status banner (tinted by worst severity) + a severity-weighted priority list (critical → warning → info rows, each with severity-tinted background and an icon-badge), followed by an `ALL CLEAR: <label> · <label>` footer that consolidates clear items into one line. Sub-tile titles fixed to brief copy verbatim: `Staff capacity`, `Payment health`, `Operations health`, `Demand trend`.
+- **Payment Health** simplified: stripped the redundant 24-bar conic-gradient pseudo-donut and the hardcoded `+12% vs last week` stub. Three progress rows (Booked / Collected / Outstanding) carry the data without repetition. Caption `<N> unpaid booking<s>, <N> completed` sits below a thin divider with proper breathing room.
+- **Tier 2 grid breakpoint** uses `md:grid-cols-2` (768+) — earlier than the brief's `lg:` to make better use of tablet horizontal space.
+- **Disclosure** correctly hides children when `hasActivity === false` (fixed a double-negation dead-syntax bug in the `hidden` ternary).
+
+### D. Mix snapshot demotion (NEW)
+
+A separate `BusinessPulseCard` (Service mix + Client mix) existed pre-rebuild but wasn't called out in the brief at all. Shipped as a slim "MIX SNAPSHOT · SERVICE & CLIENT" strip below Tier 2 with reduced visual weight (no panel-header chrome, `panel-muted/40` background), so it reads as a deeper-dive footnote rather than a peer tile.
+
+### E. RBAC fix (P0 caught during audit)
+
+`view_reports_revenue` was never threaded through to `<DashboardFiltersClient canExport>` — Export rendered for everyone. Closed: added `viewReportsRevenue` field to `PermissionAccess` interface, imported `canViewRevenueReports` from `rbac.ts`, passed `canExport={permissionAccess.viewReportsRevenue}` to the filter client.
+
+### F. Adaptation polish (Phase 6 `/impeccable adapt` pass)
+
+- Mobile (375): chip strip momentum-scrolls horizontally per brief; booking rows stack the status pill below the time line so long client names never wrap mid-word; Day readiness ribbon stacks chips vertically; View calendar / View bookings split into an equal-width 2-column grid; horizontal scroll = 0px.
+- Tablet (768): Tier 2 enters 2×2 grid (was waiting until lg:); Tier 1 still single-column per brief's 1280 breakpoint.
+- Desktop entry (1280): Tier 1 two-column grid + Snapshot header reflows; booking rows inline.
+- Wide (1440): full chrome, no horizontal scroll.
+
+### G. Hardening pass (Phase 6 `/impeccable harden` pass)
+
+- **React key collision** in booking list when two bookings share `date+time+title` (real-world: walk-ins, seed duplicates). Threaded `booking.id` through `appointments` and `upcomingAppointments` props; keys now `a.id ?? <derived>-<index>`.
+- **Sparkline all-zero suppression**: hidden when `dailySeries.some(v > 0)` is false.
+- **Custom date misorder validation**: previously silent return; now sets `customDateError` state, renders inline `<p role="alert" aria-live="polite">` under the form, wired via `aria-describedby`. Closes brief §6 "error → inline alert" intent for date inputs.
+- **`formatPounds` extended to millions**: tiered `£N.NM` ≥1M, `£Nk` ≥10k, `£N.Nk` ≥1k, full currency below.
+- **Extreme-input probe**: 100+ char Latin names, CJK + emoji, RTL Arabic + LTR Latin mix, accented characters all render gracefully with proper truncation/wrapping/bidi reflow.
+
+### H. Spacing fix (final pass)
+
+`ALL CLEAR:` footer in both Operations Health and Urgent Attention + the `<N> unpaid bookings` caption in Payment Health were sitting flush against the row above them. All three now use `mt-5 border-t border-[var(--admin-border)]/60 pt-3` for a subtle visual separator with proper breathing room.
+
+### Files NOT touched (preserved verbatim)
+
+`dashboard-data.ts`, `dashboard-helpers.ts`, `TherapistDashboard.tsx`, `shell-variant.ts`, `middleware.ts`, `lib/auth/**`, `lib/supabase/**`, `supabase/migrations/**`, `card.tsx`, `admin-error-boundary.tsx` (shared infra; deferred to Phase 7 for `role="alert"` fallback), all build/config files.
+
+### Open items deferred to Phase 7
+
+See `redesign/per-page-deferrals/dashboard-owner-admin-deferrals.md` for the canonical list. Notable items not addressed in Phase 6:
+- `AdminErrorBoundary` fallback lacks `role="alert"` (shared infra outside scope).
+- Mobile bottom-nav safe-area overlap is mitigated by page-level `pb-24` but the shell-level fix lives elsewhere.
+- Severity tint OKLCH literals at `dashboard-cards.tsx:474-477` are inline rather than via DESIGN.md tokens (semantic hues, not arbitrary colour; system-wide reconciliation in Phase 7).
+- I18n pluralisation uses English `count === 1 ? "" : "s"` patterns; no `Intl.PluralRules`.
+

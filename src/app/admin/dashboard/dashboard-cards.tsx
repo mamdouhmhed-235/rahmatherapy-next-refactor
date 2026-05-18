@@ -189,6 +189,7 @@ export function AttentionItemCard({
 }
 
 type SnapshotAppointment = {
+  id?: string;
   time: string;
   endTime?: string;
   title: string;
@@ -245,41 +246,41 @@ export function TodayAtAGlanceCard({
 
   return (
     <AdminDashboardPanel className="min-h-[22rem]">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
           <div className="flex items-center gap-3">
             <AdminIconBadge icon={CalendarDays} tone="default" className="size-9" />
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+              <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
                 {eyebrowLabel}
-              </p>
+              </h2>
               <p
                 className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
-                style={{ fontSize: "clamp(3rem, 4.5vw, 4.75rem)" }}
+                style={{ fontSize: "clamp(2.75rem, 6vw, 4.5rem)" }}
                 aria-label={heroAriaLabel}
               >
                 {heroCount}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-4 pb-1">
+          <div className="flex flex-wrap items-center gap-3 pb-1">
             <div className="text-sm text-[var(--admin-text-muted)]">
               <span className="font-semibold text-[var(--admin-heading)] tabular-nums">{upcomingCount}</span>{" "}
               {isToday ? "this week" : "upcoming"}
             </div>
-            {dailySeries && dailySeries.length > 1 ? (
+            {dailySeries && dailySeries.length > 1 && dailySeries.some((v) => v > 0) ? (
               <Sparkline points={dailySeries.slice(-7)} />
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 lg:shrink-0">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:shrink-0">
           {permissionAccess?.calendar ? (
-            <Link className="admin-action-outline" href={`/admin/calendar${qs}`}>
+            <Link className="admin-action-outline justify-center" href={`/admin/calendar${qs}`}>
               View calendar
             </Link>
           ) : null}
           {permissionAccess?.bookings ? (
-            <Link className="admin-action-primary" href={`/admin/bookings${qs}`}>
+            <Link className="admin-action-primary justify-center" href={`/admin/bookings${qs}`}>
               View bookings
             </Link>
           ) : null}
@@ -310,7 +311,7 @@ export function TodayAtAGlanceCard({
       </div>
 
       <div
-        className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-2.5"
+        className="mt-5 grid gap-y-1.5 gap-x-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3 sm:flex sm:flex-wrap sm:items-center"
         aria-label="Day readiness"
       >
         <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--admin-text-muted)]">
@@ -427,7 +428,7 @@ function TodayList({
   return (
     <div className="grid gap-2">
       {visible.map((a) => (
-        <SnapshotListRow key={`${a.time}-${a.title}`} appointment={a} />
+        <SnapshotListRow key={a.id ?? `${a.time}-${a.title}-${visible.indexOf(a)}`} appointment={a} />
       ))}
       {appointments.length > 5 && canViewCalendar ? (
         <div className="pt-1">
@@ -468,7 +469,7 @@ function UpcomingRangeList({
   return (
     <div className="grid gap-2">
       {visible.map((a) => (
-        <SnapshotListRow key={`${a.date}-${a.time}-${a.title}`} appointment={a} withDate />
+        <SnapshotListRow key={a.id ?? `${a.date}-${a.time}-${a.title}-${visible.indexOf(a)}`} appointment={a} withDate />
       ))}
       {appointments.length > 5 && canViewBookings ? (
         <div className="pt-1">
@@ -521,11 +522,18 @@ function SnapshotListRow({
           <span className="tabular-nums">{timeRange}</span>
           {appointment.detail ? <span> · {appointment.detail}</span> : null}
         </p>
+        <div className="mt-1.5 sm:hidden">
+          <AdminStatusBadge
+            value={appointment.status}
+            tone={appointment.status === "fully_assigned" ? "success" : "warning"}
+            className="text-[10px]"
+          />
+        </div>
       </div>
       <AdminStatusBadge
         value={appointment.status}
         tone={appointment.status === "fully_assigned" ? "success" : "warning"}
-        className="shrink-0"
+        className="hidden shrink-0 sm:inline-flex"
       />
     </div>
   );
@@ -607,7 +615,7 @@ function TodayTimeline({
           const style = appointmentStyle(appointment.time, appointment.endTime);
           return appointment.href ? (
             <Link
-              key={`${appointment.time}-${appointment.title}`}
+              key={appointment.id ?? `${appointment.time}-${appointment.title}`}
               href={appointment.href}
               className="absolute top-8 min-w-[7rem] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
               style={style}
@@ -616,7 +624,7 @@ function TodayTimeline({
             </Link>
           ) : (
             <div
-              key={`${appointment.time}-${appointment.title}`}
+              key={appointment.id ?? `${appointment.time}-${appointment.title}`}
               className="absolute top-8 min-w-[7rem]"
               style={style}
             >
@@ -630,51 +638,6 @@ function TodayTimeline({
 }
 
 export const TodayAgendaCard = TodayAtAGlanceCard;
-
-function MetricMini({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="min-w-16 px-3">
-      <p className="text-2xl font-semibold leading-none text-[var(--admin-heading)]">{value}</p>
-      <p className="mt-1 text-xs text-[var(--admin-text-muted)]">{label}</p>
-    </div>
-  );
-}
-
-function AppointmentMobileRow({
-  appointment,
-}: {
-  appointment: { time: string; title: string; detail: string; status: string; href: string | null };
-}) {
-  const isUnconfirmed = appointment.status !== "fully_assigned";
-  const content = (
-    <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-sm font-semibold text-[var(--admin-heading)]">
-          {isUnconfirmed ? (
-            <span
-              aria-label="Awaiting confirmation"
-              className="inline-block size-1.5 rounded-full bg-[var(--admin-accent)]"
-            />
-          ) : null}
-          {appointment.time}
-        </span>
-        <AdminStatusBadge
-          value={appointment.status}
-          tone={appointment.status === "fully_assigned" ? "success" : "warning"}
-        />
-      </div>
-      <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
-        {appointment.title} - {appointment.detail}
-      </p>
-    </div>
-  );
-
-  return appointment.href ? (
-    <Link href={appointment.href}>{content}</Link>
-  ) : (
-    content
-  );
-}
 
 function ReadinessChip({
   icon: Icon,
@@ -802,7 +765,7 @@ export function UrgentAttentionPanel({
       )}
 
       {!allClear && clearRows.length > 0 ? (
-        <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
+        <p className="mt-5 border-t border-[var(--admin-border)]/60 pt-3 text-xs text-[var(--admin-text-muted)]">
           <span className="font-semibold uppercase tracking-[0.1em] text-[var(--admin-success)]">All clear:</span>{" "}
           {clearRows.map((row) => row.label).join(" · ")}
         </p>
@@ -854,9 +817,9 @@ export function StaffCapacityCard({
         <div className="flex items-start gap-3">
           <AdminIconBadge icon={Users} tone="default" />
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-              Staff
-            </p>
+            <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+              Staff capacity
+            </h3>
             <p
               className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
               style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
@@ -1029,9 +992,9 @@ export function PaymentHealthCard({
         <div className="flex items-start gap-3">
           <AdminIconBadge icon={PoundSterling} tone="default" />
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-              This period
-            </p>
+            <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+              Payment health
+            </h3>
             <p
               className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
               style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
@@ -1130,7 +1093,7 @@ export function PaymentHealthCard({
             </div>
 
             {/* Footer */}
-            <p className="mt-4 flex items-center gap-2 text-xs text-[var(--admin-text-muted)]">
+            <p className="mt-5 flex items-center gap-2 border-t border-[var(--admin-border)]/60 pt-3 text-xs text-[var(--admin-text-muted)]">
               <Info className="size-3.5" aria-hidden="true" />
               {hasActivity
                 ? `${unpaidCount} unpaid booking${unpaidCount === 1 ? "" : "s"}${unpaidCompletedCount ? `, ${unpaidCompletedCount} completed` : ""}.`
@@ -1230,9 +1193,9 @@ export function OperationsHealthCard({
         <div className="flex items-start gap-3">
           <AdminIconBadge icon={HeartPulse} tone={overall.tone === "success" ? "success" : overall.tone === "danger" ? "danger" : "warning"} />
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-              Status
-            </p>
+            <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+              Operations health
+            </h3>
             <p
               className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
               style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
@@ -1333,7 +1296,7 @@ export function OperationsHealthCard({
       ) : null}
 
       {clearRows.length > 0 ? (
-        <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
+        <p className="mt-5 border-t border-[var(--admin-border)]/60 pt-3 text-xs text-[var(--admin-text-muted)]">
           <span className="font-semibold uppercase tracking-[0.1em] text-[var(--admin-success)]">All clear:</span>{" "}
           {clearRows.map((row) => row.label).join(" · ")}
         </p>
@@ -1461,9 +1424,9 @@ export function DemandTrendCard({
       <div className="flex items-start gap-3">
         <AdminIconBadge icon={HeartPulse} tone="default" />
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-            Bookings per day
-          </p>
+          <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
+            Demand trend
+          </h3>
           <p
             className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
             style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}

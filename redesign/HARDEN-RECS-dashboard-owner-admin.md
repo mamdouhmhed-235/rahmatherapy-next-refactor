@@ -1,69 +1,72 @@
 # HARDEN — dashboard-owner-admin
 
-Date: 2026-05-17 (re-run via `/impeccable harden dashboard-owner-admin` Skill)
-Source: in-session hardening review against brief §6 "Key States", recipe Step 9 verification edge cases, and impeccable harden.md dimension checklist.
+Date: 2026-05-17 (2nd pass after editorial-warm rebuild + filter cohesion + impeccable adapt)
+Source: `/impeccable harden` invoked under refined plan. Probed extreme inputs, empty range, key collisions, focus management, large numbers.
 
-## Source-grep evidence of hardened state
+## Findings actioned this pass
 
-- `demand-trend-client.tsx:75-76` — Recharts `<ResponsiveContainer>` carries explicit `minHeight={288}` AND the wrapping `<div>` also pins `style={{ minHeight: 288 }}`. The 6 pre-existing Recharts 0×0 warnings (RECON §8 carry-forward) are eliminated.
-- `dashboard-filters-client.tsx:481, 500` — Tier 2 disclosure persists via `window.localStorage.getItem/setItem` keyed by user; try/catch wrapper survives private-mode failure (keeps collapsed default).
-- `dashboard-filters-client.tsx:487` — `prefers-reduced-motion: reduce` honoured via `window.matchMedia` listener; transition becomes instant when reduce-motion is set.
-- `dashboard-filters-client.tsx:518` — `aria-expanded={expanded}` reflected on the disclosure trigger.
-- `dashboard-filters-client.tsx:557` — disclosure animates with `grid-template-rows: 0fr → 1fr` — never `height: auto`.
-- `dashboard-cards.tsx:87-100` — 12 avatar tints replaced with deterministic `oklch(85% 0.035 ${hue})` (hue from name-hash, clamped to brand-adjacent 75–165 / 30–80 bands; WCAG-AA contrast at L=28 C=0.085 text on L=85 C=0.035 bg).
-- `admin-ui.tsx:312-319` — `AdminPanel` error path wraps the message in `role="alert" aria-live="polite" aria-atomic="true"`. Per-tile error states announce correctly.
-- `admin-scalable-lists.tsx:515-516` — additional `role="alert" aria-live="polite"` in shared scalable list (used by attention items list).
+### 1. React key collision in booking list rows — FIXED
+**Symptom:** When two bookings shared identical `date + time + title` (real-world: walk-ins with placeholder names, or seed re-runs), React threw "Encountered two children with the same key" and could omit one row.
+**Root cause:** `SnapshotListRow` key was `${a.date}-${a.time}-${a.title}` and `${a.time}-${a.title}` — derived data, not a primary key.
+**Fix:** Added optional `id` to `SnapshotAppointment` type, threaded `booking.id` through both `appointments` and `upcomingAppointments` props in `page.tsx`. Key now uses `a.id ?? <derived>-<index>` so collisions become impossible even when DB inserts the same client twice. Verified via console: no key warning after seeding extreme-input dataset with deliberate duplicates. (`dashboard-cards.tsx:200, 430, 471, 618`, `page.tsx:617-635`)
 
-## Brief §6 "Key States" coverage
+### 2. Sparkline rendered a flat zero-line — FIXED
+**Symptom:** With a date range that has zero bookings, the 7-day sparkline still rendered as a flat baseline, creating visual noise that suggested "data" when there was none.
+**Fix:** Sparkline now only renders when `dailySeries.some(v => v > 0)` is true. Empty ranges show just `0 upcoming` with no sparkline. (`dashboard-cards.tsx`, snapshot header)
 
-| Key state | Coverage | Verified |
-|---|---|---|
-| First paint populated | Server component renders with DB state at request time | Source review |
-| Empty DB | Verified live | playwright 1440/768/375 |
-| No attention items | Distilled to single "All caught up" empty state in `UrgentAttentionPanel` (see `dashboard-cards.tsx:407-419`) | playwright 1440/768/375 |
-| Tier 2 expanded | Disclosure auto-disabled when no activity (`disabled={true}` on trigger); expanded sub-tiles still render in DOM for screen readers when activity exists | snapshot tree |
-| Filter sheet open (desktop + mobile) | Verified live (sheet renders right on desktop, bottom on mobile per shared AdminSheet contract) | playwright 1440 + 375 |
-| Filtered to empty range | Range params produce same empty-state layout | inferred from URL-driven GET design |
-| Loading skeletons | Server component → no client-side loading shimmer needed for first paint; AdminPanel handles per-tile `loading` prop via `<AdminSkeleton>` at admin-ui.tsx:321-325 | Source review |
-| Custom date range | Verified live at `?range=custom&from=2026-05-01&to=2026-05-15` | playwright |
-| Recharts 0×0 | minHeight 288 applied on both container and wrapper | Source grep |
-| Per-tile error | AdminPanel error prop wraps in `role="alert" aria-live="polite"` | Source grep |
+### 3. Custom date misorder silently failed — FIXED (also closes brief §6 "Couldn't load…" intent for inline form validation)
+**Symptom:** Submitting `from > to` returned silently with no UI feedback. User couldn't tell whether the form had ignored their input or was still loading.
+**Fix:** Added `customDateError` state; on misorder sets `"End date must be on or after the start date."`; renders inline `<p role="alert" aria-live="polite">` under the form (both desktop and mobile variants), wired via `aria-describedby` on the form. Cleared when a valid range is submitted. (`dashboard-filters-client.tsx:188, 293-307, 357-385, 504-529`)
 
-## Recipe Step 9 verification edge cases
+### 4. `formatPounds` broke at millions — FIXED
+**Symptom:** £1,500,000 outstanding rendered as `£1500.0k` (wrong). Original logic only handled <£10k and ≥£1k bands.
+**Fix:** Tiered to `£N.NM` at ≥£1M, `£Nk` at ≥£10k, `£N.Nk` at ≥£1k, full currency below. Also handles negative values via sign extraction. (`dashboard-filters-client.tsx:642-650`)
 
-| Edge case | Status |
-|---|---|
-| 24-character role name in role pill doesn't break header rail at 375 | PASS — role pill is `hidden md:inline-flex` so it's not rendered at 375 (collapses into mobile shell's account menu). |
-| 9 active filters → "More filters (9)" badge wraps cleanly | PASS — `<AdminStatusBadge>` is `inline-flex` with `text-xs`; 9 is single-digit so no wrap; double-digit (e.g. 12) still fits within the chip's `px-2 py-0.5`. |
-| Today panel with 5 booking rows + 5 attention rows at 1280px doesn't exceed first viewport | PASS — Today panel has `min-h-[20rem]` floor (320px) and absolute-positioned booking pills cap at `h-[8rem]` (128px); Attention panel caps `visibleRows` at `rows.slice(0, 5)`. |
-| Recharts ResponsiveContainer minHeight 288 in demand-trend-client.tsx | PASS — `dashboard-cards.tsx:demand-trend-client.tsx:75-76` |
-| Disclosure transition uses `grid-template-rows: 0fr → 1fr` (NOT `height: auto`); honours `prefers-reduced-motion: reduce` with instant transition | PASS — both confirmed in `dashboard-filters-client.tsx:487, 557` |
-| Avatar tints: 12 hardcoded hex values replaced with `oklch(85% 0.035 var(--avatar-hue))` and hue formula `(index * 37) mod 360` clamped to 75–165 and 30–80 ranges | PASS — `dashboard-cards.tsx:87-100` (uses inline `${hue}` rather than `var(--avatar-hue)` CSS custom property, but the deterministic clamp is equivalent and the value goes inline on `backgroundColor` not as a class — functionally equivalent) |
+## Findings verified PASS (already hardened in prior passes)
 
-## Harden.md dimension audit
+- **Recharts `width(-1) height(-1)`** — Explicit `height={288}` + `style={{ height: 288, minWidth: 0 }}` on wrapper. Console verified 0 warnings on populated + empty ranges.
+- **`prefers-reduced-motion: reduce`** — `BusinessOverviewDisclosure` honours via `matchMedia` listener; transition becomes instant.
+- **`aria-expanded` + `aria-controls`** — Disclosure trigger reflects state.
+- **Tier 2 disclosure auto-disabled when `hasActivity = false`** — chevron disabled, children hidden, accessible.
+- **localStorage persistence** — Disclosure preference and notification read/dismissed state both `try/catch`-wrapped for private mode.
+- **Skip-link present** — `<a href="#admin-main">` in shell.
+- **All filter strip controls have `focus-visible:ring`** — 7/7 verified at runtime (`browser_evaluate`).
+- **Filter pill remove buttons have `aria-label`** — `Remove <field> filter (<value>)`.
+- **Tabular numerics** — 18 numeric displays use `tabular-nums` so digits don't jiggle on update.
+- **Currency rendering** — `Intl.NumberFormat("en-GB", style: "currency", currency: "GBP")` everywhere for proper £ symbol + UK grouping.
+- **Date formatting** — `Intl.DateTimeFormat("en-GB", timeZone: "Europe/London")` server- and client-side.
+- **Pluralisation** — `count === 1 ? "" : "s"` everywhere (English-only product, brief explicit).
+- **Empty-state copy adapts to range** — `"No appointments today"` vs `"No upcoming appointments in <RangeLabel>"`.
+- **Sticky filter strip + backdrop blur** — pins on scroll, content beneath stays readable.
+- **Concurrent submission** — `isPending` + `aria-busy="true"` + `pointer-events-none opacity-60` on the filter section prevents double-submit during route transitions.
+- **Avatar tints deterministic** — `oklch(85% 0.035 ${hue})` from `(index * 37) % 360` clamped to brand-adjacent 75–165 / 30–80 ranges.
+- **Status families** (success / warning / danger / info / clear) — each pair of bg+text+icon used together; no colour-only signalling.
+- **Filter form names preserved verbatim** — `range, from, to, city, service, staffId, source, status, paymentStatus`.
+- **IDs preserved verbatim** — `admin-main`, `admin-command-search`, `attention-dialog-title`, SVG `linearGradient#demandGradient`.
+- **RBAC gates** — `getAdminPageAccess`, `viewReportsRevenue` (Export), `manage_settings` / `manage_emails` (Operations health).
+- **External URL contracts** — POST `/admin/signout`, GET `/admin/reports/export?<filters>`, deep-link `?range=custom&from=…&to=…`.
+- **Therapist-variant branch** — untouched early-return.
 
-- **Text overflow & wrapping** — Today panel marquee numeral uses `clamp(2.75rem, 4.5vw, 3.157rem)` so it scales fluidly between 320px and 1440px. Attention row labels use `truncate text-sm`. Day Readiness items use `min-w-0` to allow text shrinking inside flex.
-- **Internationalization** — Date subtitle uses `Intl.DateTimeFormat` via the server's `getBusinessDate("today")` helper. Currency formatting uses `Intl.NumberFormat("en-GB", {style:"currency", currency:"GBP"})` at `dashboard-cards.tsx:64-67`. No RTL-specific logic added (deferred to global i18n pass; not in brief).
-- **Error handling** — AdminErrorBoundary wraps `<DashboardFiltersClient>` and other sections at `page.tsx:630`. Network/API errors fall through to the boundary fallback. (NOTE: error boundary fallback does NOT itself add `role="alert"` — only the AdminPanel-wrapped error states do. See deferral below.)
-- **Empty states** — covered for every panel (Today / Urgent Attention / Staff Capacity / Payment Health / Demand Trend / Service mix / Client mix).
-- **Loading states** — server component path; per-tile `<AdminSkeleton>` available via AdminPanel loading prop.
-- **Large datasets** — Attention rows hard-capped at 5 via `rows.slice(0, 5)` so the panel never exceeds first viewport.
-- **Concurrent operations** — `aria-busy` toggled on the filter strip during routing (`dashboard-filters-client.tsx`) prevents double-submit.
-- **Permission states** — `getAdminPageAccess(profile, "dashboard")` enforces page-level access; per-feature checks gate Export (`viewReportsRevenue`), Calendar/Bookings CTAs, Operations Health tile, Staff Capacity tile.
-- **Accessibility resilience** — skip-link present (`#admin-main`); `prefers-reduced-motion` honoured; `aria-current="page"` on active preset; disclosure has `aria-expanded` + `aria-controls`; date presets in `fieldset/legend`; dialog has `aria-labelledby`.
-- **Performance resilience** — minimal client components (filters, demand-trend, attention-group); server-side aggregation in untouchable `dashboard-data.ts`.
+## Extreme-input behaviour (verified visually)
 
-## Recommendations not actioned (deferred)
+Probed with names like:
+- `Mohammed Abdulrahman Abdul-Hakim Al-Farsi-Lampungbungkangkang` — wraps cleanly to 3 lines on mobile, truncates with ellipsis at desktop.
+- `李小龍 (Lǐ Xiǎolóng) 👨‍⚕️🌿` — CJK + emoji + parens render correctly; avatar initials extract Chinese first chars.
+- `Ñoño García-López y Vega Romero` — accents render; hyphens preserved.
+- `اَلسَّلَامُ عَلَيْكُمْ Test Client` — bidirectional RTL + LTR mix renders with proper direction reflow; gold dot positions correctly.
 
-- **Error boundary fallback `role="alert"`** — `admin-error-boundary.tsx` is shared infrastructure outside the recipe's Files-to-edit scope. Adding `role="alert" aria-live="polite"` on the boundary's `AdminEmptyState` fallback would require touching a non-scoped file. Deferred to 00-shared-components / Phase 7 (logged in `redesign/per-page-deferrals/dashboard-owner-admin-deferrals.md`).
-- **Mobile bottom-nav overlap with `<main>`** — shell-level, `shell-variant.ts` is in the Files-to-NEVER-touch list. Deferred (already logged).
-- **Tile error copy "Couldn't load this section. Try refreshing."** — brief specifies this exact string for tile-load failures; current AdminErrorBoundary fallback message differs. Changing requires touching shared admin-error-boundary.tsx outside scope. Deferred to Phase 7.
+## Recommendations not actioned (out of recipe scope or future iteration)
 
-## Recommendations actioned during this session
+- **`AdminErrorBoundary` fallback lacks `role="alert"`** — `src/app/admin/components/admin-error-boundary.tsx` is shared infra outside the 7-file scope. The deferral file already records this for Phase 7 / 00-shared-components.
+- **Mobile bottom-nav safe-area overlap** — page-level `pb-24` mitigates, but the shell's `#admin-main` padding rule only kicks in landscape; portrait mobile relies on the dashboard padding. Shell-level proper fix deferred.
+- **Pluralisation** — strict English plural rules in inline strings; an i18n library would handle Russian/Arabic/etc. plural classes. Not in brief scope.
+- **Sparkline accessibility** — currently `role="img" aria-label="7-day booking trend"` (no underlying data table fallback). Acceptable for a decorative trend indicator on a server-rendered page.
+- **`Updated <relative-time>` staleness warning** — could turn amber when >5min stale. Currently just shows the relative time without escalation; product hasn't requested this.
 
-1. `dashboard-cards.tsx:243-285` — TodayAtAGlanceCard empty-state replaced absolute-positioned overlay with a solid-bordered placeholder card; removed `border-dashed` (DESIGN.md §6 absolute Don't).
-2. `dashboard-cards.tsx:221-249` — Today panel header switched to flex-col → flex-row at sm; restored Cormorant marquee numeral signature per brief §8 (3.157rem clamp); renamed H2 from "Today at a glance" to "Today" per brief §8.
-3. `dashboard-cards.tsx:397-419` — UrgentAttentionPanel zero-state collapsed from 3 identical icon-heading-text rows to single "All caught up" `AdminEmptyState` when `allClear`. Conditional hide of "Review signals" CTA when nothing needs review.
-4. `dashboard-cards.tsx:411` — H2 renamed "Urgent attention" → "Needs your attention" per brief §8.
-5. `dashboard-header.tsx` — stripped Reports / Calendar / Settings buttons and the "Last synced" Clock chip; header rail now matches brief §5 spec (Bell + ⌘K chip + role badge).
-6. `page.tsx` — added `viewReportsRevenue: boolean` to `PermissionAccess` interface; imported `canViewRevenueReports`; threaded `canExport={permissionAccess.viewReportsRevenue}` into `<DashboardFiltersClient>` (P0 RBAC gate).
+## Verification
+
+- Console: 0 errors, 0 warnings at populated, empty, and extreme-input states.
+- All 4 viewports (375 / 768 / 1280 / 1440): no horizontal scroll, all features render.
+- Custom date misorder: now blocks submission AND announces the error to AT via `role="alert"`.
+- Booking list with duplicate seed rows: no React key warning.
+- Empty `?range=custom&from=2030-01-01&to=2030-01-31`: sparkline hidden, scope summary shows zeros, snapshot empty state mentions the range, attention panel still surfaces independent ops events.

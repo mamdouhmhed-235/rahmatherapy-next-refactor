@@ -85,13 +85,20 @@ async function seed(supabase) {
   const service = services[0];
   const priceGBP = Number(service.price ?? 60);
 
-  // Create a client
+  // Create a client (mix of normal + extreme-input names for hardening probe)
   const clientResults = [];
+  const HARDEN_NAMES = [
+    "Audit Test Client 1",
+    "Mohammed Abdulrahman Abdul-Hakim Al-Farsi-Lampungbungkangkang",
+    "李小龍 (Lǐ Xiǎolóng) 👨‍⚕️🌿",
+    "Ñoño García-López y Vega Romero",
+    "اَلسَّلَامُ عَلَيْكُمْ Test Client",
+  ];
   for (let i = 0; i < 5; i++) {
     const { data: client, error } = await supabase
       .from("clients")
       .insert({
-        full_name: `Audit Test Client ${i + 1}`,
+        full_name: HARDEN_NAMES[i] ?? `Audit Test Client ${i + 1}`,
         phone: `0700000000${i}`,
         email: `audit.client.${i + 1}.${Date.now()}@example.test`,
         client_source: ["website", "phone", "whatsapp", "referral", "instagram"][i],

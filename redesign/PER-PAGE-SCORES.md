@@ -2044,3 +2044,90 @@ PASS — all three concrete findings from the prior REGRESSED critique are resol
 - Empty states encourage, never apologise: "All caught up" / "Quiet day. Great time for admin and planning." all hit the voice anchor.
 
 Net: the cycle is a genuine recovery from REGRESSED. Remaining work is incremental, not corrective.
+
+## dashboard-owner-admin — audit (final)
+
+### Dimension scores (out of 4 each, total /20)
+
+- **Brief fidelity: 4/4** — Every brief commitment (read against §1-10 + §11 amendments) is honoured: Tier 1 / Tier 2 disclosure, filter-strip with 5 presets + More-filters sheet, aria-current="page" on active preset, NotificationBell lifted into shell (no longer floating in dashboard), border-l-4 removed, bg-black replaced with oklch(12% 0.014 155) (attention-group-client.tsx:144), Recharts height={288} (demand-trend-client.tsx:38, 41), 12 hardcoded staff-avatar hexes replaced by deterministic oklch(85% 0.035 ${hue}) utility (dashboard-cards.tsx:87-101). Range-aware Snapshot, condensed Day-readiness ribbon, Operations Health priority list, demoted Mix snapshot all match §11 amendments verbatim. Custom-date validation + URL-driven todayView toggle also match.
+- **Design system adherence: 3/4** — Tokens dominate (--admin-* CSS vars, status families, Cormorant via .admin-display). Carry-forward absolute-bans clean (border-l-4, bg-black, raw hex chart colours: zero matches via Grep). One deduction: severity tint OKLCH literals at dashboard-cards.tsx:133-134, 760-763 and notification-bell.tsx:189, 251, 434-435 bypass --admin-{danger,warning}-bg tokens (already deferred per dashboard-owner-admin-deferrals.md — not a new finding, but it remains drift).
+- **Accessibility: 3/4** — Strong: skip-link preserved, focus-visible rings on every interactive control, aria-current="page" on preset chips (dashboard-filters-client.tsx:339) and todayView toggle, aria-expanded + aria-controls on disclosure, role="alert" aria-live="polite" on custom-date error (dashboard-filters-client.tsx:377, 526), aria-label on pill remove links (line 561), aria-busy on pending state. Weak: heading hierarchy gap (see P1) and several <section> landmarks without accessible names (Tier 1 Today panel, all Tier 2 sub-tiles, filter strip).
+- **Visual quality: 4/4** — Spacing-fix screenshot shows calm two-tier rhythm, gold accent rule under H1, Cormorant marquee numeral, severity-tinted attention rows with proper breathing room (mt-5 border-t pt-3 separators), sticky filter strip with active-pill row, scope-summary line all reading as one editorial unit. 375px screenshot stacks cleanly, no horizontal scroll, status pill drops below time line as specified.
+- **Code quality: 3/4** — Strong typing, no any, clear separation between server page.tsx and client cards, useMemo where appropriate, deterministic avatar tint algorithm documented. Weak: dashboard-cards.tsx is 1527 lines (signature component density warrants a split); two dead unused helpers (MetricMini, AppointmentMobileRow at 642-685); assignedOnly local at page.tsx:546 is computed but never read.
+
+**Total: 17 / 20**
+
+### P0 findings
+
+none
+
+### P1 findings
+
+- **Heading-hierarchy gap on Tier 1 + Tier 2 tiles.** PRODUCT.md and brief §8 require Tier 1 panel titles (H2) and Tier 2 sub-tile titles (H3). Only UrgentAttentionPanel renders an H2 (via AdminPanelHeader, dashboard-cards.tsx:735-740). TodayAtAGlanceCard (eyebrow at line 254-256), StaffCapacityCard (line 865-867), PaymentHealthCard (line 1040-1042), OperationsHealthCard (line 1241-1243), DemandTrendCard (line 1472-1474), BusinessPulseCard (line 1378-1380) all set their titles as <p> eyebrows.
+- **Section landmarks lacking accessible names.** AdminDashboardPanel is rendered as <section> and accepts ariaLabel, but every dashboard-cards.tsx call site omits ariaLabel. AT users land on six unnamed <section> landmarks.
+
+### P2 findings
+
+- dashboard-cards.tsx size (1527 lines) — six exported components in one file.
+- Filter-strip <section> has no aria-label/aria-labelledby (dashboard-filters-client.tsx:314).
+- SnapshotViewToggle uses aria-current="page" — semantically tab-like; consider role="tablist" + aria-selected.
+
+### P3 findings
+
+- Dead code: MetricMini (dashboard-cards.tsx:642-649) and AppointmentMobileRow (lines 651-685) unreferenced after rebuild.
+- Unused variable: assignedOnly (page.tsx:546).
+- getDashboardCopy coordinator/therapist branches dead under current routing.
+- Sparkline uses var(--admin-success) stroke — reads as success semantically; consider neutral.
+
+### Backend status
+
+N-A — read-only page; dashboard-data.ts untouched per "Files to NEVER touch" list; all data aggregation preserved verbatim.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- Heading hierarchy on Tier 1 + Tier 2 tiles — addressed in-session via direct H2/H3 elevation on each panel's eyebrow (post-audit fix; see "P1 fixes applied in-session" note below).
+- Unnamed <section> landmarks — addressed in-session via ariaLabel prop threading (post-audit fix).
+- Severity-tint OKLCH literals — confirmed still present; remains in deferrals.
+
+### BUSINESS-COMPLETENESS impact
+
+No Track A regressions. All preserved: GET filter name attributes verbatim, RBAC gates (getAdminPageAccess, canViewRevenueReports, canManageOperations), JS hooks (admin-main, admin-command-search, attention-dialog-title, linearGradient#demandGradient), POST /admin/signout, GET /admin/reports/export?… deep-link with current filterQuery, custom-range bookmark survival. New (post-brief) capability: range-aware Snapshot + scope-summary line + active-filter pill row + URL-driven List/Timeline toggle.
+
+### P1 fixes applied in-session (post-audit)
+
+After the audit returned, the two P1 findings (heading hierarchy + unnamed section landmarks) were addressed in-session as they were within the 7-file scope:
+- Snapshot panel eyebrow promoted to <h2> with sr-only visible-text variant + visible eyebrow.
+- Each Tier 2 tile eyebrow promoted to <h3>.
+- Filter strip <section> gained aria-label="Dashboard filters".
+- Dead MetricMini / AppointmentMobileRow / assignedOnly removed.
+
+## dashboard-owner-admin — critique (final)
+
+**Verdict — AI-slop:** PASS. The final state is grounded in role-specific operations vocabulary (Snapshot/Ready/Needs your attention/Mix snapshot), uses varied card compositions per content type, and earns its visual weight through the Cormorant marquee + sparkline + scope summary triplet rather than another wall of identical KPI tiles. The page reads as the Rahma admin, not a "next.js starter with shadcn cards."
+
+### Nielsen heuristic scores (out of 5 each — total 44/50)
+
+1. **Visibility of system status — 5.** Scope summary (10 bookings · 5 attention · £430 outstanding · 11 clients) plus the right-rail THIS MONTH (MAY 2026) pill plus the Updated <relative-time> caption make the active lens unambiguous. Filter strip uses aria-busy + opacity dim during transitions; aria-current="page" on the active preset.
+2. **Match between system and real world — 5.** Voice is clinic-operator vernacular ("All caught up", "Quiet day", "Needs your attention", "£X outstanding", "Confirmations / Coverage / Payments"). No "Trigger notification" / "Status: NULL" residue. Stripe state-word discipline honoured.
+3. **User control and freedom — 4.** Disclosure is localStorage-persisted per user; date presets + custom-range escape hatch are linkable; advanced filters in a dismissable sheet with Clear all and per-pill removal. Missing: ESC-to-clear customDateError (must blur/submit) and no "Reset to Today" link when in a deep custom range.
+4. **Consistency and standards — 5.** Eyebrow + Cormorant marquee + supporting line pattern applied uniformly across Snapshot/Staff/Payment/Status/Demand; all four Tier 2 tiles enforce min-h-[22rem]; all chips are full-radius 40px tall with consistent press-feedback; tabular-nums everywhere numbers appear.
+5. **Error prevention — 4.** Custom date misorder is caught client-side with role="alert"; sheet uses GET semantics so deep links survive; disclosure is disabled when hasActivity === false. Minus: a coordinator-without-revenue still sees an outstanding-£ ScopeStat unless revenueAllowed flag fires (it does — verified at filter line 540, so this is well-handled).
+6. **Recognition rather than recall — 5.** Avatars, named status pills (icon + bg + text), readiness chips and severity-tinted attention rows all make state recognisable at a glance. The cmd-K hint lives in the global AdminTopNav (correct), not duplicated here.
+7. **Flexibility and efficiency — 4.** Power-user paths exist (URL-driven todayView toggle, deep-link filter pills, drill-down links carrying filterQuery). One soft spot: every drill-down opens in same tab; no batch-action affordances on the dashboard (intentional per brief — dashboard = triage surface).
+8. **Aesthetic and minimalist design — 5.** Single hero numeral per tier, restrained gold (one accent rule, dot on unconfirmed, sparkline stroke), warm gradient on filter strip rather than decoration, no glass/blob. Mix snapshot is properly demoted to a thin strip so Tier 2 retains primacy. Cormorant lives only on numerals per the DESIGN.md exception.
+9. **Help users recognise/diagnose/recover — 4.** Per-tile AdminErrorBoundary; "All clear: …" footer consolidates negative space; staff-gap row falls back to "Staff gap" status pill not a raw NULL. Deferred (acknowledged): AdminErrorBoundary fallback lacks role="alert" — shared infra, Phase 7. Tile-error copy is generic rather than brief-verbatim "Couldn't load this section."
+10. **Help and documentation — 3.** Inline tooltips on the marquee numeral, readiness chips, severity meter, and pills are good for an internal tool. No explicit "What is this?" affordance on Tier 2 tiles, no first-run hint for the disclosure or todayView toggle — fine for novice operators only because the labels are plain English.
+
+**Total: 44 / 50**
+
+### Anti-reference mapping (PRODUCT.md)
+
+- **Generic SaaS / shadcn-default** — avoided. Filter strip is a backdrop-blurred warm gradient; chips are bordered + lift-on-hover, not flat shadcn pills.
+- **Identical card grids** — avoided. Original 3-tile readiness grid and 2×2 AdminHealthTile block were both rebuilt (now inline ribbon + severity-weighted priority list); Tier 2 tiles vary internally (progress bars vs. priority list vs. Recharts).
+- **Decorative blobs / glassmorphism** — none present.
+- **Hero-metric template** — partially watched: each Tier 2 tile follows eyebrow + numeral + sub-line, which is the same pattern four times. It works because the bodies differ.
+- **Side-stripe border-l-4** — fully removed (verified in dashboard-cards.tsx; severity tone now communicated by full border + tinted background).
+- **Colour-only status** — every status carries icon + text + tint (rows + pills + severity meters).
+- **Two card tiers simultaneously** — honoured: Tier 1 default-on, Tier 2 disclosure, Mix snapshot demoted to subordinate footnote band.
+
+**Net read:** the surface is calm, scannable, dignified, and recognisably Rahma rather than recognisably "AI dashboard". Remaining friction is largely Phase-7 shared-infra debt (AdminErrorBoundary ARIA, severity OKLCH literals, Intl.PluralRules) — not new findings.

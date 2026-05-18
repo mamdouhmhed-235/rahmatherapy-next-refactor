@@ -205,6 +205,7 @@ export function DashboardFiltersClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const [customDateError, setCustomDateError] = useState<string | null>(null);
 
   const presets = useMemo(() => buildPresets(today), [today]);
   const activePreset = getActivePreset(presets, filters);
@@ -296,7 +297,11 @@ export function DashboardFiltersClient({
     const params = new URLSearchParams(searchParams.toString());
     const from = (formData.get("from") as string) || "";
     const to = (formData.get("to") as string) || "";
-    if (from && to && from > to) return;
+    if (from && to && from > to) {
+      setCustomDateError("End date must be on or after the start date.");
+      return;
+    }
+    setCustomDateError(null);
     if (from) params.set("from", from);
     if (to) params.set("to", to);
     params.set("range", "custom");
@@ -307,6 +312,7 @@ export function DashboardFiltersClient({
 
   return (
     <section
+      aria-label="Dashboard filters"
       className={cn(
         "sticky top-0 z-20 overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] shadow-[var(--admin-shadow-subtle)] backdrop-blur-md transition-opacity",
         "bg-gradient-to-b from-[var(--admin-panel)]/95 to-[var(--admin-panel-muted)]/85",
@@ -315,7 +321,7 @@ export function DashboardFiltersClient({
       aria-busy={isPending}
     >
       {/* Row 1: Date range segmented control + secondary actions */}
-      <div className="flex flex-col gap-3 px-3 pt-3 pb-3 sm:flex-row sm:items-center sm:gap-4 sm:px-4">
+      <div className="flex flex-col gap-3 px-3 pt-3 pb-3 md:flex-row md:items-end md:gap-4 md:px-4">
         <fieldset className="min-w-0 flex-1 border-0 p-0 m-0">
           <legend className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--admin-text-muted)]">
             Date range
@@ -351,6 +357,7 @@ export function DashboardFiltersClient({
           <form
             onSubmit={handleCustomSubmit}
             className="hidden flex-wrap items-end gap-2 sm:flex"
+            aria-describedby={customDateError ? "custom-date-error-desktop" : undefined}
           >
             <DateInput label="From" name="from" defaultValue={filters.from} />
             <DateInput label="To" name="to" defaultValue={filters.to} />
@@ -365,10 +372,20 @@ export function DashboardFiltersClient({
               {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               Apply dates
             </button>
+            {customDateError ? (
+              <p
+                id="custom-date-error-desktop"
+                role="alert"
+                aria-live="polite"
+                className="basis-full text-xs font-medium text-[var(--admin-danger)]"
+              >
+                {customDateError}
+              </p>
+            ) : null}
           </form>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-1.5 sm:shrink-0">
+        <div className="flex items-center gap-1.5 md:shrink-0 md:pb-px">
           <AdminSheet
             title="More filters"
             description="Narrow the dashboard to a specific staff member, service, source, status, or payment state."
@@ -489,6 +506,7 @@ export function DashboardFiltersClient({
         <form
           onSubmit={handleCustomSubmit}
           className="mt-1 grid grid-cols-2 gap-2 border-t border-[var(--admin-border)]/60 px-3 pb-3 pt-3 sm:hidden"
+          aria-describedby={customDateError ? "custom-date-error-mobile" : undefined}
         >
           <DateInput label="From" name="from" defaultValue={filters.from} />
           <DateInput label="To" name="to" defaultValue={filters.to} />
@@ -503,6 +521,16 @@ export function DashboardFiltersClient({
             {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
             Apply dates
           </button>
+          {customDateError ? (
+            <p
+              id="custom-date-error-mobile"
+              role="alert"
+              aria-live="polite"
+              className="col-span-2 text-xs font-medium text-[var(--admin-danger)]"
+            >
+              {customDateError}
+            </p>
+          ) : null}
         </form>
       ) : null}
 
@@ -582,10 +610,13 @@ function ScopeStat({
   );
 }
 
-function formatPounds(pence: number) {
-  if (!pence || pence === 0) return "£0";
-  const pounds = pence;
-  if (pounds >= 1000) return `£${(pounds / 1000).toFixed(1)}k`;
+function formatPounds(pounds: number) {
+  if (!pounds || pounds === 0) return "£0";
+  const value = Math.abs(pounds);
+  const sign = pounds < 0 ? "-" : "";
+  if (value >= 1_000_000) return `${sign}£${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 10_000) return `${sign}£${Math.round(value / 1000)}k`;
+  if (value >= 1_000) return `${sign}£${(value / 1000).toFixed(1)}k`;
   return new Intl.NumberFormat("en-GB", { style: "currency", currency: "GBP", maximumFractionDigits: 0 }).format(pounds);
 }
 

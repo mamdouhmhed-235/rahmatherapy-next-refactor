@@ -413,18 +413,18 @@ function getDashboardCopy(variant: DashboardVariant, today: string) {
   const formattedDate = formatBusinessDateSubtitle(today);
   if (variant === "coordinator") {
     return {
-      title: "Today at Rahma",
+      title: "Today at Rahma Therapy",
       subtitle: `${formattedDate} · Booking queue + enquiries`,
     };
   }
   if (variant === "therapist") {
     return {
-      title: "Today at Rahma",
+      title: "Today at Rahma Therapy",
       subtitle: `${formattedDate} · Your work`,
     };
   }
   return {
-    title: "Today at Rahma",
+    title: "Today at Rahma Therapy",
     subtitle: `${formattedDate} · Luton`,
   };
 }
@@ -543,7 +543,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const genderCapacity = getGenderCapacity(data);
   const services = getServicePerformance(data);
   const revenueAllowed = plan.includeRevenue;
-  const assignedOnly = plan.variant === "therapist";
   const permissionAccess = getPermissionAccess(profile);
   const dashboardCopy = getDashboardCopy(plan.variant, today);
   const roleLabel = getRoleLabel(profile as unknown as { roles?: { name?: string | null }[]; role?: string });
@@ -670,6 +669,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       <section className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.95fr)]">
         <TodayAtAGlanceCard
           appointments={todayAppointments.map((booking) => ({
+            id: booking.id,
             time: booking.start_time.slice(0, 5),
             endTime: booking.end_time?.slice(0, 5),
             title: booking.contact_full_name ?? "Unknown contact",
@@ -678,6 +678,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
           }))}
           upcomingAppointments={upcomingInRange.map((booking) => ({
+            id: booking.id,
             date: booking.booking_date,
             time: booking.start_time.slice(0, 5),
             endTime: booking.end_time?.slice(0, 5),
@@ -723,7 +724,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           data.bookings.length > 0
         }
       >
-        <section className="grid min-w-0 items-start gap-4 lg:grid-cols-2">
+        <section className="grid min-w-0 items-start gap-4 md:grid-cols-2">
           {showStaffCapacity ? (
             <div className="order-2 xl:order-1">
               <StaffCapacityCard
