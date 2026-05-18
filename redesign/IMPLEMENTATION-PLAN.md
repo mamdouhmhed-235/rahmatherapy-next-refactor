@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 7 of 29 — client-new   ← update when you start a session (count by position from the top, not by label). In flight: staff-availability (only remaining from parallel-5 batch; role-detail + staff-detail + client-detail + dashboard-owner-admin all merged).
+Currently on: 7 of 29 — client-new   ← update when you start a session (count by position from the top, not by label). In flight: (none — parallel-5 batch complete: dashboard-owner-admin + client-detail + staff-detail + role-detail + staff-availability all merged. 21 of 29 done, 8 remaining: client-new, dashboard-coordinator, dashboard-therapist, account-password-requests, password-reset, email-templates, emails).
 
 ---
 
@@ -1080,7 +1080,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 29. [ ] staff-availability — commit: ____
+## 29. [x] staff-availability — commit: 888ae78
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
