@@ -2697,3 +2697,159 @@ Risk-tiered confirms, grouped sticky categories, dignified inactive-system handl
 ### UX-quality / PRODUCT.md anti-reference mapping
 
 The surface continues to honour PRODUCT.md's "auditable and reversible" principle (every mutation has a visible audit trail link; destructive paths gate behind confirm) and its "calm, scannable, visual" principle (mono identifier mobile-collapse and right-rail H3 hierarchy cut visual density without losing depth). One round-1 regression still stands: the hand-rolled Base UI Dialog inside `PermissionRow.tsx:216` / `DangerZonePanel.tsx:154` continues to drift from the brief's "standardise the destructive pattern via `ConfirmActionModal`" mandate — a consistency-and-standards debt. No anti-reference breaches: no `border-l-4`, no hero-metric, no gradient text, no colour-only status, no raw permission identifier on the denied surface, FAKE banner no longer leaks build-process vocabulary.
+## staff-availability — audit
+
+### Dimension scores
+- **Brief Adherence:** 4/5
+- **Token Discipline:** 3/5
+- **Accessibility:** 4/5
+- **Information Architecture:** 5/5
+- **Production Polish:** 4/5
+
+### P0 findings
+- None blocking release. Backend is FAKE as planned; flagged correctly.
+
+### P1 findings
+- Brief deviation: Panel B uses Date/Reason inline form, drops visible "All day" checkbox required by §5/Copy. StaffBlockedDatesManager.tsx:139 hard-codes hidden all_day input with only a small right-aligned label hidden on mobile.
+- Brief deviation: Panel A missing per-day "Working day toggle" semantics + empty-state "Add rule" Ghost CTA. StaffAvailabilityRulesForm.tsx:136-225.
+- Empty states use dashed-border `<p>` placeholders instead of illustrated EmptyState — DESIGN.md §5 bans dashed borders. StaffAvailabilityRulesForm.tsx:221, StaffBlockedDatesManager.tsx:231, StaffAvailabilityOverridesManager.tsx:373.
+
+### P2 findings
+- Raw oklch literals (Cancelled text repeated 15+ times across the four files) instead of CSS variable tokens. Brief §4 listed "raw var(--rahma-*)" as the carry-forward; the redesign replaced one escape with another.
+- Inactive banner uses raw oklch (`page.tsx:169`) instead of a Restricted-family token.
+- Retry-toast handlers cast a fake FormEvent (StaffBlockedDatesManager.tsx:97-100, StaffAvailabilityOverridesManager.tsx:142-147).
+- Tab strip uses literal `text-white` instead of Field White token (`page.tsx:159`).
+
+### P3 findings
+- `formatDateLong` duplicated across two managers — extract to shared util.
+- `StaffAvailabilityActionState.success` declared in actions.ts:12 but unused.
+- AvailabilityModeSelector keeps `global_with_overrides` dead union member.
+- Mobile users get no visible "All day" indication on Panel B add-form.
+
+### Backend status
+**FAKE.** Confirmed via `data-redesign-fake` attributes; `actions.ts:36-79` returns sentinel errors. Pending plans (verbatim): `BUILD-staff-blocked-dates-actions.md`, `BUILD-staff-availability-override-actions.md`.
+
+### P1 (tag for Phase 7 gauntlet)
+- Brief deviation — Panel B "All day" checkbox missing as visible control: `src/app/admin/staff/[staffId]/availability/StaffBlockedDatesManager.tsx:139,170`
+- Brief deviation — Panel A working-day toggle + empty-state CTA: `src/app/admin/staff/[staffId]/availability/StaffAvailabilityRulesForm.tsx:136-225`
+- Empty states violate DESIGN.md §5: `StaffAvailabilityRulesForm.tsx:221`, `StaffBlockedDatesManager.tsx:231`, `StaffAvailabilityOverridesManager.tsx:373`
+
+### BUSINESS-COMPLETENESS impact
+- 2A-6 contributes (`role="alert" aria-live="polite" aria-atomic="true"` on Panel B + C forms).
+- 2A-9 contributes (visible `*` markers in Cancelled-family colour).
+- 2A-8 resolved (tab strip `aria-current="page"`).
+- 2A-4 resolved (H1 + four contiguous H2s via AdminPanel).
+
+## staff-availability — critique
+
+### Nielsen heuristic scores (out of 5)
+
+| Heuristic | Score |
+|---|---|
+| Visibility of system status | 4.5 |
+| Match between system and real world | 4.5 |
+| User control and freedom | 4 |
+| Consistency and standards | 4.5 |
+| Error prevention | 4 |
+| Recognition rather than recall | 4 |
+| Flexibility and efficiency | 3.5 |
+| Aesthetic and minimalist design | 4 |
+| Help users recognize, diagnose, and recover from errors | 4 |
+| Help and documentation | 3.5 |
+
+### AI-slop verdict: PASS
+Three-manager stack reads as a deliberate single-axis-edit workstation; flat header + status-paired pill+segmented control + quiet inline lines for empty states + no decorative chrome → feels Rahma, not template.
+
+### Commentary (PRODUCT.md anti-references)
+- No generic SaaS / shadcn-default — flat header (40px avatar + H1 + Soft Slate sub-line + tabs); active tab Clinic Green fill + Field White + aria-current (Sam #3 resolved).
+- No identical-card grids — three AdminPanels are shape-varied (per-day rule grid / XCircle date rows / Calendar date+time rows).
+- No decorative blobs / gradient / side-stripe.
+- Status never colour-only — mode pill pairs tint + icon + label; inactive banner pairs Restricted tint + Lock icon + sentence.
+- Voice anchors land — plain operator-grade copy, "Your availability" self-view sub-line.
+
+### Notable UX weaknesses
+- Mobile-only sticky bottom nav overlaps Panel A's "Save hours" button — material z-index collision worth fixing.
+- Help is light: no inline "Where do global hours come from?" beyond the Ghost link.
+- Panel A's add-row inputs look enabled when globalModeLocked — disabled `Save hours` is the only visible signal; group-dim would help error-prevention.
+
+
+## staff-availability — audit (v2 after polish)
+
+### Dimension scores
+- **Brief Adherence:** 5/5 (was 4/5) — Visible "All day" checkbox in Panel B, per-day Working-day toggle on rule rows, illustrated EmptyState in all three managers, "Add rule" Ghost + "Start from global hours" in Panel A empty state, Pending soft-warning banner uses token classes, first-person confirm body for self-view. Brief §5 / §6 / Copy table all reconciled.
+- **Token Discipline:** 4/5 (was 3/5) — Family tokens extracted to lib.ts and applied across all four files. Three residual raw oklch literals remain: avatar bg in page.tsx, Trash hover, BookingGuardModal scrim + destructive button.
+- **Accessibility:** 5/5 (was 4/5) — `aria-describedby` on mode-selector group, every form error block carries the `role=alert aria-live=polite aria-atomic=true` triplet, 44×44 row Trash hits, `aria-pressed` on segmented control, native `title` with full weekday on row dates, `aria-current="page"` retained. Inline-style `color:#fff` is a workaround but passes contrast.
+- **Information Architecture:** 5/5 (held) — Three-manager fixed order; upcoming-vs-past disclosure with rotating chevron; reason column re-weighted as widest in Panel C; count badges in panel headers; bookings-by-date guard ports global pattern cleanly.
+- **Production Polish:** 5/5 (was 4/5) — Shared lib.ts removed duplicate formatDateLong; Pending soft-warning + Restricted inactive banner use token classes; mode buttons h-11 on mobile; rotating chevron on past disclosures; per-section "Last saved by…" sub-line; tab strip momentum-scroll prevents stacking.
+
+### P0 findings
+None.
+
+### P1 findings
+None — every v1 P1 is closed.
+
+### P2 findings
+- Working-day checkbox in Panel A is hard-coded `checked={true}` and un-check just deletes the rule. Functional but reads as a control rather than a destructive shortcut; users may not realise un-check = delete (no confirm). Either gate through `ConfirmActionModal` or relabel.
+- BookingGuardModal hard-codes destructive bg + scrim inline instead of via shared modal primitive (`StaffBlockedDatesManager.tsx:393,436`).
+- Sticky mobile bottom-nav still overlaps the lowest Panel's CTA on 375 (chrome carry-forward).
+
+### P3 findings
+- Dead conditional `{hasSeed && rules.length > 0 ? null : null}` at `StaffAvailabilityRulesForm.tsx:264`.
+- Avatar bg uses raw `oklch(95.5%_0.012_155)` instead of a token (`page.tsx:200`).
+- No inline help link explaining closure vs override.
+
+### Backend status
+**FAKE.** Confirmed: `actions.ts` returns sentinel errors after the permission gate; `data-redesign-fake` attributes on both forms. Pending plans (verbatim):
+- `BUILD-staff-blocked-dates-actions.md`
+- `BUILD-staff-availability-override-actions.md`
+
+### P1 (tag for Phase 7 gauntlet)
+none
+
+### BUSINESS-COMPLETENESS impact
+- 2A-6 contributes (full `role=alert aria-live=polite aria-atomic=true` triplet on Panel B + C error regions + soft-warning banner).
+- 2A-9 contributes (visible `*` markers via CANCELLED_TEXT token).
+- 2A-8 retained (tab strip `aria-current="page"`).
+- 2A-4 retained (H1 + four contiguous H2s).
+- 2A-1 newly contributes (per-section "Last saved by … on …" audit sub-line via formatAuditTrail in page.tsx).
+
+### Net delta vs v1
+Every v1 P1 materially closed in code. Brief Adherence climbs to 5, Token Discipline + Production Polish each climb a point; A11y climbs on the new aria-describedby + audit-trail line. Remaining issues are genuinely P2/P3 polish, not deviations.
+
+## staff-availability — critique (v2 after polish)
+
+### Nielsen heuristic scores (out of 5)
+
+| Heuristic | Score | Delta vs v1 |
+|---|---|---|
+| Visibility of system status | 5 | +0.5 — count badges, "Last saved by" line, spinner, status pill |
+| Match between system and real world | 4.5 | = — first-person self-view, plain Add closure/Add override verbs |
+| User control and freedom | 4.5 | +0.5 — "Start from global hours" escape; bookings-guard "Review bookings first" |
+| Consistency and standards | 4.5 | = — token family extraction + tab-strip momentum-scroll match Brief 01 |
+| Error prevention | 4.5 | +0.5 — bookings-guard alertdialog catches the most consequential operational mistake |
+| Recognition rather than recall | 4.5 | +0.5 — distinct icons, visible All-day checkbox, per-day Working-day toggle |
+| Flexibility and efficiency | 4.5 | +1.0 — "Start from global hours" Ghost retires the cold-start friction |
+| Aesthetic and minimalist design | 4.5 | +0.5 — illustrated EmptyState replaces v1 inline line |
+| Help users recognize/diagnose/recover | 4.5 | +0.5 — per-field alert regions, persistent Cancelled toast + Retry, bookings-guard names the consequence |
+| Help and documentation | 4 | +0.5 — inline subline + Open-clinic-wide deep-link + tooltips; still no closure-vs-override disambiguation |
+
+### AI-slop verdict: PASS
+Three shape-varied managers, plain operator copy, status-paired pill + segmented control, dignified illustrated empties, and a context-aware bookings guard read as a deliberate clinic workstation — not a templated CRUD page.
+
+### Commentary (PRODUCT.md anti-references)
+- **No generic SaaS / shadcn defaults** — flat 40px-avatar header, Clinic Green active tab with `aria-current="page"`.
+- **No identical-card grids** — Panel A (7-row day grid), Panel B (XCircle rows), Panel C (Calendar date+time rows with Pending Override chip) are visually distinct.
+- **No decorative blobs / gradients / side-stripes** — alertdialog uses tinted icon tile, EmptyState uses soft circular icon well.
+- **Status never colour-only** — every chip and banner pairs tint + icon + sentence; Restricted banner pairs Lock + copy.
+- **Voice anchors land** — "Your availability" self-view; "Block this date even though bookings exist?" reads as a clinic operator.
+
+### Notable remaining weaknesses
+- No inline "When should I use a closure vs override?" help.
+- Mode pill duplicates the active segmented-control state — consider removing or inlining with the subline.
+- Bookings-guard count message doesn't link to the affected booking(s).
+- Per-section "Last saved by …" line `-mt-2` reads close to the panel description.
+- Inactive-staff banner border uses default border var rather than a Restricted-family border.
+
+### Net delta vs v1
+Polish pass directly retires both v1 lows (Flexibility +1.0; Help +0.5) and converts the v1 PASS into a stronger PASS — every heuristic now sits at 4 or above, with three full or half-step gains in Error-prevention / Flexibility / Aesthetic.
+
