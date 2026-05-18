@@ -1,28 +1,35 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
-  ArrowLeft,
+  AlertTriangle,
   CalendarCheck,
+  CalendarPlus,
+  ChevronRight,
+  FileText,
+  HeartPulse,
+  History,
   Mail,
   MapPin,
+  MessageCircle,
   Phone,
-  Plus,
+  Pin,
   ShieldCheck,
+  Sparkles,
   StickyNote,
   UserSquare,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import {
   AdminAccessDenied,
   AdminPanel,
+  AdminPanelHeader,
   AdminStatusBadge,
+  type AdminTone,
 } from "../../components/admin-ui";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
 import {
+  canManageAllBookings,
   getStaffProfile,
 } from "@/lib/auth/rbac";
 import {
@@ -39,14 +46,103 @@ import type {
   ClientRecord,
 } from "../types";
 import { getClientDataAccess } from "../access";
-import { ClientNoteForm, ClientPrivacyRequestForm } from "./ClientDetailForms";
+import {
+  ClientDetailShortcuts,
+  ClientNoteForm,
+  ClientPrivacyRequestForm,
+  PrintRecordButton,
+} from "./ClientDetailForms";
 
 export const metadata = {
   title: "Client Detail - Rahma Therapy Admin",
 };
 
+type TabKey = "upcoming" | "past" | "all";
+type StatusFilter = "all" | "confirmed" | "pending" | "completed" | "cancelled";
+
 interface ClientDetailPageProps {
   params: Promise<{ clientId: string }>;
+  searchParams: Promise<{ tab?: string; status?: string; service?: string }>;
+}
+
+const VALID_TABS: readonly TabKey[] = ["upcoming", "past", "all"] as const;
+const VALID_STATUSES: readonly StatusFilter[] = [
+  "all",
+  "confirmed",
+  "pending",
+  "completed",
+  "cancelled",
+] as const;
+const FILTER_THRESHOLD = 5;
+const CRITICAL_NOTE_PATTERN = /\b(allerg(y|ic|ies)|anaphyla|epipen|contraindic|urgent|warning|do not|avoid)\b/i;
+
+function coerceTab(raw: string | undefined): TabKey {
+  return (VALID_TABS as readonly string[]).includes(raw ?? "")
+    ? (raw as TabKey)
+    : "upcoming";
+}
+
+function coerceStatus(raw: string | undefined): StatusFilter {
+  return (VALID_STATUSES as readonly string[]).includes(raw ?? "")
+    ? (raw as StatusFilter)
+    : "all";
+}
+
+function deterministicHue(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return hash % 360;
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function buildClientUrl(
+  clientId: string,
+  next: { tab?: TabKey; status?: StatusFilter; service?: string }
+): string {
+  const params = new URLSearchParams();
+  if (next.tab && next.tab !== "upcoming") params.set("tab", next.tab);
+  if (next.status && next.status !== "all") params.set("status", next.status);
+  if (next.service) params.set("service", next.service);
+  const qs = params.toString();
+  return qs
+    ? `/admin/clients/${clientId}?${qs}`
+    : `/admin/clients/${clientId}`;
+}
+
+const AUDIT_PHRASING: Record<string, string> = {
+  client_created: "Client record created",
+  client_note_created: "Note added",
+  client_note_updated: "Note updated",
+  client_note_deleted: "Note deleted",
+  client_privacy_request_created: "Privacy request logged",
+  client_privacy_request_updated: "Privacy request updated",
+  booking_created: "Booking created",
+  booking_updated: "Booking updated",
+  booking_cancelled: "Booking cancelled",
+  booking_completed: "Booking completed",
+};
+
+function auditActionPhrase(actionType: string): string {
+  return AUDIT_PHRASING[actionType] ?? formatLabel(actionType);
+}
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function whatsappHref(phone: string): string {
+  const digits = digitsOnly(phone);
+  if (!digits) return "";
+  const normalised = digits.startsWith("0") ? `44${digits.slice(1)}` : digits;
+  return `https://wa.me/${normalised}`;
 }
 
 const CLIENT_SELECT = `
@@ -172,10 +268,7 @@ function getClientSelect({
   canViewContactDetails: boolean;
   canViewNotes: boolean;
 }) {
-  const fields = canViewContactDetails
-    ? CLIENT_SELECT
-    : CLIENT_SAFE_SELECT;
-
+  const fields = canViewContactDetails ? CLIENT_SELECT : CLIENT_SAFE_SELECT;
   return canViewNotes ? `${fields}, notes` : fields;
 }
 
@@ -192,10 +285,59 @@ function getBookingSelect({
   return BOOKING_SAFE_SELECT;
 }
 
+function bookingStatusTone(status: string): AdminTone {
+  switch (status) {
+    case "confirmed":
+      return "success";
+    case "pending":
+      return "info";
+    case "cancelled":
+      return "danger";
+    case "completed":
+      return "default";
+    case "no_show":
+      return "warning";
+    default:
+      return "muted";
+  }
+}
+
+function paymentStatusTone(status: string): AdminTone {
+  switch (status) {
+    case "paid":
+      return "success";
+    case "partial":
+      return "info";
+    case "refunded":
+      return "restricted";
+    case "outstanding":
+    case "due":
+      return "warning";
+    default:
+      return "muted";
+  }
+}
+
+function lifecycleBadge(bookingCount: number): { label: string; tone: AdminTone } {
+  if (bookingCount === 0) return { label: "New client", tone: "info" };
+  if (bookingCount === 1) return { label: "First visit booked", tone: "info" };
+  if (bookingCount < 3) return { label: "Returning", tone: "success" };
+  return { label: "Established", tone: "success" };
+}
+
 export default async function ClientDetailPage({
   params,
+  searchParams,
 }: ClientDetailPageProps) {
   const { clientId } = await params;
+  const {
+    tab: tabParam,
+    status: statusParam,
+    service: serviceParam,
+  } = await searchParams;
+  const tab = coerceTab(tabParam);
+  const statusFilter = coerceStatus(statusParam);
+  const serviceFilter = serviceParam?.trim() || null;
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
@@ -300,18 +442,19 @@ export default async function ClientDetailPage({
     return <InsufficientPermissions />;
   }
 
-  const upcomingCount = bookingHistory.filter(isFutureBooking).length;
+  const upcomingBookings = bookingHistory.filter(isFutureBooking);
+  const pastBookings = bookingHistory.filter((booking) => !isFutureBooking(booking));
+  const upcomingCount = upcomingBookings.length;
   const completedCount = bookingHistory.filter(
     (booking) => booking.status === "completed"
   ).length;
-  const pastBookings = bookingHistory.filter((booking) => !isFutureBooking(booking));
-  const upcomingBookings = bookingHistory.filter(isFutureBooking);
   const totalSpend = bookingHistory.reduce(
     (total, booking) => total + Number(booking.amount_paid ?? 0),
     0
   );
   const lastVisit = pastBookings[0];
   const commonServices = getCommonServices(bookingHistory);
+
   let clientNotes: ClientNoteRecord[] = [];
   let privacyRequests: ClientPrivacyRequestRecord[] = [];
   let auditLogs: { id: string; action_type: string; created_at: string }[] = [];
@@ -352,47 +495,187 @@ export default async function ClientDetailPage({
     auditLogs = auditEvents ?? [];
   }
 
+  const canCreateBooking = canManageAllBookings(profile);
+  const lifecycle = lifecycleBadge(bookingHistory.length);
+  const sourceLabel = formatLabel(client.client_source);
+  const sourceDetailLabel = client.source_detail ? client.source_detail : null;
+  const showHealthCard = clientAccess.canViewHealthNotes;
+  const showNotesCard =
+    clientAccess.canViewHealthNotes || clientAccess.canCreateClientNote;
+  const showPrivacyCard = clientAccess.canManagePrivacyOperations;
+  const showAuditCard = clientAccess.canManagePrivacyOperations;
+  const showFallback =
+    !showHealthCard && !showNotesCard && !showPrivacyCard;
+
+  const tabCounts: Record<TabKey, number> = {
+    upcoming: upcomingBookings.length,
+    past: pastBookings.length,
+    all: bookingHistory.length,
+  };
+  const bookingsForTab =
+    tab === "upcoming"
+      ? upcomingBookings
+      : tab === "past"
+        ? pastBookings
+        : [...upcomingBookings, ...pastBookings];
+  const matchesStatus = (booking: ClientBookingRecord) =>
+    statusFilter === "all" || booking.status === statusFilter;
+  const matchesService = (booking: ClientBookingRecord) =>
+    !serviceFilter ||
+    booking.booking_items.some(
+      (item) => item.service_name_snapshot === serviceFilter
+    );
+  const visibleBookings = bookingsForTab.filter(
+    (booking) => matchesStatus(booking) && matchesService(booking)
+  );
+  const filtersApplied = statusFilter !== "all" || Boolean(serviceFilter);
+  const showFilterStrip = bookingsForTab.length >= FILTER_THRESHOLD || filtersApplied;
+  const nextVisit = upcomingBookings[upcomingBookings.length - 1];
+  const sensitiveNotes = clientNotes.filter((note) => note.is_sensitive);
+  const criticalNote =
+    sensitiveNotes.find((note) => CRITICAL_NOTE_PATTERN.test(note.note)) ?? null;
+  const pinnedSensitiveNoteForPanel =
+    sensitiveNotes.find((note) => note.id !== criticalNote?.id) ?? null;
+  const regularNotes = clientNotes.filter(
+    (note) =>
+      note.id !== criticalNote?.id &&
+      note.id !== pinnedSensitiveNoteForPanel?.id
+  );
+  const avatarHue = deterministicHue(client.id);
+  const avatarInitials = getInitials(client.full_name);
+  const showRecentActivityBalance =
+    visibleBookings.length <= 2 && auditLogs.length > 0;
+  const newBookingHref = canCreateBooking
+    ? `/admin/bookings/new?clientId=${client.id}`
+    : undefined;
+
   return (
-    <div>
-      <div className="mb-6">
+    <div className="grid gap-6 pb-8 md:pb-0 print:gap-4 print:pb-0">
+      <ClientDetailShortcuts newBookingHref={newBookingHref} />
+      <header className="grid gap-3">
         <Link
           href="/admin/clients"
-          className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-[var(--rahma-muted)] transition-colors hover:text-[var(--rahma-green)]"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-primary)] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 print:hidden"
         >
-          <ArrowLeft className="size-4" />
+          <ChevronRight className="size-3 -rotate-180" aria-hidden="true" />
           Back to clients
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="font-display text-2xl font-semibold text-[var(--rahma-charcoal)]">
-              {client.full_name}
-            </h1>
-            <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-              Client since {formatDateTime(client.created_at)}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href={`/admin/bookings/new?clientId=${client.id}`}
-              className={cn(buttonVariants({ size: "sm" }), "min-h-10")}
+          <div className="flex min-w-0 items-start gap-4">
+            <span
+              aria-hidden="true"
+              className="inline-flex size-14 shrink-0 items-center justify-center rounded-full text-base font-semibold text-[var(--admin-heading)] ring-1 ring-[var(--admin-border)] sm:size-16 sm:text-lg print:size-12 print:text-base"
+              style={{ backgroundColor: `oklch(82% 0.05 ${avatarHue})` }}
             >
-              <Plus className="size-4" />
-              Create booking
-            </Link>
-            {bookingHistory.length > 1 ? <StatusBadge value="repeat client" /> : null}
-            <StatusBadge value={client.client_source} muted />
-            <StatusBadge value={`${bookingHistory.length} booking${bookingHistory.length === 1 ? "" : "s"}`} muted />
+              {avatarInitials}
+            </span>
+            <div className="min-w-0">
+              <h1 className="font-display text-balance text-[clamp(1.778rem,3vw,2.369rem)] font-semibold leading-[1.15] tracking-[-0.02em] text-[var(--admin-heading)]">
+                {client.full_name}
+              </h1>
+              <p className="mt-1 text-sm leading-6 text-[var(--admin-text-muted)]">
+                {sourceLabel === "Not set"
+                  ? `Client since ${formatDate(client.created_at.slice(0, 10))}`
+                  : `${sourceLabel}${sourceDetailLabel ? ` · ${sourceDetailLabel}` : ""} · Client since ${formatDate(client.created_at.slice(0, 10))}`}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <AdminStatusBadge value={lifecycle.label} tone={lifecycle.tone} />
+              </div>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2 print:hidden">
+            <PrintRecordButton />
+            {canCreateBooking ? (
+              <Link
+                href={`/admin/bookings/new?clientId=${client.id}`}
+                title="Start a new booking with this client pre-filled (B)"
+                className="inline-flex h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold !text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                <CalendarPlus className="size-4" aria-hidden="true" />
+                New booking
+              </Link>
+            ) : null}
           </div>
         </div>
-      </div>
+        {nextVisit ? (
+          <Link
+            href={`/admin/bookings/${nextVisit.id}`}
+            className="group flex flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] px-4 py-3 text-sm transition-colors hover:bg-[oklch(91.5%_0.045_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            aria-label="Open next upcoming booking"
+          >
+            <span
+              aria-hidden="true"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(99.5%_0.003_88)] text-[oklch(22%_0.085_155)]"
+            >
+              <CalendarCheck className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium uppercase tracking-[0.04em] text-[oklch(22%_0.085_155)]/75">
+                Next visit
+              </p>
+              <p className="mt-0.5 text-sm font-semibold text-[var(--admin-heading)]">
+                {formatDate(nextVisit.booking_date)} · {formatTime(nextVisit.start_time)}
+                {Array.from(
+                  new Set(
+                    nextVisit.booking_items.map(
+                      (item) => item.service_name_snapshot
+                    )
+                  )
+                )
+                  .slice(0, 1)
+                  .map((service) => (
+                    <span
+                      key={service}
+                      className="font-normal text-[var(--admin-body)]"
+                    >
+                      {" — "}
+                      {service}
+                    </span>
+                  ))}
+              </p>
+            </div>
+            <ChevronRight
+              className="size-4 shrink-0 text-[oklch(22%_0.085_155)] transition-transform group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
+          </Link>
+        ) : null}
+        {criticalNote ? (
+          <div
+            role="region"
+            aria-label="Critical client note"
+            className="flex items-start gap-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-4 py-3 text-sm"
+          >
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0 text-[oklch(26%_0.14_25)]"
+              aria-hidden="true"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.04em] text-[oklch(26%_0.14_25)]">
+                <Pin className="size-3" aria-hidden="true" />
+                Critical note
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--admin-body)]">
+                {criticalNote.note}
+              </p>
+              <p className="mt-1 text-xs text-[var(--admin-text-muted)]">
+                {criticalNote.staff_profiles?.name ?? "Unknown staff"} ·{" "}
+                {formatDateTime(criticalNote.created_at)}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </header>
 
-      <div className="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
-        <aside className="grid content-start gap-4">
-          <ClientCard
+      <div className="grid gap-5 lg:grid-cols-[24rem_minmax(0,1fr)]">
+        {/* Sidebar — reference column */}
+        <aside className="order-2 grid content-start gap-4 lg:order-1">
+          <ContactPanel
             client={client}
             showContactDetails={clientAccess.canViewContactDetails}
           />
-          <StatsCard
+          <StatsPanel
+            clientId={client.id}
             bookingCount={bookingHistory.length}
             upcomingCount={upcomingCount}
             completedCount={completedCount}
@@ -400,123 +683,279 @@ export default async function ClientDetailPage({
             lastVisit={lastVisit}
             commonServices={commonServices}
           />
-          {clientAccess.canViewHealthNotes ||
-          clientAccess.canCreateClientNote ||
-          clientAccess.canManagePrivacyOperations ? (
-            <>
-              {clientAccess.canViewHealthNotes ? (
-                <HealthContextCard bookings={bookingHistory} />
-              ) : null}
-              {clientAccess.canViewHealthNotes || clientAccess.canCreateClientNote ? (
-                <NotesCard
-                  client={client}
-                  notes={clientNotes}
-                  canCreateNote={clientAccess.canCreateClientNote}
-                  isSensitiveNote={clientAccess.canCreateSensitiveNote}
-                />
-              ) : null}
-              {clientAccess.canManagePrivacyOperations ? (
-                <PrivacyCard requests={privacyRequests} clientId={client.id} />
-              ) : null}
-              {clientAccess.canManagePrivacyOperations ? (
-                <AuditCard events={auditLogs} />
-              ) : null}
-            </>
-          ) : (
-            <AdminPanel
-              title="Sensitive CRM context"
-              description="Client notes, privacy requests, and health context require relevant client or assigned-health permission."
-            >
-              <ShieldCheck className="mb-3 size-5 text-[var(--rahma-muted)]" />
-              <p className="text-sm text-[var(--rahma-muted)]">
-                Sensitive data is hidden for this role.
-              </p>
-            </AdminPanel>
-          )}
+          {showHealthCard ? (
+            <HealthContextPanel bookings={bookingHistory} />
+          ) : null}
+          {showNotesCard ? (
+            <NotesPanel
+              client={client}
+              notes={regularNotes}
+              pinnedNote={pinnedSensitiveNoteForPanel}
+              canCreateNote={clientAccess.canCreateClientNote}
+              isSensitiveNote={clientAccess.canCreateSensitiveNote}
+            />
+          ) : null}
+          {showPrivacyCard ? (
+            <PrivacyPanel requests={privacyRequests} clientId={client.id} />
+          ) : null}
+          {showAuditCard ? <AuditPanel events={auditLogs} /> : null}
+          {showFallback ? <FallbackPanel /> : null}
         </aside>
 
-        <section
-          className="rounded-2xl border bg-white p-6"
-          style={{
-            borderColor: "var(--rahma-border)",
-            boxShadow: "var(--shadow-soft-token)",
-          }}
-        >
-          <div className="mb-5">
-            <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
-              Booking History
-            </h2>
-            <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-              Booking-specific snapshots connected to this client.
-            </p>
-          </div>
-
-          {bookingHistory.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-[var(--rahma-border)] px-5 py-12 text-center">
-              <CalendarCheck className="mx-auto mb-3 size-10 text-[var(--rahma-muted)]/30" />
-              <p className="font-medium text-[var(--rahma-charcoal)]">
-                No bookings yet
-              </p>
+        {/* Main — operational column */}
+        <section className="order-1 grid content-start gap-4 lg:order-2">
+          <AdminPanel>
+            <AdminPanelHeader
+              icon={CalendarCheck}
+              title="Booking history"
+              description="Confirm, follow up, or rebook — every visit linked here."
+            />
+            <div className="mt-4">
+              <BookingTabs clientId={client.id} active={tab} counts={tabCounts} />
             </div>
-          ) : (
-            <div className="grid gap-6">
-              <BookingGroup
-                title="Upcoming bookings"
-                bookings={upcomingBookings}
-                showContactDetails={clientAccess.canViewContactDetails}
+            {showFilterStrip ? (
+              <BookingFilterStrip
+                clientId={client.id}
+                activeTab={tab}
+                statusFilter={statusFilter}
+                serviceFilter={serviceFilter}
               />
-              <BookingGroup
-                title="Past bookings"
-                bookings={pastBookings}
-                showContactDetails={clientAccess.canViewContactDetails}
-              />
+            ) : null}
+            <div className="mt-4">
+              {visibleBookings.length === 0 ? (
+                filtersApplied ? (
+                  <EmptyFilteredState
+                    clientId={client.id}
+                    activeTab={tab}
+                  />
+                ) : (
+                  <EmptyTab
+                    tab={tab}
+                    clientId={client.id}
+                    canCreateBooking={canCreateBooking}
+                  />
+                )
+              ) : (
+                <ul
+                  className="grid list-none gap-3 pl-0"
+                  aria-label={`${tab} bookings`}
+                >
+                  {visibleBookings.map((booking) => (
+                    <li key={booking.id} className="list-none">
+                      <BookingHistoryCard booking={booking} />
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          )}
+          </AdminPanel>
+          {showRecentActivityBalance && showAuditCard ? (
+            <RecentActivityBalanceCard events={auditLogs.slice(0, 5)} />
+          ) : null}
         </section>
       </div>
     </div>
   );
 }
 
-function ClientCard({
+function BookingTabs({
+  clientId,
+  active,
+  counts,
+}: {
+  clientId: string;
+  active: TabKey;
+  counts: Record<TabKey, number>;
+}) {
+  const tabs: { key: TabKey; label: string; title: string }[] = [
+    { key: "upcoming", label: "Upcoming", title: `Upcoming (${counts.upcoming})` },
+    { key: "past", label: "Past", title: `Past (${counts.past})` },
+    { key: "all", label: "All", title: `All (${counts.all})` },
+  ];
+
+  return (
+    <nav
+      role="tablist"
+      aria-label="Booking history filter"
+      className="flex flex-wrap gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-panel-muted)] p-1"
+    >
+      {tabs.map((tabItem) => {
+        const isActive = tabItem.key === active;
+        const href =
+          tabItem.key === "upcoming"
+            ? `/admin/clients/${clientId}`
+            : `/admin/clients/${clientId}?tab=${tabItem.key}`;
+        return (
+          <Link
+            key={tabItem.key}
+            href={href}
+            role="tab"
+            aria-current={isActive ? "page" : undefined}
+            aria-selected={isActive}
+            title={tabItem.title}
+            className={
+              isActive
+                ? "inline-flex min-h-11 items-center gap-1.5 rounded-[0.375rem] bg-[var(--admin-primary)] px-3.5 text-sm font-medium !text-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                : "inline-flex min-h-11 items-center gap-1.5 rounded-[0.375rem] px-3.5 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            }
+          >
+            <span>{tabItem.label}</span>
+            <span
+              className={
+                isActive
+                  ? "rounded-full bg-[oklch(99.5%_0.003_88)]/30 px-1.5 text-[0.6875rem] font-semibold tabular-nums !text-white ring-1 ring-inset ring-white/35"
+                  : "rounded-full bg-[var(--admin-panel)] px-1.5 text-[0.6875rem] font-semibold tabular-nums text-[var(--admin-text-muted)]"
+              }
+            >
+              {counts[tabItem.key]}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+function EmptyTab({
+  tab,
+  clientId,
+  canCreateBooking,
+}: {
+  tab: TabKey;
+  clientId: string;
+  canCreateBooking: boolean;
+}) {
+  const config: Record<TabKey, { title: string; message: string; cta: boolean }> = {
+    upcoming: {
+      title: "No upcoming bookings",
+      message: "Book this client in when they're ready.",
+      cta: true,
+    },
+    past: {
+      title: "No past bookings yet",
+      message: "Their first visit will show up here once it's complete.",
+      cta: false,
+    },
+    all: {
+      title: "No bookings yet",
+      message: "Book this client in to start a history.",
+      cta: true,
+    },
+  };
+  const { title, message, cta } = config[tab];
+  return (
+    <div className="mx-auto flex max-w-[360px] flex-col items-center py-14 text-center">
+      <span
+        className="mb-5 inline-flex size-16 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.08)]"
+        aria-hidden="true"
+      >
+        <CalendarCheck className="size-7 text-[var(--admin-primary)]" />
+      </span>
+      <p className="font-display text-[1.0625rem] font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
+        {title}
+      </p>
+      <p className="mt-2 max-w-[38ch] text-sm leading-6 text-[var(--admin-text-muted)]">
+        {message}
+      </p>
+      {cta && canCreateBooking ? (
+        <Link
+          href={`/admin/bookings/new?clientId=${clientId}`}
+          className="mt-5 inline-flex h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold !text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          Book now
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function ContactPanel({
   client,
   showContactDetails,
 }: {
   client: ClientRecord;
   showContactDetails: boolean;
 }) {
+  const whatsapp = client.phone ? whatsappHref(client.phone) : "";
   return (
-    <Card title="Contact" icon={<UserSquare className="size-5" />}>
-      <div className="grid gap-3 text-sm text-[var(--rahma-muted)]">
+    <AdminPanel>
+      <AdminPanelHeader icon={UserSquare} title="Contact" />
+      <dl className="mt-4 grid gap-3 text-sm">
         {showContactDetails ? (
           <>
-            <p className="flex items-center gap-2">
-              <Phone className="size-4" />
-              {client.phone ?? "No phone"}
-            </p>
-            <p className="flex items-center gap-2">
-              <Mail className="size-4" />
-              {client.email ?? "No email"}
-            </p>
-            <div className="flex items-start gap-2">
-              <MapPin className="mt-0.5 size-4" />
-              <div>
-                <p>{client.address ?? "No address"}</p>
-                <p>{client.postcode ?? "No postcode"}</p>
-              </div>
-            </div>
+            <DetailRow
+              label="Phone"
+              icon={<Phone className="size-3.5" aria-hidden="true" />}
+              value={
+                client.phone ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={`tel:${client.phone}`}
+                      className="text-[var(--admin-body)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:underline"
+                    >
+                      {client.phone}
+                    </a>
+                    {whatsapp ? (
+                      <a
+                        href={whatsapp}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Open in WhatsApp"
+                        aria-label="Message on WhatsApp"
+                        className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)] transition-colors hover:bg-[oklch(88%_0.055_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 print:hidden"
+                      >
+                        <MessageCircle className="size-3.5" aria-hidden="true" />
+                      </a>
+                    ) : null}
+                  </div>
+                ) : (
+                  <span className="text-[var(--admin-text-muted)]">—</span>
+                )
+              }
+            />
+            <DetailRow
+              label="Email"
+              icon={<Mail className="size-3.5" aria-hidden="true" />}
+              value={
+                client.email ? (
+                  <a
+                    href={`mailto:${client.email}`}
+                    className="break-all text-[var(--admin-body)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:underline"
+                  >
+                    {client.email}
+                  </a>
+                ) : (
+                  <span className="text-[var(--admin-text-muted)]">—</span>
+                )
+              }
+            />
+            <DetailRow
+              label="Address"
+              icon={<MapPin className="size-3.5" aria-hidden="true" />}
+              value={
+                <span className="text-[var(--admin-body)]">
+                  {client.address ?? "—"}
+                  {client.postcode ? (
+                    <span className="block text-xs text-[var(--admin-text-muted)]">
+                      {client.postcode}
+                    </span>
+                  ) : null}
+                </span>
+              }
+            />
           </>
         ) : (
-          <p>Contact details require explicit permission.</p>
+          <p className="text-sm leading-6 text-[var(--admin-text-muted)]">
+            Contact details require explicit permission.
+          </p>
         )}
-        <Row label="Source">{formatLabel(client.client_source)}</Row>
-        {client.source_detail ? <Row label="Source detail">{client.source_detail}</Row> : null}
-      </div>
-    </Card>
+      </dl>
+    </AdminPanel>
   );
 }
 
-function StatsCard({
+function StatsPanel({
+  clientId,
   bookingCount,
   upcomingCount,
   completedCount,
@@ -524,6 +963,7 @@ function StatsCard({
   lastVisit,
   commonServices,
 }: {
+  clientId: string;
   bookingCount: number;
   upcomingCount: number;
   completedCount: number;
@@ -532,96 +972,183 @@ function StatsCard({
   commonServices: string[];
 }) {
   return (
-    <Card title="Client Summary" icon={<CalendarCheck className="size-5" />}>
-      <dl className="grid gap-3 text-sm">
-        <Row label="Total bookings">{bookingCount}</Row>
-        <Row label="Upcoming">{upcomingCount}</Row>
-        <Row label="Completed">{completedCount}</Row>
-        <Row label="Repeat client">{bookingCount > 1 ? "Yes" : "No"}</Row>
-        <Row label="Total spend">{formatMoney(totalSpend)}</Row>
-        <Row label="Last visit">
-          {lastVisit ? `${formatDate(lastVisit.booking_date)} at ${formatTime(lastVisit.start_time)}` : "None"}
-        </Row>
-        <Row label="Common services">
-          {commonServices.join(", ") || "No services yet"}
-        </Row>
+    <AdminPanel>
+      <AdminPanelHeader icon={History} title="Client summary" />
+      <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <StatCell label="Total visits" value={String(bookingCount)} />
+        <StatCell label="Upcoming" value={String(upcomingCount)} />
+        <StatCell label="Completed" value={String(completedCount)} />
+        <StatCell label="Repeat" value={bookingCount > 1 ? "Yes" : "No"} />
+        <StatCell label="Total paid" value={formatMoney(totalSpend)} />
+        <StatCell
+          label="Last visit"
+          value={
+            lastVisit
+              ? `${formatDate(lastVisit.booking_date)} · ${formatTime(lastVisit.start_time)}`
+              : "—"
+          }
+        />
       </dl>
-    </Card>
-  );
-}
-
-function NotesCard({
-  client,
-  notes,
-  canCreateNote,
-  isSensitiveNote,
-}: {
-  client: ClientRecord;
-  notes: ClientNoteRecord[];
-  canCreateNote: boolean;
-  isSensitiveNote: boolean;
-}) {
-  return (
-    <Card title="Client Notes" icon={<StickyNote className="size-5" />}>
-      <p className="whitespace-pre-wrap text-sm text-[var(--rahma-muted)]">
-        {client.notes || "No notes."}
-      </p>
-      <div className="my-4 border-t border-[var(--rahma-border)]" />
-      {canCreateNote ? (
-        <ClientNoteForm clientId={client.id} isSensitiveNote={isSensitiveNote} />
-      ) : null}
-      <div className="mt-4 grid gap-3">
-        {notes.map((note) => (
-          <div key={note.id} className="rounded-lg bg-[var(--rahma-ivory)]/70 p-3">
-            <p className="whitespace-pre-wrap text-sm text-[var(--rahma-charcoal)]">
-              {note.note}
-            </p>
-            <p className="mt-2 text-xs text-[var(--rahma-muted)]">
-              {note.staff_profiles?.name ?? "Unknown staff"} - {formatDateTime(note.created_at)}
-            </p>
+      {commonServices.length > 0 ? (
+        <div className="mt-4 border-t border-[var(--admin-border)] pt-3">
+          <p className="text-xs font-medium text-[var(--admin-text-muted)]">
+            Common services
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {commonServices.map((service) => (
+              <Link
+                key={service}
+                href={buildClientUrl(clientId, { tab: "all", service })}
+                title={`Filter booking history by ${service}`}
+                className="inline-flex max-w-full items-center gap-1 truncate rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(95.5%_0.012_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                <span className="truncate">{service}</span>
+              </Link>
+            ))}
           </div>
-        ))}
-      </div>
-    </Card>
+        </div>
+      ) : null}
+    </AdminPanel>
   );
 }
 
-function HealthContextCard({ bookings }: { bookings: ClientBookingRecord[] }) {
+function HealthContextPanel({ bookings }: { bookings: ClientBookingRecord[] }) {
   const notes = bookings.flatMap((booking) => [
     ...(booking.health_notes
       ? [{ label: "Booking health note", value: booking.health_notes }]
       : []),
     ...((booking.booking_participants ?? [])
-      .filter((participant) => participant.health_notes || participant.participant_notes)
+      .filter(
+        (participant) => participant.health_notes || participant.participant_notes
+      )
       .map((participant) => ({
-        label: participant.display_name ?? formatLabel(participant.participant_gender),
-        value: participant.health_notes ?? participant.participant_notes ?? "",
+        label:
+          participant.display_name ?? formatLabel(participant.participant_gender),
+        value:
+          participant.health_notes ?? participant.participant_notes ?? "",
       }))),
   ]);
 
   return (
-    <Card title="Health and safety context" icon={<ShieldCheck className="size-5" />}>
+    <AdminPanel>
+      <AdminPanelHeader icon={HeartPulse} title="Health context" />
       {notes.length === 0 ? (
-        <p className="text-sm text-[var(--rahma-muted)]">No health or participant safety notes.</p>
+        <p className="mt-4 text-sm leading-6 text-[var(--admin-text-muted)]">
+          No health or participant safety notes recorded yet.
+        </p>
       ) : (
-        <div className="grid gap-3">
+        <ul className="mt-4 grid list-none gap-3 pl-0">
           {notes.slice(0, 6).map((note, index) => (
-            <div key={`${note.label}-${index}`} className="rounded-lg bg-[var(--rahma-ivory)]/70 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--rahma-muted)]">
+            <li
+              key={`${note.label}-${index}`}
+              className="list-none rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-3"
+            >
+              <p className="text-xs font-medium text-[var(--admin-text-muted)]">
                 {note.label}
               </p>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-[var(--rahma-charcoal)]">
+              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--admin-body)]">
                 {note.value}
               </p>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-    </Card>
+    </AdminPanel>
   );
 }
 
-function PrivacyCard({
+function NotesPanel({
+  client,
+  notes,
+  pinnedNote,
+  canCreateNote,
+  isSensitiveNote,
+}: {
+  client: ClientRecord;
+  notes: ClientNoteRecord[];
+  pinnedNote: ClientNoteRecord | null;
+  canCreateNote: boolean;
+  isSensitiveNote: boolean;
+}) {
+  const hasAnyContent =
+    Boolean(client.notes) || notes.length > 0 || Boolean(pinnedNote);
+
+  return (
+    <AdminPanel>
+      <AdminPanelHeader icon={StickyNote} title="Notes" />
+      {client.notes ? (
+        <div className="mt-4 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.055_75)] bg-[oklch(96%_0.038_75)] p-3">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.04em] text-[oklch(28%_0.12_55)]">
+            <Sparkles className="size-3" aria-hidden="true" />
+            Profile note
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--admin-body)]">
+            {client.notes}
+          </p>
+        </div>
+      ) : null}
+      {pinnedNote ? (
+        <div className="mt-3 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.04em] text-[oklch(26%_0.13_55)]">
+            <Pin className="size-3" aria-hidden="true" />
+            Pinned sensitive note
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--admin-body)]">
+            {pinnedNote.note}
+          </p>
+          <p className="mt-2 text-xs text-[var(--admin-text-muted)]">
+            {pinnedNote.staff_profiles?.name ?? "Unknown staff"} ·{" "}
+            {formatDateTime(pinnedNote.created_at)}
+          </p>
+        </div>
+      ) : null}
+      {!hasAnyContent ? (
+        <p className="mt-4 text-sm leading-6 text-[var(--admin-text-muted)]">
+          No notes yet. Add one to keep the team in the loop.
+        </p>
+      ) : null}
+      {notes.length > 0 ? (
+        <ul className="mt-4 grid list-none gap-3 pl-0">
+          {notes.map((note) => (
+            <li
+              key={note.id}
+              className="list-none rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-3"
+            >
+              <p className="whitespace-pre-wrap text-sm leading-6 text-[var(--admin-body)]">
+                {note.note}
+              </p>
+              <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--admin-text-muted)]">
+                <span className="font-medium text-[var(--admin-heading)]">
+                  {note.staff_profiles?.name ?? "Unknown staff"}
+                </span>
+                <span
+                  className="font-mono text-[0.6875rem]"
+                  title={`${formatDateTime(note.created_at)}`}
+                >
+                  {formatDateTime(note.created_at)}
+                </span>
+                {note.is_sensitive ? (
+                  <AdminStatusBadge value="Sensitive" tone="restricted" compact />
+                ) : null}
+              </p>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {canCreateNote ? (
+        <div className="mt-4 border-t border-[var(--admin-border)] pt-4 print:hidden">
+          <ClientNoteForm
+            clientId={client.id}
+            clientName={client.full_name}
+            isSensitiveNote={isSensitiveNote}
+          />
+        </div>
+      ) : null}
+    </AdminPanel>
+  );
+}
+
+function PrivacyPanel({
   requests,
   clientId,
 }: {
@@ -629,130 +1156,345 @@ function PrivacyCard({
   clientId: string;
 }) {
   return (
-    <Card title="Privacy workflow" icon={<ShieldCheck className="size-5" />}>
-      <ClientPrivacyRequestForm clientId={clientId} />
-      <div className="mt-4 grid gap-2">
-        {requests.map((request) => (
-          <div key={request.id} className="flex items-start justify-between gap-3 rounded-lg bg-[var(--rahma-ivory)]/70 p-3 text-sm">
-            <div>
-              <p className="font-medium capitalize text-[var(--rahma-charcoal)]">
-                {formatLabel(request.request_type)}
-              </p>
-              <p className="text-xs text-[var(--rahma-muted)]">
-                {formatDateTime(request.created_at)}
-              </p>
-            </div>
-            <AdminStatusBadge value={request.status} tone="warning" />
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-function AuditCard({ events }: { events: { id: string; action_type: string; created_at: string }[] }) {
-  return (
-    <Card title="Recent audit activity" icon={<ShieldCheck className="size-5" />}>
-      {events.length === 0 ? (
-        <p className="text-sm text-[var(--rahma-muted)]">No recent client audit activity.</p>
-      ) : (
-        <div className="grid gap-2 text-sm">
-          {events.map((event) => (
-            <Row key={event.id} label={formatLabel(event.action_type)}>
-              {formatDateTime(event.created_at)}
-            </Row>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function BookingGroup({
-  title,
-  bookings,
-  showContactDetails,
-}: {
-  title: string;
-  bookings: ClientBookingRecord[];
-  showContactDetails: boolean;
-}) {
-  return (
-    <section>
-      <h3 className="mb-3 text-sm font-semibold text-[var(--rahma-charcoal)]">
-        {title}
-      </h3>
-      {bookings.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-[var(--rahma-border)] px-4 py-6 text-center text-sm text-[var(--rahma-muted)]">
-          No {title.toLowerCase()}.
+    <AdminPanel>
+      <AdminPanelHeader icon={ShieldCheck} title="Privacy" />
+      {requests.length === 0 ? (
+        <p className="mt-4 text-sm leading-6 text-[var(--admin-text-muted)]">
+          No privacy requests yet. Data access and deletion requests appear here
+          when the client asks.
         </p>
       ) : (
-        <div className="grid gap-3">
-          {bookings.map((booking) => (
-            <BookingHistoryCard
-              key={booking.id}
-              booking={booking}
-              showContactDetails={showContactDetails}
-            />
+        <ul className="mt-4 grid list-none gap-2 pl-0">
+          {requests.map((request) => (
+            <li
+              key={request.id}
+              className="list-none flex items-start justify-between gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-3 text-sm"
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-[var(--admin-heading)]">
+                  {formatLabel(request.request_type)}
+                </p>
+                <p
+                  className="mt-0.5 font-mono text-[0.6875rem] text-[var(--admin-text-muted)]"
+                  title={formatDateTime(request.created_at)}
+                >
+                  {formatDateTime(request.created_at)}
+                </p>
+              </div>
+              <AdminStatusBadge
+                value={formatLabel(request.status)}
+                tone={privacyStatusTone(request.status)}
+                compact
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-    </section>
+      <div className="mt-4 border-t border-[var(--admin-border)] pt-4">
+        <ClientPrivacyRequestForm clientId={clientId} />
+      </div>
+    </AdminPanel>
   );
+}
+
+function AuditPanel({
+  events,
+}: {
+  events: { id: string; action_type: string; created_at: string }[];
+}) {
+  return (
+    <AdminPanel>
+      <AdminPanelHeader icon={FileText} title="Recent audit activity" />
+      {events.length === 0 ? (
+        <p className="mt-4 text-sm leading-6 text-[var(--admin-text-muted)]">
+          Updates to this client's record will appear here.
+        </p>
+      ) : (
+        <ul className="mt-4 grid list-none gap-2 pl-0 text-sm">
+          {events.map((event) => (
+            <li
+              key={event.id}
+              className="list-none flex items-center justify-between gap-3 rounded-[var(--admin-radius-control)] bg-[var(--admin-panel-muted)] px-3 py-2"
+            >
+              <span className="text-[var(--admin-body)]">
+                {auditActionPhrase(event.action_type)}
+              </span>
+              <span
+                className="font-mono text-[0.6875rem] text-[var(--admin-text-muted)]"
+                title={formatDateTime(event.created_at)}
+              >
+                {formatDateTime(event.created_at)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </AdminPanel>
+  );
+}
+
+function RecentActivityBalanceCard({
+  events,
+}: {
+  events: { id: string; action_type: string; created_at: string }[];
+}) {
+  return (
+    <AdminPanel>
+      <AdminPanelHeader
+        icon={History}
+        title="Recent activity"
+        description="Quick context while the booking list is still light."
+      />
+      <ul className="mt-4 grid list-none gap-2 pl-0 text-sm">
+        {events.map((event) => (
+          <li
+            key={event.id}
+            className="list-none flex items-center justify-between gap-3 rounded-[var(--admin-radius-control)] bg-[var(--admin-panel-muted)] px-3 py-2"
+          >
+            <span className="text-[var(--admin-body)]">
+              {auditActionPhrase(event.action_type)}
+            </span>
+            <span
+              className="font-mono text-[0.6875rem] text-[var(--admin-text-muted)]"
+              title={formatDateTime(event.created_at)}
+            >
+              {formatDateTime(event.created_at)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </AdminPanel>
+  );
+}
+
+function BookingFilterStrip({
+  clientId,
+  activeTab,
+  statusFilter,
+  serviceFilter,
+}: {
+  clientId: string;
+  activeTab: TabKey;
+  statusFilter: StatusFilter;
+  serviceFilter: string | null;
+}) {
+  const options: { key: StatusFilter; label: string }[] = [
+    { key: "all", label: "All statuses" },
+    { key: "confirmed", label: "Confirmed" },
+    { key: "pending", label: "Pending" },
+    { key: "completed", label: "Completed" },
+    { key: "cancelled", label: "Cancelled" },
+  ];
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 print:hidden">
+      <span className="text-xs font-medium text-[var(--admin-text-muted)]">
+        Filter
+      </span>
+      <div
+        role="group"
+        aria-label="Filter booking history by status"
+        className="flex flex-wrap items-center gap-1.5"
+      >
+        {options.map((option) => {
+          const isActive = option.key === statusFilter;
+          const href = buildClientUrl(clientId, {
+            tab: activeTab,
+            status: option.key,
+            service: serviceFilter ?? undefined,
+          });
+          return (
+            <Link
+              key={option.key}
+              href={href}
+              aria-pressed={isActive}
+              className={
+                isActive
+                  ? "inline-flex h-8 items-center rounded-full bg-[var(--admin-primary)] px-3 text-xs font-medium !text-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                  : "inline-flex h-8 items-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              }
+            >
+              {option.label}
+            </Link>
+          );
+        })}
+      </div>
+      {serviceFilter ? (
+        <Link
+          href={buildClientUrl(clientId, {
+            tab: activeTab,
+            status: statusFilter,
+          })}
+          className="inline-flex h-8 items-center gap-1 rounded-full bg-[oklch(93.5%_0.038_155)] px-3 text-xs font-medium text-[oklch(22%_0.085_155)] outline-none transition-colors hover:bg-[oklch(88%_0.055_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          title="Clear service filter"
+        >
+          <span className="truncate max-w-[12rem]">{serviceFilter}</span>
+          <span aria-hidden="true">×</span>
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function EmptyFilteredState({
+  clientId,
+  activeTab,
+}: {
+  clientId: string;
+  activeTab: TabKey;
+}) {
+  return (
+    <div className="mx-auto flex max-w-[360px] flex-col items-center py-10 text-center">
+      <p className="font-display text-sm font-semibold text-[var(--admin-heading)]">
+        No bookings match those filters
+      </p>
+      <p className="mt-2 max-w-[38ch] text-sm leading-6 text-[var(--admin-text-muted)]">
+        Try a different status or clear the service filter.
+      </p>
+      <Link
+        href={buildClientUrl(clientId, { tab: activeTab })}
+        className="mt-4 inline-flex h-8 items-center rounded-full border border-[var(--admin-border-form)] bg-transparent px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+      >
+        Clear filters
+      </Link>
+    </div>
+  );
+}
+
+function FallbackPanel() {
+  return (
+    <AdminPanel tone="restricted">
+      <AdminPanelHeader
+        icon={ShieldCheck}
+        title="Limited view"
+        tone="restricted"
+      />
+      <p className="mt-3 text-sm leading-6 text-[var(--admin-text-muted)]">
+        Contact details and booking history are available above. Other sections
+        need more permissions.
+      </p>
+    </AdminPanel>
+  );
+}
+
+function privacyStatusTone(status: string): AdminTone {
+  switch (status) {
+    case "received":
+    case "reviewing":
+      return "warning";
+    case "completed":
+      return "success";
+    case "declined":
+      return "danger";
+    default:
+      return "muted";
+  }
 }
 
 function BookingHistoryCard({
   booking,
-  showContactDetails,
 }: {
   booking: ClientBookingRecord;
-  showContactDetails: boolean;
 }) {
   const serviceNames = Array.from(
     new Set(booking.booking_items.map((item) => item.service_name_snapshot))
   );
+  const showAssignmentChip =
+    booking.status !== "confirmed" &&
+    booking.status !== "completed" &&
+    booking.status !== "cancelled" &&
+    booking.assignment_status &&
+    booking.assignment_status !== "fully_assigned";
+  const locationLine = [
+    booking.service_address_line1,
+    booking.service_city,
+    booking.service_postcode,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <Link
       href={`/admin/bookings/${booking.id}`}
-      className="rounded-xl border border-[var(--rahma-border)] bg-white/70 p-4 transition-shadow hover:shadow-card"
+      className="block rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors hover:border-[var(--admin-primary)]/40 hover:shadow-[var(--admin-shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
     >
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="mb-2 flex flex-wrap gap-2">
-            <StatusBadge value={booking.status} />
-            <StatusBadge value={booking.assignment_status} muted />
-            {booking.group_booking ? <StatusBadge value="group booking" muted /> : null}
-          </div>
-          <p className="font-medium text-[var(--rahma-charcoal)]">
-            {formatDate(booking.booking_date)} at {formatTime(booking.start_time)}
+      <div className="flex flex-wrap items-start gap-4 sm:flex-nowrap">
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-semibold leading-tight text-[var(--admin-heading)]">
+            {formatDate(booking.booking_date)}
+            <span className="text-[var(--admin-text-muted)]"> · </span>
+            <span className="font-normal">{formatTime(booking.start_time)}</span>
           </p>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            {serviceNames.join(", ") || "No service snapshots"}
+          <p className="mt-1 text-sm text-[var(--admin-body)]">
+            {serviceNames.join(", ") || "No service recorded"}
           </p>
-          {showContactDetails ? (
-            <>
-              <p className="mt-2 text-xs text-[var(--rahma-muted)]">
-                Snapshot: {booking.contact_full_name ?? "No name"} -{" "}
-                {booking.contact_email ?? "No email"} - {booking.contact_phone ?? "No phone"}
-              </p>
-              <p className="mt-1 text-xs text-[var(--rahma-muted)]">
-                {booking.service_address_line1 ?? "No address"} {booking.service_city ?? ""}{" "}
-                {booking.service_postcode ?? ""}
-              </p>
-            </>
+          {locationLine ? (
+            <p className="mt-1 truncate text-xs text-[var(--admin-text-muted)]">
+              {locationLine}
+            </p>
           ) : null}
         </div>
-        <div className="text-right text-sm">
-          <p className="font-semibold text-[var(--rahma-charcoal)]">
+        <div className="flex shrink-0 flex-col items-end gap-1.5 text-right">
+          <p className="font-semibold text-[var(--admin-heading)]">
             {formatMoney(booking.total_price)}
           </p>
-          <p className="capitalize text-[var(--rahma-muted)]">
-            {formatLabel(booking.payment_status)}
-          </p>
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
+            <AdminStatusBadge
+              value={formatLabel(booking.status)}
+              tone={bookingStatusTone(booking.status)}
+              compact
+            />
+            <AdminStatusBadge
+              value={formatLabel(booking.payment_status)}
+              tone={paymentStatusTone(booking.payment_status)}
+              compact
+            />
+            {showAssignmentChip ? (
+              <AdminStatusBadge
+                value={formatLabel(booking.assignment_status)}
+                tone="warning"
+                compact
+              />
+            ) : null}
+            {booking.group_booking ? (
+              <AdminStatusBadge value="Group" tone="info" compact />
+            ) : null}
+          </div>
         </div>
       </div>
     </Link>
+  );
+}
+
+function DetailRow({
+  label,
+  icon,
+  value,
+}: {
+  label: string;
+  icon?: React.ReactNode;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-1">
+      <dt className="flex items-center gap-1.5 text-xs font-medium text-[var(--admin-text-muted)]">
+        {icon}
+        {label}
+      </dt>
+      <dd className="text-sm text-[var(--admin-body)]">{value}</dd>
+    </div>
+  );
+}
+
+function StatCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-3">
+      <dt className="text-xs font-medium text-[var(--admin-text-muted)]">
+        {label}
+      </dt>
+      <dd className="mt-1 text-sm font-semibold text-[var(--admin-heading)]">
+        {value}
+      </dd>
+    </div>
   );
 }
 
@@ -766,77 +1508,17 @@ function getCommonServices(bookings: ClientBookingRecord[]) {
       );
     }
   }
-
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, 3)
     .map(([serviceName]) => serviceName);
 }
 
-function Card({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      className="rounded-2xl border bg-white p-5"
-      style={{
-        borderColor: "var(--rahma-border)",
-        boxShadow: "var(--shadow-soft-token)",
-      }}
-    >
-      <h2 className="mb-4 flex items-center gap-2 font-display text-base font-semibold text-[var(--rahma-charcoal)]">
-        {icon}
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-function Row({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <dt className="text-[var(--rahma-muted)]">{label}</dt>
-      <dd className="text-right font-medium text-[var(--rahma-charcoal)]">
-        {children}
-      </dd>
-    </div>
-  );
-}
-
-function StatusBadge({ value, muted }: { value: string; muted?: boolean }) {
-  return (
-    <Badge
-      variant="secondary"
-      className={
-        muted
-          ? "border-none bg-gray-100 text-gray-600 capitalize"
-          : "border-none bg-[var(--rahma-green)]/10 text-[var(--rahma-green)] capitalize"
-      }
-    >
-      {formatLabel(value)}
-    </Badge>
-  );
-}
-
 function InsufficientPermissions() {
   return (
     <AdminAccessDenied
-      title="Client access limited"
-      message="You need client management permission to access this client."
-      permission="view_clients_assigned or view_clients_all"
+      title="You don't have access to this client's profile"
+      message="Contact the owner if you need access."
     />
   );
 }

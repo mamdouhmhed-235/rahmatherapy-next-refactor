@@ -2131,3 +2131,173 @@ After the audit returned, the two P1 findings (heading hierarchy + unnamed secti
 - **Two card tiers simultaneously** — honoured: Tier 1 default-on, Tier 2 disclosure, Mix snapshot demoted to subordinate footnote band.
 
 **Net read:** the surface is calm, scannable, dignified, and recognisably Rahma rather than recognisably "AI dashboard". Remaining friction is largely Phase-7 shared-infra debt (AdminErrorBoundary ARIA, severity OKLCH literals, Intl.PluralRules) — not new findings.
+## client-detail — audit
+
+**Dimension scores (/4):**
+- Visual hierarchy: 3.5 — H1 + lifecycle/source row + sidebar/main split read cleanly; only weakness is the mobile-nav overlap on the Contact panel at 375.
+- Token compliance: 3 — uses CSS vars consistently, but two raw `oklch(...)` literals appear in `ClientDetailForms.tsx:78,90,105,178,190,205` (Cancelled tokens hardcoded instead of a `--admin-status-cancelled-*` var).
+- Accessibility: 3.5 — `role="alert" aria-live="polite" aria-atomic="true"` present, `aria-current="page"`, visible `*` required markers, labelled inputs, `aria-busy`. Lose 0.5 for `StatCell` uppercase tracked label fighting the design rule.
+- Responsive behaviour: 2.5 — mobile reorder per brief §5 correct, but `client-detail-final-375.png` shows the sticky AdminTopNav visually overlapping the Contact header (chrome bug surfaced by this page; no padding-top safe zone).
+- Brief fidelity: 3.5 — all conditional sections, tabs, expandable note, empty states, Cancel/Save, "New booking" RBAC gate match brief. Drift: "Back to clients" link (lines 438-444) — brief §7 says "No explicit back-link needed".
+
+**Findings (file:line):**
+- **P0** — None.
+- **P1** — Mobile AdminTopNav overlaps page content at 375px; chrome-wide bug exposed because the header lacks top spacing. `page.tsx:437`.
+- **P1** — Raw `oklch(...)` literals for Cancelled/error states bypass token layer: `ClientDetailForms.tsx:78,90,105,115,178,190,205,221`. Should use `--admin-status-cancelled-bg/text` tokens.
+- **P2** — "Back to clients" Ghost link `page.tsx:438-444` is brief drift; brief §7 says omit.
+- **P2** — `StatCell` uppercase + letter-spacing label violates DESIGN.md "Never uppercase shouting".
+- **P2** — `BookingHistoryCard` has no staff avatar and no gender-match chip; DESIGN.md §5 BookingListCard mandates both.
+- **P2** — Privacy "Submit request" uses a `Save` icon; semantically a submission, not a save — Send icon better.
+- **P3** — Source chip flat metadata blob beside strong status badge.
+- **P3** — `Client since {formatDateTime}` includes time-of-day; only date is meaningful.
+- **P3** — `HealthContextPanel` slices to 6 with no "See all" affordance.
+- **P3** — Note timestamp duplicates the visible text in `title` attribute.
+- **P3** — Tab counts always render including `0`; reads redundant next to the empty state.
+
+**Backend status:** N/A — server-action wiring (`addClientNote`, `createClientPrivacyRequest`), select shapes, RBAC gating, and `name` attributes all preserved verbatim per brief Feature Preservation Manifest.
+
+**P1 (tag for Phase 7 gauntlet):**
+- Mobile AdminTopNav overlap with first-card content at 375.
+- Hardcoded `oklch(...)` Cancelled literals in `ClientDetailForms.tsx` — extend `--admin-status-cancelled-*` tokens and migrate.
+
+**BUSINESS-COMPLETENESS impact (2A-6, 2A-9):**
+- **2A-6 (form errors announced):** PASS — both forms wrap form-level + field-level errors in `role="alert" aria-live="polite" aria-atomic="true"` (`ClientDetailForms.tsx:73-83, 109-120, 172-183, 215-226`). Adds 1 page contribution.
+- **2A-9 (visible required markers):** PASS — `<span aria-hidden="true">*</span>` in Cancelled colour adjacent to required Note and Request-type labels (`ClientDetailForms.tsx:90-92, 190-192`). Adds 1 page contribution.
+
+## client-detail — critique
+
+**Nielsen heuristics (/10):**
+1. Visibility of system status — 9
+2. Match between system and real world — 9
+3. User control and freedom — 8
+4. Consistency and standards — 7
+5. Error prevention — 8
+6. Recognition over recall — 8
+7. Flexibility and efficiency of use — 7
+8. Aesthetic and minimalist design — 7
+9. Help users recognise/diagnose/recover from errors — 9
+10. Help and documentation — 7
+
+**Total: 79/100**
+
+**AI-slop verdict: PASS.** No gradient text, no `border-l-4`, no glassmorphism, no purple/blue, no hero-metric template, no identical-card-grid; varied panel shapes (Contact dl / Stats 2×3 / Notes list / Privacy list+form). Distinctly Rahma rather than shadcn-default.
+
+**PRODUCT.md anti-reference mapping:**
+- "Color-only status signalling" — avoided: every badge has icon + label + tint.
+- "Side-stripe borders, gradient text" — avoided.
+- "Cards… icon + heading + text repeated thoughtlessly" — partially avoided; sidebar runs five icon-circled `AdminPanelHeader` panels in a row. Worth varying one panel (drop the icon circle on Audit, or compress Health into Notes when health is empty).
+- "Tools so spare they feel cold" — avoided; warm ivory, status colour, mint-tinted icon halos.
+- "Everything-on-one-screen SaaS dashboards" — borderline; 1440 screenshot shows heavy sidebar against near-empty main when client has zero upcoming bookings. Brief permits this (reference vs operational columns) but visual weight asymmetry is striking.
+
+Caveat: only Owner default state was screenshotted in audit window; Therapist / Coordinator / Access-denied variants not visually verified in this session.
+
+## client-detail — critique (independent)
+
+**Heuristic scores (out of 10):**
+1. Visibility of system status — 9/10. Active "Upcoming" tab Clinic Green fill + count chip; lifecycle + source chips at H1; nit: no inline toast after note save.
+2. Match between system and real world — 9/10. Plain operator language ("Book this client in when they're ready"); "Repeat: No/Yes" reads natural.
+3. User control and freedom — 8/10. Back-link, explicit Cancel, URL-param tabs are browser-back compatible.
+4. Consistency and standards — 9/10. AdminPanel/AdminPanelHeader uniform; AdminStatusBadge icon+label+tint.
+5. Error prevention — 8/10. `coerceTab` silent fallback; required `*` markers in Cancelled colour; `aria-invalid`.
+6. Recognition rather than recall — 9/10. Sidebar reference column keeps contact + stats visible while scanning history.
+7. Flexibility and efficiency — 7/10. Deep-linkable tabs and pre-filled clientId; no keyboard shortcuts.
+8. Aesthetic and minimalist design — 9/10. Warm ivory canvas + varied card compositions; Cormorant absent because no marquee numeral — restraint earned.
+9. Help users recognise/diagnose/recover from errors — 8/10. `role="alert" aria-live="polite"` regions on both forms; `aria-describedby` per-field.
+10. Help and documentation — 7/10. Native `title` tooltips on chips and CTAs; no inline help for "Sensitive"/"Restricted" meaning.
+
+**Total: 83/100**
+
+**AI-slop verdict: PASS.** No `border-l-4`, no gradient text, no purple/blue gradient, no glassmorphism, status badges pair icon + label + tint (never colour-only), six distinct card compositions avoid the identical-grid anti-pattern. Reads as Rahma surface, not generic SaaS — disciplined warmth via ivory canvas + deep-green chrome + dignified empty-state illustration + operator-voice copy.
+
+**Commentary:**
+- 1440 layout: booking-history panel on a 0/1 client is mostly whitespace beside a tall left rail — empty-state illustration is the only anchor, leaving the surface lopsided until history fills in.
+- Mobile (375): brief order correct (Booking History → Contact), but "New booking" Primary CTA stacks above the booking panel on its own row, repeating the affordance twice within one screen-height (header CTA + empty-state "Book now").
+- Notes-added: Sensitive badge correctly carries lock icon + label; real staff name + IBM Plex Mono timestamp; audit row at bottom (`client note created · 18 May 2026, 06:47`) closes auditable loop visibly on the same surface.
+- `StatCell` uses uppercase 0.04em-tracked labels — reads "dashboard SaaS" against rest of page's sentence-case voice. Brief does not require uppercase; DESIGN.md §3 specifies sentence-case for label step.
+- Notes panel mixes free-text `client.notes` blob (legacy column) above structured `clientNotes` list — on a populated client this stacks two visually different note treatments. Could confuse operators about which surface "Add note" writes to.
+- Tab list uses `role="tablist"` with `<Link role="tab">` + `aria-selected` but no `tabpanel` element with `aria-labelledby` — half-applied ARIA pattern. Cleaner as plain `<nav>` with `aria-current="page"` (which it also sets), making `role="tab"` redundant.
+
+## client-detail — audit (v2)
+
+> Supersedes the v1 audit above. Re-run after second-round polish (avatar disc, next-visit hero band, critical-note system, profile-note callout, status+service URL filters, common-services chips, recent-activity balance card, booking-card layout cleanup, WhatsApp, Print, keyboard shortcuts, Send icon).
+
+**Scope:** `src/app/admin/clients/[clientId]/page.tsx` + `src/app/admin/clients/[clientId]/ClientDetailForms.tsx`. Post second-round polish.
+
+### Dimension scores (out of 4)
+
+- **Visual hierarchy: 3.5** — Avatar disc + H1 + lifecycle pill + Next-visit/Critical bands give the header strong scan-down rhythm; Booking-history main column reads as primary; sidebar carries reference cards in correct order.
+- **Token compliance: 3.5** — Heavy use of `var(--admin-*)` tokens. Hard-coded `oklch()` lives only inside status-family palettes (Confirmed/Cancelled/Pending tints) which is sanctioned. One stray: pinned-sensitive-note callout uses Pending-65 tones, not the Restricted lavender pair documented in DESIGN.md §2.
+- **Accessibility: 3** — Tabs carry `aria-current="page"` + `aria-selected` + `role="tab"`. Forms wrap errors in `role="alert" aria-live="polite" aria-atomic="true"`. Required `*` markers visible. Gaps below.
+- **Responsive behaviour: 3** — Sidebar/main column reorder at lg works; 375 chrome-overlap is shell-scoped (Phase 7 deferred).
+- **Brief fidelity: 3.5** — Header CTA, tabs, EmptyState per tab, expandable note form, privacy form, ClientDetailShortcuts, print, WhatsApp deep-link, status/service filter chips, critical-note banner, next-visit band — all present and wired.
+
+### Findings
+
+**P0 — Blocks release — fix before shipping anything**
+- none
+
+**P1 — Fix this sprint — significant impact on users**
+- Critical-note banner used non-standard `role="note"` — **fixed in same pass**, now `role="region" aria-label="Critical client note"` (`src/app/admin/clients/[clientId]/page.tsx:645`).
+- 375px header right-cluster could clip "New booking" if Print is forced to keep its label. **Mitigated**: Print button already hides its label below sm via `hidden sm:inline` (ClientDetailForms.tsx PrintRecordButton); not currently clipping in the v3 375 screenshot.
+
+**P2 — Next cycle — noticeable but not blocking**
+- Tab strip declares `role="tablist"`/`role="tab"` but the booking list below is not wrapped in a `role="tabpanel"` with matching `aria-labelledby`. Either complete the tablist contract or drop the roles in favour of nav links. `page.tsx:778-792`.
+- Pinned-sensitive-note callout uses Pending-family tints; DESIGN.md §2 Restricted family (lavender) is the documented home for sensitive/restricted content. Cross-family drift. `page.tsx:1091-1098`.
+- `EmptyTab` and `EmptyFilteredState` titles are `<p>` styled as headings — semantic gap; should be `<h3>` (or `<h4>`) inside the `AdminPanel` H2. `page.tsx:854, 1347`.
+- Active-tab count badge over Clinic Green: verify 3:1 for non-text-UI contrast on the 30% white wash + ring-white/35 combo. `page.tsx:806`.
+
+**P3 — Polish — minor, fix when time allows**
+- `digitsOnly` + `whatsappHref` normalises a leading `0` to `44` but does not validate UK shape — non-UK numbers prefixed with `0` will be mangled silently. `page.tsx:144`.
+- "First visit booked" lifecycle chip currently uses Pending (`info`) tone — reads as a warning to a glancing eye; a Confirmed-family tone would say "this is a state, not an alert".
+- Notes panel shows plain "No notes yet" paragraph instead of a dignified `EmptyState`. `page.tsx:1106-1108`.
+- `getInitials` returns `?` when full_name is blank; avatar is `aria-hidden` so harmless, but worth a single-letter fallback for visual polish.
+- `RecentActivityBalanceCard` duplicates `AuditPanel` rendering; extract a shared list component to halve maintenance surface.
+
+### Backend status
+
+**HANDLED.** `addClientNote` and `createClientPrivacyRequest` are wired verbatim from `../actions` per IMPLEMENTATION-PLAN row 6; no FAKE shim, no BUILD plan dependency. RBAC scopes all flow through `getClientDataAccess` and `getAdminPageAccess`. Therapist scoped query via `booking_assignments` preserved. Audit log query uses real `audit_logs` table.
+
+### P1 (tag for Phase 7 gauntlet)
+
+- `role="note"` — fixed in same pass; now compliant.
+- Live remaining P1 items: **none**. All other surface items dropped to P2/P3 after second-round polish.
+
+### BUSINESS-COMPLETENESS impact
+
+- **2A-2** — Mobile-friendly rebook flow: contributes "New booking" Primary in header + Book-now CTA on empty Upcoming tab with `?clientId=` pre-fill.
+- **2A-4** — Heading hierarchy: all sidebar section titles render through `AdminPanelHeader` (H2); no shadcn `Card`/`CardTitle` H3 skips.
+- **2A-6** — Form-level errors wrapped in `role="alert" aria-live="polite" aria-atomic="true"` on both forms (ClientDetailForms.tsx). **PARTIAL → contributes one page closer to HANDLED.**
+- **2A-8** — `aria-current="page"` present on the active booking-history tab.
+- **2A-9** — Required-field visible `*` markers on Note + Request-type labels in Cancelled colour. **PARTIAL → contributes one page closer to HANDLED.**
+
+## client-detail — critique (v2)
+
+> Supersedes the v1 critique above. Re-run after second-round polish.
+
+**Nielsen heuristic scores (each /10)**
+
+1. **Visibility of system status — 9/10.** Active tab filled Clinic Green with white count chip, counts beside every tab label, Next-visit hero band confirms upcoming inline, pending action buttons show a spinner; minor knock for filter chips lacking a result-count echo.
+2. **Match between system and real world — 9/10.** Copy is plainspoken clinic language; minor friction is "Recent activity" vs "Recent audit activity" both appearing on the same 1440 view with overlapping meaning.
+3. **User control and freedom — 8/10.** Back-to-clients link, Cancel on note form, clearable service-filter chip with × affordance, additive URL filters that survive reload; no undo for a saved note or submitted privacy request.
+4. **Consistency and standards — 9/10.** AdminPanel/AdminPanelHeader throughout (H2 contract), AdminStatusBadge tone-paired with icon, full-border cards everywhere, no `border-l-4`; outlier: Pending-tinted "Profile note" and orange "Pinned sensitive note" share nearly the same hue.
+5. **Error prevention — 8/10.** Required `*` marker, `coerceTab`/`coerceStatus` silently normalise bad URL params, hidden client_id, native `title` on every privacy request type explaining scope; "First visit booked" amber dot reads as warning when it is actually a lifecycle badge.
+6. **Recognition rather than recall — 9/10.** Deterministic avatar disc with initials, lifecycle chip, source line, common-services clickable chips, audit-action humanised dictionary, tab counts visible at rest; keyboard shortcuts (n/b/p) are discoverable only via button tooltips.
+7. **Flexibility and efficiency — 8/10.** Power paths exist (n/b/p shortcuts, WhatsApp deep-link, additive status+service URL filters, Print, common-service chip as one-click filter); no saved-view persistence and no "rebook last service" affordance.
+8. **Aesthetic and minimalist design — 8/10.** Calm warm-ivory canvas, restrained type hierarchy, varied card shapes; the right column on 1440 in the empty-Upcoming state still has visible whitespace below the balance card.
+9. **Help users recognise, diagnose, recover from errors — 8/10.** `role="alert" aria-live="polite"` on form-level + field-level error regions, Cancelled-family colour pair, plain-English copy; empty-filter state offers a "Clear filters" reset.
+10. **Help and documentation — 7/10.** Native `title` tooltips on tabs, badges, privacy-request types, "New booking" CTA, shortcut keys; no inline keyboard-shortcut legend, no first-time hint surface for novice operators.
+
+**Total: 83/100.**
+
+**AI-slop verdict: PASS.** The page reads as a Rahma surface, not a generic dashboard: warm ivory canvas, status-family-tinted chips with icons + labels, Cormorant correctly absent (no marquee numerals on this page), no gradient text, no `border-l-4`, no glass, no hero-metric template, varied card composition. The category-reflex test passes — the disciplined-warmth intersection is intact.
+
+**Commentary**
+
+- Header now does real work: avatar disc tinted by deterministic hue, H1 + source-and-since subline, lifecycle pill, Print + New-booking right rail, Next-visit hero band immediately below — the "rebook fast" job-to-be-done is one glance away.
+- Notes panel composition is the most considered surface: yellow-tinted Profile-note callout, orange Pinned-sensitive rail, then regular notes, then the Add-note ghost trigger that expands inline. Minor: Profile-note and Pinned-sensitive callouts are visually adjacent and similarly tinted, slightly weakening the "pinned = pay attention" signal.
+- The empty-Upcoming 1440 layout puts a generous illustrated empty state in the main column with the Recent-activity balance card *underneath* rather than beside it. Consider promoting the balance card above the empty state.
+- Filter strip well-restrained: only shows when 5+ bookings or filters applied, additive over tabs, dedicated service-filter dismiss chip. Minor: active status pill uses the same Clinic Green as the active tab pill, making the two pill rows compete.
+- "First visit booked" lifecycle chip in Pending colours reads more like a warning than a milestone. A Confirmed-family tone would communicate "this is a state, not an alert" more honestly.
+- Source code is clean: no nested AdminPanels, single H1, `list-none` on every `<ul>`, `aria-current="page"` + `aria-selected` on tabs, `whatsappHref` normalises UK leading-zero numbers, and unknown URL params silently coerce instead of erroring.
+
+> **Note:** The v1 audit + critique entries above remain in this file for traceability. The v2 entries supersede them for Phase 7 reading.
