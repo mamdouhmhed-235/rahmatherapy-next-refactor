@@ -1896,6 +1896,40 @@ Screenshots reviewed: dashboard-owner-admin-polish-final-{375,768,1440}.png
 
 ### Severity rubric (impeccable v5 L884-890, verbatim)
 
+## role-detail — critique
+
+**Date:** 2026-05-18
+**Reviewer:** independent critic (no implementation context)
+**Screenshots reviewed:** 1440 / 768 / 375 + critical-risk modal
+
+### Nielsen heuristic scores (0–4)
+
+| # | Heuristic | Score | Note |
+|---|---|---|---|
+| 1 | Visibility of system status | 4 | Granted-count badge + footer + per-row Granted/Off label + filter "Showing X of Y" + sticky category counts. Pending state on Switch with spinner + "saving". |
+| 2 | Match between system and real world | 3 | Plain English throughout ("Grant", "Revoke", "Reassign N staff first"). Slight leak: mono `manage_audit_logs` identifier sits on every row — operator-relevant but borders on jargon for novice users. |
+| 3 | User control and freedom | 3 | Optimistic toggle rolls back on failure with persistent Cancelled toast + Retry. Confirm modal cancellable. No undo on grant after toast dismiss, but the toggle itself is the undo. |
+| 4 | Consistency and standards | 3 | Letter token + breadcrumb + AdminPanel + AdminStatusBadge match brief 20 vocabulary. One inconsistency: confirm dialog uses ad-hoc Base UI Dialog instead of the shared `ConfirmActionModal` the brief specified ("standardise the destructive pattern"). |
+| 5 | Error prevention | 4 | Risk-tiered confirms (critical always, high on grant, Owner always) + Delete guarded behind staff_count=0 + system-role lockdown + visible "Reassign N staff first" inline note before user can even try. |
+| 6 | Recognition rather than recall | 3 | Risk + scope chips on every row, tooltips on risk meaning, sticky category headers, granted-state label paired with switch. Filter chips show aria-pressed state but lack the "active filter chip" pattern from DESIGN.md (filters live as buttons only). |
+| 7 | Flexibility and efficiency of use | 3 | URL-persistent multi-select filters, free-text search, granted-only toggle, deep-linkable. No bulk actions (out-of-scope per brief). Search is form-submit (Enter), not live — minor friction. |
+| 8 | Aesthetic and minimalist design | 3 | Calm ivory canvas, restrained chips, flat list rows replace nested cards as briefed. Triple-chip row (scope + risk + mono name + description) starts to feel busy at mobile widths — the mono identifier on every row competes with description. |
+| 9 | Help users recognise, diagnose, recover from errors | 3 | Toast carries server message + Retry; form has `role="alert"` region; staff-blocker explains the count. The FAKE delete banner inside the confirm modal exposes implementation language ("BUILD-delete-role.md", `<code>` token) to the operator. |
+| 10 | Help and documentation | 3 | Rich `title` tooltips on chips, switch states, DB-role line, system-role note. No inline help link / docs surface — acceptable for an Owner-only page. |
+
+**Total: 32 / 40**
+
+### AI-slop verdict: **PASS**
+
+The page reads as a deliberate, role-specific workstation — risk-tiered confirms, grouped sticky categories, and a calm two-column rhythm — not a generic shadcn permissions grid.
+
+### UX-quality commentary
+
+Against PRODUCT.md anti-references this surface holds: no `border-l-4`, no hero-metric template, no gradient text, the decorative `ShieldCheck` tile has retired, and status is never colour-only (every chip pairs tone with text). The risk-tiered confirm flow embodies the "auditable and reversible" principle directly. Three regressions to flag: (1) the per-row mono permission identifier doubles every row's vertical weight and edges toward the "raw permission identifier on user-facing surface" anti-reference DESIGN.md §6 explicitly bans on access-denied screens — defensible here for audit traceability but visually loud; (2) the confirm modal is a hand-rolled Base UI Dialog rather than the `ConfirmActionModal` the brief mandated, fracturing the "standardise the destructive pattern" commitment; (3) the FAKE-delete amber banner inside the confirm modal leaks build-process language to the Owner, violating the plain-English voice anchor.
+
+## role-detail — audit
+
+### Severity rubric (verbatim, impeccable v5 L884-890)
 - P0 — Blocks release — fix before shipping anything
 - P1 — Fix this sprint — significant impact on users
 - P2 — Next cycle — noticeable but not blocking
@@ -2534,3 +2568,132 @@ The redesign reads as a hand-shaped Rahma workstation, not a stock SaaS staff-de
 1. **Add inline per-field validation copy** (brief §11 Error messages) — empty Full name, malformed Phone, missing Gender all fall through to server toast.
 2. **Differentiate R2 (Profile completion) from R3 (Onboarding)** — the only sibling-shape pair in a varied page.
 3. **Spell out the R5 sub-line for novices** — "Overrides sit on top of the fixed role bundle" assumes the operator already knows what the role bundle is.
+### Dimension scores (0-4)
+- Information architecture: **4** — two-column desktop (`1fr / 22rem`) at `page.tsx:215`, sticky category headers `page.tsx:265`, danger-zone segregated `page.tsx:366`; mobile stacks per brief §5.
+- Visual hierarchy: **3** — H1 + role-letter token + status chips land cleanly (`page.tsx:164-213`), sticky category labels work; however, the chip-row at 1440 wraps under the H1 awkwardly when name is long and the granted count `/` numerator collides visually with the badge tone shift.
+- Accessibility: **3** — `role="alert" aria-live="polite" aria-atomic="true"` on metadata form (`RoleMetadataForm.tsx:48`); Switch carries `aria-label` granted/revoked (`PermissionRow.tsx:193`); `aria-pressed` on filter chips; `<label sr-only>` for search; but Switch wrapper has no `aria-busy` and pending state lives on a non-aria text node (`PermissionRow.tsx:195-209`).
+- Brief compliance: **3** — almost fully covers §4-§8; missing: brief calls "Apply filters" Secondary button, current strip is fully reactive without explicit Apply; AdminFilterBar mobile sheet (§5 Mobile) is not implemented — strip stays inline on mobile.
+- Code quality: **3** — clean component decomposition, idiomatic `useActionState`/`useTransition`; but `DangerZonePanel` accepts `description` / `sortOrder` it only re-submits as hidden fields (coupling) and passes the description as a serialized hidden input, risking staleness if the metadata form is dirty when Deactivate fires.
+
+### P0 findings
+- none
+
+### P1 findings (tag for Phase 7 gauntlet)
+- `DangerZonePanel.tsx:93-99` — Deactivate form re-submits server-rendered metadata; will clobber unsaved edits if the Owner has dirty edits in the metadata form when Deactivate fires.
+- `PermissionRow.tsx:189-194` — Switch missing `aria-busy="true"` during in-flight toggle (brief §6 pending state spec).
+- `PermissionsFilterStrip.tsx:100-247` — No mobile "Filters" Ghost → AdminSheet pattern; brief §5 Mobile requires it on `≤lg`. Filter strip stacks tall on 375px.
+
+### P2 findings
+- `page.tsx:258` permissions list panel `lg:max-h-[min(72vh,720px)] lg:overflow-y-auto` — sticky headers inside this nested scroll on a 1366×768 screen can fight page scroll.
+- `PermissionRow.tsx:127` — `direction` derivation may stale on modal re-open after a failed toggle (low likelihood).
+- `DangerZonePanel.tsx:232-236` — Delete FAKE-degrade toast uses default auto-dismiss; brief §6 system errors should persist (no auto-dismiss).
+- `page.tsx:209` `<RoleDescription>` is forward-referenced — cosmetic.
+
+### P3 findings
+- `page.tsx:3` `ShieldCheck` reused as both decoration and category indicator slightly muddies meaning.
+- `page.tsx:34` `firstLetter` returns "•" fallback — bullet glyph reads odd in a token tile.
+- `PermissionRow.tsx:138` raw `oklch(95.5%_0.012_155)` instead of named Hover Moss token.
+- `RoleMetadataForm.tsx:51,108` raw `oklch(26%_0.14_25)` for required `*` and error region; canonical token preferred when exposed.
+- `PermissionRow.tsx:215` modal backdrop `bg-[oklch(12%_0.01_165)]/35` — raw oklch; DESIGN.md §4 specifies green-tinted shadow tokens.
+- `DangerZonePanel.tsx:200` FAKE banner uses raw oklch info tones; should use Pending tokens.
+
+### Backend status
+**FAKE** — Delete-role flow is staged with `data-redesign-fake="delete-role"` and renders a toast-only stub. Blocking BUILD plan: **`BUILD-delete-role.md`** (per IMPLEMENTATION-PLAN.md, non-blocking). All other server-actions (`updateRoleMetadata`, `toggleRolePermission`) are HANDLED and live.
+
+### P1 (tag for Phase 7 gauntlet)
+- DangerZonePanel deactivate form may clobber unsaved metadata edits — `DangerZonePanel.tsx:93-99`
+- Switch missing `aria-busy` during pending toggle — `PermissionRow.tsx:189-194`
+- No mobile Filters AdminSheet; strip stacks tall on 375px — `PermissionsFilterStrip.tsx:100-247` (brief §5 Mobile)
+
+### BUSINESS-COMPLETENESS impact
+- **2A-6** — form-level `role="alert" aria-live="polite" aria-atomic="true"` correctly implemented at `RoleMetadataForm.tsx:46-56`.
+- **2A-9** — visible required-field `*` markers in Cancelled text at `RoleMetadataForm.tsx:64-66` and `:108-110`.
+
+## role-detail — audit (round 2)
+
+**Date:** 2026-05-18 (after the 10-fix follow-up: B1, B2, B3+A1, V11+V12, G4, G2+G3, C1, V15+W1, V2, C12)
+
+### Severity rubric (verbatim, impeccable v5 L884-890)
+- P0 — Blocks release — fix before shipping anything
+- P1 — Fix this sprint — significant impact on users
+- P2 — Next cycle — noticeable but not blocking
+- P3 — Polish — minor, fix when time allows
+
+### Dimension scores (0-4)
+- Information architecture: **4** (R1: 4) — unchanged.
+- Visual hierarchy: **4** (R1: 3, +1) — H1/H2/H3 cascade clean (`page.tsx` H1, AdminPanel emits H2 "Permissions", explicit H3 on the three right-rail panels). Mobile sticky save bar + Pending "Unsaved changes" chip restore visual cadence at 375.
+- Accessibility: **4** (R1: 3, +1) — Switch wrapper now `aria-busy` (`PermissionRow.tsx:190`); `aria-label` appends "(saving)" (`PermissionRow.tsx:196`). Pending-family self-revoke banner with `role="status"`. Form-level alert + visible required `*` preserved.
+- Brief compliance: **4** (R1: 3, +1) — Mobile filter sheet (`PermissionsFilterStrip.tsx:125-154`), Inactive-system chip coercion + lifecycle suppression, Deactivate preserves unsaved edits (`DangerZonePanel.tsx:48-62`), audit trail link landed (`DangerZonePanel.tsx:145-152`).
+- Code quality: **4** (R1: 3, +1) — `DangerZonePanel` no longer carries duplicate metadata props; submits via `document.getElementById(metadataFormId).requestSubmit()` — single source of truth. FAKE banner copy operator-voiced.
+
+**Total: 20 / 20** (up from 16 / 20 in round 1).
+
+### P0 findings
+- none
+
+### P1 findings
+- none
+
+### P2 findings
+- `PermissionRow.tsx:218` and `DangerZonePanel.tsx:161` — Modal backdrops still use raw `oklch(12%_0.01_165)/35` instead of named `--admin-shadow-overlay`.
+- `DangerZonePanel.tsx:223-225` — FAKE delete error toast uses default duration (auto-dismisses); brief §6 says system errors should persist.
+- `DangerZonePanel.tsx:48-62` — Deactivate uses a 1000ms `setTimeout` to reset `submitting`; should lift `pending` from form state via context, not a wall-clock guess.
+- `page.tsx:280` permissions list `max-h-[70vh] lg:max-h-[min(72vh,720px)]` — nested-scroll-vs-page-scroll conflict possible on small laptops and 375.
+
+### P3 findings
+- `PermissionRow.tsx:138,358` raw `oklch(95.5%_0.012_155)` for hover — should resolve to Hover Moss token.
+- `RoleMetadataForm.tsx:96,139` raw `oklch(26%_0.14_25)` on `*` markers and error well.
+- `DangerZonePanel.tsx:68,193` raw `oklch(96%_0.038_75)` / `oklch(28%_0.12_55)` for Pending wells.
+- `DangerZonePanel.tsx:124,229` raw `oklch(40%_0.14_25)` on Destructive button.
+- `page.tsx:3` `ShieldCheck` still doubles as decoration and sticky category indicator — minor semantic muddiness.
+- `RoleMetadataForm.tsx:42-46` `checkDirty` for `is_system` roles flips falsely due to hidden `active=on` shadow; edge case only.
+
+### Backend status
+**FAKE** — Delete-role still gated by `data-redesign-fake="delete-role"` (`DangerZonePanel.tsx:115`). Blocking BUILD plan: **`BUILD-delete-role.md`** (non-blocking). All other server actions HANDLED.
+
+### P1 (tag for Phase 7 gauntlet)
+- none
+
+### BUSINESS-COMPLETENESS impact
+- **2A-6** — form-level `role="alert" aria-live="polite" aria-atomic="true"` preserved (`RoleMetadataForm.tsx:67-78`).
+- **2A-9** — visible required `*` markers preserved (`RoleMetadataForm.tsx:96-98, 139-141`).
+- **2A (mobile)** — sticky save bar with Pending-family "Unsaved changes" chip (`RoleMetadataForm.tsx:214-243`) adds dirty-state visibility on 375.
+
+### Round 1 → Round 2 P1 status
+- **R1-P1 #1** Deactivate clobbers unsaved edits: **CLOSED** — `flipActiveAndSubmit` mutates the live `#role-metadata-form` checkbox and `requestSubmit()`s it.
+- **R1-P1 #2** Switch missing `aria-busy`: **CLOSED** — wrapper carries `aria-busy={pending || undefined}` + `aria-label` "(saving)" suffix.
+- **R1-P1 #3** No mobile Filters AdminSheet: **CLOSED** — mobile branch renders `Filters` trigger with `AdminSheet` bottom-anchored.
+
+Net P1 count: 3 → 0.
+
+## role-detail — critique (round 2)
+
+**Date:** 2026-05-18
+**Reviewer:** independent re-critic (no implementation context, no bias from round 1)
+**Screenshots reviewed:** after-fixes-1440-final / -owner-self / -inactive-system / after-fixes-375-therapist / -filter-sheet / -dirty / -sticky-save-bar
+**Source verified:** `page.tsx`, `PermissionRow.tsx`, `RoleMetadataForm.tsx`, `DangerZonePanel.tsx`, `PermissionsFilterStrip.tsx`
+
+### Nielsen heuristic scores (0–4)
+
+| # | Heuristic | Score | Delta |
+|---|---|---|---|
+| 1 | Visibility of system status | **4** | (R1: 4) — unchanged. Switch carries `aria-busy` + visible spinner + "saving" label; mobile sticky save bar surfaces dirty form state. |
+| 2 | Match between system and real world | **4** | (R1: 3, **+1**) — FAKE banner reworded; mono identifier hidden on mobile. |
+| 3 | User control and freedom | **4** | (R1: 3, **+1**) — Deactivate uses `form.requestSubmit()` so unsaved edits travel with the lifecycle change. Mobile dirty bar gives a Discard escape. |
+| 4 | Consistency and standards | **3** | (R1: 3) — Hand-rolled Base UI Dialog instead of shared `ConfirmActionModal` still flagged. |
+| 5 | Error prevention | **4** | (R1: 4) — Inactive-system row correctly suppresses lifecycle buttons. Owner self-revoke banner warns before the toggle. |
+| 6 | Recognition rather than recall | **3** | (R1: 3) — Mobile filter sheet collapses Risk / Category / Granted-only behind a Ghost trigger. |
+| 7 | Flexibility and efficiency of use | **3** | (R1: 3) — No bulk actions; search form-submit not live. |
+| 8 | Aesthetic and minimalist design | **4** | (R1: 3, **+1**) — Mobile row now reads cleanly with the mono token removed; right-rail H3 outline reads as a quiet sub-system. |
+| 9 | Help users recognise, diagnose, recover from errors | **4** | (R1: 3, **+1**) — FAKE banner now speaks Rahma's voice. Owner self-revoke banner pre-warns rather than catching after the fact. |
+| 10 | Help and documentation | **3** | (R1: 3) — Audit-trail link gives the Owner an in-context history without leaving the page. |
+
+**Total: 36 / 40** (up from 32 / 40 in round 1).
+
+### AI-slop verdict: **PASS**
+
+Risk-tiered confirms, grouped sticky categories, dignified inactive-system handling, and an audit-trail escape hatch make this read as a deliberate Owner workstation — not a generic shadcn permissions grid.
+
+### UX-quality / PRODUCT.md anti-reference mapping
+
+The surface continues to honour PRODUCT.md's "auditable and reversible" principle (every mutation has a visible audit trail link; destructive paths gate behind confirm) and its "calm, scannable, visual" principle (mono identifier mobile-collapse and right-rail H3 hierarchy cut visual density without losing depth). One round-1 regression still stands: the hand-rolled Base UI Dialog inside `PermissionRow.tsx:216` / `DangerZonePanel.tsx:154` continues to drift from the brief's "standardise the destructive pattern via `ConfirmActionModal`" mandate — a consistency-and-standards debt. No anti-reference breaches: no `border-l-4`, no hero-metric, no gradient text, no colour-only status, no raw permission identifier on the denied surface, FAKE banner no longer leaks build-process vocabulary.
