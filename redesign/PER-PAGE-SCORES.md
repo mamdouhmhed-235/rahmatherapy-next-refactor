@@ -3856,7 +3856,7 @@ FAKE markers present at `page.tsx:134-139` (filter call site, comment-only), `De
 - P2 — Next cycle — noticeable but not blocking
 - P3 — Polish — minor, fix when time allows
 
-**Backend status:** FAKE. Blocking BUILDs: `BUILD-email-template-overrides-table.md`, `BUILD-email-templates-actions.md`, `BUILD-email-templates-preview-route.md`, `BUILD-rbac-permission-email-templates.md`. Every save and send call site carries `// FAKE: BUILD-<name>` comments and `data-redesign-backend="FAKE"` attributes.
+**Backend status:** HANDLED for Save + Send (Session 2 engineering pause close, 2026-05-19). Remaining FAKE surface: the preview-route override merge (`BUILD-email-templates-preview-route.md`) and the manual-send booking-context picker (`booking_id` select still renders a dummy stub). Three of the original four blocking BUILDs are now resolved — `BUILD-email-template-overrides-table.md` + `BUILD-email-templates-actions.md` shipped end-to-end with smoke evidence at `/redesign/backend-smoke-tests/email-template-overrides-table-2026-05-19.txt` and `/redesign/backend-smoke-tests/email-template-overrides-actions-2026-05-19.txt`; `BUILD-rbac-permission-email-templates.md` is covered by migration `20260519120000_email_template_overrides_table` (permission row) + `20260519130000_grant_manage_email_templates_to_owner_admin` (role grant, Owner + Admin per user decision). `data-redesign-backend="FAKE"` markers on the Save form and manual-send form have been removed; markers on the preview iframe and booking-picker select are intentionally retained until the matching follow-up BUILDs land.
 
 **Dimension scores (out of 4):**
 - Visual hierarchy: 3 / 4 — group H2 + card H3 + page H1 from emails session chain reads cleanly; "Last sent" timestamp slot still empty

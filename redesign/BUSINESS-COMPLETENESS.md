@@ -264,11 +264,20 @@ Blocks 2A-16 (automated reminders) and would also enable nightly retention sweep
 **Phase 5 brief coverage (2026-05-12):** No Phase 5 brief directly provisions this infrastructure, but `emails-brief.md` builds the manual reminder queue that is the partial substitute. 2A-16 plan file (`BUILD-automated-booking-reminders.md`) specifies the Supabase Edge Function + `pg_cron` implementation. This must be provisioned as part of the 2A-16 build.
 
 ### 2C-10. `email_template_overrides` database table (Phase 5 discovery)
-`BLOCKS-REDESIGN · Zone 2 · NOT-STARTED` · **Evidence (Phase 5 discovery):** `email-templates-brief.md` (Brief 02) requires a persistent store for editable template copy fields (greeting lines, footer contact). The `src/lib/email/templates.ts` file is SERVER-ONLY with hardcoded strings; there is no table to store per-operator overrides.
+`BLOCKS-REDESIGN · Zone 2 · HANDLED` · **Evidence (Phase 5 discovery):** `email-templates-brief.md` (Brief 02) requires a persistent store for editable template copy fields (greeting lines, footer contact). The `src/lib/email/templates.ts` file is SERVER-ONLY with hardcoded strings; there is no table to store per-operator overrides.
 
 Discipline filter ✓ (owner essential: the Owner needs to control the voice of outgoing emails without touching code). Zone 2 because a new DB table + migration is needed.
 
 **Phase 5 brief coverage (2026-05-12):** `email-templates-brief.md` §10 Q2 proposes the table. Layer 3 plan file: `BUILD-email-template-overrides-table.md`. Phase 6 session 21 (email-templates). Without this table, the "Save changes" Primary in the email-templates brief is non-functional.
+
+**Engineering pause close — Session 1 + Session 2 (2026-05-19):** Status flipped NOT-STARTED → HANDLED. Three migrations applied to production project `Rahma-therapy` (`twzutkfgqclqurvkmvqz`):
+- `20260519120000_email_template_overrides_table` — table + 4 RLS policies + service_role grants + `manage_email_templates` permission row
+- `20260519121000_email_template_overrides_authenticated_select_grant` — one-line follow-up after smoke caught a missing GRANT (codebase convention check across 6 reference tables confirmed SELECT-only-to-authenticated as the universal pattern)
+- `20260519130000_grant_manage_email_templates_to_owner_admin` — role grant, Owner + Admin (user decision; Booking Coordinator deliberately excluded)
+
+Code wiring (Session 2): `src/app/admin/email-templates/actions.ts` rewritten with real `saveTemplateOverride` (permission gate + HTML strip + per-field upsert/delete + per-field audit row) and `sendTemplateManually` (permission gate + recipient/var validation + override resolution + render dispatch + Resend send + audit row). `src/lib/email/templates.ts` extended with `resolveTemplateOverrides` + `getAllTemplateOverrides` + override-aware `render*Email()` functions (each accepts an optional `overrides` map with safe defaults; backward-compatible for existing callers in notifications.ts and the preview route). UI plumbing: `TemplateEditForm` accepts `serverInitialValues`, `TemplatesTab` accepts `initialOverrides`, `emails/page.tsx` fetches via `getAllTemplateOverrides()` server-side. FAKE markers removed from the Save form and the manual-send form (preview-iframe FAKE marker + booking-picker FAKE marker kept as flagged scope-creep).
+
+Smoke-test evidence: `/redesign/backend-smoke-tests/email-template-overrides-table-2026-05-19.txt` (Session 1) + `/redesign/backend-smoke-tests/email-template-overrides-actions-2026-05-19.txt` (Session 2). All 5 spec scenarios PASS (1, 2, 3, 5 live in the browser; 4 by code inspection + DB cross-check after Playwright DOM corruption could not defeat React's controlled-input restoration). Scenario 3 includes operator-confirmed inbox arrival of a real Resend send with override-applied copy.
 
 ---
 

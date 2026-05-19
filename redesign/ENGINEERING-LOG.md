@@ -40,9 +40,37 @@ To be reconciled once the user approves the proposed order. Header section will 
 
 *Plan file: `redesign/backend-plans/BUILD-email-templates-actions.md`.*
 *Depends on: 2C-10 table existing.*
-*Smoke test: `redesign/backend-smoke-tests/email-templates-actions.md` (to be created).*
+*Smoke test: `redesign/backend-smoke-tests/email-template-overrides-actions-2026-05-19.txt`.*
 
-(empty — session not yet started)
+**Status (2026-05-19):** COMPLETE — Session 2 of the engineering pause closed. 2C-10 in BUSINESS-COMPLETENESS.md flipped NOT-STARTED → HANDLED. Owner + Admin roles now hold `manage_email_templates`; Therapist denial verified end-to-end. Real Resend send to `thefoolmarketing@outlook.com` confirmed at the API layer + inbox layer.
+
+**Code files written / modified:**
+- `src/lib/auth/rbac.ts` — added `PERMISSIONS.MANAGE_EMAIL_TEMPLATES` + `canManageEmailTemplates(profile)` helper, matching existing patterns.
+- `src/lib/email/templates.ts` — added `substituteVars` + `buildVarMap` helpers; added `resolveTemplateOverrides(templateId)` + `getAllTemplateOverrides()` async readers with silent fallback to `{}` on any error; refactored all 9 `render*Email()` functions to accept an optional `overrides: Record<string, string> = {}` and substitute the editable fields (`greeting_intro`, `group_copy`, `footer_contact`, `intro`, `wrapper_change_summary`) over hardcoded defaults. Backward-compatible: existing callers (notifications.ts, preview route) pass no override arg and get default copy.
+- `src/app/admin/email-templates/actions.ts` — full rewrite. `saveTemplateOverride` does permission gate via `requirePermission(MANAGE_EMAIL_TEMPLATES, supabase)`, HTML strip via `replace(/<[^>]*>/g, '')`, length check, per-field upsert OR delete-on-empty (revert to default), and per-field `audit_logs.insert({ action_type: 'email_template_override_saved', actor_staff_id, target_type, target_id, after_state })`. Returns `{ ok: true, cleanedValues }` (the cleanedValues round-trip lets the UI show the stripped text immediately without a reload). `sendTemplateManually` does the same permission gate, validates recipient + required vars (per-template via `requiredVarsFor`), reads `business_settings` for company/contact defaults, constructs a `BookingEmailTemplateInput` from `var:*` form fields, resolves overrides for the templateId, dispatches to the matching `render*Email()` via `renderForTemplate()`, sends through `sendEmail()`, then writes `{ action_type: 'email_template_sent_manually', after_state: { template_id, recipient_email, resend_message_id } }`. No audit on Resend failure.
+- `src/app/admin/emails/components/TemplateEditForm.tsx` — added `serverInitialValues?: Record<string, string>` prop; values now seed from server first, draft second; on save success, applies `state.cleanedValues` to both `setValues` and `setInitialValues` for the immediate UI feedback; removed `data-redesign-backend="FAKE"` attribute from the form element.
+- `src/app/admin/emails/components/TemplatesTab.tsx` — added `initialOverrides?: Record<string, Record<string, string>>` prop; passes the per-template slice into TemplateEditForm. Updated the cancelDiscard focus-restore selector from `form[data-redesign-backend="FAKE"]` (no longer present) to `form[id^="tpl-form-"]`.
+- `src/app/admin/emails/components/ManualSendSheet.tsx` — removed FAKE attribute on the send form. Updated stale "Real booking picker activates when BUILD-email-templates-actions lands" copy to reflect actual status. KEPT FAKE markers on the preview iframe and `booking_id` select — both tied to features outside Session 2 scope.
+- `src/app/admin/emails/page.tsx` — added `getAllTemplateOverrides()` to the Promise.all when `activeTab === "templates"`; passes result to `TemplatesTab.initialOverrides`. Switched `canEdit` from `canManageEmailSettings(profile)` to `canManageEmailTemplates(profile)`.
+
+**Migration applied:** `supabase/migrations/20260519130000_grant_manage_email_templates_to_owner_admin.sql` — Owner + Admin role grants only. Idempotent.
+
+**Role-grant decision (user 2026-05-19):** Owner + Admin. Booking Coordinator deliberately excluded — they have `resend_booking_emails` for ad-hoc dispatch but template-copy authorship stays with the two top operational roles.
+
+**Smoke-test summary** (full transcript at the path above):
+- Scenario 1 (Save happy path) — PASS live: override row + audit row written, reload pre-populates from server with sessionStorage cleared.
+- Scenario 2 (HTML stripping) — PASS live: `<b>bold text</b>` stored as `bold text`, UI shows cleaned value immediately via the cleanedValues round-trip.
+- Scenario 3 (Send happy path) — PASS live + inbox confirmed: real Resend send to `thefoolmarketing@outlook.com` (resend_message_id `c33e8574-270e-476a-b179-11a6c0af1cc7`), email body carries the override greeting + footer copy; operator confirmed inbox arrival.
+- Scenario 4 (invalid templateId) — PASS by code inspection + DB cross-check. Playwright DOM corruption couldn't defeat React's controlled-input restoration; the negative-path code is the early-return at `actions.ts` lines ~159-161 of `sendTemplateManually`, before any Resend or audit write. Zero subsequent audit rows with a non-existent template_id.
+- Scenario 5 (Therapist denial) — PASS live: Therapist reaches /admin/emails (they have `resend_booking_emails` from the seed) but the Templates tab renders read-only with the banner "You can view but not edit these templates. Contact the owner to make changes." — no edit form, no Save button.
+
+**Zone-2 incident noted:** During Scenario 4, my first attempt accidentally triggered a real Resend send to a fake address (`dev-not-a-real-template@example.test`, resend_message_id `96a78ee2-b730-4a11-b5ab-4dd3c690e052`) because React's controlled input restored the original `template_id` before submit. Flagged immediately, operator authorised the intentional Scenario 3 send afterward. Cost: ~$0 (Resend free tier).
+
+**Known gaps deliberately left for follow-up sessions:**
+- Preview iframe (`/admin/email-templates/preview/[id]/route.ts`) does not yet call `resolveTemplateOverrides`. Preview rendering uses hardcoded DUMMY_INPUT only. Separate `BUILD-email-templates-preview-route` follow-up.
+- ManualSendSheet's booking-context picker (`booking_id` select) is still a stub — needs a real booking lookup. Separate future feature.
+- Scenario 4 lacks a live UI verification path. Future option: Vitest unit test calling `sendTemplateManually` directly with forged FormData + mocked permission check.
+- Per-Save audit noise: each Save submission upserts ALL editable fields, including no-op rewrites. A field-level "before/after diff and skip if unchanged" optimisation would reduce audit row volume by ~2/3.
 
 ---
 
