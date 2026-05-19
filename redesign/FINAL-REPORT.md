@@ -1,0 +1,75 @@
+# Final Report — Admin Redesign
+
+**Phase 7 — Pre-Ship Gauntlet.** Living document. Each Phase 7 gate appends its outcome here.
+
+---
+
+## Production Readiness Re-check
+
+**Gate:** Phase 7 Gate 0 (pre-Gate-1 production-readiness check)
+**First run:** 2026-05-19 · **Re-verified:** 2026-05-19 (same day, second pass on user request)
+**Method:** Re-read `/redesign/BUSINESS-COMPLETENESS.md` + `/redesign/FOUNDATION-FLOOR.md`; per-item evidence verified via codebase grep, git log, file globs, **and (second pass) Supabase MCP** — `list_edge_functions`, `list_migrations`, `execute_sql` against `information_schema.tables`, `pg_extension`, and `email_delivery_events`. No claim made without a fresh check.
+**Verification skill:** `superpowers:verification-before-completion` — iron law: evidence before claims.
+
+### Result: **FAIL — gate still blocked at BLOCKS-REDESIGN check (no change since first run).**
+
+Second-pass re-verification: `git log --oneline -25` shows no new commits since `256d87c` (Phase 6 close, 2026-05-19). The five distinct `BLOCKS-REDESIGN` shortfalls below are unchanged. Supabase-side MCP probes confirm the three engineering gaps at the platform layer (zero edge functions, no `email_template_overrides` table, no `pg_cron`/`pg_net` extensions enabled) — i.e. it isn't only that the migration/build is missing from the repo, the database itself has not received it either. Layer 1 Runtime Verification was attempted on this second pass for the parts that don't require destructive or external-facing actions; see "Layer 1 Runtime Verification" below.
+
+### BLOCKS-REDESIGN per-item status
+
+#### HANDLED — 13 items (PASS)
+
+| # | Item | One-line evidence |
+|---|------|-------------------|
+| 2A-1 | Mobile-friendly booking creation | Phase 6 session 2 — `redesign/RECIPE-PROGRESS.md:142` "Session 2 — booking-new: COMPLETE (2026-05-14)"; four-step wizard committed; per-page audit 16/20 Good, P0=0 (PER-PAGE-SCORES booking-new audit) |
+| 2A-2 | Mobile-friendly rebook | Phase 6 sessions 5 (clients), 6 (client-detail) committed per RECIPE-PROGRESS.md; clients-brief one-tap Ghost + client-detail "New booking" Primary implemented (per the merged commits on `redesign/start-state`) |
+| 2A-3 | Mobile-optimised calendar | Phase 6 session 14 (calendar) merged into `redesign/start-state`; responsive time-rail per calendar-brief |
+| 2A-4 | Heading hierarchy (CardTitle h3 vs page h1) | Phase 6 session 1 (`00-shared-components`) commit `aa76451` ships `AdminPanel`/`AdminPanelHeader` H2 primitive; all 29 page sessions inherit (RECIPE-PROGRESS.md:141) |
+| 2A-5 | Unlabelled `/admin/clients` `location` filter | Phase 6 session 5 (clients) merged; brief §4 explicit P0 fix per BUSINESS-COMPLETENESS.md:54 |
+| 2A-7 | Recharts empty-data 0×0 warnings | Phase 6 sessions 11 (reports) + 8 (dashboard-owner-admin) merged; `minHeight: 288` applied per reports-brief §4 |
+| 2A-8 | Tab `aria-current="page"` | Phase 6 session 1 establishes universal pattern; inherited by every tab-bearing session |
+| 2A-18 | Staff password-reset workflow | Phase 6 sessions 15 (login), 16 (password-reset), 12 (account-password-requests) all merged into `redesign/start-state`; 5-tab review queue + 6-state staff flow committed |
+| 2B-1 | Owner mobile journey | Phase 6 session 8 (dashboard-owner-admin) merged; two-tier disclosure resolves density |
+| 2B-4 | Therapist mobile journey | Phase 6 session 10 (dashboard-therapist) merged at commit `61b3393` (RECIPE-PROGRESS.md: dashboard-therapist complete, 29/29) |
+| 2C-3 | Recharts width/height warnings (cross-listed with 2A-7) | Same evidence as 2A-7 |
+| 2C-6 | Switch primitive (only Switch was BLOCKS-REDESIGN) | Phase 6 session 1 commit ships the Switch primitive; consumed by settings + availability sessions |
+| 2A-17 | Two-empty-state primitive consolidation (`BLOCKS-REDESIGN`-equivalent per Track A) | Phase 6 session 1 consolidation per 00-shared-components-brief §4 |
+
+*Note:* BUSINESS-COMPLETENESS Top Priorities Track A lists 12 items. The mapping to the 13 HANDLED entries above adds 2A-17 (DEFER→HANDLED in Phase 6 per its own line). 2B-1 and 2B-4 are journey-level rollups whose evidence is the sum of the page sessions cited.
+
+#### NOT HANDLED — 4 items (FAIL)
+
+| # | Item | Doc status | Verification (fresh, this gate) | What's missing |
+|---|------|-----------|---------------------------------|----------------|
+| **2A-16** | **Automated booking reminders (scheduled, scalable)** | NOT-STARTED | First-pass: `grep -i "pg_cron\|scheduled-function\|edge-function"` across the repo returns hits **only in `redesign/BUSINESS-COMPLETENESS.md` and `redesign/backend-plans/BUILD-automated-booking-reminders.md`** — zero code matches. `Glob supabase/functions/**/*` returns **no files**. **Second-pass (MCP):** `mcp__supabase__list_edge_functions(twzutkfgqclqurvkmvqz)` returned `{"functions": []}`; `SELECT extname FROM pg_extension WHERE extname IN ('pg_cron','pg_net')` returned `[]` (extensions not enabled). Plan file `redesign/backend-plans/BUILD-automated-booking-reminders.md` exists since Phase 5.6 planning but no implementation has landed in repo OR database. | Supabase Edge Function + `pg_cron` daily schedule + idempotent `email_delivery_events` dedupe — the entire build per BUILD-automated-booking-reminders.md. Zone 2 (new infra). Status remains as `BUSINESS-COMPLETENESS.md:139` declared in Phase 5: NOT-STARTED. |
+| **2C-9** | **Edge cron / scheduled function infrastructure** (cross-listed with 2A-16) | NOT-STARTED | First-pass: `supabase/functions/` directory does not exist; no wrangler cron triggers in `wrangler.jsonc` either. **Second-pass (MCP):** confirmed at platform layer — see 2A-16. | Same as 2A-16. This is the infrastructure dependency that 2A-16 builds on; they ship together. |
+| **2C-10** | **`email_template_overrides` database table** | NOT-STARTED | First-pass: `Glob supabase/migrations/*email_template_overrides*` returns **no files**. `Grep email_template_overrides` in source returns hits only in docs/briefs/plan files plus `src/app/admin/email-templates/actions.ts`, which itself declares at lines 6–16: *"Each action is a FAKE shim until the matching BLOCKS-REDESIGN BUILD lands."* **Second-pass (MCP):** `mcp__supabase__list_migrations` returned 40 entries — none named `email_template_overrides`; `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='email_template_overrides'` returned `[]`. Table does not exist in the live database. Phase 6 session 21 (email-templates, commit `32c668b`) explicitly shipped FAKE backend stubs by design and tagged them for follow-up. | Migration creating `email_template_overrides` table (per BUILD-email-template-overrides-table.md) + real Supabase upsert in `saveTemplateOverride` + `audit_logs` write for `email_template_override_saved` + the `manage_email_templates` RBAC permission. Until landed, the "Save changes" Primary in the email-templates UI is non-functional in production. |
+| **2A-6** | **Form errors `role="alert" aria-live="polite"`** | PARTIAL (held by document) | Fresh evidence stronger than the document's claim: `grep -c 'role="alert"'` in `src/app/admin/` matches **78 occurrences across 42 files** (LoginForm, EnquiryForm, ClientCreateForm, ManualBookingForm, BookingManagementForm, SettingsForm, AvailabilityRulesManager, ServiceFormDialog, TemplateEditForm, ManualSendSheet, CreateRoleSheet, BlockedDatesManager, AvailabilityOverridesManager, StaffBlockedDatesManager, StaffAvailabilityOverridesManager, ApproveModal, RejectModal, ForgotForm, SetNewPassword, …). Implementation is far broader than the 5/24 the document tracks. **But the document itself defers a HANDLED flip to "Phase 7 (`/impeccable audit admin`) verification by inspecting the implementations"** (BUSINESS-COMPLETENESS.md:65). The per-page audit-of-implementation has not yet been performed; until it is, the status sticks at PARTIAL per the document's own rule. | Phase 7 admin-wide a11y audit to confirm every form-level error region (not just every file containing the substring) carries the full `role="alert" aria-live="polite" aria-atomic="true"` triplet. Then the document flip to HANDLED. |
+| **2A-9** | **Required-field visible `*` markers** | PARTIAL (held by document) | Same situation as 2A-6 but with thinner code-side evidence: `grep -c 'aria-hidden="true"[^>]*>\*'` returns **7 occurrences across 3 files** (`ManualBookingForm.tsx`, `StaffBlockedDatesManager.tsx`, `StaffAvailabilityOverridesManager.tsx`). Documented per-page contributors: login + roles + email-templates (3/24). Document defers Phase 7 verification of remaining 21 form-bearing pages (BUSINESS-COMPLETENESS.md:92). | Same as 2A-6 — Phase 7 implementation audit + document flip. |
+
+*Total distinct gaps: 5 items. 2A-16 + 2C-9 are the same engineering work, so it is fair to count them as 4 actionable build-or-verify gaps.*
+
+### Layer 1 Runtime Verification
+
+Second-pass attempt of the four items (2026-05-19). One PASS from real production data; one DEFER for an autonomous Sentry probe; two NEEDS-USER-AUTHORISATION for inherently destructive or external-facing actions.
+
+| # | Item | Verdict | Evidence (or what's missing) |
+|---|------|---------|------------------------------|
+| L1-a | **Monitoring firing** (trigger test error → confirm in error tracking) | **DEFER — needs user to run** | Sentry is wired (`sentry.client.config.ts` / `sentry.server.config.ts` / `sentry.edge.config.ts` per FOUNDATION-FLOOR.md §1 item 4); tunnel POSTs to `/monitoring/` returned 200 OK during Phase 0 Playwright probe. **Fresh evidence not produced this pass** — generating one requires a deliberate uncaught throw in the running app or a `Sentry.captureException(new Error(...))` call from a route handler, plus user confirmation that the event landed in the Sentry project's `lanternvale / rahmatherapy-next-refactor` issues view (Sentry-side access not held by Claude). Without that, the claim "monitoring fires end-to-end on the redesigned surface" is not verifiable. |
+| L1-b | **Error tracking firing** (Sentry / Rollbar received the test event) | **DEFER — same as L1-a** | Same trigger and same Sentry-side confirmation. Wiring is in place; the round-trip just hasn't been exercised this gate. |
+| L1-c | **Backup tested with successful restore within 24h** | **FAIL — NEEDS USER AUTHORISATION** | No record of any restore drill in commits, runbook, or scripts (re-confirmed today; `pnpm verify:london-time` exists, no `pnpm restore:smoke-test` equivalent). Performing this requires (a) confirming the Supabase tier + retention window in the Supabase dashboard, (b) provisioning a throwaway target (separate Supabase project or a Branching preview branch — billable per item 2A-13), (c) running the timed restore. Cannot be initiated autonomously. **This is the same gap FOUNDATION-FLOOR.md §1 item 3 flagged for Track B pre-launch.** |
+| L1-d | **Transactional email actually sending** (real password reset / test notification → confirm delivery) | **PASS** | Live evidence from Supabase MCP — `SELECT delivery_status, COUNT(*), MAX(created_at) FROM email_delivery_events WHERE created_at >= NOW() - INTERVAL '7 days'` returned **11 rows, all `accepted`, most-recent 2026-05-18 17:14:51 UTC** against project `twzutkfgqclqurvkmvqz`. Resend is dispatching and the audit trail is being written, both within the last 24 hours. **Caveat:** "accepted" reflects Resend's API ack, not inbox arrival; for true end-to-end delivery confirmation a user-initiated send to a real inbox is still the right Phase 7 step, but on the bar this gate sets (transactional email is wired and demonstrably operational), this item PASSes on data. |
+
+**Layer 1 net: 1 PASS · 2 DEFER (autonomous trigger possible — needs user run + Sentry-side confirm) · 1 FAIL (requires user authorisation for a destructive/billable action).**
+
+### What's needed to clear this gate
+
+The user's call. Three threads now need a decision, two unchanged from the first pass and one new from Layer 1:
+
+1. **Build the missing BLOCKS-REDESIGN infrastructure** before continuing the gauntlet. Implement BUILD-automated-booking-reminders.md (Supabase Edge Function + `pg_cron` + `pg_net`) and BUILD-email-template-overrides-table.md (+ the wiring in `BUILD-email-templates-actions.md`). MCP-confirmed today: zero edge functions, no overrides table, no cron extensions enabled. Zone 2, billable-tier-touching. Then run the Phase 7 `/impeccable audit admin` pass to flip 2A-6 and 2A-9 from PARTIAL → HANDLED.
+2. **Waive the BLOCKS-REDESIGN gaps to Track B (pre-launch)** with explicit user direction. The redesign frontend ships with FAKE shims and a non-functional reminder cron, and these gaps move to the pre-launch checklist that runs after Track A is otherwise done. Needs a written user decision (the document currently has these in Track A, not Track B).
+3. **Authorise the Layer 1 actions Claude cannot take autonomously.** (a) L1-a / L1-b — say "go" and Claude triggers a deliberate `Sentry.captureException` on a throwaway admin route (or have the user click a test-only "throw" link); user then reads back the Sentry issue ID from `lanternvale / rahmatherapy-next-refactor`. (b) L1-c — user decides on the throwaway-restore target (separate Supabase project, Branching preview, or local `supabase db dump | psql`) and authorises the spend; Claude can scaffold the procedure once a target is named.
+
+This gate stops here pending that decision.
+
+---
