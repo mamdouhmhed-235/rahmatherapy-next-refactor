@@ -3784,10 +3784,10 @@ Corrective round closed V-7 (TodayTimeline + UpcomingRangeList empty wrappers de
 
 ### Backend status
 
-`FAKE` — blocking BUILD plan filenames (verbatim from IMPLEMENTATION-PLAN.md L1150-1151):
+`PARTIAL` — `BUILD-automated-booking-reminders.md` shipped in engineering pause Session 3 (2026-05-19) via Cloudflare Cron Triggers, activates on next Cloudflare production deploy. Remaining blocking BUILD plan filename (verbatim from IMPLEMENTATION-PLAN.md L1150-1151):
 
 - `BUILD-email-delivery-filter-query.md`
-- `BUILD-automated-booking-reminders.md`
+- ~~`BUILD-automated-booking-reminders.md`~~ — resolved; smoke evidence at `/redesign/backend-smoke-tests/automated-booking-reminders-2026-05-19.txt`
 
 FAKE markers present at `page.tsx:134-139` (filter call site, comment-only), `DeliveryFilterStrip.tsx:120-128` (`data-redesign-backend="FAKE"` on wrapper), `page.tsx:550` (`data-redesign-backend="FAKE"` on Load-more sentinel), and `ReminderResendForm.tsx:55-58` (FAKE-FAILURE-PATH on the toast.error branch). The manual `sendManualBookingReminder` server action remains wired verbatim (untouchable, RECON §5/§6.4 honoured).
 

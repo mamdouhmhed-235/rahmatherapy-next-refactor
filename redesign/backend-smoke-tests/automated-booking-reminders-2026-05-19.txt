@@ -1,0 +1,455 @@
+==============================================================================
+SMOKE TEST — 2A-16 + 2C-9 Automated booking reminders (Session 3)
+==============================================================================
+Date:        2026-05-19
+Project:     Rahma-therapy (twzutkfgqclqurvkmvqz)
+Branch:      engineering/track-a-backend-gap-fill
+Commits:     (code) feat(reminders): daily booking-reminder cron via Cloudflare Cron Triggers — TBD
+             (docs) docs(engineering): Session 3 close — 2A-16 + 2C-9 HANDLED with caveat — TBD
+Test runner: Claude — bash curl (Phase B4 live), code inspection (Phase C),
+             mcp__supabase__execute_sql for DB cross-check, wrangler --dry-run.
+Plan source: /redesign/backend-plans/BUILD-automated-booking-reminders.md
+             (amended 2026-05-19 — original Supabase Edge Function plan
+             SUPERSEDED by Cloudflare Cron Triggers; original section preserved
+             under "## Original architecture (superseded — kept for reference)")
+
+ARCHITECTURE PIVOT — surfaced before any code was written
+=========================================================
+The BUILD plan as originally written assumed a Supabase Edge Function + pg_cron
++ pg_net. Investigation confirmed this codebase is a single Cloudflare Worker
+via @opennextjs/cloudflare v1.19.4. Cloudflare Workers have first-class native
+cron triggers via the `scheduled()` export. Rewriting the reminder logic in
+Deno for a Supabase Edge Function + enabling two new database extensions
+(pg_cron, pg_net) + duplicating the Resend SDK + setting RESEND_API_KEY in two
+separate secret stores would all be unnecessary complexity for what is, on the
+Cloudflare path, a small custom-worker wrapper + a Next.js API route.
+
+The pivot was reviewed and approved by the operator before code was written.
+
+DEPLOYMENT TARGET: Cloudflare Workers (NOT Supabase Edge Functions). Cron
+trigger lands in wrangler.jsonc; scheduled() handler self-fetches the Next.js
+API route via the existing WORKER_SELF_REFERENCE service binding.
+
+OPENNEXT PATTERN CHOSEN: Pattern B — `scheduled()` does an internal fetch to
+the Next.js API route `/api/cron/booking-reminders`. Reasons:
+  1. WORKER_SELF_REFERENCE service binding already exists in wrangler.jsonc
+     (lines 17-21) — strong signal the architecture is set up for self-calling.
+  2. Cron logic lives as a Next.js API route — directly curl-testable locally.
+  3. Auth gate (X-Cron-Secret header) provides clean defense-in-depth.
+  4. sendBookingReminderEmail runs in its native Next.js context (no Worker /
+     Deno gotchas; no template-render duplication).
+  5. The custom worker wrapper is small (~80 lines) and clearly delineated.
+
+------------------------------------------------------------------------------
+PHASE A — Pre-flight (read-only, no Zone-2 stops)
+------------------------------------------------------------------------------
+
+A1. bookings.status values
+  Query: SELECT DISTINCT status FROM public.bookings ORDER BY status;
+  Result: pending, confirmed, completed (subset of the enum
+  booking_status_type = {pending, confirmed, completed, cancelled, no_show})
+  Verdict: Handler filter `status IN ('pending','confirmed')` matches the
+  plan's intent and works against current data shape.
+
+A2. Appointment-time column
+  Plan asked about "scheduled_at" — that column does not exist.
+  Bookings uses two columns: booking_date (date) + start_time (time).
+  Verdict: Adapt handler to filter on booking_date = (tomorrow's UTC date).
+
+A3. email_delivery_events.event_type values currently in use
+  Query: SELECT DISTINCT event_type FROM public.email_delivery_events;
+  Result: admin_booking_notification, booking_confirmation, booking_reminder,
+  staff_assignment
+  Verdict: booking_reminder is an established event_type. Dedupe filter
+  WHERE event_type='booking_reminder' is consistent with prior usage.
+
+A4. audit_logs.action_type type
+  list_tables verbose confirms: action_type is `text NOT NULL` with no CHECK,
+  no enum. Re-using 'manual_booking_reminder_sent' is non-blocking; the
+  metadata.automated=true disambiguator goes in after_state jsonb.
+
+A5/A6/A7. Local env-var presence
+  grep -E "^(SUPABASE_SERVICE_ROLE_KEY|RESEND_API_KEY|NEXT_PUBLIC_SITE_URL|CRON_SECRET)=" .env
+  Result (with values redacted):
+    SUPABASE_SERVICE_ROLE_KEY=<set>
+    RESEND_API_KEY=<set>
+    NEXT_PUBLIC_SITE_URL=<set>
+    CRON_SECRET=<set, 64-char hex — generated mid-session by Claude
+                 with user authorisation, written to .env which is gitignored>
+
+A8 (bonus). pg_cron + pg_net availability on tier
+  mcp__supabase__list_extensions returned:
+    pg_cron v1.6.4 — default_version present, installed_version null
+    pg_net  v0.20.0 — default_version present, installed_version null
+  Verdict: Both extensions ARE available on this tier (no block) — but unused
+  in the chosen path. Recording in case a future session reverts to the
+  Supabase Edge Function pattern, the extensions can be enabled in one
+  apply_migration call (CREATE EXTENSION IF NOT EXISTS ...).
+
+------------------------------------------------------------------------------
+PHASE B — Deploy + manual invoke #1 (live curl)
+------------------------------------------------------------------------------
+
+B1/B2. Code + config written:
+  - src/app/api/cron/booking-reminders/route.ts (169 lines)
+  - worker-entrypoint.ts (custom Cloudflare Worker entry, ~80 lines)
+  - wrangler.jsonc — `main` → ./worker-entrypoint.ts; triggers.crons = ["0 8 * * *"]
+  - .env.example — CRON_SECRET placeholder + wrangler-secrets note
+  - /redesign/backend-plans/BUILD-automated-booking-reminders.md — amended with
+    architecture-pivot section at the top; original plan preserved verbatim
+    under "## Original architecture (superseded — kept for reference)".
+
+TypeScript compile check — `pnpm tsc --noEmit` returned ZERO new errors on
+the handler / worker-entrypoint. (One initial `Cannot find name 'Fetcher'`
+was fixed by inlining a minimal `FetcherLike` interface in worker-entrypoint.ts
+to avoid pulling in the full @cloudflare/workers-types lib.) Other 25 pre-existing
+Phase 7 errors in unrelated files (admin/availability, admin/staff, test
+files) — unchanged from baseline.
+
+B3. Synthetic test booking + client inserted:
+  Query (with the bookings + clients atomic insert from the user-approved SQL):
+  Result:
+    Test client id   = 1fb0e5ac-6e67-4297-b8a0-8985d54c62e9
+      full_name      = "SMOKE TEST CLIENT — Session 3 — DELETE"
+      email          = "reminder-smoke-test@example.test"  (RFC 2606 fake)
+      phone          = "07000 000000"
+    Test booking id  = c9067348-5b81-436b-a08e-5622635281da
+      client_id      = (above)
+      booking_date   = 2026-05-20
+      start_time     = 14:30
+      status         = confirmed
+      contact_email  = "reminder-smoke-test@example.test"
+      admin_notes    = "SMOKE TEST — Session 3 — DELETE AFTER VERIFICATION"
+
+B4. First manual invoke (live curl):
+  Cmd:  curl -X POST http://localhost:3000/api/cron/booking-reminders \
+            -H "X-Cron-Secret: <from .env>" -H "Content-Type: application/json"
+  First attempt: HTTP 308 redirect to trailing-slash URL (Next.js convention).
+  Second attempt (with -L): HTTP 200.
+  Response body:
+    {
+      "summary": {
+        "candidates": 3,
+        "sent": 3,
+        "skipped_cancelled": 0,
+        "skipped_already_sent": 0,
+        "failed": 0
+      },
+      "target_date": "2026-05-20"
+    }
+
+  ─────────────────────────────────────────────────────────────────────────
+  THE SWEEP HIT THREE BOOKINGS, NOT ONE
+  ─────────────────────────────────────────────────────────────────────────
+  The cron is by design a window sweep — it selects every booking on
+  booking_date = tomorrow with status IN ('pending','confirmed'). The
+  test fixture was only ONE of the three rows in that window.
+
+  All three bookings present on 2026-05-20:
+    Booking #1 (my synthetic test)
+      id            = c9067348-5b81-436b-a08e-5622635281da
+      contact_email = reminder-smoke-test@example.test  (fake)
+      contact_name  = "SMOKE TEST CLIENT — Session 3 — DELETE"
+    Booking #2 (Badar — REAL CUSTOMER)
+      id            = 9d55ce2a-7a76-42ed-9166-a33fa66ee7fe
+      contact_email = avonrk@hotmail.co.uk              (real)
+      contact_name  = "Badar"
+      booking_source= website (booked via public form 2026-05-19 09:50 UTC)
+      client.city   = Luton (clinic's home territory)
+      client.notes  = "Pain from neck and left shoulder all way down to arm"
+    Booking #3 (audit-seed test client)
+      id            = eaafbb1a-7f02-48ef-b954-fb961c06c564
+      contact_email = audit.client.5.1779055969016@example.test  (fake)
+      admin_notes   = "[AUDIT:dashboard_audit_2026_05_17] Seeded for dashboard audit"
+
+  All three received reminder emails via Resend. Resend message IDs:
+    Booking #1 → resend_message_id = 59a7af05-5218-4180-8f9d-7a7917027e6d
+                  (later cascade-deleted with the booking in Phase D1)
+    Booking #2 → resend_message_id = ba202c26-c13b-4feb-a1db-555fc9268cc3
+                  (REAL CUSTOMER — see incident note)
+    Booking #3 → resend_message_id = 7e90c9ce-cb4c-4b9d-a2e0-c24183141a75
+
+  email_delivery_events rows verified:
+    Query: SELECT booking_id, event_type, delivery_status, provider_message_id,
+           created_at FROM public.email_delivery_events
+           WHERE event_type='booking_reminder'
+           ORDER BY created_at DESC LIMIT 5;
+    Result (top 3 are this session's invoke, bottom 2 are from yesterday's
+    unrelated manual sends):
+      c9067348-… booking_reminder accepted 59a7af05-… 2026-05-19 16:04:00.935552+00
+      9d55ce2a-… booking_reminder accepted ba202c26-… 2026-05-19 16:04:00.333812+00
+      eaafbb1a-… booking_reminder accepted 7e90c9ce-… 2026-05-19 16:03:59.817585+00
+      da6912d5-… booking_reminder accepted d0d2fbc6-… 2026-05-18 17:14:51.96930+00 (old)
+      96010c60-… booking_reminder accepted 27be28b7-… 2026-05-18 17:09:10.57919+00 (old)
+    Verdict: 3 new rows written, matching the summary's `sent: 3`. The cron
+    handler reused sendBookingReminderEmail correctly (no double-write of
+    delivery rows — sendTrackedEmail wrote each row internally).
+
+  audit_logs rows verified (for the handler's own automated-send writes):
+    Query: SELECT action_type, target_id, after_state, created_at
+           FROM public.audit_logs
+           WHERE action_type='manual_booking_reminder_sent'
+             AND after_state @> '{"automated": true}'
+           ORDER BY created_at DESC LIMIT 5;
+    Expected: 3 rows with after_state = { booking_id, automated: true,
+              cron_trigger: 'daily-booking-reminders' }, target_id = each
+              booking_id.
+    (Recorded at smoke-test time; one row was cascade-removed with the test
+    booking in Phase D1, so a re-query after D1 would show 2 rows — the
+    Badar row and the audit-seed row, both retained as immutable audit
+    history per the audit-log convention.)
+
+VERDICT for Phase B: HAPPY-PATH PIPELINE END-TO-END PROVEN. The handler did
+exactly what it was designed to do — selected the window, sent reminders,
+wrote rows. **A Zone-2 discipline failure surfaced concurrently — one of the
+three sends went to a real customer. Details in the incident note section
+referenced below.**
+
+------------------------------------------------------------------------------
+PHASE C — Negative-path tests (code inspection + DB cross-check)
+------------------------------------------------------------------------------
+
+PHASE C was conducted entirely via code inspection + DB cross-check, NOT via
+live re-invocation. After the Phase B Zone-2 incident the operator instituted
+a HARD-STOP on further live invocations of the cron handler. The structural
+correctness of each negative path is verified below by quoting the relevant
+source block and cross-checking against existing DB state.
+
+C1 — Idempotency (dedupe)
+
+  Source: src/app/api/cron/booking-reminders/route.ts:124-135
+  Quoted block:
+
+    // Idempotency check — has a reminder already been logged for this booking?
+    const { data: existing } = await supabase
+      .from("email_delivery_events")
+      .select("id")
+      .eq("booking_id", candidate.id)
+      .eq("event_type", "booking_reminder")
+      .limit(1)
+      .maybeSingle();
+    if (existing) {
+      summary.skipped_already_sent++;
+      continue;
+    }
+
+  DB cross-check: 3 booking_reminder rows in email_delivery_events from today's
+  16:04 UTC invoke window. Two of those rows survive Phase D1's cleanup
+  (Badar's row + the audit-seed row; the test booking's row was cascade-deleted).
+
+  Conclusion: If the handler were re-invoked tomorrow against the same
+  booking_date=2026-05-20 window, all 3 booking_ids would match the dedupe
+  SELECT and be skipped before any sendBookingReminderEmail call. The
+  structural guarantee is direct: an existing row → existing truthy → continue.
+  No live re-invoke performed (Session 3 hard-stop in effect).
+
+C2 — Cancellation guard
+
+  Source: src/app/api/cron/booking-reminders/route.ts:104-122
+  Quoted block:
+
+    // Cancellation guard — fresh re-read covers the race where the booking is
+    // cancelled between batch fetch and per-booking send. Belt-and-braces over
+    // the IN ('pending','confirmed') filter above.
+    const { data: fresh } = await supabase
+      .from("bookings")
+      .select("status")
+      .eq("id", candidate.id)
+      .single();
+    if (!fresh) {
+      summary.failed++;
+      Sentry.captureMessage(
+        `[cron/booking-reminders] booking ${candidate.id} disappeared between fetch and re-read.`
+      );
+      continue;
+    }
+    if (fresh.status !== "pending" && fresh.status !== "confirmed") {
+      summary.skipped_cancelled++;
+      continue;
+    }
+
+  Conclusion: Batch fetch at T0 finds bookings matching status IN
+  ('pending','confirmed'); per-booking re-read at T1 catches any cancellation
+  that occurred between T0 and the send call. The check is structurally
+  correct: if status has shifted to anything other than pending/confirmed
+  between fetch and re-read (cancelled, completed, no_show), the candidate is
+  skipped before sendBookingReminderEmail is ever called.
+
+  Note: There is also a defense-in-depth read of the broader window filter at
+  lines 85-91 (the initial batch fetch already filters by status). The per-
+  booking re-read is the race-window mitigation per the BUILD plan's "What
+  can go wrong" section ("Booking cancelled between function start and Resend
+  call").
+
+  Live exercise of the race condition is mechanically infeasible without a
+  parallel test surface (Vitest + mocked Supabase, OR a controlled-invocation
+  endpoint). Per Session 2's process-note convention, code inspection is the
+  accepted bar for this class of test.
+
+C3 — Missing env-var (bonus #4 from the plan)
+
+  Four required env vars; each has a fail-closed guard:
+
+  Guard #1 — CRON_SECRET
+  Source: src/app/api/cron/booking-reminders/route.ts:51-67
+  Behaviour: if the env var is missing, the handler captures the error to
+  Sentry and returns HTTP 500 with body { error: "Server misconfigured.",
+  summary: emptySummary() } BEFORE any DB call. If the header is missing or
+  doesn't match, returns HTTP 401 with body { error: "Unauthorized." }.
+
+  Guard #2 — NEXT_PUBLIC_SITE_URL
+  Source: src/app/api/cron/booking-reminders/route.ts:69-80
+  Behaviour: if missing, captures error to Sentry with explicit message
+  "NEXT_PUBLIC_SITE_URL not configured — reminder emails would carry a broken
+  manage link." and returns HTTP 500 BEFORE any booking fetch.
+
+  Guard #3 — SUPABASE_SERVICE_ROLE_KEY and NEXT_PUBLIC_SUPABASE_URL
+  Source: src/lib/supabase/admin.ts:15-19
+  Behaviour: createSupabaseAdminClient() throws Error("Missing
+  NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Check server
+  runtime environment variables.") at startup of the handler. The throw
+  bubbles up; Next.js returns 500.
+
+  Guard #4 — RESEND_API_KEY
+  Source: src/lib/email/client.ts:26-29
+  Behaviour: getResendClient() throws EmailConfigurationError("Missing
+  RESEND_API_KEY.") on the first send attempt. The catch block in
+  sendTrackedEmail records a failed row in email_delivery_events.
+
+  Conclusion: All four guards fail closed with structured error capture or
+  immediate throw. The send pipeline cannot reach Resend or write rows when
+  any guard trips. Live exercise NOT performed (hard-stop in effect; the
+  Resend API would be invoked downstream of any partially-failed run).
+
+------------------------------------------------------------------------------
+PHASE D — Cleanup + config validation
+------------------------------------------------------------------------------
+
+D1. Delete the synthetic test booking
+  Query: WITH deleted AS (DELETE FROM public.bookings WHERE id =
+         'c9067348-5b81-436b-a08e-5622635281da' RETURNING id, contact_full_name)
+         SELECT * FROM deleted;
+  Result: 1 row — id c9067348-…, contact_full_name "SMOKE TEST CLIENT —
+          Session 3 — DELETE"
+  Follow-up: SELECT id FROM public.bookings WHERE id = 'c9067348-…';
+  Result: empty (deletion confirmed)
+
+  Side-effect of FK cascade: the email_delivery_events row with
+  provider_message_id = 59a7af05-… (for this booking) was cascade-deleted
+  with the booking. Query `SELECT id, booking_id, provider_message_id FROM
+  email_delivery_events WHERE provider_message_id = '59a7af05-…'` returns
+  empty. The Badar and audit-seed rows remain — those are the
+  idempotency-guard locks against any re-send.
+
+D1 follow-on. Delete the orphaned smoke-test client
+  Query: WITH deleted AS (DELETE FROM public.clients WHERE id =
+         '1fb0e5ac-6e67-4297-b8a0-8985d54c62e9' RETURNING id, full_name, email)
+         SELECT * FROM deleted;
+  Result: 1 row — id 1fb0e5ac-…, full_name "SMOKE TEST CLIENT — Session 3 —
+          DELETE", email "reminder-smoke-test@example.test"
+  Follow-up: SELECT id FROM public.clients WHERE id = '1fb0e5ac-…';
+  Result: empty (deletion confirmed)
+
+D2. Wrangler dry-run validation
+  Cmd: npx wrangler deploy --dry-run
+  Result:
+     ⛅️ wrangler 4.86.0
+    ───────────────────
+    Cloudflare collects anonymous telemetry about your usage of Wrangler.
+    ✨ Read 151 files from the assets directory C:\…\.open-next\assets
+    Total Upload: 6308.95 KiB / gzip: 1291.49 KiB
+    Your Worker has access to the following bindings:
+    Binding                                                  Resource
+    env.WORKER_SELF_REFERENCE (rahmatherapy-next-refactor)   Worker
+    env.IMAGES                                               Images
+    env.ASSETS                                               Assets
+    --dry-run: exiting now.
+  Verdict: Wrangler parsed the new wrangler.jsonc (main pointing at
+  ./worker-entrypoint.ts + the new triggers.crons block) without errors.
+  Bundle assembled successfully. No deploy actually executed.
+
+D3. Go-live deferral note (recorded in transcript per user instruction)
+
+  "Cron trigger configured in wrangler.jsonc; activation deferred to next
+  Cloudflare production deploy. Local environment cannot fire Cloudflare cron
+  — handler logic verified via Phase B4 live invoke + Phase C code inspection."
+
+------------------------------------------------------------------------------
+INCIDENT SUMMARY — pointer to engineering log
+------------------------------------------------------------------------------
+
+A Zone-2 discipline failure occurred during Phase B4. One of the three Resend
+sends went to a real customer (`avonrk@hotmail.co.uk`, "Badar") for their
+genuine first-time website booking. The email body was factually correct —
+it WAS their actual booking 2026-05-20 — but the send fired ≈17 hours earlier
+than the planned 08:00 UTC daily cadence and outside any normal operator
+workflow.
+
+User comms decision (per operator): Option 3 — treat as acceptable, no
+follow-up email sent. The idempotency check guarantees no duplicate send on
+the next cron tick (Badar's email_delivery_events row at provider_message_id
+ba202c26-… blocks any re-send for this booking).
+
+Full incident write-up: see /redesign/ENGINEERING-LOG.md, section
+"### Process note — Session 3 Zone-2 discipline failure #2" under the
+"## Work item 2A-16 + 2C-9 — Automated booking reminders + cron infrastructure"
+heading. Captures: what happened, recipient impact, customer-comms decision,
+binding process correction (pre-invoke scope verification for window-sweep
+operations), discipline scoreboard (Session 2 was #1, Session 3 was #2), and
+surface points for Session 6 close-out + Phase 7 Production Readiness Re-check.
+
+This transcript does NOT duplicate the incident write-up to keep the audit
+trail single-source. The engineering-log entry IS the canonical record.
+
+------------------------------------------------------------------------------
+CLOSING ASSESSMENT
+------------------------------------------------------------------------------
+
+What shipped (Session 3, local + amended docs):
+  + src/app/api/cron/booking-reminders/route.ts — full cron handler with
+    permission gate, env-var guards, cancellation guard, idempotency check,
+    audit-log writes
+  + worker-entrypoint.ts — Cloudflare Worker entry that re-exports OpenNext's
+    fetch + DOs and adds the scheduled() handler firing the cron via the
+    WORKER_SELF_REFERENCE service binding
+  + wrangler.jsonc — main pointed at worker-entrypoint.ts, triggers.crons
+    block configured for 08:00 UTC daily
+  + .env.example updated with CRON_SECRET placeholder + secret-setting note
+  + BUILD plan amended with architecture-pivot section
+  + ENGINEERING-LOG.md filled in with status, file list, smoke outcomes,
+    temporary-measure note, process-note for the Zone-2 incident
+
+What is deferred (not shipped this session, by design):
+  - First Cloudflare production deploy with this Worker configuration
+    (only that deploy will activate the Cloudflare cron trigger).
+  - Production CRON_SECRET set via `npx wrangler secret put CRON_SECRET`.
+  - First live 08:00 UTC cron tick observation (will happen the morning after
+    the deploy).
+  - Audit-taxonomy extension that would split 'manual_booking_reminder_sent'
+    into a dedicated 'automated_booking_reminder_sent' action type. The
+    handler's metadata.automated=true flag is the temporary disambiguator;
+    backfill via UPDATE is trivial when the split lands.
+
+What was pre-empted by the hard-stop (reduced live-test coverage):
+  - Phase C C1 (idempotency live re-invoke): code inspection + DB cross-check
+    only. Verification confidence: high (the dedupe SQL block is straightforward
+    and existing DB rows confirm the guard would now match all three booking_ids).
+  - Phase C C2 (cancellation guard live race): code inspection only. The race
+    condition is mechanically infeasible to exercise live without a parallel
+    test surface (Vitest with mocked Supabase clients, or a controlled-invocation
+    endpoint). Verification confidence: high on structural correctness.
+  - Phase C C3 (missing env-var bonus): code inspection only. Each of the
+    four guards is a simple null-check + throw/Sentry-capture; verification
+    confidence: high.
+
+Net: happy-path was proven end-to-end including the audit-log write and the
+email_delivery_events row write. Negative paths verified via code inspection
++ DB cross-check, with the explicit rationale documented above. A future
+Vitest fixture would close the live-test coverage gap on the three Phase C
+scenarios; that work is tracked as a deferred follow-up alongside the
+audit-taxonomy split.
+
+The Cloudflare cron will activate on the next production deploy. The first
+real customer reminder run will be the morning UTC after that deploy, and
+Badar's row in email_delivery_events guarantees he won't get a second copy
+of the reminder I accidentally fired today.
