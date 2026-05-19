@@ -3910,3 +3910,70 @@ FAKE markers present at `page.tsx:134-139` (filter call site, comment-only), `De
 - ✓ No decorative blobs / glassmorphism — only oklch tokens documented in DESIGN.md
 - ✓ Status communication is named — Cancelled-family error backgrounds, Restricted-family internal-only banner, no colour-only signalling
 - ✓ Voice anchors honoured — "Saved just now", "All clean.", "Pick one from the list to see what gets sent." — plain, calm, scannable
+---
+
+## dashboard-therapist — audit
+
+**Dimension scores (/4 each, /20 total)**
+- Brief fidelity: 3/4
+- Design system adherence: 3/4
+- Accessibility: 3/4
+- Code quality: 3/4
+- Visual polish (screenshots): 3/4
+
+**Total: 15/20**
+
+**Findings**
+
+P0
+- none
+
+P1
+- Gender-match chip ("Same-gender required") specified by brief §5 point 2 and §8 is absent from NextVisitHero — no required_gender check, no Restricted-family pill (TherapistDashboard.tsx:206-314). DEFERRED — Open Question 2 (field not on TherapistDashboardProps).
+- Customer notes block specified by brief §5 point 2 is missing from the hero (TherapistDashboard.tsx:228-313). DEFERRED — Open Question 2.
+- HeroEmptyState padding `p-2` regression — FIXED in 2nd polish pass to `p-6 sm:p-8`.
+- Section H2 sizes downgraded — FIXED in 2nd polish pass to `text-[1.333rem]`.
+
+P2
+- HeroEmptyState uses lucide CalendarDays icon fallback; calendar illustration asset deferred to IMAGES-NEEDED.md.
+- TodayVisitRow status pill omits leading Lucide icon — DESIGN.md §2 mandates icon+label combo.
+- Weekly summary tile is non-interactive (brief §7 calls for `/admin/staff/<id>` self-link, RBAC-gated).
+- Date-range chips lack `aria-current="page"` on active range.
+- Greeting H1 uses inline clamp() rather than the admin-display token cascade.
+
+P3
+- Hero serif time uses inline fontFamily style — duplicative with font-serif class.
+- Monday-after-Friday "First visit back" eyebrow case unimplemented.
+- Claimable strip cap is .slice(0, 9); brief §5 caps mobile at 5.
+
+**Backend status:** N-A (read-only surface; props contract from dashboard-data.ts unchanged; no new server actions or migrations).
+
+**P1 (tag for Phase 7 gauntlet):**
+- Gender-match chip + customer notes block — TherapistDashboard.tsx:206-314 — DEFERRED (Open Questions 1+2 require dashboard-data.ts extension).
+- HeroEmptyState padding — FIXED.
+- Section H2 sizes — FIXED.
+
+**BUSINESS-COMPLETENESS impact:**
+- 2A-3 (mobile-optimised day/calendar view, Therapist persona): partial contribution — Next Visit hero + claimable strip mobile-first.
+- 2B-4 (Therapist mobile journey, Casey #4): Casey #4 fix HANDLED in code.
+- 2A-8 (tab aria-current="page"): NOT contributed — chips lack aria-current; logged P2.
+
+## dashboard-therapist — critique
+
+**Heuristic scores (out of 4)**
+- Visibility of system status: 3
+- Match between system and real world: 4
+- User control and freedom: 3
+- Consistency and standards: 3
+- Error prevention: 3
+- Recognition rather than recall: 4
+- Flexibility and efficiency: 3
+- Aesthetic and minimalist design: 3
+- Help users recognize/diagnose/recover from errors: 2
+- Help and documentation: 2
+
+**Total: 30/40**
+
+**AI-slop verdict: PASS.** No gradient text, no border-l-4, no decorative blobs, no identical-card KPI grid; the Attention-tinted panel uses a full 1px border in family colour exactly as DESIGN.md mandates.
+
+**UX-quality commentary.** The hero/list/strip/summary rhythm respects PRODUCT.md's anti-"everything-on-one-screen SaaS dashboard" and "no identical-card grid" rules — varied panel shapes by content type. The Attention panel correctly tints rather than side-stripes, and Cormorant is reserved for hero time, honouring the Cormorant Exception. Caveat: the captured empty-day state exposes a thinness problem the brief itself warned about — three stacked empty panels read austere rather than calm; subsequent polish addressed the H2 size compression that weakened "tallest hero" hierarchy.

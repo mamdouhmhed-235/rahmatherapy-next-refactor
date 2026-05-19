@@ -68,6 +68,33 @@ a[class*="border-rahma-green/30"] {
   letter-spacing: 0;
 }
 
+/* Therapist dashboard initial-paint fade-in. Honour reduced-motion.
+ * `min-width: 0` is required because AdminPageScaffold uses display:grid
+ * and grid items default to min-width:auto, which would let any non-wrapping
+ * content (long client + service titles, long Cormorant time string) push
+ * the panel wider than the viewport at 375. */
+.therapist-dashboard-fade > * {
+  animation: therapist-fade-in 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  min-width: 0;
+}
+.therapist-dashboard-fade > *:nth-child(1) { animation-delay: 0ms; }
+.therapist-dashboard-fade > *:nth-child(2) { animation-delay: 40ms; }
+.therapist-dashboard-fade > *:nth-child(3) { animation-delay: 80ms; }
+.therapist-dashboard-fade > *:nth-child(4) { animation-delay: 120ms; }
+.therapist-dashboard-fade > *:nth-child(5) { animation-delay: 160ms; }
+.therapist-dashboard-fade > *:nth-child(n + 6) { animation-delay: 200ms; }
+
+@keyframes therapist-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .therapist-dashboard-fade > * {
+    animation: none;
+  }
+}
+
 .admin-action-primary {
   display: inline-flex;
   min-height: 2.5rem;

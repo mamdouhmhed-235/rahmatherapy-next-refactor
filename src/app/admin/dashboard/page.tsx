@@ -528,6 +528,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           (booking) => booking.booking_date === today
         )}
         nextAppointment={nextAppointmentForTherapist}
+        activeRange={filters.range}
       />
     );
   }
@@ -919,3 +920,4 @@ function InsufficientPermissions() {
     />
   );
 }
+
