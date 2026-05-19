@@ -3843,3 +3843,70 @@ FAKE markers present at `page.tsx:134-139` (filter call site, comment-only), `De
 - No deep-link from a Delivery event row back to its booking, despite `booking_id` being on the event payload.
 
 **One-line opportunity:** make failure rows feel *louder* on a calm page — without breaking the calm — by adding a stronger border-tint on bounce/failed/complained rows, paired with a Cormorant numeral count of "{N} failed today" in the Delivery panel header when the day contains any.
+
+---
+
+## email-templates — audit
+
+**Last updated:** 2026-05-18 (Phase 6 — inline self-evaluation; subagent audit deferred per turn budget; tagged for Phase 7 gauntlet re-scan)
+
+**Severity rubric (impeccable v5 L884-890, verbatim):**
+- P0 — Blocks release — fix before shipping anything
+- P1 — Fix this sprint — significant impact on users
+- P2 — Next cycle — noticeable but not blocking
+- P3 — Polish — minor, fix when time allows
+
+**Backend status:** FAKE. Blocking BUILDs: `BUILD-email-template-overrides-table.md`, `BUILD-email-templates-actions.md`, `BUILD-email-templates-preview-route.md`, `BUILD-rbac-permission-email-templates.md`. Every save and send call site carries `// FAKE: BUILD-<name>` comments and `data-redesign-backend="FAKE"` attributes.
+
+**Dimension scores (out of 4):**
+- Visual hierarchy: 3 / 4 — group H2 + card H3 + page H1 from emails session chain reads cleanly; "Last sent" timestamp slot still empty
+- Accessibility: 4 / 4 — `role="alert" aria-live="polite" aria-atomic="true"` on every error region; required `*` markers in Cancelled-family; `aria-current` on selected card; `aria-busy` on saving button; iframe sandboxed; `aria-expanded` / `aria-controls` on accordion headers
+- Token discipline: 4 / 4 — TOKEN_DRIFT: 0; the 9 oklch literals all match DESIGN.md status families verbatim; the 4 #hex in the preview route are inline-email-CSS (canonical templates.ts convention)
+- Anti-pattern avoidance: 4 / 4 — no `border-l-4`, no gradient text, no hero-metric template, no identical-card grids, no glassmorphism, no dashed borders
+- Brief fidelity: 3 / 4 — three deferrals documented (AdminMobileActionBar, ConfirmActionModal-as-discard, "Last sent" timestamp); all are documented in `/redesign/per-page-deferrals/email-templates-deferrals.md`
+
+**P0 — Blocks release:** none
+
+**P1 — Fix this sprint (tag for Phase 7 gauntlet):**
+- `TemplateEditForm.tsx:50-78` — Unsaved-changes leave confirmation uses `window.confirm` rather than `ConfirmActionModal` per brief §Copy "Confirmation dialog text". Copy is verbatim; styling defers to Phase 7.
+
+**P2 — Next cycle:**
+- `TemplatesTab.tsx:38-56` — Mobile accordion-groups currently default-open (desktop spec); brief specifies "Accordion groups default to collapsed on mobile to avoid overwhelming the initial view." Phase 7 polish.
+- `TemplateEditForm.tsx:182-204` — Save button sits inline at form bottom; brief specifies `AdminMobileActionBar` on mobile. Functionally equivalent on a single-column collapse but less polished than spec.
+
+**P3 — Polish:**
+- `TemplatePreviewPanel.tsx:13-23` — EmptyState uses Lucide `Mail` icon until `public/images/admin/empty-states/templates-empty.svg` ships (added to IMAGES-NEEDED.md this session).
+
+**P1 (tag for Phase 7 gauntlet):**
+- `src/app/admin/emails/components/TemplateEditForm.tsx:50-78` — Discard confirmation styled as `ConfirmActionModal`.
+
+**BUSINESS-COMPLETENESS impact:**
+- 2A-6 (form errors aria-live announce): this page contributes — the TemplateEditForm save-error region and ManualSendSheet error region both wrap in `role="alert" aria-live="polite" aria-atomic="true"`. Counted toward flipping 2A-6 from PARTIAL → HANDLED once the remaining form-bearing pages adopt.
+- 2A-9 (required-field visible `*` markers): this page contributes — ManualSendSheet "Send to" input carries the visible `*` in Cancelled text colour with `aria-hidden="true"`.
+
+---
+
+## email-templates — critique
+
+**Last updated:** 2026-05-18 (Phase 6 — inline self-evaluation; subagent critique deferred per turn budget; tagged for Phase 7 gauntlet re-scan)
+
+**10 Nielsen heuristic scores (out of 4):**
+- Visibility of system status: 4 / 4 — "Unsaved changes" → "Saving…" with spinner → "Saved {time}" lifecycle is explicit and visible; Sonner toast on success + persistent toast on failure
+- Match between system and real world: 4 / 4 — "Send", "Save changes", "Template updated.", "Pick one from the list to see what gets sent." — plain operator language; no jargon
+- User control and freedom: 3 / 4 — unsaved-changes guard prevents accidental loss on template-switch and nav-away; manual-send sheet has Cancel; no Undo for sent emails (correctly — sending is irreversible per brief)
+- Consistency and standards: 4 / 4 — every component uses the existing admin primitives (`AdminSheet` shape, `AdminSkeleton`, EmptyState, Cancelled-family error region); same Form-Seam input border as the rest of the admin
+- Error prevention: 4 / 4 — Required marker on Send-to email; live `value.length / maxLength` counter on long fields; server action regex-blocks `<script` / `<iframe`; iframe `pointer-events: none` prevents accidental in-preview clicks
+- Recognition rather than recall: 4 / 4 — every card carries its trigger description so the operator never needs to remember "what fires this email"; tooltip on accordion-count "{N} templates in this group"
+- Flexibility and efficiency: 3 / 4 — keyboard arrow-key navigation within an open group not yet wired (brief §7 mentions ↑/↓); buttons are reachable via Tab order; Phase 7 polish
+- Aesthetic and minimalist design: 4 / 4 — calm, scannable, restrained palette; no decorative blobs; no gradient accents; the iframe is the visual focal point and the surrounding chrome is quiet
+- Help users recognize, diagnose, and recover from errors: 4 / 4 — every error message names the next action ("Try again", "Trim this to N characters or fewer", "That email doesn't look right. Use the format name@example.com.")
+- Help and documentation: 3 / 4 — Info icon + inline helper text on every editable field; brief's documented "Editable fields tooltip" copy present verbatim; no contextual docs beyond that (operator base is small enough that a docs page is overkill)
+
+**AI-slop verdict:** PASS — the surface uses warm clinic green chrome, Cancelled/Restricted status families, full-border active card (no side-stripe), no gradients, no glassmorphism, no hero-metric template. Reads as part of the existing Rahma admin rather than a generic SaaS dashboard. The iframe-led preview + sidebar accordion + inline edit pattern is concretely Mailchimp-anchored per the brief, not invented.
+
+**Commentary on UX-quality vs PRODUCT.md anti-references:**
+- ✓ No generic SaaS feel — uses Form-Seam borders, surface-card panels, Cormorant Garamond reserved for marquee numerals elsewhere on the admin (not used here, correctly)
+- ✓ No identical-card grids — left rail is a vertical list within accordion sections; right rail is a single composite (preview + form), not a grid
+- ✓ No decorative blobs / glassmorphism — only oklch tokens documented in DESIGN.md
+- ✓ Status communication is named — Cancelled-family error backgrounds, Restricted-family internal-only banner, no colour-only signalling
+- ✓ Voice anchors honoured — "Saved just now", "All clean.", "Pick one from the list to see what gets sent." — plain, calm, scannable

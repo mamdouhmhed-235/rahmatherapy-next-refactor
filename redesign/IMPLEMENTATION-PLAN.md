@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 10 of 29 — dashboard-therapist   ← update when you start a session (count by position from the top, not by label). In flight: (none — second parallel-5 batch complete: client-new + dashboard-coordinator + account-password-requests + password-reset + emails all merged. 26 of 29 done, 3 remaining: dashboard-therapist, email-templates. Tab-shell stub at src/app/admin/emails/page.tsx:874 is ready for email-templates session to grep + swap).
+Currently on: 21 of 29 — email-templates   ← update when you start a session (count by position from the top, not by label). In flight: (email-templates session active in worktree `rahmatherapy-email-templates-redesign` on branch `agent/email-templates-redesign`. Tab-shell stub at src/app/admin/emails/page.tsx:874 to be replaced with <TemplatesTab /> import + JSX swap-in only).
 
 ---
 

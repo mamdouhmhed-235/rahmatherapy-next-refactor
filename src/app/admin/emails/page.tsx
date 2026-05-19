@@ -13,10 +13,12 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getBusinessDate } from "@/lib/time/london";
 import {
+  canManageEmailSettings,
   canResendBookingEmails,
   canViewEmailLogs,
   getStaffProfile,
 } from "@/lib/auth/rbac";
+import { TemplatesTab } from "./components/TemplatesTab";
 import { cn } from "@/lib/utils";
 import {
   AdminAccessDenied,
@@ -277,7 +279,13 @@ export default async function EmailsPage({ searchParams }: PageProps) {
         />
       ) : null}
 
-      {activeTab === "templates" ? <TemplatesTab /> : null}
+      {activeTab === "templates" ? (
+        <TemplatesTab
+          canEdit={canManageEmailSettings(profile)}
+          canSendAllAudiences={canSeeDelivery || canManageEmailSettings(profile)}
+          operatorEmail={profile.email}
+        />
+      ) : null}
     </div>
   );
 }
@@ -856,25 +864,6 @@ function ReminderRow({
         />
       </div>
     </article>
-  );
-}
-
-// ─── Templates tab (stub for the email-templates session) ─────────────────────
-
-function TemplatesTab() {
-  return (
-    <section className="mx-auto w-full max-w-[720px]">
-      <AdminPanel
-        title="Templates"
-        description="The template browser, preview, and editor land in the next session."
-      >
-        <p className="text-sm leading-6 text-[var(--admin-body)]">
-          {/* DO NOT CHANGE THIS STRING — the email-templates session greps for it
-              and swaps this stub for the real <TemplatesTab /> component. */}
-          Templates tab body — populated by the email-templates session
-        </p>
-      </AdminPanel>
-    </section>
   );
 }
 
