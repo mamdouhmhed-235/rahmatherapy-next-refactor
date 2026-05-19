@@ -1,0 +1,337 @@
+==============================================================================
+SMOKE TEST — 2C-10 email_template_overrides table (Session 1)
+==============================================================================
+Date:        2026-05-19
+Project:     Rahma-therapy (twzutkfgqclqurvkmvqz)
+Branch:      engineering/track-a-backend-gap-fill
+Migrations:  20260519120000_email_template_overrides_table.sql
+             20260519121000_email_template_overrides_authenticated_select_grant.sql
+Test runner: Claude (mcp__supabase__execute_sql + mcp__supabase__apply_migration)
+Plan source: /redesign/backend-plans/BUILD-email-template-overrides-table.md
+Headline:    Migration defect caught and fixed pre-Session-2 — table-level
+             GRANT SELECT to authenticated was missing from initial draft.
+
+------------------------------------------------------------------------------
+INITIAL SMOKE RUN
+------------------------------------------------------------------------------
+
+Test 1a — table exists in public schema
+  Query: SELECT table_schema, table_name FROM information_schema.tables
+         WHERE table_schema='public' AND table_name='email_template_overrides';
+  Result: [{"table_schema":"public","table_name":"email_template_overrides"}]
+  Verdict: PASS — 1 row returned.
+
+Test 1b — column shape (6 columns, types, nullability)
+  Query: SELECT column_name, data_type, is_nullable, column_default
+         FROM information_schema.columns
+         WHERE table_schema='public' AND table_name='email_template_overrides'
+         ORDER BY ordinal_position;
+  Result:
+    id          uuid                       NOT NULL  default gen_random_uuid()
+    template_id text                       NOT NULL
+    field_key   text                       NOT NULL
+    value       text                       NOT NULL
+    updated_by  uuid                       NULL
+    updated_at  timestamp with time zone   NOT NULL  default now()
+  Verdict: PASS — all 6 columns match spec (updated_by nullable per Revision 1).
+
+Test 1c — indexes (PK + UNIQUE)
+  Query: SELECT indexname, indexdef FROM pg_indexes
+         WHERE schemaname='public' AND tablename='email_template_overrides'
+         ORDER BY indexname;
+  Result:
+    email_template_overrides_pkey
+      CREATE UNIQUE INDEX email_template_overrides_pkey
+        ON public.email_template_overrides USING btree (id)
+    email_template_overrides_template_id_field_key_key
+      CREATE UNIQUE INDEX email_template_overrides_template_id_field_key_key
+        ON public.email_template_overrides USING btree (template_id, field_key)
+  Verdict: PASS — primary key + composite UNIQUE index both present.
+
+Bonus check — constraints
+  Query: SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint
+         WHERE conrelid = 'public.email_template_overrides'::regclass
+         ORDER BY conname;
+  Result:
+    email_template_overrides_pkey                       PRIMARY KEY (id)
+    email_template_overrides_template_id_field_key_key  UNIQUE (template_id, field_key)
+    email_template_overrides_updated_by_fkey            FOREIGN KEY (updated_by) REFERENCES staff_profiles(id) ON DELETE SET NULL
+    email_template_overrides_value_check                CHECK ((char_length(value) <= 500))
+  Verdict: PASS — all 4 constraints present, FK ON DELETE SET NULL per Revision 1.
+
+Bonus check — RLS policies
+  Query: SELECT polname, polcmd, pg_get_expr(polqual, polrelid) AS using_expr,
+                pg_get_expr(polwithcheck, polrelid) AS check_expr,
+                polroles::regrole[] AS roles
+         FROM pg_policy
+         WHERE polrelid = 'public.email_template_overrides'::regclass
+         ORDER BY polname;
+  Result (4 policies, all targeting {authenticated}):
+    "Active staff can read email_template_overrides"           cmd=r
+      USING (app_private.current_active_staff_id() IS NOT NULL)
+    "Template managers can delete email_template_overrides"    cmd=d
+      USING (app_private.current_staff_has_permission('manage_email_templates'::text)
+             OR app_private.current_staff_has_permission('manage_settings'::text))
+    "Template managers can insert email_template_overrides"    cmd=a
+      WITH CHECK (manage_email_templates OR manage_settings)
+    "Template managers can update email_template_overrides"    cmd=w
+      USING + WITH CHECK (manage_email_templates OR manage_settings)
+  Verdict: PASS — all 4 policies present with correct predicates per Revision 2.
+
+Test 2a — INSERT as service_role (positive)
+  Query: INSERT INTO public.email_template_overrides
+           (template_id, field_key, value, updated_by)
+         VALUES ('smoke_test_template', 'greeting_intro',
+                 'Session 1 smoke-test evidence row.', NULL)
+         RETURNING id, template_id, field_key, value, updated_by, updated_at;
+  Result: [{"id":"5d0b8da3-9064-4570-99fb-af39534a634c",
+            "template_id":"smoke_test_template",
+            "field_key":"greeting_intro",
+            "value":"Session 1 smoke-test evidence row.",
+            "updated_by":null,
+            "updated_at":"2026-05-19 13:23:20.628778+00"}]
+  Verdict: PASS — row inserted; default uuid + default timestamptz both populated.
+
+Test 2b (initial) — Therapist INSERT denial (expected RLS denial)
+  Setup: impersonate auth_user_id=a67a9173-778b-4712-9fde-b645c1d88f1d
+         (staff_id=884311b1-…, role=Therapist, active=true)
+  Query: BEGIN;
+         SET LOCAL request.jwt.claim.sub = 'a67a9173-778b-4712-9fde-b645c1d88f1d';
+         SET LOCAL ROLE authenticated;
+         INSERT INTO public.email_template_overrides
+           (template_id, field_key, value, updated_by)
+         VALUES ('therapist_denial_attempt', 'field_x',
+                 'Therapist should not be able to write this row — RLS must reject.',
+                 NULL);
+         ROLLBACK;
+  Result: ERROR  42501: permission denied for table email_template_overrides
+          HINT:  Grant the required privileges to the current role with:
+                 GRANT INSERT ON public.email_template_overrides TO authenticated;
+  Verdict: DENIAL CONFIRMED — but at the wrong layer. This is a table-level
+           GRANT block (privilege check happens before RLS), not the RLS
+           policy denial the test expected.
+
+Test 2c (initial) — Therapist SELECT visibility (expected SUCCESS, got DENIAL)
+  Setup: same impersonation as 2b
+  Query: BEGIN;
+         SET LOCAL request.jwt.claim.sub = 'a67a9173-778b-4712-9fde-b645c1d88f1d';
+         SET LOCAL ROLE authenticated;
+         SELECT auth.uid(), app_private.current_active_staff_id(), ...
+                (SELECT json_agg(t) FROM (SELECT * FROM email_template_overrides) t);
+         ROLLBACK;
+  Result: ERROR  42501: permission denied for table email_template_overrides
+          HINT:  Grant the required privileges to the current role with:
+                 GRANT SELECT ON public.email_template_overrides TO authenticated;
+  Verdict: FAIL — RLS predicate `current_active_staff_id() IS NOT NULL` would
+           have evaluated TRUE for this active Therapist, but the table-level
+           SELECT grant was missing, so the privilege check rejected the read
+           before RLS could engage. The test reveals a defect in the original
+           migration: the SELECT policy targets {authenticated} but the
+           {authenticated} role has no SELECT privilege on the table.
+
+Test 3 — UNIQUE constraint enforcement
+  Query: INSERT INTO public.email_template_overrides
+           (template_id, field_key, value, updated_by)
+         VALUES ('smoke_test_template', 'greeting_intro',
+                 'Duplicate attempt — should fail UNIQUE constraint on (template_id, field_key).',
+                 NULL);
+  Result: ERROR  23505: duplicate key value violates unique constraint
+          "email_template_overrides_template_id_field_key_key"
+          DETAIL:  Key (template_id, field_key)=(smoke_test_template, greeting_intro)
+                   already exists.
+  Verdict: PASS — composite UNIQUE constraint blocks the duplicate.
+
+Test 4 — permission registry row (manage_email_templates exists, unassigned)
+  Query: SELECT p.id, p.name, p.description, p.category, p.scope, p.risk_level,
+                p.is_system, p.active,
+                (SELECT COUNT(*) FROM public.role_permissions rp
+                 WHERE rp.permission_id = p.id) AS role_grant_count
+         FROM public.permissions p
+         WHERE p.name = 'manage_email_templates';
+  Result: [{"id":"edb012cc-3ac0-4682-a44e-abda5208c7cb",
+            "name":"manage_email_templates",
+            "description":"Edit and manage email template content overrides.",
+            "category":"emails",
+            "scope":"global",
+            "risk_level":"standard",
+            "is_system":true,
+            "active":true,
+            "role_grant_count":0}]
+  Verdict: PASS — permission row inserted with correct shape; not granted
+           to any role (Session 2 will decide grants).
+
+Initial-run summary: 1a, 1b, 1c, 2a, 3, 4 PASS · 2b denial-but-wrong-layer · 2c FAIL.
+
+------------------------------------------------------------------------------
+DIAGNOSIS — codebase convention check
+------------------------------------------------------------------------------
+
+Hypothesis: the original migration omitted `GRANT SELECT ... TO authenticated`,
+which would explain both 2b (denial via privilege check) and 2c (failure to read
+despite passing RLS predicate). The codebase pattern needed checking — is
+GRANT-to-authenticated the convention, or does the codebase route all reads via
+service_role?
+
+Query:
+  SELECT table_name, grantee, string_agg(privilege_type, ', ' ORDER BY ...) AS privileges
+  FROM information_schema.role_table_grants
+  WHERE table_schema='public'
+    AND grantee IN ('authenticated', 'anon', 'service_role')
+    AND table_name IN ('permissions','roles','bookings','clients',
+                       'email_delivery_events','business_settings',
+                       'email_template_overrides')
+  GROUP BY table_name, grantee
+  ORDER BY table_name, grantee;
+
+Result (relevant columns; per table, authenticated and service_role privileges):
+
+  Table                       authenticated                          service_role
+  ---------------------------  ------------------------------------  ------------------------------------------------
+  bookings                     SELECT                                DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+  business_settings            SELECT                                INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+  clients                      SELECT                                DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+  email_delivery_events        REFERENCES, SELECT, TRIGGER, TRUNCATE DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE
+  permissions                  SELECT                                REFERENCES, SELECT, TRIGGER, TRUNCATE
+  roles                        SELECT                                DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+  email_template_overrides     REFERENCES, TRIGGER, TRUNCATE          DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+  (initial — defect)           (no SELECT — defect)                   (correct)
+
+Conclusion: every existing table grants SELECT to authenticated; none grant
+INSERT/UPDATE/DELETE. The codebase pattern is reads-via-authenticated-with-RLS
++ writes-via-service-role-from-server-actions (so server actions preserve
+audit-log writes). My new table was the ONLY one without `SELECT to authenticated`
+— an inconsistency that broke the SELECT policy in practice.
+
+------------------------------------------------------------------------------
+FOLLOW-UP FIX
+------------------------------------------------------------------------------
+
+File:  supabase/migrations/20260519121000_email_template_overrides_authenticated_select_grant.sql
+Body (one functional line, plus header comment):
+
+  grant select on public.email_template_overrides to authenticated;
+
+Applied via mcp__supabase__apply_migration with name
+"email_template_overrides_authenticated_select_grant" — returned {"success":true}.
+
+INSERT/UPDATE/DELETE grants to authenticated were NOT added. They remain
+absent so mutations continue to require service_role, which keeps audit-log
+writes routed through server actions. The INSERT/UPDATE/DELETE RLS policies
+remain in the table as defense-in-depth.
+
+------------------------------------------------------------------------------
+RE-RUN RESULTS
+------------------------------------------------------------------------------
+
+Grant check — confirms the follow-up grant landed
+  Query: SELECT grantee, string_agg(privilege_type, ', ' ORDER BY ...) AS privileges
+         FROM information_schema.role_table_grants
+         WHERE table_schema='public' AND table_name='email_template_overrides'
+           AND grantee IN ('authenticated','anon','service_role')
+         GROUP BY grantee ORDER BY grantee;
+  Result:
+    anon           REFERENCES, TRIGGER, TRUNCATE
+    authenticated  REFERENCES, SELECT, TRIGGER, TRUNCATE              ← SELECT added
+    service_role   DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE
+  Verdict: PASS — authenticated now has SELECT, matching codebase convention.
+
+Test 2b (re-run) — Therapist INSERT denial
+  Query: BEGIN;
+         SET LOCAL request.jwt.claim.sub = 'a67a9173-778b-4712-9fde-b645c1d88f1d';
+         SET LOCAL ROLE authenticated;
+         INSERT INTO public.email_template_overrides
+           (template_id, field_key, value, updated_by)
+         VALUES ('therapist_denial_attempt', 'field_x',
+                 'Therapist should not be able to write this row.', NULL);
+         ROLLBACK;
+  Result: ERROR  42501: permission denied for table email_template_overrides
+          HINT:  Grant the required privileges to the current role with:
+                 GRANT INSERT ON public.email_template_overrides TO authenticated;
+  Verdict: PASS — denial still at the table-grant layer (no INSERT grant to
+           authenticated by design). Denial layer is correct per codebase
+           convention; the RLS INSERT policy stays in place as defense-in-depth.
+
+Test 2c (re-run) — Therapist SELECT visibility + impersonation pre-check
+  Query: BEGIN;
+         SET LOCAL request.jwt.claim.sub = 'a67a9173-778b-4712-9fde-b645c1d88f1d';
+         SET LOCAL ROLE authenticated;
+         SELECT auth.uid() AS jwt_uid,
+                app_private.current_active_staff_id() AS resolved_staff_id,
+                app_private.current_staff_has_permission('manage_email_templates') AS has_mgr_email_tpls,
+                app_private.current_staff_has_permission('manage_settings') AS has_mgr_settings,
+                (SELECT json_agg(t) FROM (SELECT id, template_id, field_key, value, updated_at
+                 FROM public.email_template_overrides ORDER BY template_id) t) AS visible_rows;
+         ROLLBACK;
+  Result: [{"jwt_uid":"a67a9173-778b-4712-9fde-b645c1d88f1d",
+            "resolved_staff_id":"884311b1-e9d0-44b9-91f3-14188a3baf59",
+            "has_manage_email_templates":false,
+            "has_manage_settings":false,
+            "visible_rows":[{"id":"5d0b8da3-9064-4570-99fb-af39534a634c",
+                             "template_id":"smoke_test_template",
+                             "field_key":"greeting_intro",
+                             "value":"Session 1 smoke-test evidence row.",
+                             "updated_at":"2026-05-19T13:23:20.628778+00:00"}]}]
+  Verdict: PASS — impersonation works (auth.uid resolves to Therapist's
+           auth_user_id, current_active_staff_id resolves to their staff_id);
+           Therapist holds neither manage_email_templates nor manage_settings;
+           SELECT succeeds and returns the smoke-test row because RLS predicate
+           `current_active_staff_id() IS NOT NULL` evaluates TRUE.
+
+Test 3 (re-confirm) — UNIQUE constraint
+  Query: INSERT INTO public.email_template_overrides
+           (template_id, field_key, value, updated_by)
+         VALUES ('smoke_test_template', 'greeting_intro',
+                 'Re-run UNIQUE-violation attempt after grant fix.', NULL);
+  Result: ERROR  23505: duplicate key value violates unique constraint
+          "email_template_overrides_template_id_field_key_key"
+          DETAIL:  Key (template_id, field_key)=(smoke_test_template, greeting_intro)
+                   already exists.
+  Verdict: PASS — UNIQUE constraint still enforced; the follow-up grant
+           migration didn't disturb the table schema.
+
+Test 4 (re-confirm) — permission registry row + role-grant-count
+  Same query as initial run.
+  Result: [{"id":"edb012cc-3ac0-4682-a44e-abda5208c7cb",
+            "name":"manage_email_templates",
+            "description":"Edit and manage email template content overrides.",
+            "category":"emails","scope":"global","risk_level":"standard",
+            "is_system":true,"active":true,"role_grant_count":0}]
+  Verdict: PASS — permission row unchanged, still unassigned to any role.
+
+Re-run summary: ALL 6 categories PASS (1a/1b/1c, 2a-implicit/2b/2c, 3, 4).
+
+------------------------------------------------------------------------------
+CLEANUP
+------------------------------------------------------------------------------
+
+Query: WITH deleted AS (
+         DELETE FROM public.email_template_overrides
+         WHERE template_id = 'smoke_test_template'
+         RETURNING *
+       )
+       SELECT count(*) AS deleted_count FROM deleted;
+Result: [{"deleted_count":1}]
+Verdict: PASS — exactly 1 row deleted (the test row from Test 2a).
+
+Confirmation query: SELECT COUNT(*) AS remaining_rows
+                    FROM public.email_template_overrides;
+Result: [{"remaining_rows":0}]
+Verdict: PASS — table is empty, ready for Session 2's first real override write.
+
+------------------------------------------------------------------------------
+CLOSING NOTE
+------------------------------------------------------------------------------
+
+Smoke test caught — migration defect (missing GRANT SELECT to authenticated)
+detected and fixed pre-Session-2. Final state: table healthy, 0 test rows,
+ready for Session 2.
+
+Two migrations now live in production project Rahma-therapy (twzutkfgqclqurvkmvqz):
+  - 20260519120000_email_template_overrides_table
+  - 20260519121000_email_template_overrides_authenticated_select_grant
+
+The verification-before-completion skill held the line: the inferred-but-not-tested
+"Supabase grants authenticated by default" assumption in the original migration
+draft was directly contradicted by the smoke test, and the test-driven re-run
+restored full evidence-backed PASS coverage before any HANDLED flip could be
+claimed prematurely.
