@@ -10,7 +10,7 @@ How to use:
 
 Order is a recommendation. Reorder if you have a real constraint. If you reorder rows, top-to-bottom is the truth — the ## N. label is just a name, not the live position. Renumber if you want, or leave the labels alone.
 
-Currently on: 21 of 29 — email-templates   ← update when you start a session (count by position from the top, not by label). In flight: (email-templates session active in worktree `rahmatherapy-email-templates-redesign` on branch `agent/email-templates-redesign`. Tab-shell stub at src/app/admin/emails/page.tsx:874 to be replaced with <TemplatesTab /> import + JSX swap-in only).
+Currently on: 10 of 29 — dashboard-therapist   ← update when you start a session (count by position from the top, not by label). In flight: (dashboard-therapist session active in worktree `rahmatherapy-dashboard-therapist-redesign` on branch `agent/dashboard-therapist-redesign`. 28 of 29 done, 1 remaining: dashboard-therapist).
 
 ---
 
@@ -774,7 +774,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 ---
 
-## 21. [ ] email-templates — commit: ____
+## 21. [x] email-templates — commit: 32c668b
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
