@@ -5,6 +5,22 @@
 **Triggered by:** BUSINESS-COMPLETENESS.md 2A-16 · Zone 2 · Confirmed in scope by user during Phase 1 Step 3 review
 **Owner:** Phase 6 implementer   **Target handled by:** Before Phase 6 session for `emails` (manual reminder queue must ship first; this cron replaces the "someone must sign in daily" workaround)
 
+## 2026-05-19 Architecture amendment
+
+**The original plan below assumed a Supabase Edge Function + `pg_cron` + `pg_net`. Session 3 of the engineering pause pivoted to Cloudflare Cron Triggers.**
+
+Why the pivot: this codebase ships as a single Cloudflare Worker via `@opennextjs/cloudflare` v1.19.4. Cloudflare Workers have first-class native cron triggers (the `scheduled()` export on the Worker module). Reusing the existing Resend client (`src/lib/email/client.ts`), the existing `sendBookingReminderEmail` (`src/lib/email/notifications.ts:520`), the Session 2 override-resolution path (`resolveTemplateOverrides` in `src/lib/email/templates.ts`), and Cloudflare's built-in cron scheduling is dramatically simpler than rewriting all of that in Deno for a Supabase Edge Function and enabling `pg_cron` + `pg_net` extensions on the database side. The pivot also avoids duplicating `RESEND_API_KEY` (which would otherwise be set once in the Worker env and again in the Edge Function secret store).
+
+What landed (see Session 3 commits + `/redesign/backend-smoke-tests/automated-booking-reminders-2026-05-19.txt`):
+- `src/app/api/cron/booking-reminders/route.ts` — the cron handler logic (gated by `X-Cron-Secret` header).
+- `worker-entrypoint.ts` — custom Cloudflare Worker entry that re-exports OpenNext's fetch handler and Durable Objects plus a `scheduled()` handler that fires the cron via the `WORKER_SELF_REFERENCE` service binding.
+- `wrangler.jsonc` — `main` points at the wrapper; `triggers.crons` = `["0 8 * * *"]` (08:00 UTC daily = 09:00 BST / 08:00 GMT).
+- `.env.example` — new `CRON_SECRET` placeholder.
+
+The "original architecture" section below is kept verbatim for audit purposes; treat the deliverables it lists (Supabase Edge Function code, extensions migration, cron-schedule migration in pg_cron) as **superseded — not built**.
+
+## Original architecture (superseded — kept for reference)
+
 ## What this is
 A Supabase Edge Function deployed on a daily `pg_cron` schedule (09:00 Europe/London) that selects all bookings 24 hours ahead in `status IN ('pending', 'confirmed')`, checks that no reminder has already been sent for each (via `email_delivery_events`), calls `sendBookingReminderEmail` for each candidate, and writes an `email_delivery_events` row per send. Idempotent by design: running the function twice on the same day produces no duplicate sends.
 

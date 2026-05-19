@@ -1,6 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "main": ".open-next/worker.js",
+  // main points at our custom Worker entrypoint, which re-exports OpenNext's
+  // default fetch handler + the three Durable Object classes AND adds a
+  // scheduled() handler for the daily booking-reminders cron. See
+  // worker-entrypoint.ts. The OpenNext build still produces .open-next/worker.js;
+  // the wrapper imports from it at bundle time.
+  "main": "./worker-entrypoint.ts",
   "name": "rahmatherapy-next-refactor",
   "keep_vars": true,
   "compatibility_date": "2025-03-25",
@@ -25,5 +30,12 @@
   },
   "observability": {
     "enabled": true
+  },
+  // Cloudflare Cron Triggers — 08:00 UTC daily (= 09:00 BST / 08:00 GMT).
+  // Fires scheduled() in worker-entrypoint.ts, which self-fetches
+  // /api/cron/booking-reminders with the X-Cron-Secret header.
+  // Activates on the next Cloudflare deploy after this config lands.
+  "triggers": {
+    "crons": ["0 8 * * *"]
   }
 }
