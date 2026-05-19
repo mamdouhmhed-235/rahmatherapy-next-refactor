@@ -174,10 +174,10 @@ function getInitials(name: string): string {
   const cleaned = (name || "").trim();
   if (!cleaned) return "?";
   return cleaned
-    .split(" ")
+    .split(/\s+/)
     .filter(Boolean)
-    .map((p) => p[0])
     .slice(0, 2)
+    .map((p) => Array.from(p)[0] ?? "")
     .join("")
     .toUpperCase();
 }

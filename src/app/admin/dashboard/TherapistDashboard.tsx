@@ -657,9 +657,9 @@ function TodayVisitRow({
   const clientName = booking.contact_full_name ?? "Client";
   const initials = clientName
     .split(/\s+/)
-    .map((part) => part[0])
     .filter(Boolean)
     .slice(0, 2)
+    .map((part) => Array.from(part)[0] ?? "")
     .join("")
     .toUpperCase();
   const serviceName = service?.name?.trim() ? service.name : "Visit";
@@ -1048,9 +1048,9 @@ function RecentClientsCard({
         {clients.map((c) => {
           const initials = c.name
             .split(/\s+/)
-            .map((p) => p[0])
             .filter(Boolean)
             .slice(0, 2)
+            .map((p) => Array.from(p)[0] ?? "")
             .join("")
             .toUpperCase();
           const dateLabel = FORMATTERS.weekday.format(

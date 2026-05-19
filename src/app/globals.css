@@ -97,7 +97,8 @@ a[class*="border-rahma-green/30"] {
 
 .admin-action-primary {
   display: inline-flex;
-  min-height: 2.5rem;
+  /* Mobile floor 44px for WCAG 2.5.5 AA; desktop steps down to 40px below at the sm: breakpoint. */
+  min-height: 2.75rem;
   align-items: center;
   justify-content: center;
   border-radius: var(--admin-radius-control);
@@ -115,7 +116,8 @@ a[class*="border-rahma-green/30"] {
 .admin-action-outline,
 .admin-link-action {
   display: inline-flex;
-  min-height: 2.5rem;
+  /* Mobile floor 44px; desktop downsteps at sm:. */
+  min-height: 2.75rem;
   align-items: center;
   justify-content: center;
   border-radius: var(--admin-radius-control);
@@ -125,6 +127,13 @@ a[class*="border-rahma-green/30"] {
   color: var(--admin-primary) !important;
   font-size: 0.875rem;
   font-weight: 600;
+}
+
+@media (min-width: 640px) {
+  .admin-action-primary,
+  .admin-action-outline {
+    min-height: 2.5rem;
+  }
 }
 
 .admin-link-action {

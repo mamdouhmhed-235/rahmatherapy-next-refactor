@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Siren, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AdminEmptyState, AdminStatusBadge } from "../components/admin-ui";
+import { AdminStatusBadge } from "../components/admin-ui";
+import { EmptyState } from "../components/EmptyState";
 import type { AttentionGroup } from "./dashboard-cards";
 
 type AttentionCategory = {
@@ -189,7 +190,7 @@ export function AttentionReviewButton({
               {expandedEntries.length > 0 ? (
                 <GroupedEntries entries={expandedEntries} />
               ) : (
-                <AdminEmptyState
+                <EmptyState
                   icon={Siren}
                   title="No signals in this category"
                   message="Choose another category or adjust the date range."
@@ -207,7 +208,7 @@ export function AttentionReviewButton({
                   type="button"
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={safePage === 1}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9"
                   aria-label="Previous attention page"
                 >
                   <ChevronLeft className="size-3.5" aria-hidden="true" />
@@ -217,7 +218,7 @@ export function AttentionReviewButton({
                   type="button"
                   onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
                   disabled={safePage === pageCount}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9"
                   aria-label="Next attention page"
                 >
                   Next

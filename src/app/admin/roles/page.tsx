@@ -15,6 +15,7 @@ import {
   AdminPanel,
   AdminStatusBadge,
 } from "../components/admin-ui";
+import { EmptyState } from "../components/EmptyState";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canManageRoleTemplates,
@@ -235,26 +236,12 @@ export default async function RolesPage() {
 
 function RolesEmptyState({ defaultSortOrder }: { defaultSortOrder: number }) {
   return (
-    <div
-      data-redesign-needs-photo="roles-empty.svg"
-      className="mx-auto flex max-w-[360px] flex-col items-center py-14 text-center"
-    >
-      <span
-        aria-hidden="true"
-        className="mb-5 inline-flex size-16 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.08)]"
-      >
-        <ShieldPlus className="size-7 text-[var(--admin-primary)]" />
-      </span>
-      <p className="font-display text-[1.0625rem] font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
-        No roles defined
-      </p>
-      <p className="mt-2 max-w-[38ch] text-sm leading-6 text-[var(--admin-text-muted)]">
-        Set up a role to assign staff.
-      </p>
-      <div className="mt-5">
-        <CreateRoleSheet defaultSortOrder={defaultSortOrder} />
-      </div>
-    </div>
+    <EmptyState
+      icon={ShieldPlus}
+      title="No roles defined"
+      message="Set up a role to assign staff."
+      actions={<CreateRoleSheet defaultSortOrder={defaultSortOrder} />}
+    />
   );
 }
 

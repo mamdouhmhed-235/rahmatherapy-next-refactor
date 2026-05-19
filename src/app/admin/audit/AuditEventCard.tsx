@@ -71,7 +71,7 @@ function initials(name: string): string {
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
+    .map((part) => (Array.from(part)[0] ?? "").toUpperCase())
     .join("") || "·";
 }
 

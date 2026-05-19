@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   Bell,
   BellRing,
@@ -13,7 +19,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { AdminEmptyState } from "./admin-ui";
+import { EmptyState } from "./EmptyState";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import * as AdminPopover from "./admin-popover";
@@ -69,65 +75,150 @@ function getStorageKeys(staffId: string) {
   };
 }
 
-function useLocalStorageNotificationState(ids: string[], staffId: string) {
-  const keys = getStorageKeys(staffId);
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+// Module-level store cache. One Store per (staffId, key) tuple so two components
+// reading the same notification state share a snapshot and notify in lockstep.
+// This replaces the previous useEffect+setState waterfall: state subscribes
+// directly via useSyncExternalStore, which:
+//   1. returns the empty-Set server snapshot during SSR (no hydration mismatch),
+//   2. swaps to the live localStorage snapshot on first client render (single
+//      atomic transition, not a manual post-mount setState),
+//   3. multi-tab updates via the native `storage` event propagate immediately.
+type SetStore = {
+  subscribe: (cb: () => void) => () => void;
+  getSnapshot: () => Set<string>;
+  getServerSnapshot: () => Set<string>;
+  write: (next: Set<string>) => void;
+};
 
-  useEffect(() => {
+const EMPTY_SET: Set<string> = new Set();
+const storeCache = new Map<string, SetStore>();
+
+function getSetStore(storageKey: string): SetStore {
+  const cached = storeCache.get(storageKey);
+  if (cached) return cached;
+
+  let cachedSnapshot: Set<string> = EMPTY_SET;
+  let cachedRaw: string | null = null;
+  const listeners = new Set<() => void>();
+
+  const readNow = (): Set<string> => {
+    if (typeof window === "undefined") return EMPTY_SET;
+    let raw: string | null = null;
     try {
-      const rawRead = localStorage.getItem(keys.read);
-      const rawDismissed = localStorage.getItem(keys.dismissed);
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing external localStorage state after hydration
-      if (rawRead) setReadIds(new Set(JSON.parse(rawRead)));
-      if (rawDismissed) setDismissedIds(new Set(JSON.parse(rawDismissed)));
-    } catch {}
-  // Re-sync when the staffId changes (e.g., after login switch on same device)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [staffId]);
+      raw = localStorage.getItem(storageKey);
+    } catch {
+      return EMPTY_SET;
+    }
+    if (raw === cachedRaw) return cachedSnapshot;
+    cachedRaw = raw;
+    try {
+      cachedSnapshot = raw ? new Set(JSON.parse(raw) as string[]) : EMPTY_SET;
+    } catch {
+      cachedSnapshot = EMPTY_SET;
+    }
+    return cachedSnapshot;
+  };
 
-  const markRead = (id: string) => {
-    setReadIds((prev) => {
-      const next = new Set(prev);
+  const subscribe = (cb: () => void) => {
+    listeners.add(cb);
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === storageKey) {
+        // Invalidate cache; readNow will repopulate on next snapshot call.
+        cachedRaw = null;
+        cb();
+      }
+    };
+    if (typeof window !== "undefined") {
+      window.addEventListener("storage", onStorage);
+    }
+    return () => {
+      listeners.delete(cb);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("storage", onStorage);
+      }
+    };
+  };
+
+  const store: SetStore = {
+    subscribe,
+    getSnapshot: readNow,
+    getServerSnapshot: () => EMPTY_SET,
+    write: (next) => {
+      try {
+        const raw = JSON.stringify([...next]);
+        localStorage.setItem(storageKey, raw);
+        cachedRaw = raw;
+        cachedSnapshot = next;
+      } catch {}
+      listeners.forEach((cb) => cb());
+    },
+  };
+  storeCache.set(storageKey, store);
+  return store;
+}
+
+function useLocalStorageStringSet(storageKey: string) {
+  const store = useMemo(() => getSetStore(storageKey), [storageKey]);
+  const value = useSyncExternalStore(
+    store.subscribe,
+    store.getSnapshot,
+    store.getServerSnapshot
+  );
+  return [value, store.write] as const;
+}
+
+function useLocalStorageNotificationState(ids: string[], staffId: string) {
+  const keys = useMemo(() => getStorageKeys(staffId), [staffId]);
+  const [readIds, writeReadIds] = useLocalStorageStringSet(keys.read);
+  const [dismissedIds, writeDismissedIds] = useLocalStorageStringSet(
+    keys.dismissed
+  );
+
+  const markRead = useCallback(
+    (id: string) => {
+      const next = new Set(readIds);
       next.add(id);
-      localStorage.setItem(keys.read, JSON.stringify([...next]));
-      return next;
-    });
-  };
+      writeReadIds(next);
+    },
+    [readIds, writeReadIds]
+  );
 
-  const markUnread = (id: string) => {
-    setReadIds((prev) => {
-      const next = new Set(prev);
+  const markUnread = useCallback(
+    (id: string) => {
+      const next = new Set(readIds);
       next.delete(id);
-      localStorage.setItem(keys.read, JSON.stringify([...next]));
-      return next;
-    });
-  };
+      writeReadIds(next);
+    },
+    [readIds, writeReadIds]
+  );
 
-  const markAllRead = () => {
-    setReadIds((prev) => {
-      const next = new Set([...prev, ...ids]);
-      localStorage.setItem(keys.read, JSON.stringify([...next]));
-      return next;
-    });
-  };
+  const markAllRead = useCallback(() => {
+    const next = new Set([...readIds, ...ids]);
+    writeReadIds(next);
+  }, [ids, readIds, writeReadIds]);
 
-  const dismissNotification = (id: string) => {
-    setDismissedIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      localStorage.setItem(keys.dismissed, JSON.stringify([...next]));
-      return next;
-    });
-    setReadIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      localStorage.setItem(keys.read, JSON.stringify([...next]));
-      return next;
-    });
-  };
+  const dismissNotification = useCallback(
+    (id: string) => {
+      const nextDismissed = new Set(dismissedIds);
+      nextDismissed.add(id);
+      writeDismissedIds(nextDismissed);
+      if (readIds.has(id)) {
+        const nextRead = new Set(readIds);
+        nextRead.delete(id);
+        writeReadIds(nextRead);
+      }
+    },
+    [dismissedIds, readIds, writeDismissedIds, writeReadIds]
+  );
 
-  return { readIds, dismissedIds, markRead, markUnread, markAllRead, dismissNotification };
+  return {
+    readIds,
+    dismissedIds,
+    markRead,
+    markUnread,
+    markAllRead,
+    dismissNotification,
+  };
 }
 
 type NotificationTab = "all" | "unread" | "read" | "critical" | "emails" | "operations";
@@ -193,7 +284,7 @@ export function NotificationBell({
           </span>
         </AdminPopover.Trigger>
         <AdminPopover.Content
-          className="w-[26rem] max-h-[min(70vh,40rem)] overflow-y-auto"
+          className="max-h-[min(70vh,40rem)] overflow-y-auto"
         >
           <NotificationPopoverContent
             items={visibleItems}
@@ -400,7 +491,7 @@ function NotificationPopoverContent({
             role="tab"
             aria-selected={tab === t}
             className={cn(
-              "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 py-1.5 text-xs font-semibold outline-none transition-all focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
+              "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
               tab === t
                 ? "bg-[var(--admin-primary)] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
                 : "text-[var(--admin-body)] hover:text-[var(--admin-heading)] hover:bg-[var(--admin-panel-muted)]"
@@ -526,11 +617,12 @@ function NotificationPopoverContent({
         })}
         {filtered.length === 0 ? (
           <div className="px-5 py-10">
-            <AdminEmptyState
+            <EmptyState
               icon={Bell}
               title="All caught up"
               message="When something needs your attention, it'll appear here."
               tone="muted"
+              compact
             />
           </div>
         ) : null}

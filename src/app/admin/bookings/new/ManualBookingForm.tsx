@@ -222,7 +222,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
             const active = current === step.n;
             // Active circle is larger and has a halo ring to distinguish from completed
             const circleClasses = cn(
-              "relative flex shrink-0 items-center justify-center rounded-full font-semibold transition-all duration-300",
+              "relative flex shrink-0 items-center justify-center rounded-full font-semibold transition-[background-color,color,box-shadow,border-color] duration-300",
               done
                 ? "size-8 border-2 border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white text-xs"
                 : active
@@ -273,7 +273,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
                 </div>
                 <span
                   className={cn(
-                    "text-center leading-tight transition-all duration-300",
+                    "text-center leading-tight transition-colors duration-300",
                     active
                       ? "text-sm font-semibold text-[var(--admin-primary)]"
                       : done
@@ -296,7 +296,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
         </p>
         <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--admin-border)]">
           <div
-            className="h-full rounded-full bg-[var(--admin-primary)] transition-all duration-300"
+            className="h-full rounded-full bg-[var(--admin-primary)] transition-[width] duration-300"
             style={{ width: `${(current / STEPS.length) * 100}%` }}
           />
         </div>
@@ -1136,7 +1136,7 @@ export function ManualBookingForm({
                     <label
                       key={pkg.slug}
                       className={cn(
-                        "flex cursor-pointer items-start gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-all duration-150",
+                        "flex cursor-pointer items-start gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-[background-color,border-color,box-shadow,color] duration-150",
                         selected
                           ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] ring-1 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(95.5%_0.012_155)]"
@@ -1182,7 +1182,7 @@ export function ManualBookingForm({
                         <label
                           key={m.slug}
                           className={cn(
-                            "flex cursor-pointer items-center gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-all duration-150",
+                            "flex cursor-pointer items-center gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-[background-color,border-color,box-shadow,color] duration-150",
                             mSelected
                               ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] ring-1 ring-[var(--admin-primary)]/20"
                               : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40"
@@ -1399,7 +1399,7 @@ export function ManualBookingForm({
                 <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {availSlots.map((slot) => (
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
-                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-3 text-center transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-3 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                         startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white shadow-[0_2px_8px_oklch(23%_0.073_155/0.25)] ring-2 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
                       )}>
@@ -1454,7 +1454,7 @@ export function ManualBookingForm({
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {femaleAvailSlots.map((slot) => (
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
-                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                         startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white ring-2 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
                       )}>
@@ -1498,7 +1498,7 @@ export function ManualBookingForm({
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                   {maleAvailSlots.map((slot) => (
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
-                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                      className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                         startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white ring-2 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
                       )}>

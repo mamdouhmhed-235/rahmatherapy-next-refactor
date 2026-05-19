@@ -49,6 +49,8 @@ cloudflare-env.d.ts
 
 # Claude Code / Impeccable skill / Playwright MCP — per-machine runtime artifacts
 .claude/launch.json
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 .impeccable/
 .playwright-mcp/
 

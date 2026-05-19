@@ -2,7 +2,7 @@
 
 import { Component, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
-import { AdminEmptyState } from "./admin-ui";
+import { EmptyState } from "./EmptyState";
 
 interface Props {
   children: ReactNode;
@@ -31,7 +31,7 @@ export class AdminErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <AdminEmptyState
+        <EmptyState
           icon={AlertTriangle}
           title={`${this.props.sectionName ?? "This section"} encountered an error`}
           message="Please refresh the page to try again. If the problem persists, contact support."

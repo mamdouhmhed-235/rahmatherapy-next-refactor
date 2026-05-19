@@ -11,7 +11,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { CalendarDays } from "lucide-react";
-import { AdminEmptyState } from "../components/admin-ui";
+import { EmptyState } from "../components/EmptyState";
 import { buildDemandTrendData } from "./dashboard-helpers";
 
 interface Booking {
@@ -87,7 +87,7 @@ export function DemandTrendClient({ bookings, from, to }: DemandTrendClientProps
           </ResponsiveContainer>
         </div>
       ) : (
-        <AdminEmptyState
+        <EmptyState
           icon={CalendarDays}
           title="No bookings in this range"
           message="Adjust the date filter to see demand patterns."

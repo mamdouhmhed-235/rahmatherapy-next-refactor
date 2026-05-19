@@ -221,8 +221,10 @@ export function firstName(fullName: string | null | undefined): string {
 
 export function initialsFromName(fullName: string | null | undefined): string {
   if (!fullName) return "?";
-  const parts = fullName.trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
+  const parts = fullName.trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  return (
+    parts.map((p) => (Array.from(p)[0] ?? "").toUpperCase()).join("") || "?"
+  );
 }
 
 export function lastReminderLine(

@@ -26,6 +26,7 @@ import {
   type AdminTone,
 } from "../../components/admin-ui";
 import { EmptyState } from "../../components/EmptyState";
+import { safeFormatDateTime } from "@/lib/time/format";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { canAssignBookings, getStaffProfile } from "@/lib/auth/rbac";
@@ -821,10 +822,14 @@ function TherapistAvatar({ name, seed }: { name: string; seed?: string }) {
 }
 
 function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 0 || !parts[0]) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) {
+    return Array.from(parts[0]).slice(0, 2).join("").toUpperCase();
+  }
+  const first = Array.from(parts[0])[0] ?? "";
+  const last = Array.from(parts[parts.length - 1])[0] ?? "";
+  return (first + last).toUpperCase();
 }
 
 /**
@@ -895,15 +900,13 @@ function EmailActivityPanel({ booking }: { booking: BookingRecord }) {
                       />
                       <time
                         className="text-[0.6875rem] text-[var(--admin-text-muted)]"
-                        title={new Date(event.created_at).toLocaleString(
-                          "en-GB"
-                        )}
+                        title={safeFormatDateTime(event.created_at)}
                         style={{
                           fontFamily:
                             "var(--font-admin-mono), IBM Plex Mono, Menlo, monospace",
                         }}
                       >
-                        {new Date(event.created_at).toLocaleString("en-GB", {
+                        {safeFormatDateTime(event.created_at, {
                           dateStyle: "short",
                           timeStyle: "short",
                         })}
@@ -988,13 +991,13 @@ function ActivityPanel({ booking }: { booking: BookingRecord }) {
               </p>
               <time
                 className="text-[0.6875rem] text-[var(--admin-text-muted)]"
-                title={new Date(event.created_at).toLocaleString("en-GB")}
+                title={safeFormatDateTime(event.created_at)}
                 style={{
                   fontFamily:
                     "var(--font-admin-mono), IBM Plex Mono, Menlo, monospace",
                 }}
               >
-                {new Date(event.created_at).toLocaleString("en-GB", {
+                {safeFormatDateTime(event.created_at, {
                   dateStyle: "short",
                   timeStyle: "short",
                 })}
@@ -1045,6 +1048,7 @@ function BookingNotFound() {
           title="Booking not found"
           message="This booking may have been deleted, or you don't have access."
           action={{ label: "Back to bookings", href: "/admin/bookings" }}
+          titleAs="h1"
         />
       </AdminPanel>
     </AdminPageScaffold>

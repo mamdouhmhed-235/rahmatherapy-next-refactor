@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { safeFormatDateTime } from "@/lib/time/format";
 
 interface DashboardHeaderProps {
   title: string;
@@ -72,7 +73,10 @@ function UpdatedAgo({ absoluteIso, className }: { absoluteIso: string; className
   const label = formatRelative(diffMs);
 
   return (
-    <span className={className} title={new Date(t).toLocaleString("en-GB", { timeZone: "Europe/London" })}>
+    <span
+      className={className}
+      title={safeFormatDateTime(absoluteIso, { timeZone: "Europe/London" })}
+    >
       Updated {label}
     </span>
   );

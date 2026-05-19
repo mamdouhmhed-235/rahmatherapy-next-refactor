@@ -340,7 +340,7 @@ export function DashboardFiltersClient({
                   aria-current={isActive ? "page" : undefined}
                   scroll={false}
                   className={cn(
-                    "group inline-flex h-10 shrink-0 snap-start items-center justify-center rounded-full border px-4 text-[13px] font-semibold outline-none transition-all duration-150 ease-out focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 active:scale-[0.97]",
+                    "group inline-flex h-11 shrink-0 snap-start items-center justify-center rounded-full border px-4 text-[13px] font-semibold outline-none transition-[background-color,border-color,color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 active:scale-[0.97] sm:h-10",
                     isActive
                       ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white shadow-[0_2px_6px_oklch(23%_0.073_155/0.28),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-[var(--admin-primary-hover)]"
                       : "border-[var(--admin-border)] bg-white text-[var(--admin-body)] shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:-translate-y-px hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]/60 hover:text-[var(--admin-heading)] hover:shadow-[0_2px_5px_rgba(0,0,0,0.04)]"
@@ -366,7 +366,7 @@ export function DashboardFiltersClient({
               disabled={isPending}
               className={cn(
                 buttonVariants({ size: "sm" }),
-                "inline-flex h-10 items-center justify-center gap-2 bg-[var(--admin-primary)] px-4 text-white hover:bg-[var(--admin-primary-hover)] disabled:opacity-50"
+                "inline-flex h-11 items-center justify-center gap-2 bg-[var(--admin-primary)] px-4 text-white hover:bg-[var(--admin-primary-hover)] disabled:opacity-50 sm:h-10"
               )}
             >
               {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -394,7 +394,7 @@ export function DashboardFiltersClient({
               <button
                 type="button"
                 className={cn(
-                  "inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold outline-none transition-all duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
+                  "inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:h-9",
                   activeAdvancedFilters > 0
                     ? "border-[var(--admin-warning-bg)] bg-[var(--admin-warning-bg)]/60 text-[var(--admin-heading)] hover:bg-[var(--admin-warning-bg)]/85"
                     : "border-[var(--admin-border)] bg-white text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]/70"
@@ -492,7 +492,7 @@ export function DashboardFiltersClient({
             <Link
               href={buildExportHref()}
               prefetch={false}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full border border-transparent px-3 text-[13px] font-semibold text-[var(--admin-primary)] outline-none transition-all hover:border-[var(--admin-border)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+              className="inline-flex h-11 items-center gap-1.5 rounded-full border border-transparent px-3 text-[13px] font-semibold text-[var(--admin-primary)] outline-none transition-colors hover:border-[var(--admin-border)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:h-9"
               title="Download a CSV with current filters"
             >
               <Download className="size-3.5" aria-hidden="true" />
@@ -562,7 +562,7 @@ export function DashboardFiltersClient({
               href={buildPillRemoveHref(pill.key)}
               scroll={false}
               aria-label={`Remove ${ADVANCED_FILTER_LABELS[pill.key]} filter (${formatPillValue(pill.key, pill.value)})`}
-              className="group inline-flex items-center gap-1.5 rounded-full border border-[var(--admin-warning-bg)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-all hover:border-[var(--admin-warning)]/50 hover:bg-[var(--admin-warning-bg)]/60 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+              className="group inline-flex items-center gap-1.5 rounded-full border border-[var(--admin-warning-bg)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:border-[var(--admin-warning)]/50 hover:bg-[var(--admin-warning-bg)]/60 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
             >
               <span className="text-[var(--admin-text-muted)]">{ADVANCED_FILTER_LABELS[pill.key]}:</span>
               <span className="font-semibold text-[var(--admin-heading)]">{formatPillValue(pill.key, pill.value)}</span>

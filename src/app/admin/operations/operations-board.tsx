@@ -311,7 +311,7 @@ export function OperationsBoard({
             >
               <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
-                  <h3
+                  <h2
                     id={`operations-heading-${key}`}
                     ref={(node) => {
                       columnHeaderRefs.current[key] = node;
@@ -320,7 +320,7 @@ export function OperationsBoard({
                     className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                   >
                     {column.label}
-                  </h3>
+                  </h2>
                   <AdminStatusBadge
                     value={String(allRows.length)}
                     tone={

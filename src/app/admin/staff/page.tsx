@@ -98,8 +98,10 @@ function initialOf(name: string): string {
   // "Phase10 COORDINATOR" → "PC"). Single-letter fallback when only one token.
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
-  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  if (parts.length === 1) return (Array.from(parts[0])[0] ?? "").toUpperCase();
+  const first = Array.from(parts[0])[0] ?? "";
+  const last = Array.from(parts[parts.length - 1])[0] ?? "";
+  return (first + last).toUpperCase();
 }
 
 function isUuid(value: string): boolean {

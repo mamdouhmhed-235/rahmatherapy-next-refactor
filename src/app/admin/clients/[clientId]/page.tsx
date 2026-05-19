@@ -6,6 +6,7 @@ import {
   CalendarPlus,
   ChevronRight,
   FileText,
+  FilterX,
   HeartPulse,
   History,
   Mail,
@@ -25,6 +26,7 @@ import {
   AdminStatusBadge,
   type AdminTone,
 } from "../../components/admin-ui";
+import { EmptyState } from "../../components/EmptyState";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
@@ -99,8 +101,12 @@ function deterministicHue(id: string): number {
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  if (parts.length === 1) {
+    return Array.from(parts[0]).slice(0, 2).join("").toUpperCase();
+  }
+  const first = Array.from(parts[0])[0] ?? "";
+  const last = Array.from(parts[parts.length - 1])[0] ?? "";
+  return (first + last).toUpperCase();
 }
 
 function buildClientUrl(
@@ -844,28 +850,19 @@ function EmptyTab({
   };
   const { title, message, cta } = config[tab];
   return (
-    <div className="mx-auto flex max-w-[360px] flex-col items-center py-14 text-center">
-      <span
-        className="mb-5 inline-flex size-16 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.08)]"
-        aria-hidden="true"
-      >
-        <CalendarCheck className="size-7 text-[var(--admin-primary)]" />
-      </span>
-      <p className="font-display text-[1.0625rem] font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
-        {title}
-      </p>
-      <p className="mt-2 max-w-[38ch] text-sm leading-6 text-[var(--admin-text-muted)]">
-        {message}
-      </p>
-      {cta && canCreateBooking ? (
-        <Link
-          href={`/admin/bookings/new?clientId=${clientId}`}
-          className="mt-5 inline-flex h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold !text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-        >
-          Book now
-        </Link>
-      ) : null}
-    </div>
+    <EmptyState
+      icon={CalendarCheck}
+      title={title}
+      message={message}
+      action={
+        cta && canCreateBooking
+          ? {
+              label: "Book now",
+              href: `/admin/bookings/new?clientId=${clientId}`,
+            }
+          : undefined
+      }
+    />
   );
 }
 
@@ -1343,20 +1340,20 @@ function EmptyFilteredState({
   activeTab: TabKey;
 }) {
   return (
-    <div className="mx-auto flex max-w-[360px] flex-col items-center py-10 text-center">
-      <p className="font-display text-sm font-semibold text-[var(--admin-heading)]">
-        No bookings match those filters
-      </p>
-      <p className="mt-2 max-w-[38ch] text-sm leading-6 text-[var(--admin-text-muted)]">
-        Try a different status or clear the service filter.
-      </p>
-      <Link
-        href={buildClientUrl(clientId, { tab: activeTab })}
-        className="mt-4 inline-flex h-8 items-center rounded-full border border-[var(--admin-border-form)] bg-transparent px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-      >
-        Clear filters
-      </Link>
-    </div>
+    <EmptyState
+      icon={FilterX}
+      title="No bookings match those filters"
+      message="Try a different status or clear the service filter."
+      compact
+      actions={
+        <Link
+          href={buildClientUrl(clientId, { tab: activeTab })}
+          className="inline-flex h-8 items-center rounded-full border border-[var(--admin-border-form)] bg-transparent px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          Clear filters
+        </Link>
+      }
+    />
   );
 }
 

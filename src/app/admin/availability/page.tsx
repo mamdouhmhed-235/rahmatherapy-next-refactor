@@ -571,10 +571,10 @@ function CapacityPill({ label, title }: { label: string; title: string }) {
 
 function StaffAvatar({ name }: { name: string }) {
   const initials = name
-    .split(" ")
+    .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase() ?? "")
+    .map((part) => (Array.from(part)[0] ?? "").toUpperCase())
     .join("");
 
   return (

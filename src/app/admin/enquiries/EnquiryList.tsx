@@ -132,7 +132,7 @@ function StaffAvatarToken({ name }: { name: string | null }) {
       .split(/\s+/)
       .filter(Boolean)
       .slice(0, 2)
-      .map((token) => token[0]?.toUpperCase() ?? "")
+      .map((token) => (Array.from(token)[0] ?? "").toUpperCase())
       .join("") || "·";
   return (
     <span

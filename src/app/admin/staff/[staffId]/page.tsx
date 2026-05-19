@@ -410,9 +410,9 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
   const roleSlug = typedStaff.roles?.name ?? "—";
   const initials = typedStaff.name
     .split(/\s+/)
-    .map((piece) => piece[0])
     .filter(Boolean)
     .slice(0, 2)
+    .map((piece) => Array.from(piece)[0] ?? "")
     .join("")
     .toUpperCase();
 

@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Search, FilterX, ChevronLeft, ChevronRight, Loader2, FolderSearch, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { AdminButton, AdminEmptyState, AdminSkeleton, AdminActionGroup } from "./admin-ui";
+import { AdminButton, AdminSkeleton, AdminActionGroup } from "./admin-ui";
+import { EmptyState } from "./EmptyState";
 
 export function AdminListSurface({
   children,
@@ -206,7 +207,7 @@ export function FilteredEmptyState({
 }) {
   return (
     <div className={className}>
-      <AdminEmptyState
+      <EmptyState
         icon={FilterX}
         title="No matching results"
         message="Try adjusting your search or filters to find what you're looking for."
@@ -233,7 +234,7 @@ export function NoResultsState({
 }) {
   return (
     <div className={className}>
-      <AdminEmptyState
+      <EmptyState
         icon={FolderSearch}
         title={title}
         message={message}

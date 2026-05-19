@@ -24,7 +24,6 @@ import {
 import { cn } from "@/lib/utils";
 import {
   AdminDashboardPanel,
-  AdminEmptyState,
   AdminHealthTile,
   AdminIconBadge,
   AdminPanelHeader,
@@ -33,6 +32,7 @@ import {
   AdminStackedBar,
   AdminStatusBadge,
 } from "../components/admin-ui";
+import { EmptyState } from "../components/EmptyState";
 import { AttentionReviewButton } from "./attention-group-client";
 import { DemandTrendClient } from "./demand-trend-client";
 import {
@@ -81,10 +81,11 @@ function formatPercent(value: number) {
 
 function getInitials(name: string) {
   return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
+    .split(/\s+/)
+    .filter(Boolean)
     .slice(0, 2)
+    .map((n) => Array.from(n)[0] ?? "")
+    .join("")
     .toUpperCase();
 }
 
@@ -173,19 +174,19 @@ export function AttentionItemCard({
           {href ? (
             <Link
               href={href}
-              className="inline-flex min-h-9 min-w-[8.5rem] items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-3.5 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+              className="inline-flex min-h-11 min-w-[8.5rem] items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-3.5 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 sm:min-h-9"
             >
               {primaryLabel}
             </Link>
           ) : (
-            <span className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3.5 text-[13px] text-[var(--admin-restricted)]">
+            <span className="inline-flex min-h-11 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3.5 text-[13px] text-[var(--admin-restricted)] sm:min-h-9">
               Restricted
             </span>
           )}
           {secondaryHref ? (
             <Link
               href={secondaryHref}
-              className="inline-flex min-h-9 min-w-[7.5rem] items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3.5 text-[13px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+              className="inline-flex min-h-11 min-w-[7.5rem] items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3.5 text-[13px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 sm:min-h-9"
             >
               {secondaryLabel ?? "Details"}
             </Link>
@@ -534,7 +535,7 @@ function UpcomingRangeList({
   if (appointments.length === 0) {
     return (
       <div className="px-4 py-8">
-        <AdminEmptyState
+        <EmptyState
           icon={CalendarDays}
           title={`No upcoming appointments in ${rangeLabel}`}
           message="Once bookings are scheduled they will appear here."
@@ -583,7 +584,7 @@ function SnapshotListRow({
   const content = (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2.5 transition-all duration-150",
+        "flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2.5 transition-[background-color,box-shadow,transform] duration-150",
         appointment.href && "hover:-translate-y-px hover:bg-[var(--admin-panel-muted)]/60 hover:shadow-[var(--admin-shadow-subtle)]"
       )}
       title={`${dateChip ? `${dateChip} · ` : ""}${timeRange} · ${appointment.title}${isUnconfirmed ? " (awaiting confirmation)" : ""}`}
@@ -889,7 +890,7 @@ function TodayTimeline({
   if (appointments.length === 0) {
     return (
       <div className="px-4 py-8">
-        <AdminEmptyState
+        <EmptyState
           icon={CalendarDays}
           title="No appointments today"
           message={
@@ -1021,7 +1022,7 @@ export function UrgentAttentionPanel({
 
       {allClear ? (
         <div className="mt-5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-success-bg)]/35 px-5 py-10">
-          <AdminEmptyState
+          <EmptyState
             icon={ShieldAlert}
             title="All caught up"
             message="Nothing needs your attention right now."
@@ -1036,7 +1037,7 @@ export function UrgentAttentionPanel({
           const content = (
             <div
               className={cn(
-                "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3 transition-all duration-150",
+                "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3 transition-[background-color,border-color] duration-150",
                 row.severity === "critical" && "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/30",
                 row.severity === "warning" && "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/30",
                 row.severity === "info" && "border-[var(--admin-border)] bg-white",
@@ -1256,7 +1257,7 @@ export function StaffCapacityCard({
             );
           })
         ) : (
-          <AdminEmptyState
+          <EmptyState
             icon={Users}
             title="No staff assigned"
             message="No appointments scheduled in this period."
@@ -1270,7 +1271,7 @@ export function StaffCapacityCard({
         <div className="mt-4">
           <Link
             href="/admin/staff"
-            className="flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/60 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/60 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:min-h-10"
           >
             <Plus className="size-4" />
             Add or manage staff
@@ -1427,7 +1428,7 @@ export function PaymentHealthCard({
           </div>
       ) : (
         <div className="mt-4">
-          <AdminEmptyState
+          <EmptyState
             icon={PoundSterling}
             title="No financial activity"
             message="Bookings and payments will appear here once there is activity in the selected range."
@@ -1696,7 +1697,7 @@ export function BusinessPulseCard({
               ))}
             </div>
           ) : (
-            <AdminEmptyState
+            <EmptyState
               icon={Wrench}
               title="No services booked yet"
               message="Once bookings come in, you will see which services are most popular."
@@ -1726,7 +1727,7 @@ export function BusinessPulseCard({
               </div>
             </>
           ) : (
-            <AdminEmptyState
+            <EmptyState
               icon={Users}
               title="No client activity"
               message="Client mix data will appear once there are bookings or enquiries in the selected range."
