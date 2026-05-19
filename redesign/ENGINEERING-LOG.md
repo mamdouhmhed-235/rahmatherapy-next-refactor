@@ -185,10 +185,22 @@ Without this checklist, a future deployer might miss the `CRON_SECRET` setup and
 
 ## Work item 2A-6 + 2A-9 — Phase 7 a11y audit (PARTIAL → HANDLED)
 
-*Driver: `BUSINESS-COMPLETENESS.md:65` and `:92` defer the HANDLED flip to a Phase 7 "audit of implementations" pass.*
-*Smoke test: `redesign/backend-smoke-tests/2A-6-2A-9-a11y-audit.md` (to be created).*
+*Driver: `BUSINESS-COMPLETENESS.md:65` and `:92` originally deferred the HANDLED flip to a Phase 7 "audit of implementations" pass. Phase 7 Gate 1 produced the verification; Session 4 is the doc-reconciliation pass that catches the status fields up to that evidence.*
+*Smoke test: none — doc reconciliation only, no code changes, no live tests.*
 
-(empty — session not yet started)
+**Status (2026-05-19):** HANDLED. No caveat — this is the cleanest of the four engineering-pause sessions, doc-only. Phase 7 Gate 1 (recorded in `redesign/FINAL-AUDIT.md`) produced the verification evidence before this doc edit; this session just reconciles the BUSINESS-COMPLETENESS and FINAL-REPORT status fields to match.
+
+**Evidence:**
+
+- **2A-6** (Form errors `role="alert" aria-live="polite"`): `FINAL-AUDIT.md` row P0-A1 (baseline-resolution table, line ~33) — *"74 `role='alert'` callsites across 42 admin files — shared `FieldError` primitive (`ManualBookingForm.tsx:367-381`) reused; spot-check live on `/admin/clients/new`, `/admin/settings`, `/admin/bookings/[id]`, `/admin/login`"*. **Fresh grep 2026-05-19** (post-Sessions 2 + 3 additions): `grep -ro 'role="alert"' src/app/admin/ | wc -l` returns **95 occurrences**; `grep -rln 'role="alert"' src/app/admin/ | wc -l` returns **59 files**. Slight uptick from the FINAL-AUDIT snapshot reflects Sessions 2 + 3 adding `role="alert"` regions to `TemplateEditForm` save-error + `ManualSendSheet` (Session 2 email-templates rewrite) — the cron-handler API route (Session 3) returns JSON `error` fields rather than `role="alert"` regions, so it's not a contributor to the grep delta. Session 2 is the dominant source of the new regions.
+- **2A-9** (Required-field visible `*` markers): `FINAL-AUDIT.md` row P1-A4 (baseline-resolution table, line ~36) — *"Live `/admin/settings` returned `requiredMarker: 5/5`; `/admin/bookings/new` returned `4/4`; shared `FieldLabel` adds `<span aria-hidden='true' className='ml-0.5 text-[oklch(26%_0.14_25)]'>*</span>`"*. **Canonical primitive:** `src/components/ui/form.tsx:39` (`export function FieldLabel`). **Adoption confirmed via grep 2026-05-19:** `FieldLabel` consumers include `EnquiryForm.tsx`, `NewStaffForm.tsx`, and `ManualBookingForm.tsx` (multiple callsites including `:951, :971, :995`). **Inline `aria-hidden="true"…>*` callsites outside FieldLabel:** `grep -rnE 'aria-hidden="true"[^>]*>\*|aria-hidden="true">[^<]*\*' src/app/admin/ | wc -l` returns **7 callsites** — all wrapping `aria-hidden="true"` per the primitive's contract; concentrated in `ManualBookingForm.tsx`, `StaffBlockedDatesManager.tsx`, `StaffAvailabilityOverridesManager.tsx`. These are pre-`FieldLabel` patterns that satisfy the WCAG attribute contract independently.
+
+**One-line summary:** Doc reconciliation only — no code changes. Phase 7 Gate 1 produced the verification; this session updates the documentation status to reflect that evidence.
+
+**Files edited in this session:**
+- `redesign/BUSINESS-COMPLETENESS.md` — 2A-6 + 2A-9 status lines flipped PARTIAL → HANDLED; the "Status held at PARTIAL" paragraphs replaced with FINAL-AUDIT.md + fresh-grep evidence.
+- `redesign/FINAL-REPORT.md` — 2A-6 + 2A-9 rows moved from the "NOT HANDLED — 4 items (FAIL)" table to the "HANDLED — 15 items (PASS)" table (was 13).
+- `redesign/ENGINEERING-LOG.md` — this section (the stub became the section you're reading).
 
 ---
 
