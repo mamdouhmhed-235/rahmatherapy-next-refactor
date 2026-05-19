@@ -239,7 +239,6 @@ export function ManualSendSheet({
             <form
               ref={formRef}
               action={formAction}
-              data-redesign-backend="FAKE"
               className="flex flex-col gap-4"
               noValidate
             >
@@ -309,11 +308,8 @@ export function ManualSendSheet({
                     <option value="__dummy__">— Use dummy data (until backend ships) —</option>
                   </select>
                   <p className="text-xs text-[var(--admin-text-muted)]">
-                    Real booking picker activates when{" "}
-                    <code className="rounded bg-[var(--admin-panel-muted)] px-1 py-0.5 text-[11px]">
-                      BUILD-email-templates-actions
-                    </code>{" "}
-                    lands.
+                    Real booking picker is a future feature. For now, fill the
+                    template variables below to populate test data.
                   </p>
                 </div>
               ) : null}

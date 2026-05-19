@@ -32,6 +32,7 @@ export const PERMISSIONS = {
   VIEW_EMAIL_LOGS: "view_email_logs",
   RESEND_BOOKING_EMAILS: "resend_booking_emails",
   MANAGE_EMAIL_SETTINGS: "manage_email_settings",
+  MANAGE_EMAIL_TEMPLATES: "manage_email_templates",
   MANAGE_ENQUIRIES: "manage_enquiries",
   MANAGE_SERVICES: "manage_services",
   MANAGE_SETTINGS: "manage_settings",
@@ -203,6 +204,10 @@ export function canResendBookingEmails(profile: StaffProfile | null) {
 
 export function canManageEmailSettings(profile: StaffProfile | null) {
   return hasPermission(profile, PERMISSIONS.MANAGE_EMAIL_SETTINGS);
+}
+
+export function canManageEmailTemplates(profile: StaffProfile | null) {
+  return hasPermission(profile, PERMISSIONS.MANAGE_EMAIL_TEMPLATES);
 }
 
 export function canManageEnquiries(profile: StaffProfile | null) {

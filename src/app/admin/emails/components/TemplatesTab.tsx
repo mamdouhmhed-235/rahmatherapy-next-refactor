@@ -22,6 +22,10 @@ interface TemplatesTabProps {
   /** Operator's own email address — used to prefill the manual-send sheet
    *  when they click "Send a test to me". */
   operatorEmail?: string | null;
+  /** Saved overrides for every template, fetched server-side on page load.
+   *  Map: templateId → fieldKey → value. The edit form uses these as the
+   *  "what's saved" baseline so a reload pre-populates the editable fields. */
+  initialOverrides?: Record<string, Record<string, string>>;
 }
 
 const SESSION_KEY = "admin.email-templates.selected";
@@ -30,6 +34,7 @@ export function TemplatesTab({
   canEdit,
   canSendAllAudiences = true,
   operatorEmail,
+  initialOverrides,
 }: TemplatesTabProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -128,7 +133,7 @@ export function TemplatesTab({
     setPendingNextId(null);
     // Restore focus to the field that triggered (best-effort).
     const formActive = document.querySelector<HTMLElement>(
-      'form[data-redesign-backend="FAKE"] input, form[data-redesign-backend="FAKE"] textarea'
+      'form[id^="tpl-form-"] input, form[id^="tpl-form-"] textarea'
     );
     formActive?.focus();
   }
@@ -267,6 +272,7 @@ export function TemplatesTab({
               template={selected}
               onDirtyChange={setDirty}
               registerLeaveGuard={registerLeaveGuard}
+              serverInitialValues={initialOverrides?.[selected.id]}
             />
           </div>
         ) : null}

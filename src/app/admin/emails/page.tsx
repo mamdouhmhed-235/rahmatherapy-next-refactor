@@ -14,10 +14,12 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getBusinessDate } from "@/lib/time/london";
 import {
   canManageEmailSettings,
+  canManageEmailTemplates,
   canResendBookingEmails,
   canViewEmailLogs,
   getStaffProfile,
 } from "@/lib/auth/rbac";
+import { getAllTemplateOverrides } from "@/lib/email/templates";
 import { TemplatesTab } from "./components/TemplatesTab";
 import { cn } from "@/lib/utils";
 import {
@@ -164,9 +166,15 @@ export default async function EmailsPage({ searchParams }: PageProps) {
         .returns<ReminderBooking[]>()
     : Promise.resolve({ data: [] as ReminderBooking[] });
 
-  const [deliveryResult, remindersResult] = await Promise.all([
+  const templateOverridesPromise =
+    activeTab === "templates"
+      ? getAllTemplateOverrides()
+      : Promise.resolve({} as Record<string, Record<string, string>>);
+
+  const [deliveryResult, remindersResult, templateOverrides] = await Promise.all([
     deliveryPromise,
     remindersPromise,
+    templateOverridesPromise,
   ]);
   const deliveryError = "error" in deliveryResult ? deliveryResult.error : null;
 
@@ -281,9 +289,10 @@ export default async function EmailsPage({ searchParams }: PageProps) {
 
       {activeTab === "templates" ? (
         <TemplatesTab
-          canEdit={canManageEmailSettings(profile)}
-          canSendAllAudiences={canSeeDelivery || canManageEmailSettings(profile)}
+          canEdit={canManageEmailTemplates(profile)}
+          canSendAllAudiences={canSeeDelivery || canManageEmailTemplates(profile)}
           operatorEmail={profile.email}
+          initialOverrides={templateOverrides}
         />
       ) : null}
     </div>

@@ -14,6 +14,12 @@ interface TemplateEditFormProps {
   template: TemplateMeta;
   onDirtyChange: (dirty: boolean) => void;
   registerLeaveGuard: (canLeave: () => boolean) => void;
+  /** Saved override values for this template, fetched server-side. The form
+   *  uses these as the "what's saved" baseline so the `dirty` check + the
+   *  pre-populated edit experience work correctly. A live sessionStorage
+   *  draft (if present) still wins for `values` on mount — drafts represent
+   *  in-progress edits the user hasn't saved yet. */
+  serverInitialValues?: Record<string, string>;
 }
 
 // Variables the runtime substitutes inside template copy. If an operator
@@ -85,17 +91,19 @@ export function TemplateEditForm({
   template,
   onDirtyChange,
   registerLeaveGuard,
+  serverInitialValues,
 }: TemplateEditFormProps) {
-  // Initial values: any persisted draft (survives tab switches) wins; otherwise empty.
+  // Initial values: any persisted draft (survives tab switches) wins; else
+  // the server-supplied saved overrides; else empty.
   const [values, setValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const f of template.fields) initial[f.kind] = "";
+    for (const f of template.fields) initial[f.kind] = serverInitialValues?.[f.kind] ?? "";
     const draft = typeof window !== "undefined" ? readDraft(template.id) : null;
     return draft ? { ...initial, ...draft } : initial;
   });
   const [initialValues, setInitialValues] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const f of template.fields) initial[f.kind] = "";
+    for (const f of template.fields) initial[f.kind] = serverInitialValues?.[f.kind] ?? "";
     return initial;
   });
   const [state, formAction, isPending] = useActionState<
@@ -105,15 +113,16 @@ export function TemplateEditForm({
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [, setTick] = useState(0);
 
-  // Reset on template change — read draft from storage if present.
+  // Reset on template change — server values become the new baseline,
+  // and a draft (if any) is layered on top for the live `values` state.
   useEffect(() => {
     const initial: Record<string, string> = {};
-    for (const f of template.fields) initial[f.kind] = "";
+    for (const f of template.fields) initial[f.kind] = serverInitialValues?.[f.kind] ?? "";
     const draft = readDraft(template.id);
     setValues(draft ? { ...initial, ...draft } : initial);
     setInitialValues(initial);
     setLastSavedAt(null);
-  }, [template.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [template.id, serverInitialValues]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist draft on every change so unsaved edits survive tab switches.
   useEffect(() => {
@@ -184,7 +193,17 @@ export function TemplateEditForm({
   useEffect(() => {
     if (state?.ok) {
       toast.success("Template updated.");
-      setInitialValues(values);
+      // Server returns the post-HTML-strip values it actually stored. Apply
+      // them so the textarea/input contents reflect what's in the DB (e.g.
+      // `<b>bold</b>` → `bold`). Falls back to the current values when the
+      // server doesn't include cleaned values (idempotent no-op save).
+      if (state.cleanedValues && Object.keys(state.cleanedValues).length > 0) {
+        const merged = { ...values, ...state.cleanedValues };
+        setValues(merged);
+        setInitialValues(merged);
+      } else {
+        setInitialValues(values);
+      }
       setLastSavedAt(new Date());
       // Saved state matches storage — clear the draft so re-visit starts clean.
       try {
@@ -274,7 +293,6 @@ export function TemplateEditForm({
       <form
         id={formId}
         action={formAction}
-        data-redesign-backend="FAKE"
         className="flex flex-col gap-4"
         noValidate
       >
