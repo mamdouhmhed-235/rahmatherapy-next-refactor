@@ -332,3 +332,60 @@ incident around the unintentional Resend send was surfaced immediately
 rather than papered over, and the operator's "ys the email arrived as
 you have stated." inbox confirmation closes the Scenario-3 evidence
 chain that the test plan required.
+
+------------------------------------------------------------------------------
+POST-SESSION CLEANUP (2026-05-19, post-Session-2 housekeeping)
+------------------------------------------------------------------------------
+
+Pre-cleanup listing:
+  Query: SELECT id, template_id, field_key, value, updated_at, updated_by
+         FROM public.email_template_overrides ORDER BY updated_at;
+  Result: 2 rows.
+
+  Row 1
+    id         = befc3755-789f-4abc-ad3b-c8c4e2733982
+    template_id = booking_confirmation
+    field_key   = greeting_intro
+    value      = "Welcome {clientName}, your {companyName} booking is being processed. (smoke-test scenario 1)"
+    updated_at  = 2026-05-19 14:43:44.101+00
+    updated_by  = 01582c5d-bd75-4c49-b207-6f5597e15218
+    → Smoke-test residue. Literal "(smoke-test scenario 1)" tag in the value.
+
+  Row 2
+    id         = 69843179-cc84-470f-80b4-60df901c14f2
+    template_id = booking_confirmation
+    field_key   = footer_contact
+    value      = "bold text"
+    updated_at  = 2026-05-19 14:43:44.295+00
+    updated_by  = 01582c5d-bd75-4c49-b207-6f5597e15218
+    → Smoke-test residue. The HTML-strip-test leftover; would never be
+       legitimate footer copy.
+
+  Neither row looks like real operator copy. Both safe to delete.
+
+Delete command:
+  WITH deleted AS (
+    DELETE FROM public.email_template_overrides
+    WHERE id IN (
+      'befc3755-789f-4abc-ad3b-c8c4e2733982',
+      '69843179-cc84-470f-80b4-60df901c14f2'
+    )
+    RETURNING id, template_id, field_key
+  )
+  SELECT * FROM deleted;
+
+  Result: 2 rows returned (both deletions confirmed by RETURNING).
+
+Post-cleanup count:
+  Query: SELECT COUNT(*) AS remaining_count FROM public.email_template_overrides;
+  Result: [{ "remaining_count": 0 }]
+
+State: table is empty. No remaining rows. Ready for the next session's
+work or for operator-driven first real override write.
+
+Note: the two corresponding audit_logs rows (action_type =
+'email_template_override_saved') for these test rows REMAIN in audit_logs
+by design — audit history is intentionally immutable, and deleting the
+override rows does not retroactively rewrite the actor's recorded action.
+The audit entries' before_state/after_state still describe the test
+values, which is the correct audit-trail outcome.
