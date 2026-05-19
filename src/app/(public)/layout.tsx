@@ -1,6 +1,9 @@
 import { BookingExperienceLoader } from "@/features/booking/BookingExperienceLoader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { MAINTENANCE_MODE } from "@/lib/maintenance";
+import { MaintenanceBanner } from "@/components/shared/MaintenanceBanner";
+import { MaintenanceModal } from "@/components/shared/MaintenanceModal";
 
 export default function PublicLayout({
   children,
@@ -15,12 +18,14 @@ export default function PublicLayout({
       >
         Skip to main content
       </a>
+      {MAINTENANCE_MODE && <MaintenanceBanner />}
       <SiteHeader />
       <main id="main-content" tabIndex={-1} className="public-main">
         {children}
       </main>
       <SiteFooter />
-      <BookingExperienceLoader />
+      {!MAINTENANCE_MODE && <BookingExperienceLoader />}
+      {MAINTENANCE_MODE && <MaintenanceModal />}
     </>
   );
 }
