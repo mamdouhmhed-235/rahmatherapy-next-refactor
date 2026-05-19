@@ -56,6 +56,14 @@ Discipline filter ✓ (regulatory: Equality Act 2010 / WCAG 2.1 AA, also blocks 
 ### 2A-6. Form errors silently fail to announce (aria-live missing)
 `BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** `A11Y-BASELINE.md` global finding A4. Every form-level error region (`LoginForm`, `ClientCreateForm`, `EnquiryForm`, `ManualBookingForm`, `SettingsForm`, `AvailabilityRulesManager`, `BookingManagementForm`, `BlockedDatesManager`, `AvailabilityOverridesManager`) renders error text as a plain `<p>` without `role="alert"` or `aria-live="polite"`. **Coverage:** 00-shared-components primitive shipped (`aa76451`); per-form audit live for: login (`role="alert" aria-live="polite" aria-atomic="true"` on LoginForm.tsx error region per `7e7e930`). Flip to `HANDLED` when remaining 23 form-bearing pages adopt; each per-page recipe's Step 12a `**BUSINESS-COMPLETENESS impact:**` subsection tracks new contributions.
 
+**Phase 6 close — documented contributors (2026-05-19):** beyond login, 4 additional pages explicitly recorded a 2A-6 contribution in their PER-PAGE-SCORES.md `BUSINESS-COMPLETENESS impact:` subsection:
+- `enquiries` (`EnquiryForm` form-level + field-level regions with full WCAG attribute set)
+- `roles` (`CreateRoleSheet.tsx:43-49` form-level region — partial contribution; recipe notes the surrounding submit is FAKE-degraded and the region is `sr-only`)
+- `services` (`ServiceFormDialog.tsx:178-181, :266-269` + shared `AdminInput` error region — all triplets present)
+- `email-templates` (`TemplateEditForm` save-error + `ManualSendSheet` regions with full triplet)
+
+**Status held at PARTIAL.** Documented evidence reaches 5/24 form-bearing pages (login + 4). The remaining 19 form-bearing pages did not log a `BUSINESS-COMPLETENESS impact:` entry — this is a documentation gap, NOT confirmation of implementation gap. Phase 7 (`/impeccable audit admin` per impeccable-v5-latest-stable.html) is the appropriate venue to verify the undocumented pages by inspecting the implementations; flip to HANDLED is deferred until Phase 7 produces that evidence.
+
 Discipline filter ✓ (regulatory). Highest-impact a11y fix because it touches every form.
 
 **Phase 5 brief coverage (2026-05-12):** `00-shared-components-brief.md` §5 Input spec mandates `<div role="alert" aria-live="polite" aria-atomic="true">` on every error region universally. Every form-bearing brief (booking-new, client-new, settings, availability, enquiries, services, staff-availability, etc.) carries this forward verbatim. Phase 6 session 1 (00-shared-components) establishes the primitive; every subsequent session inherits it.
@@ -76,6 +84,12 @@ Discipline filter ✓ (regulatory).
 
 ### 2A-9. Required-field markers invisible
 `BLOCKS-REDESIGN · Zone 1 · PARTIAL` · **Evidence:** `A11Y-BASELINE.md` global finding A5. `required` HTML attribute is present on `LoginForm`, `SettingsForm`, `ManualBookingForm`, `ClientCreateForm` etc. without an "*" or "(required)" visible marker. **Coverage:** 00-shared-components primitive shipped (`aa76451`); per-form audit live for: login (visible `*` markers in Cancelled-family colour with `aria-hidden="true"` on LoginForm.tsx per `7e7e930`). Flip to `HANDLED` when remaining 23 form-bearing pages adopt; each per-page recipe's Step 12a `**BUSINESS-COMPLETENESS impact:**` subsection tracks new contributions.
+
+**Phase 6 close — documented contributors (2026-05-19):** beyond login, 2 additional pages explicitly recorded a 2A-9 contribution in their PER-PAGE-SCORES.md `BUSINESS-COMPLETENESS impact:` subsection:
+- `roles` (`CreateRoleSheet.tsx:57-59, :81-83` visible `*` in Cancelled-family colour with `aria-hidden="true"` on `display_label` and `name`)
+- `email-templates` (`ManualSendSheet` "Send to" input carries the visible `*` in Cancelled text colour with `aria-hidden="true"`)
+
+**Status held at PARTIAL.** Documented evidence reaches 3/24 form-bearing pages (login + 2). The remaining 21 form-bearing pages did not log a `BUSINESS-COMPLETENESS impact:` entry — this is a documentation gap, NOT confirmation of implementation gap. Phase 7 (`/impeccable audit admin` per impeccable-v5-latest-stable.html) is the appropriate venue to verify the undocumented pages by inspecting the implementations; flip to HANDLED is deferred until Phase 7 produces that evidence.
 
 Discipline filter ✓ (regulatory, plus operator clarity).
 
