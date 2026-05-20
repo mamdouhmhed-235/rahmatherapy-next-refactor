@@ -136,6 +136,35 @@ a[class*="border-rahma-green/30"] {
   }
 }
 
+/* WCAG 2.5.5 AA mobile touch-target floor for button-shaped controls.
+ * Lifts h-9 / h-10 / min-h-9 / min-h-10 flex + inline-flex buttons + links app-wide
+ * to 2.75rem (44px) on mobile, then steps back down at sm: (≥ 640px). Selector targets
+ * only <button> and <a> with the listed Tailwind utilities; non-interactive elements
+ * with these classes are unaffected. Portaled popover / dialog content is included
+ * by design (it renders outside the admin tree). Opt-out classes:
+ *   .admin-link-action — inline text-style links (WCAG 2.5.5 inline exception).
+ *   .admin-touch-exempt — dense list-row inline controls intentionally below the floor. */
+@media (max-width: 639px) {
+  a.inline-flex.h-9:not(.admin-link-action):not(.admin-touch-exempt),
+  a.inline-flex.h-10:not(.admin-link-action):not(.admin-touch-exempt),
+  a.inline-flex.min-h-9:not(.admin-link-action):not(.admin-touch-exempt),
+  a.inline-flex.min-h-10:not(.admin-link-action):not(.admin-touch-exempt),
+  a.flex.h-9:not(.admin-link-action):not(.admin-touch-exempt),
+  a.flex.h-10:not(.admin-link-action):not(.admin-touch-exempt),
+  a.flex.min-h-9:not(.admin-link-action):not(.admin-touch-exempt),
+  a.flex.min-h-10:not(.admin-link-action):not(.admin-touch-exempt),
+  button.inline-flex.h-9:not(.admin-link-action):not(.admin-touch-exempt),
+  button.inline-flex.h-10:not(.admin-link-action):not(.admin-touch-exempt),
+  button.inline-flex.min-h-9:not(.admin-link-action):not(.admin-touch-exempt),
+  button.inline-flex.min-h-10:not(.admin-link-action):not(.admin-touch-exempt),
+  button.flex.h-9:not(.admin-link-action):not(.admin-touch-exempt),
+  button.flex.h-10:not(.admin-link-action):not(.admin-touch-exempt),
+  button.flex.min-h-9:not(.admin-link-action):not(.admin-touch-exempt),
+  button.flex.min-h-10:not(.admin-link-action):not(.admin-touch-exempt) {
+    min-height: 2.75rem;
+  }
+}
+
 .admin-link-action {
   min-height: auto;
   border-color: transparent;

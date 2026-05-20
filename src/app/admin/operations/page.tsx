@@ -223,7 +223,7 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
                   aria-current={isActive ? "true" : undefined}
                   data-redesign-fake="filter-query"
                   className={cn(
-                    "inline-flex min-h-7 items-center rounded-full px-2.5 py-0.5 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                    "inline-flex min-h-11 sm:min-h-7 items-center rounded-full px-2.5 py-0.5 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                     isActive
                       ? "bg-[var(--admin-primary)] text-white"
                       : "border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"

@@ -171,7 +171,7 @@ export function AttentionReviewButton({
               <button
                 type="button"
                 onClick={() => setExpanded(false)}
-                className="inline-flex size-9 items-center justify-center rounded-full text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                className="inline-flex size-11 sm:size-9 items-center justify-center rounded-full text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                 aria-label="Close attention details"
               >
                 <X className="size-4" aria-hidden="true" />

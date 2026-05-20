@@ -34,7 +34,7 @@ export function ClientRowMenu({
   return (
     <AdminPopover.Root>
       <AdminPopover.Trigger
-        className="relative z-10 inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[oklch(92%_0.022_155)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        className="relative z-10 inline-flex size-11 sm:size-9 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[oklch(92%_0.022_155)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
         aria-label={`More actions for ${clientName}`}
       >
         <MoreHorizontal className="size-4" aria-hidden="true" />

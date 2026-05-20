@@ -498,14 +498,14 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
                 href={`/admin/staff/${prevSibling.id}`}
                 aria-label={`Previous staff: ${prevSibling.name}`}
                 title={`Previous staff: ${prevSibling.name}`}
-                className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2"
+                className="inline-flex size-11 sm:size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2"
               >
                 <ChevronLeft className="size-4" aria-hidden="true" />
               </Link>
             ) : (
               <span
                 aria-hidden="true"
-                className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)]/40 bg-transparent text-[var(--admin-text-muted)]/40"
+                className="inline-flex size-11 sm:size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)]/40 bg-transparent text-[var(--admin-text-muted)]/40"
               >
                 <ChevronLeft className="size-4" />
               </span>
@@ -515,14 +515,14 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
                 href={`/admin/staff/${nextSibling.id}`}
                 aria-label={`Next staff: ${nextSibling.name}`}
                 title={`Next staff: ${nextSibling.name}`}
-                className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2"
+                className="inline-flex size-11 sm:size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2"
               >
                 <ChevronRight className="size-4" aria-hidden="true" />
               </Link>
             ) : (
               <span
                 aria-hidden="true"
-                className="inline-flex size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)]/40 bg-transparent text-[var(--admin-text-muted)]/40"
+                className="inline-flex size-11 sm:size-9 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)]/40 bg-transparent text-[var(--admin-text-muted)]/40"
               >
                 <ChevronRight className="size-4" />
               </span>

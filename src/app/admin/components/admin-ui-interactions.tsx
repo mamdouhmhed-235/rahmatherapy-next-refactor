@@ -43,7 +43,7 @@ export function AdminMenuItem({
     <button
       type="button"
       className={cn(
-        "flex min-h-9 w-full items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+        "flex min-h-11 sm:min-h-9 w-full items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
         destructive
           ? "text-[oklch(26%_0.14_25)] hover:bg-[oklch(95.5%_0.028_20)]"
           : "text-[var(--admin-body)] hover:text-[var(--admin-heading)]",

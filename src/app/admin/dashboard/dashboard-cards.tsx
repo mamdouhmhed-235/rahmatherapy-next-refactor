@@ -424,7 +424,7 @@ function SnapshotViewToggle({ currentView, filterQuery }: { currentView: "list" 
         scroll={false}
         aria-current={currentView === "list" ? "page" : undefined}
         className={cn(
-          "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
+          "inline-flex min-h-11 h-7 sm:min-h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
           currentView === "list"
             ? "bg-[var(--admin-primary)] text-white"
             : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)]"
@@ -437,7 +437,7 @@ function SnapshotViewToggle({ currentView, filterQuery }: { currentView: "list" 
         scroll={false}
         aria-current={currentView === "timeline" ? "page" : undefined}
         className={cn(
-          "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
+          "inline-flex min-h-11 h-7 sm:min-h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
           currentView === "timeline"
             ? "bg-[var(--admin-primary)] text-white"
             : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)]"
