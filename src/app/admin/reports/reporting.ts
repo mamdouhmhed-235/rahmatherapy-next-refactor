@@ -379,6 +379,15 @@ export function summarizeReports(data: ReportData) {
     const amountPaid = amount(booking.amount_paid);
     const amountDue = amount(booking.amount_due ?? booking.total_price);
 
+    // TODO(post-Phase-7 policy decision): bookedRevenue currently sums
+    // totalPrice for every booking in range, including cancelled and
+    // no_show. Two valid interpretations:
+    //   (a) "Revenue committed at time of booking" — keep cancelled in;
+    //       this answers "what did our pipeline look like for the period?"
+    //   (b) "Revenue from currently-valid bookings" — exclude cancelled/
+    //       no_show; this answers "what do we still expect to earn?"
+    // Current implementation is (a). Defer the choice; raise as a
+    // separate discussion after ship.
     bookedRevenue += totalPrice;
     collectedRevenue += amountPaid;
     outstandingRevenue += Math.max(amountDue - amountPaid, 0);
@@ -549,7 +558,10 @@ export function getAttentionItems(data: ReportData) {
       date: string;
     }[] = [];
 
-    if (booking.assignment_status === "unassigned") {
+    if (
+      booking.assignment_status === "unassigned" &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       items.push({
         id: `${booking.id}-unassigned`,
         href: `/admin/bookings/${booking.id}`,
@@ -559,7 +571,10 @@ export function getAttentionItems(data: ReportData) {
         date: booking.booking_date,
       });
     }
-    if (booking.assignment_status === "partially_assigned") {
+    if (
+      booking.assignment_status === "partially_assigned" &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       items.push({
         id: `${booking.id}-partial`,
         href: `/admin/bookings/${booking.id}`,

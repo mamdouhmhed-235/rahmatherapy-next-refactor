@@ -229,6 +229,7 @@ export async function updateBookingManagement(
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }
@@ -433,6 +434,7 @@ export async function quickUpdateBooking(formData: FormData) {
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }
@@ -586,6 +588,12 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
   if (error || !updatedAssignment) {
     return { error: error?.message ?? "Unable to update assignment." };
   }
+
+  const assignmentStatusResult = await recomputeBookingAssignmentStatus(
+    updatedAssignment.booking_id,
+    adminClient
+  );
+  if (assignmentStatusResult.error) return assignmentStatusResult;
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
@@ -860,6 +868,7 @@ export async function createManualBooking(
 
     revalidatePath("/admin/bookings");
     revalidatePath("/admin/dashboard");
+    revalidatePath("/admin/calendar");
     redirect(`/admin/bookings/${result.bookingId}`);
   } catch (error) {
     if (error instanceof BookingCreationError) {

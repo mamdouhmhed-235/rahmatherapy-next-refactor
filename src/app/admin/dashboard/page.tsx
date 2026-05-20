@@ -484,17 +484,35 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const sevenDayLimit = addBusinessDays(today, 7);
 
   for (const booking of data.bookings) {
-    if (booking.booking_date === today) todayAppointments.push(booking);
-    if (booking.booking_date >= today && booking.booking_date <= filters.to) {
+    if (
+      booking.booking_date === today &&
+      !["cancelled", "no_show"].includes(booking.status)
+    )
+      todayAppointments.push(booking);
+    if (
+      booking.booking_date >= today &&
+      booking.booking_date <= filters.to &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       upcomingInRange.push(booking);
     }
-    if (booking.booking_date >= today && booking.booking_date <= sevenDayLimit) {
+    if (
+      booking.booking_date >= today &&
+      booking.booking_date <= sevenDayLimit &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       nextSevenDays.push(booking);
     }
-    if (booking.assignment_status === "unassigned") {
+    if (
+      booking.assignment_status === "unassigned" &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       unassignedOnly.push(booking);
       needsAssignment.push(booking);
-    } else if (booking.assignment_status === "partially_assigned") {
+    } else if (
+      booking.assignment_status === "partially_assigned" &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       needsAssignment.push(booking);
     }
     if (booking.payment_status === "unpaid") {
@@ -521,12 +539,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             const sevenDayLimit = addBusinessDays(today, 7);
             return (
               booking.booking_date >= today &&
-              booking.booking_date <= sevenDayLimit
+              booking.booking_date <= sevenDayLimit &&
+              !["cancelled", "no_show"].includes(booking.status)
             );
           }).length
         }
         todayAppointments={data.bookings.filter(
-          (booking) => booking.booking_date === today
+          (booking) =>
+            booking.booking_date === today &&
+            !["cancelled", "no_show"].includes(booking.status)
         )}
         nextAppointment={nextAppointmentForTherapist}
         activeRange={filters.range}

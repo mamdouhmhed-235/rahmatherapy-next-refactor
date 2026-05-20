@@ -216,6 +216,7 @@ export async function createClient(
   });
 
   revalidatePath("/admin/clients");
+  revalidatePath("/admin/dashboard");
   redirect(`/admin/clients/${data.id}`);
 }
 

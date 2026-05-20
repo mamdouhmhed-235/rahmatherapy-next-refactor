@@ -99,7 +99,7 @@ export function BookingActionButton({
             ? await updateOwnAssignmentStatus(formData)
             : await quickUpdateBooking(formData);
 
-        if (result.error) {
+        if ("error" in result && result.error) {
           setError(result.error);
           toast.error(result.error);
           resolve();

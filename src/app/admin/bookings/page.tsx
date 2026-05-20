@@ -172,13 +172,20 @@ function filterBookings(
           booking.reschedule_status === "requested" ||
           Boolean(booking.customer_cancelled_at))) ||
       (view === "assigned" && isOwnBooking(booking, profile)) ||
-      (view === "claimable" && hasClaimableAssignment(booking, profile)) ||
-      (view === "today" && booking.booking_date === today) ||
+      (view === "claimable" &&
+        !["cancelled", "no_show"].includes(booking.status) &&
+        hasClaimableAssignment(booking, profile)) ||
+      (view === "today" &&
+        booking.booking_date === today &&
+        !["cancelled", "no_show"].includes(booking.status)) ||
       (view === "upcoming" &&
         booking.booking_date >= today &&
         !["completed", "cancelled", "no_show"].includes(booking.status)) ||
-      (view === "unassigned" && booking.assignment_status === "unassigned") ||
+      (view === "unassigned" &&
+        !["cancelled", "no_show"].includes(booking.status) &&
+        booking.assignment_status === "unassigned") ||
       (view === "partially_assigned" &&
+        !["cancelled", "no_show"].includes(booking.status) &&
         booking.assignment_status === "partially_assigned") ||
       (view === "completed" && booking.status === "completed") ||
       (view === "cancelled" &&

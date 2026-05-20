@@ -255,8 +255,17 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     });
   }
 
+  // Active scheduling data — cancelled and no_show bookings are no longer on
+  // the schedule, so exclude them from grid cells, the Unassigned sidebar,
+  // and the unassigned count stat. Stats below intentionally retain
+  // data.bookings.length / reschedule / unpaid totals against the raw set so
+  // analytic counts still reflect every booking in the range.
+  const activeBookings = data.bookings.filter(
+    (b) => !["cancelled", "no_show"].includes(b.status)
+  );
+
   // Group bookings by date for week view; day view collapses to one date
-  const grouped = groupByDate(data.bookings);
+  const grouped = groupByDate(activeBookings);
 
   const startISO = selectedDate;
   const endISO =
@@ -267,7 +276,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       ? buildWeekDates(startISO)
       : [startISO];
 
-  const unassigned = data.bookings
+  const unassigned = activeBookings
     .filter((booking) =>
       ["unassigned", "partially_assigned"].includes(booking.assignment_status)
     )
@@ -366,8 +375,10 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   // Today's roundup stats (across the current filtered range)
   const stats = {
     total: data.bookings.length,
-    unassigned: data.bookings.filter((b) =>
-      ["unassigned", "partially_assigned"].includes(b.assignment_status)
+    unassigned: data.bookings.filter(
+      (b) =>
+        !["cancelled", "no_show"].includes(b.status) &&
+        ["unassigned", "partially_assigned"].includes(b.assignment_status)
     ).length,
     reschedule: data.bookings.filter((b) => b.reschedule_status === "requested")
       .length,

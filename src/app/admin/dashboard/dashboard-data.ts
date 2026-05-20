@@ -283,7 +283,29 @@ async function getTherapistScopeAssignments(
       .returns<ReportAssignment[]>(),
   ]);
 
-  return [...(assignedResult.data ?? []), ...(claimableResult.data ?? [])];
+  // Filter claimable assignments to exclude those whose underlying booking
+  // is cancelled or no_show. Therapists should not see a "claim this" chip
+  // for a booking that's no longer live. We intentionally do NOT filter the
+  // assigned-to-self side: a therapist's own cancelled/no_show bookings are
+  // still relevant for completionRate / noShowCount analytics on
+  // TherapistDashboard (preserves the same Client-Mix-style guarantee that
+  // led us to skip the data-layer query filter in getBookings).
+  const claimable = claimableResult.data ?? [];
+  let activeClaimable: ReportAssignment[] = claimable;
+  if (claimable.length > 0) {
+    const bookingIds = Array.from(new Set(claimable.map((a) => a.booking_id)));
+    const { data: activeBookings } = await adminClient
+      .from("bookings")
+      .select("id")
+      .in("id", bookingIds)
+      .neq("status", "cancelled")
+      .neq("status", "no_show")
+      .returns<{ id: string }[]>();
+    const activeBookingIds = new Set((activeBookings ?? []).map((b) => b.id));
+    activeClaimable = claimable.filter((a) => activeBookingIds.has(a.booking_id));
+  }
+
+  return [...(assignedResult.data ?? []), ...activeClaimable];
 }
 
 async function getBookings(

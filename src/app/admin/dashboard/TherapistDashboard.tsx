@@ -172,7 +172,7 @@ export function TherapistDashboard({
     (booking) =>
       booking.assignment_status === "unassigned" &&
       booking.booking_date >= today &&
-      booking.status !== "cancelled"
+      !["cancelled", "no_show"].includes(booking.status)
   );
 
   // Compute tomorrow's date (UTC-safe) for the "fully quiet" forward-anchor.
@@ -181,7 +181,8 @@ export function TherapistDashboard({
   const tomorrowKey = tomorrowDate.toISOString().slice(0, 10);
   const tomorrowVisitCount = data.bookings.filter(
     (booking) =>
-      booking.booking_date === tomorrowKey && booking.status !== "cancelled"
+      booking.booking_date === tomorrowKey &&
+      !["cancelled", "no_show"].includes(booking.status)
   ).length;
   const fullyQuiet =
     !nextAppointment && todayAppointments.length === 0 && claimable.length === 0;
