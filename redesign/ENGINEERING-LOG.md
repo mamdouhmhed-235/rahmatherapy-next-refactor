@@ -211,7 +211,7 @@ Without this checklist, a future deployer might miss the `CRON_SECRET` setup and
 
 **Status (2026-05-20):** L1-a + L1-b **PASS** (dev mode). Cloudflare-runtime verification deferred to a separate post-deploy checklist item (see "Cloudflare post-deploy carry-over" below); this is recorded in `FINAL-REPORT.md` as a follow-on, not a regression of the dev-mode PASS.
 
-L1-c (backup restore drill) remains FAIL pending operator authorisation for the destructive/billable action; not addressed in Session 5a.
+L1-c (backup restore drill) was not addressed in Session 5a; formally waived to Track B in Session 5b (2026-05-20) — see "Work item Layer 1 — L1-c Track B waiver (Session 5b)" below.
 
 ### What this session actually fixed
 
@@ -271,3 +271,70 @@ The dev-mode PASS does not extend to the Cloudflare Workers runtime. Three upstr
 4. Confirm event lands in Sentry dashboard with a fresh `event_id`.
 5. Remove the test route + env from the preview; redeploy.
 6. Only then mark L1-a + L1-b PASS in the Cloudflare-production verdict (separate from the dev-mode PASS recorded today).
+
+---
+
+## Work item Layer 1 — L1-c Track B waiver (Session 5b)
+
+*Driver: `FINAL-REPORT.md` Layer 1 row L1-c, previously FAIL — NEEDS USER AUTHORISATION as of Session 5a close.*
+*Smoke test: none — doc-only session. No drill executed.*
+
+**Status (2026-05-20):** L1-c verdict **DEFER-WITH-WAIVER (Track B)** — user-authorised waiver of the backup restore drill from Layer 1 verification (engineering-pause-blocking) to Track B (pre-launch-blocking). The drill itself is not performed during this engineering pause; it MUST be completed before any production rollout.
+
+### Track B waiver record
+
+| Field | Value |
+|---|---|
+| Item | L1-c — Backup tested with successful restore within 24h |
+| Date of waiver | 2026-05-20 |
+| User authorisation | Explicit (engineering-pause Session 5b) |
+| Authorising party | Operator (mamdouhmhmed) |
+| Reason | Drill cost-path analysis: free options provide only weak evidence (local `supabase db dump \| psql` exercises Postgres-level dump/restore but not Supabase's platform backup pipeline, which is the actual thing under audit). Paid options are out of engineering-pause scope: a separate Supabase project is a recurring fixed cost; a Supabase Branching preview is ~$0.32/day per `mcp__supabase__get_cost{type=branch}` returned `0.01344` hourly on 2026-05-20 for org `xekwtwwzirqkkqxjevoa`. A GitHub Actions workflow with a `postgres:17` service container would be the right long-term answer (free in minutes, reproducible) but is itself a separate piece of work outside this engineering pause's scope. |
+| Status prior to waiver | L1-c FAIL — NEEDS USER AUTHORISATION |
+| Status after waiver | L1-c DEFER-WITH-WAIVER (Track B) |
+| Effect on Phase 7 Gate 0 | None engineering-pause-blocking; Layer 1 net now 3/4 PASS + 1 DEFER-WITH-WAIVER (was 2 DEFER + 1 FAIL + 1 PASS at gate open). |
+| Effect on pre-launch | Pre-launch-blocking. L1-c MUST be completed before any production rollout; see the pre-launch checklist entry below. |
+| Cross-references | `BUSINESS-COMPLETENESS.md` item 2A-12 (already placed in Track B with `BLOCKS-LAUNCH · Zone 1 · HANDLED` for the placement decision, not the drill itself); `FOUNDATION-FLOOR.md` §1 item 3 (PARTIAL — restore drill outstanding); `redesign/FINAL-REPORT.md` Layer 1 L1-c row (verdict updated to DEFER-WITH-WAIVER in this session). |
+
+### Capability-check evidence (2026-05-20, pre-waiver)
+
+Run via Supabase MCP before the waiver was accepted, to inform the cost-path decision:
+- `mcp__supabase__get_project{id: 'twzutkfgqclqurvkmvqz'}` — returned `region=eu-west-1, postgres=17.6.1.111, status=ACTIVE_HEALTHY, organization_id=xekwtwwzirqkkqxjevoa, created_at=2026-05-01`. **Does not expose tier or PITR config** — those are not in the MCP `get_project` shape.
+- `mcp__supabase__get_cost{type='branch', organization_id='xekwtwwzirqkkqxjevoa'}` — returned `{recurrence: "hourly", amount: 0.01344}`. Implies branching is available (non-zero cost = not a tier-gated "not available" response); $0.32/day if a branch is left running.
+- `mcp__supabase__list_branches{project_id: 'twzutkfgqclqurvkmvqz'}` — errored `InternalServerErrorException: "Project reference is missing when validating permissions"`. Generic MCP/API error, not a tier-gate message; likely reflects zero branches currently existing or a GitHub-link prerequisite. Cost endpoint is the stronger signal of availability.
+- `mcp__supabase__list_organizations` — single org `xekwtwwzirqkkqxjevoa` (operator's personal org).
+
+Direct confirmation of subscription tier and PITR enablement is **not available via MCP** for this project and requires a Supabase dashboard visit (settings → Database → Point in Time Recovery).
+
+### Pre-launch checklist entry (binding before production rollout)
+
+**L1-c — Backup restore drill MUST be completed before production rollout.**
+
+**Acceptable methods (any one is sufficient; pick based on cost / fidelity tradeoff at pre-launch time):**
+
+| Method | Fidelity | Cost | Operational complexity |
+|---|---|---|---|
+| (a) Supabase Branching preview restore | High — exercises the actual platform backup pipeline | ~$0.32/day per branch (per 2026-05-20 capability check); tear down promptly | Low (managed by Supabase); first run requires GitHub repo link |
+| (b) Throwaway separate Supabase project — restore from production backup, then delete | High — also exercises the platform pipeline | Free tier eligible if size fits; otherwise pro-rated project cost | Medium (separate project provisioning + teardown) |
+| (c) GitHub Actions workflow with `postgres:17` service container — pulls a recent backup dump, restores into the container, runs row-count assertions, tears down | Medium — exercises Postgres-level restore but not Supabase platform layer | Free (GitHub Actions minutes) | Medium (workflow file + secret setup) — recommended long-term answer |
+| (d) Local Docker + `pg_dump \| psql` round-trip | Low — only Postgres-level, not platform | Free | Low (local only, no infra to provision) |
+
+**Evidence requirements (record in `/redesign/backend-smoke-tests/backup-restore-drill-<date>.txt` when the drill runs):**
+- Restore completion time (clock time from "restore start" to "restore complete").
+- Row counts on 5 key tables compared against the production snapshot: `bookings`, `clients`, `staff_profiles`, `email_delivery_events`, `audit_logs`. The counts must match the production snapshot at the point the backup was taken (off by no more than the documented post-snapshot delta if any).
+- Teardown confirmation: the throwaway target (branch, project, container) has been removed and is no longer accruing cost. For method (a) confirm via `mcp__supabase__list_branches` returning the branch absent; for method (b) confirm via `mcp__supabase__list_projects` no longer showing the throwaway project; for methods (c)/(d) confirm via `docker ps` / GitHub Actions run completion.
+- Any anomalies observed during restore (missing extensions, RLS-policy gotchas, etc.) — these are exactly the kind of thing the drill is designed to surface before launch.
+
+### What this session did NOT do
+
+This is a doc-only session. Explicitly NOT performed:
+- No live restore drill against any target.
+- No Supabase branch provisioning, billing changes, or throwaway project creation.
+- No code changes (no new commits to source files; only the three doc files listed below).
+- No L1-c PASS claim — the verdict is DEFER-WITH-WAIVER, not PASS. The drill remains required pre-launch.
+
+### Files edited in Session 5b
+
+- `redesign/FINAL-REPORT.md` — L1-c row FAIL → DEFER-WITH-WAIVER; Layer 1 net summary updated; "what's needed to clear this gate" item 3b updated to reflect resolution via waiver.
+- `redesign/ENGINEERING-LOG.md` — opening L1-c statement in the Session 5a Layer 1 section updated to point at the waiver record; this new Session 5b work item appended.
+- `redesign/BUSINESS-COMPLETENESS.md` — already correctly places 2A-12 in Track B (pre-launch). Added a single cross-reference line pointing at the Session 5b waiver record for future-reader traceability.

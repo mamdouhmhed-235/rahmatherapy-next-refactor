@@ -116,6 +116,8 @@ Discipline filter ✓ (regulatory / data-protection — UK GDPR Article 32).
 
 **Phase 5 brief coverage (2026-05-12):** No Phase 5 brief requires this. Operational task; handled during pre-launch Track B.
 
+**Engineering-pause Session 5b (2026-05-20):** L1-c (Layer 1 equivalent of this item) formally waived from engineering-pause-blocking to pre-launch-blocking. Drill not performed during the engineering pause due to scope/cost constraints; four acceptable methods + evidence requirements documented at `redesign/ENGINEERING-LOG.md` "Work item Layer 1 — L1-c Track B waiver (Session 5b)". The pre-launch placement here is unchanged — Session 5b confirms it formally rather than altering scope.
+
 ### 2A-13. Production / staging environment separation
 `BLOCKS-LAUNCH · Zone 3a · NOT-STARTED` · **Evidence (verified via Supabase MCP):** one project only — `Rahma-therapy` (`twzutkfgqclqurvkmvqz`), status ACTIVE_HEALTHY, eu-west-1, Postgres 17, created 2026-05-01. `mcp__supabase__list_branches` errored (branching not enabled on the current tier). `wrangler.jsonc` defines no `[env.staging]` block. Dev server, `pnpm test:e2e:setup` (phase10 markered seed), and (eventually) production all read/write the same database.
 
