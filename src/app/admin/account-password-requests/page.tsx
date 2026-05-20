@@ -242,7 +242,7 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
                   aria-current={isActive ? "page" : undefined}
                   className={
                     isActive
-                      ? "inline-flex min-h-10 items-center whitespace-nowrap rounded-full bg-[var(--admin-primary)] px-2.5 text-xs font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-canvas)] sm:px-4 sm:text-sm"
+                      ? "inline-flex min-h-10 items-center whitespace-nowrap rounded-full bg-[var(--admin-primary)] px-2.5 text-xs font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-canvas)] sm:px-4 sm:text-sm"
                       : "inline-flex min-h-10 items-center whitespace-nowrap rounded-full border border-transparent px-2.5 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:border-[var(--admin-border)] hover:bg-[var(--admin-hover-mist)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-canvas)] sm:px-4 sm:text-sm"
                   }
                 >

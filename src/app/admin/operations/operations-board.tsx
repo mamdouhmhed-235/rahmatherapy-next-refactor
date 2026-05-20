@@ -268,7 +268,7 @@ export function OperationsBoard({
                 className={cn(
                   "inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[0.375rem] px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                   isActive
-                    ? "bg-[var(--admin-primary)] text-white"
+                    ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
                     : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
                 )}
               >
@@ -277,7 +277,7 @@ export function OperationsBoard({
                   className={cn(
                     "inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 text-[0.6875rem]",
                     isActive
-                      ? "bg-white/20 text-white"
+                      ? "bg-white/20 text-[var(--admin-on-primary)]"
                       : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
                   )}
                 >

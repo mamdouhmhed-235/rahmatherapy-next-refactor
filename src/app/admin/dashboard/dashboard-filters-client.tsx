@@ -342,7 +342,7 @@ export function DashboardFiltersClient({
                   className={cn(
                     "group inline-flex h-11 shrink-0 snap-start items-center justify-center rounded-full border px-4 text-[13px] font-semibold outline-none transition-[background-color,border-color,color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 active:scale-[0.97] sm:h-10",
                     isActive
-                      ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white shadow-[0_2px_6px_oklch(23%_0.073_155/0.28),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-[var(--admin-primary-hover)]"
+                      ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_2px_6px_oklch(23%_0.073_155/0.28),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-[var(--admin-primary-hover)]"
                       : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:-translate-y-px hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]/60 hover:text-[var(--admin-heading)] hover:shadow-[0_2px_5px_rgba(0,0,0,0.04)]"
                   )}
                 >
@@ -366,7 +366,7 @@ export function DashboardFiltersClient({
               disabled={isPending}
               className={cn(
                 buttonVariants({ size: "sm" }),
-                "inline-flex h-11 items-center justify-center gap-2 bg-[var(--admin-primary)] px-4 text-white hover:bg-[var(--admin-primary-hover)] disabled:opacity-50 sm:h-10"
+                "inline-flex h-11 items-center justify-center gap-2 bg-[var(--admin-primary)] px-4 text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)] disabled:opacity-50 sm:h-10"
               )}
             >
               {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -404,7 +404,7 @@ export function DashboardFiltersClient({
                 <SlidersHorizontal className="size-3.5" aria-hidden="true" />
                 <span>Filters</span>
                 {activeAdvancedFilters > 0 ? (
-                  <span className="ml-0.5 inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-warning)] text-[10px] font-bold text-white tabular-nums">
+                  <span className="ml-0.5 inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-warning)] text-[10px] font-bold text-[var(--admin-on-primary)] tabular-nums">
                     {activeAdvancedFilters}
                   </span>
                 ) : null}
@@ -467,7 +467,7 @@ export function DashboardFiltersClient({
                   disabled={isPending}
                   className={cn(
                     buttonVariants({ size: "sm" }),
-                    "inline-flex min-h-11 flex-1 items-center justify-center gap-2 bg-[var(--admin-primary)] px-4 text-white disabled:opacity-50"
+                    "inline-flex min-h-11 flex-1 items-center justify-center gap-2 bg-[var(--admin-primary)] px-4 text-[var(--admin-on-primary)] disabled:opacity-50"
                   )}
                 >
                   {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -515,7 +515,7 @@ export function DashboardFiltersClient({
             disabled={isPending}
             className={cn(
               buttonVariants({ size: "sm" }),
-              "col-span-2 inline-flex h-11 items-center justify-center gap-2 bg-[var(--admin-primary)] px-4 text-white hover:bg-[var(--admin-primary-hover)] disabled:opacity-50"
+              "col-span-2 inline-flex h-11 items-center justify-center gap-2 bg-[var(--admin-primary)] px-4 text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)] disabled:opacity-50"
             )}
           >
             {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -568,7 +568,7 @@ export function DashboardFiltersClient({
               <span className="font-semibold text-[var(--admin-heading)]">{formatPillValue(pill.key, pill.value)}</span>
               <span
                 aria-hidden="true"
-                className="ml-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--admin-warning-bg)]/80 text-[var(--admin-text-muted)] transition-colors group-hover:bg-[var(--admin-warning)] group-hover:text-white"
+                className="ml-0.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full bg-[var(--admin-warning-bg)]/80 text-[var(--admin-text-muted)] transition-colors group-hover:bg-[var(--admin-warning)] group-hover:text-[var(--admin-on-primary)]"
               >
                 <X className="size-2.5" />
               </span>

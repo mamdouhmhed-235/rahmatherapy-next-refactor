@@ -376,7 +376,7 @@ export function StaffProfileForm({
               disabled={isPending || !isDirty}
               onClick={handleSafeProfileSave}
               aria-busy={isPending || undefined}
-              className="inline-flex min-h-10 w-full items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="inline-flex min-h-10 w-full items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {isPending ? "Saving…" : "Save profile"}
             </button>
@@ -402,7 +402,7 @@ export function StaffProfileForm({
                 disabled={isPending}
                 onClick={handleSafeProfileSave}
                 aria-busy={isPending || undefined}
-                className="inline-flex min-h-11 flex-[2] items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-11 flex-[2] items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isPending ? "Saving…" : "Save profile"}
               </button>
@@ -469,7 +469,7 @@ export function StaffProfileForm({
                     className={cn(
                       "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border px-3 text-center text-xs font-semibold leading-tight outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
                       currentStaff.role_id === role.id
-                        ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white"
+                        ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
                         : "border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:border-[var(--admin-primary)]/35 hover:bg-[var(--admin-panel-muted)]"
                     )}
                   >
@@ -506,7 +506,7 @@ export function StaffProfileForm({
                     className={cn(
                       "inline-flex min-h-10 flex-1 items-center justify-center rounded-[var(--admin-radius-control)] border px-3 text-sm font-medium capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
                       currentStaff.gender === g
-                        ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white"
+                        ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
                         : "border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:border-[var(--admin-primary)]/35 hover:bg-[var(--admin-panel-muted)]"
                     )}
                   >

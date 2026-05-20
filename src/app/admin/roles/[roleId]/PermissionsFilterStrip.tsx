@@ -142,7 +142,7 @@ export function PermissionsFilterStrip(props: PermissionsFilterStripProps) {
               <SlidersHorizontal className="size-4" aria-hidden="true" />
               Filters
               {activeCount > 0 ? (
-                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-primary)] text-[0.6875rem] font-semibold text-white">
+                <span className="inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-primary)] text-[0.6875rem] font-semibold text-[var(--admin-on-primary)]">
                   {activeCount}
                 </span>
               ) : null}

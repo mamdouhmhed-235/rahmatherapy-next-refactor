@@ -15,7 +15,7 @@ function SubmitButton() {
       type="submit"
       aria-busy={pending || undefined}
       disabled={pending}
-      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)] disabled:opacity-60 disabled:pointer-events-none"
+      className="inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)] disabled:opacity-60 disabled:pointer-events-none"
     >
       {pending ? (
         <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
@@ -73,7 +73,7 @@ export function ApproveModal({
             type="button"
             data-redesign-backend="FAKE"
             data-redesign-fake-source="approve handler — BUILD-approve-reject-password-reset.md"
-            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
+            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
           >
             <CheckCircle className="size-4" aria-hidden="true" />
             Approve

@@ -323,7 +323,7 @@ export function StaffAvailabilityOverridesManager({
               <button
                 type="button"
                 onClick={confirmSoftWarning}
-                className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-3 text-xs font-semibold text-white outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-3 text-xs font-semibold text-[var(--admin-on-primary)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 Add override anyway
               </button>

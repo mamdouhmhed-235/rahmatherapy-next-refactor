@@ -280,7 +280,7 @@ function AddressCard({ booking }: { booking: BookingRecord }) {
           target="_blank"
           rel="noopener noreferrer"
           title="Open this address in Google Maps"
-          className="mt-4 inline-flex h-11 sm:h-10 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-bold tracking-[0.01em] text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          className="mt-4 inline-flex h-11 sm:h-10 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-bold tracking-[0.01em] text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
         >
           <ExternalLink className="size-4" aria-hidden="true" />
           View on Maps

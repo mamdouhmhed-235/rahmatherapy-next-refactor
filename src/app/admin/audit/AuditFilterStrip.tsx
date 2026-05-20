@@ -211,7 +211,7 @@ export function AuditFilterStrip({ actors, initialValues }: AuditFilterStripProp
               Filter
               {hasActiveFilters ? (
                 <span
-                  className="inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-primary)] text-[0.6875rem] font-semibold text-white"
+                  className="inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-primary)] text-[0.6875rem] font-semibold text-[var(--admin-on-primary)]"
                   aria-label={`${activeChips.length} active filters`}
                 >
                   {activeChips.length}
@@ -379,7 +379,7 @@ function DateRangeChipStrip({
             aria-current={active ? "true" : undefined}
             className={
               active
-                ? "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--admin-primary)] px-3.5 text-sm font-medium text-white shadow-[0_0_0_2px_oklch(99.2%_0.004_88),0_0_0_3px_var(--admin-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                ? "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--admin-primary)] px-3.5 text-sm font-medium text-[var(--admin-on-primary)] shadow-[0_0_0_2px_oklch(99.2%_0.004_88),0_0_0_3px_var(--admin-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                 : "inline-flex h-9 shrink-0 items-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3.5 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             }
           >

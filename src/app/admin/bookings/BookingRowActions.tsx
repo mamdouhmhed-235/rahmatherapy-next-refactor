@@ -226,7 +226,7 @@ export function BookingRowActions({
           disabled={pendingAction === "claim"}
           aria-busy={pendingAction === "claim" || undefined}
           aria-label={`Claim booking for ${clientName}`}
-          className="inline-flex h-11 appearance-none items-center gap-1.5 rounded-[var(--admin-radius-control)] border-0 bg-[var(--admin-primary)] px-4 text-xs font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 md:h-9 md:px-3"
+          className="inline-flex h-11 appearance-none items-center gap-1.5 rounded-[var(--admin-radius-control)] border-0 bg-[var(--admin-primary)] px-4 text-xs font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 md:h-9 md:px-3"
         >
           {pendingAction === "claim" ? (
             <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />

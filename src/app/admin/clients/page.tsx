@@ -378,7 +378,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         actions={
           <Link
             href="/admin/bookings?view=assigned"
-            className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Back to my bookings
           </Link>
@@ -615,7 +615,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
       </fieldset>
       <button
         type="submit"
-        className="inline-flex h-11 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        className="inline-flex h-11 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
       >
         Apply filters
       </button>
@@ -750,7 +750,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
                 <SlidersHorizontal className="size-4" aria-hidden="true" />
                 Refine
                 {activeChips.length > 0 ? (
-                  <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-primary)] px-1.5 text-[0.6875rem] font-semibold text-white">
+                  <span className="inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-primary)] px-1.5 text-[0.6875rem] font-semibold text-[var(--admin-on-primary)]">
                     {activeChips.length}
                   </span>
                 ) : null}

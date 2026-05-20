@@ -595,7 +595,7 @@ export default async function ClientDetailPage({
               <Link
                 href={`/admin/bookings/new?clientId=${client.id}`}
                 title="Start a new booking with this client pre-filled (B)"
-                className="inline-flex h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold !text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold !text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 <CalendarPlus className="size-4" aria-hidden="true" />
                 New booking
@@ -801,7 +801,7 @@ function BookingTabs({
             title={tabItem.title}
             className={
               isActive
-                ? "inline-flex min-h-11 items-center gap-1.5 rounded-[0.375rem] bg-[var(--admin-primary)] px-3.5 text-sm font-medium !text-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                ? "inline-flex min-h-11 items-center gap-1.5 rounded-[0.375rem] bg-[var(--admin-primary)] px-3.5 text-sm font-medium !text-[var(--admin-on-primary)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                 : "inline-flex min-h-11 items-center gap-1.5 rounded-[0.375rem] px-3.5 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             }
           >
@@ -809,7 +809,7 @@ function BookingTabs({
             <span
               className={
                 isActive
-                  ? "rounded-full bg-[oklch(99.5%_0.003_88)]/30 px-1.5 text-[0.6875rem] font-semibold tabular-nums !text-white ring-1 ring-inset ring-white/35"
+                  ? "rounded-full bg-[oklch(99.5%_0.003_88)]/30 px-1.5 text-[0.6875rem] font-semibold tabular-nums !text-[var(--admin-on-primary)] ring-1 ring-inset ring-white/35"
                   : "rounded-full bg-[var(--admin-panel)] px-1.5 text-[0.6875rem] font-semibold tabular-nums text-[var(--admin-text-muted)]"
               }
             >
@@ -1306,7 +1306,7 @@ function BookingFilterStrip({
               aria-pressed={isActive}
               className={
                 isActive
-                  ? "inline-flex h-8 items-center rounded-full bg-[var(--admin-primary)] px-3 text-xs font-medium !text-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                  ? "inline-flex h-8 items-center rounded-full bg-[var(--admin-primary)] px-3 text-xs font-medium !text-[var(--admin-on-primary)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                   : "inline-flex h-8 items-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               }
             >

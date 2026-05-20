@@ -472,7 +472,7 @@ export function AdminSegmentedControl({
         const classNames = cn(
           "inline-flex h-9 min-w-[4.4rem] items-center justify-center whitespace-nowrap rounded-[0.375rem] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
           item.active
-            ? "bg-[var(--admin-primary)] text-white"
+            ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
             : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
         );
         return item.href ? (
@@ -1342,11 +1342,11 @@ export function AdminButton({
         size === "default" && "min-h-10 px-4 text-sm",
         size === "sm" && "min-h-8 px-3 text-xs",
         variant === "primary" &&
-          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[oklch(28%_0.085_247)]",
+          "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)] active:bg-[oklch(28%_0.085_247)]",
         variant === "secondary" &&
           "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]",
         variant === "destructive" &&
-          "bg-[oklch(40%_0.14_25)] text-white hover:bg-[oklch(33%_0.14_25)]",
+          "bg-[oklch(40%_0.14_25)] text-[var(--admin-on-primary)] hover:bg-[oklch(33%_0.14_25)]",
         variant === "ghost" &&
           "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]",
         variant === "outline" &&

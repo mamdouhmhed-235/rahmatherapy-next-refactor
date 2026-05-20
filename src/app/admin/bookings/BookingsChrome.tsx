@@ -287,7 +287,7 @@ export function BookingsChrome({
               className={cn(
                 "inline-flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                 isActive
-                  ? "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)]"
+                  ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)]"
                   : "text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)] hover:text-[var(--admin-heading)]"
               )}
             >
@@ -592,7 +592,7 @@ function FilterForm({
           className={cn(
             "appearance-none",
             mobile
-              ? "inline-flex h-10 flex-1 items-center justify-center rounded-[var(--admin-radius-control)] border-0 bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              ? "inline-flex h-10 flex-1 items-center justify-center rounded-[var(--admin-radius-control)] border-0 bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               : "inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           )}
         >

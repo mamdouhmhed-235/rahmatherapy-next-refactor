@@ -113,7 +113,7 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         disabled={roles.length === 0}
-        className={`${fullWidth ? "flex w-full" : "inline-flex"} h-10 items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:pointer-events-none disabled:opacity-50`}
+        className={`${fullWidth ? "flex w-full" : "inline-flex"} h-10 items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:pointer-events-none disabled:opacity-50`}
       >
         <UserPlus className="size-4" aria-hidden="true" />
         Add staff member
@@ -223,7 +223,7 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
               type="submit"
               disabled={isPending || roles.length === 0}
               aria-busy={isPending || undefined}
-              className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50"
+              className="inline-flex h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50"
             >
               {isPending ? (
                 <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />

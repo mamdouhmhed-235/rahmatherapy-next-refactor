@@ -109,7 +109,7 @@ export function ReminderResendForm({
           "focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
           sent
             ? "bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)] border border-[oklch(70%_0.10_155)]"
-            : "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)]",
+            : "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)]",
           sending && "cursor-progress opacity-90"
         )}
       >

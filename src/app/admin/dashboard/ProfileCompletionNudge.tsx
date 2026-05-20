@@ -81,7 +81,7 @@ export function ProfileCompletionNudge({
         </div>
         <Link
           href={`/admin/staff/${staffId}`}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 self-start rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:min-h-10"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 self-start rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:min-h-10"
         >
           Open my profile
           <ArrowRight aria-hidden="true" className="size-4" />

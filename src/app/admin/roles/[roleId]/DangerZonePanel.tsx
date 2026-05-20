@@ -121,7 +121,7 @@ export function DangerZonePanel({
                 : "Delete is unavailable for this role"
               : "Delete this role permanently"
           }
-          className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:bg-[var(--admin-panel-muted)] disabled:text-[var(--admin-text-muted)]"
+          className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:bg-[var(--admin-panel-muted)] disabled:text-[var(--admin-text-muted)]"
         >
           <Trash2 className="size-4" aria-hidden="true" />
           Delete role
@@ -226,7 +226,7 @@ export function DangerZonePanel({
                     setFlow(null);
                   }
                 }}
-                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? (
                   <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />

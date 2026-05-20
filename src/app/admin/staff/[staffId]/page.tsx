@@ -564,7 +564,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
         <Link
           href={`/admin/staff/${staffId}`}
           aria-current="page"
-          className="inline-flex min-h-9 shrink-0 items-center rounded-[6px] bg-[var(--admin-primary)] px-3 text-sm font-semibold text-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          className="inline-flex min-h-9 shrink-0 items-center rounded-[6px] bg-[var(--admin-primary)] px-3 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
         >
           Profile
         </Link>

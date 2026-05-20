@@ -706,7 +706,7 @@ function PresetLink({
       className={cn(
         "inline-flex h-11 min-h-[44px] items-center justify-center whitespace-nowrap rounded-[0.375rem] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:h-9 sm:min-h-0",
         active
-          ? "bg-[var(--admin-primary)] text-white shadow-[0_1px_2px_oklch(23%_0.073_155_/_0.18)]"
+          ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_1px_2px_oklch(23%_0.073_155_/_0.18)]"
           : "text-[var(--admin-body)] hover:bg-[var(--admin-panel)]"
       )}
     >
@@ -941,7 +941,7 @@ function MonthGridShell({
                   {dayNum}
                 </span>
                 {count > 0 ? (
-                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-primary)] px-1.5 text-[0.625rem] font-semibold tabular-nums text-white">
+                  <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--admin-primary)] px-1.5 text-[0.625rem] font-semibold tabular-nums text-[var(--admin-on-primary)]">
                     {count}
                   </span>
                 ) : null}

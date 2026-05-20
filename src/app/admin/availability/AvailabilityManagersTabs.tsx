@@ -90,7 +90,7 @@ export function AvailabilityManagersTabs({
                   className={cn(
                     "inline-flex h-11 w-full items-center justify-center whitespace-nowrap rounded-[0.375rem] px-3 text-sm font-medium outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                     isActive
-                      ? "bg-[var(--admin-primary)] text-white shadow-sm"
+                      ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-sm"
                       : "text-[var(--admin-text-muted)] hover:bg-[var(--admin-canvas)] hover:text-[var(--admin-heading)]"
                   )}
                 >

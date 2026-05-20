@@ -438,7 +438,7 @@ function DateRangeChips({ activeRange }: { activeRange: string }) {
             aria-current={isActive ? "page" : undefined}
             className={
               isActive
-                ? "inline-flex h-9 items-center rounded-full border border-[var(--admin-primary)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors duration-150 ease-out focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
+                ? "inline-flex h-9 items-center rounded-full border border-[var(--admin-primary)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors duration-150 ease-out focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
                 : "inline-flex h-9 items-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-panel-muted)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
             }
           >
@@ -569,7 +569,7 @@ function NextVisitHero({
 
       <Link
         href={`/admin/bookings/${appointment.id}`}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
+        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
       >
         Open booking
         <ArrowRight className="size-4" aria-hidden="true" />

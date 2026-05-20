@@ -511,7 +511,7 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
                 aria-current={isCurrent ? "step" : undefined}
                 className={`inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold ${
                   isCurrent
-                    ? "bg-[var(--admin-primary)] text-white"
+                    ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
                     : isPast
                       ? "bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]"
                       : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"

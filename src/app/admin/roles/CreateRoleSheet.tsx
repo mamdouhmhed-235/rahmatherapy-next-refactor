@@ -25,7 +25,7 @@ export function CreateRoleSheet({ defaultSortOrder }: CreateRoleSheetProps) {
       trigger={
         <button
           type="button"
-          className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors duration-150 hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:h-10 sm:w-auto sm:justify-start"
+          className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors duration-150 hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:h-10 sm:w-auto sm:justify-start"
           title="Add a new role with custom permissions"
         >
           <Plus className="size-4" aria-hidden="true" />
@@ -172,7 +172,7 @@ export function CreateRoleSheet({ defaultSortOrder }: CreateRoleSheetProps) {
             disabled
             aria-disabled="true"
             aria-describedby={`${formId}-pending-note`}
-            className="inline-flex h-10 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors duration-150 hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors duration-150 hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Create role
           </button>

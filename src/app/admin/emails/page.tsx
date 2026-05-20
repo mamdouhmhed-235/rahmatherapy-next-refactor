@@ -332,7 +332,7 @@ function TabStrip({
                 className={cn(
                   "group inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                   isActive
-                    ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white hover:shadow-[0_1px_3px_oklch(23%_0.073_155_/_0.18)]"
+                    ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:shadow-[0_1px_3px_oklch(23%_0.073_155_/_0.18)]"
                     : "border-[var(--admin-border-form)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]"
                 )}
               >
@@ -345,10 +345,10 @@ function TabStrip({
                       "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[0.6875rem] font-semibold [font-variant-numeric:tabular-nums]",
                       tab.badge.tone === "danger"
                         ? isActive
-                          ? "bg-white/15 text-white"
+                          ? "bg-white/15 text-[var(--admin-on-primary)]"
                           : "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
                         : isActive
-                          ? "bg-white/15 text-white"
+                          ? "bg-white/15 text-[var(--admin-on-primary)]"
                           : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
                     )}
                   >

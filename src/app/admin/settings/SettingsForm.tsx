@@ -420,7 +420,7 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
               type="submit"
               disabled={isPending}
               aria-busy={isPending || undefined}
-              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:w-auto"
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:w-auto"
               title="Save changes to settings"
             >
               {isPending ? (
@@ -468,7 +468,7 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
               <button
                 type="button"
                 onClick={confirmPause}
-                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 Pause intake
               </button>

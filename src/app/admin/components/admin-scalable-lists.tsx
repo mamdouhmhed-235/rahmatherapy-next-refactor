@@ -42,7 +42,7 @@ export function SavedViewTabs({
           className={cn(
             "rounded-full px-4 py-1.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
             activeView === view.id
-              ? "bg-[var(--admin-primary)] text-white"
+              ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
               : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-hover-mist)] hover:text-[var(--admin-heading)]"
           )}
         >
@@ -495,7 +495,7 @@ export function SavedViewBar({
           />
           <button
             type="submit"
-            className="inline-flex h-8 appearance-none items-center rounded-[var(--admin-radius-control)] border-0 bg-[var(--admin-primary)] px-3 text-xs font-semibold text-white outline-none hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex h-8 appearance-none items-center rounded-[var(--admin-radius-control)] border-0 bg-[var(--admin-primary)] px-3 text-xs font-semibold text-[var(--admin-on-primary)] outline-none hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Save view
           </button>

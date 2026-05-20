@@ -264,9 +264,9 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
             const circleClasses = cn(
               "relative flex shrink-0 items-center justify-center rounded-full font-semibold transition-[background-color,color,box-shadow,border-color] duration-300",
               done
-                ? "size-8 border-2 border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white text-xs"
+                ? "size-8 border-2 border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] text-xs"
                 : active
-                ? "size-10 border-2 border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white text-sm ring-4 ring-[var(--admin-primary)]/15 ring-offset-2 ring-offset-[var(--admin-canvas)]"
+                ? "size-10 border-2 border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] text-sm ring-4 ring-[var(--admin-primary)]/15 ring-offset-2 ring-offset-[var(--admin-canvas)]"
                 : "size-8 border-2 border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] text-xs"
             );
             return (
@@ -1475,11 +1475,11 @@ export function ManualBookingForm({
                   {availSlots.map((slot) => (
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
                       className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-3 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
-                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white shadow-[0_2px_8px_oklch(23%_0.073_155/0.25)] ring-2 ring-[var(--admin-primary)]/20"
+                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_2px_8px_oklch(23%_0.073_155/0.25)] ring-2 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-selected-sky)]"
                       )}>
                       <span className="text-sm font-bold leading-none">{slot.time}</span>
-                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slotLabel(slot)}</span>
+                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-[var(--admin-on-primary)]/80" : "text-[var(--admin-text-muted)]")}>{slotLabel(slot)}</span>
                     </button>
                   ))}
                 </div>
@@ -1530,11 +1530,11 @@ export function ManualBookingForm({
                   {femaleAvailSlots.map((slot) => (
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
                       className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
-                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white ring-2 ring-[var(--admin-primary)]/20"
+                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] ring-2 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-selected-sky)]"
                       )}>
                       <span className="text-sm font-bold leading-none">{slot.time}</span>
-                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slot.availableStaffByGender.female} available</span>
+                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-[var(--admin-on-primary)]/80" : "text-[var(--admin-text-muted)]")}>{slot.availableStaffByGender.female} available</span>
                     </button>
                   ))}
                 </div>
@@ -1544,7 +1544,7 @@ export function ManualBookingForm({
                   <p className="text-sm font-semibold text-[oklch(26%_0.13_55)]">Skip availability for female participants?</p>
                   <p className="mt-1 text-xs text-[oklch(26%_0.13_55)]/80">No availability will be checked. A female therapist will need to accept this booking.</p>
                   <div className="mt-2 flex gap-2">
-                    <AdminButton size="sm" onClick={() => { setFemaleOverride(true); setShowFemaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-white hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+                    <AdminButton size="sm" onClick={() => { setFemaleOverride(true); setShowFemaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-[var(--admin-on-primary)] hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
                     <AdminButton size="sm" variant="ghost" onClick={() => setShowFemaleOverrideConfirm(false)}>Cancel</AdminButton>
                   </div>
                 </div>
@@ -1574,11 +1574,11 @@ export function ManualBookingForm({
                   {maleAvailSlots.map((slot) => (
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
                       className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
-                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white ring-2 ring-[var(--admin-primary)]/20"
+                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] ring-2 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-selected-sky)]"
                       )}>
                       <span className="text-sm font-bold leading-none">{slot.time}</span>
-                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slot.availableStaffByGender.male} available</span>
+                      <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-[var(--admin-on-primary)]/80" : "text-[var(--admin-text-muted)]")}>{slot.availableStaffByGender.male} available</span>
                     </button>
                   ))}
                 </div>
@@ -1588,7 +1588,7 @@ export function ManualBookingForm({
                   <p className="text-sm font-semibold text-[oklch(26%_0.13_55)]">Skip availability for male participants?</p>
                   <p className="mt-1 text-xs text-[oklch(26%_0.13_55)]/80">No availability will be checked. A male therapist will need to accept this booking.</p>
                   <div className="mt-2 flex gap-2">
-                    <AdminButton size="sm" onClick={() => { setMaleOverride(true); setShowMaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-white hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+                    <AdminButton size="sm" onClick={() => { setMaleOverride(true); setShowMaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-[var(--admin-on-primary)] hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
                     <AdminButton size="sm" variant="ghost" onClick={() => setShowMaleOverrideConfirm(false)}>Cancel</AdminButton>
                   </div>
                 </div>
@@ -1640,7 +1640,7 @@ export function ManualBookingForm({
               This booking will be created unassigned. A therapist will need to accept it before the visit.
             </p>
             <div className="mt-3 flex gap-2">
-              <AdminButton size="sm" onClick={() => { setOverrideAvailability(true); setShowOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-white hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+              <AdminButton size="sm" onClick={() => { setOverrideAvailability(true); setShowOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-[var(--admin-on-primary)] hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
               <AdminButton size="sm" variant="ghost" onClick={() => setShowOverrideConfirm(false)}>Cancel</AdminButton>
             </div>
           </div>
@@ -1923,7 +1923,7 @@ export function ManualBookingForm({
           disabled={pending || !isStepReady}
           aria-busy={pending || undefined}
           aria-disabled={(!isStepReady && !pending) || undefined}
-          className="inline-flex items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
+          className="inline-flex items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
         >
           {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
           Submit booking request
@@ -1954,7 +1954,7 @@ export function ManualBookingForm({
         <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
           <Link
             href="/admin/bookings"
-            className="inline-flex items-center justify-center rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex items-center justify-center rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 py-2.5 text-sm font-semibold text-[var(--admin-on-primary)] transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Leave
           </Link>
@@ -2005,7 +2005,7 @@ export function ManualBookingForm({
               disabled={pending || !isStepReady}
               aria-busy={pending || undefined}
               aria-disabled={(!isStepReady && !pending) || undefined}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
             >
               {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
               Submit booking request

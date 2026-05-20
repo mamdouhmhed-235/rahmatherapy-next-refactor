@@ -202,7 +202,7 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
               <span className="inline-block transition-transform group-open:rotate-90" aria-hidden="true">›</span>
               <span>Filters</span>
               {activeFilterChips.length > 0 ? (
-                <span className="inline-flex items-center rounded-full bg-[var(--admin-primary)] px-2 py-0.5 text-[0.6875rem] font-semibold text-white">
+                <span className="inline-flex items-center rounded-full bg-[var(--admin-primary)] px-2 py-0.5 text-[0.6875rem] font-semibold text-[var(--admin-on-primary)]">
                   {activeFilterChips.length}
                 </span>
               ) : null}
@@ -225,7 +225,7 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
                   className={cn(
                     "inline-flex min-h-11 sm:min-h-7 items-center rounded-full px-2.5 py-0.5 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                     isActive
-                      ? "bg-[var(--admin-primary)] text-white"
+                      ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
                       : "border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
                   )}
                 >
@@ -236,7 +236,7 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
             {activePreset === "custom" ? (
               <span
                 aria-current="true"
-                className="inline-flex min-h-7 items-center rounded-full bg-[var(--admin-primary)] px-2.5 py-0.5 font-medium text-white"
+                className="inline-flex min-h-7 items-center rounded-full bg-[var(--admin-primary)] px-2.5 py-0.5 font-medium text-[var(--admin-on-primary)]"
               >
                 Custom: {fromDate || "…"} → {toDate || "…"}
               </span>

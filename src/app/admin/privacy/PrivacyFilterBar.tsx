@@ -228,7 +228,7 @@ export function PrivacyFilterBar({
               aria-pressed={active}
               className={
                 active
-                  ? "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--admin-primary)] px-3.5 text-sm font-medium text-white outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                  ? "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--admin-primary)] px-3.5 text-sm font-medium text-[var(--admin-on-primary)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                   : "inline-flex h-9 shrink-0 items-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3.5 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               }
             >
@@ -277,7 +277,7 @@ export function PrivacyFilterBar({
               </span>
               {hasActiveFilters ? (
                 <span
-                  className="inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-primary)] text-[0.6875rem] font-semibold text-white"
+                  className="inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-primary)] text-[0.6875rem] font-semibold text-[var(--admin-on-primary)]"
                   aria-label={`${activeChips.length} active filters`}
                 >
                   {activeChips.length}
@@ -303,7 +303,7 @@ export function PrivacyFilterBar({
                 render={
                   <button
                     type="button"
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                   >
                     Apply filters
                   </button>
@@ -456,7 +456,7 @@ function ChipMultiSelectGroup({
               className={cn(
                 "inline-flex cursor-pointer items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium outline-none transition-colors focus-within:ring-2 focus-within:ring-[var(--admin-focus)]/55",
                 checked
-                  ? "bg-[var(--admin-primary)] text-white"
+                  ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
                   : "border border-[var(--admin-border-form)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]"
               )}
             >

@@ -282,7 +282,7 @@ function ModeButton({
   const baseClass = cn(
     "inline-flex min-h-8 items-center justify-center rounded-[6px] px-3 text-xs font-semibold capitalize outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60",
     selected
-      ? "bg-[var(--admin-primary)] text-white"
+      ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
       : "text-[var(--admin-body)] hover:bg-[var(--admin-panel)] hover:text-[var(--admin-heading)]"
   );
 

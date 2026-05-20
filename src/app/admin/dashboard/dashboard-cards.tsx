@@ -173,7 +173,7 @@ export function AttentionItemCard({
           {href ? (
             <Link
               href={href}
-              className="inline-flex min-h-11 min-w-[8.5rem] items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-3.5 text-[13px] font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 sm:min-h-9"
+              className="inline-flex min-h-11 min-w-[8.5rem] items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-3.5 text-[13px] font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 sm:min-h-9"
             >
               {primaryLabel}
             </Link>
@@ -425,7 +425,7 @@ function SnapshotViewToggle({ currentView, filterQuery }: { currentView: "list" 
         className={cn(
           "inline-flex min-h-11 h-7 sm:min-h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
           currentView === "list"
-            ? "bg-[var(--admin-primary)] text-white"
+            ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
             : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)]"
         )}
       >
@@ -438,7 +438,7 @@ function SnapshotViewToggle({ currentView, filterQuery }: { currentView: "list" 
         className={cn(
           "inline-flex min-h-11 h-7 sm:min-h-7 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors",
           currentView === "timeline"
-            ? "bg-[var(--admin-primary)] text-white"
+            ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
             : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)]"
         )}
       >
@@ -1555,9 +1555,9 @@ export function OperationsHealthCard({
           aria-hidden="true"
           className={cn(
             "inline-flex size-7 items-center justify-center rounded-full",
-            overall.tone === "danger" && "bg-[var(--admin-danger)] text-white",
-            overall.tone === "warning" && "bg-[var(--admin-warning)] text-white",
-            overall.tone === "success" && "bg-[var(--admin-success)] text-white"
+            overall.tone === "danger" && "bg-[var(--admin-danger)] text-[var(--admin-on-primary)]",
+            overall.tone === "warning" && "bg-[var(--admin-warning)] text-[var(--admin-on-primary)]",
+            overall.tone === "success" && "bg-[var(--admin-success)] text-[var(--admin-on-primary)]"
           )}
         >
           <HeartPulse className="size-3.5" />
@@ -1807,7 +1807,7 @@ function ClientMixLegend({
 
 export const adminDashboardCardClasses = {
   primaryButton:
-    "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
+    "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
   outlineButton:
     "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
 };

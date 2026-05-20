@@ -176,7 +176,7 @@ const SaveStatusButton = forwardRef<
       disabled={pending || unchanged}
       {...rest}
       className={cn(
-        "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-4 text-sm font-semibold text-white outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none",
+        "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none",
         "bg-[var(--admin-primary)] hover:bg-[var(--admin-primary-hover)]"
       )}
     >

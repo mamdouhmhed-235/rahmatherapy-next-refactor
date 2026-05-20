@@ -395,7 +395,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
                       className={cn(
                         "inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-[0.4rem] px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                         active
-                          ? "bg-[var(--admin-primary)] text-white shadow-[0_1px_2px_oklch(23%_0.073_155_/_0.18)]"
+                          ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_1px_2px_oklch(23%_0.073_155_/_0.18)]"
                           : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
                       )}
                     >
@@ -407,7 +407,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
                             "inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 font-display text-base font-semibold leading-none tracking-[-0.01em]",
                             "[font-family:'Cormorant_Garamond',Georgia,serif]",
                             active
-                              ? "bg-white/15 py-0.5 text-white"
+                              ? "bg-white/15 py-0.5 text-[var(--admin-on-primary)]"
                               : "bg-[oklch(95%_0.05_65)] py-0.5 text-[oklch(26%_0.13_55)]"
                           )}
                         >
@@ -492,7 +492,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
                   <button
                     type="submit"
                     form="enq-mobile-filter-form"
-                    className="inline-flex h-11 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                    className="inline-flex h-11 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                   >
                     Apply filters
                   </button>
