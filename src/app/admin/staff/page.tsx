@@ -648,6 +648,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           ) : isAdminScope ? (
             <EmptyState
               icon={Users}
+              illustrationSrc="/images/admin/empty-states/no-staff-yet.svg"
               title="No staff yet. Add the first team member."
               message="Therapists, coordinators, and admins all live in this directory."
               actions={

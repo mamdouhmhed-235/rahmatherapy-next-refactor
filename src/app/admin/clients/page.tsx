@@ -842,6 +842,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         ) : (
           <EmptyState
             icon={UserPlus}
+            illustrationSrc="/images/admin/empty-states/no-clients.svg"
             title="No clients yet"
             message="Add a client to start a history, or take a booking and we'll create one."
             action={

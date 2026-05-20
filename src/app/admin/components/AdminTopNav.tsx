@@ -212,7 +212,7 @@ export function AdminTopNav({
   );
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[var(--admin-canvas)]">
+    <div className="admin-shell min-h-screen overflow-x-hidden bg-[var(--admin-canvas)]">
       {/* Skip link â€” first DOM element, visually hidden until focused */}
       <a
         href="#admin-main"
@@ -652,12 +652,19 @@ function AdminBottomTabBar({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
+                  "relative flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
                   active
-                    ? "border-t-2 border-[var(--admin-primary)] bg-[var(--admin-nav-active-bg)] text-[var(--admin-primary)]"
-                    : "border-t-2 border-transparent text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
+                    ? "text-[var(--admin-primary)]"
+                    : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
                 )}
               >
+                {active ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1.5 left-1/2 inline-block size-1.5 -translate-x-1/2 rounded-full bg-[var(--admin-accent)] motion-reduce:transform-none"
+                    style={{ animation: "dot-in 240ms ease-out" }}
+                  />
+                ) : null}
                 <item.icon
                   className={cn(
                     "size-5 shrink-0",
@@ -679,12 +686,19 @@ function AdminBottomTabBar({
             aria-haspopup="dialog"
             aria-expanded={moreOpen}
             className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
+              "relative flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
               hasActiveMenuPage || moreOpen
-                ? "border-t-2 border-[var(--admin-primary)] bg-[var(--admin-nav-active-bg)] text-[var(--admin-primary)]"
-                : "border-t-2 border-transparent text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
+                ? "text-[var(--admin-primary)]"
+                : "text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
             )}
           >
+            {hasActiveMenuPage || moreOpen ? (
+              <span
+                aria-hidden="true"
+                className="absolute top-1.5 left-1/2 inline-block size-1.5 -translate-x-1/2 rounded-full bg-[var(--admin-accent)] motion-reduce:transform-none"
+                style={{ animation: "dot-in 240ms ease-out" }}
+              />
+            ) : null}
             <span
               className={cn(
                 "inline-flex size-6 items-center justify-center rounded-full text-[10px] font-semibold",

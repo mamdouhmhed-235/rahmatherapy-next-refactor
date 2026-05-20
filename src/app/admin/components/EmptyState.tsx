@@ -77,8 +77,8 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "mx-auto flex max-w-[360px] flex-col items-center text-center",
-        !isToned && (compact ? "py-8" : "py-14"),
+        "mx-auto flex max-w-[400px] flex-col items-center text-center",
+        !isToned && (compact ? "py-10" : "py-16"),
         isToned && TONE_PANEL_CLASSES[tone!],
         className
       )}

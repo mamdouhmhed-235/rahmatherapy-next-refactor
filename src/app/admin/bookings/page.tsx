@@ -654,6 +654,7 @@ function BookingsEmptyStateInner({
       return (
         <EmptyState
           icon={CalendarCheck}
+          illustrationSrc="/images/admin/empty-states/all-caught-up.svg"
           title="All caught up"
           message="No bookings need your attention right now."
         />
@@ -662,6 +663,7 @@ function BookingsEmptyStateInner({
       return (
         <EmptyState
           icon={CalendarCheck}
+          illustrationSrc="/images/admin/empty-states/all-caught-up.svg"
           title="All caught up"
           message="Nothing scheduled for today. Quiet days are healthy days."
         />
@@ -670,6 +672,7 @@ function BookingsEmptyStateInner({
       return (
         <EmptyState
           icon={CalendarPlus}
+          illustrationSrc="/images/admin/empty-states/no-bookings.svg"
           title="Nothing upcoming"
           message="No bookings scheduled beyond today."
           action={

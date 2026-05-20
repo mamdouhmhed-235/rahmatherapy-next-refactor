@@ -152,24 +152,31 @@ export function AdminPageHeader({
   secondaryActions?: React.ReactNode;
 }) {
   return (
-    <header className="mb-4 flex flex-col gap-4 sm:mb-6 sm:flex-row sm:items-end sm:justify-between">
+    <header className="mb-5 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {eyebrow ? (
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-[var(--admin-primary)]">
-            {eyebrow}
-          </p>
+          <p className="admin-eyebrow mb-2">{eyebrow}</p>
         ) : null}
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="font-display text-balance text-[clamp(1.778rem,2.5vw,2.369rem)] font-semibold leading-[1.15] tracking-[-0.02em] text-[var(--admin-heading)]">
+          <h1
+            className="text-balance text-[clamp(2.074rem,2.8vw,2.618rem)] font-semibold leading-[1.1] tracking-[-0.02em] text-[var(--admin-heading)]"
+            style={{ fontFamily: "var(--font-admin-serif), Georgia, serif" }}
+          >
             {title}
           </h1>
           {badge ? <div className="shrink-0">{badge}</div> : null}
         </div>
         {description ? (
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--admin-text-muted)]">
+          <p className="mt-1.5 max-w-3xl text-sm leading-6 text-[var(--admin-text-muted)]">
             {description}
           </p>
         ) : null}
+        {/* Brand signature — short brand-orange accent line under the H1.
+         *  Decoration only; aria-hidden. Brand-Accent Containment Rule role 3. */}
+        <div
+          aria-hidden="true"
+          className="mt-3 h-[2px] w-[5rem] rounded-full bg-[var(--admin-accent)]"
+        />
       </div>
       {actions || secondaryActions ? (
         <AdminActionGroup className="shrink-0">
@@ -209,7 +216,7 @@ export function AdminStat({
   return (
     <article
       className={cn(
-        "rounded-[var(--admin-radius-card)] border px-5 py-4",
+        "rounded-[var(--admin-radius-card)] border px-6 py-5",
         panelBorderClasses[resolvedTone],
         panelBgClasses[resolvedTone]
       )}
@@ -294,7 +301,7 @@ export function AdminPanel({
     <section
       className={cn(
         "rounded-[var(--admin-radius-card)] border",
-        density === "compact" ? "p-4" : "p-4 sm:p-5",
+        density === "compact" ? "p-4" : "p-5 sm:p-6",
         panelBorderClasses[resolvedTone],
         panelBgClasses[resolvedTone],
         className
@@ -765,7 +772,7 @@ export function AdminInput({
         aria-describedby={cn(error ? errorId : undefined, hint ? hintId : undefined) || undefined}
         aria-invalid={error ? "true" : undefined}
         className={cn(
-          "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50 read-only:bg-[var(--admin-panel-muted)] read-only:cursor-default read-only:text-[var(--admin-text-muted)] read-only:focus-visible:border-[var(--admin-border-form)] read-only:focus-visible:ring-0",
+          "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-50 read-only:bg-[var(--admin-panel-muted)] read-only:cursor-default read-only:text-[var(--admin-text-muted)] read-only:focus-visible:ring-0",
           error
             ? "border-[oklch(26%_0.14_25)]"
             : "border-[var(--admin-border-form)]"
@@ -1101,7 +1108,7 @@ export function AdminEntityRow({
   return (
     <article
       className={cn(
-        "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors hover:border-[var(--admin-primary)]/35 hover:shadow-[var(--admin-shadow-hover)]",
+        "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-[1px] hover:border-[var(--admin-primary)]/35 hover:shadow-[var(--admin-shadow-hover)] motion-reduce:transform-none motion-reduce:transition-none",
         className
       )}
     >
@@ -1259,10 +1266,16 @@ export function AdminSkeleton({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "rounded-[var(--admin-radius-control)] bg-[var(--admin-border)]/55 [animation:pulse_1.4s_ease-in-out_infinite] motion-reduce:animate-none",
+        "relative overflow-hidden rounded-[var(--admin-radius-control)] bg-[var(--admin-border)]/40",
         className
       )}
-    />
+    >
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[var(--admin-panel)]/80 to-transparent motion-reduce:hidden"
+        style={{ animation: "shimmer 1.6s infinite" }}
+      />
+    </div>
   );
 }
 

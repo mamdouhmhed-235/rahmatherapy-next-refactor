@@ -768,9 +768,15 @@ function EnquiryEmptyState({
     },
   };
   const copy = map[tab];
+  // Only the truly-empty 'all' tab gets the dignified illustration; per-tab
+  // sub-empties (new/contacted/converted/closed) keep the Inbox icon since
+  // they are state-specific empty cases, not first-impression surfaces.
+  const illustrationSrc =
+    tab === "all" ? "/images/admin/empty-states/no-enquiries.svg" : undefined;
   return (
     <EmptyState
       icon={Inbox}
+      illustrationSrc={illustrationSrc}
       title={copy.title}
       message={copy.message}
       action={copy.action}

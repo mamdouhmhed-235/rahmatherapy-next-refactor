@@ -607,6 +607,7 @@ function HeroEmptyState({ hasClaimable }: { hasClaimable: boolean }) {
       </h2>
       <EmptyState
         icon={CalendarDays}
+        illustrationSrc="/images/admin/empty-states/all-caught-up.svg"
         title="Nothing scheduled"
         message={
           hasClaimable

@@ -133,11 +133,14 @@
   --admin-status-completed-text: oklch(30% 0.018 270);
   --admin-status-completed-border: oklch(88% 0.012 270);
   --admin-client-accent: #9aaadd;
-  --admin-radius-sm: 0.375rem;
-  --admin-radius-md: 0.5rem;
-  --admin-radius-lg: 0.625rem;
-  --admin-radius-card: 0.625rem;
-  --admin-radius-control: 0.5rem;
+  /* Radii — 2026-05-20 polish pass: bumped one step up (8/10px → 10/12px)
+   * to align with modern admin tools (Linear, Stripe, Notion sit at 12-16px).
+   * Cascade applies to every consumer of var(--admin-radius-*). */
+  --admin-radius-sm: 0.5rem;
+  --admin-radius-md: 0.625rem;
+  --admin-radius-lg: 0.875rem;
+  --admin-radius-card: 0.75rem;
+  --admin-radius-control: 0.625rem;
   --admin-border-form: oklch(55% 0.022 80);
   --admin-surface-input: oklch(98.5% 0.005 88);
   /* Brand-Tinted Shadow Rule (was Green-Tinted Shadow Rule): all admin shadows

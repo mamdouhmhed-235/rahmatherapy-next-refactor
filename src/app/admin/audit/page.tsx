@@ -349,6 +349,7 @@ function TimelineEmptyState({
   return (
     <EmptyState
       icon={Inbox}
+      illustrationSrc="/images/admin/empty-states/audit-empty.svg"
       title="No events yet"
       message="Audit rows appear here as the team works in the admin."
     />
