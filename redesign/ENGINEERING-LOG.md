@@ -204,9 +204,70 @@ Without this checklist, a future deployer might miss the `CRON_SECRET` setup and
 
 ---
 
-## Work item Layer 1 — L1-a/L1-b Sentry roundtrip + L1-c backup restore drill
+## Work item Layer 1 — L1-a/L1-b Sentry roundtrip (Session 5a)
 
-*Driver: `FINAL-REPORT.md` "Layer 1 Runtime Verification" — two DEFER and one FAIL pending user authorisation.*
-*Smoke test: `redesign/backend-smoke-tests/L1-runtime-verification.md` (to be created).*
+*Driver: `FINAL-REPORT.md` "Layer 1 Runtime Verification" — L1-a and L1-b previously DEFER pending operator-triggered roundtrip.*
+*Smoke test: `redesign/backend-smoke-tests/sentry-roundtrip-2026-05-20.txt`.*
 
-(empty — session not yet started)
+**Status (2026-05-20):** L1-a + L1-b **PASS** (dev mode). Cloudflare-runtime verification deferred to a separate post-deploy checklist item (see "Cloudflare post-deploy carry-over" below); this is recorded in `FINAL-REPORT.md` as a follow-on, not a regression of the dev-mode PASS.
+
+L1-c (backup restore drill) remains FAIL pending operator authorisation for the destructive/billable action; not addressed in Session 5a.
+
+### What this session actually fixed
+
+Two production-essential bugs were uncovered and fixed during the L1-a/L1-b verification work. Both would have shipped silently into the Cloudflare production deploy if this session had been deferred or accepted a PASS-WITH-CAVEAT.
+
+**Bug 1 — `makeNodeTransport` silently drops events under Next.js 16 + Turbopack** (upstream `getsentry/sentry-javascript#18871`). Sentry's default Node transport uses `http.request` + a stream pipe inside a `suppressTracing()` wrapper. That wrapper manipulates OpenTelemetry async context, which interacts badly with Turbopack's async-context handling — stream callbacks never fire and events are silently dropped despite `captureRequestError` + `onRequestError` running and Sentry's ingest returning 200 OK on direct envelope POSTs. The original observed symptom was a 66-second response (downstream symbolication delay, not the actual blocker) followed by no event in the dashboard. **Fix:** custom `makeFetchTransport` in `sentry.server.config.ts` that replaces the `http.request`+pipe path with Node 18+ native `fetch()`. The transport workaround as posted in issue #18871 was incomplete — it passes `headers: options.headers` straight through, but Sentry's `makeNodeTransport` sets `Content-Type` at the body-write step (not in `options.headers`), so the fetch call ended up with no `Content-Type` header and Sentry rejected the envelope with HTTP 400. Our fix adds an explicit `"Content-Type": "application/x-sentry-envelope"` in the fetch call alongside the spread of `options.headers`.
+
+**Bug 2 — PII scrubber over-redacts Sentry envelope protocol fields.** `src/lib/observability/sentry-scrubbing.ts` has `LONG_TOKEN_PATTERN = /\b(?:eyJ[A-Za-z0-9_-]+|[A-Za-z0-9_-]{24,})\b/g` to catch long opaque tokens. Sentry event IDs are 32-character hex strings (e.g. `43752b92c1b022989e0045e6031f55c1`) that exactly match `[A-Za-z0-9_-]{24,}`. The scrubber's `redactText` saw the `event_id` field and replaced it with `[Filtered]`, which then appeared as the literal string `"[Filtered]"` in the envelope header. Sentry's ingest returned HTTP 400 with `"causes":["invalid envelope header","invalid value: string \"[Filtered]\", expected an event identifier at line 1 column 24"]`. This bug was previously masked by Bug 1 (no event ever reached ingest, so the corrupted header was never evaluated). **Fix:** added `SAFE_SENTRY_KEYS` set in the scrubber covering envelope/event protocol fields (`event_id`, `trace_id`, `span_id`, `parent_span_id`, `timestamp`, `platform`, `level`, `environment`, `release`, `dist`, `logger`, `server_name`, `type`); short-circuited in `scrubValue` before `SENSITIVE_KEY_PATTERN.test`/`redactText`. Same exclusion pattern as the existing `SAFE_USER_KEYS` / `SAFE_CONTEXT_KEYS` lists. Surgical: protocol fields pass through unchanged; message/tags/breadcrumb data still scrub.
+
+### Diagnostic journey (two operator-driven course corrections)
+
+One operator-led course correction was load-bearing for the eventual PASS:
+
+**Pushback against an early PASS-WITH-CAVEAT verdict.** After my initial misdiagnosis (blaming the 66-second dev-mode symbolication delay as the cause of events not landing), I recommended shipping with a deferred verdict. Operator: "the diagnosis may be incomplete and there's a documented workaround worth trying." That web research surfaced issue #18871 and led to the actual root-cause path. Memorialized as a discipline note: a "we can defer this to Cloudflare verification" verdict on monitoring/alerting bugs is the wrong default — defer hides production-blocking bugs behind a label.
+
+**Note on a discarded handoff claim:** an earlier compaction summary claimed that removing `turbopack: { root: ROOT_DIR }` from `next.config.ts` had been applied off-claude and was load-bearing. Pre-commit verification (git log, git diff) showed `next.config.ts` was clean at HEAD and untouched in this engineering pause. The roundtrip PASS in Phase B11 was observed with `turbopack.root` still in place — the handoff claim was incorrect. Documented here so a future reader doesn't go hunting for a phantom change. The actual fixes are the two listed under "What this session actually fixed" above.
+
+A separate process note: Session 5a also caught a verification-before-completion miss. An initial Glob `instrumentation.*` search did not return `src/instrumentation.ts` (which has existed since commit `d50c796`), so I concluded the hook was missing and created a root `instrumentation.ts` (commit `9440eb3`). Self-corrected via commit `c6d795d` after noticing the duplicate on the next pass. Future Glob results that suggest a file is "absent" should be cross-checked with an explicit `ls`/`Read` of the expected directory before acting on the absence.
+
+### Final test (Phase B11)
+
+After all four production fixes were in place, a deliberate `throw new Error("...")` in `src/app/sentry-test/route.ts` produced:
+
+```
+START: 2026-05-20T04:24:14.478Z
+HTTP/1.1 308 Permanent Redirect (trailingSlash: true)
+HTTP/1.1 500 Internal Server Error
+STATUS=500
+FINAL_URL=http://localhost:3000/sentry-test/
+TIME_TOTAL=4.346101s
+END:   2026-05-20T04:24:19.160Z
+```
+
+Dev console showed `Sentry Logger [log]: Captured error event ...` then `Sentry Logger [log]: Done flushing events` with no 400 warning. Dashboard issue confirmed by operator at `lanternvale/rahmatherapy-next-refactor` with first-seen ~04:24:18Z and the smoke-test message verbatim. **L1-a + L1-b PASS clean.**
+
+### Production fixes that remain in the codebase after cleanup
+
+- `sentry.server.config.ts` — `makeFetchTransport` with explicit `Content-Type: application/x-sentry-envelope` (Session 5a — new).
+- `src/lib/observability/sentry-scrubbing.ts` — `SAFE_SENTRY_KEYS` exclusion in `scrubValue` (Session 5a — new).
+- `src/instrumentation.ts` — register() + onRequestError export. Already present in HEAD since commit `d50c796` (the original Sentry integration); confirmed in place during Session 5a, not a new change.
+
+Reverted in Session 5a cleanup: `debug: true` on both Sentry configs, the `[instrumentation]` and `[sentry-transport]` diagnostic console.log lines, `src/app/sentry-test/route.ts` (test route deleted), and `SENTRY_TEST_ROUTE=1` in `.env` (removed — `.env` is gitignored).
+
+### Cloudflare post-deploy carry-over
+
+The dev-mode PASS does not extend to the Cloudflare Workers runtime. Three upstream issues track known Cloudflare-runtime risks for `@sentry/nextjs` under `@opennextjs/cloudflare`:
+- `getsentry/sentry-javascript#18842` — runtime detection quirks
+- `getsentry/sentry-javascript#18843` — related Cloudflare runtime issues
+- `getsentry/sentry-javascript#14931` — older but still-cited Cloudflare transport edge cases
+
+`makeFetchTransport` uses Node 18+ native `fetch`, which is available on the Cloudflare Workers runtime, but the underlying `createTransport` plumbing needs to be re-verified there.
+
+**Post-deploy checklist item (must complete before the Cloudflare-production verdict can be marked PASS):**
+1. Deploy to a Cloudflare Workers preview environment (not production).
+2. Temporarily restore the `/sentry-test` route + `SENTRY_TEST_ROUTE=1` env in the preview deploy ONLY (the route's first gate blocks `NODE_ENV=production` but defense in depth still says no for production).
+3. curl the preview URL's `/sentry-test` endpoint, expect 500.
+4. Confirm event lands in Sentry dashboard with a fresh `event_id`.
+5. Remove the test route + env from the preview; redeploy.
+6. Only then mark L1-a + L1-b PASS in the Cloudflare-production verdict (separate from the dev-mode PASS recorded today).
