@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { Clock, ExternalLink, Lock, UserCircle2 } from "lucide-react";
 import { AdminPanel, AdminStatusBadge } from "../components/admin-ui";
 import { ApproveModal } from "./ApproveModal";

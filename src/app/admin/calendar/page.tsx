@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   AlertCircle,
@@ -806,7 +806,7 @@ function WeekAgenda({
   );
 }
 
-// ─── Month grid (6Ã—7 cells) ──────────────────────────────────────────────────
+// ─── Month grid (6×7 cells) ──────────────────────────────────────────────────
 
 function MonthGrid({
   monthFirstISO,
@@ -898,7 +898,7 @@ function MonthGridShell({
         ))}
       </div>
 
-      {/* 6 Ã— 7 grid */}
+      {/* 6 × 7 grid */}
       <div className="mt-2 grid grid-cols-7 gap-1">
         {gridDates.map((date) => {
           const dayBookings = grouped.get(date) ?? [];

@@ -512,7 +512,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 **Tier:** Tier 3 — daily visual ops tool; PrintButton + @media print patterns; concurrent-booking Attention chip
 
-**Why this position:** Used daily by all roles to visualise the schedule; PrintButton is a live feature (RECON Â§2) that must survive; concurrent-booking detection is net-new but operationally critical. High usage frequency warrants early attention.
+**Why this position:** Used daily by all roles to visualise the schedule; PrintButton is a live feature (RECON §2) that must survive; concurrent-booking detection is net-new but operationally critical. High usage frequency warrants early attention.
 
 Re-prime prompt (copy into a fresh Claude Code session):
 
@@ -702,7 +702,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 **Tier:** Tier 3 — BASELINE-CRITIQUE Sam #1: mixed H2/H3 order confirmed on /admin/staff/[id]
 
-**Why this position:** Two-column command centre with a 7-cell (role Ã— viewing-context) matrix; heading hierarchy fix is a WCAG AA blocker; permission-overrides editor inherits Brief 22's risk-tier confirm matrix. Worked while staff domain is fresh (follows staff row 18).
+**Why this position:** Two-column command centre with a 7-cell (role × viewing-context) matrix; heading hierarchy fix is a WCAG AA blocker; permission-overrides editor inherits Brief 22's risk-tier confirm matrix. Worked while staff domain is fresh (follows staff row 18).
 
 Re-prime prompt (copy into a fresh Claude Code session):
 
@@ -1084,7 +1084,7 @@ If any file has been compacted or summarised in your context, re-read the origin
 
 **Tier:** Tier 4 — remaining pages, alphabetical
 
-**Why this position:** Per-staff availability workstation extended to three-manager stack (rules/blocked/overrides); four net-new server actions flagged for backend confirmation (Â§10 Q1 of the brief). Deepest in the staff hierarchy; worked last in the staff cluster with lowest blast radius.
+**Why this position:** Per-staff availability workstation extended to three-manager stack (rules/blocked/overrides); four net-new server actions flagged for backend confirmation (§10 Q1 of the brief). Deepest in the staff hierarchy; worked last in the staff cluster with lowest blast radius.
 
 Re-prime prompt (copy into a fresh Claude Code session):
 
@@ -1128,7 +1128,7 @@ These are plan files only. The recipe does NOT implement them. They sit here as 
 
 How to use:
 1. Work through this section in dependency order — items at the top unblock items below them.
-2. For each row, mark status: [ ] not handled / [→] in progress / [✓] handled / [≈] handled-via-FAKE / [Ã—] deferred.
+2. For each row, mark status: [ ] not handled / [→] in progress / [✓] handled / [≈] handled-via-FAKE / [×] deferred.
 3. Items tagged BLOCKS-REDESIGN must reach [✓] or [≈] before the page that depends on them ships in Phase 7.
 
 **Dependency notes:**

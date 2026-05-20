@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Plus, SlidersHorizontal, UserPlus, Users } from "lucide-react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -810,7 +810,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
                 className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 {chip.label}
-                <span aria-hidden="true">Ã—</span>
+                <span aria-hidden="true">×</span>
                 <span className="sr-only">remove</span>
               </Link>
             </li>

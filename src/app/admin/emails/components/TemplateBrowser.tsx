@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, Search, Send, X } from "lucide-react";

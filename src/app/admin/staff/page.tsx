@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   Activity,
@@ -420,7 +420,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       />
 
       {/* Description rendered outside AdminPageHeader so it wraps cleanly at 375.
-          Width clamped to (100vw âˆ’ 2rem) so it respects the viewport even when
+          Width clamped to (100vw − 2rem) so it respects the viewport even when
           the shared AdminPageScaffold grid track auto-expands to fit a wider
           sibling (filter form, AdminPanel). */}
       <p className="-mt-2 mb-4 max-w-[calc(100vw-2rem)] text-sm leading-6 text-balance text-[var(--admin-text-muted)] sm:mb-6 sm:max-w-3xl">
@@ -599,7 +599,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(94%_0.008_280)] px-3 py-1 text-xs font-medium text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
               <span>{chip.label}</span>
-              <span aria-hidden="true">Ã—</span>
+              <span aria-hidden="true">×</span>
               <span className="sr-only">Remove filter</span>
             </Link>
           ))}

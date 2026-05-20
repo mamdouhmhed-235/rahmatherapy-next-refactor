@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import * as React from "react";
 import { Search, FilterX, ChevronLeft, ChevronRight, Loader2, FolderSearch, Plus, X } from "lucide-react";
@@ -539,7 +539,7 @@ export function SavedViewBar({
 
 // ─── ActiveFilterChip ────────────────────────────────────────────────────────
 // Restricted-family pill listing one active filter — text label plus a
-// dismissive trailing Ã— that calls onClear.
+// dismissive trailing × that calls onClear.
 
 export function ActiveFilterChip({
   label,

@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   Activity,
@@ -616,7 +616,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       ) : null}
 
       {/* How these numbers are calculated. Split into Revenue + Activity
-          groups so the 8-pill 4Ã—2 uniform grid breaks into two semantic
+          groups so the 8-pill 4×2 uniform grid breaks into two semantic
           clusters with a thin divider between. */}
       <AdminPanel
         title="How these numbers are calculated"
@@ -681,7 +681,7 @@ function renderMetricDetails(metric: { key: string; label: string; definition: s
           aria-hidden="true"
           className="text-xs text-[var(--admin-text-muted)] transition-transform group-open:rotate-180"
         >
-          â–¾
+          ▾
         </span>
       </summary>
       <p className="mt-2 text-xs leading-5 text-[var(--admin-text-muted)]">

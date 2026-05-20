@@ -63,11 +63,28 @@ SUBS: list[tuple[bytes, bytes]] = [
 
     # Euro
     (b"\xc3\xa2\xe2\x80\x9a\xc2\xac", b"\xe2\x82\xac"),       # €
+
+    # Multiplication sign × (U+00D7) — second-wave mojibake found by re-audit
+    (b"\xc3\x83\xe2\x80\x94", b"\xc3\x97"),                   # ×
+
+    # Minus sign − (U+2212)
+    (b"\xc3\xa2\xcb\x86\xe2\x80\x99", b"\xe2\x88\x92"),       # −
+
+    # Small down-pointing triangle ▾ (U+25BE)
+    (b"\xc3\xa2\xe2\x80\x93\xc2\xbe", b"\xe2\x96\xbe"),       # ▾
 ]
+
+# BOM bytes at file start — UTF-8 BOM is EF BB BF. JS engines silently ignore
+# but it's a cosmetic regression introduced by the same Windows tooling that
+# caused the mojibake. Strip if present at offset 0.
+UTF8_BOM = b"\xef\xbb\xbf"
 
 
 def fix_file(raw: bytes) -> bytes:
-    """Apply all substitutions in order. Returns possibly-modified bytes."""
+    """Apply all substitutions in order. Strip BOM. Return possibly-modified bytes."""
+    # BOM strip — only at offset 0
+    if raw.startswith(UTF8_BOM):
+        raw = raw[len(UTF8_BOM):]
     for corrupted, correct in SUBS:
         raw = raw.replace(corrupted, correct)
     return raw
@@ -75,7 +92,19 @@ def fix_file(raw: bytes) -> bytes:
 
 def main():
     dry_run = "--dry-run" in sys.argv
-    files = list(ROOT.rglob("*.tsx")) + list(ROOT.rglob("*.ts"))
+    # Optional explicit paths after script name; otherwise default scan
+    explicit = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if explicit:
+        files = []
+        for p in explicit:
+            path = Path(p)
+            if path.is_file():
+                files.append(path)
+            elif path.is_dir():
+                for pat in ("*.tsx", "*.ts", "*.md", "*.css", "*.html", "*.json"):
+                    files.extend(path.rglob(pat))
+    else:
+        files = list(ROOT.rglob("*.tsx")) + list(ROOT.rglob("*.ts"))
 
     fixed_count = 0
     untouched_count = 0
