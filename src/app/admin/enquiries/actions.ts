@@ -155,5 +155,8 @@ export async function updateEnquiryStatus(formData: FormData) {
 
   revalidatePath("/admin/enquiries");
   revalidatePath("/admin/dashboard");
-  return { success: true };
+  // Return previous status so client can offer Undo (DESIGN.md Status Communication
+  // — recovery-toast pattern). Counter-call is `updateEnquiryStatus` with
+  // status = previousStatus.
+  return { success: true, previousStatus: beforeState.status as string };
 }

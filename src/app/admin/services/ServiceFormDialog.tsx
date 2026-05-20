@@ -6,7 +6,7 @@ import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { AlertCircle, Pencil, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { AdminButton, AdminInput } from "../components/admin-ui";
+import { AdminButton, AdminFieldHelp, AdminInput } from "../components/admin-ui";
 import {
   createService,
   updateService,
@@ -238,18 +238,28 @@ function ServiceFormBody({
 
         <Fieldset legend="Details">
           <div className="grid gap-1.5">
-            <label
-              htmlFor={genderId}
-              className="text-sm font-medium text-[var(--admin-heading)]"
-            >
-              Gender restriction
-              <span
-                aria-hidden="true"
-                className="ml-0.5 text-[oklch(26%_0.14_25)]"
+            <div className="flex items-center gap-1.5">
+              <label
+                htmlFor={genderId}
+                className="text-sm font-medium text-[var(--admin-heading)]"
               >
-                *
-              </span>
-            </label>
+                Gender restriction
+                <span
+                  aria-hidden="true"
+                  className="ml-0.5 text-[oklch(26%_0.14_25)]"
+                >
+                  *
+                </span>
+              </label>
+              <AdminFieldHelp label="What does gender restriction mean?">
+                Rahma serves a predominantly Muslim clientele where
+                same-gender care is expected. Setting a service to
+                female-only or male-only means only therapists of that
+                gender can be assigned to it, and only matching clients
+                see it on the booking form. Pick &apos;Any gender&apos; for
+                services with no cultural restriction.
+              </AdminFieldHelp>
+            </div>
             <select
               id={genderId}
               name="gender_restrictions"

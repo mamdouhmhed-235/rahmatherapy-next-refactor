@@ -99,7 +99,7 @@ export function EmptyState({
             "mb-5 inline-flex items-center justify-center rounded-full",
             isToned
               ? TONE_ICON_CLASSES[tone!]
-              : "bg-[oklch(93.5%_0.038_155)] shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.08)]",
+              : "bg-[oklch(93.5%_0.038_155)]",
             compact ? "size-12" : "size-16"
           )}
           aria-hidden="true"

@@ -6,7 +6,7 @@ import { CheckCircle, Globe, Loader2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { updateStaffAvailabilityMode } from "../../actions";
-import { AdminStatusBadge } from "../../../components/admin-ui";
+import { AdminFieldHelp, AdminStatusBadge } from "../../../components/admin-ui";
 import { ConfirmActionModal } from "../../../components/admin-ui-interactions";
 
 type AvailabilityMode = "use_global" | "custom";
@@ -64,12 +64,22 @@ export function AvailabilityModeSelector({
     >
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <h2
-            id="availability-mode-heading"
-            className="text-sm font-medium text-[var(--admin-text-muted)]"
-          >
-            Availability mode
-          </h2>
+          <div className="flex items-center gap-1.5">
+            <h2
+              id="availability-mode-heading"
+              className="text-sm font-medium text-[var(--admin-text-muted)]"
+            >
+              Availability mode
+            </h2>
+            <AdminFieldHelp label="When should I use custom vs global hours?">
+              &lsquo;Global hours&rsquo; uses the clinic-wide working
+              pattern from Settings. Pick &lsquo;Custom hours&rsquo; only
+              when this therapist&apos;s schedule differs (works one
+              weekday off, evenings only, etc.). Custom rules live with
+              this staff member &mdash; switching back to global hides
+              them, not deletes.
+            </AdminFieldHelp>
+          </div>
           <p
             id={sublineId}
             className="mt-1 text-sm text-[var(--admin-body)]"

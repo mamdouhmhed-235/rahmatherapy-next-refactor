@@ -5,6 +5,7 @@ import {
   CheckCircle,
   CheckSquare,
   Clock,
+  HelpCircle,
   Loader2,
   Lock,
   ShieldCheck,
@@ -208,7 +209,7 @@ export function AdminStat({
   return (
     <article
       className={cn(
-        "rounded-[var(--admin-radius-card)] border px-5 py-4 shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.06)]",
+        "rounded-[var(--admin-radius-card)] border px-5 py-4",
         panelBorderClasses[resolvedTone],
         panelBgClasses[resolvedTone]
       )}
@@ -253,6 +254,8 @@ export function AdminPanel({
   title,
   titleAs = "h2",
   description,
+  helpText,
+  helpLabel,
   badge,
   children,
   className,
@@ -268,6 +271,12 @@ export function AdminPanel({
    *  sits beneath a section h2 (e.g. staff-detail right-rail). */
   titleAs?: "h2" | "h3";
   description?: string;
+  /** Optional "What's this?" disclosure rendered inline next to the title.
+   *  Use for unfamiliar concepts (permission overrides, availability_mode,
+   *  gender restriction). One short paragraph. */
+  helpText?: React.ReactNode;
+  /** Accessible label for the helpText trigger button (defaults to "What's this?"). */
+  helpLabel?: string;
   badge?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
@@ -295,9 +304,14 @@ export function AdminPanel({
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             {title ? (
-              <TitleTag className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
-                {title}
-              </TitleTag>
+              <div className="flex items-center gap-1.5">
+                <TitleTag className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
+                  {title}
+                </TitleTag>
+                {helpText ? (
+                  <AdminFieldHelp label={helpLabel}>{helpText}</AdminFieldHelp>
+                ) : null}
+              </div>
             ) : null}
             {description ? (
               <p className="mt-0.5 text-sm text-[var(--admin-text-muted)]">{description}</p>
@@ -1332,6 +1346,41 @@ export function AdminButton({
       {leadingSlot}
       {children}
     </button>
+  );
+}
+
+// ─── AdminFieldHelp ───────────────────────────────────────────────────────────
+// Inline "What's this?" disclosure for unfamiliar form terms. Sits next to a
+// field label as a small question-mark button; on click, reveals a
+// plain-English one-sentence explanation below the field. Native `<details>`
+// gives keyboard + AT support for free; the button-shaped summary is
+// 44px-tall on mobile per WCAG 2.5.5.
+
+export function AdminFieldHelp({
+  label = "What's this?",
+  children,
+  className,
+}: {
+  label?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <details className={cn("group inline-block align-middle text-left", className)}>
+      <summary
+        aria-label={label}
+        title={label}
+        className="inline-flex size-6 cursor-pointer list-none items-center justify-center rounded-full text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden"
+      >
+        <HelpCircle className="size-3.5" aria-hidden="true" />
+      </summary>
+      <p
+        className="mt-2 max-w-prose rounded-[var(--admin-radius-control)] bg-[var(--admin-panel-muted)] px-3 py-2 text-xs leading-5 text-[var(--admin-text-muted)]"
+        role="note"
+      >
+        {children}
+      </p>
+    </details>
   );
 }
 

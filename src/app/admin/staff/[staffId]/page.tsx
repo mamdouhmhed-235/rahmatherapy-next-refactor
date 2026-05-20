@@ -853,6 +853,16 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
               <AdminPanel
                 title="Permission overrides"
                 titleAs="h3"
+                helpLabel="What are permission overrides?"
+                helpText={
+                  <>
+                    Each role grants a fixed bundle of permissions. An
+                    override flips a single permission ON or OFF for this
+                    one staff member without changing the role itself. Use
+                    sparingly: every override is a deviation from the role
+                    blueprint and shows up in the audit log.
+                  </>
+                }
                 description="Overrides sit on top of the fixed role bundle."
                 density="compact"
               >
