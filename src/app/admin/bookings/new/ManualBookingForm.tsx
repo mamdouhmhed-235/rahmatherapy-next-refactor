@@ -23,7 +23,7 @@ import {
 } from "@/app/admin/components/admin-ui";
 import { createManualBooking, type ManualBookingState } from "../actions";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 type ParticipantGender = "male" | "female" | "";
 
@@ -79,7 +79,7 @@ interface AvailableSlot {
   availableStaffByGender: { male: number; female: number };
 }
 
-// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const STEPS = [
   { n: 1, label: "Contact", heading: "Contact & source" },
@@ -106,26 +106,26 @@ const PACKAGE_OPTIONS = [
   {
     slug: "supreme-combo",
     name: "Supreme Combo Package",
-    price: "Â£55",
-    description: "Pre-Cupping massage / IASTM Â· Dry Cupping Â· Fire Cupping Â· Wet Cupping",
+    price: "£55",
+    description: "Pre-Cupping massage / IASTM · Dry Cupping · Fire Cupping · Wet Cupping",
   },
   {
     slug: "hijama-package",
     name: "Hijama Package",
-    price: "Â£45",
-    description: "Pre-Cupping massage Â· Dry Cupping Â· Wet Cupping",
+    price: "£45",
+    description: "Pre-Cupping massage · Dry Cupping · Wet Cupping",
   },
   {
     slug: "fire-package",
     name: "Fire Package",
-    price: "Â£40",
-    description: "Pre-Cupping massage with essential oils Â· Dry / Fire Cupping",
+    price: "£40",
+    description: "Pre-Cupping massage with essential oils · Dry / Fire Cupping",
   },
 ] as const;
 
 const MASSAGE_OPTIONS = [
-  { slug: "massage-30", label: "30 minutes", price: "Â£40" },
-  { slug: "massage-60", label: "1 hour", price: "Â£60" },
+  { slug: "massage-30", label: "30 minutes", price: "£40" },
+  { slug: "massage-60", label: "1 hour", price: "£60" },
 ] as const;
 
 function emptyParticipant(name = ""): Participant {
@@ -141,7 +141,7 @@ function emptyParticipant(name = ""): Participant {
   };
 }
 
-// â”€â”€â”€ Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Validation ───────────────────────────────────────────────────────────────
 
 function validateStep(
   step: number,
@@ -185,7 +185,7 @@ function validateStep(
   return errs;
 }
 
-// â”€â”€â”€ FormValues â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── FormValues ───────────────────────────────────────────────────────────────
 
 interface FormValues {
   bookingSource: string;
@@ -209,7 +209,7 @@ interface FormValues {
   sendConfirmationEmail: boolean;
 }
 
-// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StepRail({ current, onNavigate }: { current: number; onNavigate: (step: number) => void }) {
   return (
@@ -232,7 +232,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
             return (
               <li key={step.n} className="flex flex-1 flex-col items-center gap-2">
                 <div className="flex w-full items-center">
-                  {/* Left track â€” 2px for presence */}
+                  {/* Left track — 2px for presence */}
                   {idx > 0 && (
                     <div
                       className={cn(
@@ -241,7 +241,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
                       )}
                     />
                   )}
-                  {/* Circle â€” clickable when completed, static otherwise */}
+                  {/* Circle — clickable when completed, static otherwise */}
                   {done ? (
                     <button
                       type="button"
@@ -261,7 +261,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
                       <span>{step.n}</span>
                     </div>
                   )}
-                  {/* Right track â€” 2px for presence */}
+                  {/* Right track — 2px for presence */}
                   {idx < STEPS.length - 1 && (
                     <div
                       className={cn(
@@ -448,7 +448,7 @@ function TextareaField({
   );
 }
 
-// â”€â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Main component ───────────────────────────────────────────────────────────
 
 interface AssignableStaffMember {
   id: string;
@@ -569,7 +569,7 @@ export function ManualBookingForm({
   const [availChecked, setAvailChecked] = useState(false);
   const [availReason, setAvailReason] = useState("");
 
-  // Mixed-gender group availability (Option C Phase 1 â€” two sections, one start_time)
+  // Mixed-gender group availability (Option C Phase 1 — two sections, one start_time)
   const [femaleAvailSlots, setFemaleAvailSlots] = useState<AvailableSlot[]>([]);
   const [maleAvailSlots, setMaleAvailSlots] = useState<AvailableSlot[]>([]);
   const [femaleAvailLoading, setFemaleAvailLoading] = useState(false);
@@ -625,7 +625,7 @@ export function ManualBookingForm({
     customerNotes, healthNotes, consentAcknowledged, sendConfirmationEmail,
   };
 
-  // All selected services (union across participants â€” max 2 per participant)
+  // All selected services (union across participants — max 2 per participant)
   const allSelectedSlugs = Array.from(
     new Set(participants.flatMap(participantServices))
   );
@@ -756,7 +756,7 @@ export function ManualBookingForm({
     return () => window.removeEventListener("beforeunload", handler);
   }, [formHasData]);
 
-  // Pre-fill failure toast â€” fires once on mount if the server fetch for clientId/enquiryId failed
+  // Pre-fill failure toast — fires once on mount if the server fetch for clientId/enquiryId failed
   useEffect(() => {
     if (prefillFailed) {
       toast.warning("Couldn't load client details. Fill in manually.", { duration: 6000 });
@@ -764,7 +764,7 @@ export function ManualBookingForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Server error toast â€” persistent, fires when the server action returns an error
+  // Server error toast — persistent, fires when the server action returns an error
   const prevErrorRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (state.error && state.error !== prevErrorRef.current) {
@@ -798,7 +798,7 @@ export function ManualBookingForm({
     updateParticipant(index, { massageSlug: slug });
   }
 
-  // Booking-for mode change â€” drives participant structure
+  // Booking-for mode change — drives participant structure
   function handleBookingForChange(mode: "self" | "someone_else" | "group") {
     setBookingForMode(mode);
     if (mode === "self") {
@@ -836,7 +836,7 @@ export function ManualBookingForm({
       const data = await res.json();
       const toTitleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
       if (!city.trim()) setCity(toTitleCase(data.result?.post_town ?? ""));
-      // Area is NOT auto-filled â€” postcodes.io admin_district is inaccurate for local areas
+      // Area is NOT auto-filled — postcodes.io admin_district is inaccurate for local areas
       setPostcodeLookupError("");
     } catch {
       setPostcodeLookupError("Couldn't check postcode. Fill in city and area manually.");
@@ -891,7 +891,7 @@ export function ManualBookingForm({
     return parts.length > 0 ? parts.join(", ") : "available";
   }
 
-  // â”€â”€â”€ Step readiness (drives aria-disabled on Continue) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Step readiness (drives aria-disabled on Continue) ───────────────────────
 
   const isStepReady: boolean = (() => {
     if (step === 1) return !!(fullName.trim() && phone.trim() && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
@@ -906,7 +906,7 @@ export function ManualBookingForm({
     return false;
   })();
 
-  // â”€â”€â”€ Hidden inputs for server action â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Hidden inputs for server action ─────────────────────────────────────────
 
   const hiddenInputs = (
     <>
@@ -961,7 +961,7 @@ export function ManualBookingForm({
     </>
   );
 
-  // â”€â”€â”€ Step panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Step panels ──────────────────────────────────────────────────────────────
 
   const multiErrorBanner = stepBannerError ? (
     <div
@@ -1049,7 +1049,7 @@ export function ManualBookingForm({
               aria-describedby={stepErrors.phone ? "phone-error" : undefined}
               aria-invalid={stepErrors.phone ? "true" : undefined}
               value={phone}
-              placeholder="07â€¦"
+              placeholder="07…"
               maxLength={20}
               onChange={(e) => { setPhone(e.target.value); markEdited("phone"); }}
               className={cn(
@@ -1165,7 +1165,7 @@ export function ManualBookingForm({
               </div>
             </div>
 
-            {/* Services â€” package + massage as co-equal options */}
+            {/* Services — package + massage as co-equal options */}
             <fieldset
               className="border-0 p-0"
               aria-describedby={
@@ -1326,7 +1326,7 @@ export function ManualBookingForm({
       {step === 3 && multiErrorBanner}
       <AdminPanel title="Location">
         <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
-          {/* Postcode first â€” auto-fills city + area */}
+          {/* Postcode first — auto-fills city + area */}
           <AdminInput
             id="postcode"
             label="Postcode"
@@ -1433,7 +1433,7 @@ export function ManualBookingForm({
             />
             {availLoading && (
               <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availabilityâ€¦
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability…
               </div>
             )}
             {availChecked && !availLoading && availSlots.length === 0 && (
@@ -1471,7 +1471,7 @@ export function ManualBookingForm({
           </div>
         )}
 
-        {/* Option C Phase 1: mixed-gender group â€” two independent availability sections */}
+        {/* Option C Phase 1: mixed-gender group — two independent availability sections */}
         {canCheckAvailability && !overrideAvailability && !femaleOverride && !maleOverride && isMixedGenderGroup && (
           <div className="grid gap-6">
             <AdminInput
@@ -1495,7 +1495,7 @@ export function ManualBookingForm({
               <p className="mb-3 text-sm font-semibold text-[var(--admin-heading)]">
                 Female participants ({femaleParticipants.length})
               </p>
-              {femaleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for female participantsâ€¦</div>}
+              {femaleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for female participants…</div>}
               {femaleAvailChecked && !femaleAvailLoading && femaleAvailSlots.length === 0 && (
                 <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
                   <div className="flex items-start gap-2">
@@ -1539,7 +1539,7 @@ export function ManualBookingForm({
               <p className="mb-3 text-sm font-semibold text-[var(--admin-heading)]">
                 Male participants ({maleParticipants.length})
               </p>
-              {maleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for male participantsâ€¦</div>}
+              {maleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for male participants…</div>}
               {maleAvailChecked && !maleAvailLoading && maleAvailSlots.length === 0 && (
                 <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
                   <div className="flex items-start gap-2">
@@ -1632,7 +1632,7 @@ export function ManualBookingForm({
     </div>
   );
 
-  // Step 4 â€” Review & confirm
+  // Step 4 — Review & confirm
   function SummaryCard({
     heading,
     editStep,
@@ -1688,7 +1688,7 @@ export function ManualBookingForm({
             {participants.map((p, i) => (
               <div key={i} className={cn("grid gap-1", i > 0 && "mt-3 border-t border-[var(--admin-border)] pt-3")}>
                 <p className="text-xs font-semibold text-[var(--admin-heading)]">
-                  {participants.length > 1 ? `Person ${i + 1}: ${p.name || "â€”"}` : p.name || "â€”"}
+                  {participants.length > 1 ? `Person ${i + 1}: ${p.name || "—"}` : p.name || "—"}
                 </p>
                 <dl className="grid gap-2 sm:grid-cols-2">
                   {dl("Gender", p.gender || "Not set")}
@@ -1742,7 +1742,7 @@ export function ManualBookingForm({
             </div>
           </AdminPanel>
 
-          {/* â”€â”€ Assignment panel â”€â”€ */}
+          {/* ── Assignment panel ── */}
           <AdminPanel
             title="Booking assignment"
             description="Optionally assign a therapist now. You can always change this later from the booking page."
@@ -1814,7 +1814,7 @@ export function ManualBookingForm({
                               onChange={(e) => setAssignmentStaffIds((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })}
                               className="mt-2 flex h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
                             >
-                              <option value="">Choose a therapistâ€¦</option>
+                              <option value="">Choose a therapist…</option>
                               {eligibleStaff.map((s) => (
                                 <option key={s.id} value={s.id}>{s.name}</option>
                               ))}
@@ -1882,7 +1882,7 @@ export function ManualBookingForm({
         </div>
       </div>
 
-      {/* Unassigned note â€” always shown on step 4 */}
+      {/* Unassigned note — always shown on step 4 */}
       {step === 4 && (
         <div className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-3 text-sm text-[oklch(26%_0.13_55)]">
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -1910,7 +1910,7 @@ export function ManualBookingForm({
     </div>
   );
 
-  // â”€â”€â”€ Desktop navigation strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Desktop navigation strip ─────────────────────────────────────────────────
 
   const navStrip = (
     <div className="hidden items-center justify-between gap-3 md:flex">
@@ -1951,7 +1951,7 @@ export function ManualBookingForm({
     </div>
   );
 
-  // â”€â”€â”€ Leave dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Leave dialog ──────────────────────────────────────────────────────────────
 
   const leaveDialog = showLeaveDialog ? (
     <div
@@ -1985,7 +1985,7 @@ export function ManualBookingForm({
     </div>
   ) : null;
 
-  // â”€â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="grid gap-6">
@@ -2000,7 +2000,7 @@ export function ManualBookingForm({
         {step4}
         {navStrip}
 
-        {/* Mobile action bar â€” hidden at md+ where inline navStrip shows */}
+        {/* Mobile action bar — hidden at md+ where inline navStrip shows */}
         <div className="md:hidden">
         <AdminMobileActionBar submitting={pending}>
           {step > 1 && (

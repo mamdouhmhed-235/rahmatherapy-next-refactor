@@ -31,7 +31,7 @@ const badgeVariants = cva(
         cancelled:
           "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)] px-2.5 py-1",
         completed:
-          "bg-[oklch(94%_0.03_200)] text-[oklch(28%_0.095_200)] px-2.5 py-1",
+          "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)] px-2.5 py-1",
         attention:
           "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)] px-2.5 py-1",
         restricted:
@@ -45,7 +45,7 @@ const badgeVariants = cva(
         "cancelled-sm":
           "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)] px-2 py-0.5 text-[11px]",
         "completed-sm":
-          "bg-[oklch(94%_0.03_200)] text-[oklch(28%_0.095_200)] px-2 py-0.5 text-[11px]",
+          "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)] px-2 py-0.5 text-[11px]",
         "attention-sm":
           "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)] px-2 py-0.5 text-[11px]",
         "restricted-sm":

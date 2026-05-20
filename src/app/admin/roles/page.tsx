@@ -25,7 +25,7 @@ import {
 import { CreateRoleSheet } from "./CreateRoleSheet";
 
 export const metadata = {
-  title: "Roles and permissions â€” Rahma Therapy Admin",
+  title: "Roles and permissions — Rahma Therapy Admin",
 };
 
 type RoleRow = {
@@ -52,7 +52,7 @@ function countStaff(role: RoleRow): number {
 
 function firstLetter(label: string): string {
   const trimmed = label.trim();
-  return trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() : "â€¢";
+  return trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() : "•";
 }
 
 function permissionsLabel(count: number): string {
@@ -60,7 +60,7 @@ function permissionsLabel(count: number): string {
 }
 
 function staffLabel(count: number): string {
-  // Brief: "{n} staff" is uncountable â€” no plural switch.
+  // Brief: "{n} staff" is uncountable — no plural switch.
   return `${count} staff`;
 }
 
@@ -173,8 +173,8 @@ export default async function RolesPage() {
                   className="mb-2 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--admin-text-muted)]"
                   title={
                     group.tier === "privileged"
-                      ? "Privileged roles â€” full or near-full admin reach."
-                      : "Operational roles â€” day-to-day clinic work, scoped reach."
+                      ? "Privileged roles — full or near-full admin reach."
+                      : "Operational roles — day-to-day clinic work, scoped reach."
                   }
                 >
                   {TIER_LABEL[group.tier]}
@@ -310,7 +310,7 @@ function RoleListRow({ role }: { role: RoleRow }) {
             DB role: {role.name}
           </p>
 
-          {/* Mobile-only counts â€” stacked two-line metadata */}
+          {/* Mobile-only counts — stacked two-line metadata */}
           <ul
             className="mt-2 grid list-none gap-1 pl-0 text-xs text-[var(--admin-text-muted)] sm:hidden"
             aria-label={`Counts for ${displayName}`}
@@ -338,7 +338,7 @@ function RoleListRow({ role }: { role: RoleRow }) {
           </ul>
         </div>
 
-        {/* Right column â€” desktop counts cluster + chevron; mobile collapses to chevron only */}
+        {/* Right column — desktop counts cluster + chevron; mobile collapses to chevron only */}
         <div className="flex shrink-0 items-center self-center gap-3 text-xs text-[var(--admin-text-muted)]">
           <span
             className="hidden items-center gap-1.5 sm:inline-flex"

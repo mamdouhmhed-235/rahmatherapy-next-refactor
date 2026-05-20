@@ -170,7 +170,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   // Range view: validate `to`. If invalid or missing, demote to day view.
   // If range is inverted (to < from), swap. If range exceeds the soft cap,
-  // snap to month view of the start month + drop the range â€” the popover
+  // snap to month view of the start month + drop the range — the popover
   // already enforces the cap, this guards against hand-edited URLs.
   let rangeToISO = "";
   if (view === "range") {
@@ -290,7 +290,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   const formattedDateLabel =
     view === "range"
-      ? `${formatBusinessDate(selectedDate)} â€” ${formatBusinessDate(rangeToISO)}`
+      ? `${formatBusinessDate(selectedDate)} — ${formatBusinessDate(rangeToISO)}`
       : view === "month"
         ? formatMonthLabel(firstOfMonth(selectedDate))
         : formatBusinessDate(selectedDate);
@@ -298,8 +298,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     view === "day"
       ? formatBusinessDate(selectedDate)
       : view === "range"
-        ? `${formatBusinessDate(selectedDate)} â€” ${formatBusinessDate(rangeToISO)}`
-        : `${formatBusinessDate(startISO)} â€” ${formatBusinessDate(endISO)}`;
+        ? `${formatBusinessDate(selectedDate)} — ${formatBusinessDate(rangeToISO)}`
+        : `${formatBusinessDate(startISO)} — ${formatBusinessDate(endISO)}`;
 
   // Chevron stepping. Range view shifts BOTH endpoints by the range length
   // so the operator scrolls through equally-sized windows.
@@ -318,7 +318,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         })
       : buildHref(baseParams, { date: stepDate(selectedDate, view, 1) });
 
-  // Preset hrefs + active detection â€” clicking a preset sets view+date to its
+  // Preset hrefs + active detection — clicking a preset sets view+date to its
   // canonical anchor; the segment lights up only when the URL exactly matches
   // (so any manual date stepping leaves the segmented control unselected).
   const todayMondayISO = mondayOfWeek(today);
@@ -354,7 +354,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           : "range";
 
   // Build therapist names per booking from data.assignments (since
-  // ReportBooking shape doesn't carry the join; RECON Â§5 forbids tweaking
+  // ReportBooking shape doesn't carry the join; RECON §5 forbids tweaking
   // getReportData's selector, so we join client-side).
   const therapistsByBooking = new Map<string, string[]>();
   for (const a of data.assignments) {
@@ -402,7 +402,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
       <PrintHeader rangeLabel={formattedRangeLabel} />
 
-      {/* Control rail â€” sticky on scroll, hidden in print */}
+      {/* Control rail — sticky on scroll, hidden in print */}
       <form
         action="/admin/calendar"
         method="get"
@@ -580,7 +580,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         </div>
       ) : null}
 
-      {/* Today's roundup strip â€” quiet at-a-glance counts (hidden when empty) */}
+      {/* Today's roundup strip — quiet at-a-glance counts (hidden when empty) */}
       {stats.total > 0 ? (
         <p
           className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.8125rem] text-[var(--admin-text-muted)] print:text-[var(--admin-heading)]"
@@ -609,8 +609,8 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       ) : null}
 
       {/* Sidebar on <xl: Attention-tinted collapsible disclosure above the
-          agenda so triage stays at-a-glance on tablet/mobile (brief Â§3).
-          Only renders when there's actually something to triage â€” empty
+          agenda so triage stays at-a-glance on tablet/mobile (brief §3).
+          Only renders when there's actually something to triage — empty
           triage queue would just be noise. */}
       {unassigned.length > 0 ? (
         <SidebarDisclosure
@@ -672,7 +672,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           )}
         </div>
 
-        {/* Sticky right-rail on xl+ â€” only when triage queue has entries */}
+        {/* Sticky right-rail on xl+ — only when triage queue has entries */}
         {unassigned.length > 0 ? (
           <aside className="hidden min-w-0 gap-4 print:hidden xl:sticky xl:top-[5.5rem] xl:grid xl:self-start">
             {therapistOnly ? (
@@ -690,7 +690,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   );
 }
 
-// â”€â”€â”€ Preset segment (Today / This week / This month) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Preset segment (Today / This week / This month) ────────────────────────
 
 function PresetLink({
   href,
@@ -717,19 +717,19 @@ function PresetLink({
   );
 }
 
-// â”€â”€â”€ Print sheet header (only visible in print) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Print sheet header (only visible in print) ──────────────────────────────
 
 function PrintHeader({ rangeLabel }: { rangeLabel: string }) {
   return (
     <div className="hidden print:block">
       <h2 className="font-display text-lg font-semibold text-[var(--admin-heading)]">
-        Rahma Therapy â€” Operations sheet â€” {rangeLabel}
+        Rahma Therapy — Operations sheet — {rangeLabel}
       </h2>
     </div>
   );
 }
 
-// â”€â”€â”€ Week agenda (7 stacked per-date panels) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Week agenda (7 stacked per-date panels) ─────────────────────────────────
 
 function WeekAgenda({
   dates,
@@ -783,7 +783,7 @@ function WeekAgenda({
             >
               <EmptyState
                 icon={CalendarCheck}
-                title="All quiet â€” no bookings in this range."
+                title="All quiet — no bookings in this range."
                 message="Quiet days are healthy days."
                 compact
               />
@@ -806,7 +806,7 @@ function WeekAgenda({
   );
 }
 
-// â”€â”€â”€ Month grid (6Ã—7 cells) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Month grid (6Ã—7 cells) ──────────────────────────────────────────────────
 
 function MonthGrid({
   monthFirstISO,
@@ -949,7 +949,7 @@ function MonthGridShell({
                 ) : null}
               </div>
 
-              {/* Booking pills inside the cell â€” hidden on mobile (cells too
+              {/* Booking pills inside the cell — hidden on mobile (cells too
                   narrow to read truncated names; the count badge above is the
                   signal, tap drills to day view). Visible from sm: up. */}
               {count > 0 ? (
@@ -981,7 +981,7 @@ function MonthGridShell({
   );
 }
 
-// â”€â”€â”€ 7-day strip (week-view header) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 7-day strip (week-view header) ──────────────────────────────────────────
 
 function WeekStrip({
   dates,
@@ -1053,7 +1053,7 @@ function WeekStrip({
                   </span>
                 ) : (
                   <span className="text-[0.6875rem] text-[var(--admin-text-muted)]">
-                    â€”
+                    —
                   </span>
                 )}
               </Link>
@@ -1065,7 +1065,7 @@ function WeekStrip({
   );
 }
 
-// â”€â”€â”€ Day agenda (with time-rail gutter) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Day agenda (with time-rail gutter) ──────────────────────────────────────
 
 function DayAgenda({
   date,
@@ -1098,7 +1098,7 @@ function DayAgenda({
     for (const b of group.bookings) concurrentIds.add(b.id);
   }
 
-  // Compute hourly tick range from bookings' span (07:00â€“21:00 default)
+  // Compute hourly tick range from bookings' span (07:00–21:00 default)
   const startHour = Math.min(
     7,
     ...bookings.map((b) => Number(b.start_time.slice(0, 2)) || 0)
@@ -1120,7 +1120,7 @@ function DayAgenda({
   const totalHeight = (endHour - startHour) * 56;
 
   // Position cards by start_time; if two cards would overlap, stack the later
-  // one below the earlier (no visual overlap per brief Â§5).
+  // one below the earlier (no visual overlap per brief §5).
   const sortedBookings = bookings
     .slice()
     .sort((a, b) => (a.start_time < b.start_time ? -1 : 1));
@@ -1202,7 +1202,7 @@ function DayAgenda({
             ))}
           </div>
 
-          {/* Card column â€” positioned by start_time on lg+, stacked on mobile */}
+          {/* Card column — positioned by start_time on lg+, stacked on mobile */}
           <div className="min-w-0 flex-1 pl-3">
             {/* Mobile + print: simple stack */}
             <ol className="grid list-none gap-3 pl-0 lg:hidden print:grid">
@@ -1321,7 +1321,7 @@ function PerDatePanel({
   );
 }
 
-// â”€â”€â”€ Card (visual chrome mirrors bookings/page.tsx BookingListCard) â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Card (visual chrome mirrors bookings/page.tsx BookingListCard) ─────────
 
 function CalendarBookingRow({
   booking,
@@ -1337,7 +1337,7 @@ function CalendarBookingRow({
   const clientName = booking.contact_full_name || "Unknown client";
   const startTime = booking.start_time.slice(0, 5);
   const endTime = booking.end_time.slice(0, 5);
-  const time = `${startTime}â€“${endTime}`;
+  const time = `${startTime}–${endTime}`;
   const locationParts = [booking.service_city, booking.service_postcode].filter(
     Boolean
   );
@@ -1391,7 +1391,7 @@ function CalendarBookingRow({
               {booking.service_address_line1 ? (
                 <>{booking.service_address_line1}</>
               ) : null}
-              {booking.service_address_line1 && locationLabel ? " Â· " : null}
+              {booking.service_address_line1 && locationLabel ? " · " : null}
               {locationLabel}
             </p>
           ) : null}
@@ -1494,7 +1494,7 @@ function ModifierIcon({
   icon: React.ElementType;
   tone: "warning" | "success" | "danger";
   /** When provided, renders a labelled pill (icon + non-breaking space + text)
-   *  per DESIGN.md Â§5 Named Status Rule. When omitted, renders the compact
+   *  per DESIGN.md §5 Named Status Rule. When omitted, renders the compact
    *  icon-only disc with sr-only text. */
   label?: string;
 }) {
@@ -1511,7 +1511,7 @@ function ModifierIcon({
         className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.75rem] font-medium ${bg} print:border print:border-[oklch(42%_0.025_80)] print:bg-transparent`}
       >
         <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-        <span>{"Â "}{label}</span>
+        <span>{" "}{label}</span>
       </span>
     );
   }
@@ -1553,11 +1553,11 @@ function AvatarStack({ names }: { names: string[] }) {
   );
 }
 
-// â”€â”€â”€ Sidebars â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Sidebars ────────────────────────────────────────────────────────────────
 
 /**
  * Collapsible Attention-tinted version of the sidebar, rendered above the
- * agenda on viewports below `xl` (brief Â§3 â€” the sticky right-rail only
+ * agenda on viewports below `xl` (brief §3 — the sticky right-rail only
  * appears at xl+; below that the triage queue stacks above the day list under
  * a disclosure so it stays at-a-glance on tablet and mobile).
  */
@@ -1597,7 +1597,7 @@ function SidebarDisclosure({
             <ol className="grid list-none gap-2 pl-0">
               {bookings.map((booking) => (
                 <li key={booking.id}>
-                  <SidebarRow booking={booking} cta="Open â†’" />
+                  <SidebarRow booking={booking} cta="Open →" />
                 </li>
               ))}
               <li>
@@ -1605,7 +1605,7 @@ function SidebarDisclosure({
                   href="/admin/bookings?view=claimable"
                   className="inline-flex h-9 items-center text-sm font-medium text-[var(--admin-primary)] outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                 >
-                  Browse all claimable â†’
+                  Browse all claimable →
                 </Link>
               </li>
             </ol>
@@ -1645,7 +1645,7 @@ function SidebarDisclosure({
               <li key={booking.id}>
                 <SidebarRow
                   booking={booking}
-                  cta="Assign â†’"
+                  cta="Assign →"
                   focusAssignment
                 />
               </li>
@@ -1656,7 +1656,7 @@ function SidebarDisclosure({
                   href="/admin/bookings?view=claimable"
                   className="inline-flex h-9 items-center text-sm font-medium text-[var(--admin-primary)] outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                 >
-                  See all {total} â†’
+                  See all {total} →
                 </Link>
               </li>
             ) : null}
@@ -1691,7 +1691,7 @@ function UnassignedPanel({
         <ol className="grid list-none gap-2 pl-0">
           {bookings.map((booking) => (
             <li key={booking.id}>
-              <SidebarRow booking={booking} cta="Assign â†’" focusAssignment />
+              <SidebarRow booking={booking} cta="Assign →" focusAssignment />
             </li>
           ))}
           {totalCount > bookings.length ? (
@@ -1700,7 +1700,7 @@ function UnassignedPanel({
                 href="/admin/bookings?view=claimable"
                 className="inline-flex h-9 items-center text-sm font-medium text-[var(--admin-primary)] outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
-                See all {totalCount} â†’
+                See all {totalCount} →
               </Link>
             </li>
           ) : null}
@@ -1728,7 +1728,7 @@ function ClaimableTodayPanel({ bookings }: { bookings: ReportBooking[] }) {
         <ol className="grid list-none gap-2 pl-0">
           {bookings.map((booking) => (
             <li key={booking.id}>
-              <SidebarRow booking={booking} cta="Open â†’" />
+              <SidebarRow booking={booking} cta="Open →" />
             </li>
           ))}
           <li>
@@ -1736,7 +1736,7 @@ function ClaimableTodayPanel({ bookings }: { bookings: ReportBooking[] }) {
               href="/admin/bookings?view=claimable"
               className="inline-flex h-9 items-center text-sm font-medium text-[var(--admin-primary)] outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
-              Browse all claimable â†’
+              Browse all claimable →
             </Link>
           </li>
         </ol>
@@ -1755,7 +1755,7 @@ function SidebarRow({
   focusAssignment?: boolean;
 }) {
   const clientName = booking.contact_full_name || "Unknown client";
-  const time = `${booking.start_time.slice(0, 5)}â€“${booking.end_time.slice(0, 5)}`;
+  const time = `${booking.start_time.slice(0, 5)}–${booking.end_time.slice(0, 5)}`;
   const cityLabel = [booking.service_city, booking.service_postcode]
     .filter(Boolean)
     .join(" ");
@@ -1789,15 +1789,15 @@ function SidebarRow({
         </p>
       </div>
       <p className="text-xs text-[var(--admin-text-muted)]">
-        {formatBusinessDate(booking.booking_date)} Â· <span className="tabular-nums">{time}</span>
-        {cityLabel ? ` Â· ${cityLabel}` : ""}
+        {formatBusinessDate(booking.booking_date)} · <span className="tabular-nums">{time}</span>
+        {cityLabel ? ` · ${cityLabel}` : ""}
       </p>
       <p className="text-xs font-medium text-[var(--admin-primary)]">{cta}</p>
     </Link>
   );
 }
 
-// â”€â”€â”€ Empty state + denied â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Empty state + denied ────────────────────────────────────────────────────
 
 function CalendarEmptyState({
   therapistOnly,
@@ -1846,7 +1846,7 @@ function CalendarAccessDenied() {
   );
 }
 
-// â”€â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function groupByDate(bookings: ReportBooking[]) {
   const groups = new Map<string, ReportBooking[]>();

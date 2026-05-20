@@ -89,7 +89,7 @@ export function RequestRow({
   );
   const reviewerLabel = isSelfReviewer ? "you" : (row.reviewed_by_name ?? "reviewer");
   // D2: use the same first-8 slice the audit query uses so operators can visually align
-  // the row's ID label with the `?q=â€¦` slug shown in /admin/audit.
+  // the row's ID label with the `?q=…` slug shown in /admin/audit.
   const auditIdSlug = row.id.slice(0, 8);
   const auditHref = `/admin/audit?q=${auditIdSlug}`;
   // D1: hide the per-row pill on the Pending tab (the tab title already carries that state).
@@ -135,7 +135,7 @@ export function RequestRow({
               title={`Full id: ${row.id}`}
               className="font-mono text-[0.65rem] uppercase tracking-[0.04em] text-[var(--admin-text-muted)]/80"
             >
-              ID {auditIdSlug}â€¦
+              ID {auditIdSlug}…
             </span>
           </div>
         </header>

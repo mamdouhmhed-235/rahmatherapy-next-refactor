@@ -15,7 +15,7 @@ import { ServiceFormDialog, type ServiceRecord } from "./ServiceFormDialog";
 import { ServiceRowActions } from "./ServiceRowActions";
 
 export const metadata = {
-  title: "Services â€” Rahma Therapy Admin",
+  title: "Services — Rahma Therapy Admin",
 };
 
 const GBP = new Intl.NumberFormat("en-GB", {
@@ -39,13 +39,13 @@ const GENDER_TOOLTIP: Record<ServiceRecord["gender_restrictions"], string> = {
 function letterToken(name: string, fallback?: string | null) {
   const trimmed = name.trim();
   // Prefer the first alpha character; if the name starts with a digit or
-  // punctuation, fall back to the category's first letter, then "Â·".
+  // punctuation, fall back to the category's first letter, then "·".
   const match = trimmed.match(/[a-z]/i);
   if (match) return match[0].toUpperCase();
   const cat = (fallback ?? "").trim();
   const catMatch = cat.match(/[a-z]/i);
   if (catMatch) return catMatch[0].toUpperCase();
-  return trimmed.charAt(0).toUpperCase() || "Â·";
+  return trimmed.charAt(0).toUpperCase() || "·";
 }
 
 function groupKey(value: string | null | undefined) {
@@ -228,7 +228,7 @@ export default async function ServicesPage() {
                           </span>
                           <span
                             className="ml-auto font-mono text-[0.6875rem] text-[var(--admin-text-muted)]"
-                            title={`Display order within ${group.title} â€” lower first`}
+                            title={`Display order within ${group.title} — lower first`}
                           >
                             #{service.display_order}
                           </span>
@@ -276,7 +276,7 @@ export default async function ServicesPage() {
 function InUseBadge({ count }: { count: number }) {
   return (
     <span
-      title={`${count} ${count === 1 ? "booking" : "bookings"} on file â€” can't be deleted`}
+      title={`${count} ${count === 1 ? "booking" : "bookings"} on file — can't be deleted`}
       className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--admin-status-completed-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-status-completed-text)]"
     >
       <CheckSquare className="size-3 shrink-0" aria-hidden="true" />

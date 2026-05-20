@@ -51,7 +51,7 @@ export function BookingManagementForm({ booking }: BookingManagementFormProps) {
   );
 }
 
-// â”€â”€â”€ Shared plumbing for the Status & payment section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shared plumbing for the Status & payment section ────────────────────────
 
 interface StatusFormState {
   isPending: boolean;
@@ -324,7 +324,7 @@ function AmountPaidInput({
           aria-hidden="true"
           className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm font-medium text-[var(--admin-text-muted)]"
         >
-          Â£
+          £
         </span>
         <input
           id={id}
@@ -358,7 +358,7 @@ function AmountPaidInput({
             disabled={disabled || Number(value) === total}
             className="inline-flex h-11 sm:h-7 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-3 sm:px-2 text-xs sm:text-[0.6875rem] font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Match total Â· Â£{total.toFixed(2)}
+            Match total · £{total.toFixed(2)}
           </button>
           {Number(value) !== 0 ? (
             <button
@@ -413,7 +413,7 @@ function PaymentNoteDisclosure({
             id={noteId}
             name="payment_note"
             rows={3}
-            placeholder="e.g. paid in full at the door; Â£45 cash"
+            placeholder="e.g. paid in full at the door; £45 cash"
             value={value}
             onChange={(e) => onChange(e.target.value)}
             disabled={disabled}
@@ -460,7 +460,7 @@ function StatusSaveButton({
   );
 }
 
-// â”€â”€â”€ Lifecycle steps â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Lifecycle steps ──────────────────────────────────────────────────────────
 
 const LIFECYCLE_STEPS: Array<{
   key: "pending" | "confirmed" | "completed";
@@ -677,7 +677,7 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
 }
 
 
-// â”€â”€â”€ Shared notes form plumbing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shared notes form plumbing ───────────────────────────────────────────────
 
 interface NotesFormState {
   isPending: boolean;
@@ -795,7 +795,7 @@ function NotesSaveButton({
   );
 }
 
-// â”€â”€â”€ Notes meta â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Notes meta ───────────────────────────────────────────────────────────────
 
 interface NoteMeta {
   key: "treatment_notes" | "admin_notes" | "customer_manage_notes";
@@ -825,7 +825,7 @@ const NOTE_FIELDS: NoteMeta[] = [
   },
 ];
 
-// â”€â”€â”€ Notes section: all three types at a glance, individually collapsible â”€â”€â”€â”€â”€
+// ─── Notes section: all three types at a glance, individually collapsible ─────
 
 
 function initialNoteValues(booking: BookingRecord): Record<NoteMeta["key"], string> {
@@ -1132,7 +1132,7 @@ export function BookingNotesScopedForm({
   );
 }
 
-// â”€â”€â”€ Shared field primitives (scoped to this file) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Shared field primitives (scoped to this file) ────────────────────────────
 
 function Field({
   id,

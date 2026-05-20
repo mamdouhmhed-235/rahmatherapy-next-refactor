@@ -115,7 +115,7 @@ function SummarySection({
       </p>
       <p className="font-mono text-xs text-[var(--admin-text-muted)]">
         {primary}
-        {secondary ? ` Â· ${secondary}` : ""}
+        {secondary ? ` · ${secondary}` : ""}
       </p>
     </div>
   );

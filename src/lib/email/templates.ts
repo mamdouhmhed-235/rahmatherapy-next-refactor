@@ -518,7 +518,7 @@ export function renderPasswordResetApprovedHtml(
       <h1 style="font-family: 'Urbanist', Arial, sans-serif; color: #151b18; font-size: 1.5rem; margin: 0 0 16px;">Your password-reset request has been approved</h1>
       <p style="margin: 0 0 16px;">Hi ${name},</p>
       <p style="margin: 0 0 16px;">An Owner has approved your password-reset request. Use the link below to set a new password. The link works for ${input.expiresInHours} hours.</p>
-      <p style="margin: 24px 0;"><a href="${url}" style="display: inline-block; background: #073d2a; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;">Set a new password</a></p>
+      <p style="margin: 24px 0;"><a href="${url}" style="display: inline-block; background: #0f5e8e; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">Set a new password</a></p>
       <p style="margin: 0 0 16px; color: #5e625e; font-size: 0.875rem;">If the button doesn't work, paste this address into your browser: ${url}</p>
       <p style="margin: 24px 0 0; color: #5e625e; font-size: 0.875rem;">${company} staff portal.</p>
     </div>
@@ -562,7 +562,7 @@ export function renderPasswordResetRejectedHtml(
       <p style="margin: 0 0 16px;">Hi ${name},</p>
       <p style="margin: 0 0 16px;">An Owner reviewed your request and decided not to approve it this time.</p>
       ${noteBlock}
-      <p style="margin: 24px 0;"><a href="${retry}" style="display: inline-block; background: #073d2a; color: #ffffff; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: 600;">Submit a new request</a></p>
+      <p style="margin: 24px 0;"><a href="${retry}" style="display: inline-block; background: #0f5e8e; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">Submit a new request</a></p>
       <p style="margin: 24px 0 0; color: #5e625e; font-size: 0.875rem;">${company} staff portal.</p>
     </div>
   </body>

@@ -288,7 +288,7 @@ export function MobileCardList({
   );
 }
 
-// â”€â”€â”€ BookingCardSkeletonList â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── BookingCardSkeletonList ─────────────────────────────────────────────────
 // Approximates the BookingListCard shape so the layout doesn't reflow when
 // streamed data lands. Used inside the bookings page <Suspense> fallback.
 
@@ -328,12 +328,12 @@ export function BookingCardSkeletonList({
           </div>
         </div>
       ))}
-      <span className="sr-only">Loading bookingsâ€¦</span>
+      <span className="sr-only">Loading bookings…</span>
     </div>
   );
 }
 
-// â”€â”€â”€ SavedViewBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SavedViewBar ────────────────────────────────────────────────────────────
 // Pill row with inline Save + inline Remove confirmation (no modal). Used by
 // /admin/bookings as the secondary tab strip beneath the primary view tabs.
 
@@ -526,7 +526,7 @@ export function SavedViewBar({
           type="button"
           onClick={() => setSaving(true)}
           disabled={atLimit}
-          title={atLimit ? `Limit ${SAVED_VIEW_LIMIT} reached â€” remove one to add another.` : undefined}
+          title={atLimit ? `Limit ${SAVED_VIEW_LIMIT} reached — remove one to add another.` : undefined}
           className="inline-flex h-8 appearance-none items-center gap-1 rounded-full border-0 bg-transparent px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="size-3" aria-hidden="true" />
@@ -537,8 +537,8 @@ export function SavedViewBar({
   );
 }
 
-// â”€â”€â”€ ActiveFilterChip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Restricted-family pill listing one active filter â€” text label plus a
+// ─── ActiveFilterChip ────────────────────────────────────────────────────────
+// Restricted-family pill listing one active filter — text label plus a
 // dismissive trailing Ã— that calls onClear.
 
 export function ActiveFilterChip({

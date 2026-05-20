@@ -593,7 +593,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
               defaultChecked={sort === "name"}
               className="sr-only"
             />
-            Name Aâ€“Z
+            Name A–Z
           </label>
           <label
             className={`inline-flex h-10 items-center justify-center rounded-[var(--admin-radius-control)] border px-3 text-sm font-medium ${
@@ -639,7 +639,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         }
       />
 
-      {/* C2 stats line â€” replaces filler description */}
+      {/* C2 stats line — replaces filler description */}
       <p
         className="-mt-2 flex flex-wrap items-center gap-x-1 gap-y-1 text-sm text-[var(--admin-text-muted)]"
         aria-label="Client base summary"
@@ -669,7 +669,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         />
       </p>
 
-      {/* Desktop filter bar (â‰¥lg) â€” GET form */}
+      {/* Desktop filter bar (≥lg) — GET form */}
       <form
         method="get"
         action="/admin/clients"
@@ -735,7 +735,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         </button>
       </form>
 
-      {/* Mobile + tablet filter trigger (<lg) â€” AdminSheet bottom drawer */}
+      {/* Mobile + tablet filter trigger (<lg) — AdminSheet bottom drawer */}
       <div className="lg:hidden">
         <AdminSheet
           title="Refine"
@@ -762,14 +762,14 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         </AdminSheet>
       </div>
 
-      {/* Sort toggle + count summary â€” frameless (A11) */}
+      {/* Sort toggle + count summary — frameless (A11) */}
       <div className="hidden flex-wrap items-center justify-between gap-3 lg:flex">
         <p className="text-sm text-[var(--admin-text-muted)]">
           {totalRows === 0 ? (
             <>0 of {totalClientCount} clients</>
           ) : totalRows > PAGE_SIZE ? (
             <>
-              {pageStartIndex + 1}â€“{pageEndIndex} of {totalRows} clients
+              {pageStartIndex + 1}–{pageEndIndex} of {totalRows} clients
               {totalRows !== totalClientCount ? (
                 <> (filtered from {totalClientCount})</>
               ) : null}
@@ -786,7 +786,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
           className="inline-flex items-center gap-1 rounded-[var(--admin-radius-control)] bg-[var(--admin-surface-input)] p-1"
         >
           <SortLink
-            label="Name Aâ€“Z"
+            label="Name A–Z"
             href={buildSortHref(filterValues, "name")}
             active={sort === "name"}
             srHint="Sort alphabetically by name"
@@ -1049,7 +1049,7 @@ function formatSourceLabel(value: string): string {
 function Dot() {
   return (
     <span aria-hidden="true" className="text-[var(--admin-text-muted)]/50">
-      Â·
+      ·
     </span>
   );
 }
@@ -1247,7 +1247,7 @@ function ClientRow({
   // D4 lapsed clients render at reduced saturation
   const rowOpacity = isLapsed ? "opacity-75" : "";
 
-  // Primary timeline line â€” prefers last visit (completed), falls back to next upcoming.
+  // Primary timeline line — prefers last visit (completed), falls back to next upcoming.
   let timelineLabel: string;
   let timelinePrefix: string;
   if (lastCompleted) {
@@ -1261,17 +1261,17 @@ function ClientRow({
     timelineLabel = "No visits yet";
   }
 
-  // Secondary count line â€” completed total, plus upcoming chip if relevant.
+  // Secondary count line — completed total, plus upcoming chip if relevant.
   const countLabel =
     completedCount === 0
       ? upcomingCount > 0
         ? `${upcomingCount} upcoming`
         : "No visits yet"
       : `${completedCount} visit${completedCount === 1 ? "" : "s"}${
-          upcomingCount > 0 ? ` Â· ${upcomingCount} upcoming` : ""
+          upcomingCount > 0 ? ` · ${upcomingCount} upcoming` : ""
         }`;
 
-  // C6 popover summary â€” split into last visit + next booking when both exist
+  // C6 popover summary — split into last visit + next booking when both exist
   const lastBookingSummary: LastBookingSummary = {
     lastVisit: lastCompleted
       ? {

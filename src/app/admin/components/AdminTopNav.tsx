@@ -32,7 +32,7 @@ import { NotificationBell, MobileNotificationButton } from "./notification-bell"
 import type { AdminShellVariant } from "../shell-variant";
 import type { NotificationItem } from "../reports/reporting";
 
-// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface AdminTopNavProfile {
   name: string;
@@ -58,7 +58,7 @@ interface NavGroup {
   keys: string[];
 }
 
-// â”€â”€â”€ Nav item catalogue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Nav item catalogue ───────────────────────────────────────────────────────
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",              href: "/admin/dashboard",                    icon: LayoutDashboard,   pageKey: "dashboard" },
@@ -79,14 +79,14 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Password requests",      href: "/admin/account-password-requests",    icon: ShieldCheck,       pageKey: "accountRequests" },
 ];
 
-// â”€â”€â”€ Variant configs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Variant configs ──────────────────────────────────────────────────────────
 
 // Primary strip: only genuinely daily-use items. Everything else lives in the user menu.
 const OWNER_ADMIN_PRIMARY_KEYS = new Set(["dashboard", "bookings", "clients", "staff", "reports"]);
 const COORDINATOR_PRIMARY_KEYS = new Set(["dashboard", "bookings", "clients", "staff", "enquiries"]);
 const THERAPIST_NAV_KEYS       = new Set(["dashboard", "bookings", "availability", "staff"]);
 
-// User menu grouped sections â€” role-dependent
+// User menu grouped sections — role-dependent
 const OWNER_ADMIN_GROUPS: NavGroup[] = [
   { label: "Scheduling & Leads",  keys: ["calendar", "enquiries"] },
   { label: "Communications",      keys: ["emails"] },
@@ -99,7 +99,7 @@ const COORDINATOR_GROUPS: NavGroup[] = [
   { label: "Communications", keys: ["emails", "availability"] },
 ];
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function normalizeAdminPath(path: string) {
   return path.replace(/\/+$/, "") || "/";
@@ -182,7 +182,7 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-// â”€â”€â”€ AdminTopNav (shell) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── AdminTopNav (shell) ──────────────────────────────────────────────────────
 
 export function AdminTopNav({
   profile,
@@ -213,7 +213,7 @@ export function AdminTopNav({
 
   return (
     <div className="admin-shell min-h-screen overflow-x-hidden bg-[var(--admin-canvas)]">
-      {/* Skip link â€” first DOM element, visually hidden until focused */}
+      {/* Skip link — first DOM element, visually hidden until focused */}
       <a
         href="#admin-main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-[var(--admin-radius-control)] focus:bg-[var(--admin-primary)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--admin-on-primary)] focus:shadow-[var(--admin-shadow-overlay)]"
@@ -221,11 +221,11 @@ export function AdminTopNav({
         Skip to main content
       </a>
 
-      {/* Top nav bar â€” cream chrome (2026-05-20 brand re-theme).
+      {/* Top nav bar — cream chrome (2026-05-20 brand re-theme).
        *  Was dark Clinic Green; now light cream-deeper-than-canvas with dark
        *  text and brand-blue active-state tint. */}
       <header className="sticky top-0 z-40 border-b border-[var(--admin-nav-border)] bg-[var(--admin-nav-bg)]">
-        {/* Bell override â€” notification bell renders with a card surface by default;
+        {/* Bell override — notification bell renders with a card surface by default;
             this permanent override matches it to the cream chrome via brand-blue strokes. */}
         <style>{`
           /* Desktop bell: cream-chrome variant */
@@ -240,7 +240,7 @@ export function AdminTopNav({
             border-color: var(--admin-primary) !important;
             color: var(--admin-primary) !important;
           }
-          /* Mobile bell: cream-chrome variant â€” button is the card element directly */
+          /* Mobile bell: cream-chrome variant — button is the card element directly */
           .mobile-nav-bell button {
             background: transparent !important;
             border-color: var(--admin-border) !important;
@@ -253,7 +253,7 @@ export function AdminTopNav({
           .mobile-nav-bell button svg {
             color: var(--admin-nav-text-muted) !important;
           }
-          /* Bottom tab bar â€” landscape mobile: shorter bar, no labels */
+          /* Bottom tab bar — landscape mobile: shorter bar, no labels */
           @media (orientation: landscape) and (max-width: 767px) {
             .admin-bottom-tabbar > div { height: 2.75rem !important; }
             .admin-tab-label { display: none !important; }
@@ -340,7 +340,7 @@ export function AdminTopNav({
         </div>
       </header>
 
-      {/* Main content â€” pb accounts for the mobile bottom tab bar */}
+      {/* Main content — pb accounts for the mobile bottom tab bar */}
       <main
         id="admin-main"
         tabIndex={-1}
@@ -386,10 +386,10 @@ export function AdminTopNav({
   );
 }
 
-// â”€â”€â”€ UserMenuButton (desktop) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Named trigger: initials + first name + chevron on â‰¥1024px
-// Initials + chevron only on 768â€“1023px
-// Opens comprehensive dropdown: identity header â†’ grouped nav â†’ divider â†’ account actions
+// ─── UserMenuButton (desktop) ─────────────────────────────────────────────────
+// Named trigger: initials + first name + chevron on ≥1024px
+// Initials + chevron only on 768–1023px
+// Opens comprehensive dropdown: identity header → grouped nav → divider → account actions
 
 function UserMenuButton({
   profile,
@@ -440,7 +440,7 @@ function UserMenuButton({
     });
   }, [open]);
 
-  // Arrow keys cycle the focused menuitem (WCAG SC 4.1.2 â€” declared role must
+  // Arrow keys cycle the focused menuitem (WCAG SC 4.1.2 — declared role must
   // match interaction model).
   function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const menu = menuRef.current;
@@ -505,7 +505,7 @@ function UserMenuButton({
         <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ring-[var(--admin-primary)]/30 bg-[var(--admin-panel)] text-[10px] font-semibold text-[var(--admin-primary)]">
           {initials}
         </span>
-        {/* First name â€” visible on â‰¥1024px */}
+        {/* First name — visible on ≥1024px */}
         <span className="hidden max-w-[8rem] truncate text-sm font-medium lg:block">{firstName}</span>
         <ChevronDown
           className={cn(
@@ -526,7 +526,7 @@ function UserMenuButton({
           className="u-menu-enter absolute right-0 top-full z-50 mt-2 w-[17.5rem] rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)]"
           style={{ animation: "menu-enter 160ms cubic-bezier(0.16,1,0.3,1) both" }}
         >
-          {/* Identity header â€” canvas tint (97.8%) separates this zone from the nav items (panel 99.2%) below */}
+          {/* Identity header — canvas tint (97.8%) separates this zone from the nav items (panel 99.2%) below */}
 
           <div className="rounded-t-[calc(var(--admin-radius-card)-1px)] border-b border-[var(--admin-border)] bg-[oklch(97.8%_0.006_88)] px-3.5 py-2.5">
             <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">{profile.name}</p>
@@ -609,9 +609,9 @@ function UserMenuButton({
   );
 }
 
-// â”€â”€â”€ AdminBottomTabBar (mobile <768px) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── AdminBottomTabBar (mobile <768px) ────────────────────────────────────────
 // Sticky bottom, safe-area-inset-bottom aware.
-// 4â€“5 primary tabs + "More" tab (always last).
+// 4–5 primary tabs + "More" tab (always last).
 // "More" opens UserMenuSheet.
 
 function AdminBottomTabBar({
@@ -714,7 +714,7 @@ function AdminBottomTabBar({
         </div>
       </nav>
 
-      {/* "More" sheet â€” slides up from bottom */}
+      {/* "More" sheet — slides up from bottom */}
       {moreOpen ? (
         <UserMenuSheet
           profile={profile}
@@ -730,7 +730,7 @@ function AdminBottomTabBar({
   );
 }
 
-// â”€â”€â”€ UserMenuSheet (mobile "More" sheet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── UserMenuSheet (mobile "More" sheet) ─────────────────────────────────────
 // Bottom-anchored sheet with same content as desktop user menu dropdown.
 
 function UserMenuSheet({
@@ -791,7 +791,7 @@ function UserMenuSheet({
           <div className="h-1 w-8 rounded-full bg-[var(--admin-border)]" />
         </div>
 
-        {/* Identity header â€” canvas tint creates zone distinction from nav items below */}
+        {/* Identity header — canvas tint creates zone distinction from nav items below */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[oklch(97.8%_0.006_88)] px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-xs font-semibold text-[var(--admin-heading)]">
@@ -907,7 +907,7 @@ function UserMenuSheet({
   );
 }
 
-// â”€â”€â”€ MobileSearch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── MobileSearch ─────────────────────────────────────────────────────────────
 
 function MobileSearch() {
   const [open, setOpen] = useState(false);
@@ -917,7 +917,7 @@ function MobileSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Search (âŒ˜K)"
+        aria-label="Search (⌘K)"
         className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-nav-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-nav-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
       >
         <svg className="size-[1.125rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

@@ -552,7 +552,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
         </div>
       ) : null}
 
-      {/* Tab strip — TabPills with aria-current, Clinic Green fill on active (Sam #3 fix). */}
+      {/* Tab strip — TabPills with aria-current, Therapy Blue fill on active (Sam #3 fix). */}
       <nav
         aria-label="Staff sections"
         className="-mx-1 flex gap-1 overflow-x-auto rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1"

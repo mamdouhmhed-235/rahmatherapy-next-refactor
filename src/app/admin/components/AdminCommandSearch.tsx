@@ -111,13 +111,13 @@ export function AdminCommandSearch({
       <BaseDialog.Trigger
         className={
           triggerClassName ??
-          "inline-flex h-9 items-center gap-2 rounded-[var(--admin-radius-control)] border border-white/20 bg-white/10 px-3 text-sm font-medium text-white/80 outline-none transition-colors hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          "inline-flex h-9 items-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-sm font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-body)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
         }
       >
         <Search className="size-4 shrink-0" aria-hidden="true" />
         <span>{compact ? "Search…" : "Search bookings, clients, staff…"}</span>
         {compact ? (
-          <kbd className="ml-1 hidden rounded border border-white/20 bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white/60 xl:inline">
+          <kbd className="ml-1 hidden rounded border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--admin-text-muted)] xl:inline">
             ⌘K
           </kbd>
         ) : null}

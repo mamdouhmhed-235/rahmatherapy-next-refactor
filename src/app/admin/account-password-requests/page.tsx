@@ -15,7 +15,7 @@ import { EmptyState } from "../components/EmptyState";
 import { RequestRow } from "./RequestRow";
 
 export const metadata: Metadata = {
-  title: "Password-reset requests Â· Rahma",
+  title: "Password-reset requests · Rahma",
 };
 
 type StatusKey = "pending" | "approved" | "rejected" | "expired" | "all";
@@ -43,7 +43,7 @@ export interface PasswordResetRequest {
   reviewer_note: string | null;
 }
 
-// data-redesign-backend="FAKE" â€” seed rows used while BUILD-approve-reject-password-reset.md
+// data-redesign-backend="FAKE" — seed rows used while BUILD-approve-reject-password-reset.md
 // and BUILD-rbac-permission-account-password-requests.md are still [ ]. The
 // schema mirrors the existing `account_password_requests` production table;
 // once the backend BUILD plans land, the real query below replaces this seed.
@@ -184,7 +184,7 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
   const profile = await getStaffProfile(supabase);
   if (!profile || !profile.active) redirect("/admin/login");
 
-  // data-redesign-backend="FAKE" â€” the canonical gate is MANAGE_ACCOUNT_PASSWORD_REQUESTS,
+  // data-redesign-backend="FAKE" — the canonical gate is MANAGE_ACCOUNT_PASSWORD_REQUESTS,
   // but BUILD-rbac-permission-account-password-requests.md hasn't seeded that permission
   // onto Owner / Admin role templates yet. Until that plan lands we bridge via
   // MANAGE_AUDIT_LOGS (Owner-only) so the page is reachable for the Owner test account.
@@ -216,7 +216,7 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
     <div
       className="mx-auto w-full max-w-[68rem] space-y-5 sm:space-y-6"
       data-redesign-backend="FAKE"
-      data-redesign-fake-source="account-password-requests page seed data â€” blocks on BUILD-approve-reject-password-reset.md + BUILD-rbac-permission-account-password-requests.md + BUILD-password-reset-email-templates.md"
+      data-redesign-fake-source="account-password-requests page seed data — blocks on BUILD-approve-reject-password-reset.md + BUILD-rbac-permission-account-password-requests.md + BUILD-password-reset-email-templates.md"
     >
       <AdminPageHeader
         title="Password-reset requests"
@@ -266,7 +266,7 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
         />
       </Suspense>
 
-      {/* data-redesign-backend="FAKE" â€” compact dev-mode chip; functional surfaces carry the
+      {/* data-redesign-backend="FAKE" — compact dev-mode chip; functional surfaces carry the
           marker independently (RequestRow ApproveModal RejectModal). The chip is purposely
           quiet: it ships out cleanly when the three BUILD plans land. */}
       <FakeBackendChip />
@@ -331,7 +331,7 @@ function FakeBackendChip() {
         aria-hidden="true"
         className="inline-block size-1.5 rounded-full bg-[oklch(69%_0.142_72)]"
       />
-      Dev mode Â· approve and reject are visual only
+      Dev mode · approve and reject are visual only
     </p>
   );
 }

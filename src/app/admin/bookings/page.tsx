@@ -341,7 +341,7 @@ export default async function BookingsPage({
   const defaultView: BookingViewKey = canViewAll ? "attention" : "today";
   const currentView = (getQueryValue(query.view) ?? defaultView) as BookingViewKey;
 
-  // Lightweight chrome data â€” filter dropdown options only.
+  // Lightweight chrome data — filter dropdown options only.
   const [{ data: services }, { data: staff }] = canViewAll
     ? await Promise.all([
         adminClient
@@ -770,7 +770,7 @@ function BookingListCard({
   const participantCount = booking.booking_participants.length;
   // Only surface the Group chip when there are genuinely multiple participants.
   // `group_booking` can be true with a single participant during draft states,
-  // and "Group Â· 0" / "Group Â· 1" reads as a data bug.
+  // and "Group · 0" / "Group · 1" reads as a data bug.
   const isGroup = participantCount > 1;
 
   const addressParts = [
@@ -809,8 +809,8 @@ function BookingListCard({
               {clientName}
             </p>
             <p className="mt-1 text-sm text-[var(--admin-text-muted)] break-words">
-              {formatDate(booking.booking_date)} Â· {formatTime(booking.start_time)}â€“{formatTime(booking.end_time)}
-              {serviceNames.length > 0 ? ` Â· ${serviceNames.join(", ")}` : ""}
+              {formatDate(booking.booking_date)} · {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
+              {serviceNames.length > 0 ? ` · ${serviceNames.join(", ")}` : ""}
             </p>
           </Link>
           {/* Status hierarchy: one prominent badge anchors the row; everything
@@ -840,7 +840,7 @@ function BookingListCard({
                 title={`Group booking with ${participantCount} participants`}
                 className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-restricted)]"
               >
-                Group Â· {participantCount}
+                Group · {participantCount}
               </span>
             ) : null}
             {booking.reschedule_status === "requested" ? (
@@ -891,7 +891,7 @@ function BookingListCard({
             <AdminStatusBadge
               value={`${formatLabel(booking.payment_status)}${
                 showSensitiveDetails && booking.amount_due
-                  ? ` Â· ${formatMoney(booking.amount_due)}`
+                  ? ` · ${formatMoney(booking.amount_due)}`
                   : ""
               }`}
               tone={

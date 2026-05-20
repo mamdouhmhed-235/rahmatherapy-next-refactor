@@ -119,7 +119,7 @@ function persistSavedViews(views: SavedView[]) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
   } catch {
-    // localStorage may be unavailable in private mode â€” fail silent.
+    // localStorage may be unavailable in private mode — fail silent.
   }
 }
 
@@ -356,7 +356,7 @@ export function BookingsChrome({
 
       {canViewAll ? (
         <>
-          {/* Desktop saved-view bar â€” full pill strip with save/remove */}
+          {/* Desktop saved-view bar — full pill strip with save/remove */}
           <div className="hidden md:block">
             <SavedViewBar
               views={savedViews.map((view) => ({ id: view.id, label: view.label }))}
@@ -366,7 +366,7 @@ export function BookingsChrome({
               onRemove={handleRemoveView}
             />
           </div>
-          {/* Mobile saved-view strip â€” read-only horizontal scroll, only when views exist */}
+          {/* Mobile saved-view strip — read-only horizontal scroll, only when views exist */}
           {savedViews.length > 0 ? (
             <div
               className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 md:hidden"

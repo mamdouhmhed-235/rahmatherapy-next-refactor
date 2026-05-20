@@ -303,7 +303,7 @@ function TemplateRow({
               onKeyboardNav("end", e.key);
             } else if (e.key === "Enter" || e.key === " ") {
               // Native click handles Enter on buttons, but Space on a div-wrapped button
-              // sometimes scrolls â€” let it through to onClick.
+              // sometimes scrolls — let it through to onClick.
               onKeyboardNav(null, e.key);
             }
           }}

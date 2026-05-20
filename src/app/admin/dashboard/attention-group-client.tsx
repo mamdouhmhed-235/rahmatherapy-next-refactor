@@ -246,7 +246,7 @@ function CategoryTabs({
     <div
       role="tablist"
       aria-label="Attention categories"
-      className="flex min-w-0 max-w-full flex-wrap gap-1 rounded-lg bg-[var(--admin-surface-muted)] p-1 sm:flex-nowrap sm:overflow-x-auto"
+      className="flex min-w-0 max-w-full flex-wrap gap-1 rounded-[var(--admin-radius-card)] bg-[var(--admin-surface-muted)] p-1 sm:flex-nowrap sm:overflow-x-auto"
     >
       {categories.map((category) => (
         <button
