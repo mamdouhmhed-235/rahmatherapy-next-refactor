@@ -50,8 +50,10 @@ export default async function AdminLayout({
 
   const variant = resolvedVariant;
 
-  // Pass full profile so getNavNotifications can filter by permission set
-  const notifications = await getNavNotifications(profile);
+  // Variant-aware fetch — each shell variant has its own category set
+  // (mirrors the dashboard's role-variant pattern). Permission checks
+  // inside each variant helper are retained as defence-in-depth.
+  const notifications = await getNavNotifications(profile, variant);
 
   return (
     <AdminTopNav

@@ -26,6 +26,7 @@ import * as AdminPopover from "./admin-popover";
 import { AdminSheet } from "./admin-ui-interactions";
 import { AdminStatusBadge } from "./admin-ui";
 import type { NotificationItem } from "../reports/reporting";
+import type { AdminShellVariant } from "../shell-variant";
 
 function getTypeIcon(type: NotificationItem["type"]) {
   switch (type) {
@@ -221,16 +222,43 @@ function useLocalStorageNotificationState(ids: string[], staffId: string) {
   };
 }
 
-type NotificationTab = "all" | "unread" | "read" | "critical" | "emails" | "operations";
+type NotificationTab =
+  | "all"
+  | "unread"
+  | "read"
+  | "critical"
+  | "emails"
+  | "operations"
+  | "enquiries"
+  | "bookings";
+
+// Per-shell-variant tab tuple. Each variant keeps the four status tabs
+// (all / unread / read / critical); only the type tabs differ.
+// Mirrors the dashboard's role-variant pattern — see plan
+// `i-want-to-make-rosy-eagle.md`.
+const TABS_BY_VARIANT: Record<AdminShellVariant, NotificationTab[]> = {
+  owner_admin: ["all", "unread", "read", "critical", "emails", "operations", "enquiries"],
+  coordinator: ["all", "unread", "read", "critical", "enquiries", "bookings", "emails"],
+  therapist: ["all", "unread", "read", "critical"],
+};
+
+const FALLBACK_TABS: NotificationTab[] = ["all", "unread", "read", "critical"];
+
+function getTabsForVariant(shellVariant: AdminShellVariant | null | undefined): NotificationTab[] {
+  if (!shellVariant) return FALLBACK_TABS;
+  return TABS_BY_VARIANT[shellVariant] ?? FALLBACK_TABS;
+}
 
 export function NotificationBell({
   items,
   staffId = "shared",
   variant = "default",
+  shellVariant = null,
 }: {
   items: NotificationItem[];
   staffId?: string;
   variant?: "default" | "header-rail";
+  shellVariant?: AdminShellVariant | null;
 }) {
   const [open, setOpen] = useState(false);
   const ids = useMemo(() => items.map((i) => i.id), [items]);
@@ -294,6 +322,7 @@ export function NotificationBell({
             markAllRead={markAllRead}
             dismissNotification={dismissNotification}
             onClose={closePopover}
+            tabs={getTabsForVariant(shellVariant)}
           />
         </AdminPopover.Content>
       </AdminPopover.Root>
@@ -306,10 +335,12 @@ export function MobileNotificationButton({
   items,
   variant = "full",
   staffId = "shared",
+  shellVariant = null,
 }: {
   items: NotificationItem[];
   variant?: "full" | "icon";
   staffId?: string;
+  shellVariant?: AdminShellVariant | null;
 }) {
   const ids = useMemo(() => items.map((i) => i.id), [items]);
   const { readIds, dismissedIds, markRead, markUnread, markAllRead, dismissNotification } =
@@ -375,6 +406,7 @@ export function MobileNotificationButton({
         markAllRead={markAllRead}
         dismissNotification={dismissNotification}
         onClose={() => {}}
+        tabs={getTabsForVariant(shellVariant)}
         isMobile
       />
     </AdminSheet>
@@ -389,6 +421,7 @@ function NotificationPopoverContent({
   markAllRead,
   dismissNotification,
   onClose,
+  tabs = FALLBACK_TABS,
   isMobile = false,
 }: {
   items: NotificationItem[];
@@ -398,6 +431,7 @@ function NotificationPopoverContent({
   markAllRead: () => void;
   dismissNotification: (id: string) => void;
   onClose: () => void;
+  tabs?: NotificationTab[];
   isMobile?: boolean;
 }) {
   const [tab, setTab] = useState<NotificationTab>("all");
@@ -414,6 +448,10 @@ function NotificationPopoverContent({
         return items.filter((i) => i.type === "email");
       case "operations":
         return items.filter((i) => i.type === "operation");
+      case "enquiries":
+        return items.filter((i) => i.type === "enquiry");
+      case "bookings":
+        return items.filter((i) => i.type === "assignment" || i.type === "payment");
       default:
         return items;
     }
@@ -421,7 +459,7 @@ function NotificationPopoverContent({
 
   const unreadCount = items.filter((i) => !readIds.has(i.id)).length;
 
-  const tabCounts = useMemo(
+  const tabCounts = useMemo<Record<NotificationTab, number>>(
     () => ({
       all: items.length,
       unread: items.filter((i) => !readIds.has(i.id)).length,
@@ -429,6 +467,8 @@ function NotificationPopoverContent({
       critical: items.filter((i) => i.severity === "critical").length,
       emails: items.filter((i) => i.type === "email").length,
       operations: items.filter((i) => i.type === "operation").length,
+      enquiries: items.filter((i) => i.type === "enquiry").length,
+      bookings: items.filter((i) => i.type === "assignment" || i.type === "payment").length,
     }),
     [items, readIds]
   );
@@ -483,7 +523,7 @@ function NotificationPopoverContent({
         role="tablist"
         aria-label="Notification filters"
       >
-        {(["all", "unread", "read", "critical", "emails", "operations"] as NotificationTab[]).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             type="button"

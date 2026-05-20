@@ -293,7 +293,7 @@ export function AdminTopNav({
               />
             </div>
             <div className="nav-rail-bell hidden md:block">
-              <NotificationBell items={notifications} staffId={profile.staffId} />
+              <NotificationBell items={notifications} staffId={profile.staffId} shellVariant={variant} />
             </div>
             <div className="hidden md:block">
               <UserMenuButton
@@ -307,7 +307,7 @@ export function AdminTopNav({
             <div className="flex items-center gap-0 md:hidden">
               <MobileSearch />
               <div className="mobile-nav-bell">
-                <MobileNotificationButton items={notifications} variant="icon" staffId={profile.staffId} />
+                <MobileNotificationButton items={notifications} variant="icon" staffId={profile.staffId} shellVariant={variant} />
               </div>
             </div>
           </div>
