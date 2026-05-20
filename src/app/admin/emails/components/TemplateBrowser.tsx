@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, Search, Send, X } from "lucide-react";
@@ -272,7 +272,7 @@ function TemplateRow({
       <div
         className={cn(
           "group relative flex items-center gap-1 border-b border-[var(--admin-border)] last:border-b-0 transition-colors duration-150 motion-reduce:transition-none",
-          active && "bg-[oklch(92.0%_0.022_155)]"
+          active && "bg-[var(--admin-selected-sky)]"
         )}
         style={
           active
@@ -303,7 +303,7 @@ function TemplateRow({
               onKeyboardNav("end", e.key);
             } else if (e.key === "Enter" || e.key === " ") {
               // Native click handles Enter on buttons, but Space on a div-wrapped button
-              // sometimes scrolls — let it through to onClick.
+              // sometimes scrolls â€” let it through to onClick.
               onKeyboardNav(null, e.key);
             }
           }}

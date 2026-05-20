@@ -232,7 +232,7 @@ export function AdminStat({
         <AdminSkeleton className="mt-2 h-9 w-2/3" aria-hidden="true" />
       ) : numeral ? (
         <p
-          className="mt-2 font-[var(--font-admin-serif),Georgia,serif] text-[3.157rem] font-bold leading-none tracking-[-0.02em] text-[var(--admin-heading)]"
+          className="mt-2 font-[var(--font-admin-serif),Georgia,serif] text-[3.157rem] font-bold leading-none tracking-[-0.02em] text-[var(--admin-cormorant-color)]"
           style={{ fontFamily: "var(--font-admin-serif), Georgia, serif" }}
         >
           {value}
@@ -1330,7 +1330,7 @@ export function AdminButton({
         size === "default" && "min-h-10 px-4 text-sm",
         size === "sm" && "min-h-8 px-3 text-xs",
         variant === "primary" &&
-          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[oklch(15%_0.065_155)]",
+          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[oklch(28%_0.085_247)]",
         variant === "secondary" &&
           "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]",
         variant === "destructive" &&

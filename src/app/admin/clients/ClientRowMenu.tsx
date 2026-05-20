@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
@@ -34,7 +34,7 @@ export function ClientRowMenu({
   return (
     <AdminPopover.Root>
       <AdminPopover.Trigger
-        className="relative z-10 inline-flex size-11 sm:size-9 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[oklch(92%_0.022_155)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        className="relative z-10 inline-flex size-11 sm:size-9 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-selected-sky)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
         aria-label={`More actions for ${clientName}`}
       >
         <MoreHorizontal className="size-4" aria-hidden="true" />
@@ -72,19 +72,19 @@ export function ClientRowMenu({
         <div className="grid border-t border-[var(--admin-border)] p-1.5">
           <Link
             href={`/admin/bookings/new?clientId=${clientId}`}
-            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[oklch(95.5%_0.012_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 md:hidden"
+            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 md:hidden"
           >
             Start new booking
           </Link>
           <Link
             href={`/admin/clients/${clientId}`}
-            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[oklch(95.5%_0.012_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             View client profile
           </Link>
           <Link
             href={`/admin/audit?target_type=client&target_id=${clientId}`}
-            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[oklch(95.5%_0.012_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             View audit history
           </Link>
@@ -115,7 +115,7 @@ function SummarySection({
       </p>
       <p className="font-mono text-xs text-[var(--admin-text-muted)]">
         {primary}
-        {secondary ? ` · ${secondary}` : ""}
+        {secondary ? ` Â· ${secondary}` : ""}
       </p>
     </div>
   );

@@ -5,9 +5,9 @@ colors:
   surface-page: "oklch(97.8% 0.006 88)"
   surface-card: "oklch(99.2% 0.004 88)"
   surface-input: "oklch(98.5% 0.005 88)"
-  surface-hover: "oklch(95.5% 0.012 155)"
-  surface-selected: "oklch(92.0% 0.022 155)"
-  action-primary: "oklch(23% 0.073 155)"
+  surface-hover: "oklch(95.5% 0.022 247)"
+  surface-selected: "oklch(92.0% 0.05 247)"
+  action-primary: "oklch(38% 0.10 247)"
   action-primary-hover: "oklch(18% 0.068 155)"
   text-primary: "oklch(11% 0.014 155)"
   text-body: "oklch(23% 0.010 143)"
@@ -25,8 +25,8 @@ colors:
   status-pending-text: "oklch(28% 0.120 55)"
   status-cancelled-bg: "oklch(95.5% 0.028 20)"
   status-cancelled-text: "oklch(26% 0.140 25)"
-  status-completed-bg: "oklch(94.0% 0.030 200)"
-  status-completed-text: "oklch(28% 0.095 200)"
+  status-completed-bg: "oklch(94.0% 0.008 270)"
+  status-completed-text: "oklch(30% 0.018 270)"
   status-attention-bg: "oklch(95.0% 0.050 65)"
   status-attention-text: "oklch(26% 0.130 55)"
   status-restricted-bg: "oklch(94.0% 0.008 280)"
@@ -171,26 +171,33 @@ This system explicitly rejects: generic SaaS white-blue-grey palettes; hero-metr
 
 A warm-ivory surface system anchored by deep clinic green chrome and gold accent. Six named status families — the Card-Board's defining feature — ensure every booking, assignment, and payment state is legible without relying on colour alone.
 
-### Primary — Clinic Green
+### Primary — Therapy Blue (action axis) + Cream Chrome (surface)
 
-- **Clinic Green** (oklch(23% 0.073 155) ≈ #073d2a): Navigation chrome, primary call-to-action buttons, active nav labels. The brand's defining dark hue — an unmistakably deep clinical green, not teal, not forest, not generic. Occupies roughly 20-30% of any screen by surface area (sidebar, nav bar, primary CTAs).
-- **Clinic Green Hover** (oklch(18% 0.068 155) ≈ #042d1e): Primary button and interactive nav hover state.
-- **Field White** (oklch(99.5% 0.003 88) ≈ #fffffe): All text, icons, and labels on dark green surfaces. WCAG 12.2:1 against Clinic Green ✓✓✓.
+The admin uses a two-token primary system. **Therapy Blue** drives every action moment (primary buttons, active states, links, focus context, Info family). **Cream Chrome** carries the navigation-bar surface. The split mirrors the brand logo's two-axis layout — the "therapy" word (blue verb) and the warm-ivory canvas the wordmark sits on.
 
-### Secondary — Gold (decorative accent only)
+- **Therapy Blue** (oklch(38% 0.10 247) ≈ #0f5e8e): Primary call-to-action button fills, active row / tab text, link colour, Info status family. Darker variant of the brand logo's `#127ebe` "therapy" script. WCAG 7.2:1 against white ✓✓✓ — passes AAA for body text on primary surfaces.
+- **Therapy Blue Hover** (oklch(32% 0.092 247) ≈ #0a4870): Primary button and interactive hover state.
+- **Cream Chrome** (oklch(96% 0.012 75) ≈ #f3ecdc): Top-nav bar surface — warm cream just slightly deeper than the canvas. Reads as part of the same warm-ivory family as the page rather than a heavy contrasting slab; lets brand accents do the brand work.
+- **Field White** (oklch(99.5% 0.003 88) ≈ #fffffe): All text, icons, and labels on Therapy Blue surfaces (primary buttons, mode-selector active segment, modal confirm). WCAG 7.2:1 against Therapy Blue ✓✓✓.
 
-- **Rahma Gold** (oklch(75% 0.155 72) ≈ #f5a623): Cormorant numeral highlight on light canvas, chart accent colour, icon fills where gold communicates celebration or excellence. WCAG 1.9:1 on canvas — **decoration only, never body text or labels**.
-- **Admin Amber** (oklch(69% 0.142 72) ≈ #d99a00): Numeral colour on the dark green sidebar/nav, bar-chart fills, secondary data-viz accent. WCAG 5.0:1 against Clinic Green ✓ — this is the only sanctioned text use of either gold token.
+### Secondary — Brand Orange (identity axis, decoration only)
 
-**The No-Gold-Text Rule.** Both gold tokens fail WCAG 3:1 on any ivory surface. Gold is decoration: stat numerals in Cormorant Garamond, icon fills, chart colours, brand highlights. Never use as body text, label text, or status text on light backgrounds.
+- **Brand Orange** (oklch(75% 0.168 60) ≈ #f7931e): Cormorant numeral colour on light canvas (the literal logo "RAHMA" wordmark hue), chart accent, icon fills where warmth communicates identity. WCAG 1.42:1 on canvas — **decoration only, never body text or labels**.
+- **Burnt Orange** (oklch(45% 0.115 50) ≈ #a14820): Focus ring colour across all interactive elements. WCAG 4.2:1 against canvas ✓ — passes for non-text focus indication; tied to the brand orange family but darker for legibility. The sanctioned text-safe form of the orange family.
+
+**The No-Brand-Orange-Text Rule.** Brand Orange fails WCAG 3:1 on canvas (1.42:1). It is decoration: Cormorant Garamond stat numerals, chart fills, decorative accents. Never use as body text, label text, or status text on light backgrounds. Use Burnt Orange (the darker variant) only for non-text purposes like focus rings.
+
+**The Brand-Accent Containment Rule.** Brand Orange is contained to four roles: (1) Cormorant numerals ≥3.157rem on KPI tiles; (2) chart accent fills; (3) illustration; (4) Burnt Orange focus rings. Never as background-with-text — the Pending family (amber, h=75) and Attention family (warm orange, h=65) own that pattern in their own hues. Containment by *pattern* (large display type or non-text indicator) keeps Brand Orange visually distinct from the Pending / Attention chips that share an adjacent hue family.
+
+**The Status-Exclusive Hue Rule.** No chrome surface (nav, primary button, active state, focus ring) shares any status family's hue. Therapy Blue (h=247) is distinct from Completed (h=270 after re-theme), Confirmed (h=155), Cancelled (h=20), Restricted (h=280). Brand Orange (h=60) is contained to non-status decoration so it cannot collide with Pending (h=75) or Attention (h=65). The rule prevents an active button from reading as a status badge or vice versa.
 
 ### Neutral — Surfaces and Text
 
 - **Clinic Canvas** (oklch(97.8% 0.006 88) ≈ #fbf8f2): The warm ivory page background. The most-seen surface in the system.
 - **Practice Panel** (oklch(99.2% 0.004 88) ≈ #fffefa): Card and panel surface. Lighter than canvas — cards lift via lightness, not shadow at rest.
 - **Input Ground** (oklch(98.5% 0.005 88) ≈ #fefcf8): Form input background. Barely-perceptible warmth distinguishing the input well from the surrounding card.
-- **Hover Moss** (oklch(95.5% 0.012 155)): Green-tinted hover fill for interactive rows, list items, and nav items.
-- **Selected Sage** (oklch(92.0% 0.022 155)): Stronger green tint for active/selected rows, active nav items, and pressed states.
+- **Hover Mist** (oklch(95.5% 0.022 247)): Blue-tinted hover fill for interactive rows, list items, and nav items. Hue rotated from the retired clinic green (h=155) to Therapy Blue (h=247) so hovers anchor to the new chrome family.
+- **Selected Sky** (oklch(92% 0.05 247)): Stronger blue tint for active / selected rows, active nav items, and pressed states. Pairs with Therapy Blue text for active items.
 - **Chronicle** (oklch(11% 0.014 155) ≈ #151b18): Page headings (H1). WCAG 16.5:1 on canvas ✓✓✓.
 - **Practice Charcoal** (oklch(23% 0.010 143) ≈ #313731): Body text, form values, card body copy. WCAG 11.5:1 on canvas ✓✓✓.
 - **Soft Slate** (oklch(42% 0.008 143) ≈ #5e625e): Secondary, muted, supporting text, placeholder copy, metadata. WCAG 5.9:1 on canvas ✓.
@@ -213,7 +220,7 @@ Each family deploys as: background tint + text colour + leading Lucide icon (`ar
 | Confirmed / Active | oklch(93.5% 0.038 155) | oklch(22% 0.085 155) | ~10:1 ✓ | `check-circle` |
 | Pending / Unconfirmed | oklch(96.0% 0.038 75) | oklch(28% 0.120 55) | ~9:1 ✓ | `clock` |
 | Cancelled / Void | oklch(95.5% 0.028 20) | oklch(26% 0.140 25) | ~10:1 ✓ | `x-circle` |
-| Completed | oklch(94.0% 0.030 200) | oklch(28% 0.095 200) | ~8.7:1 ✓ | `check-square` |
+| Completed | oklch(94.0% 0.008 270) | oklch(30% 0.018 270) | ~8.2:1 ✓ | `check-square` |
 | Unassigned / Attention | oklch(95.0% 0.050 65) | oklch(26% 0.130 55) | ~9.5:1 ✓ | `alert-circle` |
 | Restricted / Inactive | oklch(94.0% 0.008 280) | oklch(30% 0.020 280) | ~8:1 ✓ | `lock` |
 
@@ -251,13 +258,13 @@ Shadows appear only as state responses — not as structural decoration.
 
 ### Shadow Vocabulary
 
-- **card-hover** (`0 2px 8px oklch(23% 0.073 155 / 0.08)`): Appears on hover of an interactive booking card or list row. Green-tinted, short-reach shadow confirming the element is clickable. Invisible at rest.
-- **overlay** (`0 8px 24px oklch(23% 0.073 155 / 0.12), 0 1px 4px oklch(23% 0.073 155 / 0.06)`): Modal (Dialog), AdminSheet, and popover elevation. Two-layer for natural fall-off. Green-tinted so the shadow reads as part of the brand palette.
+- **card-hover** (`0 2px 8px oklch(41% 0.105 247 / 0.08)`): Appears on hover of an interactive booking card or list row. Brand-tinted (Therapy Blue), short-reach shadow confirming the element is clickable. Invisible at rest.
+- **overlay** (`0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06)`): Modal (Dialog), AdminSheet, and popover elevation. Two-layer for natural fall-off. Brand-tinted so the shadow reads as part of the brand chrome palette.
 - **focus-ring** (`0 0 0 3px oklch(47% 0.095 230 / 0.55)`): Keyboard focus ring on all interactive elements. Blue-tinted (Focus Azure) to visually distinguish from green hover states — a focus ring must never be confused with a brand hover.
 
 **The Tonal Lift Rule.** A resting card has no shadow. Its elevation is communicated by being lighter than the page behind it. A shadow on a panel at rest means someone broke the system. Shadows are exclusively for state: hover, overlay open, focus.
 
-**The Green-Tinted Shadow Rule.** All shadows use the brand green (`oklch(23% 0.073 155)`) at low opacity. Never `rgba(0,0,0,X)`. This prevents shadows from reading as generic and ensures they remain perceptually warm.
+**The Brand-Tinted Shadow Rule.** All shadows tint to the new primary blue (`oklch(41% 0.105 247)`) at low opacity. Never `rgba(0,0,0,X)`. This anchors shadows to the brand chrome family and prevents them from reading as generic. (Was the Green-Tinted Shadow Rule before the 2026-05-20 re-theme; structurally identical, recoloured to Therapy Blue.)
 
 ## 5. Components
 
@@ -265,15 +272,15 @@ All components listed here are present in the codebase (RECON.md §4 and §2). N
 
 ### Navigation — AdminTopNav
 
-Full-width top bar. Clinic Green surface (oklch(23% 0.073 155)). Left: brand wordmark + current-page breadcrumb (Work Sans 400 at label step, Field White at 70% opacity for breadcrumb, full Field White for page name). Active nav item: Selected Sage background tint (oklch 92%) with Urbanist 600 label. Inactive nav items: transparent, Work Sans 500, Field White. Hover: Hover Moss tint. Focus state: 3px Focus Azure ring (offset 2px). Right rail (left to right): NotificationBell (24px icon, pill count badge) / cmd-K hint chip / user avatar (32px circle, real photo or Work Sans 600 initials on Hover Moss background). Mobile (<768px): nav collapses to AdminSheet slide-in; hamburger button with 44px touch target. Signout is always a POST form (`<form action="/admin/signout" method="POST">`); never a `<a>` link. Skip-link `<a href="#admin-main">` preserved above nav, visually hidden until focused.
+Full-width top bar. **Cream Chrome surface** (`oklch(96% 0.012 75)`). Left: brand logo-mark in native brand colours on a soft panel-coloured tile + current-page breadcrumb (Work Sans 400 at label step, Soft Slate for breadcrumb, Chronicle for page name). Active nav item: **Selected Sky** background tint (`oklch(92% 0.05 247)`) with Therapy Blue text + Urbanist 600 label. Inactive nav items: transparent, Work Sans 500, Practice Charcoal. Hover: panel-muted fill. Focus state: 3px Burnt Orange focus ring (offset 2px). Right rail (left to right): NotificationBell (24px icon, pill count badge) / cmd-K hint chip / user avatar (32px circle, real photo or Work Sans 600 initials in Therapy Blue on panel background). Mobile (<768px): nav collapses to AdminSheet slide-in; hamburger button with 44px touch target. Signout is always a POST form (`<form action="/admin/signout" method="POST">`); never a `<a>` link. Skip-link `<a href="#admin-main">` preserved above nav, visually hidden until focused.
 
 **Variant-aware nav — maximum 5 primary items.** The centre strip never exceeds 5 items regardless of role privilege. Role-specific surfaces beyond 5 live in a grouped `More ▾` overflow dropdown (owner/admin and coordinator) or are omitted entirely (therapist has exactly 4 items, no overflow). This cap is a design rule, not a space constraint: it prevents the nav from becoming a visual index of every permission the user holds.
 
-**`More ▾` grouped overflow dropdown.** `surface-card` panel, 10px radius, 1px `border-subtle`, overlay shadow. Items grouped into labelled sections: section labels Work Sans 500 label step (0.75rem), Soft Slate, letter-spacing 0.05em; item rows 40px, Work Sans 400 body step, leading Lucide icon 14px, Hover Moss on hover. Trigger adopts Selected Sage tint when the current page is inside an overflow section. Opens 160ms `ease-gentle`; closes 120ms `ease-snappy`. `aria-haspopup="menu"` / `role="menu"` / `role="menuitem"` / `aria-expanded` — full keyboard navigation.
+**`More ▾` grouped overflow dropdown.** `surface-card` panel, 10px radius, 1px `border-subtle`, overlay shadow. Items grouped into labelled sections: section labels Work Sans 500 label step (0.75rem), Soft Slate, letter-spacing 0.05em; item rows 40px, Work Sans 400 body step, leading Lucide icon 14px, Hover Mist on hover. Trigger adopts Selected Sky tint when the current page is inside an overflow section. Opens 160ms `ease-gentle`; closes 120ms `ease-snappy`. `aria-haspopup="menu"` / `role="menu"` / `role="menuitem"` / `aria-expanded` — full keyboard navigation.
 
 **Mobile AdminSheet nav.** Mirrors the desktop grouping exactly inside the slide-in sheet: variant-aware labelled sections (same groups, same items as the desktop overflow) followed by a "Your account" section (Your profile + Sign out POST form). Sign-out row uses Cancelled text colour + `log-out` icon. Section labels and item rows inherit the same token spec as the dropdown. 44px touch targets on every item row.
 
-**States:** Default | Hover (Hover Moss tint) | Active (Selected Sage tint + Urbanist 600) | Focus (Focus Azure ring) | Overflow-open (grouped dropdown, 160ms ease-gentle entrance) | Mobile-open (AdminSheet overlay).
+**States:** Default | Hover (panel-muted tint) | Active (Selected Sky tint + Therapy Blue text + Urbanist 600) | Focus (Burnt Orange ring) | Overflow-open (grouped dropdown, 160ms ease-gentle entrance) | Mobile-open (AdminSheet overlay).
 
 ### AdminPanel — Core card wrapper
 
@@ -283,16 +290,16 @@ Practice Panel surface (oklch 99.2%). 8px corner radius. 1px Warm Veil border. P
 
 ### Buttons
 
-- **Primary:** Clinic Green fill; Field White text; Work Sans 600 at label step; 6px radius; padding 10px 20px. Hover: action-primary-hover (oklch 18%). Focus: 3px Focus Azure ring, 2px offset. Active: oklch(15% 0.065 155). Disabled: 40% opacity + cursor-not-allowed. Loading: 16px spinner (Field White, border-right transparent) replacing leading icon slot; text unchanged.
-- **Secondary:** 1px Form Seam border (oklch 55%); transparent fill; Practice Charcoal text. Hover: Hover Moss fill. Focus: Focus Azure ring. Active: Selected Sage fill.
-- **Destructive:** oklch(40% 0.14 25) fill; Field White text; WCAG 6.5:1 ✓. Hover: oklch(33% 0.14 25). Focus: Focus Azure ring. Used only for explicitly destructive confirmed actions (cancel booking, deactivate staff, delete service).
-- **Ghost:** No border, no fill. Practice Charcoal text. Hover: Hover Moss fill. Focus: Focus Azure ring. Used for secondary navigation and tertiary inline actions.
+- **Primary:** Therapy Blue fill (`oklch(38% 0.10 247)`); Field White text; Work Sans 600 at label step; 6px radius; padding 10px 20px. Hover: Therapy Blue Hover (`oklch(32% 0.092 247)`). Focus: 3px Burnt Orange ring, 2px offset. Active: `oklch(28% 0.085 247)`. Disabled: 40% opacity + cursor-not-allowed. Loading: 16px spinner (Field White, border-right transparent) replacing leading icon slot; text unchanged.
+- **Secondary:** 1px Form Seam border (oklch 55%); transparent fill; Practice Charcoal text. Hover: Hover Mist fill. Focus: Burnt Orange ring. Active: Selected Sky fill.
+- **Destructive:** oklch(40% 0.14 25) fill; Field White text; WCAG 6.5:1 ✓. Hover: oklch(33% 0.14 25). Focus: Burnt Orange ring. Used only for explicitly destructive confirmed actions (cancel booking, deactivate staff, delete service).
+- **Ghost:** No border, no fill. Practice Charcoal text. Hover: Hover Mist fill. Focus: Burnt Orange ring. Used for secondary navigation and tertiary inline actions.
 
 ### Inputs and Fields
 
-Input Ground background (oklch 98.5%). 1px Form Seam border (oklch 55%) — not Warm Veil. 6px radius. Work Sans 400 at body step for field value; Work Sans 500 at body step for label above. Chronicle colour for label; Practice Charcoal for value. Required marker: `<span aria-hidden="true">*</span>` in Cancelled text colour (`oklch(26% 0.140 25)`) adjacent to every required label. Placeholder text: Soft Slate. Focus: border colour shifts to Focus Azure; shadow-focus-ring applied. Error: border shifts to Cancelled text colour; error message in Cancelled text below the field, wrapped in `<div role="alert" aria-live="polite" aria-atomic="true">`. Disabled: 60% opacity + cursor-not-allowed.
+Input Ground background (oklch 98.5%). 1px Form Seam border (oklch 55%) — not Warm Veil. 6px radius. Work Sans 400 at body step for field value; Work Sans 500 at body step for label above. Chronicle colour for label; Practice Charcoal for value. Required marker: `<span aria-hidden="true">*</span>` in Cancelled text colour (`oklch(26% 0.140 25)`) adjacent to every required label. Placeholder text: Soft Slate. Focus: border colour shifts to Therapy Blue; Burnt Orange focus ring applied. Error: border shifts to Cancelled text colour; error message in Cancelled text below the field, wrapped in `<div role="alert" aria-live="polite" aria-atomic="true">`. Disabled: 60% opacity + cursor-not-allowed.
 
-**States:** Default | Focus (Focus Azure border + ring) | Filled (unchanged) | Error (Cancelled border + alert region below) | Disabled (60% opacity).
+**States:** Default | Focus (Therapy Blue border + Burnt Orange ring) | Filled (unchanged) | Error (Cancelled border + alert region below) | Disabled (60% opacity).
 
 ### Status Badges — AdminStatusBadge
 
@@ -306,9 +313,9 @@ Vertically centred column layout. SVG illustration slot: 80-120px, meaningful to
 
 ### Booking Cards — BookingListCard (signature component)
 
-Full-border card (1px Warm Veil). Practice Panel surface. 8px radius. Padding: 14px 16px. Status badge: top-right, within card. Client name: Urbanist 600 at title step, Chronicle colour. Service + formatted date/time: Work Sans 400 at body step, Practice Charcoal. Staff avatar (32px circle, real photo or initialled token on Hover Moss background) + therapist name: Work Sans 500 at label step, inline with avatar. Payment status badge: bottom-left row. **Gender-match chip:** "Same-gender required" — labelled chip using Restricted family colours, always visible when the constraint applies, never colour-only. This is a clinical requirement that must remain legible even when screen space is tight. **Group booking chip:** "Group · {N}" — Restricted family pill, appears when `booking.group_booking = true`, shows participant count, always visible alongside the client name line. Hover: card-hover shadow. Mobile: single-column stack. Confirm + quick-action buttons appear in a sticky AdminMobileActionBar at viewport bottom (not inline). No `border-l-4` under any circumstance.
+Full-border card (1px Warm Veil). Practice Panel surface. 8px radius. Padding: 14px 16px. Status badge: top-right, within card. Client name: Urbanist 600 at title step, Chronicle colour. Service + formatted date/time: Work Sans 400 at body step, Practice Charcoal. Staff avatar (32px circle, real photo or initialled token on Hover Mist background) + therapist name: Work Sans 500 at label step, inline with avatar. Payment status badge: bottom-left row. **Gender-match chip:** "Same-gender required" — labelled chip using Restricted family colours, always visible when the constraint applies, never colour-only. This is a clinical requirement that must remain legible even when screen space is tight. **Group booking chip:** "Group · {N}" — Restricted family pill, appears when `booking.group_booking = true`, shows participant count, always visible alongside the client name line. Hover: card-hover shadow. Mobile: single-column stack. Confirm + quick-action buttons appear in a sticky AdminMobileActionBar at viewport bottom (not inline). No `border-l-4` under any circumstance.
 
-**States:** Default | Hover (card-hover shadow) | Focus-visible (Focus Azure ring on card) | Mobile (stacked, sticky action bar).
+**States:** Default | Hover (card-hover shadow) | Focus-visible (Burnt Orange ring on card) | Mobile (stacked, sticky action bar).
 
 ### Stat Tiles — AdminStat
 
@@ -316,7 +323,7 @@ Practice Panel surface. 8px radius. Padding 20px 24px. Two-row structure: Work S
 
 ### Attention Panel — UrgentAttentionPanel
 
-Full-border card (1px in status family colour — Pending or Cancelled family). Status family background tint. Never `border-l-4`. Item list: max 5 visible rows; "See all N" link at bottom in Clinic Green. Each row: 16px status icon (`aria-hidden="true"`) + description (Work Sans 400, body step) + date chip (Work Sans 500, label step, Warm Veil background). Mobile: the full panel collapses to a count badge on the NotificationBell; the list is accessible via the NotificationBell AdminSheet.
+Full-border card (1px in status family colour — Pending or Cancelled family). Status family background tint. Never `border-l-4`. Item list: max 5 visible rows; "See all N" link at bottom in Therapy Blue. Each row: 16px status icon (`aria-hidden="true"`) + description (Work Sans 400, body step) + date chip (Work Sans 500, label step, Warm Veil background). Mobile: the full panel collapses to a count badge on the NotificationBell; the list is accessible via the NotificationBell AdminSheet.
 
 ## 6. Do's and Don'ts
 
@@ -332,7 +339,7 @@ Full-border card (1px in status family colour — Pending or Cancelled family). 
 - **Do** mark required form fields with a visible `*` marker in Cancelled text colour adjacent to every required label (`<span aria-hidden="true">*</span>`).
 - **Do** preserve `id="admin-main"` skip-link target, `id="admin-command-search"`, and all server-action form `name` attributes across any nav or chrome changes (RECON §6.4).
 - **Do** provide a vertical-stack fallback on mobile for any content arranged in columns or boards on desktop.
-- **Do** tint all shadows toward the brand green (`oklch(23% 0.073 155)`), never `rgba(0,0,0,X)`.
+- **Do** tint all shadows toward the brand primary blue (`oklch(41% 0.105 247)`), never `rgba(0,0,0,X)`.
 - **Do** use Form Seam (oklch 55%) for input and interactive component borders — Warm Veil is for structural panel dividers only and does not meet WCAG 1.4.11.
 
 ### Don't
@@ -363,8 +370,8 @@ Rahma Admin uses no generic HTML tables. The admin's list paradigm is **list-row
 - **Density: Comfortable — 44px row height.** PRODUCT.md commits to "16px body base, 24-32px section rhythm" and a novice, mobile-first operator base. Compact (32px) intimidates novice operators on a phone; spacious (56px) wastes the limited mobile viewport. 44px also satisfies the WCAG 2.5.5 touch-target floor.
 - **Header row:** `surface-card` background, `text-muted` (Soft Slate) colour, Work Sans 500 at label step (0.75rem), sentence-case. Never uppercase shouting.
 - **Data row:** `surface-page` (Clinic Canvas) background, `border-bottom: 1px solid border-subtle` (Warm Veil). Rows sit on canvas — they are not nested cards.
-- **Row hover:** `surface-hover` (Hover Moss). Cursor pointer only when the row is a link or has a single primary action.
-- **Row selected:** `surface-selected` (Selected Sage) — reserved for bulk-action contexts (below).
+- **Row hover:** `surface-hover` (Hover Mist). Cursor pointer only when the row is a link or has a single primary action.
+- **Row selected:** `surface-selected` (Selected Sky) — reserved for bulk-action contexts (below).
 - **Cell padding:** vertical `md` (16px), horizontal `md` (16px) at comfortable density.
 - **Sort indicator:** Lucide `arrow-up` / `arrow-down` (12px) leading the sorted column label, `aria-hidden="true"`. `aria-sort="ascending"` / `"descending"` on the column header for screen readers. Two-state cycle (asc → desc); clicking a different column resets to asc.
 - **Empty state:** centred `EmptyState` component per §5 — illustration + Urbanist title + Soft Slate body + optional Button. No "0 rows" copy, no dashed border.

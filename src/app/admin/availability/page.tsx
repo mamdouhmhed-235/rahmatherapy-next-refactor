@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,7 +22,7 @@ export const metadata = {
   title: "Availability - Rahma Therapy Admin",
 };
 
-// Brief renders week as Mon → Sun. day_of_week column convention is 0 = Sunday.
+// Brief renders week as Mon â†’ Sun. day_of_week column convention is 0 = Sunday.
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
 const DAY_SHORT: Record<number, string> = {
@@ -53,7 +53,7 @@ function getCurrentWeekRange(reference: Date = new Date()) {
   // ISO week starts Monday. Walk back to nearest Monday.
   const local = new Date(reference);
   local.setHours(0, 0, 0, 0);
-  const day = local.getDay(); // 0 = Sunday … 6 = Saturday
+  const day = local.getDay(); // 0 = Sunday â€¦ 6 = Saturday
   const diff = day === 0 ? -6 : 1 - day;
   const start = new Date(local);
   start.setDate(local.getDate() + diff);
@@ -146,7 +146,7 @@ export default async function AvailabilityPage() {
     supabase.from("staff_availability_overrides").select("staff_id"),
   ]);
 
-  // Per-section "Last saved by {actor} on {date}" — latest audit_log per target_type.
+  // Per-section "Last saved by {actor} on {date}" â€” latest audit_log per target_type.
   const adminClient = createSupabaseAdminClient();
   const [auditTrailResult, upcomingBookingsResult] = await Promise.all([
     adminClient
@@ -228,7 +228,7 @@ export default async function AvailabilityPage() {
     };
   });
 
-  // Pre-fetched bookings → count per ISO date (used by BlockedDatesManager).
+  // Pre-fetched bookings â†’ count per ISO date (used by BlockedDatesManager).
   const bookingsByDate: Record<string, number> = {};
   for (const row of upcomingBookingsResult.data ?? []) {
     const key = String(row.booking_date);
@@ -355,14 +355,14 @@ function CapacityPreview({
     chips.push({
       key: "closures",
       label: `${pluralize("closure", weekClosures)} this week`,
-      title: "Closed dates falling inside the current Mon–Sun week.",
+      title: "Closed dates falling inside the current Monâ€“Sun week.",
     });
   }
   if (weekAdjustments > 0) {
     chips.push({
       key: "adjustments",
       label: `${pluralize("adjustment", weekAdjustments)} this week`,
-      title: "Hour adjustments falling inside the current Mon–Sun week.",
+      title: "Hour adjustments falling inside the current Monâ€“Sun week.",
     });
   }
 
@@ -399,25 +399,25 @@ function CapacityPreview({
               const ruleIsOpen = day.rule?.is_working_day ?? false;
               const ruleTimes =
                 day.rule && day.rule.is_working_day
-                  ? `${formatTime(day.rule.start_time)}–${formatTime(day.rule.end_time)}`
+                  ? `${formatTime(day.rule.start_time)}â€“${formatTime(day.rule.end_time)}`
                   : null;
               const isClosure = Boolean(day.closure);
               const isAdjustment = Boolean(day.adjustment) && !isClosure;
               const isOpen = !isClosure && ruleIsOpen;
 
-              // Tones: closure → Restricted; adjustment → Pending (Attention); open → Confirmed/selected; recurring-closed → Restricted.
+              // Tones: closure â†’ Restricted; adjustment â†’ Pending (Attention); open â†’ Confirmed/selected; recurring-closed â†’ Restricted.
               const tone = isClosure
                 ? "bg-[oklch(94.0%_0.008_280)]"
                 : isAdjustment
                   ? "bg-[oklch(96.0%_0.038_75)]"
                   : isOpen
-                    ? "bg-[oklch(92.0%_0.022_155)]"
+                    ? "bg-[var(--admin-selected-sky)]"
                     : "bg-[oklch(94.0%_0.008_280)]";
 
               const tooltip = isClosure
                 ? `Closed ${day.shortLabel}${day.closure?.reason ? `: ${day.closure.reason}` : ""}`
                 : isAdjustment
-                  ? `Adjusted ${day.shortLabel}: ${formatTime(day.adjustment!.start_time)}–${formatTime(day.adjustment!.end_time)}${day.adjustment!.reason ? ` (${day.adjustment!.reason})` : ""}`
+                  ? `Adjusted ${day.shortLabel}: ${formatTime(day.adjustment!.start_time)}â€“${formatTime(day.adjustment!.end_time)}${day.adjustment!.reason ? ` (${day.adjustment!.reason})` : ""}`
                   : isOpen
                     ? `Open ${day.shortLabel} ${ruleTimes}`
                     : `Closed every ${DAY_LONG[day.dayOfWeek]}`;
@@ -440,7 +440,7 @@ function CapacityPreview({
                     </span>
                   ) : isAdjustment ? (
                     <span className="font-mono text-xs text-[oklch(28%_0.120_55)]">
-                      {formatTime(day.adjustment!.start_time)}–
+                      {formatTime(day.adjustment!.start_time)}â€“
                       {formatTime(day.adjustment!.end_time)}
                     </span>
                   ) : isOpen && ruleTimes ? (
@@ -517,7 +517,7 @@ function StaffCapacityList({
               meta={
                 <span>
                   {staff.gender ? capitalize(staff.gender) : "Unassigned"}
-                  {staff.can_take_bookings ? null : " · not taking bookings"}
+                  {staff.can_take_bookings ? null : " Â· not taking bookings"}
                 </span>
               }
               badges={
@@ -557,7 +557,7 @@ function StaffCapacityList({
 function CapacityPill({ label, title }: { label: string; title: string }) {
   // Brief copy: "Male: {n}" / "Female: {n}". DESIGN.md "Cormorant Exception"
   // reserves the serif for marquee dashboard stat-tile numerals only; pills
-  // are badge-text → render the count in the same Work Sans 500 label step.
+  // are badge-text â†’ render the count in the same Work Sans 500 label step.
   return (
     <span
       title={title}
@@ -580,7 +580,7 @@ function StaffAvatar({ name }: { name: string }) {
   return (
     <span
       aria-hidden="true"
-      className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(92.0%_0.022_155)] text-xs font-semibold text-[var(--admin-primary)]"
+      className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-selected-sky)] text-xs font-semibold text-[var(--admin-primary)]"
     >
       {initials || "?"}
     </span>

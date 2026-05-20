@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   Activity,
@@ -165,7 +165,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
                 <span className="truncate">
                   Filters
                   <span className="text-[var(--admin-text-muted)]">
-                    {" · "}
+                    {" Â· "}
                     {RANGE_OPTIONS.find((o) => o.value === filters.range)?.label ?? "Monthly"}
                   </span>
                 </span>
@@ -282,7 +282,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         </div>
       </div>
 
-      {/* Desktop filter strip (visible md+ only) — GET form. Field names preserved verbatim. */}
+      {/* Desktop filter strip (visible md+ only) â€” GET form. Field names preserved verbatim. */}
       <form action="/admin/reports" className="hidden gap-3 md:grid">
         <AdminFilterBar
           actions={
@@ -387,7 +387,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         </AdminFilterBar>
       </form>
 
-      {/* Filter feedback (visible on all viewports — driven by URL state) */}
+      {/* Filter feedback (visible on all viewports â€” driven by URL state) */}
       {customRangeError ? (
         <div
           role="alert"
@@ -407,7 +407,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         </div>
       ) : null}
 
-      {/* Headline stats — Cormorant Garamond numerals via numeral prop. */}
+      {/* Headline stats â€” Cormorant Garamond numerals via numeral prop. */}
       <section
         aria-label="Headline summary"
         className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
@@ -448,7 +448,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         ) : null}
       </section>
 
-      {/* Section A — Activity */}
+      {/* Section A â€” Activity */}
       <ReportSection
         icon={Activity}
         heading="Activity"
@@ -486,7 +486,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         />
       </ReportSection>
 
-      {/* Section B — Workload (visible to non-therapist; therapist gets Service performance only) */}
+      {/* Section B â€” Workload (visible to non-therapist; therapist gets Service performance only) */}
       <ReportSection
         icon={Briefcase}
         heading="Workload"
@@ -516,7 +516,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
                   key: `${row.staffName}-${idx}`,
                   leading: <Avatar name={row.staffName} />,
                   title: row.staffName,
-                  meta: `${formatNumber(row.assignments)} assignments · ${formatNumber(row.completed)} completed`,
+                  meta: `${formatNumber(row.assignments)} assignments Â· ${formatNumber(row.completed)} completed`,
                   htmlTitle: `${row.assignments} assignments, ${row.completed} completed`,
                 })}
               />
@@ -536,10 +536,10 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
                 title: row.service,
                 meta:
                   revenueAllowed
-                    ? `${formatNumber(row.bookings)} bookings · ${formatMoney(row.revenue)}`
+                    ? `${formatNumber(row.bookings)} bookings Â· ${formatMoney(row.revenue)}`
                     : `${formatNumber(row.bookings)} bookings`,
                 htmlTitle: revenueAllowed
-                  ? `${row.bookings} bookings · ${formatMoney(row.revenue)} collected`
+                  ? `${row.bookings} bookings Â· ${formatMoney(row.revenue)} collected`
                   : `${row.bookings} bookings`,
               })}
             />
@@ -554,7 +554,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         ) : null}
       </ReportSection>
 
-      {/* Section C — Money (revenue scope only) */}
+      {/* Section C â€” Money (revenue scope only) */}
       {revenueAllowed ? (
         <ReportSection
           icon={Receipt}
@@ -616,7 +616,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       ) : null}
 
       {/* How these numbers are calculated. Split into Revenue + Activity
-          groups so the 8-pill 4×2 uniform grid breaks into two semantic
+          groups so the 8-pill 4Ã—2 uniform grid breaks into two semantic
           clusters with a thin divider between. */}
       <AdminPanel
         title="How these numbers are calculated"
@@ -681,7 +681,7 @@ function renderMetricDetails(metric: { key: string; label: string; definition: s
           aria-hidden="true"
           className="text-xs text-[var(--admin-text-muted)] transition-transform group-open:rotate-180"
         >
-          ▾
+          â–¾
         </span>
       </summary>
       <p className="mt-2 text-xs leading-5 text-[var(--admin-text-muted)]">
@@ -691,7 +691,7 @@ function renderMetricDetails(metric: { key: string; label: string; definition: s
   );
 }
 
-// ───────────────────────── Small in-file primitives ──────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Small in-file primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function FilterField({
   label,
@@ -816,7 +816,7 @@ function EntityRowList<T>({
             className="inline-flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-xs font-medium text-[var(--admin-primary)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
             title={`Show all ${rows.length} rows`}
           >
-            <span className="group-open:hidden">Show all {rows.length} →</span>
+            <span className="group-open:hidden">Show all {rows.length} â†’</span>
             <span className="hidden group-open:inline">Show fewer</span>
           </summary>
           <div className="mt-2 grid gap-2">
@@ -832,7 +832,7 @@ function EntityRowList<T>({
 }
 
 function RowItem({ props }: { props: EntityRowProps }) {
-  // Flat row inside a panel — surface-page divided lines, not nested cards.
+  // Flat row inside a panel â€” surface-page divided lines, not nested cards.
   // (See DESIGN.md "Data Table" + Tonal Lift Rule; AdminEntityRow is preferred
   // when the row stands alone outside an AdminPanel.)
   return (
@@ -855,7 +855,7 @@ function RowItem({ props }: { props: EntityRowProps }) {
 
 // AdminStat-like tile at compact scale (heading step instead of display step).
 // Used inside Section C "Outstanding vs collected" so the section anchor reads
-// as subordinate to the headline strip rather than re-rendering it (brief §5
+// as subordinate to the headline strip rather than re-rendering it (brief Â§5
 // mandates "AdminStat-like tiles stacked, Cormorant numerals"; the LIKE gives
 // license for the compact scale).
 function CompactStat({
@@ -925,13 +925,13 @@ function ChartEmpty({ title, body }: { title?: string; body?: string } = {}) {
 
 // Deterministic letter-token avatar; warm Hover-Moss tint via panel-muted token.
 function Avatar({ name, variant = "round" }: { name: string; variant?: "round" | "square" }) {
-  const letter = (name?.trim()?.[0] ?? "·").toUpperCase();
+  const letter = (name?.trim()?.[0] ?? "Â·").toUpperCase();
   return (
     <span
       className={
         variant === "round"
-          ? "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] text-sm font-semibold text-[var(--admin-primary)]"
-          : "inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.012_155)] text-sm font-semibold text-[var(--admin-primary)]"
+          ? "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--admin-hover-mist)] text-sm font-semibold text-[var(--admin-primary)]"
+          : "inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-hover-mist)] text-sm font-semibold text-[var(--admin-primary)]"
       }
       aria-hidden="true"
     >
@@ -940,7 +940,7 @@ function Avatar({ name, variant = "round" }: { name: string; variant?: "round" |
   );
 }
 
-// ───────────────────────── Validation helpers ─────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Validation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function validateFarFutureDate(from: string, to: string): string | null {
   const FIVE_YEARS_MS = 5 * 365 * 24 * 60 * 60 * 1000;
@@ -954,7 +954,7 @@ function validateFarFutureDate(from: string, to: string): string | null {
   return null;
 }
 
-// ───────────────────────── Active filter chips ────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Active filter chips â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type FilterKey = "range" | "from" | "to" | "staffId" | "source" | "paymentStatus";
 
@@ -1041,7 +1041,7 @@ function ActiveFilterChip({
   );
 }
 
-// ───────────────────────── Denied state ───────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Denied state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function InsufficientPermissions() {
   return (

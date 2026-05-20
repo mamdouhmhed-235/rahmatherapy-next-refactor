@@ -174,7 +174,7 @@ export default async function RoleDetailPage({
           <span
             aria-hidden="true"
             title={displayLabel}
-            className="inline-flex size-12 shrink-0 items-center justify-center rounded-[var(--admin-radius-card)] bg-[oklch(95.5%_0.012_155)] font-display text-xl font-semibold text-[var(--admin-heading)] sm:size-14 sm:text-2xl"
+            className="inline-flex size-12 shrink-0 items-center justify-center rounded-[var(--admin-radius-card)] bg-[var(--admin-hover-mist)] font-display text-xl font-semibold text-[var(--admin-heading)] sm:size-14 sm:text-2xl"
           >
             {firstLetter(displayLabel)}
           </span>
@@ -355,11 +355,11 @@ export default async function RoleDetailPage({
                     <Link
                       href={`/admin/staff/${s.id}`}
                       title={`Open ${s.name}'s profile`}
-                      className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-2.5 outline-none transition-colors hover:border-[var(--admin-primary)]/35 hover:bg-[oklch(95.5%_0.012_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                      className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-2.5 outline-none transition-colors hover:border-[var(--admin-primary)]/35 hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                     >
                       <span
                         aria-hidden="true"
-                        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] font-display text-sm font-semibold text-[var(--admin-heading)]"
+                        className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-hover-mist)] font-display text-sm font-semibold text-[var(--admin-heading)]"
                       >
                         {firstLetter(s.name)}
                       </span>

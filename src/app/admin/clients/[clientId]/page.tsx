@@ -997,7 +997,7 @@ function StatsPanel({
                 key={service}
                 href={buildClientUrl(clientId, { tab: "all", service })}
                 title={`Filter booking history by ${service}`}
-                className="inline-flex max-w-full items-center gap-1 truncate rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(95.5%_0.012_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex max-w-full items-center gap-1 truncate rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 <span className="truncate">{service}</span>
               </Link>

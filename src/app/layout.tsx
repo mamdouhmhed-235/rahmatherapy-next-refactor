@@ -10,6 +10,15 @@ export const metadata: Metadata = {
   title: "Mobile Hijama, Cupping & Massage Therapy in Luton | Rahma Therapy",
   description:
     "Mobile hijama, cupping, massage and soft-tissue therapy in Luton and surrounding areas.",
+  icons: {
+    icon: [
+      { url: "/images/brand/rahma/favicon.svg", type: "image/svg+xml" },
+      { url: "/images/brand/rahma/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/images/brand/rahma/favicon-16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/images/brand/rahma/apple-touch-icon.png",
+    shortcut: "/images/brand/rahma/favicon.ico",
+  },
   openGraph: {
     siteName: "Rahma Therapy",
     title: "Mobile Hijama, Cupping & Massage Therapy in Luton | Rahma Therapy",

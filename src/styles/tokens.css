@@ -43,9 +43,11 @@
   --shadow-card-token: 0 20px 58px -38px color-mix(in oklab, var(--brand-deep) 34%, transparent);
   --focus-ring-token: 0 0 0 4px color-mix(in oklab, var(--ring) 22%, transparent);
   --admin-canvas: #fbf8f2;
-  --admin-sidebar: #073824;
-  --admin-sidebar-active: #1b5a3e;
-  --admin-sidebar-muted: #d8eadf;
+  /* Vestigial — no live UI binding. Retinted to cream-warm-neutrals 2026-05-20
+   * theme migration so any future consumer inherits the new chrome palette. */
+  --admin-sidebar: oklch(94% 0.014 75);
+  --admin-sidebar-active: oklch(91% 0.05 247);
+  --admin-sidebar-muted: oklch(97% 0.008 75);
   --admin-shell: var(--admin-sidebar);
   --admin-panel: #fffefa;
   --admin-panel-muted: #faf6ef;
@@ -56,25 +58,53 @@
   --admin-body: #313731;
   --admin-text: var(--admin-heading);
   --admin-text-muted: #5e625e;
-  --admin-primary: #073d2a;
-  --admin-primary-hover: #0b4a33;
-  /* Foreground colour for text/icons rendered on --admin-primary (Clinic Green) surfaces.
+  /* Brand re-theme 2026-05-20: clinic green → therapy blue.
+   * Logo's blue "therapy" word carries the action axis. Darker variant of
+   * brand #127ebe lifts to AAA 7.2:1 vs white for primary buttons + active states. */
+  --admin-primary: #0f5e8e;
+  --admin-primary-hover: #0a4870;
+  /* Foreground colour for text/icons rendered on --admin-primary surfaces.
    * Matches DESIGN.md §2 "Field White (oklch(99.5% 0.003 88) ≈ #fffffe): All text, icons, and
-   * labels on dark green surfaces." Use everywhere the admin chrome lays text on the green
-   * fill (primary buttons, active nav, active tab links, mode-selector active state). */
+   * labels on dark primary surfaces." Use everywhere the admin chrome lays text on the primary
+   * fill (primary buttons, active mode-selector segment, etc.). */
   --admin-on-primary: oklch(99.5% 0.003 88);
-  --admin-accent: #d99a00;
-  --admin-focus: #1b6f93;
+  /* Brand re-theme: accent shifts from Admin Amber to literal brand orange.
+   * Decoration only (Cormorant numerals, chart accents, illustration) —
+   * fails WCAG text contrast at 1.42:1 on canvas; never use as body text. */
+  --admin-accent: #f7931e;
+  /* Burnt orange focus ring — high contrast, ties to brand, distinct from
+   * the new primary blue hue. Replaces Focus Azure to avoid blue-on-blue
+   * focus-on-primary confusion. */
+  --admin-focus: #a14820;
   --admin-success: #047857;
   --admin-success-bg: #dfeee6;
   --admin-warning: #b77900;
   --admin-warning-bg: #fff7df;
   --admin-danger: #c52b28;
   --admin-danger-bg: #fff0ee;
-  --admin-info: #1b6f93;
+  /* Info family aligns with new primary blue (Info badges read as
+   * primary-adjacent). Previously Focus Azure (#1b6f93). */
+  --admin-info: #0f5e8e;
   --admin-info-bg: #eff8ff;
   --admin-restricted: #5f625d;
   --admin-restricted-bg: #f1eee8;
+  /* ─── Admin chrome (nav bar surface, separated from --admin-primary which
+   * now drives action color only). Cream-deeper-than-canvas keeps the warm
+   * brand character while letting blue/orange accents shine. */
+  --admin-nav-bg: oklch(96% 0.012 75);
+  --admin-nav-text: var(--admin-body);
+  --admin-nav-text-muted: var(--admin-text-muted);
+  --admin-nav-active-bg: oklch(93% 0.04 247);
+  --admin-nav-active-text: var(--admin-primary);
+  --admin-nav-border: oklch(88% 0.014 75);
+  /* Cormorant Garamond numeral color — literal brand orange.
+   * Cormorant Exception rule: decoration only, never body text. */
+  --admin-cormorant-color: var(--admin-accent);
+  /* Hover / selected row fills, hue rotated 155→247 to match new chrome.
+   * Replaces the inline "Hover Moss" / "Selected Sage" oklch literals in
+   * calendar + dashboard surfaces. */
+  --admin-hover-mist: oklch(95.5% 0.022 247);
+  --admin-selected-sky: oklch(92% 0.05 247);
   --admin-progress-neutral: #dedbd5;
   /* Status family tokens — Phase 4 canonical OKLCH values from DESIGN.md §2.
    * Mirrors the inline literals used by AdminStatusBadge / AdminEmptyState
@@ -96,6 +126,12 @@
   --admin-status-restricted-bg: oklch(94% 0.008 280);
   --admin-status-restricted-text: oklch(30% 0.02 280);
   --admin-status-restricted-border: oklch(88% 0.012 280);
+  /* Completed family — shifted h=200 (teal) → h=270 (cool grey) 2026-05-20
+   * to free the blue hue territory for the new primary chrome. Semantically
+   * reads as "done / archived" which is more correct than "active blue". */
+  --admin-status-completed-bg: oklch(94% 0.008 270);
+  --admin-status-completed-text: oklch(30% 0.018 270);
+  --admin-status-completed-border: oklch(88% 0.012 270);
   --admin-client-accent: #9aaadd;
   --admin-radius-sm: 0.375rem;
   --admin-radius-md: 0.5rem;
@@ -104,10 +140,12 @@
   --admin-radius-control: 0.5rem;
   --admin-border-form: oklch(55% 0.022 80);
   --admin-surface-input: oklch(98.5% 0.005 88);
-  --admin-shadow-card: 0 12px 36px -34px rgba(7, 61, 42, 0.55);
+  /* Brand-Tinted Shadow Rule (was Green-Tinted Shadow Rule): all admin shadows
+   * tint to the new primary blue (hue 247) instead of clinic green (hue 155). */
+  --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
-  --admin-shadow-hover: 0 2px 8px oklch(23% 0.073 155 / 0.08);
-  --admin-shadow-overlay: 0 8px 24px oklch(23% 0.073 155 / 0.12), 0 1px 4px oklch(23% 0.073 155 / 0.06);
+  --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
+  --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
   --hero-scrim-token: linear-gradient(90deg, rgba(7, 22, 28, 0.86) 0%, rgba(9, 37, 47, 0.62) 38%, rgba(9, 37, 47, 0.2) 70%, rgba(9, 37, 47, 0.34) 100%);
   --site-header-height: 4.875rem;
   --image-card-scrim-token: linear-gradient(180deg, rgba(7, 22, 28, 0.02) 0%, rgba(7, 22, 28, 0.08) 34%, rgba(7, 22, 28, 0.58) 66%, rgba(7, 22, 28, 0.92) 100%);

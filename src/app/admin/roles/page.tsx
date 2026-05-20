@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ChevronDown,
@@ -25,7 +25,7 @@ import {
 import { CreateRoleSheet } from "./CreateRoleSheet";
 
 export const metadata = {
-  title: "Roles and permissions — Rahma Therapy Admin",
+  title: "Roles and permissions â€” Rahma Therapy Admin",
 };
 
 type RoleRow = {
@@ -52,7 +52,7 @@ function countStaff(role: RoleRow): number {
 
 function firstLetter(label: string): string {
   const trimmed = label.trim();
-  return trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() : "•";
+  return trimmed.length > 0 ? trimmed.charAt(0).toUpperCase() : "â€¢";
 }
 
 function permissionsLabel(count: number): string {
@@ -60,7 +60,7 @@ function permissionsLabel(count: number): string {
 }
 
 function staffLabel(count: number): string {
-  // Brief: "{n} staff" is uncountable — no plural switch.
+  // Brief: "{n} staff" is uncountable â€” no plural switch.
   return `${count} staff`;
 }
 
@@ -173,8 +173,8 @@ export default async function RolesPage() {
                   className="mb-2 text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-[var(--admin-text-muted)]"
                   title={
                     group.tier === "privileged"
-                      ? "Privileged roles — full or near-full admin reach."
-                      : "Operational roles — day-to-day clinic work, scoped reach."
+                      ? "Privileged roles â€” full or near-full admin reach."
+                      : "Operational roles â€” day-to-day clinic work, scoped reach."
                   }
                 >
                   {TIER_LABEL[group.tier]}
@@ -252,7 +252,7 @@ function RoleListRow({ role }: { role: RoleRow }) {
   const skipLetterToken = isInactiveSystemRole(role);
 
   return (
-    <div className="group relative rounded-[var(--admin-radius-control)] transition-[background-color,box-shadow] duration-150 ease-out hover:bg-[oklch(95.5%_0.012_155)] hover:shadow-[var(--admin-shadow-hover)] focus-within:ring-[3px] focus-within:ring-[var(--admin-focus)]/60 focus-within:ring-offset-2 focus-within:ring-offset-[var(--admin-canvas)]">
+    <div className="group relative rounded-[var(--admin-radius-control)] transition-[background-color,box-shadow] duration-150 ease-out hover:bg-[var(--admin-hover-mist)] hover:shadow-[var(--admin-shadow-hover)] focus-within:ring-[3px] focus-within:ring-[var(--admin-focus)]/60 focus-within:ring-offset-2 focus-within:ring-offset-[var(--admin-canvas)]">
       {/* Whole-row overlay link: sits beneath nested links via z-index */}
       <Link
         href={detailHref}
@@ -268,7 +268,7 @@ function RoleListRow({ role }: { role: RoleRow }) {
           <span
             aria-hidden="true"
             title={displayName}
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.012_155)] font-display text-base font-semibold text-[var(--admin-heading)] group-hover:bg-[oklch(92.0%_0.022_155)]"
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-hover-mist)] font-display text-base font-semibold text-[var(--admin-heading)] group-hover:bg-[var(--admin-selected-sky)]"
           >
             {firstLetter(displayName)}
           </span>
@@ -310,7 +310,7 @@ function RoleListRow({ role }: { role: RoleRow }) {
             DB role: {role.name}
           </p>
 
-          {/* Mobile-only counts — stacked two-line metadata */}
+          {/* Mobile-only counts â€” stacked two-line metadata */}
           <ul
             className="mt-2 grid list-none gap-1 pl-0 text-xs text-[var(--admin-text-muted)] sm:hidden"
             aria-label={`Counts for ${displayName}`}
@@ -338,7 +338,7 @@ function RoleListRow({ role }: { role: RoleRow }) {
           </ul>
         </div>
 
-        {/* Right column — desktop counts cluster + chevron; mobile collapses to chevron only */}
+        {/* Right column â€” desktop counts cluster + chevron; mobile collapses to chevron only */}
         <div className="flex shrink-0 items-center self-center gap-3 text-xs text-[var(--admin-text-muted)]">
           <span
             className="hidden items-center gap-1.5 sm:inline-flex"
@@ -383,7 +383,7 @@ function NestedStaffLink({
   return (
     <Link
       href={`/admin/staff?roleId=${roleId}`}
-      className="pointer-events-auto relative z-[2] inline-flex min-h-11 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2 py-1.5 text-[var(--admin-body)] outline-none transition-colors hover:bg-[oklch(92.0%_0.022_155)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:min-h-0 sm:px-1.5 sm:py-0.5"
+      className="pointer-events-auto relative z-[2] inline-flex min-h-11 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2 py-1.5 text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-selected-sky)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:min-h-0 sm:px-1.5 sm:py-0.5"
       title="Open the staff list filtered to this role"
     >
       <Users className="size-3.5 shrink-0" aria-hidden="true" />
@@ -396,7 +396,7 @@ function NestedActivityLink({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="pointer-events-auto relative z-[2] inline-flex min-h-11 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2 py-1.5 text-[var(--admin-body)] outline-none transition-colors hover:bg-[oklch(92.0%_0.022_155)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:min-h-0 sm:px-1.5 sm:py-0.5"
+      className="pointer-events-auto relative z-[2] inline-flex min-h-11 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2 py-1.5 text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-selected-sky)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:min-h-0 sm:px-1.5 sm:py-0.5"
       title="View this role's audit-log activity"
     >
       <History className="size-3.5 shrink-0" aria-hidden="true" />

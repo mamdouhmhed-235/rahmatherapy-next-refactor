@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import Image from "next/image";
@@ -32,7 +32,7 @@ import { NotificationBell, MobileNotificationButton } from "./notification-bell"
 import type { AdminShellVariant } from "../shell-variant";
 import type { NotificationItem } from "../reports/reporting";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface AdminTopNavProfile {
   name: string;
@@ -58,7 +58,7 @@ interface NavGroup {
   keys: string[];
 }
 
-// ─── Nav item catalogue ───────────────────────────────────────────────────────
+// â”€â”€â”€ Nav item catalogue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard",              href: "/admin/dashboard",                    icon: LayoutDashboard,   pageKey: "dashboard" },
@@ -79,14 +79,14 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Password requests",      href: "/admin/account-password-requests",    icon: ShieldCheck,       pageKey: "accountRequests" },
 ];
 
-// ─── Variant configs ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Variant configs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Primary strip: only genuinely daily-use items. Everything else lives in the user menu.
 const OWNER_ADMIN_PRIMARY_KEYS = new Set(["dashboard", "bookings", "clients", "staff", "reports"]);
 const COORDINATOR_PRIMARY_KEYS = new Set(["dashboard", "bookings", "clients", "staff", "enquiries"]);
 const THERAPIST_NAV_KEYS       = new Set(["dashboard", "bookings", "availability", "staff"]);
 
-// User menu grouped sections — role-dependent
+// User menu grouped sections â€” role-dependent
 const OWNER_ADMIN_GROUPS: NavGroup[] = [
   { label: "Scheduling & Leads",  keys: ["calendar", "enquiries"] },
   { label: "Communications",      keys: ["emails"] },
@@ -99,7 +99,7 @@ const COORDINATOR_GROUPS: NavGroup[] = [
   { label: "Communications", keys: ["emails", "availability"] },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function normalizeAdminPath(path: string) {
   return path.replace(/\/+$/, "") || "/";
@@ -182,7 +182,7 @@ function getInitials(name: string): string {
     .toUpperCase();
 }
 
-// ─── AdminTopNav (shell) ──────────────────────────────────────────────────────
+// â”€â”€â”€ AdminTopNav (shell) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function AdminTopNav({
   profile,
@@ -213,46 +213,47 @@ export function AdminTopNav({
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-[var(--admin-canvas)]">
-      {/* Skip link — first DOM element, visually hidden until focused */}
+      {/* Skip link â€” first DOM element, visually hidden until focused */}
       <a
         href="#admin-main"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-[var(--admin-radius-control)] focus:bg-[var(--admin-primary)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-[var(--admin-shadow-overlay)]"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-[var(--admin-radius-control)] focus:bg-[var(--admin-primary)] focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-[var(--admin-on-primary)] focus:shadow-[var(--admin-shadow-overlay)]"
       >
         Skip to main content
       </a>
 
-      {/* Top nav bar */}
-      <header className="sticky top-0 z-40 bg-[var(--admin-primary)]">
-        {/* Ghost bell override — notification bell renders with a card surface by default;
-            this permanent override makes it match the ghost visual language of all other
-            right-rail items on the Clinic Green bar. */}
+      {/* Top nav bar â€” cream chrome (2026-05-20 brand re-theme).
+       *  Was dark Clinic Green; now light cream-deeper-than-canvas with dark
+       *  text and brand-blue active-state tint. */}
+      <header className="sticky top-0 z-40 border-b border-[var(--admin-nav-border)] bg-[var(--admin-nav-bg)]">
+        {/* Bell override â€” notification bell renders with a card surface by default;
+            this permanent override matches it to the cream chrome via brand-blue strokes. */}
         <style>{`
-          /* Desktop bell: override card surface on Clinic Green bar */
+          /* Desktop bell: cream-chrome variant */
           .nav-rail-bell button > span {
             background: transparent !important;
-            border: 1px solid rgba(255,255,255,0.18) !important;
+            border: 1px solid var(--admin-border) !important;
             box-shadow: none !important;
-            color: rgba(255,255,255,0.8) !important;
+            color: var(--admin-nav-text-muted) !important;
           }
           .nav-rail-bell button > span:hover {
-            background: rgba(255,255,255,0.1) !important;
-            border-color: rgba(255,255,255,0.32) !important;
-            color: white !important;
+            background: var(--admin-panel-muted) !important;
+            border-color: var(--admin-primary) !important;
+            color: var(--admin-primary) !important;
           }
-          /* Mobile bell: same ghost treatment — button is the card element directly */
+          /* Mobile bell: cream-chrome variant â€” button is the card element directly */
           .mobile-nav-bell button {
             background: transparent !important;
-            border-color: rgba(255,255,255,0.18) !important;
+            border-color: var(--admin-border) !important;
             box-shadow: none !important;
           }
           .mobile-nav-bell button:hover {
-            background: rgba(255,255,255,0.1) !important;
-            border-color: rgba(255,255,255,0.3) !important;
+            background: var(--admin-panel-muted) !important;
+            border-color: var(--admin-primary) !important;
           }
           .mobile-nav-bell button svg {
-            color: rgba(255,255,255,0.8) !important;
+            color: var(--admin-nav-text-muted) !important;
           }
-          /* Bottom tab bar — landscape mobile: shorter bar, no labels */
+          /* Bottom tab bar â€” landscape mobile: shorter bar, no labels */
           @media (orientation: landscape) and (max-width: 767px) {
             .admin-bottom-tabbar > div { height: 2.75rem !important; }
             .admin-tab-label { display: none !important; }
@@ -260,23 +261,25 @@ export function AdminTopNav({
           }
         `}</style>
         <div className="mx-auto flex h-14 max-w-[100rem] items-center gap-0 px-4 md:px-6 lg:px-8">
-          {/* Left zone: compact logo tile + wordmark (lg+) */}
+          {/* Left zone: brand logo-mark + wordmark (lg+) */}
           <Link
             href="/admin/dashboard"
-            className="flex min-h-11 shrink-0 items-center gap-2 rounded-[var(--admin-radius-control)] pr-2 text-white outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            className="flex min-h-11 shrink-0 items-center gap-2 rounded-[var(--admin-radius-control)] pr-2 text-[var(--admin-nav-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             aria-label="Rahma Therapy admin dashboard"
           >
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-white/16 ring-1 ring-inset ring-white/12">
-              <Image src="/images/brand/rahma/logo-mark.svg" alt="" width={18} height={18} className="size-[1.125rem] invert" />
+            {/* Logo-mark renders in its native brand colors on cream chrome.
+             *  Tile uses panel-muted for soft separation from nav-bg. */}
+            <div className="flex size-8 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-panel)] ring-1 ring-inset ring-[var(--admin-border)]">
+              <Image src="/images/brand/rahma/logo-mark.svg" alt="" width={18} height={18} className="size-[1.125rem]" />
             </div>
-            <span className="font-display hidden text-[0.875rem] font-semibold tracking-[-0.01em] text-white/90 lg:block">Rahma</span>
+            <span className="font-display hidden text-[0.875rem] font-semibold tracking-[-0.01em] text-[var(--admin-heading)] lg:block">Rahma</span>
           </Link>
 
           {/* Separator */}
-          <div className="mx-3 hidden h-5 w-px bg-white/15 md:block" aria-hidden="true" />
+          <div className="mx-3 hidden h-5 w-px bg-[var(--admin-border)] md:block" aria-hidden="true" />
 
           {/* Centre zone: primary nav with icon + label items */}
-          <nav className="hidden flex-1 items-center gap-0.5 text-white md:flex" aria-label="Admin navigation">
+          <nav className="hidden flex-1 items-center gap-0.5 text-[var(--admin-nav-text)] md:flex" aria-label="Admin navigation">
             {primaryItems.map((item) => {
               const active = isActive(item.href, pathname);
               const label  = getNavLabel(item, variant);
@@ -287,14 +290,14 @@ export function AdminTopNav({
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2.5 text-[0.8125rem] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/60",
+                    "inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2.5 text-[0.8125rem] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                     active
-                      ? "bg-white/20 font-semibold text-white ring-1 ring-inset ring-white/25"
-                      : "font-medium text-white hover:bg-white/10"
+                      ? "bg-[var(--admin-nav-active-bg)] font-semibold text-[var(--admin-nav-active-text)] ring-1 ring-inset ring-[var(--admin-primary)]/20"
+                      : "font-medium text-[var(--admin-nav-text)] hover:bg-[var(--admin-panel-muted)]"
                   )}
                 >
                   <Icon
-                    className={cn("size-3.5 shrink-0", active ? "text-white" : "text-white/75")}
+                    className={cn("size-3.5 shrink-0", active ? "text-[var(--admin-nav-active-text)]" : "text-[var(--admin-nav-text-muted)]")}
                     aria-hidden="true"
                   />
                   <span>{label}</span>
@@ -308,7 +311,7 @@ export function AdminTopNav({
             <div className="hidden md:block">
               <AdminCommandSearch
                 compact
-                triggerClassName="inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-white/20 bg-transparent px-2.5 text-sm font-medium text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
+                triggerClassName="inline-flex h-8 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-transparent px-2.5 text-sm font-medium text-[var(--admin-nav-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-nav-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               />
             </div>
             <div className="nav-rail-bell hidden md:block">
@@ -333,7 +336,7 @@ export function AdminTopNav({
         </div>
       </header>
 
-      {/* Main content — pb accounts for the mobile bottom tab bar */}
+      {/* Main content â€” pb accounts for the mobile bottom tab bar */}
       <main
         id="admin-main"
         tabIndex={-1}
@@ -379,10 +382,10 @@ export function AdminTopNav({
   );
 }
 
-// ─── UserMenuButton (desktop) ─────────────────────────────────────────────────
-// Named trigger: initials + first name + chevron on ≥1024px
-// Initials + chevron only on 768–1023px
-// Opens comprehensive dropdown: identity header → grouped nav → divider → account actions
+// â”€â”€â”€ UserMenuButton (desktop) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Named trigger: initials + first name + chevron on â‰¥1024px
+// Initials + chevron only on 768â€“1023px
+// Opens comprehensive dropdown: identity header â†’ grouped nav â†’ divider â†’ account actions
 
 function UserMenuButton({
   profile,
@@ -433,7 +436,7 @@ function UserMenuButton({
     });
   }, [open]);
 
-  // Arrow keys cycle the focused menuitem (WCAG SC 4.1.2 — declared role must
+  // Arrow keys cycle the focused menuitem (WCAG SC 4.1.2 â€” declared role must
   // match interaction model).
   function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     const menu = menuRef.current;
@@ -488,17 +491,17 @@ function UserMenuButton({
         aria-expanded={open}
         aria-label={`${firstName}'s account menu`}
         className={cn(
-          "inline-flex h-8 items-center gap-2 rounded-[var(--admin-radius-control)] px-2 bg-transparent appearance-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/60",
+          "inline-flex h-8 items-center gap-2 rounded-[var(--admin-radius-control)] px-2 bg-transparent appearance-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
           hasActiveMenuPage || open
-            ? "bg-white/20 text-white ring-1 ring-inset ring-white/25"
-            : "text-white/85 hover:bg-white/10 hover:text-white"
+            ? "bg-[var(--admin-nav-active-bg)] text-[var(--admin-nav-active-text)] ring-1 ring-inset ring-[var(--admin-primary)]/20"
+            : "text-[var(--admin-nav-text)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
         )}
       >
         {/* Initials circle */}
-        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ring-white/50 text-[10px] font-semibold text-white">
+        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ring-[var(--admin-primary)]/30 bg-[var(--admin-panel)] text-[10px] font-semibold text-[var(--admin-primary)]">
           {initials}
         </span>
-        {/* First name — visible on ≥1024px */}
+        {/* First name â€” visible on â‰¥1024px */}
         <span className="hidden max-w-[8rem] truncate text-sm font-medium lg:block">{firstName}</span>
         <ChevronDown
           className={cn(
@@ -519,7 +522,7 @@ function UserMenuButton({
           className="u-menu-enter absolute right-0 top-full z-50 mt-2 w-[17.5rem] rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)]"
           style={{ animation: "menu-enter 160ms cubic-bezier(0.16,1,0.3,1) both" }}
         >
-          {/* Identity header — canvas tint (97.8%) separates this zone from the nav items (panel 99.2%) below */}
+          {/* Identity header â€” canvas tint (97.8%) separates this zone from the nav items (panel 99.2%) below */}
 
           <div className="rounded-t-[calc(var(--admin-radius-card)-1px)] border-b border-[var(--admin-border)] bg-[oklch(97.8%_0.006_88)] px-3.5 py-2.5">
             <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">{profile.name}</p>
@@ -558,7 +561,7 @@ function UserMenuButton({
                           className={cn(
                             "flex min-h-9 items-center gap-2.5 rounded-[var(--admin-radius-control)] mx-1.5 px-2.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                             active
-                              ? "bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
+                              ? "bg-[var(--admin-selected-sky)] font-semibold text-[var(--admin-heading)]"
                               : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
                           )}
                         >
@@ -602,9 +605,9 @@ function UserMenuButton({
   );
 }
 
-// ─── AdminBottomTabBar (mobile <768px) ────────────────────────────────────────
+// â”€â”€â”€ AdminBottomTabBar (mobile <768px) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Sticky bottom, safe-area-inset-bottom aware.
-// 4–5 primary tabs + "More" tab (always last).
+// 4â€“5 primary tabs + "More" tab (always last).
 // "More" opens UserMenuSheet.
 
 function AdminBottomTabBar({
@@ -647,8 +650,8 @@ function AdminBottomTabBar({
                 className={cn(
                   "flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
                   active
-                    ? "border-t-2 border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] text-[var(--admin-primary)]"
-                    : "border-t-2 border-transparent text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)]"
+                    ? "border-t-2 border-[var(--admin-primary)] bg-[var(--admin-nav-active-bg)] text-[var(--admin-primary)]"
+                    : "border-t-2 border-transparent text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
                 )}
               >
                 <item.icon
@@ -674,16 +677,16 @@ function AdminBottomTabBar({
             className={cn(
               "flex flex-1 flex-col items-center justify-center gap-1 px-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--admin-focus)]/55",
               hasActiveMenuPage || moreOpen
-                ? "border-t-2 border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] text-[var(--admin-primary)]"
-                : "border-t-2 border-transparent text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)]"
+                ? "border-t-2 border-[var(--admin-primary)] bg-[var(--admin-nav-active-bg)] text-[var(--admin-primary)]"
+                : "border-t-2 border-transparent text-[var(--admin-text-muted)] hover:text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
             )}
           >
             <span
               className={cn(
                 "inline-flex size-6 items-center justify-center rounded-full text-[10px] font-semibold",
                 hasActiveMenuPage || moreOpen
-                  ? "bg-[var(--admin-primary)] text-white"
-                  : "bg-[oklch(93.5%_0.038_155)] text-[var(--admin-heading)]"
+                  ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
+                  : "bg-[var(--admin-nav-active-bg)] text-[var(--admin-primary)]"
               )}
             >
               {initials}
@@ -693,7 +696,7 @@ function AdminBottomTabBar({
         </div>
       </nav>
 
-      {/* "More" sheet — slides up from bottom */}
+      {/* "More" sheet â€” slides up from bottom */}
       {moreOpen ? (
         <UserMenuSheet
           profile={profile}
@@ -709,7 +712,7 @@ function AdminBottomTabBar({
   );
 }
 
-// ─── UserMenuSheet (mobile "More" sheet) ─────────────────────────────────────
+// â”€â”€â”€ UserMenuSheet (mobile "More" sheet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Bottom-anchored sheet with same content as desktop user menu dropdown.
 
 function UserMenuSheet({
@@ -770,7 +773,7 @@ function UserMenuSheet({
           <div className="h-1 w-8 rounded-full bg-[var(--admin-border)]" />
         </div>
 
-        {/* Identity header — canvas tint creates zone distinction from nav items below */}
+        {/* Identity header â€” canvas tint creates zone distinction from nav items below */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[oklch(97.8%_0.006_88)] px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-xs font-semibold text-[var(--admin-heading)]">
@@ -820,7 +823,7 @@ function UserMenuSheet({
                           className={cn(
                             "flex min-h-11 items-center gap-3 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                             active
-                              ? "bg-[oklch(92%_0.022_155)] font-semibold text-[var(--admin-heading)]"
+                              ? "bg-[var(--admin-selected-sky)] font-semibold text-[var(--admin-heading)]"
                               : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
                           )}
                         >
@@ -886,7 +889,7 @@ function UserMenuSheet({
   );
 }
 
-// ─── MobileSearch ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ MobileSearch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function MobileSearch() {
   const [open, setOpen] = useState(false);
@@ -896,8 +899,8 @@ function MobileSearch() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        aria-label="Search (⌘K)"
-        className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-white/80 outline-none transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/60"
+        aria-label="Search (âŒ˜K)"
+        className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-nav-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-nav-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
       >
         <svg className="size-[1.125rem]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8" />

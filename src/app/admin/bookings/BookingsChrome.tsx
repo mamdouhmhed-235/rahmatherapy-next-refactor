@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import Link from "next/link";
@@ -119,7 +119,7 @@ function persistSavedViews(views: SavedView[]) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
   } catch {
-    // localStorage may be unavailable in private mode — fail silent.
+    // localStorage may be unavailable in private mode â€” fail silent.
   }
 }
 
@@ -291,7 +291,7 @@ export function BookingsChrome({
                 "inline-flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                 isActive
                   ? "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)]"
-                  : "text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] hover:text-[var(--admin-heading)]"
+                  : "text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)] hover:text-[var(--admin-heading)]"
               )}
             >
               {ALL_VIEW_LABELS[key]}
@@ -311,8 +311,8 @@ export function BookingsChrome({
             className={cn(
               "inline-flex h-9 appearance-none items-center gap-1 rounded-full border-0 bg-transparent px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
               isOverflowActive
-                ? "bg-[oklch(92%_0.022_155)] text-[var(--admin-heading)]"
-                : "text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] hover:text-[var(--admin-heading)]"
+                ? "bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
+                : "text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)] hover:text-[var(--admin-heading)]"
             )}
           >
             More
@@ -341,7 +341,7 @@ export function BookingsChrome({
                     className={cn(
                       "flex min-h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                       isActive
-                        ? "bg-[oklch(92%_0.022_155)] text-[var(--admin-heading)]"
+                        ? "bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
                         : "text-[var(--admin-body)] hover:text-[var(--admin-heading)]"
                     )}
                   >
@@ -356,7 +356,7 @@ export function BookingsChrome({
 
       {canViewAll ? (
         <>
-          {/* Desktop saved-view bar — full pill strip with save/remove */}
+          {/* Desktop saved-view bar â€” full pill strip with save/remove */}
           <div className="hidden md:block">
             <SavedViewBar
               views={savedViews.map((view) => ({ id: view.id, label: view.label }))}
@@ -366,7 +366,7 @@ export function BookingsChrome({
               onRemove={handleRemoveView}
             />
           </div>
-          {/* Mobile saved-view strip — read-only horizontal scroll, only when views exist */}
+          {/* Mobile saved-view strip â€” read-only horizontal scroll, only when views exist */}
           {savedViews.length > 0 ? (
             <div
               className="-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-0.5 md:hidden"
@@ -383,7 +383,7 @@ export function BookingsChrome({
                     className={cn(
                       "inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                       isActive
-                        ? "border-[var(--admin-border-form)] bg-[oklch(92%_0.022_155)] text-[var(--admin-heading)]"
+                        ? "border-[var(--admin-border-form)] bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
                         : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]"
                     )}
                   >

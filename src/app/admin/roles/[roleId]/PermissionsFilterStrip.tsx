@@ -263,7 +263,7 @@ function FilterContent(p: FilterContentProps) {
                   aria-pressed={active}
                   className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 ${
                     active
-                      ? "border-[var(--admin-primary)] bg-[oklch(92.0%_0.022_155)] text-[var(--admin-heading)]"
+                      ? "border-[var(--admin-primary)] bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
                       : "border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]"
                   }`}
                 >
@@ -304,7 +304,7 @@ function FilterContent(p: FilterContentProps) {
                     aria-pressed={active}
                     className={`inline-flex h-8 items-center rounded-full border px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 ${
                       active
-                        ? "border-[var(--admin-primary)] bg-[oklch(92.0%_0.022_155)] text-[var(--admin-heading)]"
+                        ? "border-[var(--admin-primary)] bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
                         : "border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]"
                     }`}
                   >

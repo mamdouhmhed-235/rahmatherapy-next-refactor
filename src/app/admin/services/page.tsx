@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+﻿import { redirect } from "next/navigation";
 import { CheckSquare, Clock, PackageOpen, Users } from "lucide-react";
 import {
   AdminAccessDenied,
@@ -15,7 +15,7 @@ import { ServiceFormDialog, type ServiceRecord } from "./ServiceFormDialog";
 import { ServiceRowActions } from "./ServiceRowActions";
 
 export const metadata = {
-  title: "Services — Rahma Therapy Admin",
+  title: "Services â€” Rahma Therapy Admin",
 };
 
 const GBP = new Intl.NumberFormat("en-GB", {
@@ -39,13 +39,13 @@ const GENDER_TOOLTIP: Record<ServiceRecord["gender_restrictions"], string> = {
 function letterToken(name: string, fallback?: string | null) {
   const trimmed = name.trim();
   // Prefer the first alpha character; if the name starts with a digit or
-  // punctuation, fall back to the category's first letter, then "·".
+  // punctuation, fall back to the category's first letter, then "Â·".
   const match = trimmed.match(/[a-z]/i);
   if (match) return match[0].toUpperCase();
   const cat = (fallback ?? "").trim();
   const catMatch = cat.match(/[a-z]/i);
   if (catMatch) return catMatch[0].toUpperCase();
-  return trimmed.charAt(0).toUpperCase() || "·";
+  return trimmed.charAt(0).toUpperCase() || "Â·";
 }
 
 function groupKey(value: string | null | undefined) {
@@ -190,7 +190,7 @@ export default async function ServicesPage() {
                         <span
                           aria-hidden="true"
                           title={service.name}
-                          className="inline-flex size-10 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] font-display text-base font-semibold text-[var(--admin-heading)]"
+                          className="inline-flex size-10 items-center justify-center rounded-full bg-[var(--admin-hover-mist)] font-display text-base font-semibold text-[var(--admin-heading)]"
                         >
                           {letterToken(service.name, service.group_category)}
                         </span>
@@ -228,7 +228,7 @@ export default async function ServicesPage() {
                           </span>
                           <span
                             className="ml-auto font-mono text-[0.6875rem] text-[var(--admin-text-muted)]"
-                            title={`Display order within ${group.title} — lower first`}
+                            title={`Display order within ${group.title} â€” lower first`}
                           >
                             #{service.display_order}
                           </span>
@@ -276,8 +276,8 @@ export default async function ServicesPage() {
 function InUseBadge({ count }: { count: number }) {
   return (
     <span
-      title={`${count} ${count === 1 ? "booking" : "bookings"} on file — can't be deleted`}
-      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[oklch(94%_0.030_200)] px-2 py-0.5 text-[0.6875rem] font-medium text-[oklch(28%_0.095_200)]"
+      title={`${count} ${count === 1 ? "booking" : "bookings"} on file â€” can't be deleted`}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--admin-status-completed-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-status-completed-text)]"
     >
       <CheckSquare className="size-3 shrink-0" aria-hidden="true" />
       In use

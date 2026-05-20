@@ -135,7 +135,7 @@ export function PermissionRow(props: PermissionRowProps) {
 
   return (
     <li
-      className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[var(--admin-radius-control)] px-3 py-3 transition-colors duration-150 hover:bg-[oklch(95.5%_0.012_155)] sm:gap-4 sm:px-4 sm:py-3.5"
+      className="group grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-[var(--admin-radius-control)] px-3 py-3 transition-colors duration-150 hover:bg-[var(--admin-hover-mist)] sm:gap-4 sm:px-4 sm:py-3.5"
       data-permission-name={permissionName}
       data-permission-risk={riskLevel ?? "unspecified"}
     >

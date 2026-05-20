@@ -197,7 +197,7 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
         <span
           aria-hidden="true"
           className={cn(
-            "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] text-sm font-semibold",
+            "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--admin-hover-mist)] text-sm font-semibold",
             staff.active ? "text-[var(--admin-primary)]" : "text-[var(--admin-text-muted)]"
           )}
         >

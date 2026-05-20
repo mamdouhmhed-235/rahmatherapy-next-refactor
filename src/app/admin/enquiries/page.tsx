@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   CheckCircle,
@@ -157,7 +157,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
   const sort = toSortKey(readParam(params.sort));
 
   const adminClient = createSupabaseAdminClient();
-  // FAKE: BUILD-enquiries-filter-query — until the server-side filter query lands,
+  // FAKE: BUILD-enquiries-filter-query â€” until the server-side filter query lands,
   // we read the full list and degrade gracefully. Filtering below is in-memory and
   // therefore does not scale; the BUILD plan will move tab/source/assigned/date/q
   // filtering into the Supabase query.
@@ -184,7 +184,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
   // Tab counts (full list).
   const newCount = enquiries.filter((row) => row.status === "new").length;
 
-  // FAKE: BUILD-enquiries-filter-query — in-memory tab + filter application.
+  // FAKE: BUILD-enquiries-filter-query â€” in-memory tab + filter application.
   const tabFiltered = enquiries.filter((row) => {
     switch (tab) {
       case "new":
@@ -366,7 +366,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
     <div className="grid gap-6 pb-8 lg:pb-16">
       <AdminPageHeader
         title="Enquiries"
-        description="Phone, WhatsApp, Instagram, referral, and website leads — captured here before they become bookings."
+        description="Phone, WhatsApp, Instagram, referral, and website leads â€” captured here before they become bookings."
       />
 
       <div className="grid gap-5 lg:grid-cols-[24rem_minmax(0,1fr)] lg:items-start">
@@ -375,7 +375,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
         </aside>
 
         <main className="min-w-0 grid gap-4 lg:max-w-[64rem]">
-          {/* Tab strip — list-none on <ul>, momentum scroll on mobile with soft right-edge fade */}
+          {/* Tab strip â€” list-none on <ul>, momentum scroll on mobile with soft right-edge fade */}
           <nav
             aria-label="Enquiry status"
             className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_0,black_calc(100%-24px),transparent_100%)] sm:[mask-image:none]"
@@ -456,7 +456,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
             </div>
           </form>
 
-          {/* Mobile filter — AdminSheet (focus-trapped, portal-rendered) */}
+          {/* Mobile filter â€” AdminSheet (focus-trapped, portal-rendered) */}
           <div className="md:hidden" data-redesign-backend="FAKE">
             <AdminSheet
               title="Filters"
@@ -526,7 +526,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
             />
           ) : null}
 
-          {/* S1 — at-a-glance strip */}
+          {/* S1 â€” at-a-glance strip */}
           <AtAGlanceStrip
             urlParams={urlParams}
             todayNew={todayNew}
@@ -539,7 +539,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
             monthRange={monthPresetRange}
           />
 
-          {/* F8 — filter persistence (client) */}
+          {/* F8 â€” filter persistence (client) */}
           <EnquiryFilterPersistence currentParams={urlParams.toString()} />
 
           {/* Count + sort */}
@@ -633,8 +633,8 @@ function DatePresets({
           className={cn(
             "inline-flex h-8 items-center rounded-full px-3 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
             preset.active
-              ? "bg-[oklch(92%_0.022_155)] text-[var(--admin-heading)]"
-              : "bg-[var(--admin-panel-muted)] text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)]"
+              ? "bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
+              : "bg-[var(--admin-panel-muted)] text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)]"
           )}
         >
           {preset.label}
@@ -681,7 +681,7 @@ function FilterChips({
     });
   }
   if (fromFilter || toFilter) {
-    const label = `Date: ${fromFilter || "…"} → ${toFilter || "…"}`;
+    const label = `Date: ${fromFilter || "â€¦"} â†’ ${toFilter || "â€¦"}`;
     chips.push({
       key: "date",
       label,
@@ -830,7 +830,7 @@ function AtAGlanceStrip({
       label: "Conversion this month",
       value:
         conversionRatePct === null
-          ? "—"
+          ? "â€”"
           : `${conversionRatePct}% (${monthConverted}/${monthEnquiries})`,
       href: buildHref(urlParams, (next) => {
         next.set("tab", "converted");

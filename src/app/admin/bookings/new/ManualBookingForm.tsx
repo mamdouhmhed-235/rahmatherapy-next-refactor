@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useActionState, useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ import {
 } from "@/app/admin/components/admin-ui";
 import { createManualBooking, type ManualBookingState } from "../actions";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 type ParticipantGender = "male" | "female" | "";
 
@@ -79,7 +79,7 @@ interface AvailableSlot {
   availableStaffByGender: { male: number; female: number };
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const STEPS = [
   { n: 1, label: "Contact", heading: "Contact & source" },
@@ -106,26 +106,26 @@ const PACKAGE_OPTIONS = [
   {
     slug: "supreme-combo",
     name: "Supreme Combo Package",
-    price: "£55",
-    description: "Pre-Cupping massage / IASTM · Dry Cupping · Fire Cupping · Wet Cupping",
+    price: "Â£55",
+    description: "Pre-Cupping massage / IASTM Â· Dry Cupping Â· Fire Cupping Â· Wet Cupping",
   },
   {
     slug: "hijama-package",
     name: "Hijama Package",
-    price: "£45",
-    description: "Pre-Cupping massage · Dry Cupping · Wet Cupping",
+    price: "Â£45",
+    description: "Pre-Cupping massage Â· Dry Cupping Â· Wet Cupping",
   },
   {
     slug: "fire-package",
     name: "Fire Package",
-    price: "£40",
-    description: "Pre-Cupping massage with essential oils · Dry / Fire Cupping",
+    price: "Â£40",
+    description: "Pre-Cupping massage with essential oils Â· Dry / Fire Cupping",
   },
 ] as const;
 
 const MASSAGE_OPTIONS = [
-  { slug: "massage-30", label: "30 minutes", price: "£40" },
-  { slug: "massage-60", label: "1 hour", price: "£60" },
+  { slug: "massage-30", label: "30 minutes", price: "Â£40" },
+  { slug: "massage-60", label: "1 hour", price: "Â£60" },
 ] as const;
 
 function emptyParticipant(name = ""): Participant {
@@ -141,7 +141,7 @@ function emptyParticipant(name = ""): Participant {
   };
 }
 
-// ─── Validation ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function validateStep(
   step: number,
@@ -185,7 +185,7 @@ function validateStep(
   return errs;
 }
 
-// ─── FormValues ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ FormValues â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface FormValues {
   bookingSource: string;
@@ -209,7 +209,7 @@ interface FormValues {
   sendConfirmationEmail: boolean;
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Sub-components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StepRail({ current, onNavigate }: { current: number; onNavigate: (step: number) => void }) {
   return (
@@ -232,7 +232,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
             return (
               <li key={step.n} className="flex flex-1 flex-col items-center gap-2">
                 <div className="flex w-full items-center">
-                  {/* Left track — 2px for presence */}
+                  {/* Left track â€” 2px for presence */}
                   {idx > 0 && (
                     <div
                       className={cn(
@@ -241,7 +241,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
                       )}
                     />
                   )}
-                  {/* Circle — clickable when completed, static otherwise */}
+                  {/* Circle â€” clickable when completed, static otherwise */}
                   {done ? (
                     <button
                       type="button"
@@ -261,7 +261,7 @@ function StepRail({ current, onNavigate }: { current: number; onNavigate: (step:
                       <span>{step.n}</span>
                     </div>
                   )}
-                  {/* Right track — 2px for presence */}
+                  {/* Right track â€” 2px for presence */}
                   {idx < STEPS.length - 1 && (
                     <div
                       className={cn(
@@ -448,7 +448,7 @@ function TextareaField({
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface AssignableStaffMember {
   id: string;
@@ -569,7 +569,7 @@ export function ManualBookingForm({
   const [availChecked, setAvailChecked] = useState(false);
   const [availReason, setAvailReason] = useState("");
 
-  // Mixed-gender group availability (Option C Phase 1 — two sections, one start_time)
+  // Mixed-gender group availability (Option C Phase 1 â€” two sections, one start_time)
   const [femaleAvailSlots, setFemaleAvailSlots] = useState<AvailableSlot[]>([]);
   const [maleAvailSlots, setMaleAvailSlots] = useState<AvailableSlot[]>([]);
   const [femaleAvailLoading, setFemaleAvailLoading] = useState(false);
@@ -625,7 +625,7 @@ export function ManualBookingForm({
     customerNotes, healthNotes, consentAcknowledged, sendConfirmationEmail,
   };
 
-  // All selected services (union across participants — max 2 per participant)
+  // All selected services (union across participants â€” max 2 per participant)
   const allSelectedSlugs = Array.from(
     new Set(participants.flatMap(participantServices))
   );
@@ -756,7 +756,7 @@ export function ManualBookingForm({
     return () => window.removeEventListener("beforeunload", handler);
   }, [formHasData]);
 
-  // Pre-fill failure toast — fires once on mount if the server fetch for clientId/enquiryId failed
+  // Pre-fill failure toast â€” fires once on mount if the server fetch for clientId/enquiryId failed
   useEffect(() => {
     if (prefillFailed) {
       toast.warning("Couldn't load client details. Fill in manually.", { duration: 6000 });
@@ -764,7 +764,7 @@ export function ManualBookingForm({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Server error toast — persistent, fires when the server action returns an error
+  // Server error toast â€” persistent, fires when the server action returns an error
   const prevErrorRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (state.error && state.error !== prevErrorRef.current) {
@@ -798,7 +798,7 @@ export function ManualBookingForm({
     updateParticipant(index, { massageSlug: slug });
   }
 
-  // Booking-for mode change — drives participant structure
+  // Booking-for mode change â€” drives participant structure
   function handleBookingForChange(mode: "self" | "someone_else" | "group") {
     setBookingForMode(mode);
     if (mode === "self") {
@@ -836,7 +836,7 @@ export function ManualBookingForm({
       const data = await res.json();
       const toTitleCase = (s: string) => s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
       if (!city.trim()) setCity(toTitleCase(data.result?.post_town ?? ""));
-      // Area is NOT auto-filled — postcodes.io admin_district is inaccurate for local areas
+      // Area is NOT auto-filled â€” postcodes.io admin_district is inaccurate for local areas
       setPostcodeLookupError("");
     } catch {
       setPostcodeLookupError("Couldn't check postcode. Fill in city and area manually.");
@@ -891,7 +891,7 @@ export function ManualBookingForm({
     return parts.length > 0 ? parts.join(", ") : "available";
   }
 
-  // ─── Step readiness (drives aria-disabled on Continue) ───────────────────────
+  // â”€â”€â”€ Step readiness (drives aria-disabled on Continue) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const isStepReady: boolean = (() => {
     if (step === 1) return !!(fullName.trim() && phone.trim() && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
@@ -906,7 +906,7 @@ export function ManualBookingForm({
     return false;
   })();
 
-  // ─── Hidden inputs for server action ─────────────────────────────────────────
+  // â”€â”€â”€ Hidden inputs for server action â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const hiddenInputs = (
     <>
@@ -961,7 +961,7 @@ export function ManualBookingForm({
     </>
   );
 
-  // ─── Step panels ──────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Step panels â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const multiErrorBanner = stepBannerError ? (
     <div
@@ -1007,7 +1007,7 @@ export function ManualBookingForm({
               className={cn(
                 "flex h-10 w-full rounded-[var(--admin-radius-control)] border px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30",
                 stepErrors.full_name ? "border-[oklch(26%_0.14_25)]" : "border-[var(--admin-border-form)]",
-                isPrefilled("full_name") ? "bg-[oklch(92%_0.022_155)]" : "bg-[var(--admin-surface-input)]"
+                isPrefilled("full_name") ? "bg-[var(--admin-selected-sky)]" : "bg-[var(--admin-surface-input)]"
               )}
             />
             {isPrefilled("full_name") && prefillSource && (
@@ -1031,7 +1031,7 @@ export function ManualBookingForm({
               className={cn(
                 "flex h-10 w-full rounded-[var(--admin-radius-control)] border px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30",
                 stepErrors.email ? "border-[oklch(26%_0.14_25)]" : "border-[var(--admin-border-form)]",
-                isPrefilled("email") ? "bg-[oklch(92%_0.022_155)]" : "bg-[var(--admin-surface-input)]"
+                isPrefilled("email") ? "bg-[var(--admin-selected-sky)]" : "bg-[var(--admin-surface-input)]"
               )}
             />
             <p className="text-xs text-[var(--admin-text-muted)]">Used for confirmations and reminders.</p>
@@ -1049,13 +1049,13 @@ export function ManualBookingForm({
               aria-describedby={stepErrors.phone ? "phone-error" : undefined}
               aria-invalid={stepErrors.phone ? "true" : undefined}
               value={phone}
-              placeholder="07…"
+              placeholder="07â€¦"
               maxLength={20}
               onChange={(e) => { setPhone(e.target.value); markEdited("phone"); }}
               className={cn(
                 "flex h-10 w-full rounded-[var(--admin-radius-control)] border px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30",
                 stepErrors.phone ? "border-[oklch(26%_0.14_25)]" : "border-[var(--admin-border-form)]",
-                isPrefilled("phone") ? "bg-[oklch(92%_0.022_155)]" : "bg-[var(--admin-surface-input)]"
+                isPrefilled("phone") ? "bg-[var(--admin-selected-sky)]" : "bg-[var(--admin-surface-input)]"
               )}
             />
             <p className="text-xs text-[var(--admin-text-muted)]">Used for WhatsApp and SMS.</p>
@@ -1165,7 +1165,7 @@ export function ManualBookingForm({
               </div>
             </div>
 
-            {/* Services — package + massage as co-equal options */}
+            {/* Services â€” package + massage as co-equal options */}
             <fieldset
               className="border-0 p-0"
               aria-describedby={
@@ -1197,7 +1197,7 @@ export function ManualBookingForm({
                         "flex cursor-pointer items-start gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-[background-color,border-color,box-shadow,color] duration-150",
                         selected
                           ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] ring-1 ring-[var(--admin-primary)]/20"
-                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(95.5%_0.012_155)]"
+                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-hover-mist)]"
                       )}
                     >
                       <input
@@ -1326,7 +1326,7 @@ export function ManualBookingForm({
       {step === 3 && multiErrorBanner}
       <AdminPanel title="Location">
         <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
-          {/* Postcode first — auto-fills city + area */}
+          {/* Postcode first â€” auto-fills city + area */}
           <AdminInput
             id="postcode"
             label="Postcode"
@@ -1335,7 +1335,7 @@ export function ManualBookingForm({
             maxLength={10}
             value={postcode}
             error={stepErrors.postcode || postcodeLookupError || undefined}
-            className={cn("sm:col-span-1", isPrefilled("postcode") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : "")}
+            className={cn("sm:col-span-1", isPrefilled("postcode") ? "[&_input]:bg-[var(--admin-selected-sky)]" : "")}
             onChange={(e) => { setPostcode(e.target.value); markEdited("postcode"); setPostcodeLookupError(""); }}
             onBlur={handlePostcodeBlur}
           />
@@ -1347,7 +1347,7 @@ export function ManualBookingForm({
             maxLength={60}
             value={city}
             error={stepErrors.city}
-            className={isPrefilled("city") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : ""}
+            className={isPrefilled("city") ? "[&_input]:bg-[var(--admin-selected-sky)]" : ""}
             onChange={(e) => { setCity(e.target.value); markEdited("city"); setBookingDate(""); setStartTime(""); setAvailChecked(false); setAvailSlots([]); setFemaleAvailChecked(false); setMaleAvailChecked(false); }}
           />
           <AdminInput
@@ -1356,7 +1356,7 @@ export function ManualBookingForm({
             placeholder="e.g. Bury Park"
             maxLength={80}
             value={area}
-            className={isPrefilled("area") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : ""}
+            className={isPrefilled("area") ? "[&_input]:bg-[var(--admin-selected-sky)]" : ""}
             onChange={(e) => { setArea(e.target.value); markEdited("area"); }}
           />
           <AdminInput
@@ -1367,7 +1367,7 @@ export function ManualBookingForm({
             maxLength={200}
             value={address}
             error={stepErrors.address}
-            className={isPrefilled("address") ? "[&_input]:bg-[oklch(92%_0.022_155)]" : ""}
+            className={isPrefilled("address") ? "[&_input]:bg-[var(--admin-selected-sky)]" : ""}
             onChange={(e) => { setAddress(e.target.value); markEdited("address"); }}
           />
           <TextareaField
@@ -1433,7 +1433,7 @@ export function ManualBookingForm({
             />
             {availLoading && (
               <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
-                <Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability…
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availabilityâ€¦
               </div>
             )}
             {availChecked && !availLoading && availSlots.length === 0 && (
@@ -1459,7 +1459,7 @@ export function ManualBookingForm({
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
                       className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-3 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                         startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white shadow-[0_2px_8px_oklch(23%_0.073_155/0.25)] ring-2 ring-[var(--admin-primary)]/20"
-                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
+                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-selected-sky)]"
                       )}>
                       <span className="text-sm font-bold leading-none">{slot.time}</span>
                       <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slotLabel(slot)}</span>
@@ -1471,7 +1471,7 @@ export function ManualBookingForm({
           </div>
         )}
 
-        {/* Option C Phase 1: mixed-gender group — two independent availability sections */}
+        {/* Option C Phase 1: mixed-gender group â€” two independent availability sections */}
         {canCheckAvailability && !overrideAvailability && !femaleOverride && !maleOverride && isMixedGenderGroup && (
           <div className="grid gap-6">
             <AdminInput
@@ -1495,7 +1495,7 @@ export function ManualBookingForm({
               <p className="mb-3 text-sm font-semibold text-[var(--admin-heading)]">
                 Female participants ({femaleParticipants.length})
               </p>
-              {femaleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for female participants…</div>}
+              {femaleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for female participantsâ€¦</div>}
               {femaleAvailChecked && !femaleAvailLoading && femaleAvailSlots.length === 0 && (
                 <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
                   <div className="flex items-start gap-2">
@@ -1514,7 +1514,7 @@ export function ManualBookingForm({
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
                       className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                         startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white ring-2 ring-[var(--admin-primary)]/20"
-                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
+                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-selected-sky)]"
                       )}>
                       <span className="text-sm font-bold leading-none">{slot.time}</span>
                       <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slot.availableStaffByGender.female} available</span>
@@ -1539,7 +1539,7 @@ export function ManualBookingForm({
               <p className="mb-3 text-sm font-semibold text-[var(--admin-heading)]">
                 Male participants ({maleParticipants.length})
               </p>
-              {maleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for male participants…</div>}
+              {maleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for male participantsâ€¦</div>}
               {maleAvailChecked && !maleAvailLoading && maleAvailSlots.length === 0 && (
                 <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
                   <div className="flex items-start gap-2">
@@ -1558,7 +1558,7 @@ export function ManualBookingForm({
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
                       className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-2 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                         startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white ring-2 ring-[var(--admin-primary)]/20"
-                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[oklch(92%_0.022_155)]"
+                          : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-selected-sky)]"
                       )}>
                       <span className="text-sm font-bold leading-none">{slot.time}</span>
                       <span className={cn("mt-1 text-[10px]", startTime === slot.time ? "text-white/80" : "text-[var(--admin-text-muted)]")}>{slot.availableStaffByGender.male} available</span>
@@ -1632,7 +1632,7 @@ export function ManualBookingForm({
     </div>
   );
 
-  // Step 4 — Review & confirm
+  // Step 4 â€” Review & confirm
   function SummaryCard({
     heading,
     editStep,
@@ -1688,7 +1688,7 @@ export function ManualBookingForm({
             {participants.map((p, i) => (
               <div key={i} className={cn("grid gap-1", i > 0 && "mt-3 border-t border-[var(--admin-border)] pt-3")}>
                 <p className="text-xs font-semibold text-[var(--admin-heading)]">
-                  {participants.length > 1 ? `Person ${i + 1}: ${p.name || "—"}` : p.name || "—"}
+                  {participants.length > 1 ? `Person ${i + 1}: ${p.name || "â€”"}` : p.name || "â€”"}
                 </p>
                 <dl className="grid gap-2 sm:grid-cols-2">
                   {dl("Gender", p.gender || "Not set")}
@@ -1742,7 +1742,7 @@ export function ManualBookingForm({
             </div>
           </AdminPanel>
 
-          {/* ── Assignment panel ── */}
+          {/* â”€â”€ Assignment panel â”€â”€ */}
           <AdminPanel
             title="Booking assignment"
             description="Optionally assign a therapist now. You can always change this later from the booking page."
@@ -1814,7 +1814,7 @@ export function ManualBookingForm({
                               onChange={(e) => setAssignmentStaffIds((prev) => { const n = [...prev]; n[i] = e.target.value; return n; })}
                               className="mt-2 flex h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
                             >
-                              <option value="">Choose a therapist…</option>
+                              <option value="">Choose a therapistâ€¦</option>
                               {eligibleStaff.map((s) => (
                                 <option key={s.id} value={s.id}>{s.name}</option>
                               ))}
@@ -1882,7 +1882,7 @@ export function ManualBookingForm({
         </div>
       </div>
 
-      {/* Unassigned note — always shown on step 4 */}
+      {/* Unassigned note â€” always shown on step 4 */}
       {step === 4 && (
         <div className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-3 text-sm text-[oklch(26%_0.13_55)]">
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -1910,7 +1910,7 @@ export function ManualBookingForm({
     </div>
   );
 
-  // ─── Desktop navigation strip ─────────────────────────────────────────────────
+  // â”€â”€â”€ Desktop navigation strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const navStrip = (
     <div className="hidden items-center justify-between gap-3 md:flex">
@@ -1951,7 +1951,7 @@ export function ManualBookingForm({
     </div>
   );
 
-  // ─── Leave dialog ──────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Leave dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   const leaveDialog = showLeaveDialog ? (
     <div
@@ -1985,7 +1985,7 @@ export function ManualBookingForm({
     </div>
   ) : null;
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   return (
     <div className="grid gap-6">
@@ -2000,7 +2000,7 @@ export function ManualBookingForm({
         {step4}
         {navStrip}
 
-        {/* Mobile action bar — hidden at md+ where inline navStrip shows */}
+        {/* Mobile action bar â€” hidden at md+ where inline navStrip shows */}
         <div className="md:hidden">
         <AdminMobileActionBar submitting={pending}>
           {step > 1 && (

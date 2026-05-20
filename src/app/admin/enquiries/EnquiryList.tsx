@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState, useTransition, type ChangeEvent } from "react";
 import Link from "next/link";
@@ -51,7 +51,7 @@ export type SortKey = "newest" | "oldest" | "name" | "activity";
 const SORT_LABELS: Record<SortKey, string> = {
   newest: "Newest",
   oldest: "Oldest",
-  name: "Name A→Z",
+  name: "Name Aâ†’Z",
   activity: "Last activity",
 };
 
@@ -133,11 +133,11 @@ function StaffAvatarToken({ name }: { name: string | null }) {
       .filter(Boolean)
       .slice(0, 2)
       .map((token) => (Array.from(token)[0] ?? "").toUpperCase())
-      .join("") || "·";
+      .join("") || "Â·";
   return (
     <span
       aria-hidden="true"
-      className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] text-[0.625rem] font-semibold text-[var(--admin-heading)]"
+      className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--admin-hover-mist)] text-[0.625rem] font-semibold text-[var(--admin-heading)]"
     >
       {initials}
     </span>
@@ -339,7 +339,7 @@ function EnquiryRow({
   const converted = Boolean(enquiry.converted_booking_id);
   const isClosed = enquiry.status === "closed";
 
-  // F4 — last activity. If updated_at differs from created_at by ≥60s, show it; else nothing.
+  // F4 â€” last activity. If updated_at differs from created_at by â‰¥60s, show it; else nothing.
   const createdMs = new Date(enquiry.created_at).getTime();
   const updatedMs = enquiry.updated_at ? new Date(enquiry.updated_at).getTime() : createdMs;
   const hasMeaningfulUpdate = updatedMs - createdMs > 60_000;
@@ -349,7 +349,7 @@ function EnquiryRow({
       className={cn(
         "flex min-w-0 items-stretch gap-2 transition-colors",
         selected
-          ? "rounded-[var(--admin-radius-card)] bg-[oklch(92%_0.022_155)]/40 ring-1 ring-[var(--admin-primary)]/40"
+          ? "rounded-[var(--admin-radius-card)] bg-[var(--admin-selected-sky)]/40 ring-1 ring-[var(--admin-primary)]/40"
           : ""
       )}
     >
@@ -385,7 +385,7 @@ function EnquiryRow({
           meta={
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>{sourceLabel}</span>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true">Â·</span>
               <span>
                 {enquiry.phone ? (
                   <a
@@ -405,13 +405,13 @@ function EnquiryRow({
                   <span className="italic">No contact on file</span>
                 )}
               </span>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true">Â·</span>
               <span title={`Received ${formatDateTime(enquiry.created_at)}`}>
                 {formatDateTime(enquiry.created_at)}
               </span>
               {hasMeaningfulUpdate && enquiry.updated_at ? (
                 <>
-                  <span aria-hidden="true">·</span>
+                  <span aria-hidden="true">Â·</span>
                   <span
                     className="font-medium text-[var(--admin-body)]"
                     title={`Last update: ${formatDateTime(enquiry.updated_at)}`}
@@ -489,7 +489,7 @@ function RowActions({
         title="Open the booking that came from this enquiry"
         className="inline-flex h-9 min-h-11 sm:min-h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
       >
-        View booking <span aria-hidden="true">→</span>
+        View booking <span aria-hidden="true">â†’</span>
       </Link>
     );
   }

@@ -60,7 +60,7 @@ function avatarTint(seed: string | null): string {
     "bg-[oklch(91%_0.025_155)] text-[oklch(22%_0.085_155)]",
     "bg-[oklch(92%_0.030_80)] text-[oklch(28%_0.12_55)]",
     "bg-[oklch(91%_0.022_280)] text-[oklch(30%_0.02_280)]",
-    "bg-[oklch(93%_0.030_200)] text-[oklch(28%_0.095_200)]",
+    "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)]",
     "bg-[oklch(92%_0.025_120)] text-[oklch(22%_0.085_155)]",
   ];
   if (!seed) return tints[0];

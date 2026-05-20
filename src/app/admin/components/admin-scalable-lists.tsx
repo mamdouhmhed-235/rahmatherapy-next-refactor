@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import { Search, FilterX, ChevronLeft, ChevronRight, Loader2, FolderSearch, Plus, X } from "lucide-react";
@@ -43,7 +43,7 @@ export function SavedViewTabs({
             "rounded-full px-4 py-1.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
             activeView === view.id
               ? "bg-[var(--admin-primary)] text-white"
-              : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)] hover:bg-[oklch(95.5%_0.012_155)] hover:text-[var(--admin-heading)]"
+              : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-hover-mist)] hover:text-[var(--admin-heading)]"
           )}
         >
           {view.label}
@@ -288,7 +288,7 @@ export function MobileCardList({
   );
 }
 
-// ─── BookingCardSkeletonList ─────────────────────────────────────────────────
+// â”€â”€â”€ BookingCardSkeletonList â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Approximates the BookingListCard shape so the layout doesn't reflow when
 // streamed data lands. Used inside the bookings page <Suspense> fallback.
 
@@ -328,12 +328,12 @@ export function BookingCardSkeletonList({
           </div>
         </div>
       ))}
-      <span className="sr-only">Loading bookings…</span>
+      <span className="sr-only">Loading bookingsâ€¦</span>
     </div>
   );
 }
 
-// ─── SavedViewBar ────────────────────────────────────────────────────────────
+// â”€â”€â”€ SavedViewBar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Pill row with inline Save + inline Remove confirmation (no modal). Used by
 // /admin/bookings as the secondary tab strip beneath the primary view tabs.
 
@@ -448,7 +448,7 @@ export function SavedViewBar({
               className={cn(
                 "appearance-none rounded-l-full border border-r-0 px-3 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                 isActive
-                  ? "border-[var(--admin-border-form)] bg-[oklch(92%_0.022_155)] text-[var(--admin-heading)]"
+                  ? "border-[var(--admin-border-form)] bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
                   : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]"
               )}
             >
@@ -462,7 +462,7 @@ export function SavedViewBar({
               className={cn(
                 "inline-flex appearance-none items-center justify-center rounded-r-full border pl-1 pr-2 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                 isActive
-                  ? "border-[var(--admin-border-form)] bg-[oklch(92%_0.022_155)] text-[var(--admin-text-muted)] hover:text-[var(--admin-heading)]"
+                  ? "border-[var(--admin-border-form)] bg-[var(--admin-selected-sky)] text-[var(--admin-text-muted)] hover:text-[var(--admin-heading)]"
                   : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
               )}
             >
@@ -526,7 +526,7 @@ export function SavedViewBar({
           type="button"
           onClick={() => setSaving(true)}
           disabled={atLimit}
-          title={atLimit ? `Limit ${SAVED_VIEW_LIMIT} reached — remove one to add another.` : undefined}
+          title={atLimit ? `Limit ${SAVED_VIEW_LIMIT} reached â€” remove one to add another.` : undefined}
           className="inline-flex h-8 appearance-none items-center gap-1 rounded-full border-0 bg-transparent px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Plus className="size-3" aria-hidden="true" />
@@ -537,9 +537,9 @@ export function SavedViewBar({
   );
 }
 
-// ─── ActiveFilterChip ────────────────────────────────────────────────────────
-// Restricted-family pill listing one active filter — text label plus a
-// dismissive trailing × that calls onClear.
+// â”€â”€â”€ ActiveFilterChip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Restricted-family pill listing one active filter â€” text label plus a
+// dismissive trailing Ã— that calls onClear.
 
 export function ActiveFilterChip({
   label,

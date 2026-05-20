@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   Activity,
@@ -94,8 +94,8 @@ function statusChipTone(member: StaffDirectoryRow): { label: string; tone: Staff
 
 function initialOf(name: string): string {
   // Two-letter initials when a surname is present so the directory differentiates
-  // members with the same first letter (e.g. "Phase10 ADMIN" → "PA",
-  // "Phase10 COORDINATOR" → "PC"). Single-letter fallback when only one token.
+  // members with the same first letter (e.g. "Phase10 ADMIN" â†’ "PA",
+  // "Phase10 COORDINATOR" â†’ "PC"). Single-letter fallback when only one token.
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return (Array.from(parts[0])[0] ?? "").toUpperCase();
@@ -134,7 +134,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
   let staff: StaffDirectoryRow[] = [];
   let staffLoadError = false;
 
-  // FPM: getStaffTeamAccess / getStaffTeamSelect / staffProfilesFrom are preserved verbatim (RECON §5).
+  // FPM: getStaffTeamAccess / getStaffTeamSelect / staffProfilesFrom are preserved verbatim (RECON Â§5).
   if (teamAccess.scope === "admin") {
     const { data, error } = await staffProfiles
       .select<StaffDirectoryRow[]>(staffSelect)
@@ -209,10 +209,10 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           )
       : [];
 
-  // ─── Search-param reads ────────────────────────────────────────────────────
-  // FAKE: BUILD-staff-filter-query — server-side filtering is currently a no-op;
+  // â”€â”€â”€ Search-param reads â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // FAKE: BUILD-staff-filter-query â€” server-side filtering is currently a no-op;
   // we read the params, render chips, and apply filters client-side from the
-  // page-load data. Server query stays untouched (FPM §5). Phase 7 swap-in lands
+  // page-load data. Server query stays untouched (FPM Â§5). Phase 7 swap-in lands
   // the SQL filter on the data-access helpers, then this block reduces to a
   // pass-through for the chip-render.
   const params = await searchParams;
@@ -309,7 +309,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
   const activeMembers = filtered.filter((member) => member.active);
   const inactiveMembers = filtered.filter((member) => !member.active);
 
-  // FAKE: BUILD-staff-workload-aggregates — derived client-side from the
+  // FAKE: BUILD-staff-workload-aggregates â€” derived client-side from the
   // page-load data. Once the aggregate query lands these numbers come from the
   // server in one round-trip; for now they fall back gracefully and match the
   // visible rows.
@@ -420,7 +420,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
       />
 
       {/* Description rendered outside AdminPageHeader so it wraps cleanly at 375.
-          Width clamped to (100vw − 2rem) so it respects the viewport even when
+          Width clamped to (100vw âˆ’ 2rem) so it respects the viewport even when
           the shared AdminPageScaffold grid track auto-expands to fit a wider
           sibling (filter form, AdminPanel). */}
       <p className="-mt-2 mb-4 max-w-[calc(100vw-2rem)] text-sm leading-6 text-balance text-[var(--admin-text-muted)] sm:mb-6 sm:max-w-3xl">
@@ -599,7 +599,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(94%_0.008_280)] px-3 py-1 text-xs font-medium text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
               <span>{chip.label}</span>
-              <span aria-hidden="true">×</span>
+              <span aria-hidden="true">Ã—</span>
               <span className="sr-only">Remove filter</span>
             </Link>
           ))}
@@ -726,14 +726,14 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
         </AdminPanel>
       )}
 
-      {/* Bottom spacer — ensures the last row + inactive disclosure don't sit
+      {/* Bottom spacer â€” ensures the last row + inactive disclosure don't sit
           under the mobile bottom nav (h-14 + safe-area-inset-bottom). */}
       <div aria-hidden="true" className="h-8 lg:hidden" />
     </AdminPageScaffold>
   );
 }
 
-// ─── Workload-strip prose segment ─────────────────────────────────────────────
+// â”€â”€â”€ Workload-strip prose segment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function WorkloadSegment({
   href,
@@ -785,9 +785,9 @@ function WorkloadSegment({
   );
 }
 
-// ─── Avatar token (initialled fallback) ───────────────────────────────────────
+// â”€â”€â”€ Avatar token (initialled fallback) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// Single Hover Moss fill per brief §5 line 53. The initial letter does the
+// Single Hover Moss fill per brief Â§5 line 53. The initial letter does the
 // member-distinguishing work; reserving colour for the named-status chips
 // keeps status signal exclusive (no decorative tint can be misread as a
 // category badge). Inactive members keep the muted variant.
@@ -805,7 +805,7 @@ function Avatar({
       className={
         dim
           ? "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--admin-panel-muted)] text-[0.8125rem] font-semibold tracking-tight text-[var(--admin-text-muted)]"
-          : "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.012_155)] text-[0.8125rem] font-semibold tracking-tight text-[var(--admin-heading)]"
+          : "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--admin-hover-mist)] text-[0.8125rem] font-semibold tracking-tight text-[var(--admin-heading)]"
       }
     >
       {initialOf(name)}
@@ -826,7 +826,7 @@ function StatusChipTitle(label: string): string {
   }
 }
 
-// ─── Workload pill (custom — CalendarCheck icon over status-tone tokens) ──────
+// â”€â”€â”€ Workload pill (custom â€” CalendarCheck icon over status-tone tokens) â”€â”€â”€â”€â”€â”€
 
 function WorkloadPill({ count }: { count: number }) {
   // Zero-state reads as quiet metadata (no badge fill, Soft Slate text, no icon
@@ -873,7 +873,7 @@ function WorkloadPill({ count }: { count: number }) {
   );
 }
 
-// ─── Progress dots — thin tick strip for onboarding / profile counts ─────────
+// â”€â”€â”€ Progress dots â€” thin tick strip for onboarding / profile counts â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function ProgressDots({
   completed,
@@ -907,7 +907,7 @@ function ProgressDots({
   );
 }
 
-// ─── Staff row — h2 title resolves Sam #1 heading skip ────────────────────────
+// â”€â”€â”€ Staff row â€” h2 title resolves Sam #1 heading skip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function StaffRow({
   member,
@@ -983,7 +983,7 @@ function StaffRow({
           </span>
           {showContact && member.email ? (
             <>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true">Â·</span>
               <span className="inline-flex min-w-0 max-w-full items-center gap-1">
                 <Mail className="size-3.5 shrink-0" aria-hidden="true" />
                 {/* [overflow-wrap:anywhere] lets the address break mid-character so
@@ -995,7 +995,7 @@ function StaffRow({
           ) : null}
           {member.gender || showAdminMeta ? (
             <>
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true">Â·</span>
               <span>Gender: {member.gender ?? "Not set"}</span>
             </>
           ) : null}
@@ -1015,7 +1015,7 @@ function StaffRow({
               </span>
             ) : null}
             {member.languages?.length && member.service_areas?.length ? (
-              <span aria-hidden="true">·</span>
+              <span aria-hidden="true">Â·</span>
             ) : null}
             {member.service_areas?.length ? (
               <span
