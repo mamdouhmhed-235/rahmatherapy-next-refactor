@@ -157,7 +157,7 @@ export function EventRow({ event, column, onTransitioned, onTransitionFailed }: 
       className={cn(
         "relative rounded-[var(--admin-radius-card)] border p-4 transition-colors",
         isOpenError
-          ? "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]"
+          ? "border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)]"
           : "border-[var(--admin-border)] bg-[var(--admin-panel)]"
       )}
     >
@@ -169,9 +169,9 @@ export function EventRow({ event, column, onTransitioned, onTransitionFailed }: 
             data-redesign-fake="filter-query"
             className={cn(
               "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
-              severity.tone === "danger" && "bg-[oklch(94%_0.038_20)] text-[oklch(26%_0.14_25)] hover:bg-[oklch(90%_0.05_20)]",
-              severity.tone === "warning" && "bg-[oklch(94%_0.06_65)] text-[oklch(26%_0.13_55)] hover:bg-[oklch(90%_0.07_65)]",
-              severity.tone === "restricted" && "bg-[oklch(94%_0.008_280)] text-[oklch(30%_0.02_280)] hover:bg-[oklch(90%_0.012_280)]"
+              severity.tone === "danger" && "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)] hover:bg-[oklch(90%_0.05_20)]",
+              severity.tone === "warning" && "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)] hover:bg-[oklch(90%_0.07_65)]",
+              severity.tone === "restricted" && "bg-[var(--admin-status-restricted-bg)] text-[var(--admin-status-restricted-text)] hover:bg-[oklch(90%_0.012_280)]"
             )}
           >
             <SeverityIcon className="size-3.5 shrink-0" aria-hidden="true" />
@@ -179,7 +179,7 @@ export function EventRow({ event, column, onTransitioned, onTransitionFailed }: 
           </Link>
           <span
             title={event.event_type}
-            className="inline-flex shrink-0 items-center rounded-full bg-[oklch(94%_0.008_280)] px-2.5 py-1 text-xs font-medium text-[oklch(30%_0.02_280)]"
+            className="inline-flex shrink-0 items-center rounded-full bg-[var(--admin-status-restricted-bg)] px-2.5 py-1 text-xs font-medium text-[var(--admin-status-restricted-text)]"
           >
             {eventTypeLabel}
           </span>

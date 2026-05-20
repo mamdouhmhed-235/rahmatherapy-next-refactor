@@ -480,6 +480,7 @@ function DeliveryEmpty({
     return (
       <EmptyState
         icon={Inbox}
+        illustrationSrc="/images/admin/empty-states/emails-empty.svg"
         title="No email events logged yet"
         message="Events appear here as confirmation, reminder, and cancellation emails go out."
       />
@@ -771,6 +772,7 @@ function RemindersTab({
       <section className="mx-auto w-full max-w-[720px]">
         <EmptyState
           icon={CalendarClock}
+          illustrationSrc="/images/admin/empty-states/reminders-empty.svg"
           title="No upcoming bookings need a reminder"
           message="Everyone's confirmed."
         />

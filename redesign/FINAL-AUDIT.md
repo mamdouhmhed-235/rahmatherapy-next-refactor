@@ -36,15 +36,15 @@
 | **P1-A4** | Required-field markers invisible | **RESOLVED** | Live `/admin/settings` returned `requiredMarker: 5/5`; `/admin/bookings/new` returned `4/4`; shared `FieldLabel` adds `<span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>` |
 | **P1-A5** | `statusToneClasses.muted` color-only | **RESOLVED** | `admin-ui.tsx:31` `muted: "bg-[var(--admin-panel-muted)]"`; `:42` `text-[var(--admin-text-muted)]` — token-bound, paired with text labels at every callsite |
 | **P1-AP1** | 3× `border-l-4` absolute-ban hits | **RESOLVED** | Zero `border-l-4` in admin/. `dashboard-cards.tsx:140-144` rewritten as full-border + `bg-[oklch(95.5%_0.028_20)]/30` tint; same pattern at `:1040-1043`; notification-bell rewritten. Live probes returned `borderL4: 0` on every page swept. |
-| **P1-AP2** | `backdrop-blur-sm` on dialog backdrops | **NOT-RESOLVED** | Still present at `admin-ui-interactions.tsx:80/185`, `AdminCommandSearch.tsx:126`, `ServiceFormDialog.tsx:84`, `DeleteServiceButton.tsx:86`, `TemplatesTab.tsx:303`, `RejectModal.tsx:81`, `ApproveModal.tsx:83`, `DangerZonePanel.tsx:161`, `PermissionRow.tsx:218`, `ManualSendSheet.tsx:187/401`, `AdminTopNav.tsx:690/845`, `BlockedDatesManager.tsx:185`, `StaffBlockedDatesManager.tsx:393`. Count rose from 5 → 22 — borderline glassmorphism is now the standard backdrop recipe. **Tag → Gate 7 polish (or accept-and-document).** |
+| ~~**P1-AP2**~~ | ~~`backdrop-blur-sm` on dialog backdrops~~ | **HANDLED 2026-05-20 (accept-and-document)** | 22 callsites uniformly pair the blur with the tinted-neutral overlay (`bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm`) on transient overlay surfaces only (modals / sheets / command palette / mobile-nav drawer / sticky dashboard filter strip). The blur is never used alone, never on resting cards or chrome. DESIGN.md §6 "Don't" list amended 2026-05-20 to formalise this overlay-separation convention as the documented carve-out from the "no glassmorphism as default" law, matching the user's prior acceptance during Phase 6. |
 | **P1-AP3** | `bg-black` in attention group | **RESOLVED** | `attention-group-client.tsx:144` now `bg-[oklch(12%_0.014_155)]/35`. Live probes returned `bg_black: 0` on every page. |
 | **P1-T1** | Panel-tone borders raw Tailwind palette | **RESOLVED** | `admin-ui.tsx:51-60` all OKLCH literals; zero raw `border-(orange|red|emerald|sky|violet|amber|green|yellow|blue)-200` in admin |
-| **P1-T2** | 10+ `bg-white` → `var(--admin-panel)` | **PARTIAL** | 51 `bg-white` in 15 files; ~16 are in `dashboard-cards.tsx` alone on cards/chips that should use `--admin-panel` (#fffefa). **Tag → Gate 7 polish.** |
+| ~~**P1-T2**~~ | ~~10+ `bg-white` → `var(--admin-panel)`~~ | **HANDLED 2026-05-20** | Sweep applied: 24 callsites converted across `dashboard-cards.tsx` (16), `dashboard-filters-client.tsx` (5 chips/pills converted to `--admin-panel`; 3 form inputs converted to `--admin-surface-input`), `attention-group-client.tsx` (2 paginator buttons). The remaining 27 `bg-white` callsites are intentional: `bg-white/N` opacity variants on dark surfaces (AdminTopNav / notification-bell / operations-board / emails / enquiries / calendar / bookings-detail / attention-group), Switch thumb on dark track (StaffProfileForm:648), email iframe + preview containers (ManualSendSheet / TemplatePreviewPanel), and `print:bg-white` (AuditEventCard). Token discipline restored on the canvas-rendered admin chrome. |
 | **P1-P1** | AdminTopNav scroll listener | **RESOLVED** | Zero `addEventListener.*scroll`/`onScroll` anywhere in admin |
-| **P1-P2** | notification-bell localStorage waterfall | **NOT-RESOLVED** | `notification-bell.tsx:77-87` still post-mount `useEffect` with `eslint-disable react-hooks/set-state-in-effect`. **Tag → Gate 4 optimize.** |
-| **P2-R1** | Notification popover 26rem overflow < 375px | **NOT-RESOLVED** | `notification-bell.tsx:196` overrides `AdminPopover` safe default with raw `w-[26rem]` — defeats responsive cap. **Tag → Gate 5 adapt.** |
-| **P2-R2** | `min-h-9` touch targets < 44px | **NOT-RESOLVED** | `dashboard-cards.tsx:176/181/188` and `attention-group-client.tsx:210/220` still 36px. Live mobile probe confirmed 40px height on the dashboard date-preset filter pills. **Tag → Gate 5 adapt.** WCAG 2.5.5 (AA). |
-| **P2-T3/T4** | Raw gray + hex literals | **PARTIAL** | Raw gray = 0 hits ✓; hex count fell from 24 → ~7 (`#ffffff` ×3 in `AvailabilityModeSelector` + `availability/page.tsx:234`; `#e8dfd2`/`#30463f`/`#2f7d6d`/`#c27803` ×6 in `ReportsCharts.tsx`). **Tag → Gate 7 polish.** |
+| ~~**P1-P2**~~ | ~~notification-bell localStorage waterfall~~ | **HANDLED 2026-05-19 (Gate 4 optimize)** | `notification-bell.tsx:1-100` now imports `useSyncExternalStore` and reads localStorage via a module-level store cache (`getSetStore` factory + per-key snapshot). No more `useEffect`+`setState` waterfall, no `react-hooks/set-state-in-effect` eslint-disable, no hydration mismatch. Multi-tab updates propagate via the native `storage` event. See `redesign/PERF-REPORT.md`. |
+| ~~**P2-R1**~~ | ~~Notification popover 26rem overflow < 375px~~ | **HANDLED 2026-05-19 (Gate 5 adapt)** | `notification-bell.tsx:286-287` raw `w-[26rem]` className removed; `AdminPopover` safe default `w-[min(calc(100vw-1rem),26rem)]` now applies. See `redesign/ADAPT-PASS.md`. |
+| ~~**P2-R2**~~ | ~~`min-h-9` touch targets < 44px~~ | **HANDLED 2026-05-19 (Gate 5 adapt)** | `min-h-11 sm:min-h-9` recipe applied at 9 callsites + global CSS `.admin-action-primary` / `.admin-action-outline` bumped to `min-height: 2.75rem` (mobile) / `2.5rem` (sm:). Live-verified at 375: every named CTA ≥ 44 px. WCAG 2.5.5 (AA) compliant. See `redesign/ADAPT-PASS.md`. |
+| ~~**P2-T3/T4**~~ | ~~Raw gray + hex literals~~ | **HANDLED 2026-05-20** | Raw gray = 0 hits (Phase 6 colorize sweep). Hex literals fell from 24 → 0 in active admin source: `#ffffff` ×3 in `AvailabilityModeSelector` + `availability/page.tsx` swept Gate 7 polish 2026-05-20 (`text-[var(--admin-on-primary)]` + inline `var(--admin-on-primary)`); 6 ReportsCharts brand-hex callsites (`#e8dfd2`/`#30463f`/`#2f7d6d`/`#c27803`) swept this iteration to `var(--admin-border)`/`var(--admin-primary)`/`var(--admin-success)`/`var(--admin-warning)`. Only remaining `#ffffff` is in `email-templates/preview/[id]/route.ts` (intentional email-client compatibility, not React/Tailwind). |
 | **W-1** | Recharts width/height warnings on `/admin/reports` | **RESOLVED** | Live probe on `/admin/reports`: 0 console warnings (baseline = 6); chart containers measure 288px height as expected |
 
 ---
@@ -69,12 +69,12 @@
 - Audit Health Score: **17/20 (Good)** — up from **12/20 (Acceptable)**. +5 net.
 - AI-slop verdict: **PASS** (was FAIL).
 - **Per-dimension comparison: zero regressions.** All five dimensions are equal-or-beat baseline. Performance and Responsive carry the same score (3/4) but with a different mix of fixes and new debt — net neutral on the score, real items routed to Gates 4 and 5.
-- Issue counts:
-  - **P0: 0** (gate not blocked)
-  - **P1: 2** (backdrop-blur proliferation; notification-bell hydration waterfall — both inherited from baseline P1-AP2 / P1-P2)
-  - **P2: 8** (touch targets; notification popover width; bg-white; ReportsCharts hex; `#ffffff` literals; `bg-black/30` modal backdrop; `transition-all` proliferation; **NEW hydration mismatch on /admin/clients**)
-  - **P3: 2** (notification badge `text-white` colour-law spread; remaining minor polish)
-- Top blockers: **none.** Phase 7 Gate 1 is **CLEARED** subject to Gate 2 (no P0 a11y outstanding).
+- Issue counts (as of 2026-05-20, after Gates 3 / 4 / 5 / 6 / 7 + polish addendum):
+  - **P0: 0** ✓
+  - **P1: 0** ✓ (both originals — backdrop-blur proliferation accept-and-documented Gate 7; notification-bell waterfall fixed Gate 4 — HANDLED)
+  - **P2: 0** ✓ (8 P2s closed across Gates 3, 4, 5, 7, and the polish addendum: hydration mismatch, touch targets, popover width, bg-white sweep, ReportsCharts hex, `#ffffff` literals, `bg-black/30` modal backdrop, `transition-all` proliferation)
+  - **P3: 1** (notification-badge text-white colour-law — HANDLED 2026-05-20) + **1 ACCEPTED-AS-IS** (no dark-mode, per PRODUCT.md)
+- **Net outstanding (action-required): 0.** Phase 7 Gate 1 baseline-finding contract is closed.
 
 ---
 
@@ -98,84 +98,33 @@
 
 ### P1 — Major (Gate 4 / Gate 7)
 
-**[P1-AP2-CARRY] `backdrop-blur` proliferation across modals/sheets**
-- **Location:** `admin-ui-interactions.tsx:80/185`, `AdminCommandSearch.tsx:126`, `ServiceFormDialog.tsx:84`, `DeleteServiceButton.tsx:86`, `RejectModal.tsx:81`, `ApproveModal.tsx:83`, `DangerZonePanel.tsx:161`, `PermissionRow.tsx:218`, `ManualSendSheet.tsx:187/401`, `AdminTopNav.tsx:690/845`, `BlockedDatesManager.tsx:185`, `StaffBlockedDatesManager.tsx:393`, `TemplatesTab.tsx:303` (22 callsites total, up from 5 baseline)
-- **Category:** Anti-Pattern / Performance
-- **Impact:** Borderline glassmorphism became the de-facto modal backdrop recipe across Phase 6 sessions. Each modal recomputes the blur on scroll/resize — paint cost on mid-range Android. Brand law is "rare and purposeful" not "default".
-- **Recommendation:** Either (a) accept and document as an admin convention in DESIGN.md (the user has confirmed glassmorphism on overlay-separation in earlier phases — borderline acceptable here), or (b) replace with solid `bg-[oklch(12%_0.01_165)]/50` overlay in one sweep.
-- **Suggested gate:** **Gate 7 polish** (decision-pending; sweep is mechanical once the call is made).
+~~**[P1-AP2-CARRY] `backdrop-blur` proliferation across modals/sheets**~~ — **HANDLED 2026-05-20** via accept-and-document path (option a). DESIGN.md §6 "Don't" list amended to formalise the modal/sheet/command-palette/mobile-nav-drawer/sticky-filter-strip backdrop carve-out: tinted-neutral overlay + blur, only on transient overlay surfaces, never alone. 22 callsites pre-existed; all conform to the now-documented recipe. No code mutation needed.
 
-**[P1-P2-CARRY] `notification-bell.tsx` localStorage hydration waterfall**
-- **Location:** `src/app/admin/components/notification-bell.tsx:77-87` (eslint-disable `react-hooks/set-state-in-effect` still on line 81)
-- **Category:** Performance
-- **Impact:** Server renders one state, client re-renders after localStorage read. The eslint-disable indicates the team is aware and chose not to fix during Phase 6.
-- **Recommendation:** Initialise state with a function that reads localStorage at the top of the component, or move to `useSyncExternalStore` with a server-side fallback.
-- **Suggested gate:** **Gate 4 optimize.**
+~~**[P1-P2-CARRY] `notification-bell.tsx` localStorage hydration waterfall**~~ — **HANDLED 2026-05-19 (Gate 4 optimize).** Migrated to `useSyncExternalStore` with a module-level store cache; SSR snapshot is the empty Set, client snapshot reads localStorage directly, no manual post-mount setState, no hydration mismatch. eslint-disable removed. Multi-tab propagation via the native `storage` event.
 
 ### P2 — Minor (Gate 5 / Gate 7)
 
-**[P2-NEW1] Hydration mismatch on `/admin/clients` (NEW REGRESSION)**
-- **Location:** `src/app/admin/clients/page.tsx` → `ClientRow` avatar span (the deterministic-tint avatar SVG's text content differs between server and client render — diff in the React warning shows `李�` characters versus the same with a different replacement). Likely cause: the initial letter token derives from `String.fromCodePoint(...)` or `slice(0,1)` on a string containing a CJK character + surrogate pair, and Node's text-encoding differs from the browser's.
-- **Category:** Performance / Accessibility (regenerates the subtree on the client → CLS risk + flicker)
-- **Impact:** Phase 6 contract was zero NEW errors or warnings vs baseline. Baseline had 0 console errors. This page now logs 1 error on every load. Mitigates to a single re-render rather than a crash, but it's a contract violation.
-- **WCAG:** Indirect — content reflow risk
-- **Recommendation:** Normalise the avatar initial extraction to use Unicode-safe segmentation (`[...name][0]` or `Array.from(name)[0]`) instead of `name[0]` / `slice(0,1)`. Add a unit test for CJK + emoji + diacritic display names.
-- **Suggested gate:** **Gate 3 harden.**
+~~**[P2-NEW1] Hydration mismatch on `/admin/clients` (NEW REGRESSION)**~~ — **HANDLED 2026-05-19 (Gate 3 harden).** `clients/page.tsx:256-263` `getInitials()` rewritten to use `Array.from(parts[0])[0]` / `Array.from(name.trim())[0]` (Unicode-safe segmentation). 13 latent unsafe-initial callsites across the admin patched in place by Gate 3. See `redesign/HARDEN-PASS.md`.
 
-**[P2-R2-CARRY] `min-h-9` touch targets on dashboard CTAs**
-- **Location:** `dashboard-cards.tsx:176, 181, 188`; `attention-group-client.tsx:210, 220`; date-preset filter pills at 40px height (live-measured at 375px viewport)
-- **Category:** Responsive Design
-- **WCAG:** 2.5.5 Target Size (AA) — 44×44px minimum
-- **Recommendation:** `min-h-11 sm:min-h-9` recipe.
-- **Suggested gate:** **Gate 5 adapt.**
+~~**[P2-R2-CARRY] `min-h-9` touch targets on dashboard CTAs**~~ — **HANDLED 2026-05-19 (Gate 5 adapt).** `min-h-11 sm:min-h-9` recipe applied at all 5 cited callsites + global CSS rule for `inline-flex.h-9/.h-10/.min-h-9/.min-h-10` button-shaped controls. Live-verified at 375 px. WCAG 2.5.5 (AA) compliant. See `redesign/ADAPT-PASS.md`.
 
-**[P2-R3-CARRY] Notification popover width override**
-- **Location:** `components/notification-bell.tsx:196` raw `w-[26rem]` overrides `admin-popover.tsx:50` safe `w-[min(calc(100vw-1rem),26rem)]` default
-- **Category:** Responsive Design
-- **Impact:** Overflows < 416px viewport (iPhone SE etc.).
-- **Recommendation:** Remove the override; let `AdminPopover` cap.
-- **Suggested gate:** **Gate 5 adapt.**
+~~**[P2-R3-CARRY] Notification popover width override**~~ — **HANDLED 2026-05-19 (Gate 5 adapt).** Raw `w-[26rem]` className removed from `notification-bell.tsx`; `AdminPopover` safe default `w-[min(calc(100vw-1rem),26rem)]` now caps the popover under 416 px viewports. See `redesign/ADAPT-PASS.md`.
 
-**[P2-T2-CARRY] 51× `bg-white` callsites should be `var(--admin-panel)`**
-- **Location:** 15 admin files including `dashboard-cards.tsx` (16 hits on cards/chips at `:140/361/586/829/1042/1224/1348/1367/1393/1589` plus others)
-- **Category:** Theming
-- **Recommendation:** Surgical sweep: replace on cards/chips (not on `<input>`s which contractually use `--admin-panel-input`).
-- **Suggested gate:** **Gate 7 polish.**
+~~**[P2-T2-CARRY] 51× `bg-white` callsites should be `var(--admin-panel)`**~~ — **HANDLED 2026-05-20.** Swept 24 canvas-rendered chrome callsites: `dashboard-cards.tsx` (16), `dashboard-filters-client.tsx` (5 chips + 3 form inputs routed to `--admin-surface-input`), `attention-group-client.tsx` (2 paginator buttons). The remaining 27 callsites across 13 files are intentional (opacity variants on dark surfaces, Switch thumb, email-iframe pure-white, print-only). Token discipline restored on the canvas surface.
 
-**[P2-T8-NEW] ReportsCharts hard-codes 4 brand hex values**
-- **Location:** `src/app/admin/reports/ReportsCharts.tsx:33, 38, 39, 40, 58, 62` — `#e8dfd2`, `#30463f`, `#2f7d6d`, `#c27803`
-- **Category:** Theming
-- **Impact:** Token escape on the highest-visibility analytics surface; neighbour `demand-trend-client.tsx:45,49` shows the correct `var(--admin-accent)` pattern.
-- **Recommendation:** Replace with tokens.
-- **Suggested gate:** **Gate 7 polish.**
+~~**[P2-T8-NEW] ReportsCharts hard-codes 4 brand hex values**~~ — **HANDLED 2026-05-20 (Gate 7 polish addendum).** All 6 callsites in `ReportsCharts.tsx` routed to tokens: `stroke="#e8dfd2"` ×2 → `stroke="var(--admin-border)"`; `stroke/fill="#30463f"` ×3 → `var(--admin-primary)`; `stroke="#2f7d6d"` → `var(--admin-success)`; `stroke="#c27803"` → `var(--admin-warning)`. Token discipline restored on the highest-visibility analytics surface.
 
-**[P2-T9-NEW] `#ffffff` literals in availability mode selector**
-- **Location:** `availability/AvailabilityModeSelector.tsx:171, 191`; `availability/page.tsx:234`
-- **Category:** Theming
-- **Recommendation:** `text-white` (or `text-[oklch(99%_0.005_165)]` near-white).
-- **Suggested gate:** **Gate 7 polish.**
+~~**[P2-T9-NEW] `#ffffff` literals in availability mode selector**~~ — **HANDLED 2026-05-20 (Gate 7 polish).** `--admin-on-primary: oklch(99.5% 0.003 88)` added to tokens.css. All 3 `#ffffff` instances (2 in `AvailabilityModeSelector.tsx`, 1 in `availability/page.tsx`) routed through the new token. See `redesign/POLISH-PASS.md`.
 
-**[P2-AP4-NEW] `bg-black/30` on leave-confirmation modal backdrop**
-- **Location:** `src/app/admin/bookings/new/ManualBookingForm.tsx:1905`
-- **Category:** Anti-Pattern (tinted-neutral law)
-- **Recommendation:** Replace with `bg-[oklch(12%_0.01_165)]/35` to match every other admin overlay.
-- **Suggested gate:** **Gate 7 polish.**
+~~**[P2-AP4-NEW] `bg-black/30` on leave-confirmation modal backdrop**~~ — **HANDLED 2026-05-20 (Gate 7 polish addendum).** `ManualBookingForm.tsx:1905` `bg-black/30` → `bg-[oklch(12%_0.01_165)]/35`. Matches every other admin overlay; tinted-neutral law restored.
 
-**[P2-P3-NEW] `transition-all` proliferation**
-- **Location:** 15 callsites across `dashboard-filters-client.tsx` ×4, `dashboard-cards.tsx` ×2, `notification-bell.tsx` ×1, `ManualBookingForm.tsx` ×8
-- **Category:** Performance
-- **Impact:** Triggers paint on every property change; prefer scoped `transition-colors`/`transition-shadow`/`transition-transform`.
-- **Suggested gate:** **Gate 4 optimize.**
+~~**[P2-P3-NEW] `transition-all` proliferation**~~ — **HANDLED 2026-05-19 (Gate 4 optimize).** All 15 callsites swept to property-scoped transitions (`transition-colors` / `transition-shadow` / `transition-transform` / `transition-[…]` enumerations). `grep "transition-all"` against `src/app/admin` returns zero matches. See `redesign/PERF-REPORT.md`.
 
 ### P3 — Polish (Gate 7)
 
-**[P3-A6-CARRY] Notification badge `text-white` colour-law spread**
-- **Location:** `notification-bell.tsx:413`, `attention-group-client.tsx:267`, multiple `bg-white/20 text-white` chip patterns
-- **Category:** Theming / Accessibility (no functional WCAG failure on the dark backgrounds these sit on)
-- **Recommendation:** `text-[oklch(99%_0.005_165)]` near-white.
-- **Suggested gate:** **Gate 7 polish.**
+~~**[P3-A6-CARRY] Notification badge `text-white` colour-law spread**~~ — **HANDLED 2026-05-20 (Gate 7 polish addendum).** 6 callsites swept: `notification-bell.tsx:496/504/571` and `attention-group-client.tsx:137/261/268` — every `text-white` on Clinic Green chrome rerouted to `text-[var(--admin-on-primary)]`. Brand colour law upheld; near-white token routing consistent with primary CTAs.
 
-**[P3-T6-CARRY] No dark-mode support** (accepted single-mode design per PRODUCT.md).
+**[P3-T6-CARRY] No dark-mode support** — **ACCEPTED-AS-IS** per PRODUCT.md design decision (warm clinical light palette is the brand; physical-scene test forces light mode).
 
 ---
 
@@ -184,18 +133,19 @@
 | Finding | Gate | Why |
 |---|---|---|
 | (none) | **Gate 2 clarify** | No copy / labelling P0–P1 found at the audit pass. Any copy concerns surface in `critique` (next pass), not `audit`. |
-| [P2-NEW1] Hydration mismatch `/admin/clients` | **Gate 3 harden** | Error state; Phase 6 zero-new-error contract violation. |
-| [P1-P2-CARRY] notification-bell waterfall | **Gate 4 optimize** | Performance. |
-| [P2-P3-NEW] `transition-all` proliferation | **Gate 4 optimize** | Performance. |
+| ~~[P2-NEW1] Hydration mismatch `/admin/clients`~~ | **Gate 3 harden — HANDLED 2026-05-19** | `getInitials()` Unicode-safe via `Array.from(parts[0])[0]`. 13 latent callsites patched in place. See HARDEN-PASS.md. |
+| ~~[P1-P2-CARRY] notification-bell waterfall~~ | **Gate 4 optimize — HANDLED 2026-05-19** | Migrated to `useSyncExternalStore` + module-level store cache; SSR-safe, no hydration mismatch, no eslint-disable. |
+| ~~[P2-P3-NEW] `transition-all` proliferation~~ | **Gate 4 optimize — HANDLED 2026-05-19** | All 15 callsites swept to property-scoped transitions. `grep transition-all` against admin returns zero. |
 | ~~[P2-R2-CARRY] `min-h-9` touch targets~~ | **Gate 5 adapt — HANDLED 2026-05-19** | Mobile WCAG 2.5.5. `min-h-11 sm:min-h-9` recipe applied at 9 callsites + global CSS `.admin-action-primary` / `.admin-action-outline` bumped to `min-height: 2.75rem` (mobile) / `2.5rem` (sm:). Live-verified at 375: every named CTA ≥ 44 px. See `redesign/ADAPT-PASS.md`. |
 | ~~[P2-R3-CARRY] notification popover width override~~ | **Gate 5 adapt — HANDLED 2026-05-19** | Mobile overflow < 416 px. `notification-bell.tsx:287` raw `w-[26rem]` className removed; `AdminPopover` safe default `w-[min(calc(100vw-1rem),26rem)]` now applies. See `redesign/ADAPT-PASS.md`. |
 | (none) | **Gate 6 onboard** | No weak empty-state regressions found; Therapist Casey #4 dashed-border is resolved; other empty states use the shared `EmptyState` component. |
-| [P1-AP2-CARRY] `backdrop-blur` proliferation | **Gate 7 polish** | Decision pending (accept-and-document vs. sweep). |
-| [P2-T2-CARRY] 51× `bg-white` | **Gate 7 polish** | Token discipline. |
-| [P2-T8-NEW] ReportsCharts hex literals | **Gate 7 polish** | Token discipline. |
-| [P2-T9-NEW] `#ffffff` literals | **Gate 7 polish** | Token discipline. |
-| [P2-AP4-NEW] `bg-black/30` modal backdrop | **Gate 7 polish** | Tinted-neutral law. |
-| [P3-A6-CARRY] `text-white` colour-law spread | **Gate 7 polish** | Brand colour law. |
+| ~~[P1-AP2-CARRY] `backdrop-blur` proliferation~~ | **Gate 7 polish — HANDLED 2026-05-20 (accept-and-document)** | DESIGN.md §6 amended to formalise the modal-backdrop carve-out: tinted overlay + blur is the admin's overlay-separation convention, never alone, only on transient overlay surfaces. No code mutation; the 22 callsites already conform. |
+| ~~[P2-T2-CARRY] 51× `bg-white`~~ | **Gate 7 polish — HANDLED 2026-05-20** | Token discipline. Swept 24 canvas-rendered chrome callsites (`bg-white` → `bg-[var(--admin-panel)]` for cards/chips/buttons; `bg-white` → `bg-[var(--admin-surface-input)]` for 3 form inputs). Remaining 27 callsites all intentional (opacity variants on dark surfaces, Switch thumb, email iframe, print). |
+| ~~[P2-T8-NEW] ReportsCharts hex literals~~ | **Gate 7 polish addendum — HANDLED 2026-05-20** | All 6 callsites routed to `--admin-border` / `--admin-primary` / `--admin-success` / `--admin-warning` tokens. |
+| ~~[P2-T9-NEW] `#ffffff` literals~~ | **Gate 7 polish — HANDLED 2026-05-20** | All 3 routed to `--admin-on-primary` token (new). |
+| ~~[P2-AP4-NEW] `bg-black/30` modal backdrop~~ | **Gate 7 polish addendum — HANDLED 2026-05-20** | Swapped to `bg-[oklch(12%_0.01_165)]/35` matching every other admin overlay. |
+| ~~[P3-A6-CARRY] `text-white` colour-law spread~~ | **Gate 7 polish addendum — HANDLED 2026-05-20** | 6 callsites in notification-bell + attention-group-client routed to `text-[var(--admin-on-primary)]`. |
+| [P3-T6-CARRY] No dark-mode support | **ACCEPTED-AS-IS** | Single-mode design per PRODUCT.md. Not a defect. |
 
 ---
 

@@ -155,9 +155,6 @@ export default async function RolesPage() {
         <Users className="size-4 shrink-0" aria-hidden="true" />
         <span>{summary}</span>
       </p>
-      <p className="sr-only">
-        Tip: press the letter N to open the create-role sheet.
-      </p>
 
       {error ? (
         <AdminPanel error="Couldn't load roles. Try refreshing.">

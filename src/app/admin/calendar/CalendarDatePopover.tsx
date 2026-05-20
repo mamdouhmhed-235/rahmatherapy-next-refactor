@@ -89,6 +89,29 @@ export function CalendarDatePopover({
   const committedRef = useRef(false);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  // Focus trap — keeps Tab/Shift+Tab cycling inside the popover while open.
+  const trapFocus = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const focusables = dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement as HTMLElement | null;
+    if (event.shiftKey && active === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && active === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, []);
 
   useEffect(() => {
     selectionRef.current = selection;
@@ -145,6 +168,19 @@ export function CalendarDatePopover({
     if (open) {
       committedRef.current = false;
       setSelection(initialSelection());
+      // Move keyboard focus into the dialog (first focusable). aria-modal
+      // alone doesn't shift focus; the user lands on background controls
+      // otherwise. Defer one frame so the picker's first day-button is in
+      // the DOM before we query for it.
+      requestAnimationFrame(() => {
+        const focusables = dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        focusables?.[0]?.focus();
+      });
+    } else {
+      // Restore focus to the trigger that opened the popover (WCAG 2.4.3).
+      triggerRef.current?.focus();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -171,6 +207,7 @@ export function CalendarDatePopover({
   return (
     <div className="relative" ref={containerRef}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         title={selectedTo ? `${selectedDate} → ${selectedTo}` : selectedDate}
@@ -188,7 +225,10 @@ export function CalendarDatePopover({
       {open ? (
         <div
           role="dialog"
+          aria-modal="true"
           aria-label="Pick a date or date range"
+          ref={dialogRef}
+          onKeyDown={trapFocus}
           className="fixed left-1/2 top-[5rem] z-50 w-[calc(100vw-1rem)] max-w-[20rem] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-2 shadow-[var(--admin-shadow-overlay)] sm:absolute sm:left-0 sm:top-[calc(100%+0.5rem)] sm:w-auto sm:max-w-none sm:translate-x-0"
         >
           <p className="px-2 pb-1 pt-1 text-[0.6875rem] text-[var(--admin-text-muted)]">

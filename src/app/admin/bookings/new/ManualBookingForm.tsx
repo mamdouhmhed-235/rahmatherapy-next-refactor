@@ -513,6 +513,52 @@ export function ManualBookingForm({
   const [overrideAvailability, setOverrideAvailability] = useState(false);
   const [showOverrideConfirm, setShowOverrideConfirm] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
+  const leaveDialogRef = useRef<HTMLDivElement>(null);
+  const leaveDialogReturnFocusRef = useRef<HTMLElement | null>(null);
+
+  // Focus trap + first-focus + restore-focus for the Leave dialog (WCAG 2.4.3, 2.1.2).
+  const trapLeaveDialogFocus = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setShowLeaveDialog(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const dialog = leaveDialogRef.current;
+      if (!dialog) return;
+      const focusables = dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (showLeaveDialog) {
+      leaveDialogReturnFocusRef.current = document.activeElement as HTMLElement | null;
+      requestAnimationFrame(() => {
+        const focusables = leaveDialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        focusables?.[0]?.focus();
+      });
+    } else if (leaveDialogReturnFocusRef.current) {
+      leaveDialogReturnFocusRef.current.focus();
+      leaveDialogReturnFocusRef.current = null;
+    }
+  }, [showLeaveDialog]);
 
   // Postcode lookup
   const [postcodeLookupError, setPostcodeLookupError] = useState("");
@@ -951,6 +997,9 @@ export function ManualBookingForm({
             <FieldLabel htmlFor="full_name" required>Full name</FieldLabel>
             <input
               id="full_name"
+              required
+              aria-describedby={stepErrors.full_name ? "full_name-error" : undefined}
+              aria-invalid={stepErrors.full_name ? "true" : undefined}
               value={fullName}
               placeholder="As the client would like it on their record"
               maxLength={100}
@@ -972,6 +1021,7 @@ export function ManualBookingForm({
             <input
               id="email"
               type="email"
+              required
               value={email}
               placeholder="sara@example.com"
               maxLength={254}
@@ -995,6 +1045,9 @@ export function ManualBookingForm({
             <FieldLabel htmlFor="phone" required>Phone number</FieldLabel>
             <input
               id="phone"
+              required
+              aria-describedby={stepErrors.phone ? "phone-error" : undefined}
+              aria-invalid={stepErrors.phone ? "true" : undefined}
               value={phone}
               placeholder="07…"
               maxLength={20}
@@ -1113,14 +1166,19 @@ export function ManualBookingForm({
             </div>
 
             {/* Services — package + massage as co-equal options */}
-            <div>
-              <div className="mb-3">
-                <p className="text-sm font-medium text-[var(--admin-heading)]">
-                  Services
-                  <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
-                </p>
-                <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">Pick a package, add massage therapy, or choose both.</p>
-              </div>
+            <fieldset
+              className="border-0 p-0"
+              aria-describedby={
+                stepErrors[`participant_services_${idx}`]
+                  ? `participant_services_${idx}-error`
+                  : undefined
+              }
+            >
+              <legend className="mb-1 text-sm font-medium text-[var(--admin-heading)]">
+                Services
+                <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
+              </legend>
+              <p className="mb-3 text-xs text-[var(--admin-text-muted)]">Pick a package, add massage therapy, or choose both.</p>
               {stepErrors[`participant_services_${idx}`] && (
                 <div className="mb-3">
                   <FieldError error={stepErrors[`participant_services_${idx}`]} id={`participant_services_${idx}-error`} />
@@ -1207,7 +1265,7 @@ export function ManualBookingForm({
                   </div>
                 )}
               </div>
-            </div>
+            </fieldset>
 
             {idx > 0 && (
               <div className="border-t border-[var(--admin-border)] pt-3">
@@ -1900,9 +1958,11 @@ export function ManualBookingForm({
       role="dialog"
       aria-modal="true"
       aria-labelledby="leave-dialog-heading"
+      ref={leaveDialogRef}
+      onKeyDown={trapLeaveDialogFocus}
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
     >
-      <div className="fixed inset-0 bg-black/30" onClick={() => setShowLeaveDialog(false)} />
+      <div className="fixed inset-0 bg-[oklch(12%_0.01_165)]/35" onClick={() => setShowLeaveDialog(false)} />
       <div className="relative z-10 w-full max-w-sm rounded-t-[var(--admin-radius-lg)] bg-[var(--admin-panel)] p-6 shadow-[0_8px_24px_oklch(23%_0.073_155/0.12)] sm:rounded-[var(--admin-radius-card)]">
         <h2 id="leave-dialog-heading" className="font-display text-base font-semibold text-[var(--admin-heading)]">
           Leave this booking?

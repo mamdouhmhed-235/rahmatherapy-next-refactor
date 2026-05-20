@@ -35,7 +35,7 @@ None. Step 8 not blocked.
 Nav link text and user menu trigger contrast failure discovered on physical device review. Root cause: `site-parity.css` global `a { color: inherit; }` defeated opacity-based white text utilities on `<a>` elements; Safari rendered default button background on the user menu trigger. Fixed by: `text-white` on brand `<Link>` + `<nav>` (scoped, no cascade to dropdown); inactive nav links changed to full `text-white`; trigger button given `bg-transparent appearance-none`. See HARDEN-RECS entry H7.
 
 **P1 (tag for Phase 7 gauntlet â€” do not fix per-page):**
-- `role="menu"` declared on UserMenuButton dropdown without arrow-key (â†‘/â†“) navigation. WCAG SC 4.1.2 â€” declared role doesn't match interaction model. `AdminCommandSearch` already implements arrow nav â€” same pattern needed in UserMenuButton. File: `src/app/admin/components/AdminTopNav.tsx`.
+- `role="menu"` declared on UserMenuButton dropdown without arrow-key (â†‘/â†“) navigation. WCAG SC 4.1.2 â€” declared role doesn't match interaction model. `AdminCommandSearch` already implements arrow nav â€” same pattern needed in UserMenuButton. File: `src/app/admin/components/AdminTopNav.tsx`. **NOT-FIXED 2026-05-20** — no arrow-key navigation handler verified in `UserMenuButton` (grep on `AdminTopNav.tsx` did not surface ArrowUp/ArrowDown wiring for that menu).
 
 **P2 (list here, next sprint):**
 - Dropdown + mobile sheet section group labels use `role="presentation"` on `<p>` elements â€” visual groups not conveyed to AT. Should be `role="group" aria-label`. Both `UserMenuButton` (line ~480) and `UserMenuSheet` (line ~745) affected.
@@ -91,7 +91,7 @@ No AI slop regression. Step 8 not blocked.
 ### Remaining Critique Issues
 
 **P1 (Phase 7 gauntlet):**
-- No primary CTA in mobile chrome â€” therapist/coordinator on phone has no one-tap path to New Booking from anywhere. Three navigation steps from cold start.
+- No primary CTA in mobile chrome â€” therapist/coordinator on phone has no one-tap path to New Booking from anywhere. Three navigation steps from cold start. **AMBIGUOUS / DEFERRED to Gate 8 critique** — IA / UX judgement (where to surface the primary CTA on mobile chrome); not a grep-verifiable defect.
 
 **P2 (next sprint):**
 - Dropdown taxonomy ("SCHEDULING & LEADS / COMMUNICATIONS / CLINIC SETUP / ADMIN & COMPLIANCE") is IT IA, not clinic mental model. Reorder around job-to-be-done frequency; add flat "Quick links" at top per role.
@@ -138,9 +138,9 @@ No AI slop regression. Step 8 not blocked.
 None. Step 8 NOT blocked by audit.
 
 **P1 (tag for Phase 7 gauntlet â€” do not fix per-page):**
-- Leave dialog missing focus trap. Keyboard users can Tab through background content while dialog is open. WCAG SC 2.1.2. File: `ManualBookingForm.tsx` ~line 1848.
-- Step 1 raw inputs (`#full_name`, `#email`, `#phone`) missing `required` HTML attribute. FieldLabel shows `*` visually but AT won't announce "required". WCAG SC 1.3.1. Lines 953, 971, 995.
-- Package radio group: no `<fieldset>` + `<legend>`. "Services *" heading is a `<p>` tag not semantically connected to radio inputs. FieldError not linked via `aria-describedby`. WCAG SC 1.3.1, 3.3.2. Lines 1115â€“1160.
+- Leave dialog missing focus trap. Keyboard users can Tab through background content while dialog is open. WCAG SC 2.1.2. File: `ManualBookingForm.tsx` ~line 1848. **NOT-FIXED 2026-05-20** — verified ManualBookingForm.tsx:1898-1926; dialog still uses raw `<div role="dialog">` with no focus trap, no aria-modal handling beyond static attribute.
+- Step 1 raw inputs (`#full_name`, `#email`, `#phone`) missing `required` HTML attribute. FieldLabel shows `*` visually but AT won't announce "required". WCAG SC 1.3.1. Lines 953, 971, 995. **NOT-FIXED 2026-05-20** — verified ManualBookingForm.tsx:952-1012; FieldLabel `required` prop applied but raw `<input>` elements still omit the HTML `required` attribute.
+- Package radio group: no `<fieldset>` + `<legend>`. "Services *" heading is a `<p>` tag not semantically connected to radio inputs. FieldError not linked via `aria-describedby`. WCAG SC 1.3.1, 3.3.2. Lines 1115â€“1160. **NOT-FIXED 2026-05-20** — verified ManualBookingForm.tsx:1116-1163; outer wrapper is still `<div>` with `<p>` heading at :1118, no `<fieldset>` + `<legend>`.
 
 **P2 (list here, next sprint):**
 - Availability loading state ("Checking availability for female participantsâ€¦") not in aria-live region. Screen readers won't announce it. WCAG SC 4.1.3. Lines 1418, 1483, 1527.
@@ -153,7 +153,7 @@ None. Step 8 NOT blocked by audit.
 - `SameGenderChip` function defined (lines 325â€“343) but never rendered. Dead code from previous session removal. 19 lines.
 - Participant rows keyed by `key={idx}` (line 1063). Should use stable participant ID to prevent React reconciliation issues when middle participant is removed from group booking.
 - Mobile time-slot grid `grid-cols-3` at 375px (~115px per slot). Not verified with real availability data (override was used in tests). Check with real slots showing.
-- `bg-black/30` on Leave dialog backdrop (line 1905). Brand-tint to `oklch(15% 0.02 155 / 30%)` for consistency. (Automated scanner finding.)
+- ~~`bg-black/30` on Leave dialog backdrop (line 1905). Brand-tint to `oklch(15% 0.02 155 / 30%)` for consistency. (Automated scanner finding.)~~ **HANDLED 2026-05-20 (Gate 7 polish)** — verified ManualBookingForm.tsx:1905 now uses `bg-[oklch(12%_0.01_165)]/35`; `bg-black` zero hits across `src/app/admin`.
 
 ---
 
@@ -196,7 +196,7 @@ Moderate (2 failures of 8 checklist items):
 ### Critique Findings by Severity
 
 **P1 (Phase 7 gauntlet):**
-- Step 4 cognitively overloaded. Three summary cards + three-panel sidebar simultaneously visible. Coordinator under time pressure may confirm without catching errors. Fix: collapse summary cards to accordion (collapsed by default, one-line preview visible). Command: `/impeccable distill booking-new`.
+- Step 4 cognitively overloaded. Three summary cards + three-panel sidebar simultaneously visible. Coordinator under time pressure may confirm without catching errors. Fix: collapse summary cards to accordion (collapsed by default, one-line preview visible). Command: `/impeccable distill booking-new`. **AMBIGUOUS / DEFERRED to Gate 8 critique** — cognitive-load judgement, not a grep-verifiable defect.
 
 **P2 (next sprint):**
 - "Override availability" has no inline consequence explanation. Coordinator can activate without understanding she is scheduling with no therapist guarantee. Fix: rename to "Book without availability check"; add persistent Attention-family callout + mandatory acknowledgement checkbox. Command: `/impeccable clarify booking-new`.
@@ -205,7 +205,7 @@ Moderate (2 failures of 8 checklist items):
 
 **P3 (nice-to-fix):**
 - "Booking for" mode indicator absent in Step 2. Coordinator may forget which mode she chose by the time she reaches participant entry. Fix: one-line mode confirmation label at top of Step 2: "Booking for: Themself (change in Step 1)." Command: `/impeccable clarify booking-new`.
-- `bg-black/30` dialog backdrop (automated scanner finding). Tint to brand hue for consistency.
+- ~~`bg-black/30` dialog backdrop (automated scanner finding). Tint to brand hue for consistency.~~ **HANDLED 2026-05-20 (Gate 7 polish)** — verified ManualBookingForm.tsx:1905 now uses `bg-[oklch(12%_0.01_165)]/35` tinted-neutral.
 
 ---
 
@@ -282,8 +282,8 @@ Moderate (2 failures of 8 checklist items):
 - **Warm-clinical palette absent in render.** Group + same-gender chips use hardcoded lavender (`oklch(94% 0.008 280)`) rather than the `restricted` token; gold accent never appears anywhere. Surface area is green + grey + one red, not the brief's mandated full palette. Command: `/impeccable colorize bookings`.
 
 **P1 (advisory):**
-- **Pre-list chrome dominates on mobile** in the worst-filter state â€” first booking row falls below the fold. Command: `/impeccable adapt bookings`.
-- **"Needs Attention" is opaque** â€” four unrelated conditions under one label; novice operators can't predict the queue. Command: `/impeccable clarify bookings`.
+- **Pre-list chrome dominates on mobile** in the worst-filter state â€” first booking row falls below the fold. Command: `/impeccable adapt bookings`. **AMBIGUOUS / DEFERRED to Gate 8 critique** — mobile-density visual judgement; defer.
+- **"Needs Attention" is opaque** â€” four unrelated conditions under one label; novice operators can't predict the queue. Command: `/impeccable clarify bookings`. **AMBIGUOUS / DEFERRED to Gate 8 critique** — copy/IA judgement; defer.
 
 ### Cognitive Load
 
@@ -328,7 +328,7 @@ Moderate (2 failures of 8 checklist items):
 ### Remaining advisory issues (post-fix)
 
 **P1 (Phase 7 gauntlet):**
-- Chip ceiling still 6 on the worst-case row (group booking + rescheduled + client-cancelled + unassigned + same-gender required + status). Real but rare. Consider folding the reschedule + client-cancelled icons into a single "flags" cluster with a combined tooltip.
+- Chip ceiling still 6 on the worst-case row (group booking + rescheduled + client-cancelled + unassigned + same-gender required + status). Real but rare. Consider folding the reschedule + client-cancelled icons into a single "flags" cluster with a combined tooltip. **AMBIGUOUS / DEFERRED to Gate 8 critique** — chip-cluster visual-density judgement; defer to Gate 8 critique re-score.
 
 **P2 (next sprint):**
 - Header chrome density: mobile users see tab strip â†’ saved-views row â†’ Refine button â†’ active-filter chips before the first row. Saved views could collapse into the "More" overflow on mobile, or hide until the first save.
@@ -431,7 +431,7 @@ None at the audit level. (Critique elevates mobile section-order to P1 from a UX
 **P0:** None. Step 8 not blocked.
 
 **P1 (tag for Phase 7 gauntlet â€” do not fix per-page):**
-- **Mobile section order strands Address card at page-bottom.** Therapist mobile workflow (PRODUCT.md: "mobile-first frequency, not mobile-as-fallback") requires fast access to Maps. Current scroll path passes 5 admin-only panels before reaching the visit address. Fix path: interleave Client + Address into main column on mobile, hide sidebar block at mobile width. (Audit graded this P2; UX-mobile-first lens elevates to P1.)
+- **Mobile section order strands Address card at page-bottom.** Therapist mobile workflow (PRODUCT.md: "mobile-first frequency, not mobile-as-fallback") requires fast access to Maps. Current scroll path passes 5 admin-only panels before reaching the visit address. Fix path: interleave Client + Address into main column on mobile, hide sidebar block at mobile width. (Audit graded this P2; UX-mobile-first lens elevates to P1.) **AMBIGUOUS / DEFERRED to Gate 8 critique** — mobile-IA judgement that requires runtime / responsive verification, not grep.
 
 **P2 (list here, next sprint):**
 - Quick actions (Confirm / Mark paid / Mark complete) fire instantly with no Sonner `Undo` action. Recovery requires re-editing the Status form. PRODUCT.md commits to "auditable AND reversible" â€” page satisfies auditable but not reversible-from-UI.
@@ -635,12 +635,12 @@ none
 
 ### P1 findings (fix this sprint)
 
-- **DayPicker popover is not a real modal** â€” `CalendarDatePopover.tsx:189-233` declares `role="dialog"` but lacks `aria-modal="true"`, has no focus trap (Tab leaks to the page behind), and the only dismiss paths are document-`mousedown` + Escape. Keyboard-only users land on background controls while the picker is "open." Category: Accessibility. WCAG 2.4.3 (Focus Order), 4.1.2 (Name, Role, Value).
-- **Mobile bottom-nav overlaps calendar content** â€” `page.tsx:393` sets `pb-12` (48px) on the page root but the mobile bottom-nav stack is ~64-80px plus iOS safe-area inset. `mobile-check-thismonth-v2.png` shows the "More" tab sitting on top of grid rows 16-17 and the Unassigned panel rows. Category: Responsive.
-- **Day-agenda time-rail no longer encodes start_time accurately** â€” `page.tsx:1111-1129` enforces `MIN_CARD_HEIGHT=140px` and stacks-below-on-overlap, so the second 30-minute booking is pushed below the first by `prev.height + CARD_GAP` rather than positioned at its true minute offset. The hourly tick rules at `page.tsx:1211-1218` no longer line up with the cards beneath them, breaking the brief Â§5 promise ("each `BookingListCard` aligns to its `start_time`"). Category: Anti-Pattern / correctness.
-- **Modifier icon cluster reads as color-only on mobile** â€” `page.tsx:1393-1445` and `ModifierIcon` at `page.tsx:1468-1492` stack up to 5 nearly-identical tinted glyphs (AlertCircle, Clock, UserX, CheckCircle) on each card. The `title` tooltip is the only inline disambiguator and tooltips don't fire on touch. `sr-only` covers screen readers but sighted touch users see "pending pill + four orange-tinted circles" with no inline labels. Visible in `range-view-1440.png`. Category: Accessibility / Anti-Pattern. DESIGN.md "Named Status Rule" (every status badge requires a text label).
-- **Dashed-border empty-day row** â€” `page.tsx:770` renders empty week-days with `border-dashed`. DESIGN.md Â§6 Don'ts: "Don't use dashed borders on empty states. A dashed border reads as 'placeholder' or 'unfinished'." Category: Anti-Pattern.
-- **Raw OKLCH color literals throughout** â€” 34 inline `oklch(...)` color values in `page.tsx` (validation banner `:536`, today's-roundup stats `:594, :599, :604`, active-filter chips `:557, :567`, concurrent banner `:1155, :1275`, day numerals `:905`, count badges `:944`, sidebar disclosure `:1540-1599`, status-tint pills throughout). Brief Â§9 explicitly flagged this as a Phase 6 cleanup. Category: Theming.
+- **DayPicker popover is not a real modal** â€” `CalendarDatePopover.tsx:189-233` declares `role="dialog"` but lacks `aria-modal="true"`, has no focus trap (Tab leaks to the page behind), and the only dismiss paths are document-`mousedown` + Escape. Keyboard-only users land on background controls while the picker is "open." Category: Accessibility. WCAG 2.4.3 (Focus Order), 4.1.2 (Name, Role, Value). **NOT-FIXED 2026-05-20** — file still missing `aria-modal` + focus-trap.
+- **Mobile bottom-nav overlaps calendar content** â€” `page.tsx:393` sets `pb-12` (48px) on the page root but the mobile bottom-nav stack is ~64-80px plus iOS safe-area inset. `mobile-check-thismonth-v2.png` shows the "More" tab sitting on top of grid rows 16-17 and the Unassigned panel rows. Category: Responsive. **NOT-FIXED 2026-05-20** — page.tsx:393 still `pb-12`.
+- **Day-agenda time-rail no longer encodes start_time accurately** â€” `page.tsx:1111-1129` enforces `MIN_CARD_HEIGHT=140px` and stacks-below-on-overlap, so the second 30-minute booking is pushed below the first by `prev.height + CARD_GAP` rather than positioned at its true minute offset. The hourly tick rules at `page.tsx:1211-1218` no longer line up with the cards beneath them, breaking the brief Â§5 promise ("each `BookingListCard` aligns to its `start_time`"). Category: Anti-Pattern / correctness. **AMBIGUOUS 2026-05-20** — runtime positioning correctness; requires Gate 8 critique re-score.
+- **Modifier icon cluster reads as color-only on mobile** â€” `page.tsx:1393-1445` and `ModifierIcon` at `page.tsx:1468-1492` stack up to 5 nearly-identical tinted glyphs (AlertCircle, Clock, UserX, CheckCircle) on each card. The `title` tooltip is the only inline disambiguator and tooltips don't fire on touch. `sr-only` covers screen readers but sighted touch users see "pending pill + four orange-tinted circles" with no inline labels. Visible in `range-view-1440.png`. Category: Accessibility / Anti-Pattern. DESIGN.md "Named Status Rule" (every status badge requires a text label). **AMBIGUOUS 2026-05-20** — visual-language judgement, defer to Gate 8 critique re-score.
+- ~~**Dashed-border empty-day row** â€” `page.tsx:770` renders empty week-days with `border-dashed`. DESIGN.md Â§6 Don'ts: "Don't use dashed borders on empty states. A dashed border reads as 'placeholder' or 'unfinished'." Category: Anti-Pattern.~~ **HANDLED 2026-05-20** — `border-dashed` zero matches across `src/app/admin/calendar/`.
+- **Raw OKLCH color literals throughout** â€” 34 inline `oklch(...)` color values in `page.tsx` (validation banner `:536`, today's-roundup stats `:594, :599, :604`, active-filter chips `:557, :567`, concurrent banner `:1155, :1275`, day numerals `:905`, count badges `:944`, sidebar disclosure `:1540-1599`, status-tint pills throughout). Brief Â§9 explicitly flagged this as a Phase 6 cleanup. Category: Theming. **NOT-FIXED 2026-05-20** — grep still counts 35 oklch literals in calendar/page.tsx.
 
 ### P2 findings (next cycle)
 
@@ -666,12 +666,12 @@ none
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- **DayPicker popover missing `aria-modal` + focus trap** â€” `CalendarDatePopover.tsx:189-233`
-- **Mobile `pb-12` doesn't clear the bottom-nav** â€” `page.tsx:393` (visible in `mobile-check-thismonth-v2.png`)
-- **Day-agenda time-rail / start_time positioning is off** â€” `page.tsx:1111-1129` (positioning) + `page.tsx:1211-1218` (tick rules)
-- **Modifier icon cluster is effectively color-only on mobile** â€” `page.tsx:1393-1445`, `ModifierIcon` at `page.tsx:1468-1492` (visible in `range-view-1440.png`)
-- **Dashed-border empty-day row** â€” `page.tsx:770`
-- **Raw `oklch(...)` color literals across the page (34 occurrences)** â€” multiple locations
+- **DayPicker popover missing `aria-modal` + focus trap** â€” `CalendarDatePopover.tsx:189-233`. **NOT-FIXED 2026-05-20** — verified `role="dialog"` still declared without `aria-modal="true"`; no focus-trap helper present (grep: `aria-modal|focus.{0,10}trap|FocusTrap` zero matches in file).
+- **Mobile `pb-12` doesn't clear the bottom-nav** â€” `page.tsx:393` (visible in `mobile-check-thismonth-v2.png`). **NOT-FIXED 2026-05-20** — verified page.tsx:393 still `pb-12 ... lg:pb-0` (≈48 px mobile padding, below the ~64-80 px bottom-nav stack).
+- **Day-agenda time-rail / start_time positioning is off** â€” `page.tsx:1111-1129` (positioning) + `page.tsx:1211-1218` (tick rules). **AMBIGUOUS 2026-05-20** — finding describes runtime positioning correctness that grep cannot confirm; defer to Gate 8 critique re-score.
+- **Modifier icon cluster is effectively color-only on mobile** â€” `page.tsx:1393-1445`, `ModifierIcon` at `page.tsx:1468-1492` (visible in `range-view-1440.png`). **AMBIGUOUS 2026-05-20** — visual-language finding (multiple warm-amber discs); requires Gate 8 critique re-score, not grep.
+- ~~**Dashed-border empty-day row** â€” `page.tsx:770`~~ **HANDLED 2026-05-20** — `border-dashed`/`dashed` zero matches in `src/app/admin/calendar/`.
+- **Raw `oklch(...)` color literals across the page (34 occurrences)** â€” multiple locations. **NOT-FIXED 2026-05-20** — `oklch(` still returns 35 matches in `src/app/admin/calendar/page.tsx`.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -776,8 +776,8 @@ A confident, calm, recognisably-Rahma operations agenda that lands the major bri
 
 ### P1 â€” Fix this sprint
 
-- `src/app/admin/availability/AvailabilityManagersTabs.tsx:62-85` â€” Three `<section role="tabpanel">` elements set `aria-labelledby="availability-tab-{hours|closed|adjustments}"`, but the corresponding tab buttons at `AvailabilityManagersTabs.tsx:41-55` carry no `id`. Every tabpanel has a dangling ARIA reference. Add `id={"availability-tab-${tab.key}"}` to the button.
-- `src/app/admin/availability/AvailabilityManagersTabs.tsx:33-59` â€” `role="tablist"` + `role="tab"` declared but no Left/Right/Home/End keyboard navigation handler is wired. Per ARIA Authoring Practices, tab widgets must support arrow-key navigation between tabs.
+- ~~`src/app/admin/availability/AvailabilityManagersTabs.tsx:62-85` â€” Three `<section role="tabpanel">` elements set `aria-labelledby="availability-tab-{hours|closed|adjustments}"`, but the corresponding tab buttons at `AvailabilityManagersTabs.tsx:41-55` carry no `id`. Every tabpanel has a dangling ARIA reference. Add `id={"availability-tab-${tab.key}"}` to the button.~~ **HANDLED 2026-05-20** — grep confirms `id={`availability-tab-${tab.key}`}` is present on each tab button at AvailabilityManagersTabs.tsx:81.
+- ~~`src/app/admin/availability/AvailabilityManagersTabs.tsx:33-59` â€” `role="tablist"` + `role="tab"` declared but no Left/Right/Home/End keyboard navigation handler is wired. Per ARIA Authoring Practices, tab widgets must support arrow-key navigation between tabs.~~ **HANDLED 2026-05-20** — verified `handleKeyDown` at :45-48 with ArrowLeft/ArrowRight cases; bound via `onKeyDown={handleKeyDown}` at :72.
 
 ### P2 â€” Next cycle
 
@@ -798,8 +798,8 @@ A confident, calm, recognisably-Rahma operations agenda that lands the major bri
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- **Tabpanel aria-labelledby targets are dangling** â€” `src/app/admin/availability/AvailabilityManagersTabs.tsx:62-85` reference `availability-tab-{key}` IDs that are not declared on the tab buttons at lines 41-55.
-- **Tab strip missing arrow-key keyboard navigation** â€” `src/app/admin/availability/AvailabilityManagersTabs.tsx:33-59` uses `role="tablist"` / `role="tab"` without an `onKeyDown` handler for ArrowLeft / ArrowRight / Home / End.
+- ~~**Tabpanel aria-labelledby targets are dangling** â€” `src/app/admin/availability/AvailabilityManagersTabs.tsx:62-85` reference `availability-tab-{key}` IDs that are not declared on the tab buttons at lines 41-55.~~ **HANDLED 2026-05-20** — verified AvailabilityManagersTabs.tsx:81 `id={`availability-tab-${tab.key}`}` now on each tab button; ids match panel `aria-labelledby` at :108/:116/:124.
+- ~~**Tab strip missing arrow-key keyboard navigation** â€” `src/app/admin/availability/AvailabilityManagersTabs.tsx:33-59` uses `role="tablist"` / `role="tab"` without an `onKeyDown` handler for ArrowLeft / ArrowRight / Home / End.~~ **HANDLED 2026-05-20** — verified AvailabilityManagersTabs.tsx:45-48 ArrowLeft/ArrowRight cases; `:72 onKeyDown={handleKeyDown}` wired.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -902,8 +902,8 @@ After the initial Phase-6 closure (audit 28/40, critique 28/40 with AI-slop PASS
 
 - **P0:** none
 - **P1 (tag for Phase 7 gauntlet):**
-  - Subagent audit + critique not executed (turn budget). Phase 7 should run them and may surface findings not caught by self-review.
-  - Full Playwright form-flow smoke not executed (dirtyâ†’save toast, modal flow, beforeunload). Phase 7 should exercise.
+  - Subagent audit + critique not executed (turn budget). Phase 7 should run them and may surface findings not caught by self-review. **DEFERRED to Gate 8 critique re-score** — process tag (not a technical defect); Gate 8 re-scores all 29 pages.
+  - Full Playwright form-flow smoke not executed (dirtyâ†’save toast, modal flow, beforeunload). Phase 7 should exercise. **DEFERRED to Gate 8 / smoke pass** — process tag; not a verifiable defect.
 - **P2:** none surfaced via 3-viewport visual audit + code review.
 - **P3:** Raw `oklch()` literals could be consolidated into named DESIGN.md status-family tokens; this is a project-wide refactor opportunity (existing admin-ui.tsx uses the same pattern).
 
@@ -1068,8 +1068,8 @@ _(Self-audit performed by main agent due to turn budget; subagent dispatch decli
 **P0/P1/P2/P3 findings:**
 - P0: none.
 - P1 (tag for Phase 7 gauntlet):
-  - Server-side `phone XOR email` validation gap — `src/app/admin/enquiries/actions.ts:25–33` Zod schema does not enforce; brief Copy §Error promises a specific message. Deferred to Phase 7 backend cycle (action file is recipe untouchable).
-  - Mobile filter sheet uses `<details>` not `AdminSheet` — `src/app/admin/enquiries/page.tsx:~340–390`; functionally equivalent but no focus trap. Deferred to Phase 7.
+  - Server-side `phone XOR email` validation gap — `src/app/admin/enquiries/actions.ts:25–33` Zod schema does not enforce; brief Copy §Error promises a specific message. Deferred to Phase 7 backend cycle (action file is recipe untouchable). **DEFERRED to Phase 7 backend cycle** — action file remains recipe-untouchable; verification not in scope of UI gauntlet.
+  - ~~Mobile filter sheet uses `<details>` not `AdminSheet` — `src/app/admin/enquiries/page.tsx:~340–390`; functionally equivalent but no focus trap. Deferred to Phase 7.~~ **HANDLED 2026-05-20** — verified `import { AdminSheet } from "../components/admin-ui-interactions"` at page.tsx:19; mobile branch renders `<AdminSheet>` at :461.
 - P2:
   - Filter bar visually distinct from `AdminFilterBar` shared component — hand-rolled to support label-above-input layout. Phase 7 can converge.
   - Tab "New" count badge derives from full-list scan (in-memory); will not scale past ~500 rows. `// FAKE: BUILD-enquiries-filter-query` comments mark every filter-read site; BUILD plan resolves at backend-cycle time.
@@ -1079,8 +1079,8 @@ _(Self-audit performed by main agent due to turn budget; subagent dispatch decli
 **Backend status:** FAKE — depends on `BUILD-enquiries-filter-query.md` for server-side tab + filter query.
 
 **P1 (tag for Phase 7 gauntlet):**
-- `actions.ts` schema lacks `phone XOR email` cross-field validation (file untouchable) — Phase 7 backend cycle.
-- Mobile filter `<details>` lacks focus trap vs `AdminSheet` — Phase 7 audit.
+- `actions.ts` schema lacks `phone XOR email` cross-field validation (file untouchable) — Phase 7 backend cycle. **DEFERRED to backend cycle** — actions.ts is recipe-untouchable; not in UI gauntlet scope.
+- ~~Mobile filter `<details>` lacks focus trap vs `AdminSheet` — Phase 7 audit.~~ **HANDLED 2026-05-20** — page.tsx:461 wraps mobile filters in `<AdminSheet>` (focus-trapped, portal-rendered).
 
 **BUSINESS-COMPLETENESS impact:**
 - 2A-6 (form-level `role="alert" aria-live="polite"`) — newly contributed: `EnquiryForm` renders the form-error region with full WCAG attribute set + every field-error wraps in the same region pattern. Status: PARTIAL → reinforced.
@@ -1181,8 +1181,8 @@ _(Self-critique with same caveat as above audit.)_
 - none
 
 ### P1 findings
-- **Action-family signal is colour-only for sighted users.** `src/app/admin/audit/AuditEventCard.tsx:19-50, 119-126` — `chipClasses()` produces an 8px coloured dot with no text label or icon for sighted users. Brief §5 specifies "single Confirmed / Pending / Cancelled / Restricted family chip beneath the top row" with AdminStatusBadge contract (bg + text + icon + visible label). DESIGN.md §2 Named Status Rule, PRODUCT.md anti-references ("Color-only status signalling"). Restore the chip per brief §5 + DESIGN.md §5 AdminStatusBadge (label + icon + tint).
-- **Print stylesheet: `<details>` does not force open on print.** `src/app/admin/audit/AuditEventCard.tsx:158` uses `print:!open` as a Tailwind class. `open` is an HTML attribute, not a CSS property; no `details[open]` rule in `src/app/globals.css`. JSON before/after well stays collapsed on print. Add `@media print { details > div { display: block !important } summary { display: none } }` to globals.css.
+- **Action-family signal is colour-only for sighted users.** `src/app/admin/audit/AuditEventCard.tsx:19-50, 119-126` — `chipClasses()` produces an 8px coloured dot with no text label or icon for sighted users. Brief §5 specifies "single Confirmed / Pending / Cancelled / Restricted family chip beneath the top row" with AdminStatusBadge contract (bg + text + icon + visible label). DESIGN.md §2 Named Status Rule, PRODUCT.md anti-references ("Color-only status signalling"). Restore the chip per brief §5 + DESIGN.md §5 AdminStatusBadge (label + icon + tint). **NOT-FIXED 2026-05-20** — verified AuditEventCard.tsx:21-37; `chipClasses()` still returns 8px dot classes for each family.
+- **Print stylesheet: `<details>` does not force open on print.** `src/app/admin/audit/AuditEventCard.tsx:158` uses `print:!open` as a Tailwind class. `open` is an HTML attribute, not a CSS property; no `details[open]` rule in `src/app/globals.css`. JSON before/after well stays collapsed on print. Add `@media print { details > div { display: block !important } summary { display: none } }` to globals.css. **NOT-FIXED 2026-05-20** — `@media print` / `details[open]` zero matches in globals.css.
 
 ### P2 findings
 - **Date-range presets use rolling windows, not calendar boundaries.** `src/app/admin/audit/page.tsx:298-316` — `today = now - 24h`, `this_week = now - 7d`, `this_month = now - 30d`. Anchor presets to Europe/London 00:00 / start-of-ISO-week / start-of-month.
@@ -1206,8 +1206,8 @@ _(Self-critique with same caveat as above audit.)_
 Both correctly flagged in-source: `src/app/admin/audit/page.tsx:93-95, 119-124` and `src/app/admin/audit/actions.ts:35-48`.
 
 ### P1 (tag for Phase 7 gauntlet)
-- **Action-family signal is colour-only for sighted users** — `src/app/admin/audit/AuditEventCard.tsx:19-50, 119-126`
-- **Print stylesheet: `<details>` does not force open on print** — `src/app/admin/audit/AuditEventCard.tsx:158`; missing `@media print` rule in `src/app/globals.css`
+- **Action-family signal is colour-only for sighted users** — `src/app/admin/audit/AuditEventCard.tsx:19-50, 119-126`. **NOT-FIXED 2026-05-20** — `chipClasses()` at :21-37 still emits an 8px coloured dot (no text label / no icon pairing for sighted users).
+- **Print stylesheet: `<details>` does not force open on print** — `src/app/admin/audit/AuditEventCard.tsx:158`; missing `@media print` rule in `src/app/globals.css`. **NOT-FIXED 2026-05-20** — `@media print|details\[open\]` zero matches in globals.css.
 
 ### BUSINESS-COMPLETENESS impact
 **2A-6** — Form errors aria-live announce: the `AuditFilterStrip.tsx:181-190` search-error and date-range-invalid regions wrap in `role="alert" aria-live="polite"`; the timeline load-error region at `page.tsx:163-176` also wraps in `role="alert" aria-live="polite"`. New page-level contribution to the Track A 2A-6 universal rollout (form-level error regions).
@@ -1227,8 +1227,8 @@ Both correctly flagged in-source: `src/app/admin/audit/page.tsx:93-95, 119-124` 
 none
 
 ### P1 findings
-- **Raw `oklch()` literals replace severity tokens** — token-drift violation in `src/app/admin/operations/event-row.tsx:160`, `:172`, `:173`, `:174`, `:182`, `src/app/admin/operations/page.tsx:368`, `:376`. (See main-agent note: matches admin-ui.tsx canonical Phase 4 OKLCH; legacy hex vars in tokens.css would be a regression.)
-- **`xl:break-all` mangles summary text mid-word** — `src/app/admin/operations/event-row.tsx:198`. Replace with `xl:break-words` (or omit; `line-clamp-1` already truncates).
+- **Raw `oklch()` literals replace severity tokens** — token-drift violation in `src/app/admin/operations/event-row.tsx:160`, `:172`, `:173`, `:174`, `:182`, `src/app/admin/operations/page.tsx:368`, `:376`. (See main-agent note: matches admin-ui.tsx canonical Phase 4 OKLCH; legacy hex vars in tokens.css would be a regression.) **NOT-FIXED 2026-05-20** — grep confirms all five event-row.tsx lines + two page.tsx lines still inline raw oklch literals.
+- ~~**`xl:break-all` mangles summary text mid-word** — `src/app/admin/operations/event-row.tsx:198`. Replace with `xl:break-words` (or omit; `line-clamp-1` already truncates).~~ **HANDLED 2026-05-20** — `break-all` zero matches in `src/app/admin/operations/event-row.tsx`.
 
 ### P2 findings
 - **Backend filter query is FAKE** — `src/app/admin/operations/page.tsx:70-77` queries `.from("operational_events").select(...).limit(300)` ignoring all filter params. Blocking BUILD plan: `BUILD-operations-filter-query.md`.
@@ -1248,8 +1248,8 @@ none
 **FAKE.** Blocking BUILD plan: `BUILD-operations-filter-query.md` (named verbatim in `redesign/IMPLEMENTATION-PLAN.md` Layer 0 row 10).
 
 ### P1 (tag for Phase 7 gauntlet)
-- Raw `oklch()` literals replace severity tokens — `src/app/admin/operations/event-row.tsx:160,172,173,174,182`, `src/app/admin/operations/page.tsx:368,376`
-- `xl:break-all` mangles summary text mid-word — `src/app/admin/operations/event-row.tsx:198`
+- Raw `oklch()` literals replace severity tokens — `src/app/admin/operations/event-row.tsx:160,172,173,174,182`, `src/app/admin/operations/page.tsx:368,376`. **NOT-FIXED 2026-05-20** — verified all listed lines still emit raw oklch literals; no migration to `--admin-{danger,warning,restricted}-bg` tokens.
+- ~~`xl:break-all` mangles summary text mid-word — `src/app/admin/operations/event-row.tsx:198`~~ **HANDLED 2026-05-20** — `break-all` removed from `src/app/admin/operations/event-row.tsx` (grep: 0 matches).
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -1317,8 +1317,8 @@ The page is operator-grade, on-brand, and notably calm. The headroom is in the e
 - none
 
 **P1 — Fix this sprint — significant impact on users**
-- Mobile rebook flow incomplete — "New booking" Ghost is `hidden ... md:inline-flex` (page.tsx:~980) with no mobile action bar replacement; brief §6/§7 require `AdminMobileActionBar`.
-- Sort toggle uses `aria-current="page"` on `<Link>` (page.tsx:~793) — misuse of `aria-current` per WAI-ARIA.
+- ~~Mobile rebook flow incomplete — "New booking" Ghost is `hidden ... md:inline-flex` (page.tsx:~980) with no mobile action bar replacement; brief §6/§7 require `AdminMobileActionBar`.~~ **HANDLED 2026-05-20 (revision pass)** — surfaced via `ClientRowMenu.tsx:77` mobile popover (substitute path; true AdminMobileActionBar still deferred per clients-deferrals.md).
+- ~~Sort toggle uses `aria-current="page"` on `<Link>` (page.tsx:~793) — misuse of `aria-current` per WAI-ARIA.~~ **HANDLED 2026-05-20 (revision pass)** — page.tsx:1093 now uses `aria-pressed={active}` on SortLink.
 
 **P2 — Next cycle — noticeable but not blocking**
 - Mobile filter sheet is a native `<details>/<summary>` (page.tsx:~555-620) rather than brief-specified `AdminSheet`.
@@ -1336,8 +1336,8 @@ The page is operator-grade, on-brand, and notably calm. The headroom is in the e
 **Backend status:** HANDLED. The "sort by last visit" capability is computed in-memory from already-fetched booking dates; page does not block on `BUILD-clients-sort-last-visit.md` (IMPLEMENTATION-PLAN.md row 18). No FAKE data, no schema gap.
 
 **P1 (tag for Phase 7 gauntlet):**
-- Mobile rebook flow incomplete — `src/app/admin/clients/page.tsx:~977-984`
-- Sort toggle misuses `aria-current="page"` — `src/app/admin/clients/page.tsx:~793`
+- ~~Mobile rebook flow incomplete — `src/app/admin/clients/page.tsx:~977-984`~~ **HANDLED 2026-05-20 (revision pass)** — verified `ClientRowMenu.tsx:77` renders "Start new booking" link inside mobile popover; consumed by page.tsx:1343.
+- ~~Sort toggle misuses `aria-current="page"` — `src/app/admin/clients/page.tsx:~793`~~ **HANDLED 2026-05-20 (revision pass)** — verified page.tsx:1093 now uses `aria-pressed={active}` on SortLink.
 
 **BUSINESS-COMPLETENESS impact:**
 - **2A-5** (Unlabelled `/admin/clients` `location` filter) — page.tsx ships visible `<label htmlFor="location">Location</label>` and matching `<label htmlFor="location-mobile">`; P0 WCAG AA fix lands.
@@ -1462,11 +1462,11 @@ Both are referenced inline in the code via `data-redesign-backend="FAKE"` marker
 - *none.*
 
 #### P1 — Fix this sprint
-- List-style `disc` bullets visible on every row (`src/app/admin/staff/page.tsx:614`, `:645`, `:425`).
-- Workload-at-a-glance is a stat-tile row, not the brief's prose (`src/app/admin/staff/page.tsx:418-453` + `:692-707`).
-- Uppercase `tracking-[0.04em]` segment labels (`src/app/admin/staff/page.tsx:699`).
-- Workload-strip horizontally scrolls on mobile (`src/app/admin/staff/page.tsx:425`).
-- Avatar decorative tints sampled from Status-family colours (`src/app/admin/staff/page.tsx:716-721`).
+- ~~List-style `disc` bullets visible on every row (`src/app/admin/staff/page.tsx:614`, `:645`, `:425`).~~ **HANDLED 2026-05-20 (post-distill iter2)** — `list-none` applied to both `<ul>`s.
+- ~~Workload-at-a-glance is a stat-tile row, not the brief's prose (`src/app/admin/staff/page.tsx:418-453` + `:692-707`).~~ **HANDLED 2026-05-20 (post-distill iter2)** — Team-health pill row replaces the stat-tile composition.
+- ~~Uppercase `tracking-[0.04em]` segment labels (`src/app/admin/staff/page.tsx:699`).~~ **HANDLED 2026-05-20 (post-distill iter2)** — segment-label uppercase removed.
+- ~~Workload-strip horizontally scrolls on mobile (`src/app/admin/staff/page.tsx:425`).~~ **HANDLED 2026-05-20 (post-distill iter2)** — `flex-col` on mobile, no overflow-x.
+- ~~Avatar decorative tints sampled from Status-family colours (`src/app/admin/staff/page.tsx:716-721`).~~ **HANDLED 2026-05-20 (post-distill iter2)** — single Hover-Moss token for active members.
 
 #### P2 — Next cycle
 - Workload-strip card is full-bordered, not the "thin band with border-subtle top + bottom" brief specified.
@@ -1489,11 +1489,11 @@ Both are referenced inline in the code via `data-redesign-backend="FAKE"` marker
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- UL `disc` bullets visible on every row — `src/app/admin/staff/page.tsx:614`, `:645`, `:425`.
-- Workload-strip rendered as stat-tile row, not prose — `src/app/admin/staff/page.tsx:418-453` + `:692-707`.
-- Uppercase tracking on workload-strip segment labels — `src/app/admin/staff/page.tsx:699`.
-- Workload-strip horizontal scroll on mobile — `src/app/admin/staff/page.tsx:425`.
-- Avatar decorative tints reuse Status-family colours — `src/app/admin/staff/page.tsx:716-721`.
+- ~~UL `disc` bullets visible on every row — `src/app/admin/staff/page.tsx:614`, `:645`, `:425`.~~ **HANDLED 2026-05-20 (post-distill iter2)** — verified page.tsx:673, :707 both `<ul>` carry `list-none` class.
+- ~~Workload-strip rendered as stat-tile row, not prose — `src/app/admin/staff/page.tsx:418-453` + `:692-707`.~~ **HANDLED 2026-05-20 (post-distill iter2)** — verified Team-health pill row at :441 uses `flex-col gap-y-2 sm:flex-row sm:flex-wrap` (no card-on-card / no stat-tile chrome); see also iter-2 critique entry confirming PASS.
+- ~~Uppercase tracking on workload-strip segment labels — `src/app/admin/staff/page.tsx:699`.~~ **HANDLED 2026-05-20 (post-distill iter2)** — segment-label uppercase removed; only a single quiet "Team health" eyebrow at :448 remains (label, not segment).
+- ~~Workload-strip horizontal scroll on mobile — `src/app/admin/staff/page.tsx:425`.~~ **HANDLED 2026-05-20 (post-distill iter2)** — verified page.tsx:441 uses `flex-col` on mobile + `grid-cols-2` for pills at :459, no `overflow-x-auto`.
+- ~~Avatar decorative tints reuse Status-family colours — `src/app/admin/staff/page.tsx:716-721`.~~ **HANDLED 2026-05-20 (post-distill iter2)** — avatar collapsed to single Hover-Moss token for active members per iter-2 critique entry; no per-id status-family tints.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -1574,8 +1574,8 @@ Both are referenced inline in the code via `data-redesign-backend="FAKE"` marker
 **P0:** none
 
 **P1 (tag for Phase 7 gauntlet):**
-- Cancel button in create-role sheet does not close the sheet — no `onClick`/data attribute, no form reset. Breaks brief §6 cancel contract. `src/app/admin/roles/CreateRoleSheet.tsx:159-164`
-- `<p class="sr-only">Tip: press the letter N…</p>` advertises a keyboard shortcut that no JS handler implements; `aria-keyshortcuts="n"` on the trigger button is decorative-only. Untruthful affordance to screen-reader users. `src/app/admin/roles/page.tsx:110-112` + `src/app/admin/roles/CreateRoleSheet.tsx:28`
+- Cancel button in create-role sheet does not close the sheet — no `onClick`/data attribute, no form reset. Breaks brief §6 cancel contract. `src/app/admin/roles/CreateRoleSheet.tsx:159-164`. **NOT-FIXED 2026-05-20** — verified CreateRoleSheet.tsx:159-164; Cancel `<button type="button">` still carries no `onClick` handler / no close-trigger data attribute.
+- `<p class="sr-only">Tip: press the letter N…</p>` advertises a keyboard shortcut that no JS handler implements; `aria-keyshortcuts="n"` on the trigger button is decorative-only. Untruthful affordance to screen-reader users. `src/app/admin/roles/page.tsx:110-112` + `src/app/admin/roles/CreateRoleSheet.tsx:28`. **NOT-FIXED 2026-05-20** — sr-only "press the letter N" copy still present at page.tsx:159 and `aria-keyshortcuts="n"` still on CreateRoleSheet.tsx:28.
 
 **P2:**
 - Form-level error region permanently `className="sr-only"` (CreateRoleSheet.tsx:48) — even once `createRole` wires up, validation errors will not be visually announced; DESIGN.md §Status Communication mandates visible inline error region. `src/app/admin/roles/CreateRoleSheet.tsx:43-49`
@@ -1703,8 +1703,8 @@ User-directed revision pass applied after the audit/critique landed. Captures wh
 
 ### P1 findings
 
-- **Three-dot trigger touch target below 44px (mobile-first violation).** `src/app/admin/components/admin-ui-interactions.tsx:21` — `size-9` (36×36). Shared primitive; inflate to `size-11` on mobile or wrap in 44px hit area.
-- **`AdminActionMenu` uses native `<details>/<summary>` without menu semantics.** `src/app/admin/components/admin-ui-interactions.tsx:20-29` — no `role="menu"`, no `role="menuitem"`, no `aria-haspopup="menu"`, no `aria-expanded` mirroring, no arrow-key navigation, no outside-click close. Shared primitive used by every services row.
+- ~~**Three-dot trigger touch target below 44px (mobile-first violation).** `src/app/admin/components/admin-ui-interactions.tsx:21` — `size-9` (36×36). Shared primitive; inflate to `size-11` on mobile or wrap in 44px hit area.~~ **HANDLED 2026-05-20 (Gate 5 adapt)** — `src/app/globals.css:147-166` lifts h-9/size-9 buttons to 2.75rem at `max-width: 639px`.
+- **`AdminActionMenu` uses native `<details>/<summary>` without menu semantics.** `src/app/admin/components/admin-ui-interactions.tsx:20-29` — no `role="menu"`, no `role="menuitem"`, no `aria-haspopup="menu"`, no `aria-expanded` mirroring, no arrow-key navigation, no outside-click close. Shared primitive used by every services row. **NOT-FIXED 2026-05-20** — admin-ui-interactions.tsx:19-30 still uses `<details>` / `<summary>` with no menu-role wiring.
 
 ### P2 findings
 
@@ -1733,8 +1733,8 @@ No BUILD plan blocking. No FAKE adapter in use.
 
 ### **P1 (tag for Phase 7 gauntlet):**
 
-- **Three-dot trigger touch target below 44px on mobile** — `src/app/admin/components/admin-ui-interactions.tsx:21` (`size-9` / 36px).
-- **`AdminActionMenu` lacks `role="menu"` / `role="menuitem"` / `aria-haspopup` / arrow-key navigation** — `src/app/admin/components/admin-ui-interactions.tsx:20-29`.
+- ~~**Three-dot trigger touch target below 44px on mobile** — `src/app/admin/components/admin-ui-interactions.tsx:21` (`size-9` / 36px).~~ **HANDLED 2026-05-20 (Gate 5 adapt)** — global CSS rule at `src/app/globals.css:147-166` lifts `inline-flex.h-9` (and matching `size-9`) buttons to 2.75rem on `max-width: 639px`. Trigger now satisfies WCAG 2.5.5 on mobile.
+- **`AdminActionMenu` lacks `role="menu"` / `role="menuitem"` / `aria-haspopup` / arrow-key navigation** — `src/app/admin/components/admin-ui-interactions.tsx:20-29`. **NOT-FIXED 2026-05-20** — admin-ui-interactions.tsx:19-30 still wraps `<details>` / `<summary>` with no `role="menu"`, `role="menuitem"`, `aria-haspopup`, or arrow-key handler.
 
 ### **BUSINESS-COMPLETENESS impact:**
 
@@ -1954,12 +1954,12 @@ Total: 9 / 20
 
 ### P1 findings (tag for Phase 7 gauntlet)
 
-- src/app/admin/dashboard/dashboard-cards.tsx:220-225 — H2 "Today at a glance" not "Today"; marquee numeral not Cormorant 3.157rem
-- src/app/admin/dashboard/dashboard-cards.tsx:397-415 — UrgentAttentionPanel missing Pending-family tint + status-pending border
-- src/app/admin/dashboard/page.tsx:683-742 — Tier 2 ships 3-tile row + separate BusinessPulseCard, not the brief's 2x2 grid
-- src/app/admin/dashboard/dashboard-header.tsx:70-104 — header rail scope creep (Reports/Calendar/Settings)
-- No role="alert" aria-live="polite" anywhere in src/app/admin/dashboard/** — brief §6 + 2A-6 unmet
-- Mobile bottom-nav overlap on Today panel Day readiness — shell-level (per deferrals)
+- ~~src/app/admin/dashboard/dashboard-cards.tsx:220-225 — H2 "Today at a glance" not "Today"; marquee numeral not Cormorant 3.157rem~~ **HANDLED 2026-05-20 (dashboard-owner-admin re-run + final audit)** — verified dashboard-cards.tsx:291-307; H2 "Today" via `useCoordinatorHeading` branch, Cormorant numeral via `admin-display` class with `clamp` font-size.
+- ~~src/app/admin/dashboard/dashboard-cards.tsx:397-415 — UrgentAttentionPanel missing Pending-family tint + status-pending border~~ **HANDLED 2026-05-20 (dashboard-owner-admin re-run)** — confirmed in critique re-run "Tier 1 honours brief: severity-tinted attention rows with proper breathing room".
+- ~~src/app/admin/dashboard/page.tsx:683-742 — Tier 2 ships 3-tile row + separate BusinessPulseCard, not the brief's 2x2 grid~~ **HANDLED 2026-05-20 (dashboard-owner-admin re-run)** — Tier 2 reworked; final audit confirms sub-tile titles "Staff capacity", "Payment health", "Operations health" per brief.
+- ~~src/app/admin/dashboard/dashboard-header.tsx:70-104 — header rail scope creep (Reports/Calendar/Settings)~~ **HANDLED 2026-05-20 (dashboard-owner-admin re-run)** — verified dashboard-header.tsx; Reports/Calendar/Settings + Last synced removed; rail now spare per brief §5.
+- ~~No role="alert" aria-live="polite" anywhere in src/app/admin/dashboard/** — brief §6 + 2A-6 unmet~~ **HANDLED 2026-05-20 (dashboard-owner-admin re-run)** — `role="alert"` now present in dashboard-filters-client.tsx (×2) and error.tsx (×1).
+- Mobile bottom-nav overlap on Today panel Day readiness — shell-level (per deferrals). **DEFERRED** — shell-level concern documented in deferrals.
 
 ### P2 findings
 
@@ -1983,12 +1983,12 @@ N-A — read-only Server Component. No server actions, no audit log writes, no m
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- H2 + marquee numeral spec drift — src/app/admin/dashboard/dashboard-cards.tsx:220-225 (and MetricMini L341-348)
-- UrgentAttentionPanel Pending-family tint — src/app/admin/dashboard/dashboard-cards.tsx:397-415
-- Tier 2 structure mismatch — src/app/admin/dashboard/page.tsx:683-742
-- Header rail scope creep — src/app/admin/dashboard/dashboard-header.tsx:70-104
-- Missing role="alert" aria-live="polite" — entire src/app/admin/dashboard/**
-- Mobile bottom-nav overlap — shell-level (per deferrals)
+- ~~H2 + marquee numeral spec drift — src/app/admin/dashboard/dashboard-cards.tsx:220-225 (and MetricMini L341-348)~~ **HANDLED 2026-05-20 (re-run)** — H2 "Today" + Cormorant marquee via `admin-display`.
+- ~~UrgentAttentionPanel Pending-family tint — src/app/admin/dashboard/dashboard-cards.tsx:397-415~~ **HANDLED 2026-05-20 (re-run)** — severity-tinted rows landed.
+- ~~Tier 2 structure mismatch — src/app/admin/dashboard/page.tsx:683-742~~ **HANDLED 2026-05-20 (re-run)** — Tier 2 sub-tile titles match brief.
+- ~~Header rail scope creep — src/app/admin/dashboard/dashboard-header.tsx:70-104~~ **HANDLED 2026-05-20 (re-run)** — header rail collapsed to brief §5 spec.
+- ~~Missing role="alert" aria-live="polite" — entire src/app/admin/dashboard/**~~ **HANDLED 2026-05-20 (re-run)** — `role="alert"` present in dashboard-filters-client.tsx and error.tsx.
+- Mobile bottom-nav overlap — shell-level (per deferrals). **DEFERRED** — shell-level.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -2097,8 +2097,8 @@ none
 
 ### P1 findings
 
-- **Heading-hierarchy gap on Tier 1 + Tier 2 tiles.** PRODUCT.md and brief §8 require Tier 1 panel titles (H2) and Tier 2 sub-tile titles (H3). Only UrgentAttentionPanel renders an H2 (via AdminPanelHeader, dashboard-cards.tsx:735-740). TodayAtAGlanceCard (eyebrow at line 254-256), StaffCapacityCard (line 865-867), PaymentHealthCard (line 1040-1042), OperationsHealthCard (line 1241-1243), DemandTrendCard (line 1472-1474), BusinessPulseCard (line 1378-1380) all set their titles as <p> eyebrows.
-- **Section landmarks lacking accessible names.** AdminDashboardPanel is rendered as <section> and accepts ariaLabel, but every dashboard-cards.tsx call site omits ariaLabel. AT users land on six unnamed <section> landmarks.
+- ~~**Heading-hierarchy gap on Tier 1 + Tier 2 tiles.** PRODUCT.md and brief §8 require Tier 1 panel titles (H2) and Tier 2 sub-tile titles (H3). Only UrgentAttentionPanel renders an H2 (via AdminPanelHeader, dashboard-cards.tsx:735-740). TodayAtAGlanceCard (eyebrow at line 254-256), StaffCapacityCard (line 865-867), PaymentHealthCard (line 1040-1042), OperationsHealthCard (line 1241-1243), DemandTrendCard (line 1472-1474), BusinessPulseCard (line 1378-1380) all set their titles as <p> eyebrows.~~ **HANDLED 2026-05-20 (in-session fix per audit-final block)** — verified dashboard-cards.tsx:292/774/1146/1321/1522/1759 now emit `<h2>`/`<h3>` per the brief-spec hierarchy.
+- ~~**Section landmarks lacking accessible names.** AdminDashboardPanel is rendered as <section> and accepts ariaLabel, but every dashboard-cards.tsx call site omits ariaLabel. AT users land on six unnamed <section> landmarks.~~ **HANDLED 2026-05-20 (in-session fix per audit-final block)** — per the "P1 fixes applied in-session" note: filter strip + Tier 2 ariaLabel wired through.
 
 ### P2 findings
 
@@ -2176,8 +2176,8 @@ After the audit returned, the two P1 findings (heading hierarchy + unnamed secti
 
 **Findings (file:line):**
 - **P0** — None.
-- **P1** — Mobile AdminTopNav overlaps page content at 375px; chrome-wide bug exposed because the header lacks top spacing. `page.tsx:437`.
-- **P1** — Raw `oklch(...)` literals for Cancelled/error states bypass token layer: `ClientDetailForms.tsx:78,90,105,115,178,190,205,221`. Should use `--admin-status-cancelled-bg/text` tokens.
+- **P1** — Mobile AdminTopNav overlaps page content at 375px; chrome-wide bug exposed because the header lacks top spacing. `page.tsx:437`. **DEFERRED to Phase 7 (shell-level)** — v2 audit defers as shell-scoped.
+- **P1** — Raw `oklch(...)` literals for Cancelled/error states bypass token layer: `ClientDetailForms.tsx:78,90,105,115,178,190,205,221`. Should use `--admin-status-cancelled-bg/text` tokens. **NOT-FIXED 2026-05-20 (demoted by v2)** — 8 oklch literals still in ClientDetailForms.tsx; v2 audit reclassifies as P2/P3.
 - **P2** — "Back to clients" Ghost link `page.tsx:438-444` is brief drift; brief §7 says omit.
 - **P2** — `StatCell` uppercase + letter-spacing label violates DESIGN.md "Never uppercase shouting".
 - **P2** — `BookingHistoryCard` has no staff avatar and no gender-match chip; DESIGN.md §5 BookingListCard mandates both.
@@ -2191,8 +2191,8 @@ After the audit returned, the two P1 findings (heading hierarchy + unnamed secti
 **Backend status:** N/A — server-action wiring (`addClientNote`, `createClientPrivacyRequest`), select shapes, RBAC gating, and `name` attributes all preserved verbatim per brief Feature Preservation Manifest.
 
 **P1 (tag for Phase 7 gauntlet):**
-- Mobile AdminTopNav overlap with first-card content at 375.
-- Hardcoded `oklch(...)` Cancelled literals in `ClientDetailForms.tsx` — extend `--admin-status-cancelled-*` tokens and migrate.
+- Mobile AdminTopNav overlap with first-card content at 375. **DEFERRED to Phase 7 (shell-level)** — v2 audit confirms "375 chrome-overlap is shell-scoped (Phase 7 deferred)"; not a page-level fix.
+- Hardcoded `oklch(...)` Cancelled literals in `ClientDetailForms.tsx` — extend `--admin-status-cancelled-*` tokens and migrate. **NOT-FIXED 2026-05-20 (demoted by v2 audit)** — grep confirms 8 oklch literals still in ClientDetailForms.tsx; v2 audit downgrades to P2/P3 ("all other surface items dropped to P2/P3 after second-round polish").
 
 **BUSINESS-COMPLETENESS impact (2A-6, 2A-9):**
 - **2A-6 (form errors announced):** PASS — both forms wrap form-level + field-level errors in `role="alert" aria-live="polite" aria-atomic="true"` (`ClientDetailForms.tsx:73-83, 109-120, 172-183, 215-226`). Adds 1 page contribution.
@@ -2352,9 +2352,9 @@ Caveat: only Owner default state was screenshotted in audit window; Therapist / 
 
 ### P1 findings
 
-- Profile-completion + Onboarding checklist rows ship as plain icon + text (page.tsx:769-794) instead of `AdminEntityRow` + `AdminStatusBadge`-shape Confirmed/Cancelled pill brief §4 mandates. Raw OKLCH at page.tsx:774-775.
-- Right-rail panel headings render as `<h2>` (via `AdminPanel`, admin-ui.tsx:293) while brief §5 R1–R5 specifies H3.
-- Avatar tile (page.tsx:386-392) uses a single hardcoded Confirmed-family green for every staff member instead of the deterministic `hash(staff.id) % 360` hue algorithm.
+- Profile-completion + Onboarding checklist rows ship as plain icon + text (page.tsx:769-794) instead of `AdminEntityRow` + `AdminStatusBadge`-shape Confirmed/Cancelled pill brief §4 mandates. Raw OKLCH at page.tsx:774-775. **PARTIALLY HANDLED 2026-05-20 (rev 2 audit)** — per-panel header now uses `AdminStatusBadge` pill via `checklistTone()`; per-row icons retain raw OKLCH (rev 2 demoted residual to P2).
+- Right-rail panel headings render as `<h2>` (via `AdminPanel`, admin-ui.tsx:293) while brief §5 R1–R5 specifies H3. **NOT-FIXED 2026-05-20 (rev 2 confirms unchanged)** — `AdminPanel.title` at admin-ui.tsx:293 still emits `<h2>`.
+- Avatar tile (page.tsx:386-392) uses a single hardcoded Confirmed-family green for every staff member instead of the deterministic `hash(staff.id) % 360` hue algorithm. **HANDLED 2026-05-20 (rev 2 audit)** — `hueFromId()` at page.tsx:102-108 implements the deterministic hue algorithm.
 
 ### P2 findings
 
@@ -2380,9 +2380,9 @@ HANDLED — staff-detail has no BLOCKS-REDESIGN BUILD dependency. RECON §5 unto
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- Checklist rows missing `AdminStatusBadge`-shape Confirmed/Cancelled pill — `src/app/admin/staff/[staffId]/page.tsx:769-794` (raw OKLCH at :774-775).
-- Rail panels render as H2 instead of brief-specified H3 — `src/app/admin/staff/[staffId]/page.tsx` panels at :587/:624/:651/:678/:724/:731 (via `AdminPanel` title at `src/app/admin/components/admin-ui.tsx:293`).
-- Avatar tile uses single hardcoded Confirmed-family tint instead of deterministic-hue algorithm — `src/app/admin/staff/[staffId]/page.tsx:386-392`.
+- ~~Checklist rows missing `AdminStatusBadge`-shape Confirmed/Cancelled pill — `src/app/admin/staff/[staffId]/page.tsx:769-794` (raw OKLCH at :774-775).~~ **PARTIALLY HANDLED 2026-05-20 (rev 2 audit)** — per-panel header now uses `AdminStatusBadge` pill via `checklistTone()`; per-row icons unchanged (rev 2 demoted residual to P2).
+- ~~Rail panels render as H2 instead of brief-specified H3 — `src/app/admin/staff/[staffId]/page.tsx` panels at :587/:624/:651/:678/:724/:731 (via `AdminPanel` title at `src/app/admin/components/admin-ui.tsx:293`).~~ **NOT-FIXED 2026-05-20** — rev 2 audit confirms unchanged: `AdminPanel.title` at admin-ui.tsx:293 still emits `<h2>`.
+- ~~Avatar tile uses single hardcoded Confirmed-family tint instead of deterministic-hue algorithm — `src/app/admin/staff/[staffId]/page.tsx:386-392`.~~ **HANDLED 2026-05-20 (rev 2 audit)** — `hueFromId()` at page.tsx:102-108 implements `hash(staff.id) % 360`.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -2498,9 +2498,9 @@ HANDLED — no BLOCKS-REDESIGN BUILD dependency. RECON §5 untouchable helpers i
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- Rail panels render as H2 instead of brief-specified H3 — `src/app/admin/components/admin-ui.tsx:293` flows to `src/app/admin/staff/[staffId]/page.tsx` panels at :720, :758, :785, :811, :841, :848.
-- Prev/next sibling query has no `active`/scope filter — `src/app/admin/staff/[staffId]/page.tsx:307-310`.
-- Cmd+S shortcut silent no-op on clean form / disabled save — `src/app/admin/staff/[staffId]/StaffDetailShortcuts.tsx:49-57`.
+- Rail panels render as H2 instead of brief-specified H3 — `src/app/admin/components/admin-ui.tsx:293` flows to `src/app/admin/staff/[staffId]/page.tsx` panels at :720, :758, :785, :811, :841, :848. **NOT-FIXED 2026-05-20** — `AdminPanel.title` at admin-ui.tsx:293 still emits `<h2>`; rail panels inherit that.
+- Prev/next sibling query has no `active`/scope filter — `src/app/admin/staff/[staffId]/page.tsx:307-310`. **NOT-FIXED 2026-05-20** — page.tsx:306-310 still `from("staff_profiles").select("id, name").order("name")` with no `.eq("active", true)` / scope filter.
+- Cmd+S shortcut silent no-op on clean form / disabled save — `src/app/admin/staff/[staffId]/StaffDetailShortcuts.tsx:49-57`. **AMBIGUOUS 2026-05-20** — behavioural finding (silent-no-op + no aria-live announcement); requires runtime verification, not grep.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -2579,9 +2579,9 @@ The redesign reads as a hand-shaped Rahma workstation, not a stock SaaS staff-de
 - none
 
 ### P1 findings (tag for Phase 7 gauntlet)
-- `DangerZonePanel.tsx:93-99` — Deactivate form re-submits server-rendered metadata; will clobber unsaved edits if the Owner has dirty edits in the metadata form when Deactivate fires.
-- `PermissionRow.tsx:189-194` — Switch missing `aria-busy="true"` during in-flight toggle (brief §6 pending state spec).
-- `PermissionsFilterStrip.tsx:100-247` — No mobile "Filters" Ghost → AdminSheet pattern; brief §5 Mobile requires it on `≤lg`. Filter strip stacks tall on 375px.
+- ~~`DangerZonePanel.tsx:93-99` — Deactivate form re-submits server-rendered metadata; will clobber unsaved edits if the Owner has dirty edits in the metadata form when Deactivate fires.~~ **HANDLED 2026-05-20 (role-detail round 2)** — verified DangerZonePanel.tsx:48-59 `flipActiveAndSubmit` mutates `#role-metadata-form` checkbox + `requestSubmit()`s the live form.
+- ~~`PermissionRow.tsx:189-194` — Switch missing `aria-busy="true"` during in-flight toggle (brief §6 pending state spec).~~ **HANDLED 2026-05-20 (role-detail round 2)** — verified PermissionRow.tsx:190 `aria-busy={pending || undefined}` on the wrapper.
+- ~~`PermissionsFilterStrip.tsx:100-247` — No mobile "Filters" Ghost → AdminSheet pattern; brief §5 Mobile requires it on `≤lg`. Filter strip stacks tall on 375px.~~ **HANDLED 2026-05-20 (role-detail round 2)** — verified PermissionsFilterStrip.tsx:133 mobile branch renders `<AdminSheet>` with "Filters" trigger at :143.
 
 ### P2 findings
 - `page.tsx:258` permissions list panel `lg:max-h-[min(72vh,720px)] lg:overflow-y-auto` — sticky headers inside this nested scroll on a 1366×768 screen can fight page scroll.
@@ -2601,9 +2601,9 @@ The redesign reads as a hand-shaped Rahma workstation, not a stock SaaS staff-de
 **FAKE** — Delete-role flow is staged with `data-redesign-fake="delete-role"` and renders a toast-only stub. Blocking BUILD plan: **`BUILD-delete-role.md`** (per IMPLEMENTATION-PLAN.md, non-blocking). All other server-actions (`updateRoleMetadata`, `toggleRolePermission`) are HANDLED and live.
 
 ### P1 (tag for Phase 7 gauntlet)
-- DangerZonePanel deactivate form may clobber unsaved metadata edits — `DangerZonePanel.tsx:93-99`
-- Switch missing `aria-busy` during pending toggle — `PermissionRow.tsx:189-194`
-- No mobile Filters AdminSheet; strip stacks tall on 375px — `PermissionsFilterStrip.tsx:100-247` (brief §5 Mobile)
+- ~~DangerZonePanel deactivate form may clobber unsaved metadata edits — `DangerZonePanel.tsx:93-99`~~ **HANDLED 2026-05-20 (round 2)** — `flipActiveAndSubmit` + `requestSubmit()` now consumes live form state.
+- ~~Switch missing `aria-busy` during pending toggle — `PermissionRow.tsx:189-194`~~ **HANDLED 2026-05-20 (round 2)** — `aria-busy={pending || undefined}` at :190.
+- ~~No mobile Filters AdminSheet; strip stacks tall on 375px — `PermissionsFilterStrip.tsx:100-247` (brief §5 Mobile)~~ **HANDLED 2026-05-20 (round 2)** — mobile branch now renders `<AdminSheet>` at :133.
 
 ### BUSINESS-COMPLETENESS impact
 - **2A-6** — form-level `role="alert" aria-live="polite" aria-atomic="true"` correctly implemented at `RoleMetadataForm.tsx:46-56`.
@@ -2710,9 +2710,9 @@ The surface continues to honour PRODUCT.md's "auditable and reversible" principl
 - None blocking release. Backend is FAKE as planned; flagged correctly.
 
 ### P1 findings
-- Brief deviation: Panel B uses Date/Reason inline form, drops visible "All day" checkbox required by §5/Copy. StaffBlockedDatesManager.tsx:139 hard-codes hidden all_day input with only a small right-aligned label hidden on mobile.
-- Brief deviation: Panel A missing per-day "Working day toggle" semantics + empty-state "Add rule" Ghost CTA. StaffAvailabilityRulesForm.tsx:136-225.
-- Empty states use dashed-border `<p>` placeholders instead of illustrated EmptyState — DESIGN.md §5 bans dashed borders. StaffAvailabilityRulesForm.tsx:221, StaffBlockedDatesManager.tsx:231, StaffAvailabilityOverridesManager.tsx:373.
+- ~~Brief deviation: Panel B uses Date/Reason inline form, drops visible "All day" checkbox required by §5/Copy. StaffBlockedDatesManager.tsx:139 hard-codes hidden all_day input with only a small right-aligned label hidden on mobile.~~ **HANDLED 2026-05-20 (staff-availability v2)** — verified StaffBlockedDatesManager.tsx:213-222 visible checkbox + label.
+- ~~Brief deviation: Panel A missing per-day "Working day toggle" semantics + empty-state "Add rule" Ghost CTA. StaffAvailabilityRulesForm.tsx:136-225.~~ **HANDLED 2026-05-20 (staff-availability v2)** — Working-day toggle + Add rule / Start from global hours Ghost CTAs confirmed in v2 audit.
+- ~~Empty states use dashed-border `<p>` placeholders instead of illustrated EmptyState — DESIGN.md §5 bans dashed borders. StaffAvailabilityRulesForm.tsx:221, StaffBlockedDatesManager.tsx:231, StaffAvailabilityOverridesManager.tsx:373.~~ **HANDLED 2026-05-20 (staff-availability v2)** — illustrated EmptyState applied across all three managers.
 
 ### P2 findings
 - Raw oklch literals (Cancelled text repeated 15+ times across the four files) instead of CSS variable tokens. Brief §4 listed "raw var(--rahma-*)" as the carry-forward; the redesign replaced one escape with another.
@@ -2730,9 +2730,9 @@ The surface continues to honour PRODUCT.md's "auditable and reversible" principl
 **FAKE.** Confirmed via `data-redesign-fake` attributes; `actions.ts:36-79` returns sentinel errors. Pending plans (verbatim): `BUILD-staff-blocked-dates-actions.md`, `BUILD-staff-availability-override-actions.md`.
 
 ### P1 (tag for Phase 7 gauntlet)
-- Brief deviation — Panel B "All day" checkbox missing as visible control: `src/app/admin/staff/[staffId]/availability/StaffBlockedDatesManager.tsx:139,170`
-- Brief deviation — Panel A working-day toggle + empty-state CTA: `src/app/admin/staff/[staffId]/availability/StaffAvailabilityRulesForm.tsx:136-225`
-- Empty states violate DESIGN.md §5: `StaffAvailabilityRulesForm.tsx:221`, `StaffBlockedDatesManager.tsx:231`, `StaffAvailabilityOverridesManager.tsx:373`
+- ~~Brief deviation — Panel B "All day" checkbox missing as visible control: `src/app/admin/staff/[staffId]/availability/StaffBlockedDatesManager.tsx:139,170`~~ **HANDLED 2026-05-20 (staff-availability v2)** — verified StaffBlockedDatesManager.tsx:213-222 renders visible `<input type="checkbox" name="all_day" defaultChecked>` with `<span>All day</span>` label.
+- ~~Brief deviation — Panel A working-day toggle + empty-state CTA: `src/app/admin/staff/[staffId]/availability/StaffAvailabilityRulesForm.tsx:136-225`~~ **HANDLED 2026-05-20 (staff-availability v2)** — v2 audit confirms "per-day Working-day toggle on rule rows, illustrated EmptyState in all three managers, 'Add rule' Ghost + 'Start from global hours' in Panel A empty state".
+- ~~Empty states violate DESIGN.md §5: `StaffAvailabilityRulesForm.tsx:221`, `StaffBlockedDatesManager.tsx:231`, `StaffAvailabilityOverridesManager.tsx:373`~~ **HANDLED 2026-05-20 (staff-availability v2)** — v2 confirms illustrated EmptyState across all three managers.
 
 ### BUSINESS-COMPLETENESS impact
 - 2A-6 contributes (`role="alert" aria-live="polite" aria-atomic="true"` on Panel B + C forms).
@@ -2893,9 +2893,9 @@ Severity rubric (impeccable v5 L884-890, verbatim):
 
 ### P1 findings
 
-- **Sticky save bar collides with fixed `AdminMobileBottomNav` at mobile bottom of scroll** — `ClientCreateForm.tsx:224` (`sticky bottom-0 z-20`). With the admin layout's fixed mobile bottom nav, the save bar will sit behind or above the nav depending on stacking context.
-- **`AdminAccessDenied` missing the Secondary "Back to dashboard" CTA** — `page.tsx:26-33` only renders a Ghost "View clients" link. Brief §11 specifies *Secondary "Back to dashboard" → /admin/dashboard* as the primary CTA, with "View clients" as the tertiary.
-- **Submission failure "Try again" Ghost missing from `FormErrorBanner`** — `ClientCreateForm.tsx:296-313`. Brief §8 and §6 require a retry affordance inside the banner.
+- ~~**Sticky save bar collides with fixed `AdminMobileBottomNav` at mobile bottom of scroll** — `ClientCreateForm.tsx:224` (`sticky bottom-0 z-20`). With the admin layout's fixed mobile bottom nav, the save bar will sit behind or above the nav depending on stacking context.~~ **HANDLED 2026-05-20 (client-new v2)** — `bottom-14 z-30` + `pb-32` clear the mobile bottom nav per v2 audit.
+- ~~**`AdminAccessDenied` missing the Secondary "Back to dashboard" CTA** — `page.tsx:26-33` only renders a Ghost "View clients" link. Brief §11 specifies *Secondary "Back to dashboard" → /admin/dashboard* as the primary CTA, with "View clients" as the tertiary.~~ **HANDLED 2026-05-20 (client-new v2)** — resolved via shared component default + custom `actions` slot per v2 audit.
+- ~~**Submission failure "Try again" Ghost missing from `FormErrorBanner`** — `ClientCreateForm.tsx:296-313`. Brief §8 and §6 require a retry affordance inside the banner.~~ **HANDLED 2026-05-20 (client-new v2)** — `RotateCcw` icon + "Try again" Ghost per v2 audit.
 
 ### P2 findings
 
@@ -2918,9 +2918,9 @@ Severity rubric (impeccable v5 L884-890, verbatim):
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- Sticky save bar / `AdminMobileBottomNav` collision at mobile viewport bottom — `ClientCreateForm.tsx:224`
-- `AdminAccessDenied` missing Secondary "Back to dashboard" CTA — `page.tsx:26-33`
-- `FormErrorBanner` missing "Try again" Ghost retry button — `ClientCreateForm.tsx:296-313`
+- ~~Sticky save bar / `AdminMobileBottomNav` collision at mobile viewport bottom — `ClientCreateForm.tsx:224`~~ **HANDLED 2026-05-20 (client-new v2)** — confirmed in v2 audit: `bottom-14 z-30` + `pb-32` clearance.
+- ~~`AdminAccessDenied` missing Secondary "Back to dashboard" CTA — `page.tsx:26-33`~~ **HANDLED 2026-05-20 (client-new v2)** — v2 audit confirms resolution via shared component default + `actions` slot.
+- ~~`FormErrorBanner` missing "Try again" Ghost retry button — `ClientCreateForm.tsx:296-313`~~ **HANDLED 2026-05-20 (client-new v2)** — v2 audit confirms `RotateCcw` + brief-verbatim "Try again" label.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -3129,7 +3129,7 @@ No #fff/#000, no gradient text, no glassmorphism on save bar (flat --admin-panel
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- FAKE-window permission bridge (MANAGE_AUDIT_LOGS substitute) hides the page from Admin/Practice Manager — src/app/admin/account-password-requests/page.tsx (FAKE-bridge gate near top of AccountPasswordRequestsPage). Must remove the OR branch when BUILD-rbac-permission-account-password-requests.md lands.
+- FAKE-window permission bridge (MANAGE_AUDIT_LOGS substitute) hides the page from Admin/Practice Manager — src/app/admin/account-password-requests/page.tsx (FAKE-bridge gate near top of AccountPasswordRequestsPage). Must remove the OR branch when BUILD-rbac-permission-account-password-requests.md lands. **DEFERRED to backend BUILD** — gated on `BUILD-rbac-permission-account-password-requests.md`; not in UI gauntlet scope.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -3223,8 +3223,8 @@ Severity rubric (impeccable v5 L884-890, verbatim):
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- **[P1] State 4 happy-path redirects to `/admin/login?reason=fake-success`** — `src/app/admin/password-reset/actions.ts:154`. Depends on `BUILD-password-reset-request-actions.md`.
-- **[P1] State 6 + hostile-token inline form omits the human-review caveat** — `src/app/admin/password-reset/states/ForgotForm.tsx:61–69` gate consumed by Expired.tsx + [token]/page.tsx hostile branch.
+- **[P1] State 4 happy-path redirects to `/admin/login?reason=fake-success`** — `src/app/admin/password-reset/actions.ts:154`. Depends on `BUILD-password-reset-request-actions.md`. **DEFERRED to backend BUILD** — gated on `BUILD-password-reset-request-actions.md`; carry-over in v2 audit.
+- ~~**[P1] State 6 + hostile-token inline form omits the human-review caveat** — `src/app/admin/password-reset/states/ForgotForm.tsx:61–69` gate consumed by Expired.tsx + [token]/page.tsx hostile branch.~~ **HANDLED 2026-05-20 (v2 refinement)** — per v2 audit C-7 close note: "Hostile-token + state-6 inline form carries 'An Owner reviews each new request.' caveat (`ForgotForm.tsx:75-81`)."
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -3491,11 +3491,9 @@ Re-scored against the same Nielsen rubric used for v1 (45/50). Source: PasswordR
 - **AI-slop verdict: PASS held.** The refinement pass closed brief-alignment gaps without introducing flair.
 - **What's still uncapped.** Flexibility (4/5) and Help (4/5) are structural ceilings of a 6-state pre-auth surface for novice operators; raising either would require flow-level additions the brief explicitly does not request.
 - **What v2 quietly fixed beyond the 10 named gaps.** State 4 footer breathing (A-2) and the expired-inline copy delta (C-7) also de-noise the page rhythm in a way the v1 critique flagged only obliquely.
-### P1 findings
-
-- **Role pill is profile-role-driven, not variant-driven** — `src/app/admin/dashboard/page.tsx:550` resolves `roleLabel = getRoleLabel(profile)` (string-matching on role name), then passes to header at `src/app/admin/dashboard/dashboard-header.tsx:53-61`. Brief Section 8 + Recipe Context mandate the pill copy resolves from `getDashboardCopy(plan.variant).rolePill`; today `getDashboardCopy` only returns `{title, subtitle}` (page.tsx:414-432) with no `rolePill` slot. If a Coordinator user's `roles[0].name` is missing or non-conforming, the "Coordinator" pill silently drops.
-- **Role pill positioned under page H1, not in the chrome header rail** — `src/app/admin/dashboard/dashboard-header.tsx:53-61`. Brief Section 5.1 and Section 8 require the role pill in the AdminTopNav right rail (alongside NotificationBell + cmd-K hint). Current placement under H1 breaks the "same chrome across variants" inheritance from the Owner/Admin brief.
-- **Role pill hidden on `<md` viewports** — `src/app/admin/dashboard/dashboard-header.tsx:54` uses `hidden ... md:inline-flex`, so a Coordinator on a 375px phone (the brief's explicit mobile-first persona) never sees their role context.
+- ~~**Role pill is profile-role-driven, not variant-driven** — `src/app/admin/dashboard/page.tsx:550` resolves `roleLabel = getRoleLabel(profile)` (string-matching on role name), then passes to header at `src/app/admin/dashboard/dashboard-header.tsx:53-61`. Brief Section 8 + Recipe Context mandate the pill copy resolves from `getDashboardCopy(plan.variant).rolePill`; today `getDashboardCopy` only returns `{title, subtitle}` (page.tsx:414-432) with no `rolePill` slot. If a Coordinator user's `roles[0].name` is missing or non-conforming, the "Coordinator" pill silently drops.~~ **HANDLED 2026-05-20 (post-fix)** — role pill now lives in shared AdminTopNav (no page-local rail).
+- ~~**Role pill positioned under page H1, not in the chrome header rail** — `src/app/admin/dashboard/dashboard-header.tsx:53-61`. Brief Section 5.1 and Section 8 require the role pill in the AdminTopNav right rail (alongside NotificationBell + cmd-K hint). Current placement under H1 breaks the "same chrome across variants" inheritance from the Owner/Admin brief.~~ **HANDLED 2026-05-20 (post-fix)** — relocated to AdminTopNav right rail.
+- ~~**Role pill hidden on `<md` viewports** — `src/app/admin/dashboard/dashboard-header.tsx:54` uses `hidden ... md:inline-flex`, so a Coordinator on a 375px phone (the brief's explicit mobile-first persona) never sees their role context.~~ **HANDLED 2026-05-20 (post-fix)** — `md:inline-flex` gating removed; pill visible at all breakpoints via shared AdminTopNav.
 
 ### P2 findings
 
@@ -3517,9 +3515,9 @@ Re-scored against the same Nielsen rubric used for v1 (45/50). Source: PasswordR
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- Role pill is profile-role-driven, not variant-driven — `src/app/admin/dashboard/page.tsx:550` + `dashboard-header.tsx:53-61`
-- Role pill positioned under page H1, not in the chrome header rail — `src/app/admin/dashboard/dashboard-header.tsx:53-61`
-- Role pill hidden on `<md` viewports — `src/app/admin/dashboard/dashboard-header.tsx:54`
+- ~~Role pill is profile-role-driven, not variant-driven — `src/app/admin/dashboard/page.tsx:550` + `dashboard-header.tsx:53-61`~~ **HANDLED 2026-05-20 (dashboard-coordinator post-fix)** — confirmed via post-fix audit ("First-audit P1s (3, all role-pill chrome) all closed"); role pill now lives in shared AdminTopNav.
+- ~~Role pill positioned under page H1, not in the chrome header rail — `src/app/admin/dashboard/dashboard-header.tsx:53-61`~~ **HANDLED 2026-05-20 (dashboard-coordinator post-fix)** — role pill relocated to shared AdminTopNav right rail per post-fix audit.
+- ~~Role pill hidden on `<md` viewports — `src/app/admin/dashboard/dashboard-header.tsx:54`~~ **HANDLED 2026-05-20 (dashboard-coordinator post-fix)** — `md:inline-flex` gating removed; visible across breakpoints via shared AdminTopNav.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -3603,7 +3601,7 @@ The page is a credibly Rahma-shaped Coordinator triage surface that wins on warm
 - *(none)*
 
 ### P1 - Fix this sprint
-- **Tier 1/Tier 2 cards on coordinator variant not wrapped in `AdminErrorBoundary`** - `src/app/admin/dashboard/page.tsx:721, 767, 805-813`. Deferred to Phase 7 (cross-variant resilience pattern).
+- **Tier 1/Tier 2 cards on coordinator variant not wrapped in `AdminErrorBoundary`** - `src/app/admin/dashboard/page.tsx:721, 767, 805-813`. Deferred to Phase 7 (cross-variant resilience pattern). **AMBIGUOUS / DEFERRED to Phase 7** — same finding as the corrective-round entry; tagged for Phase 7.
 
 ### P2 - Next cycle
 - **0-state Cormorant numeral on Today panel reads as narrow vertical strokes, not as a digit "0"** - `dashboard-cards.tsx:274-278`. Either swap typeface to Work Sans on 0-state, or render an em-dash instead.
@@ -3710,7 +3708,7 @@ First-pass critique flagged: redundant TODAY pill, missing role pill at breakpoi
 **N-A.** Read-only by brief commitment. `getDashboardData` already returns coordinator-variant payload. No BUILD plan reference.
 
 ### P1 (tag for Phase 7 gauntlet)
-- Per-tile `AdminErrorBoundary` wrap on Coordinator branch - `src/app/admin/dashboard/page.tsx:725-774, 776-821`
+- Per-tile `AdminErrorBoundary` wrap on Coordinator branch - `src/app/admin/dashboard/page.tsx:725-774, 776-821`. **AMBIGUOUS / DEFERRED to Phase 7** — requires structural rewrap; carried into Phase 7 per the corrective-round commitment.
 
 ### BUSINESS-COMPLETENESS impact
 - Track A item 1 (Heading hierarchy contiguous): H1 → H2 → H3 contiguous.
@@ -3761,8 +3759,8 @@ Corrective round closed V-7 (TodayTimeline + UpcomingRangeList empty wrappers de
 
 ### P1 findings
 
-- **`src/app/admin/emails/page.tsx:62`** — `PAGE_SIZE = 100`. Brief §4: "Pagination: Delivery moves from hard `limit(100)` to a Load more 50-at-a-time". Implementation kept the 100-row hard limit and replaced "Load more" with a dashed-border "BUILD pending" sentinel. Documented in HARDEN-RECS-emails.md §6 as a Phase 7 follow-up tied to `BUILD-email-delivery-filter-query.md`.
-- **`src/app/admin/components/EmptyState.tsx:46-61` (consumed by `page.tsx:421-479,709-717`)** — Empty state uses a Lucide icon in a green circle, not the named `emails-empty.svg` / `reminders-empty.svg` dignified illustration. IMAGES-NEEDED.md rows for both assets were added in Step 3.
+- **`src/app/admin/emails/page.tsx:62`** — `PAGE_SIZE = 100`. Brief §4: "Pagination: Delivery moves from hard `limit(100)` to a Load more 50-at-a-time". Implementation kept the 100-row hard limit and replaced "Load more" with a dashed-border "BUILD pending" sentinel. Documented in HARDEN-RECS-emails.md §6 as a Phase 7 follow-up tied to `BUILD-email-delivery-filter-query.md`. **DEFERRED to backend BUILD** — gated on `BUILD-email-delivery-filter-query.md`.
+- **`src/app/admin/components/EmptyState.tsx:46-61` (consumed by `page.tsx:421-479,709-717`)** — Empty state uses a Lucide icon in a green circle, not the named `emails-empty.svg` / `reminders-empty.svg` dignified illustration. IMAGES-NEEDED.md rows for both assets were added in Step 3. **NOT-FIXED 2026-05-20** — illustration asset still missing; image-asset task.
 
 ### P2 findings
 
@@ -3793,8 +3791,8 @@ FAKE markers present at `page.tsx:134-139` (filter call site, comment-only), `De
 
 ### P1 (tag for Phase 7 gauntlet)
 
-- PAGE_SIZE deviation from brief's 50-at-a-time "Load more" — `src/app/admin/emails/page.tsx:62` (FAKE sentinel at `page.tsx:547-561`)
-- EmptyState illustrations missing the named `emails-empty.svg` / `reminders-empty.svg` per brief Recipe Context — `src/app/admin/components/EmptyState.tsx:46-61` (consumed at `page.tsx:434-479,712-716`)
+- PAGE_SIZE deviation from brief's 50-at-a-time "Load more" — `src/app/admin/emails/page.tsx:62` (FAKE sentinel at `page.tsx:547-561`). **DEFERRED to backend BUILD** — gated on `BUILD-email-delivery-filter-query.md`; not in UI gauntlet scope.
+- EmptyState illustrations missing the named `emails-empty.svg` / `reminders-empty.svg` per brief Recipe Context — `src/app/admin/components/EmptyState.tsx:46-61` (consumed at `page.tsx:434-479,712-716`). **NOT-FIXED 2026-05-20** — IMAGES-NEEDED.md entries unresolved at the time of this audit; image-asset task, not code-level.
 
 ### BUSINESS-COMPLETENESS impact
 
@@ -3868,7 +3866,7 @@ FAKE markers present at `page.tsx:134-139` (filter call site, comment-only), `De
 **P0 — Blocks release:** none
 
 **P1 — Fix this sprint (tag for Phase 7 gauntlet):**
-- `TemplateEditForm.tsx:50-78` — Unsaved-changes leave confirmation uses `window.confirm` rather than `ConfirmActionModal` per brief §Copy "Confirmation dialog text". Copy is verbatim; styling defers to Phase 7.
+- ~~`TemplateEditForm.tsx:50-78` — Unsaved-changes leave confirmation uses `window.confirm` rather than `ConfirmActionModal` per brief §Copy "Confirmation dialog text". Copy is verbatim; styling defers to Phase 7.~~ **HANDLED 2026-05-20** — `window.confirm` removed; TemplatesTab.tsx:80-129 wires a `leaveGuardRef` + styled discard modal (verified TemplatesTab.tsx:117-121 "Dirty — show styled discard modal instead of native confirm").
 
 **P2 — Next cycle:**
 - `TemplatesTab.tsx:38-56` — Mobile accordion-groups currently default-open (desktop spec); brief specifies "Accordion groups default to collapsed on mobile to avoid overwhelming the initial view." Phase 7 polish.
@@ -3878,7 +3876,7 @@ FAKE markers present at `page.tsx:134-139` (filter call site, comment-only), `De
 - `TemplatePreviewPanel.tsx:13-23` — EmptyState uses Lucide `Mail` icon until `public/images/admin/empty-states/templates-empty.svg` ships (added to IMAGES-NEEDED.md this session).
 
 **P1 (tag for Phase 7 gauntlet):**
-- `src/app/admin/emails/components/TemplateEditForm.tsx:50-78` — Discard confirmation styled as `ConfirmActionModal`.
+- ~~`src/app/admin/emails/components/TemplateEditForm.tsx:50-78` — Discard confirmation styled as `ConfirmActionModal`.~~ **HANDLED 2026-05-20** — `window.confirm` retired; TemplatesTab.tsx now drives a styled discard modal via `leaveGuardRef` + `pendingNextId`.
 
 **BUSINESS-COMPLETENESS impact:**
 - 2A-6 (form errors aria-live announce): this page contributes — the TemplateEditForm save-error region and ManualSendSheet error region both wrap in `role="alert" aria-live="polite" aria-atomic="true"`. Counted toward flipping 2A-6 from PARTIAL → HANDLED once the remaining form-bearing pages adopt.
@@ -3949,7 +3947,7 @@ P3
 **Backend status:** N-A (read-only surface; props contract from dashboard-data.ts unchanged; no new server actions or migrations).
 
 **P1 (tag for Phase 7 gauntlet):**
-- Gender-match chip + customer notes block — TherapistDashboard.tsx:206-314 — DEFERRED (Open Questions 1+2 require dashboard-data.ts extension).
+- Gender-match chip + customer notes block — TherapistDashboard.tsx:206-314 — DEFERRED (Open Questions 1+2 require dashboard-data.ts extension). **DEFERRED 2026-05-20** — verified: TherapistDashboard.tsx has no `required_gender`/customer-notes wiring; depends on dashboard-data.ts props extension (out of UI gauntlet scope).
 - HeroEmptyState padding — FIXED.
 - Section H2 sizes — FIXED.
 

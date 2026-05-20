@@ -302,10 +302,12 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       : Promise.resolve({ data: [] }),
     adminClient.from("staff_availability_rules").select("id").eq("staff_id", staffId),
     // Sibling staff for prev/next header arrows (only when caller has team-directory visibility).
+    // Restricted to active staff so prev/next never lands on retired colleagues.
     teamAccess.access
       ? adminClient
           .from("staff_profiles")
           .select("id, name")
+          .eq("active", true)
           .order("name", { ascending: true })
       : Promise.resolve({ data: [] }),
     // Last-modified caption — most-recent staff-write audit event by an actor whose name we can resolve.
@@ -718,6 +720,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
           {/* R1 — Identity (status chip lives in header; rail panel surfaces the identity ledger only) */}
           <AdminPanel
             title="Identity"
+            titleAs="h3"
             density="compact"
             badge={isOwnProfile ? <AdminStatusBadge value="You" tone="success" compact /> : null}
           >
@@ -756,6 +759,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
           {canShowAdminPanels || isOwnProfile ? (
             <AdminPanel
               title="Profile completion"
+              titleAs="h3"
               description={`${completionDone} of ${completionTotal} done.`}
               density="compact"
               badge={
@@ -783,6 +787,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
           {canShowAdminPanels ? (
             <AdminPanel
               title="Onboarding"
+              titleAs="h3"
               description={`${onboardingDone} of ${onboardingTotal} done.`}
               density="compact"
               badge={
@@ -808,7 +813,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
 
           {/* R4 — Role and permissions (admin scope only) */}
           {canShowAdminPanels ? (
-            <AdminPanel title="Role and permissions" density="compact">
+            <AdminPanel title="Role and permissions" titleAs="h3" density="compact">
               <div className="grid gap-2 text-sm">
                 <p
                   className="font-medium text-[var(--admin-heading)]"
@@ -838,7 +843,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
           {/* R5 — Permission overrides (when canManageOverrides) */}
           {canManageOverrides ? (
             isOwnProfile ? (
-              <AdminPanel title="Permission overrides" tone="restricted" density="compact">
+              <AdminPanel title="Permission overrides" titleAs="h3" tone="restricted" density="compact">
                 <p className="text-sm leading-6 text-[var(--admin-body)]">
                   Self overrides are disabled to prevent lockout. Ask another owner-level admin to
                   change your overrides.
@@ -847,6 +852,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
             ) : (
               <AdminPanel
                 title="Permission overrides"
+                titleAs="h3"
                 description="Overrides sit on top of the fixed role bundle."
                 density="compact"
               >

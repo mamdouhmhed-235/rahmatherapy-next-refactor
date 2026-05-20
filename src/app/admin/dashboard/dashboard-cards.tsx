@@ -138,7 +138,7 @@ export function AttentionItemCard({
   return (
     <div
       className={cn(
-        "dashboard-attention-item grid min-w-0 gap-3 rounded-[var(--admin-radius-card)] border bg-white px-4 py-4",
+        "dashboard-attention-item grid min-w-0 gap-3 rounded-[var(--admin-radius-card)] border bg-[var(--admin-panel)] px-4 py-4",
         severity === "critical" && "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/30",
         severity === "warning" && "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/30",
         severity === "info" && "border-[var(--admin-border)]"
@@ -179,14 +179,14 @@ export function AttentionItemCard({
               {primaryLabel}
             </Link>
           ) : (
-            <span className="inline-flex min-h-11 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3.5 text-[13px] text-[var(--admin-restricted)] sm:min-h-9">
+            <span className="inline-flex min-h-11 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3.5 text-[13px] text-[var(--admin-restricted)] sm:min-h-9">
               Restricted
             </span>
           )}
           {secondaryHref ? (
             <Link
               href={secondaryHref}
-              className="inline-flex min-h-11 min-w-[7.5rem] items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3.5 text-[13px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 sm:min-h-9"
+              className="inline-flex min-h-11 min-w-[7.5rem] items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3.5 text-[13px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 sm:min-h-9"
             >
               {secondaryLabel ?? "Details"}
             </Link>
@@ -359,7 +359,7 @@ export function TodayAtAGlanceCard({
       </div>
 
       <div
-        className="mt-5 grid gap-y-1.5 gap-x-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3 sm:flex sm:flex-wrap sm:items-center"
+        className="mt-5 grid gap-y-1.5 gap-x-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3 sm:flex sm:flex-wrap sm:items-center"
         aria-label="Day readiness"
       >
         <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--admin-text-muted)]">
@@ -417,7 +417,7 @@ function SnapshotViewToggle({ currentView, filterQuery }: { currentView: "list" 
     <div
       role="group"
       aria-label="Today view mode"
-      className="mb-3 inline-flex items-center gap-0.5 rounded-full border border-[var(--admin-border)] bg-white p-0.5"
+      className="mb-3 inline-flex items-center gap-0.5 rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] p-0.5"
     >
       <Link
         href={listHref}
@@ -477,7 +477,7 @@ function TodayList({
         {unassignedFirst ? (
           <Link
             href="/admin/enquiries"
-            className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+            className="mt-4 inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
           >
             Open enquiries
           </Link>
@@ -584,7 +584,7 @@ function SnapshotListRow({
   const content = (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2.5 transition-[background-color,box-shadow,transform] duration-150",
+        "flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-2.5 transition-[background-color,box-shadow,transform] duration-150",
         appointment.href && "hover:-translate-y-px hover:bg-[var(--admin-panel-muted)]/60 hover:shadow-[var(--admin-shadow-subtle)]"
       )}
       title={`${dateChip ? `${dateChip} · ` : ""}${timeRange} · ${appointment.title}${isUnconfirmed ? " (awaiting confirmation)" : ""}`}
@@ -827,7 +827,7 @@ export function ActiveEnquiriesCard({
             const tint = avatarTintStyle(enquiry.fullName || enquiry.id);
             return (
               <li key={enquiry.id}>
-                <div className="flex flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-2.5 sm:flex-nowrap">
+                <div className="flex flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-2.5 sm:flex-nowrap">
                   <span
                     className="relative inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
                     style={tint}
@@ -862,7 +862,7 @@ export function ActiveEnquiriesCard({
                   {convertHref ? (
                     <Link
                       href={convertHref}
-                      className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:w-auto"
+                      className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:w-auto"
                       title="Open the booking form with this enquiry pre-filled"
                     >
                       <span>Convert</span>
@@ -1040,7 +1040,7 @@ export function UrgentAttentionPanel({
                 "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3 transition-[background-color,border-color] duration-150",
                 row.severity === "critical" && "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/30",
                 row.severity === "warning" && "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/30",
-                row.severity === "info" && "border-[var(--admin-border)] bg-white",
+                row.severity === "info" && "border-[var(--admin-border)] bg-[var(--admin-panel)]",
                 row.severity === "clear" && "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)]/20",
                 href && "hover:-translate-y-px hover:shadow-[var(--admin-shadow-subtle)]"
               )}
@@ -1222,7 +1222,7 @@ export function StaffCapacityCard({
             return (
               <div
                 key={staff.staffName}
-                className="flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-3 py-3"
+                className="flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-3"
                 title={`${staff.staffName}: ${staff.completed} of ${staff.assignments} bookings completed (${formatPercent(workloadPercent)}) - ${statusText}`}
               >
                 <div
@@ -1346,7 +1346,7 @@ export function PaymentHealthCard({
             {/* Row-based payment bars */}
             <div className="grid gap-3">
               {/* Booked */}
-              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
+              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 rounded-full bg-[var(--admin-info)]" />
@@ -1365,7 +1365,7 @@ export function PaymentHealthCard({
               </div>
 
               {/* Collected */}
-              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3">
+              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="size-2.5 rounded-full bg-[var(--admin-success)]" />
@@ -1391,7 +1391,7 @@ export function PaymentHealthCard({
 
               {/* Outstanding */}
               <div
-                className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-white px-4 py-3"
+                className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3"
                 title={`Outstanding: ${formatMoney(summary.outstandingRevenue)} awaiting collection across ${unpaidCount} booking${unpaidCount === 1 ? "" : "s"}${(unpaidCompletedCount ?? 0) > 0 ? ` (${unpaidCompletedCount} already completed)` : ""}`}
               >
                 <div className="flex items-center justify-between gap-3">
@@ -1587,7 +1587,7 @@ export function OperationsHealthCard({
                   "flex items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3 transition-colors",
                   row.severity === "critical" && "border-[var(--admin-danger-bg)] bg-[var(--admin-danger-bg)]/30 hover:bg-[var(--admin-danger-bg)]/55",
                   row.severity === "warning" && "border-[var(--admin-warning-bg)] bg-[var(--admin-warning-bg)]/30 hover:bg-[var(--admin-warning-bg)]/55",
-                  row.severity === "info" && "border-[var(--admin-border)] bg-white hover:bg-[var(--admin-panel-muted)]/60"
+                  row.severity === "info" && "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:bg-[var(--admin-panel-muted)]/60"
                 )}
               >
                 <AdminIconBadge
@@ -1810,5 +1810,5 @@ export const adminDashboardCardClasses = {
   primaryButton:
     "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
   outlineButton:
-    "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
+    "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
 };

@@ -134,7 +134,7 @@ export function AttentionReviewButton({
         ref={triggerRef}
         type="button"
         onClick={() => setExpanded(true)}
-        className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+        className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
       >
         {label}
         <ChevronRight className="size-4" aria-hidden="true" />
@@ -208,7 +208,7 @@ export function AttentionReviewButton({
                   type="button"
                   onClick={() => setPage((current) => Math.max(1, current - 1))}
                   disabled={safePage === 1}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9"
                   aria-label="Previous attention page"
                 >
                   <ChevronLeft className="size-3.5" aria-hidden="true" />
@@ -218,7 +218,7 @@ export function AttentionReviewButton({
                   type="button"
                   onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
                   disabled={safePage === pageCount}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9"
+                  className="inline-flex min-h-11 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-xs font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9"
                   aria-label="Next attention page"
                 >
                   Next
@@ -258,14 +258,14 @@ function CategoryTabs({
           className={cn(
             "inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-[13px] font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
             activeCategory === category.key
-              ? "bg-[var(--admin-primary)] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+              ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
               : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
           )}
         >
           {category.label}
           <span className={cn(
             "rounded-full px-1.5 py-0.5 text-[11px] leading-none",
-            activeCategory === category.key ? "bg-white/20 text-white" : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
+            activeCategory === category.key ? "bg-white/20 text-[var(--admin-on-primary)]" : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
           )}>
             {category.count}
           </span>

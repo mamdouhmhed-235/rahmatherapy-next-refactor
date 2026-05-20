@@ -1,11 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { CheckCircle, Loader2, MoreHorizontal, SlidersHorizontal, X, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── AdminActionMenu ──────────────────────────────────────────────────────────
+// Proper `menu` / `menuitem` pattern with arrow-key navigation, outside-click
+// close, Escape close, and focus return to the trigger. Replaces the earlier
+// `<details>/<summary>` shape (no menu role, no arrow keys).
 
 export function AdminActionMenu({
   label = "More actions",
@@ -16,16 +19,116 @@ export function AdminActionMenu({
   children: React.ReactNode;
   className?: string;
 }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close on outside click + Escape — mirrors the previous <details> behaviour
+  // while we own the open/close state explicitly.
+  useEffect(() => {
+    if (!open) return;
+    function onDocPointer(event: PointerEvent) {
+      if (!containerRef.current) return;
+      if (!containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+    document.addEventListener("pointerdown", onDocPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDocPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // Move keyboard focus to the first menuitem when the menu opens.
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => {
+      const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+      first?.focus();
+    });
+  }, [open]);
+
+  // Arrow keys cycle the focused menuitem; Home/End jump to first/last.
+  const onMenuKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const items = Array.from(
+      menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')
+    );
+    if (items.length === 0) return;
+    const activeIndex = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const next = items[(activeIndex + 1 + items.length) % items.length];
+      next?.focus();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      const prev = items[(activeIndex - 1 + items.length) % items.length];
+      prev?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      items[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      items[items.length - 1]?.focus();
+    } else if (event.key === "Tab") {
+      // Tab closes the menu — focus naturally proceeds to the next document control.
+      setOpen(false);
+    }
+  }, []);
+
+  // ArrowDown / ArrowUp on the trigger also opens the menu and lands focus on
+  // the first or last item respectively (standard menu-trigger keyboard model).
+  const onTriggerKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setOpen(true);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+      requestAnimationFrame(() => {
+        const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+        items?.[items.length - 1]?.focus();
+      });
+    }
+  }, []);
+
   return (
-    <details className={cn("relative inline-block text-left", className)}>
-      <summary className="inline-flex size-9 cursor-pointer list-none items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden">
+    <div ref={containerRef} className={cn("relative inline-block text-left", className)}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        onKeyDown={onTriggerKeyDown}
+        className="inline-flex size-9 cursor-pointer items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+      >
         <MoreHorizontal className="size-4" aria-hidden="true" />
         <span className="sr-only">{label}</span>
-      </summary>
-      <div className="absolute right-0 z-30 mt-1.5 grid min-w-48 gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]">
-        {children}
-      </div>
-    </details>
+      </button>
+      {open ? (
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label={label}
+          onKeyDown={onMenuKeyDown}
+          className="absolute right-0 z-30 mt-1.5 grid min-w-48 gap-0.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-1.5 shadow-[var(--admin-shadow-overlay)]"
+        >
+          {children}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -42,6 +145,7 @@ export function AdminMenuItem({
   return (
     <button
       type="button"
+      role="menuitem"
       className={cn(
         "flex min-h-11 sm:min-h-9 w-full items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
         destructive

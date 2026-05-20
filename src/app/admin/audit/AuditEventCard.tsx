@@ -1,5 +1,6 @@
-import { ChevronRight, ExternalLink, Lock } from "lucide-react";
+import { ChevronRight, ExternalLink, Eye, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
 import {
   buildFilterHref,
   buildTargetHref,
@@ -15,22 +16,24 @@ import { redactStatePayload, summariseRedactions } from "./redaction";
 import { AuditRowMenu } from "./AuditRowMenu";
 import type { AuditEventRow } from "./actions";
 
-// Per `quieter` axis: tone down chip presence. A 6px dot beside the verb
-// carries the action-family colour without repeating the verb's meaning in
-// text. The dot's tooltip names the family for screen readers.
-function chipClasses(chip: ReturnType<typeof describeAction>["chip"]): string | null {
-  // A 8px family-tinted dot sits before the actor name. Chroma is bumped just
-  // above the resting status-text values so it registers as a deliberate
-  // indicator, not a smudge — but still quieter than a full pill.
+// Per `quieter` axis: tone down chip presence. A small family-tinted icon sits
+// beside the verb. The icon SHAPE differentiates the family for sighted users
+// who can't rely on colour alone (Named Status Rule, §2). The icon's
+// surrounding `aria-label` / `title` names the family for screen readers.
+type ChipKind = ReturnType<typeof describeAction>["chip"];
+
+function chipMeta(
+  chip: ChipKind
+): { Icon: LucideIcon; className: string } | null {
   switch (chip) {
     case "confirmed":
-      return "inline-block size-2 shrink-0 rounded-full bg-[oklch(38%_0.10_155)]";
+      return { Icon: Plus, className: "text-[oklch(38%_0.10_155)]" };
     case "pending":
-      return "inline-block size-2 shrink-0 rounded-full bg-[oklch(55%_0.16_70)]";
+      return { Icon: Pencil, className: "text-[oklch(55%_0.16_70)]" };
     case "cancelled":
-      return "inline-block size-2 shrink-0 rounded-full bg-[oklch(45%_0.19_25)]";
+      return { Icon: Trash2, className: "text-[oklch(45%_0.19_25)]" };
     case "restricted":
-      return "inline-block size-2 shrink-0 rounded-full bg-[oklch(42%_0.05_280)]";
+      return { Icon: Eye, className: "text-[oklch(42%_0.05_280)]" };
     default:
       return null;
   }
@@ -116,7 +119,7 @@ function renderTargetChipContent(
 export function AuditEventCard({ event, actorName, targetExists, currentFilters }: AuditEventCardProps) {
   const description = describeAction(event.action_type);
   const redaction = summariseRedactions(event.before_state, event.after_state);
-  const chipClass = chipClasses(description.chip);
+  const chip = chipMeta(description.chip);
   const tint = avatarTint(event.actor_staff_id);
 
   const targetHref = buildTargetHref(event.target_type, event.target_id);
@@ -135,7 +138,7 @@ export function AuditEventCard({ event, actorName, targetExists, currentFilters 
     : null;
   const isActorActive = currentFilters.actor === event.actor_staff_id;
   const familyKey = description.family;
-  const familyFilterHref = chipClass
+  const familyFilterHref = chip
     ? buildFilterHref(currentFilters, { family: familyKey })
     : null;
   const isFamilyActive = currentFilters.family === familyKey;
@@ -156,20 +159,24 @@ export function AuditEventCard({ event, actorName, targetExists, currentFilters 
           </span>
           <div className="min-w-0">
             <p className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[0.9375rem] leading-tight">
-              {chipClass ? (
+              {chip ? (
                 familyFilterHref && !isFamilyActive ? (
                   <Link
                     href={familyFilterHref}
-                    className={`${chipClass} mt-1.5 self-start outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2`}
+                    className={`${chip.className} mt-1.5 inline-flex shrink-0 self-start outline-none transition-transform hover:scale-125 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2`}
                     aria-label={`Filter by action family: ${chipLabel(description.chip)}`}
                     title={`Filter by ${chipLabel(description.chip)}`}
-                  />
+                  >
+                    <chip.Icon className="size-3.5" aria-hidden="true" />
+                  </Link>
                 ) : (
                   <span
-                    className={`${chipClass} mt-1.5 self-start`}
+                    className={`${chip.className} mt-1.5 inline-flex shrink-0 self-start`}
                     aria-label={`Action family: ${chipLabel(description.chip)}`}
                     title={chipLabel(description.chip)}
-                  />
+                  >
+                    <chip.Icon className="size-3.5" aria-hidden="true" />
+                  </span>
                 )
               ) : null}
               {actorFilterHref && !isActorActive ? (

@@ -493,7 +493,7 @@ function NotificationPopoverContent({
             className={cn(
               "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
               tab === t
-                ? "bg-[var(--admin-primary)] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
                 : "text-[var(--admin-body)] hover:text-[var(--admin-heading)] hover:bg-[var(--admin-panel-muted)]"
             )}
           >
@@ -501,7 +501,7 @@ function NotificationPopoverContent({
             {tabCounts[t] > 0 ? (
               <span className={cn(
                 "rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
-                tab === t ? "bg-white/20 text-white" : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
+                tab === t ? "bg-white/20 text-[var(--admin-on-primary)]" : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
               )}>
                 {tabCounts[t]}
               </span>
@@ -568,7 +568,7 @@ function NotificationPopoverContent({
                       markRead(item.id);
                       onClose();
                     }}
-                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-2.5 text-[11px] font-semibold text-white outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-2.5 text-[11px] font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
                   >
                     {item.actionLabel ?? "View"}
                   </Link>

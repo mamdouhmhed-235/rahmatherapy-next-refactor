@@ -258,6 +258,22 @@ a[class*="border-rahma-green/30"] {
   animation: rahma-fade-up 320ms cubic-bezier(0.25, 1, 0.5, 1) both;
 }
 
+/* Force-open <details> on print so audit before/after JSON, operations safe
+ * context, and any other progressive-disclosure surfaces render fully on
+ * paper. `print:!open` as a Tailwind class targets an HTML attribute, not a
+ * CSS property — this rule provides the actual paint-time expansion. */
+@media print {
+  details:not([open]) > summary ~ * {
+    display: revert !important;
+  }
+  details > summary {
+    list-style: none;
+  }
+  details > summary::-webkit-details-marker {
+    display: none;
+  }
+}
+
 /* Respect user preference for reduced motion across the entire application */
 @media (prefers-reduced-motion: reduce) {
   *,

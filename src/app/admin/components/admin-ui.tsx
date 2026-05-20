@@ -251,6 +251,7 @@ export function AdminStat({
 
 export function AdminPanel({
   title,
+  titleAs = "h2",
   description,
   badge,
   children,
@@ -263,6 +264,9 @@ export function AdminPanel({
   error,
 }: {
   title?: string;
+  /** Heading level for the panel title. Defaults to h2; use h3 when the panel
+   *  sits beneath a section h2 (e.g. staff-detail right-rail). */
+  titleAs?: "h2" | "h3";
   description?: string;
   badge?: React.ReactNode;
   children: React.ReactNode;
@@ -275,6 +279,7 @@ export function AdminPanel({
   error?: string;
 }) {
   const resolvedTone = error ? "danger" : tone;
+  const TitleTag = titleAs;
 
   return (
     <section
@@ -290,9 +295,9 @@ export function AdminPanel({
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             {title ? (
-              <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
+              <TitleTag className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
                 {title}
-              </h2>
+              </TitleTag>
             ) : null}
             {description ? (
               <p className="mt-0.5 text-sm text-[var(--admin-text-muted)]">{description}</p>

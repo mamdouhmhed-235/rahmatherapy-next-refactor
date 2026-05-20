@@ -365,7 +365,7 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
           <div
             role="alert"
             aria-live="polite"
-            className="flex flex-col gap-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-4 py-4 text-sm text-[oklch(26%_0.14_25)] sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] px-4 py-4 text-sm text-[var(--admin-status-cancelled-text)] sm:flex-row sm:items-center sm:justify-between"
           >
             <p className="flex items-start gap-2 leading-6">
               <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -373,7 +373,7 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
             </p>
             <a
               href="/admin/operations"
-              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.045_20)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
               Try again
             </a>

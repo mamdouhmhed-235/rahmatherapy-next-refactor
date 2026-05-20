@@ -1,6 +1,7 @@
 "use client";
 
 import { useId } from "react";
+import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { Plus } from "lucide-react";
 import { AdminSheet } from "../components/admin-ui-interactions";
 
@@ -25,7 +26,6 @@ export function CreateRoleSheet({ defaultSortOrder }: CreateRoleSheetProps) {
         <button
           type="button"
           className="inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-white outline-none transition-colors duration-150 hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:h-10 sm:w-auto sm:justify-start"
-          aria-keyshortcuts="n"
           title="Add a new role with custom permissions"
         >
           <Plus className="size-4" aria-hidden="true" />
@@ -156,12 +156,16 @@ export function CreateRoleSheet({ defaultSortOrder }: CreateRoleSheetProps) {
         </div>
 
         <div className="mt-1 flex flex-col items-stretch gap-2 border-t border-[var(--admin-border)] pt-4 sm:flex-row sm:items-center sm:justify-end">
-          <button
-            type="button"
-            className="inline-flex h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-          >
-            Cancel
-          </button>
+          <BaseDialog.Close
+            render={
+              <button
+                type="button"
+                className="inline-flex h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                Cancel
+              </button>
+            }
+          />
           <button
             type="submit"
             data-redesign-fake="create-role"

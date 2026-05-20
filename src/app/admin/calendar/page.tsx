@@ -390,7 +390,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const hasActiveFilters = Boolean(staffFilterName || paymentFilterLabel);
 
   return (
-    <div className="grid min-w-0 gap-5 pb-12 print:gap-3 print:pb-0 lg:pb-0">
+    <div className="grid min-w-0 gap-5 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] print:gap-3 print:pb-0 lg:pb-0">
       <AdminPageHeader
         title="Calendar"
         actions={
@@ -533,7 +533,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               key={idx}
               role="status"
               aria-live="polite"
-              className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.055_75)] bg-[oklch(96%_0.038_75)] px-3 py-2 text-sm text-[oklch(28%_0.12_55)]"
+              className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-pending-border)] bg-[var(--admin-status-pending-bg)] px-3 py-2 text-sm text-[var(--admin-status-pending-text)]"
             >
               <CalendarClock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <span>{banner.message}</span>
@@ -554,7 +554,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           {staffFilterName ? (
             <Link
               href={buildHref(baseParams, { staffId: "" })}
-              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[oklch(94%_0.008_280)] py-0.5 pl-2.5 pr-1.5 text-[0.75rem] font-medium text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-status-restricted-bg)] py-0.5 pl-2.5 pr-1.5 text-[0.75rem] font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               aria-label={`Clear therapist filter (${staffFilterName})`}
             >
               <span>Therapist: {staffFilterName}</span>
@@ -564,7 +564,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           {paymentFilterLabel ? (
             <Link
               href={buildHref(baseParams, { paymentStatus: "" })}
-              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[oklch(94%_0.008_280)] py-0.5 pl-2.5 pr-1.5 text-[0.75rem] font-medium text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-status-restricted-bg)] py-0.5 pl-2.5 pr-1.5 text-[0.75rem] font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               aria-label={`Clear payment filter (${paymentFilterLabel})`}
             >
               <span>Payment: {paymentFilterLabel}</span>
@@ -591,17 +591,17 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
             booking{stats.total === 1 ? "" : "s"}
           </span>
           {stats.unassigned > 0 ? (
-            <span className="text-[oklch(26%_0.13_55)]">
+            <span className="text-[var(--admin-status-attention-text)]">
               <span className="tabular-nums">{stats.unassigned}</span> unassigned
             </span>
           ) : null}
           {stats.reschedule > 0 ? (
-            <span className="text-[oklch(28%_0.12_55)]">
+            <span className="text-[var(--admin-status-pending-text)]">
               <span className="tabular-nums">{stats.reschedule}</span> reschedule{stats.reschedule === 1 ? "" : "s"}
             </span>
           ) : null}
           {stats.unpaid > 0 ? (
-            <span className="text-[oklch(26%_0.13_55)]">
+            <span className="text-[var(--admin-status-attention-text)]">
               <span className="tabular-nums">{stats.unpaid}</span> unpaid
             </span>
           ) : null}
@@ -957,7 +957,7 @@ function MonthGridShell({
                   {dayBookings.slice(0, 2).map((b) => (
                     <li
                       key={b.id}
-                      className="truncate rounded-[3px] bg-[oklch(93.5%_0.038_155)] px-1 py-[1px] text-[0.625rem] font-medium text-[oklch(22%_0.085_155)]"
+                      className="truncate rounded-[3px] bg-[var(--admin-status-confirmed-bg)] px-1 py-[1px] text-[0.625rem] font-medium text-[var(--admin-status-confirmed-text)]"
                       title={`${b.start_time.slice(0, 5)} ${b.contact_full_name ?? "Unknown"}`}
                     >
                       <span className="tabular-nums">
@@ -1157,7 +1157,7 @@ function DayAgenda({
     <AdminPanel
       title={formatBusinessDate(date)}
       badge={
-        <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(93.5%_0.038_155)] px-2.5 py-0.5 text-xs font-medium text-[oklch(22%_0.085_155)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-status-confirmed-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-status-confirmed-text)]">
           {bookings.length} booking{bookings.length === 1 ? "" : "s"}
         </span>
       }
@@ -1168,7 +1168,7 @@ function DayAgenda({
           <div
             role="status"
             aria-live="polite"
-            className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-2 text-sm text-[oklch(26%_0.13_55)]"
+            className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] px-3 py-2 text-sm text-[var(--admin-status-attention-text)]"
           >
             <CalendarClock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>
@@ -1277,7 +1277,7 @@ function PerDatePanel({
     <AdminPanel
       title={formatBusinessDate(date)}
       badge={
-        <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(93.5%_0.038_155)] px-2.5 py-0.5 text-xs font-medium text-[oklch(22%_0.085_155)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-status-confirmed-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-status-confirmed-text)]">
           {bookings.length} booking{bookings.length === 1 ? "" : "s"}
         </span>
       }
@@ -1288,7 +1288,7 @@ function PerDatePanel({
           <div
             role="status"
             aria-live="polite"
-            className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-2 text-sm text-[oklch(26%_0.13_55)]"
+            className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] px-3 py-2 text-sm text-[var(--admin-status-attention-text)]"
           >
             <CalendarClock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             <span>
@@ -1500,10 +1500,10 @@ function ModifierIcon({
 }) {
   const bg =
     tone === "success"
-      ? "bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]"
+      ? "bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)]"
       : tone === "danger"
-        ? "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
-        : "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]";
+        ? "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)]"
+        : "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]";
   if (label) {
     return (
       <span
@@ -1572,7 +1572,7 @@ function SidebarDisclosure({
     const bookings = unassigned.slice(0, 5);
     const count = bookings.length;
     return (
-      <details className="group rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)] print:hidden xl:hidden">
+      <details className="group rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)] print:hidden xl:hidden">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none transition-colors hover:bg-[oklch(92%_0.06_65)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55">
           <span className="flex items-center gap-2">
             <CalendarClock className="size-4" aria-hidden="true" />
@@ -1588,7 +1588,7 @@ function SidebarDisclosure({
             Tap to collapse
           </span>
         </summary>
-        <div className="border-t border-[oklch(88%_0.06_65)] bg-[var(--admin-panel)] p-3">
+        <div className="border-t border-[var(--admin-status-attention-border)] bg-[var(--admin-panel)] p-3">
           {count === 0 ? (
             <p className="text-sm text-[var(--admin-text-muted)]">
               No claimable visits match your profile right now.
@@ -1618,7 +1618,7 @@ function SidebarDisclosure({
   const bookings = unassigned.slice(0, 8);
   const total = unassigned.length;
   return (
-    <details className="group rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)] print:hidden xl:hidden">
+    <details className="group rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)] print:hidden xl:hidden">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none transition-colors hover:bg-[oklch(92%_0.06_65)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55">
         <span className="flex items-center gap-2">
           <CalendarClock className="size-4" aria-hidden="true" />
@@ -1634,7 +1634,7 @@ function SidebarDisclosure({
           Tap to collapse
         </span>
       </summary>
-      <div className="border-t border-[oklch(88%_0.06_65)] bg-[var(--admin-panel)] p-3">
+      <div className="border-t border-[var(--admin-status-attention-border)] bg-[var(--admin-panel)] p-3">
         {total === 0 ? (
           <p className="text-sm leading-6 text-[var(--admin-text-muted)]">
             Every visit has a therapist.
@@ -1678,7 +1678,7 @@ function UnassignedPanel({
     <AdminPanel
       title="Unassigned"
       badge={
-        <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(95%_0.05_65)] px-2.5 py-0.5 text-xs font-medium text-[oklch(26%_0.13_55)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-status-attention-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-status-attention-text)]">
           {totalCount}
         </span>
       }
@@ -1715,7 +1715,7 @@ function ClaimableTodayPanel({ bookings }: { bookings: ReportBooking[] }) {
     <AdminPanel
       title="Claimable today"
       badge={
-        <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(95%_0.05_65)] px-2.5 py-0.5 text-xs font-medium text-[oklch(26%_0.13_55)]">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-status-attention-bg)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-status-attention-text)]">
           {bookings.length}
         </span>
       }

@@ -399,6 +399,8 @@ function UserMenuButton({
 }) {
   const [open, setOpen] = useState(false);
   const ref             = useRef<HTMLDivElement>(null);
+  const menuRef         = useRef<HTMLDivElement>(null);
+  const triggerRef      = useRef<HTMLButtonElement>(null);
   const initials        = getInitials(profile.name);
   const firstName       = getUserFirstName(profile.name);
 
@@ -407,7 +409,12 @@ function UserMenuButton({
 
   useEffect(() => {
     if (!open) return;
-    function onKey(e: KeyboardEvent)   { if (e.key === "Escape") setOpen(false); }
+    function onKey(e: KeyboardEvent)   {
+      if (e.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
     function onClick(e: MouseEvent)    { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
     document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onClick);
@@ -417,12 +424,66 @@ function UserMenuButton({
     };
   }, [open]);
 
+  // Move keyboard focus to the first menuitem when the menu opens.
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => {
+      const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+      first?.focus();
+    });
+  }, [open]);
+
+  // Arrow keys cycle the focused menuitem (WCAG SC 4.1.2 — declared role must
+  // match interaction model).
+  function onMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const items = Array.from(
+      menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])')
+    );
+    if (items.length === 0) return;
+    const activeIndex = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const next = items[(activeIndex + 1 + items.length) % items.length];
+      next?.focus();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      const prev = items[(activeIndex - 1 + items.length) % items.length];
+      prev?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      items[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      items[items.length - 1]?.focus();
+    } else if (event.key === "Tab") {
+      setOpen(false);
+    }
+  }
+
+  function onTriggerKeyDown(event: React.KeyboardEvent<HTMLButtonElement>) {
+    if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setOpen(true);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+      requestAnimationFrame(() => {
+        const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+        items?.[items.length - 1]?.focus();
+      });
+    }
+  }
+
   return (
     <div className="relative" ref={ref}>
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
+        onKeyDown={onTriggerKeyDown}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`${firstName}'s account menu`}
@@ -451,7 +512,10 @@ function UserMenuButton({
       {/* Dropdown */}
       {open ? (
         <div
+          ref={menuRef}
           role="menu"
+          aria-label={`${firstName}'s account menu`}
+          onKeyDown={onMenuKeyDown}
           className="u-menu-enter absolute right-0 top-full z-50 mt-2 w-[17.5rem] rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)]"
           style={{ animation: "menu-enter 160ms cubic-bezier(0.16,1,0.3,1) both" }}
         >

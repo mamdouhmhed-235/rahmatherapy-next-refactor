@@ -101,7 +101,7 @@ function CityCombobox({
           name={name}
           list={listId}
           defaultValue={defaultValue}
-          className="h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white pl-9 pr-3 text-sm font-medium normal-case tracking-normal text-[var(--admin-body)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+          className="h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-surface-input)] pl-9 pr-3 text-sm font-medium normal-case tracking-normal text-[var(--admin-body)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
           placeholder="All cities"
           autoComplete="off"
         />
@@ -131,7 +131,7 @@ function DateInput({
         name={name}
         type="date"
         defaultValue={defaultValue}
-        className="h-10 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--admin-body)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+        className="h-10 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-surface-input)] px-3 text-sm font-medium normal-case tracking-normal text-[var(--admin-body)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
       />
     </label>
   );
@@ -154,7 +154,7 @@ function FormSelect({
       <select
         name={name}
         defaultValue={defaultValue}
-        className="h-10 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[var(--admin-body)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+        className="h-10 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-surface-input)] px-3 text-sm font-medium normal-case tracking-normal text-[var(--admin-body)] outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
       >
         {children}
       </select>
@@ -343,7 +343,7 @@ export function DashboardFiltersClient({
                     "group inline-flex h-11 shrink-0 snap-start items-center justify-center rounded-full border px-4 text-[13px] font-semibold outline-none transition-[background-color,border-color,color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 active:scale-[0.97] sm:h-10",
                     isActive
                       ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-white shadow-[0_2px_6px_oklch(23%_0.073_155/0.28),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-[var(--admin-primary-hover)]"
-                      : "border-[var(--admin-border)] bg-white text-[var(--admin-body)] shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:-translate-y-px hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]/60 hover:text-[var(--admin-heading)] hover:shadow-[0_2px_5px_rgba(0,0,0,0.04)]"
+                      : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:-translate-y-px hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]/60 hover:text-[var(--admin-heading)] hover:shadow-[0_2px_5px_rgba(0,0,0,0.04)]"
                   )}
                 >
                   {preset.label}
@@ -397,7 +397,7 @@ export function DashboardFiltersClient({
                   "inline-flex h-11 items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:h-9",
                   activeAdvancedFilters > 0
                     ? "border-[var(--admin-warning-bg)] bg-[var(--admin-warning-bg)]/60 text-[var(--admin-heading)] hover:bg-[var(--admin-warning-bg)]/85"
-                    : "border-[var(--admin-border)] bg-white text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]/70"
+                    : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]/70"
                 )}
                 aria-haspopup="dialog"
               >
@@ -479,7 +479,7 @@ export function DashboardFiltersClient({
                   disabled={isPending}
                   className={cn(
                     buttonVariants({ variant: "outline", size: "sm" }),
-                    "min-h-11 flex-1 bg-white text-[var(--admin-body)]"
+                    "min-h-11 flex-1 bg-[var(--admin-panel)] text-[var(--admin-body)]"
                   )}
                 >
                   Clear all
@@ -492,7 +492,7 @@ export function DashboardFiltersClient({
             <Link
               href={buildExportHref()}
               prefetch={false}
-              className="inline-flex h-11 items-center gap-1.5 rounded-full border border-transparent px-3 text-[13px] font-semibold text-[var(--admin-primary)] outline-none transition-colors hover:border-[var(--admin-border)] hover:bg-white focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:h-9"
+              className="inline-flex h-11 items-center gap-1.5 rounded-full border border-transparent px-3 text-[13px] font-semibold text-[var(--admin-primary)] outline-none transition-colors hover:border-[var(--admin-border)] hover:bg-[var(--admin-panel)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:h-9"
               title="Download a CSV with current filters"
             >
               <Download className="size-3.5" aria-hidden="true" />
@@ -562,7 +562,7 @@ export function DashboardFiltersClient({
               href={buildPillRemoveHref(pill.key)}
               scroll={false}
               aria-label={`Remove ${ADVANCED_FILTER_LABELS[pill.key]} filter (${formatPillValue(pill.key, pill.value)})`}
-              className="group inline-flex items-center gap-1.5 rounded-full border border-[var(--admin-warning-bg)] bg-white px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:border-[var(--admin-warning)]/50 hover:bg-[var(--admin-warning-bg)]/60 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+              className="group inline-flex items-center gap-1.5 rounded-full border border-[var(--admin-warning-bg)] bg-[var(--admin-panel)] px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:border-[var(--admin-warning)]/50 hover:bg-[var(--admin-warning-bg)]/60 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
             >
               <span className="text-[var(--admin-text-muted)]">{ADVANCED_FILTER_LABELS[pill.key]}:</span>
               <span className="font-semibold text-[var(--admin-heading)]">{formatPillValue(pill.key, pill.value)}</span>
