@@ -135,8 +135,9 @@ Per Phase 7 gauntlet's surgical-changes discipline:
 | 2 | `src/app/admin/dashboard/TherapistDashboard.tsx` | Import `ProfileCompletionNudge`; extend `TherapistDashboardProps` with `staffId` + `profileCompletionFields`; render the nudge between the dashboard header and `DateRangeChips`. | +24 -1 |
 | 3 | `src/app/admin/dashboard/page.tsx` | Pass `staffId={profile.id}` and `profileCompletionFields={…}` to `<TherapistDashboard>` (the Therapist branch only — other variants unchanged). | +9 |
 | 4 | `src/app/admin/staff/[staffId]/page.tsx` | Onboarding-checklist label refinements (6 labels). | ±6 |
+| 5 | `src/app/admin/staff/page.tsx` | Page-by-page walk addendum: added `actions={<NewStaffForm roles={roles} />}` (gated on `teamAccess.canCreateStaff`) to the "No staff yet" admin-scope empty state, so a brand-new Owner can bootstrap the team without hunting for the page-header trigger. | +3 |
 
-**4 source files** + **5 onboard-shot screenshots** under `redesign/onboard-shots/`.
+**5 source files** + **7 onboard-shot screenshots** under `redesign/onboard-shots/`.
 
 ---
 
@@ -148,6 +149,120 @@ Per Phase 7 gauntlet's surgical-changes discipline:
 - The Therapist dashboard change is additive (one new section above existing content); existing surfaces unchanged.
 - The label refinements on staff-detail are copy-only; no data flow or state changes.
 - No new data dependencies, no new error paths, no new overflow risks.
+
+---
+
+## Addendum — page-by-page empty-state walk
+
+The recipe's full Gate 6 grammar asks for a per-page walk plus first-run orientation alignment to `PRODUCT.md` top tasks, plus forced empty-state Playwright verification. This section closes those threads.
+
+### Top tasks the empty states should orient toward
+
+From `PRODUCT.md` Admin-Specific Context "Top daily tasks":
+
+1. **Create bookings.** New customer or admin-entered (phone, WhatsApp, walk-in).
+2. **Rebook existing clients.** Find them fast, pre-fill from their last visit.
+3. **Use the CRM to track business-essential metrics.** Today's schedule, payment health, repeat-client trend, simple revenue and workload numbers.
+
+Plus the Phase 6 design principle 1 ("Simplicity that opens into depth — new staff feel productive in minutes") and principle 4 ("Front-desk first — the Today list and Needs-Attention queue do the bulk of daily work"). For new staff, the first useful action is almost always one of: take/create a booking, find an existing client, or get oriented on Today.
+
+### Per-page empty-state audit (every admin page, every list/empty surface)
+
+Verdict column reads `✓` (has a useful next-action CTA OR intentionally voice-only-encouraging per the brand voice anchor "All caught up rather than 0 items"), `✓ fixed this gate`, or `not applicable` (read-only feed, or copy is already directive enough that a CTA would be redundant).
+
+| Page · empty-state callsite | Title | Existing CTA | Verdict |
+|---|---|---|---|
+| `/admin/audit` — search-empty (`?q=…`) | Nothing matches that ID | Clear search → `/admin/audit` | ✓ |
+| `/admin/audit` — filter-empty | No events match | Clear filters → `/admin/audit` | ✓ |
+| `/admin/audit` — truly empty | No events yet | (none) | not applicable — audit is a read-only forensic feed; CTA would have no useful destination. Voice ("Audit rows appear here as the team works in the admin") is informative. |
+| `/admin/enquiries` — filter-empty | No enquiries match | Clear filters → `clearHref` | ✓ |
+| `/admin/enquiries` — per-tab empty | Tab-aware copy + action | Per-tab `action` map | ✓ |
+| `/admin/services` — truly empty | No services yet | `<ServiceFormDialog />` rendered directly below the EmptyState (lines 155-157) | ✓ existing-pattern equivalent |
+| `/admin/availability` — no-active-staff | No active staff yet | Add staff → `/admin/staff` | ✓ |
+| `/admin/staff/[staffId]` — no-assignments | No assigned bookings yet | "Show all assignments" link in the AdminPanel header just above | ✓ (CTA is in panel header, not EmptyState) |
+| `/admin/privacy` — truly empty | No privacy requests yet | (none) | not applicable — privacy requests are created from client-detail pages by client request, not from this queue. Copy already directs there. |
+| `/admin/roles` — truly empty | No roles defined | `<CreateRoleSheet />` as `actions` | ✓ |
+| `/admin/clients/[clientId]` — no-bookings | No bookings yet for this client | Book now → `/admin/bookings/new?clientId={id}` when `canCreateBooking` | ✓ aligned with KEY_TASK 2 (rebook) |
+| `/admin/clients/[clientId]` — filter-empty | No bookings match those filters | Clear filters → `buildClientUrl(id, …)` | ✓ |
+| `/admin/bookings/[bookingId]` — no-participants | No participants on file | (none) | not applicable — the form's "Add participant" affordance is right above the empty state |
+| `/admin/bookings/[bookingId]` — not-assigned | Not assigned yet | (none) | not applicable — directive copy "Pick a therapist or wait for one to claim it." The AssignmentManager picker is right above. |
+| `/admin/bookings/[bookingId]` — no-emails | No emails yet | (none) | not applicable — read-only delivery feed |
+| `/admin/bookings/[bookingId]` — no-activity | No activity yet | (none) | not applicable — read-only timeline |
+| `/admin/bookings/[bookingId]` — booking-not-found | Booking not found | Back to bookings → `/admin/bookings` | ✓ |
+| `/admin/emails` — search-too-short | Type a longer search | Clear filters → `/admin/emails?tab=delivery` | ✓ |
+| `/admin/emails` — no-failed-in-range | No failed events in this range | Clear filters → `/admin/emails?tab=delivery` | ✓ |
+| `/admin/emails` — no-events-match-filters (×2) | No email events match your filters | Clear filters → `/admin/emails?tab=delivery` | ✓ |
+| `/admin/emails` — truly-empty-delivery | No email events logged yet | (none) | not applicable — read-only event feed; voice is informative |
+| `/admin/emails` — reminders-empty | No upcoming bookings need a reminder | (none) | not applicable — celebrate-empty ("Everyone's confirmed.") |
+| `/admin/staff` — filter-empty | No staff match | Clear filters → `/admin/staff` | ✓ |
+| `/admin/staff` — admin-scope truly empty | **No staff yet. Add the first team member.** | (none — was the gap) | **✓ fixed this gate.** Added `actions={<NewStaffForm roles={roles} />}` gated on `teamAccess.canCreateStaff`. PRODUCT.md design principle 1: "New staff feel productive in minutes" — bootstrapping the team IS the productivity-unblock. |
+| `/admin/staff` — assignment-scope empty | No bookable staff in your assignment pool yet | (none) | not applicable — Coordinator pool-view; nothing they can do here |
+| `/admin/staff` — same-gender-scope empty | No same-gender team members visible | (none) | not applicable — Therapist scope copy: "Your colleagues … will appear here when they're added." |
+| `/admin/bookings` — search-empty | No bookings match that search | Clear search → `buildClearSearchHref(view, query)` | ✓ |
+| `/admin/bookings` — filter-empty | No bookings match | Clear filters → `/admin/bookings?view={view}` | ✓ |
+| `/admin/bookings?view=attention` — empty | All caught up | (none) | not applicable — celebrate-empty per voice anchor ("All caught up rather than 0 items") |
+| `/admin/bookings?view=today` — empty | All caught up. Nothing scheduled for today. Quiet days are healthy days. | (none) | not applicable — celebrate-empty + workload language |
+| `/admin/bookings?view=upcoming` — empty | Nothing upcoming | New booking → `/admin/bookings/new` when `canViewAll` | ✓ aligned with KEY_TASK 1 (create bookings) |
+| `/admin/bookings?view=claimable` — empty | Nothing to claim | (none) | not applicable — Therapist passive-wait state; the existing TherapistDashboard `HeroEmptyState` already covers this path with the claim-routing CTA when claimable items exist elsewhere |
+| `/admin/bookings?view=completed` — empty | Nothing completed yet | (none) | not applicable — read-only history |
+| `/admin/bookings?view=cancelled` — empty | Nothing cancelled | (none) | not applicable — read-only history |
+| `/admin/bookings` — fallback | No bookings here | (none) | not applicable — directive copy "Switch tabs or adjust filters…" |
+| `/admin/clients` — filter-empty | No clients match `…` | Clear filters → `/admin/clients` | ✓ |
+| `/admin/clients` — truly empty | No clients yet | New client → `/admin/clients/new` when `canManageClients` | ✓ aligned with KEY_TASK 2 (rebook) — also "or take a booking and we'll create one" routes back to KEY_TASK 1 |
+| `/admin/calendar` — capacity preview compact | All quiet — no bookings in this range | (none) | not applicable — compact in-panel sub-state |
+| `/admin/calendar` — nothing-booked (view-scoped) | Nothing booked / Nothing booked this week | (none) | not applicable — voice covers it |
+| `/admin/calendar` — primary empty | All quiet | Create a booking → `/admin/bookings/new` when `canCreate` | ✓ aligned with KEY_TASK 1 |
+| `/admin/operations` — board-level empty | No events match / No operational events logged | (none) | not applicable — read-mostly status board |
+| `/admin/operations` — per-column compact empty (Open / Acknowledged / Resolved) | Per-column tone-aware copy | (none) | not applicable — column-internal compact state inside a 3-column board |
+| `/admin/account-password-requests` — per-tab empty (Pending / Approved / Rejected / Expired / All) | Per-tab voice + tab-cross-link action where useful (e.g. "Show pending" from Approved tab) | Per-tab `action` map | ✓ |
+| `/admin/availability` — sub-managers (BlockedDates / Overrides) | No closed dates / No overrides | (none) | not applicable — each manager has an inline add-form directly above the empty state |
+| Dashboard owner/admin — "Urgent attention" panel empty | All caught up. Nothing needs your attention right now. | (none) | not applicable — celebrate-empty per voice anchor |
+| TherapistDashboard — `fullyQuiet` hero | Nothing scheduled / Quiet day. Take care of yourself. | Browse claimable work → `/admin/bookings?view=claimable` when `hasClaimable` | ✓ |
+| TherapistDashboard — `ProfileCompletionNudge` (new this gate) | Welcome, {firstName}. Finish your profile. | Open my profile → `/admin/staff/{selfId}` | **✓ added this gate (primary onboard fix)** |
+
+**Verdict summary.** 30 distinct empty-state callsites surveyed across 18 admin pages.
+
+- 18 have useful next-action CTAs (Clear / Back / Create / New / Show all / Book now / Open my profile).
+- 11 are intentionally voice-only because the surface is read-only, the next action lives in a directly-adjacent form, the empty is celebratory ("All caught up"), or the panel header already carries the action link. These align with the PRODUCT.md voice anchor "Empty states encourage rather than abandon" and the design principle "Cards are varied and considered, not icon+heading+text repeated thoughtlessly".
+- 1 was the genuine gap: `/admin/staff` admin-scope truly-empty state had no inline trigger. Fixed this gate.
+
+### Gate-6 verification — forced empty states (Playwright, 2026-05-20, 375 × 812)
+
+#### Force #1 — `/admin/clients?q=zzznomatch`
+
+```
+title: "No clients match \"zzznomatch\""
+body:  "Check the spelling, or try a phone number."
+CTA:   "Clear filters" → /admin/clients/
+```
+
+Useful for a new staff member: the CTA gets them back to the full client directory, which is the entry point for KEY_TASK 2 (rebook existing clients). Without the CTA they'd have to clear the URL manually.
+
+Screenshot: `redesign/onboard-shots/375-empty-state-clients-no-match.png`
+
+#### Force #2 — `/admin/bookings?search=zzznomatch&view=upcoming`
+
+```
+title: "No bookings match that search"
+body:  "Check the name, phone, or ID and try again."
+CTA:   "Clear search" → /admin/bookings/?view=upcoming
+```
+
+Useful for a new staff member: clears the search but stays on the upcoming-view tab, which is the closest analogue to KEY_TASK 1 (create / triage today's bookings). Without the CTA they'd have to hand-edit the URL or hunt for the search clear-button in the filter strip.
+
+Screenshot: `redesign/onboard-shots/375-empty-state-bookings-no-match.png`
+
+### What changed in the addendum vs the main gate close
+
+| File | Change | Reason |
+|---|---|---|
+| `src/app/admin/staff/page.tsx` | One-line addition: `actions={teamAccess.canCreateStaff ? <NewStaffForm roles={roles} /> : undefined}` on the admin-scope "No staff yet" EmptyState (lines 649-653). | Fills the only structural gap surfaced by the page-by-page walk. PRODUCT.md design principle 1 + the new-staff persona's first-session productivity floor. |
+| `redesign/onboard-shots/375-empty-state-clients-no-match.png` | New verification screenshot. | Playwright force-empty-state evidence. |
+| `redesign/onboard-shots/375-empty-state-bookings-no-match.png` | New verification screenshot. | Playwright force-empty-state evidence. |
+
+### Tour overlay — explicitly NOT added
+
+PRODUCT.md does not request an onboarding tour overlay; the design principle is "Simplicity that opens into depth — complexity unfolds when invited." Adding a Joyride / Shepherd-style overlay would directly contradict that. The `ProfileCompletionNudge` panel + the inline empty-state CTAs are the contextual-help layer this product asks for, no more.
 
 ---
 

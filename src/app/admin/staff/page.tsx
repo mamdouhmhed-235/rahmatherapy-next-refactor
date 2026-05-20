@@ -650,6 +650,9 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
               icon={Users}
               title="No staff yet. Add the first team member."
               message="Therapists, coordinators, and admins all live in this directory."
+              actions={
+                teamAccess.canCreateStaff ? <NewStaffForm roles={roles} /> : undefined
+              }
             />
           ) : isAssignmentScope ? (
             <EmptyState
