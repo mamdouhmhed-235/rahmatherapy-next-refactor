@@ -261,18 +261,22 @@ export function AdminTopNav({
           }
         `}</style>
         <div className="mx-auto flex h-14 max-w-[100rem] items-center gap-0 px-4 md:px-6 lg:px-8">
-          {/* Left zone: brand logo-mark + wordmark (lg+) */}
+          {/* Left zone: full RAHMA + therapy wordmark logo */}
           <Link
             href="/admin/dashboard"
-            className="flex min-h-11 shrink-0 items-center gap-2 rounded-[var(--admin-radius-control)] pr-2 text-[var(--admin-nav-text)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="flex min-h-11 shrink-0 items-center rounded-[var(--admin-radius-control)] pr-2 outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             aria-label="Rahma Therapy admin dashboard"
           >
-            {/* Logo-mark renders in its native brand colors on cream chrome.
-             *  Tile uses panel-muted for soft separation from nav-bg. */}
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-panel)] ring-1 ring-inset ring-[var(--admin-border)]">
-              <Image src="/images/brand/rahma/logo-mark.svg" alt="" width={18} height={18} className="size-[1.125rem]" />
-            </div>
-            <span className="font-display hidden text-[0.875rem] font-semibold tracking-[-0.01em] text-[var(--admin-heading)] lg:block">Rahma</span>
+            {/* Full brand wordmark (logo-refined.svg = 1600×587 aspect ≈ 2.73:1).
+             *  Sized to ~32px tall to sit comfortably in the h-14 (56px) nav bar. */}
+            <Image
+              src="/images/brand/rahma/logo-refined.svg"
+              alt="Rahma Therapy"
+              width={120}
+              height={44}
+              priority
+              className="h-9 w-auto"
+            />
           </Link>
 
           {/* Separator */}
