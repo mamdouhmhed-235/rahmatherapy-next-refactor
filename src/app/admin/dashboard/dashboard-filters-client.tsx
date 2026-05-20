@@ -654,6 +654,7 @@ export function BusinessOverviewDisclosure({
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true);
     if (typeof window === "undefined") return;
     try {

@@ -28,6 +28,7 @@ export function TemplateBrowser({
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobile(mq.matches);
     const fn = () => setIsMobile(mq.matches);
     mq.addEventListener("change", fn);
@@ -42,6 +43,7 @@ export function TemplateBrowser({
 
   // When mobile transitions in, collapse all. When transitioning back to desktop, open all.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpenGroups({
       customer: !isMobile,
       staff: !isMobile,
@@ -70,6 +72,7 @@ export function TemplateBrowser({
       );
       next[g.id] = hit;
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpenGroups(next);
   }, [q]);
 

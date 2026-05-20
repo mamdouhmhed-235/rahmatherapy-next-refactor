@@ -34,7 +34,7 @@ interface PageProps {
   }>;
 }
 
-export async function generateMetadata({ searchParams: _ }: PageProps): Promise<Metadata> {
+export async function generateMetadata(): Promise<Metadata> {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
   const hasAccess = Boolean(profile?.active && profile.permissions.has(PERMISSIONS.MANAGE_AUDIT_LOGS));

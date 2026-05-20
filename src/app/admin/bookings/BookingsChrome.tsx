@@ -139,6 +139,7 @@ export function BookingsChrome({
   const overflowClosedByEscape = React.useRef(false);
 
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSavedViews(loadSavedViews());
   }, []);
 
@@ -186,10 +187,6 @@ export function BookingsChrome({
   const overflowKeys = canViewAll ? FULL_OVERFLOW : THERAPIST_OVERFLOW;
 
   const isOverflowActive = overflowKeys.includes(currentView);
-
-  function navigateToView(view: BookingViewKey) {
-    router.push(`/admin/bookings?${readQueryString(query, view)}`);
-  }
 
   function navigateToQuery(queryString: string) {
     router.push(`/admin/bookings?${queryString}`);

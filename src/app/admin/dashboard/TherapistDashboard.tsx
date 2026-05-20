@@ -11,7 +11,6 @@ import {
   ArrowRight,
   CalendarDays,
   CheckCircle2,
-  Circle,
   CircleCheck,
   Clock,
   Lock,
@@ -238,18 +237,6 @@ export function TherapistDashboard({
     const [h, m] = hhmm.split(":").map(Number);
     return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
   }
-  let totalGap = 0;
-  let gapCount = 0;
-  for (let i = 1; i < sortedToday.length; i++) {
-    const prevEnd = minutesOf(sortedToday[i - 1].end_time);
-    const nextStart = minutesOf(sortedToday[i].start_time);
-    if (prevEnd != null && nextStart != null && nextStart > prevEnd) {
-      totalGap += nextStart - prevEnd;
-      gapCount += 1;
-    }
-  }
-  const avgGapMinutes = gapCount > 0 ? Math.round(totalGap / gapCount) : null;
-
   // The visit AFTER nextAppointment, for hero "Then" preview
   const nextAfterNext = nextAppointment
     ? sortedToday.find((b) => {
@@ -655,7 +642,7 @@ function TodayVisitsList({
       </div>
       {visits.length === 0 ? (
         <p className="text-sm leading-6 text-[var(--admin-text-muted)]">
-          That's all for today.
+          That&apos;s all for today.
         </p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-2 p-0">
@@ -1137,7 +1124,7 @@ function ServiceMixCard({
         Service mix
       </h2>
       <p className="mt-1 text-xs text-[var(--admin-text-muted)]">
-        What you've been doing this week
+        What you&apos;ve been doing this week
       </p>
       <ul className="m-0 mt-3 flex list-none flex-col gap-3 p-0">
         {rows.map(([name, count]) => {

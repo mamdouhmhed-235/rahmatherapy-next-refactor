@@ -31,10 +31,10 @@ export default function PrivacyError({ error, reset }: PrivacyErrorProps) {
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-lg font-semibold text-[var(--admin-heading)]">
-              Couldn't load privacy operations.
+              Couldn&apos;t load privacy operations.
             </h1>
             <p className="mt-1 text-sm leading-6 text-[var(--admin-text-muted)]">
-              The privacy queue didn't come back. This is usually temporary. If it keeps happening, contact the owner.
+              The privacy queue didn&apos;t come back. This is usually temporary. If it keeps happening, contact the owner.
             </p>
             <div className="mt-4">
               <button

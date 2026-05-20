@@ -31,10 +31,10 @@ export default function RolesError({ error, reset }: RolesErrorProps) {
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-lg font-semibold text-[var(--admin-heading)]">
-              Couldn't load roles.
+              Couldn&apos;t load roles.
             </h1>
             <p className="mt-1 text-sm leading-6 text-[var(--admin-text-muted)]">
-              The roles library didn't come back. This is usually temporary. If it keeps happening, contact the owner.
+              The roles library didn&apos;t come back. This is usually temporary. If it keeps happening, contact the owner.
             </p>
             <div className="mt-4">
               <button

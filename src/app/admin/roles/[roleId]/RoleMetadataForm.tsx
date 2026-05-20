@@ -30,6 +30,7 @@ export function RoleMetadataForm({
   // After a successful save, reset dirty + announce. Brief copy verbatim.
   useEffect(() => {
     if (state.success) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDirty(false);
       toast.success("Role saved.");
     }

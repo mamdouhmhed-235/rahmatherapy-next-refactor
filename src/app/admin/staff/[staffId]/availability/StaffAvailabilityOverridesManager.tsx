@@ -429,7 +429,7 @@ function OverrideRow({
             · {formatTime(entry.start_time)}–{formatTime(entry.end_time)}
           </span>
           <span title="These hours replace the weekly pattern for this date.">
-            <AdminStatusBadge value="Override" tone="pending" compact />
+            <AdminStatusBadge value="Override" tone="info" compact />
           </span>
         </p>
         {entry.reason ? (

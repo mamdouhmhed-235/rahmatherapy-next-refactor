@@ -31,10 +31,10 @@ export default function DashboardError({ error, reset }: DashboardErrorProps) {
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-lg font-semibold text-[var(--admin-heading)]">
-              Couldn't load today's view.
+              Couldn&apos;t load today&apos;s view.
             </h1>
             <p className="mt-1 text-sm leading-6 text-[var(--admin-text-muted)]">
-              The dashboard data didn't come back. This is usually temporary. If it keeps happening, contact the owner.
+              The dashboard data didn&apos;t come back. This is usually temporary. If it keeps happening, contact the owner.
             </p>
             <div className="mt-4">
               <button

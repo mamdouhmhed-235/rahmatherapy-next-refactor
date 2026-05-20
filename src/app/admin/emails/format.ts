@@ -8,7 +8,6 @@ import {
   CheckCheck,
   Inbox,
   MailWarning,
-  ShieldAlert,
   UserCheck,
 } from "lucide-react";
 

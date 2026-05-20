@@ -83,7 +83,7 @@ async function fireBookingReminders(env: CronEnv): Promise<void> {
   }
 }
 
-export default {
+const workerEntrypoint = {
   // Re-export OpenNext's fetch handler verbatim.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   fetch: (openNextWorker as any).fetch.bind(openNextWorker),
@@ -98,3 +98,5 @@ export default {
     ctx.waitUntil(fireBookingReminders(env));
   },
 };
+
+export default workerEntrypoint;

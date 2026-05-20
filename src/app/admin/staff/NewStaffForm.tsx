@@ -89,12 +89,14 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
 
       if (result.error) {
         // Map the common server-side errors to the brief copy.
-        const message = /already/i.test(result.error)
+        const serverError = result.error;
+        const isDuplicate = /already/i.test(serverError);
+        const message = isDuplicate
           ? "Someone with that email is already on the team. Open their profile if you need to update it."
-          : result.error;
+          : serverError;
         setFormError(message);
         setFieldErrors((prev) =>
-          /already/i.test(result.error) ? { ...prev, email: message } : prev
+          isDuplicate ? { ...prev, email: message } : prev
         );
         toast.error("Couldn't add this team member. Try again.");
         return;
@@ -121,7 +123,7 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
           <DialogHeader>
             <DialogTitle>Add staff member</DialogTitle>
             <DialogDescription>
-              Create their profile now. They'll receive a sign-in invitation by
+              Create their profile now. They&apos;ll receive a sign-in invitation by
               email.
             </DialogDescription>
           </DialogHeader>

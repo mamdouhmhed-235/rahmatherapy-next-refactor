@@ -4,16 +4,13 @@ import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { Toaster } from "sonner";
 import {
-  Bell,
   CalendarCheck,
   CalendarDays,
   ChevronDown,
   FileText,
   LayoutDashboard,
-  LayoutGrid,
   LogOut,
   MessageSquareText,
   Send,
@@ -112,12 +109,6 @@ function hasPageAccess(item: NavItem, pageAccess: Record<string, AdminTopNavPage
   return true;
 }
 
-function getVariantSubLabel(variant: AdminShellVariant): string {
-  if (variant === "coordinator") return "Coordinator";
-  if (variant === "therapist") return "Therapist";
-  return "Owner";
-}
-
 function getPrimaryKeys(variant: AdminShellVariant): Set<string> {
   if (variant === "coordinator") return COORDINATOR_PRIMARY_KEYS;
   if (variant === "therapist") return THERAPIST_NAV_KEYS;
@@ -148,21 +139,6 @@ function isActive(href: string, pathname: string): boolean {
   const target  = normalizeAdminPath(href);
   if (target === "/admin/dashboard") return current === target;
   return current === target || current.startsWith(`${target}/`);
-}
-
-function getDesktopBreadcrumb(
-  pathname: string,
-  allItems: NavItem[],
-  variant: AdminShellVariant
-): string | null {
-  const segments = pathname.split("/").filter(Boolean);
-  if (segments.length <= 2) return null;
-  const sectionHref = `/${segments[0]}/${segments[1]}`;
-  const match = allItems.find(
-    (item) => normalizeAdminPath(item.href) === normalizeAdminPath(sectionHref)
-  );
-  if (!match) return null;
-  return getNavLabel(match, variant);
 }
 
 function getUserFirstName(name: string): string {
@@ -199,12 +175,10 @@ export function AdminTopNav({
 }) {
   const pathname    = usePathname();
   const primaryKeys = getPrimaryKeys(variant);
-  const subLabel    = getVariantSubLabel(variant);
   const navGroups   = getNavGroups(variant);
 
   const accessibleItems  = NAV_ITEMS.filter((item) => hasPageAccess(item, pageAccess));
   const primaryItems     = accessibleItems.filter((item) => primaryKeys.has(item.pageKey));
-  const breadcrumb       = getDesktopBreadcrumb(pathname, accessibleItems, variant);
 
   // Items available in the user menu (grouped, role-filtered)
   const menuItems = accessibleItems.filter(
@@ -393,7 +367,6 @@ export function AdminTopNav({
 
 function UserMenuButton({
   profile,
-  variant,
   navGroups,
   menuItems,
   pathname,
@@ -735,7 +708,6 @@ function AdminBottomTabBar({
 
 function UserMenuSheet({
   profile,
-  variant,
   navGroups,
   menuItems,
   pathname,
@@ -761,10 +733,13 @@ function UserMenuSheet({
       "a, button, input, [tabindex]:not([tabindex='-1'])"
     );
     first?.focus();
+    // Snapshot the trigger element so the cleanup uses the node that opened
+    // the sheet, not whatever the ref points at when React tears down.
+    const trigger = returnFocusRef?.current ?? null;
     return () => {
       document.removeEventListener("keydown", onKey);
       // Restore focus to the trigger that opened the sheet (WCAG 2.4.3)
-      returnFocusRef?.current?.focus();
+      trigger?.focus();
     };
   }, [onClose, returnFocusRef]);
 

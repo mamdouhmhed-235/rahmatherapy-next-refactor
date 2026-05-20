@@ -24,7 +24,6 @@ import {
 import { cn } from "@/lib/utils";
 import {
   AdminDashboardPanel,
-  AdminHealthTile,
   AdminIconBadge,
   AdminPanelHeader,
   AdminProgressBar,

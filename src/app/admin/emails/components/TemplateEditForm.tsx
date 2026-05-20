@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useMemo, useState } from "react";
 import { CheckCircle, Info, Loader2, RefreshCcw, RotateCcw, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -119,6 +119,7 @@ export function TemplateEditForm({
     const initial: Record<string, string> = {};
     for (const f of template.fields) initial[f.kind] = serverInitialValues?.[f.kind] ?? "";
     const draft = readDraft(template.id);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setValues(draft ? { ...initial, ...draft } : initial);
     setInitialValues(initial);
     setLastSavedAt(null);
@@ -190,6 +191,10 @@ export function TemplateEditForm({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [dirty]);
 
+  const formId = `tpl-form-${template.id}`;
+  const errorRegionId = `${formId}-error`;
+  const canSubmit = dirty && fieldErrors.length === 0 && !isPending;
+
   useEffect(() => {
     if (state?.ok) {
       toast.success("Template updated.");
@@ -199,6 +204,7 @@ export function TemplateEditForm({
       // server doesn't include cleaned values (idempotent no-op save).
       if (state.cleanedValues && Object.keys(state.cleanedValues).length > 0) {
         const merged = { ...values, ...state.cleanedValues };
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setValues(merged);
         setInitialValues(merged);
       } else {
@@ -224,10 +230,6 @@ export function TemplateEditForm({
       });
     }
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const formId = `tpl-form-${template.id}`;
-  const errorRegionId = `${formId}-error`;
-  const canSubmit = dirty && fieldErrors.length === 0 && !isPending;
 
   const savedLabelText = isPending
     ? "Saving…"

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createElement } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -13,7 +14,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getBusinessDate } from "@/lib/time/london";
 import {
-  canManageEmailSettings,
   canManageEmailTemplates,
   canResendBookingEmails,
   canViewEmailLogs,
@@ -141,15 +141,16 @@ export default async function EmailsPage({ searchParams }: PageProps) {
   // filters in-memory; that's still a useful preview because the operator's
   // typical drill is "what failed in the last 24h", and 100 rows comfortably
   // covers a week of real volume.
-  const deliveryPromise: Promise<{ data: EmailEvent[] | null }> = canSeeDelivery
-    ? adminClient
+  type DeliveryResult = { data: EmailEvent[] | null; error?: { message: string } | null };
+  const deliveryPromise: Promise<DeliveryResult> = canSeeDelivery
+    ? (adminClient
         .from("email_delivery_events")
         .select(
           "id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, provider_message_id, error_message, created_at"
         )
         .order("created_at", { ascending: false })
         .limit(PAGE_SIZE)
-        .returns<EmailEvent[]>()
+        .returns<EmailEvent[]>() as unknown as Promise<DeliveryResult>)
     : Promise.resolve({ data: [] });
 
   const remindersPromise = canResend
@@ -176,7 +177,7 @@ export default async function EmailsPage({ searchParams }: PageProps) {
     remindersPromise,
     templateOverridesPromise,
   ]);
-  const deliveryError = "error" in deliveryResult ? deliveryResult.error : null;
+  const deliveryError = "error" in deliveryResult ? deliveryResult.error ?? null : null;
 
   const allEvents = deliveryResult.data ?? [];
   const upcomingBookings = remindersResult.data ?? [];
@@ -610,7 +611,7 @@ function DayGroupedFeed({
 // ─── Delivery event row ───────────────────────────────────────────────────────
 
 function DeliveryEventRow({ event }: { event: EmailEvent }) {
-  const EventIcon = iconForEventType(event.event_type);
+  const eventIcon = iconForEventType(event.event_type);
   const statusTone = toneForDeliveryStatus(event.delivery_status);
   const isFailed =
     event.delivery_status === "failed" || event.delivery_status === "bounced";
@@ -638,7 +639,7 @@ function DeliveryEventRow({ event }: { event: EmailEvent }) {
           )}
           aria-hidden="true"
         >
-          <EventIcon className="size-4" />
+          {createElement(eventIcon, { className: "size-4" })}
         </span>
 
         <div className="min-w-0 flex-1">

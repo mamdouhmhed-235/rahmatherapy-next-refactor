@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Check, Search, SlidersHorizontal, X } from "lucide-react";
 import {
   ACTION_FAMILY_OPTIONS,
@@ -49,23 +49,9 @@ function buildHref(values: AuditFilterStripProps["initialValues"]): string {
 
 export function AuditFilterStrip({ actors, initialValues }: AuditFilterStripProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [values, setValues] = useState(initialValues);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const debounceRef = useRef<number | null>(null);
-
-  const submit = (next: typeof values) => {
-    setValues(next);
-    if (debounceRef.current) {
-      window.clearTimeout(debounceRef.current);
-    }
-    debounceRef.current = window.setTimeout(() => {
-      startTransition(() => {
-        router.push(buildHref(next));
-      });
-    }, 220);
-  };
 
   const submitImmediate = (next: typeof values) => {
     setValues(next);

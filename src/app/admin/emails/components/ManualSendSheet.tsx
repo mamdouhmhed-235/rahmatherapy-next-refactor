@@ -141,6 +141,7 @@ export function ManualSendSheet({
   // opening (e.g. "Send a test to me" passes the operator's own email).
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRecipient(prefillRecipient);
     } else {
       setRecipient("");

@@ -34,8 +34,12 @@ const baseInput: CreateBookingTransactionInput = {
   preferredTime: "10:00",
 };
 
+// Test-only helper: the runtime Supabase client returns rich response
+// metadata (status, count, statusText, …) that the production code path
+// never reads. The mock keeps only the shape that the production code
+// destructures (`data`, `error`), so it accepts a loose object literal.
 function supabaseWithRpc(
-  response: Awaited<ReturnType<SupabaseClient["rpc"]>>
+  response: { data: unknown; error: unknown }
 ): SupabaseClient {
   return {
     rpc: vi.fn().mockResolvedValue(response),

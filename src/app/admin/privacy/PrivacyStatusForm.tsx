@@ -49,6 +49,7 @@ export function PrivacyStatusForm({
 
   // Reset local state when server confirms the new value (so the select tracks the row's true status).
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedStatus(status);
   }, [status]);
 

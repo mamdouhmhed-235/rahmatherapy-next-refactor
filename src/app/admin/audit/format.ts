@@ -49,8 +49,16 @@ const ACTIONS: Record<string, ActionEntry> = {
   staff_member_deactivated: { phrase: "deactivated staff member", family: "staff_and_roles", chip: "cancelled" },
   staff_member_reactivated: { phrase: "reactivated staff member", family: "staff_and_roles", chip: "confirmed" },
   staff_role_assigned: { phrase: "assigned role to staff member", family: "staff_and_roles", chip: "pending" },
+  // staff_availability_rules_updated / staff_permission_overrides_updated:
+  // reserved per RECON §6.2 as bulk-update event names. The singular
+  // *_created / *_deleted / *_updated variants are emitted by the per-action
+  // server actions in src/app/admin/staff/actions.ts and give finer forensic
+  // granularity than the bulk types.
   staff_availability_rules_updated: { phrase: "updated availability rules for staff", family: "staff_and_roles", chip: "pending" },
+  staff_availability_rule_created: { phrase: "added an availability rule for staff", family: "staff_and_roles", chip: "confirmed" },
+  staff_availability_rule_deleted: { phrase: "removed an availability rule for staff", family: "staff_and_roles", chip: "cancelled" },
   staff_permission_overrides_updated: { phrase: "updated permission overrides for staff", family: "staff_and_roles", chip: "pending" },
+  staff_permission_override_updated: { phrase: "updated a permission override for staff", family: "staff_and_roles", chip: "pending" },
   role_created: { phrase: "created role", family: "staff_and_roles", chip: "confirmed" },
   role_metadata_updated: { phrase: "updated role metadata", family: "staff_and_roles", chip: "pending" },
   role_permission_toggled: { phrase: "toggled permission on role", family: "staff_and_roles", chip: "pending" },

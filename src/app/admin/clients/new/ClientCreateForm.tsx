@@ -86,11 +86,13 @@ export function ClientCreateForm() {
 
   // reset checkbox when duplicate state changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setConfirmDuplicate(false);
   }, [state.duplicateWarning]);
 
   // clear client-side pre-validation errors whenever the server state changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setClientErrors({});
   }, [state]);
 

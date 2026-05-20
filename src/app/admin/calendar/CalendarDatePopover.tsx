@@ -167,6 +167,7 @@ export function CalendarDatePopover({
   useEffect(() => {
     if (open) {
       committedRef.current = false;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelection(initialSelection());
       // Move keyboard focus into the dialog (first focusable). aria-modal
       // alone doesn't shift focus; the user lands on background controls

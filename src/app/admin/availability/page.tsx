@@ -382,7 +382,7 @@ function CapacityPreview({
           />
           {chips.map((chip) => (
             <span key={chip.key} title={chip.title} className="inline-flex">
-              <AdminStatusBadge value={chip.label} tone="pending" />
+              <AdminStatusBadge value={chip.label} tone="info" />
             </span>
           ))}
         </>
@@ -532,7 +532,7 @@ function StaffCapacityList({
                   >
                     <AdminStatusBadge
                       value={isCustom ? "Custom schedule" : "Global schedule"}
-                      tone={isCustom ? "pending" : "confirmed"}
+                      tone={isCustom ? "info" : "success"}
                       compact
                     />
                   </span>

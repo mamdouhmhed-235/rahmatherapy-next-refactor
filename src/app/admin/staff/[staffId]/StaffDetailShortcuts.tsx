@@ -22,7 +22,6 @@ interface StaffDetailShortcutsProps {
  * No global event side-effects; mounts once per page, removes on unmount.
  */
 export function StaffDetailShortcuts({
-  staffId: _staffId,
   availabilityHref,
   prevHref,
   nextHref,

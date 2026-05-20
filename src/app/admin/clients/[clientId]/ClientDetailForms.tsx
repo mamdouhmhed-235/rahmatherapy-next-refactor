@@ -85,6 +85,7 @@ export function ClientNoteForm({
 
   useEffect(() => {
     if (state.success) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsExpanded(false);
       router.refresh();
     }

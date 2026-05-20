@@ -53,6 +53,7 @@ export function TemplatesTab({
   // After mount: restore selection from sessionStorage (if no URL param)
   // and flip mounted so client-only chrome (mobile collapsed rail) can render.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
     if (selectedId) return;
     try {
@@ -68,6 +69,7 @@ export function TemplatesTab({
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 767px)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobile(mq.matches);
     const fn = () => setIsMobile(mq.matches);
     mq.addEventListener("change", fn);
@@ -162,6 +164,7 @@ export function TemplatesTab({
   const [showFieldSkeleton, setShowFieldSkeleton] = useState(false);
   useEffect(() => {
     if (!selectedId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowFieldSkeleton(true);
     const id = window.setTimeout(() => setShowFieldSkeleton(false), 280);
     return () => window.clearTimeout(id);

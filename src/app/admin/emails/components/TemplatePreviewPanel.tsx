@@ -93,6 +93,7 @@ function HtmlPreview({ templateId, cardName }: HtmlPreviewProps) {
   // (the response body just gets rendered). 10s timeout is the absolute
   // fallback.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setState("loading");
     let cancelled = false;
     const timeout = window.setTimeout(() => {
@@ -173,6 +174,7 @@ function PlainTextPreview({ templateId }: { templateId: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBody(null);
     setErrored(false);
     fetch(`/admin/email-templates/preview/${templateId}`)

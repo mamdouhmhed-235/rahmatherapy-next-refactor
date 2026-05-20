@@ -22,7 +22,6 @@ export function DashboardHeader({
   subtitle,
   roleLabel,
   scopeLabel,
-  rangeLabel,
   updatedAtIso,
 }: DashboardHeaderProps) {
   return (

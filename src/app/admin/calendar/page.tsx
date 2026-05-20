@@ -155,8 +155,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
   const rawTo = readParam(params, "to");
   const rawView = readParam(params, "view") as CalendarView | "";
   const rawStaffId = readParam(params, "staffId");
-  const rawPaymentStatus = readParam(params, "paymentStatus");
-
   const today = getBusinessDate();
   let view: CalendarView =
     rawView === "day" ||
@@ -1258,7 +1256,6 @@ function PerDatePanel({
   date,
   bookings,
   canSeePayment,
-  therapistOnly: _therapistOnly,
   therapistsByBooking,
 }: {
   date: string;

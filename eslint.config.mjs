@@ -17,6 +17,12 @@ const eslintConfig = defineConfig([
     ".dist-parity-static/**",
     ".dist-phase4-dev/**",
     "next-env.d.ts",
+    // Skill plugins ship their own vendored scripts (modern-screenshot.umd.js,
+    // design-parser.mjs, etc.); they are not part of the app and should not be linted.
+    ".agents/**",
+    ".claude/**",
+    // Recipe documentation tree — markdown + transcripts + handoff artifacts.
+    "redesign/**",
   ]),
 ]);
 

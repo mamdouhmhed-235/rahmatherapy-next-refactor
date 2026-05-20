@@ -102,7 +102,7 @@ export function AvailabilityModeSelector({
           >
             <AdminStatusBadge
               value={isCustom ? "Custom hours" : "Using global hours"}
-              tone={isCustom ? "confirmed" : "pending"}
+              tone={isCustom ? "success" : "info"}
             />
           </span>
 

@@ -277,8 +277,6 @@ async function run() {
         .first();
       const wasVisible = await confirmBtn.isVisible().catch(() => false);
       if (wasVisible) {
-        // Capture URL before so we can detect router.refresh
-        const urlBefore = page.url();
         await confirmBtn.click();
         await page.waitForTimeout(1500);
         const urlAfter = page.url();

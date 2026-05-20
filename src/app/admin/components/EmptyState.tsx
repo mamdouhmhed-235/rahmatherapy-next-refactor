@@ -84,6 +84,10 @@ export function EmptyState({
       )}
     >
       {illustrationSrc ? (
+        // Static SVG illustration served from /public; next/image's
+        // optimisation adds no value here and forces width/height props
+        // that defeat the responsive Tailwind classes below.
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={illustrationSrc}
           alt=""

@@ -61,19 +61,11 @@ export function ServiceRowActions({ service, usageCount }: ServiceRowActionsProp
     });
   }
 
-  // Per-item pending icon: spinner replaces the action's leading icon while
-  // a toggle is in-flight. Non-pending items keep their normal icons but
-  // disable to prevent double-fires.
-  const PendingOrIcon = ({
-    Icon,
-  }: {
-    Icon: React.ElementType;
-  }) =>
-    isPending ? (
-      <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
-    ) : (
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
-    );
+  // Spinner replaces an action's leading icon while a toggle is in-flight.
+  // Non-pending items keep their normal icons but disable to prevent double-fires.
+  const pendingIcon = (
+    <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+  );
 
   return (
     <div
@@ -91,7 +83,9 @@ export function ServiceRowActions({ service, usageCount }: ServiceRowActionsProp
               runToggle({ is_active: false }, "Service deactivated.")
             }
           >
-            <PendingOrIcon Icon={PowerOff} />
+            {isPending ? pendingIcon : (
+              <PowerOff className="size-4 shrink-0" aria-hidden="true" />
+            )}
             Deactivate
           </AdminMenuItem>
         ) : (
@@ -100,7 +94,9 @@ export function ServiceRowActions({ service, usageCount }: ServiceRowActionsProp
             disabled={isPending}
             onClick={() => runToggle({ is_active: true }, "Service activated.")}
           >
-            <PendingOrIcon Icon={Power} />
+            {isPending ? pendingIcon : (
+              <Power className="size-4 shrink-0" aria-hidden="true" />
+            )}
             Activate
           </AdminMenuItem>
         )}
@@ -115,7 +111,9 @@ export function ServiceRowActions({ service, usageCount }: ServiceRowActionsProp
               )
             }
           >
-            <PendingOrIcon Icon={EyeOff} />
+            {isPending ? pendingIcon : (
+              <EyeOff className="size-4 shrink-0" aria-hidden="true" />
+            )}
             Hide from website
           </AdminMenuItem>
         ) : (
@@ -129,7 +127,9 @@ export function ServiceRowActions({ service, usageCount }: ServiceRowActionsProp
               )
             }
           >
-            <PendingOrIcon Icon={Eye} />
+            {isPending ? pendingIcon : (
+              <Eye className="size-4 shrink-0" aria-hidden="true" />
+            )}
             Show on website
           </AdminMenuItem>
         )}

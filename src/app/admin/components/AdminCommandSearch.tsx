@@ -37,6 +37,7 @@ export function AdminCommandSearch({
 
   // Reset focused index when results change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFocusedIndex(-1);
     resultRefs.current = [];
   }, [results]);
@@ -44,6 +45,7 @@ export function AdminCommandSearch({
   // Debounced search — 120ms per brief §6
   useEffect(() => {
     if (!open) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHasError(false);
     const timer = window.setTimeout(() => {
       if (query.trim().length < 2) {
@@ -201,7 +203,7 @@ export function AdminCommandSearch({
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-xs text-[var(--admin-text-muted)]">
-            <span>You'll only see records you have access to.</span>
+            <span>You&apos;ll only see records you have access to.</span>
             <button
               type="button"
               onClick={() => setOpen(false)}

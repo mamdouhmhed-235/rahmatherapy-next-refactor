@@ -31,10 +31,10 @@ export default function BookingsError({ error, reset }: BookingsErrorProps) {
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-lg font-semibold text-[var(--admin-heading)]">
-              Couldn't load bookings.
+              Couldn&apos;t load bookings.
             </h1>
             <p className="mt-1 text-sm leading-6 text-[var(--admin-text-muted)]">
-              The bookings list didn't come back. This is usually temporary. If it keeps happening, contact the owner.
+              The bookings list didn&apos;t come back. This is usually temporary. If it keeps happening, contact the owner.
             </p>
             <div className="mt-4">
               <button

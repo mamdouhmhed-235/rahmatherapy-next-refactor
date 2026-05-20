@@ -28,7 +28,7 @@ export async function sendManualBookingReminder(formData: FormData) {
     await sendBookingReminderEmail(bookingId, adminClient);
     await adminClient.from("audit_logs").insert({
       actor_staff_id: profile.id,
-      action_type: "booking_reminder_sent",
+      action_type: "manual_booking_reminder_sent",
       target_type: "bookings",
       target_id: bookingId,
       after_state: { manual: true },

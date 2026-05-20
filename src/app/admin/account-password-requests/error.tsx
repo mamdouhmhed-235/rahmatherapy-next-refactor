@@ -19,7 +19,6 @@ export default function AccountPasswordRequestsError({
 }) {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
       console.error("[account-password-requests] route error", error);
     }
   }, [error]);
@@ -38,7 +37,7 @@ export default function AccountPasswordRequestsError({
       >
         <XCircle className="size-5 shrink-0" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="font-semibold">Couldn't load requests.</p>
+          <p className="font-semibold">Couldn&apos;t load requests.</p>
           <p className="mt-0.5 text-[oklch(26%_0.14_25)]/85">
             Try refreshing the page. If this keeps happening, contact the owner.
           </p>

@@ -34,10 +34,10 @@ export default function StaffDetailError({
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-lg font-semibold text-[var(--admin-heading)]">
-              Couldn't load this staff profile.
+              Couldn&apos;t load this staff profile.
             </h1>
             <p className="mt-1 text-sm leading-6 text-[var(--admin-text-muted)]">
-              The profile didn't come back. This is usually temporary. If it keeps happening, contact the owner.
+              The profile didn&apos;t come back. This is usually temporary. If it keeps happening, contact the owner.
             </p>
             <div className="mt-4">
               <button

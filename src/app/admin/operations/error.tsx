@@ -34,10 +34,10 @@ export default function OperationsError({
           </span>
           <div className="min-w-0">
             <h1 className="font-display text-lg font-semibold text-[var(--admin-heading)]">
-              Couldn't load operational events.
+              Couldn&apos;t load operational events.
             </h1>
             <p className="mt-1 text-sm leading-6 text-[var(--admin-text-muted)]">
-              The events board didn't come back. This is usually temporary. If it keeps happening, contact the owner.
+              The events board didn&apos;t come back. This is usually temporary. If it keeps happening, contact the owner.
             </p>
             <div className="mt-4">
               <button

@@ -328,7 +328,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
   const overrideMap = Object.fromEntries(
     (staffOverrides ?? []).map((override) => [override.permission_id, override.is_granted])
   );
-  const overrideStats = Object.values(overrideMap).reduce(
+  const overrideStats = Object.values(overrideMap).reduce<{ added: number; revoked: number }>(
     (acc, isGranted) => {
       if (isGranted) acc.added += 1;
       else acc.revoked += 1;
@@ -439,6 +439,10 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-4">
           {typedStaff.profile_photo_path ? (
+            // User-supplied avatar served from Supabase storage; next/image
+            // would require remotePatterns config + width/height that fight
+            // the tailwind sizing.
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={typedStaff.profile_photo_path}
               alt=""

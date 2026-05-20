@@ -125,7 +125,7 @@ function buildClientUrl(
 
 const AUDIT_PHRASING: Record<string, string> = {
   client_created: "Client record created",
-  client_note_created: "Note added",
+  client_note_added: "Note added",
   client_note_updated: "Note updated",
   client_note_deleted: "Note deleted",
   client_privacy_request_created: "Privacy request logged",
@@ -1204,7 +1204,7 @@ function AuditPanel({
       <AdminPanelHeader icon={FileText} title="Recent audit activity" />
       {events.length === 0 ? (
         <p className="mt-4 text-sm leading-6 text-[var(--admin-text-muted)]">
-          Updates to this client's record will appear here.
+          Updates to this client&apos;s record will appear here.
         </p>
       ) : (
         <ul className="mt-4 grid list-none gap-2 pl-0 text-sm">

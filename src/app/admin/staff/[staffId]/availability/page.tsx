@@ -172,11 +172,11 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
   const subline = isSelfView ? "Your availability" : "Availability";
   const isCustomMode = staff.availability_mode === "custom";
 
-  const initials = staff.name
+  const initials = String(staff.name ?? "")
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => (Array.from(part)[0] ?? "").toUpperCase())
+    .map((part: string) => (Array.from(part)[0] ?? "").toUpperCase())
     .join("");
 
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -9,7 +10,6 @@ import {
   ChevronRight,
   Clock,
   Loader2,
-  Lock,
   Plus,
   Trash2,
   X,
@@ -22,6 +22,46 @@ import {
   AdminPanel,
 } from "@/app/admin/components/admin-ui";
 import { createManualBooking, type ManualBookingState } from "../actions";
+
+// ─── Step-4 review helpers (hoisted so React doesn't re-create the component
+//     on every render of the parent form) ─────────────────────────────────────
+
+function SummaryCard({
+  heading,
+  onEdit,
+  children,
+}: {
+  heading: string;
+  onEdit: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <AdminPanel
+      title={heading}
+      actions={
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex items-center gap-1 text-xs font-medium text-[var(--admin-primary)] transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          Edit <ChevronRight className="size-3" aria-hidden="true" />
+        </button>
+      }
+    >
+      {children}
+    </AdminPanel>
+  );
+}
+
+function dl(label: string, value: string | undefined | null) {
+  if (!value) return null;
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <dt className="text-xs font-medium text-[var(--admin-text-muted)]">{label}</dt>
+      <dd className="break-words text-sm text-[var(--admin-body)]">{value}</dd>
+    </div>
+  );
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -326,23 +366,6 @@ function PreFillChip({
   );
 }
 
-function SameGenderChip() {
-  return (
-    <span
-      title="The client asked for a therapist of the same gender."
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-      style={{
-        background: "oklch(94% 0.008 280)",
-        color: "oklch(30% 0.02 280)",
-        border: "1px solid oklch(88% 0.012 280)",
-      }}
-    >
-      <Lock className="size-3 shrink-0" aria-hidden="true" />
-      Same-gender required
-    </span>
-  );
-}
-
 function FieldLabel({
   htmlFor,
   required,
@@ -458,7 +481,6 @@ interface AssignableStaffMember {
 }
 
 export function ManualBookingForm({
-  services,
   prefillClient,
   enquiry,
   prefillFailed = false,
@@ -597,6 +619,7 @@ export function ManualBookingForm({
 
   // Keep assignment arrays sized to participant count
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAssignmentChoices((prev) => {
       const next = [...prev];
       while (next.length < participants.length) next.push("unassigned");
@@ -712,6 +735,7 @@ export function ManualBookingForm({
       const raw = sessionStorage.getItem(DRAFT_KEY);
       if (raw && !hasPrefill) {
         const draft = JSON.parse(raw);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (draft.step) setStep(draft.step);
         if (draft.bookingSource) setBookingSource(draft.bookingSource);
         if (draft.fullName) setFullName(draft.fullName);
@@ -742,9 +766,9 @@ export function ManualBookingForm({
   // Keep first participant name in sync when "Themself" is selected
   useEffect(() => {
     if (bookingForMode === "self") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setParticipants((prev) => [{ ...prev[0], name: fullName }, ...prev.slice(1)]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fullName, bookingForMode]);
 
   // Warn browser on unload when form has data
@@ -778,13 +802,6 @@ export function ManualBookingForm({
     setParticipants((prev) =>
       prev.map((p, i) => (i === index ? { ...p, ...patch } : p))
     );
-  }
-
-  function setParticipantPackage(index: number, slug: string) {
-    // toggle: clicking same slug again clears it
-    updateParticipant(index, {
-      packageSlug: (participants[index]?.packageSlug === slug) ? "" : slug,
-    });
   }
 
   function setParticipantMassageEnabled(index: number, enabled: boolean) {
@@ -1632,49 +1649,13 @@ export function ManualBookingForm({
     </div>
   );
 
-  // Step 4 — Review & confirm
-  function SummaryCard({
-    heading,
-    editStep,
-    children,
-  }: {
-    heading: string;
-    editStep: number;
-    children: React.ReactNode;
-  }) {
-    return (
-      <AdminPanel
-        title={heading}
-        actions={
-          <button
-            type="button"
-            onClick={() => setStep(editStep)}
-            className="flex items-center gap-1 text-xs font-medium text-[var(--admin-primary)] transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-          >
-            Edit <ChevronRight className="size-3" aria-hidden="true" />
-          </button>
-        }
-      >
-        {children}
-      </AdminPanel>
-    );
-  }
-
-  function dl(label: string, value: string | undefined | null) {
-    if (!value) return null;
-    return (
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <dt className="text-xs font-medium text-[var(--admin-text-muted)]">{label}</dt>
-        <dd className="break-words text-sm text-[var(--admin-body)]">{value}</dd>
-      </div>
-    );
-  }
+  const editStep = (target: number) => () => setStep(target);
 
   const step4 = (
     <div className={step === 4 ? "grid gap-4" : "hidden"} aria-hidden={step !== 4}>
       <div className="grid gap-4 md:grid-cols-[1fr_auto]">
         <div className="grid gap-4">
-          <SummaryCard heading="Contact & source" editStep={1}>
+          <SummaryCard heading="Contact & source" onEdit={editStep(1)}>
             <dl className="grid gap-3 sm:grid-cols-2">
               {dl("Source", SOURCE_OPTIONS.find((o) => o.value === bookingSource)?.label)}
               {dl("Name", fullName)}
@@ -1684,7 +1665,7 @@ export function ManualBookingForm({
             </dl>
           </SummaryCard>
 
-          <SummaryCard heading="Services & participants" editStep={2}>
+          <SummaryCard heading="Services & participants" onEdit={editStep(2)}>
             {participants.map((p, i) => (
               <div key={i} className={cn("grid gap-1", i > 0 && "mt-3 border-t border-[var(--admin-border)] pt-3")}>
                 <p className="text-xs font-semibold text-[var(--admin-heading)]">
@@ -1709,7 +1690,7 @@ export function ManualBookingForm({
             ))}
           </SummaryCard>
 
-          <SummaryCard heading="Location & time" editStep={3}>
+          <SummaryCard heading="Location & time" onEdit={editStep(3)}>
             <dl className="grid gap-3 sm:grid-cols-2">
               {dl("Address", [address, area, postcode, city].filter(Boolean).join(", "))}
               {dl("Date", bookingDate)}
@@ -1859,7 +1840,7 @@ export function ManualBookingForm({
                     className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
                   />
                   <span className="text-[var(--admin-body)]">
-                    I confirm that the client's details and consent have been obtained.
+                    I confirm that the client&apos;s details and consent have been obtained.
                     <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
                   </span>
                 </label>
@@ -1923,9 +1904,9 @@ export function ManualBookingForm({
           Cancel
         </AdminButton>
       ) : (
-        <a href="/admin/bookings" className="text-sm font-medium text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-body)]">
+        <Link href="/admin/bookings" className="text-sm font-medium text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-body)]">
           Cancel
-        </a>
+        </Link>
       )}
       {step < 4 ? (
         <AdminButton
@@ -1971,12 +1952,12 @@ export function ManualBookingForm({
           Your progress will be lost.
         </p>
         <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
-          <a
+          <Link
             href="/admin/bookings"
             className="inline-flex items-center justify-center rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Leave
-          </a>
+          </Link>
           <AdminButton variant="secondary" onClick={() => setShowLeaveDialog(false)}>
             Keep going
           </AdminButton>

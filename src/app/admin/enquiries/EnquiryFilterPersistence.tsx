@@ -46,6 +46,7 @@ export function EnquiryFilterPersistence({ currentParams }: { currentParams: str
     try {
       if (tracked.length > 0) {
         window.localStorage.setItem(STORAGE_KEY, tracked);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setResumeHref(null);
         return;
       }

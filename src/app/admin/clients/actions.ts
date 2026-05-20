@@ -261,7 +261,7 @@ export async function addClientNote(
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
-    action_type: "client_note_created",
+    action_type: "client_note_added",
     target_type: "client_notes",
     target_id: data.id,
     after_state: { client_id: clientId, is_sensitive: true },

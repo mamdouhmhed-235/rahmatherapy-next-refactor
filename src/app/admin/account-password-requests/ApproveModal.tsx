@@ -46,6 +46,7 @@ export function ApproveModal({
 
   useEffect(() => {
     if (result?.ok) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpen(false);
       setNote("");
     }
