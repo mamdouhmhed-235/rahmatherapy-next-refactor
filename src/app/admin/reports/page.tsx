@@ -170,7 +170,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
                   </span>
                 </span>
                 {activeFilterChips.length > 0 ? (
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--admin-primary)] px-1.5 text-xs font-semibold text-[var(--admin-text-inverse)]">
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--admin-primary)] px-1.5 text-xs font-semibold text-[var(--admin-on-primary)]">
                     {activeFilterChips.length}
                   </span>
                 ) : null}
@@ -264,7 +264,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
               </FilterField>
               <button
                 type="submit"
-                className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-text-inverse)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
+                className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
               >
                 <Filter className="size-4" aria-hidden="true" />
                 Apply filters

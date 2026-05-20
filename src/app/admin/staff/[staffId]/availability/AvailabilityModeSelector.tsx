@@ -168,9 +168,8 @@ function ModeSegmentedControl({
           disabled={disabled}
           aria-pressed={true}
           onClick={onUseGlobal}
-          style={{ color: "#ffffff" }}
           className={cn(
-            "inline-flex h-11 flex-1 min-w-[8.5rem] items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:h-10 sm:flex-initial",
+            "inline-flex h-11 flex-1 min-w-[8.5rem] items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-on-primary)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:h-10 sm:flex-initial",
             "bg-[var(--admin-primary)] shadow-sm"
           )}
         >
@@ -188,11 +187,10 @@ function ModeSegmentedControl({
         disabled={disabled}
         aria-pressed={isCustom}
         onClick={isCustom ? undefined : onCustom}
-        style={isCustom ? { color: "#ffffff" } : undefined}
         className={cn(
           "inline-flex h-11 flex-1 min-w-[8.5rem] items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:h-10 sm:flex-initial",
           isCustom
-            ? "bg-[var(--admin-primary)] shadow-sm"
+            ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-sm"
             : "bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-canvas)]"
         )}
       >

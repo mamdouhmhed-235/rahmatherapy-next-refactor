@@ -231,7 +231,7 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
           <Link
             href={`/admin/staff/${staffId}/availability`}
             aria-current="page"
-            style={{ color: "#ffffff" }}
+            style={{ color: "var(--admin-on-primary)" }}
             className="inline-flex h-10 items-center whitespace-nowrap rounded-t-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Availability

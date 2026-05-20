@@ -58,6 +58,11 @@
   --admin-text-muted: #5e625e;
   --admin-primary: #073d2a;
   --admin-primary-hover: #0b4a33;
+  /* Foreground colour for text/icons rendered on --admin-primary (Clinic Green) surfaces.
+   * Matches DESIGN.md §2 "Field White (oklch(99.5% 0.003 88) ≈ #fffffe): All text, icons, and
+   * labels on dark green surfaces." Use everywhere the admin chrome lays text on the green
+   * fill (primary buttons, active nav, active tab links, mode-selector active state). */
+  --admin-on-primary: oklch(99.5% 0.003 88);
   --admin-accent: #d99a00;
   --admin-focus: #1b6f93;
   --admin-success: #047857;
