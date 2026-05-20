@@ -24,9 +24,11 @@ import { AdminPageScaffold, AdminStatusBadge } from "../components/admin-ui";
 import { BusinessOverviewDisclosure } from "./dashboard-filters-client";
 import { DashboardHeader } from "./dashboard-header";
 import { EmptyState } from "../components/EmptyState";
+import { ProfileCompletionNudge } from "./ProfileCompletionNudge";
 import type { ReportData } from "../reports/reporting";
 
 interface TherapistDashboardProps {
+  staffId: string;
   staffName: string;
   today: string;
   data: ReportData;
@@ -34,6 +36,17 @@ interface TherapistDashboardProps {
   todayAppointments: ReportData["bookings"];
   nextAppointment: ReportData["bookings"][number] | null;
   activeRange?: string;
+  // Profile-completion fields for the first-run onboarding nudge.
+  // Pass-through from getStaffProfile(); the nudge hides itself once
+  // profile_completed_at is set or all five visible fields are filled.
+  profileCompletionFields: {
+    phone: string | null;
+    shortBio: string | null;
+    specialties: string[] | null;
+    languages: string[] | null;
+    serviceAreas: string[] | null;
+    profileCompletedAt: string | null;
+  };
 }
 
 const FORMATTERS = {
@@ -115,6 +128,7 @@ function buildServiceLookup(
 }
 
 export function TherapistDashboard({
+  staffId,
   staffName,
   today,
   data,
@@ -122,6 +136,7 @@ export function TherapistDashboard({
   todayAppointments,
   nextAppointment,
   activeRange = "today",
+  profileCompletionFields,
 }: TherapistDashboardProps) {
   const greeting = getGreeting();
   const firstName = getFirstName(staffName);
@@ -333,6 +348,17 @@ export function TherapistDashboard({
           updatedAtIso={new Date().toISOString()}
         />
       </header>
+
+      <ProfileCompletionNudge
+        staffId={staffId}
+        firstName={firstName}
+        phone={profileCompletionFields.phone}
+        shortBio={profileCompletionFields.shortBio}
+        specialties={profileCompletionFields.specialties}
+        languages={profileCompletionFields.languages}
+        serviceAreas={profileCompletionFields.serviceAreas}
+        profileCompletedAt={profileCompletionFields.profileCompletedAt}
+      />
 
       <DateRangeChips activeRange={activeRange} />
 

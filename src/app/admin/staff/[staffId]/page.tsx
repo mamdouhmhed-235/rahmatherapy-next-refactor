@@ -365,13 +365,13 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
   const completionTotal = completionItems.length;
 
   const onboardingItems = [
-    { label: "Auth linked", done: Boolean(typedStaff.auth_user_id), href: null as string | null },
-    { label: "Role assigned", done: Boolean(typedStaff.role_id), href: null },
-    { label: "Gender set", done: Boolean(typedStaff.gender), href: null },
-    { label: "Active", done: typedStaff.active, href: null },
-    { label: "Can take bookings", done: typedStaff.can_take_bookings, href: null },
+    { label: "Sign-in account created", done: Boolean(typedStaff.auth_user_id), href: null as string | null },
+    { label: "Role set", done: Boolean(typedStaff.role_id), href: null },
+    { label: "Gender selected (for matching)", done: Boolean(typedStaff.gender), href: null },
+    { label: "Active account", done: typedStaff.active, href: null },
+    { label: "Bookable for visits", done: typedStaff.can_take_bookings, href: null },
     {
-      label: "Availability configured",
+      label: "Availability set up",
       done: typedStaff.availability_mode === "use_global" || (availabilityRules?.length ?? 0) > 0,
       href: `/admin/staff/${staffId}/availability`,
     },

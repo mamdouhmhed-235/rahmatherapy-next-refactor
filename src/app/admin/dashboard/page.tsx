@@ -512,6 +512,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     const nextAppointmentForTherapist = findNextAppointment(data.bookings, today);
     return (
       <TherapistDashboard
+        staffId={profile.id}
         staffName={profile.name}
         today={today}
         data={data}
@@ -529,6 +530,14 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         )}
         nextAppointment={nextAppointmentForTherapist}
         activeRange={filters.range}
+        profileCompletionFields={{
+          phone: profile.phone ?? null,
+          shortBio: profile.short_bio ?? null,
+          specialties: profile.specialties ?? null,
+          languages: profile.languages ?? null,
+          serviceAreas: profile.service_areas ?? null,
+          profileCompletedAt: profile.profile_completed_at ?? null,
+        }}
       />
     );
   }
