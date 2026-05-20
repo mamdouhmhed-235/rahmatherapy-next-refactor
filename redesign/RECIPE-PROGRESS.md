@@ -141,7 +141,9 @@
   - [x] Session 1 — `00-shared-components`: COMPLETE (2026-05-13) — admin chrome + shared component library committed; downstream sessions inherit tokens, AdminPanel, EmptyState, Switch, avatar algorithm.
   - [x] Session 2 — `booking-new`: COMPLETE (2026-05-14) — final commit pending. Full four-step wizard: (1) Services as package radio (Supreme Combo / Hijama / Fire) + optional massage duration radio (30 min / 1 hr). (2) Three booking-for flows: Themself (1 participant, name pre-filled) / Someone else (1 participant, blank) / Group (2 rows pre-open, add button). (3) Postcode-first location — postcodes.io auto-fills city only (area is manual-entry; admin_district too coarse). (4) Option C mixed-gender group: two independent availability sections per gender group (Phase 1 = one booking record). (5) Cancel override via "Use available slots" button. (6) Booking = REQUEST — "Submit booking request" button, Attention-family badge, step 4 unassigned note. (7) Step 4 three-option assignment panel: Leave unassigned / Assign to therapist (canAssignBookings) / Take myself (canClaimAssignments + gender match). (8) Same-gender required chip removed from participant rows. Phase 2 deferred: group_session_id for split-time mixed-gender bookings.
   - [x] Session 3 — `booking-detail`: COMPLETE (2026-05-15) — final commit b415bb7. Two-column desktop scaffold (sticky sidebar at md:+); BookingManagementForm split into StatusAndPaymentSection + NotesSection with independent dirty states + per-section Save Primary; quick-action Ghost row (Confirm/Mark paid/Mark complete/Cancel) with ConfirmActionModal on Cancel + No-show; ParticipantsPanel with EmptyState fallback + gender-match chips; AssignmentPanel with unassigned avatar tile + optimistic ClaimAssignmentButton + race-lost rollback + Mark complete/no-show for own-assignment; AssignmentManager redesigned to AdminSheet eligible-staff picker with avatar+reason rows; EmailActivityPanel with break-words error_message; ActivityPanel with humanized verb-phrase map (ACTIVITY_ACTION_LABELS) + list-none ol fix + tightened dot rhythm; NextActionStrip with state-derived headline + hint + optional Cormorant numeral anchor (signature element); BookingDetailSidebar with SummaryCard (mono ref + Cormorant Total in sanctioned Gold) + ClientCard (avatar + tel/mailto links + View client profile back-link, BASELINE-CRITIQUE fix) + AddressCard (parsed access notes + View on Maps Primary). Harden additions: amount-over-total inline warning, paid-with-zero inline warning, persistent error toast with Retry on save failures, Cormorant overflow guards (min-w-0 + break-words + tabular-nums), email error_message break-words, breadcrumb title={booking.id}, 2-col grid items-start alignment fix. Clarify: uppercase-tracked eyebrows retired (4 spots) → sentence-case; doneLabel "Booking confirmed" → "Confirmed"; verb-first activity labels. AdminMobileActionBar removed (sticky-not-fixed semantics caused doc-end duplicate). Brief deviations tagged in PER-PAGE-SCORES: mobile section interleave NOT implemented (P1 → Phase 7 gauntlet); payment_status select 2-value vs brief's 5-value (pre-existing data constraint, P2); concurrent-edit staleness banner deferred (needs backend version-conflict shape). Audit 17/20 Good, Critique 31/40 Good, AI slop PASS no regression, P0=0.
-- [ ] Phase 7 — QA
+- [~] Phase 7 — QA in progress
+
+Phase 7 paused 2026-05-19 for out-of-recipe engineering work (six sessions, 17 commits, closing all 5 BLOCKS-REDESIGN gaps + L1-a/L1-b/L1-c — see "## Out-of-Recipe Engineering Track" section near the bottom of this file). Resume target on next session: Gate 5 (adapt verification) → Gate 6 (formal skip doc) → Gate 7 (polish) → Gate 8 (critique) → Gate 9 (cross-checks) → completion.
 
 ---
 
@@ -270,3 +272,33 @@
 - `ConfirmActionModal` wired to destructive actions (cancel booking, deactivate staff, delete service, delete role).
 
 **Caveat — recipe-supplementary section:** the `## Admin-Specific Patterns` section appended to DESIGN.md is **not** a skill-native canonical section. `/impeccable document` may strip it on regenerate. Phase 8 owns the preserve-and-reappend ritual. If strict skill compliance is required later, this content can migrate to `/redesign/DESIGN-RECIPE-NOTES.md` — but the recipe assumes it lives at the bottom of DESIGN.md so `live` / `craft` / `polish` inherit the context.
+
+---
+
+## Out-of-Recipe Engineering Track (2026-05-19 to 2026-05-20)
+
+Phase 7 Gate 0 (Production Readiness Re-check) failed first-pass on 2026-05-19 with five distinct BLOCKS-REDESIGN shortfalls and Layer 1 verification holding two DEFERs + one FAIL. Six engineering-pause sessions on branch `engineering/track-a-backend-gap-fill` closed every gap. Phase 7 resumes from a fresh session at Gate 5 (adapt verification).
+
+**Sessions executed:**
+
+| Session | Date | Scope | Commits | Outcome | Transcript |
+|---|---|---|---|---|---|
+| 1 | 2026-05-19 | 2C-10 table build | `958d2b5`, `755cc7b`, `f498d73` | `email_template_overrides` table + `manage_email_templates` permission; one-line follow-up GRANT migration after smoke caught the gap | `/redesign/backend-smoke-tests/email-template-overrides-table-2026-05-19.txt` (+ pre-migration permissions snapshot) |
+| 2 | 2026-05-19 | 2C-10 actions wiring | `cae5e17`, `993ba84`, `1fb2e17` | Real `saveTemplateOverride` + `sendTemplateManually` server actions; Owner + Admin role grants; HANDLED flip. Includes Zone-2 discipline failure #1 epilogue. | `/redesign/backend-smoke-tests/email-template-overrides-actions-2026-05-19.txt` |
+| 3 | 2026-05-19 | 2A-16 + 2C-9 cron infrastructure | `4928e12`, `b517bc7`, `7f278d6` | Architectural pivot from Supabase Edge Functions to Cloudflare Cron Triggers; daily booking-reminders cron handler + Worker entrypoint + `wrangler.jsonc` cron config. Includes Zone-2 discipline failure #2 process note. Activates on next Cloudflare production deploy. | `/redesign/backend-smoke-tests/automated-booking-reminders-2026-05-19.txt` |
+| 4 | 2026-05-19 | 2A-6 + 2A-9 doc reconciliation | `6312d2f` | Doc-only flip of PARTIAL → HANDLED based on Phase 7 Gate 1 a11y audit evidence + fresh grep counts. No code changes. | (none — doc-only) |
+| 5a | 2026-05-20 | L1-a + L1-b Sentry roundtrip | `9440eb3` (superseded), `c6d795d`, `266d89b`, `fcc97ac` | End-to-end Sentry verification PASS in dev mode. Caught and fixed two production-essential bugs: `@sentry/nextjs#18871` workaround + scrubber over-redaction. Cloudflare-runtime re-verification carries over to post-deploy. | `/redesign/backend-smoke-tests/sentry-roundtrip-2026-05-20.txt` |
+| 5b | 2026-05-20 | L1-c Track B waiver | `ae9946d` | Doc-only formal waiver of L1-c from Layer 1 (engineering-pause-blocking) to Track B (pre-launch-blocking). Drill not run; four acceptable pre-launch methods documented. | (none — doc-only) |
+
+**Production bugs caught and fixed during the pause:**
+- `@sentry/nextjs#18871` — `makeNodeTransport` silently drops events under Next.js 16 + Turbopack. Workaround: custom `makeFetchTransport` in `sentry.server.config.ts` (commit `266d89b`).
+- PII scrubber over-redacting Sentry envelope `event_id` field — Sentry's ingest rejected every event with HTTP 400. Fix: `SAFE_SENTRY_KEYS` exclusion in `src/lib/observability/sentry-scrubbing.ts` (commit `266d89b`).
+- Cron handler missing for daily booking reminders — Cloudflare Cron Triggers wiring + handler (commit `4928e12`).
+- `email_template_overrides` table absent in production — three migrations applied (commit `958d2b5` + Session 1 follow-ups).
+
+**Track B carry-overs to pre-launch checklist (binding before production rollout):**
+1. `CRON_SECRET` setup in Cloudflare Workers → Settings → Variables and Secrets (Session 3 deploy-time checklist).
+2. Cloudflare Sentry post-deploy verification — 6-step procedure in ENGINEERING-LOG.md (Session 5a).
+3. Backup restore drill — four acceptable methods + evidence requirements in ENGINEERING-LOG.md (Session 5b).
+
+**Phase 7 resume target:** Gate 5 (adapt verification — write or verify `ADAPT-PASS.md`) → Gate 6 (formal skip — write `ONBOARD-PASS.md`) → Gate 7 (polish, last code-mutating gate) → Gate 8 (critique, design re-score) → Gate 9 (cross-checks, Playwright + DevTools sweep) → Completion (`FINAL-REPORT.md` final summary, `/deploy-checklist` gate). Use the recipe's 6→7 handoff card pattern to re-prime the next session.

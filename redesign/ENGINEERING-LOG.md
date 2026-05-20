@@ -338,3 +338,73 @@ This is a doc-only session. Explicitly NOT performed:
 - `redesign/FINAL-REPORT.md` — L1-c row FAIL → DEFER-WITH-WAIVER; Layer 1 net summary updated; "what's needed to clear this gate" item 3b updated to reflect resolution via waiver.
 - `redesign/ENGINEERING-LOG.md` — opening L1-c statement in the Session 5a Layer 1 section updated to point at the waiver record; this new Session 5b work item appended.
 - `redesign/BUSINESS-COMPLETENESS.md` — already correctly places 2A-12 in Track B (pre-launch). Added a single cross-reference line pointing at the Session 5b waiver record for future-reader traceability.
+
+---
+
+## Closing summary — engineering pause complete 2026-05-20
+
+The out-of-recipe engineering pause that began on 2026-05-19 to clear Phase 7 Gate 0 BLOCKS-REDESIGN + Layer 1 verification gaps closed on 2026-05-20 across six sessions and 17 commits on `engineering/track-a-backend-gap-fill`. Phase 7 Gate 0 verdict moved from **FAIL** to **PASS-WITH-CAVEATS**.
+
+### Sessions 1-5b — status, commits, outcome
+
+| Session | Date | Status | Commits | Outcome |
+|---|---|---|---|---|
+| 1 | 2026-05-19 | CLOSED | `958d2b5`, `755cc7b`, `f498d73` | **2C-10 table built.** `email_template_overrides` table + RLS + `manage_email_templates` permission row. Smoke caught missing `GRANT SELECT TO authenticated`; fixed via one-line follow-up migration. |
+| 2 | 2026-05-19 | CLOSED | `cae5e17`, `993ba84`, `1fb2e17` | **2C-10 actions wired end-to-end.** Real `saveTemplateOverride` + `sendTemplateManually`; override-aware render; Owner + Admin role grants; HANDLED flip in BUSINESS-COMPLETENESS.md. Zone-2 discipline failure #1 incident documented (unauthorised Resend send to fake address via React-controlled-input negative-path probe). |
+| 3 | 2026-05-19 | CLOSED-with-caveat | `4928e12`, `b517bc7`, `7f278d6` | **2A-16 + 2C-9 HANDLED-with-caveat.** Architectural pivot from Supabase Edge Functions to Cloudflare Cron Triggers (`src/app/api/cron/booking-reminders/route.ts` + `worker-entrypoint.ts` + `wrangler.jsonc` `triggers.crons`). Activates on next Cloudflare production deploy. Zone-2 discipline failure #2 incident documented (window-sweep handler fired Resend to one real customer + two test addresses). |
+| 4 | 2026-05-19 | CLOSED | `6312d2f` | **2A-6 + 2A-9 PARTIAL → HANDLED.** Doc-only reconciliation against Phase 7 Gate 1 a11y audit evidence + fresh grep counts. No code changes. |
+| 5a | 2026-05-20 | CLOSED | `9440eb3` (superseded by `c6d795d`), `c6d795d`, `266d89b`, `fcc97ac` | **L1-a + L1-b PASS (dev mode).** End-to-end Sentry server-side roundtrip verified. Two production-essential bugs caught + fixed during verification. Cloudflare-runtime re-verification carries over to post-deploy. |
+| 5b | 2026-05-20 | CLOSED | `ae9946d` | **L1-c FAIL → DEFER-WITH-WAIVER (Track B).** User-authorised waiver from Layer 1 to Track B. Four acceptable pre-launch methods documented. Drill not performed during the engineering pause. |
+| 6 | 2026-05-20 | CLOSED | (this commit) | **Engineering pause closed.** Phase 7 Gate 0 verdict updated to PASS-WITH-CAVEATS. Doc-only. Phase 7 cleared to resume. |
+
+### Production bugs caught and fixed during the pause
+
+| Bug | Severity | Root cause | Fix | Commit |
+|---|---|---|---|---|
+| `@sentry/nextjs#18871` — `makeNodeTransport` silently drops events under Next.js 16 + Turbopack | **Critical** — every server-side Sentry event would be silently lost in production | OpenTelemetry async-context manipulation inside `suppressTracing()` interacts badly with Turbopack's async-context handling; stream callbacks never fire | Custom `makeFetchTransport` in `sentry.server.config.ts` using Node 18+ native `fetch()`, with explicit `Content-Type: application/x-sentry-envelope` (the bare workaround posted in #18871 omitted Content-Type and produced HTTP 400s) | `266d89b` |
+| PII scrubber over-redacting envelope protocol fields | **Critical** — Sentry's ingest rejected every event with HTTP 400 "invalid envelope header" | `LONG_TOKEN_PATTERN` (24+ alphanumeric) matched 32-char-hex `event_id`; scrubber replaced it with `[Filtered]`, corrupting the envelope header | `SAFE_SENTRY_KEYS` exclusion set in `src/lib/observability/sentry-scrubbing.ts` short-circuiting protocol fields before scrubbing | `266d89b` |
+| Daily booking reminders had no cron infrastructure | **High** — primary 24h-ahead reminder feature non-functional | No edge function, no cron extension; original BUILD plan assumed Supabase Edge Function + pg_cron + pg_net which didn't fit the Cloudflare Workers deployment topology | Cloudflare Cron Triggers + Next.js API route + secret-gated `scheduled()` handler | `4928e12` |
+| `email_template_overrides` table absent in production | **High** — entire email-templates editor surface was FAKE | No table, no permission row, no role grants | Three migrations applied to production (table + permission row + role grants); real `saveTemplateOverride` + `sendTemplateManually` actions | `958d2b5` + Session 1 follow-ups + `cae5e17` |
+
+Bug 2 was masked by Bug 1 (no event ever reached Sentry's ingest, so the corrupted header was never evaluated). Both bugs would have shipped silently to Cloudflare production if Session 5a had been deferred or accepted a PASS-WITH-CAVEAT.
+
+### Track B carry-overs (binding before production rollout)
+
+1. **`CRON_SECRET` setup in Cloudflare Workers** → Settings → Variables and Secrets (use same value as local `.env`, or generate a fresh 32+ char random string). Without this, the cron handler returns 500 on every firing and Cloudflare logs will show "missing env var". See Session 3 "Deploy-time checklist" subsection above.
+2. **Cloudflare Sentry post-deploy verification** — re-run the L1-a/L1-b roundtrip against a Cloudflare preview deploy (not production). Three upstream Cloudflare-compat risks: `getsentry/sentry-javascript#18842, #18843, #14931`. Full 6-step procedure in Session 5a "Cloudflare post-deploy carry-over" subsection above.
+3. **Backup restore drill (L1-c)** — Track B-authorised waiver, not a PASS. Four acceptable methods (Supabase Branching preview, separate throwaway Supabase project, GitHub Actions workflow with `postgres:17` service container, local Docker + `pg_dump | psql`); evidence requirements (restore completion time, row counts on 5 key tables, teardown confirmation). Full method table + evidence requirements in Session 5b "Track B waiver record" subsection above.
+
+### Pattern lessons
+
+**Zone-2 discipline failures #1 and #2.** Both involved live testing of code paths that touch external systems (Resend, `email_delivery_events` writes). Pattern: verifying "is my own test data fake-addressed" is **insufficient** when the code path can fail (Session 2 — React controlled-input restored a corrupted value, turning a negative-path probe into a positive Resend dispatch) or when it sweeps state beyond the test fixture (Session 3 — window-sweep cron handler fired Resend to all co-resident records in the window, including one real customer). **Corrected discipline rule (binding on all future sessions):** any live invoke of code that sweeps state or runs an external send must be preceded by a documented scope-verification step that goes beyond the test fixture itself. For window-sweep handlers specifically: query the sweep window first to enumerate co-resident records; if any are real-user records, do NOT invoke — pivot to code inspection, mocked unit test, or narrow the test fixture to a co-resident-free window. The Zone-2 list does not exempt the recipient based on its plausibility.
+
+**Web research as a load-bearing diagnostic technique.** Session 5a originally diagnosed the Sentry 66-second response time as a dev-mode symbolication issue and recommended PASS-WITH-CAVEAT. Operator pushed back with "the diagnosis may be incomplete and there's a documented workaround worth trying"; web research surfaced `@sentry/nextjs#18871` which was the actual root cause. Memorialised: a "defer to Cloudflare verification" verdict on monitoring/alerting bugs is the wrong default. Defer hides production-blocking bugs behind a label. When upstream tooling exhibits surprising behaviour, **check the issue tracker before deferring** — open issues with workaround discussion are common when the bug is recent enough to still be controversial in the maintainer's roadmap.
+
+**Verification-before-completion miss (Session 5a self-correction).** Initial Glob `instrumentation.*` search did not return `src/instrumentation.ts` (which had existed since commit `d50c796`), so I concluded the hook was missing and created a redundant root `instrumentation.ts` (commit `9440eb3`). Self-corrected via commit `c6d795d` after noticing the duplicate. Future Glob results suggesting a file is "absent" should be cross-checked with an explicit `ls` / `Read` of the expected directory before acting on the absence.
+
+**Compaction-summary handoff verification (Session 5a → cleanup).** A pre-compaction summary attributed a load-bearing `next.config.ts` `turbopack.root` removal to the operator. Pre-commit `git log` / `git diff` showed the file was untouched. Memorialised in the Session 5a transcript and ENGINEERING-LOG as a discarded claim. Future-me: when a compaction summary claims a specific code change happened, verify against git before relying on it.
+
+### PER-PAGE-SCORES.md FAKE-row inventory (carried over to future-engineering track, not Phase 7 blockers)
+
+10 pages remain with FAKE backend status; none of the BUILD plans below were in the engineering-pause scope. They are future-engineering-track items, tracked in `IMPLEMENTATION-PLAN.md` rows, not redesign-blocking:
+
+| Page | Blocking BUILD plan(s) |
+|---|---|
+| bookings | `BUILD-manual-send-reminder.md` (doesn't exist in plans; UI directs operators to /admin/emails) |
+| enquiries | `BUILD-enquiries-filter-query.md` |
+| audit | `BUILD-audit-filter-and-pagination.md` + `BUILD-audit-target-existence.md` |
+| operations | `BUILD-operations-filter-query.md` |
+| staff | `BUILD-staff-workload-aggregates.md` + `BUILD-staff-filter-query.md` |
+| roles | `BUILD-create-role.md` |
+| role-detail | `BUILD-delete-role.md` |
+| staff-availability | `BUILD-staff-blocked-dates-actions.md` + `BUILD-staff-availability-override-actions.md` |
+| account-password-requests | `BUILD-approve-reject-password-reset.md` + `BUILD-rbac-permission-account-password-requests.md` |
+| password-reset | `BUILD-password-reset-request-actions.md` + `BUILD-password-reset-email-templates.md` |
+
+Two pages had their FAKE/PARTIAL status updated during the pause:
+- `email-templates` (PER-PAGE-SCORES.md line 3859) — flipped to HANDLED for Save + Send during Session 2; two residual FAKE surfaces (preview-route override merge + manual-send booking-context picker) depend on out-of-scope BUILD plans.
+- `emails` (PER-PAGE-SCORES.md line 3787) — flipped to PARTIAL during Session 3 with the cron BUILD plan struck through; remaining blocker is `BUILD-email-delivery-filter-query.md`, also out of scope.
+
+### Resume signal
+
+The engineering pause is officially closed. Phase 7 may resume in a fresh session via the recipe's 6→7 handoff card pattern. Resume target: Gate 5 (adapt verification — `ADAPT-PASS.md`) → Gate 6 (formal skip — `ONBOARD-PASS.md`) → Gate 7 (polish; last code-mutating gate) → Gate 8 (critique; design re-score) → Gate 9 (cross-checks; Playwright + DevTools sweep) → Completion (`FINAL-REPORT.md` final summary, `/deploy-checklist` gate).

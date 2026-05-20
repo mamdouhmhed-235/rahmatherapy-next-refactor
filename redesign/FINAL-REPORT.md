@@ -11,9 +11,9 @@
 **Method:** Re-read `/redesign/BUSINESS-COMPLETENESS.md` + `/redesign/FOUNDATION-FLOOR.md`; per-item evidence verified via codebase grep, git log, file globs, **and (second pass) Supabase MCP** — `list_edge_functions`, `list_migrations`, `execute_sql` against `information_schema.tables`, `pg_extension`, and `email_delivery_events`. No claim made without a fresh check.
 **Verification skill:** `superpowers:verification-before-completion` — iron law: evidence before claims.
 
-### Result: **FAIL — gate still blocked at BLOCKS-REDESIGN check (no change since first run).**
+### Result: ~~FAIL — gate still blocked at BLOCKS-REDESIGN check (no change since first run).~~ **PASS-WITH-CAVEATS — all 5 BLOCKS-REDESIGN items HANDLED (2 with documented caveats); Layer 1 net 3/4 PASS + 1 DEFER-WITH-WAIVER; no unresolved FAILs.**
 
-Second-pass re-verification: `git log --oneline -25` shows no new commits since `256d87c` (Phase 6 close, 2026-05-19). The five distinct `BLOCKS-REDESIGN` shortfalls below are unchanged. Supabase-side MCP probes confirm the three engineering gaps at the platform layer (zero edge functions, no `email_template_overrides` table, no `pg_cron`/`pg_net` extensions enabled) — i.e. it isn't only that the migration/build is missing from the repo, the database itself has not received it either. Layer 1 Runtime Verification was attempted on this second pass for the parts that don't require destructive or external-facing actions; see "Layer 1 Runtime Verification" below.
+**Cleared 2026-05-20** by the out-of-recipe engineering pause (Sessions 1 through 5b on `engineering/track-a-backend-gap-fill`; 17 commits since fork from `256d87c`). The first-pass FAIL was unblocked across the pause; the second-pass observations on Supabase-side platform gaps (no edge functions, no `email_template_overrides` table, no `pg_cron`/`pg_net`) were resolved either by direct migration application (2C-10) or by architectural pivot (2A-16 + 2C-9 moved off Supabase Edge Functions onto Cloudflare Cron Triggers; pg_cron + pg_net deliberately not enabled — see ENGINEERING-LOG.md). The original FAIL paragraph is preserved below the verdict line for audit traceability; the per-item updates below show the engineering-pause-driven status flips.
 
 ### BLOCKS-REDESIGN per-item status
 
@@ -61,14 +61,27 @@ Second-pass attempt of the four items (2026-05-19). One PASS from real productio
 
 **Layer 1 net (updated 2026-05-20 after Session 5b):** **3/4 PASS + 1 DEFER-WITH-WAIVER** (L1-a dev mode, L1-b dev mode, L1-d · L1-c DEFER-WITH-WAIVER → Track B) — was 2 DEFER + 1 FAIL + 1 PASS at gate open. **Two carry-overs to the post-deploy / pre-launch checklist:** (i) L1-a + L1-b need to be re-run on a Cloudflare preview deploy before the Cloudflare-production verdict can be marked PASS; (ii) L1-c backup restore drill must be completed before any production rollout (Track B item, see ENGINEERING-LOG.md "Track B waiver record").
 
-### What's needed to clear this gate
+### Cleared 2026-05-20 — engineering pause Sessions 1-5b
 
-The user's call. Three threads now need a decision, two unchanged from the first pass and one new from Layer 1:
+All three threads from the original "What's needed to clear this gate" list are resolved. Summary of how each landed:
 
-1. **Build the missing BLOCKS-REDESIGN infrastructure** before continuing the gauntlet. Implement BUILD-automated-booking-reminders.md (Supabase Edge Function + `pg_cron` + `pg_net`) and BUILD-email-template-overrides-table.md (+ the wiring in `BUILD-email-templates-actions.md`). MCP-confirmed today: zero edge functions, no overrides table, no cron extensions enabled. Zone 2, billable-tier-touching. Then run the Phase 7 `/impeccable audit admin` pass to flip 2A-6 and 2A-9 from PARTIAL → HANDLED.
-2. **Waive the BLOCKS-REDESIGN gaps to Track B (pre-launch)** with explicit user direction. The redesign frontend ships with FAKE shims and a non-functional reminder cron, and these gaps move to the pre-launch checklist that runs after Track A is otherwise done. Needs a written user decision (the document currently has these in Track A, not Track B).
-3. **Authorise the Layer 1 actions Claude cannot take autonomously.** ~~(a) L1-a / L1-b — say "go" and Claude triggers a deliberate `Sentry.captureException` on a throwaway admin route (or have the user click a test-only "throw" link); user then reads back the Sentry issue ID from `lanternvale / rahmatherapy-next-refactor`.~~ **(a) RESOLVED — Engineering pause Session 5a (2026-05-20) completed the L1-a/L1-b roundtrip; both PASS in dev mode. Two production bugs caught and fixed in the process (`@sentry/nextjs#18871` workaround + scrubber envelope-protocol exclusion). Cloudflare-runtime re-verification carries over to the post-deploy checklist — see ENGINEERING-LOG.md "Cloudflare post-deploy carry-over".** ~~(b) L1-c — user decides on the throwaway-restore target (separate Supabase project, Branching preview, or local `supabase db dump | psql`) and authorises the spend; Claude can scaffold the procedure once a target is named.~~ **(b) RESOLVED via waiver — Engineering pause Session 5b (2026-05-20) formally waived L1-c from Layer 1 verification (engineering-pause-blocking) to Track B (pre-launch-blocking). The drill itself is not run during the engineering pause but MUST be completed before any production rollout. Four acceptable methods + evidence requirements documented in ENGINEERING-LOG.md "Track B waiver record" subsection.**
+**BLOCKS-REDESIGN closures (originally 5 gaps → 0):**
+- **2A-6** HANDLED — `role="alert" aria-live="polite"` on form-error regions (Session 4 doc reconciliation against the Phase 7 Gate 1 a11y audit; the work itself landed in Phase 6 page sessions).
+- **2A-9** HANDLED — required-field visible `*` markers via the `FieldLabel` primitive (Session 4 doc reconciliation; same provenance as 2A-6).
+- **2A-16** HANDLED-with-caveat — automated daily booking reminders via Cloudflare Cron Triggers (Session 3). Architectural pivot off Supabase Edge Functions + `pg_cron` + `pg_net`. Code lands on this branch; activation deferred to next Cloudflare production deploy.
+- **2C-9** HANDLED-with-caveat — cron infrastructure (cross-listed with 2A-16; same evidence, same caveat).
+- **2C-10** HANDLED — `email_template_overrides` database table + `saveTemplateOverride` + `sendTemplateManually` server actions (Sessions 1+2). Three migrations applied to production; Owner + Admin role grants per user decision.
 
-This gate stops here pending that decision.
+**Layer 1 closures (originally 2 DEFER + 1 FAIL → 0 unresolved):**
+- **L1-a + L1-b** PASS (Session 5a, dev mode) — end-to-end Sentry server-side roundtrip verified. Two production-essential bugs caught and fixed during verification: `getsentry/sentry-javascript#18871` (makeNodeTransport silently drops events on Next.js 16 + Turbopack — workaround `makeFetchTransport`) and a PII scrubber over-redaction of `event_id` (fix: `SAFE_SENTRY_KEYS` exclusion). Cloudflare-runtime re-verification carries over to the post-deploy checklist (see ENGINEERING-LOG.md "Cloudflare post-deploy carry-over").
+- **L1-c** DEFER-WITH-WAIVER (Session 5b) — user-authorised waiver from Layer 1 verification (engineering-pause-blocking) to Track B (pre-launch-blocking). Drill MUST be completed before any production rollout; four acceptable methods documented in ENGINEERING-LOG.md "Track B waiver record".
+- **L1-d** PASS (verified at gate open, unchanged).
+
+**Pre-launch / Track B carry-overs (binding before production rollout):**
+1. `CRON_SECRET` setup in Cloudflare Workers → Settings → Variables and Secrets (Session 3 deploy-time checklist).
+2. Cloudflare Sentry post-deploy verification — re-run the L1-a/L1-b roundtrip against a Cloudflare preview deploy before marking the Cloudflare-production verdict PASS (Session 5a — 6-step procedure in ENGINEERING-LOG.md).
+3. Backup restore drill — L1-c, four acceptable methods (Supabase Branching preview, separate throwaway project, GitHub Actions workflow with postgres:17, local Docker pg_dump|psql) + evidence requirements (Session 5b).
+
+Phase 7 may now resume from a fresh session at Gate 5 (adapt verification). See ENGINEERING-LOG.md "Closing summary — engineering pause complete 2026-05-20" for the full work record across Sessions 1-5b.
 
 ---
