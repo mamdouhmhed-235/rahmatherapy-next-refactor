@@ -79,21 +79,27 @@ const NAV_ITEMS: NavItem[] = [
 // ─── Variant configs ──────────────────────────────────────────────────────────
 
 // Primary strip: only genuinely daily-use items. Everything else lives in the user menu.
-const OWNER_ADMIN_PRIMARY_KEYS = new Set(["dashboard", "bookings", "clients", "staff", "reports"]);
+// Cap at 5 per DESIGN.md AdminTopNav rule. H10 swap (2026-05-21): reports → overflow,
+// enquiries → primary, because for the small-clinic Owner enquiry triage is a daily
+// funnel-critical task while Reports is a weekly business-review surface.
+const OWNER_ADMIN_PRIMARY_KEYS = new Set(["dashboard", "bookings", "clients", "enquiries", "staff"]);
 const COORDINATOR_PRIMARY_KEYS = new Set(["dashboard", "bookings", "clients", "staff", "enquiries"]);
 const THERAPIST_NAV_KEYS       = new Set(["dashboard", "bookings", "availability", "staff"]);
 
 // User menu grouped sections — role-dependent
 const OWNER_ADMIN_GROUPS: NavGroup[] = [
-  { label: "Scheduling & Leads",  keys: ["calendar", "enquiries"] },
+  { label: "Scheduling",          keys: ["calendar"] },
   { label: "Communications",      keys: ["emails"] },
   { label: "Clinic Setup",        keys: ["availability", "services"] },
+  { label: "Reporting",           keys: ["reports"] },
   { label: "Admin & Compliance",  keys: ["settings", "roles", "operations", "privacy", "audit", "accountRequests"] },
 ];
 
+// H9 fix (2026-05-21): availability moved from Communications to Scheduling — it's a
+// schedule-shaping surface, not a comms surface. Matches Owner's own grouping logic.
 const COORDINATOR_GROUPS: NavGroup[] = [
-  { label: "Scheduling",     keys: ["calendar"] },
-  { label: "Communications", keys: ["emails", "availability"] },
+  { label: "Scheduling",     keys: ["calendar", "availability"] },
+  { label: "Communications", keys: ["emails"] },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
