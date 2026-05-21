@@ -355,6 +355,7 @@ export async function claimBookingAssignment(formData: FormData) {
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${claimedAssignment.booking_id}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }
@@ -547,6 +548,7 @@ export async function updateBookingAssignment(formData: FormData) {
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${assignment.booking_id}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }
@@ -607,6 +609,7 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${updatedAssignment.booking_id}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }

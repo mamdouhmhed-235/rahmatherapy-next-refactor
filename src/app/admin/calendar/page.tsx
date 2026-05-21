@@ -380,9 +380,16 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         !["cancelled", "no_show"].includes(b.status) &&
         ["unassigned", "partially_assigned"].includes(b.assignment_status)
     ).length,
-    reschedule: data.bookings.filter((b) => b.reschedule_status === "requested")
-      .length,
-    unpaid: data.bookings.filter((b) => b.payment_status === "unpaid").length,
+    reschedule: data.bookings.filter(
+      (b) =>
+        b.reschedule_status === "requested" &&
+        !["cancelled", "no_show"].includes(b.status)
+    ).length,
+    unpaid: data.bookings.filter(
+      (b) =>
+        b.payment_status === "unpaid" &&
+        !["cancelled", "no_show"].includes(b.status)
+    ).length,
   };
 
   // Active filter chips (rendered below the rail when filters are non-default)

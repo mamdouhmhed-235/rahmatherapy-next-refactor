@@ -134,7 +134,7 @@ const ATTENTION_GROUP_META: Record<string, AttentionGroupMeta> = {
     category: "clients",
     categoryLabel: "Clients",
     order: 60,
-    href: (access) => (access.enquiries ? "/admin/enquiries" : null),
+    href: (access) => (access.enquiries ? "/admin/enquiries?tab=new" : null),
     actionLabel: "Contact enquiries",
     summary: (n) => `${n} new enquir${n === 1 ? "y" : "ies"} waiting for follow-up.`,
   },
@@ -515,7 +515,10 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     ) {
       needsAssignment.push(booking);
     }
-    if (booking.payment_status === "unpaid") {
+    if (
+      booking.payment_status === "unpaid" &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       unpaidBookings.push(booking);
       if (booking.status === "completed") unpaidCompleted.push(booking);
     }

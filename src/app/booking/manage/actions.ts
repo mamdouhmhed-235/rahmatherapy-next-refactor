@@ -177,6 +177,7 @@ export async function requestCustomerCancellation(
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${booking.id}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: "Your cancellation request has been recorded." };
 }
@@ -254,6 +255,7 @@ export async function requestCustomerReschedule(
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${booking.id}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: "Your reschedule request has been sent." };
 }

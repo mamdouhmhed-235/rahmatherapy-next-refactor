@@ -390,7 +390,14 @@ export function summarizeReports(data: ReportData) {
     // separate discussion after ship.
     bookedRevenue += totalPrice;
     collectedRevenue += amountPaid;
-    outstandingRevenue += Math.max(amountDue - amountPaid, 0);
+    // Outstanding is "money still owed by live bookings". Cancelled and
+    // no_show bookings are not collectable (clinic doesn't enforce
+    // cancellation fees per BUSINESS-COMPLETENESS) so they don't add to
+    // the outstanding figure. Sibling of dashboard/page.tsx unpaidBookings
+    // guard from the same Band A sweep.
+    if (!["cancelled", "no_show"].includes(booking.status)) {
+      outstandingRevenue += Math.max(amountDue - amountPaid, 0);
+    }
 
     if (booking.status === "completed") {
       completedRevenue += amount(booking.amount_paid || booking.total_price);
@@ -594,7 +601,10 @@ export function getAttentionItems(data: ReportData) {
         date: booking.booking_date,
       });
     }
-    if (booking.reschedule_status === "requested") {
+    if (
+      booking.reschedule_status === "requested" &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       items.push({
         id: `${booking.id}-reschedule`,
         href: `/admin/bookings/${booking.id}`,
@@ -614,7 +624,10 @@ export function getAttentionItems(data: ReportData) {
         date: booking.booking_date,
       });
     }
-    if (booking.health_notes) {
+    if (
+      booking.health_notes &&
+      !["cancelled", "no_show"].includes(booking.status)
+    ) {
       items.push({
         id: `${booking.id}-health`,
         href: `/admin/bookings/${booking.id}`,
@@ -630,7 +643,7 @@ export function getAttentionItems(data: ReportData) {
   for (const enquiry of data.enquiries.filter((item) => item.status === "new")) {
     attention.push({
       id: `${enquiry.id}-enquiry`,
-      href: "/admin/enquiries",
+      href: "/admin/enquiries?tab=new",
       label: "Uncontacted enquiry",
       detail: `${enquiry.full_name} · ${enquiry.source}`,
       tone: "warning",

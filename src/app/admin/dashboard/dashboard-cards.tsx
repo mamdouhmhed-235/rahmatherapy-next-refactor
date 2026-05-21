@@ -1498,7 +1498,7 @@ export function OperationsHealthCard({
       value: openEnquiries,
       severity: openEnquiries > 0 ? "info" : "clear",
       status: openEnquiries > 0 ? "Awaiting response" : "All clear",
-      href: permissionAccess?.enquiries ? "/admin/enquiries" : null,
+      href: permissionAccess?.enquiries ? "/admin/enquiries?tab=new" : null,
     },
   ];
 
