@@ -25,6 +25,7 @@ import {
   AdminStatusBadge,
   type AdminTone,
 } from "../../components/admin-ui";
+import { RescheduleResponseButtons } from "./RescheduleResponseButtons";
 import { EmptyState } from "../../components/EmptyState";
 import { safeFormatDateTime } from "@/lib/time/format";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -460,6 +461,10 @@ export default async function BookingDetailPage({
 
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem] lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="grid min-w-0 gap-6">
+          {fullScope && booking.reschedule_status === "requested" ? (
+            <RescheduleRequestPanel booking={booking} />
+          ) : null}
+
           {fullScope ? <BookingManagementForm booking={bookingWithTimeline} /> : null}
 
           <ParticipantsPanel
@@ -498,6 +503,66 @@ export default async function BookingDetailPage({
         />
       </div>
     </AdminPageScaffold>
+  );
+}
+
+// ─── Reschedule request response (H4) ────────────────────────────────────────
+// Surfaces the customer's reschedule request data + accept / decline buttons.
+// Rendered only when reschedule_status === "requested" (the only state that
+// produces a stuck-attention signal). Two separate forms each post to the
+// shared `respondToReschedule` action with a different decision value.
+
+function RescheduleRequestPanel({ booking }: { booking: BookingRecord }) {
+  const requestedTime = booking.reschedule_preferred_time
+    ? String(booking.reschedule_preferred_time).slice(0, 5)
+    : null;
+  const requestedAt = booking.reschedule_requested_at
+    ? safeFormatDateTime(booking.reschedule_requested_at)
+    : null;
+
+  return (
+    <AdminPanel
+      title="Customer reschedule request"
+      badge={<AdminStatusBadge tone="warning" value="Awaiting response" />}
+    >
+      <dl className="grid gap-3 text-sm">
+        <div>
+          <dt className="text-xs font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
+            Requested date &amp; time
+          </dt>
+          <dd className="mt-1 font-medium text-[var(--admin-heading)]">
+            {booking.reschedule_preferred_date ?? "—"}
+            {requestedTime ? ` at ${requestedTime}` : ""}
+          </dd>
+        </div>
+        {booking.reschedule_note ? (
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
+              Customer note
+            </dt>
+            <dd className="mt-1 whitespace-pre-wrap text-[var(--admin-body)]">
+              {booking.reschedule_note}
+            </dd>
+          </div>
+        ) : null}
+        {requestedAt ? (
+          <div>
+            <dt className="text-xs font-medium uppercase tracking-wide text-[var(--admin-text-muted)]">
+              Requested
+            </dt>
+            <dd className="mt-1 text-[var(--admin-text-muted)]">{requestedAt}</dd>
+          </div>
+        ) : null}
+      </dl>
+      <div className="mt-4">
+        <RescheduleResponseButtons bookingId={booking.id} />
+      </div>
+      <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
+        Accepting or declining records the response in the audit trail. Move
+        the booking to a new date / time separately if you&rsquo;ve agreed one
+        with the customer.
+      </p>
+    </AdminPanel>
   );
 }
 

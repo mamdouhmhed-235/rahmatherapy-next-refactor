@@ -614,6 +614,67 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
   return { success: true };
 }
 
+// ─── H4 — reschedule response ───────────────────────────────────────────────
+// Give admin a way to acknowledge a customer reschedule request so
+// `reschedule_status` doesn't hang on "requested" forever (the cause of
+// permanent attention inflation flagged by Agent 1). Decision is recorded
+// on the booking row + audit trail; the actual move-of-booking-date is
+// handled out-of-band per the existing operator workflow (no admin path
+// currently edits booking_date, and adding one is a separate feature).
+//
+// Schema vocabulary: the `bookings.reschedule_status` CHECK constraint
+// allows ['none','requested','reviewed','declined','completed']. "Accept"
+// maps to 'reviewed' (admin has reviewed the request; the actual booking
+// move is out-of-band). "Decline" maps to 'declined'. UI labels stay
+// operator-friendly ("Accept request" / "Decline request") but the stored
+// values match the schema's allowed vocabulary.
+const RESCHEDULE_DECISIONS = ["reviewed", "declined"] as const;
+type RescheduleDecision = (typeof RESCHEDULE_DECISIONS)[number];
+
+export async function respondToCustomerReschedule(formData: FormData): Promise<void> {
+  const actor = await requireBookingManager();
+  if (!actor || !canManageAllBookings(actor)) return;
+
+  const bookingId = String(formData.get("booking_id") ?? "").trim();
+  const decisionRaw = String(formData.get("decision") ?? "") as RescheduleDecision;
+  if (!bookingId || !RESCHEDULE_DECISIONS.includes(decisionRaw)) return;
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: beforeState } = await adminClient
+    .from("bookings")
+    .select(
+      "id, reschedule_status, reschedule_requested_at, reschedule_preferred_date, reschedule_preferred_time, reschedule_note"
+    )
+    .eq("id", bookingId)
+    .single();
+  if (!beforeState || beforeState.reschedule_status !== "requested") return;
+
+  const { data: updated, error } = await adminClient
+    .from("bookings")
+    .update({ reschedule_status: decisionRaw })
+    .eq("id", bookingId)
+    .select("id, reschedule_status")
+    .single();
+  if (error) return;
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type:
+      decisionRaw === "reviewed"
+        ? "booking_reschedule_reviewed"
+        : "booking_reschedule_declined",
+    target_type: "bookings",
+    target_id: bookingId,
+    before_state: beforeState,
+    after_state: updated,
+  });
+
+  revalidatePath("/admin/bookings");
+  revalidatePath(`/admin/bookings/${bookingId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
+}
+
 export interface ManualBookingState {
   error?: string;
   fieldErrors?: Record<string, string>;
