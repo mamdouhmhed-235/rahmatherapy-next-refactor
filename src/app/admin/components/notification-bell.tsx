@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -50,6 +51,79 @@ const SEVERITY_TONES = {
   warning: "warning" as const,
   info: "info" as const,
 };
+
+// ── R4 redesign 2026-05-21 ─────────────────────────────────────────────────
+// Bell trigger now signals severity, not just count. Three helpers:
+//   1. getHighestUnreadSeverity — picks the loudest signal across unread items.
+//   2. getBadgeClasses — maps severity → token-driven Tailwind classes.
+//   3. useCriticalArrivalPulse — fires a one-shot CSS pulse when a new critical
+//      notification ID appears across renders. Seeds the seen-set on first run
+//      so the pulse never fires "on first paint"; only diffs going forward.
+type Severity = NotificationItem["severity"];
+
+function getHighestUnreadSeverity(
+  items: NotificationItem[],
+  readIds: Set<string>,
+): Severity | null {
+  let sawWarning = false;
+  let sawInfo = false;
+  for (const item of items) {
+    if (readIds.has(item.id)) continue;
+    if (item.severity === "critical") return "critical";
+    if (item.severity === "warning") sawWarning = true;
+    else if (item.severity === "info") sawInfo = true;
+  }
+  if (sawWarning) return "warning";
+  if (sawInfo) return "info";
+  return null;
+}
+
+function getBadgeClasses(severity: Severity | null) {
+  switch (severity) {
+    case "critical":
+      return "bg-[var(--notif-badge-critical-bg)] text-[var(--notif-badge-critical-fg)]";
+    case "warning":
+      return "bg-[var(--notif-badge-warning-bg)] text-[var(--notif-badge-warning-fg)]";
+    case "info":
+      return "bg-[var(--notif-badge-info-bg)] text-[var(--notif-badge-info-fg)]";
+    default:
+      // Fallback: peach-amber legacy (matches pre-R4 visual) — only hit when
+      // there are unread items but severity computation returned null, which
+      // shouldn't happen but keeps the badge visible as a safety net.
+      return "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]";
+  }
+}
+
+function useCriticalArrivalPulse(items: NotificationItem[]): boolean {
+  const seenRef = useRef<Set<string> | null>(null);
+  const [pulse, setPulse] = useState(false);
+
+  useEffect(() => {
+    const currentCritical = new Set(
+      items.filter((i) => i.severity === "critical").map((i) => i.id),
+    );
+    // First run: seed without firing. Prevents pulse-on-mount.
+    if (seenRef.current === null) {
+      seenRef.current = currentCritical;
+      return;
+    }
+    let hasNew = false;
+    for (const id of currentCritical) {
+      if (!seenRef.current.has(id)) {
+        hasNew = true;
+        break;
+      }
+    }
+    seenRef.current = currentCritical;
+    if (hasNew) {
+      setPulse(true);
+      const t = setTimeout(() => setPulse(false), 1900);
+      return () => clearTimeout(t);
+    }
+  }, [items]);
+
+  return pulse;
+}
 
 function parseNotificationDate(value: string) {
   const [datePart] = value.split(" ");
@@ -271,6 +345,11 @@ export function NotificationBell({
     [items, dismissedIds]
   );
   const unreadCount = visibleItems.filter((i) => !readIds.has(i.id)).length;
+  const highestSeverity = useMemo(
+    () => getHighestUnreadSeverity(visibleItems, readIds),
+    [visibleItems, readIds]
+  );
+  const pulse = useCriticalArrivalPulse(visibleItems);
 
   const closePopover = () => {
     setOpen(false);
@@ -280,9 +359,12 @@ export function NotificationBell({
   const triggerClass = isRail
     ? "inline-flex size-9 appearance-none items-center justify-center rounded-full border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
     : "inline-flex size-11 appearance-none items-center justify-center rounded-[var(--admin-radius-card)] border-0 bg-transparent p-0 outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35";
-  const innerClass = isRail
-    ? "relative inline-flex size-9 items-center justify-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)]"
-    : "relative inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)] shadow-[var(--admin-shadow-subtle)]";
+  const innerClass = cn(
+    isRail
+      ? "relative inline-flex size-9 items-center justify-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)]"
+      : "relative inline-flex size-11 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] transition-colors hover:bg-[var(--admin-panel-muted)] shadow-[var(--admin-shadow-subtle)]",
+    pulse && "notif-bell-pulse-once",
+  );
   const iconClass = isRail ? "size-[1rem]" : "size-[1.125rem]";
 
   return (
@@ -305,7 +387,13 @@ export function NotificationBell({
               <Bell className={iconClass} aria-hidden="true" />
             )}
             {unreadCount > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] px-1 text-[11px] font-bold leading-none text-[oklch(26%_0.13_55)]" aria-hidden="true">
+              <span
+                className={cn(
+                  "absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] font-bold leading-none shadow-[0_1px_2px_rgba(0,0,0,0.12)]",
+                  getBadgeClasses(highestSeverity),
+                )}
+                aria-hidden="true"
+              >
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             ) : null}
@@ -350,7 +438,23 @@ export function MobileNotificationButton({
     [items, dismissedIds]
   );
   const unreadCount = visibleItems.filter((i) => !readIds.has(i.id)).length;
+  const highestSeverity = useMemo(
+    () => getHighestUnreadSeverity(visibleItems, readIds),
+    [visibleItems, readIds]
+  );
+  const pulse = useCriticalArrivalPulse(visibleItems);
   const triggerLabel = unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up";
+
+  // For the "full" variant, the inline summary badge mirrors severity rather
+  // than always reading "warning" — keeps the trigger truthful about urgency.
+  const fullVariantTone: "danger" | "warning" | "info" | "muted" =
+    highestSeverity === "critical"
+      ? "danger"
+      : highestSeverity === "warning"
+        ? "warning"
+        : highestSeverity === "info"
+          ? "info"
+          : "muted";
 
   return (
     <AdminSheet
@@ -361,7 +465,10 @@ export function MobileNotificationButton({
         variant === "icon" ? (
           <button
             type="button"
-            className="relative inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 shadow-[var(--admin-shadow-subtle)]"
+            className={cn(
+              "relative inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 shadow-[var(--admin-shadow-subtle)]",
+              pulse && "notif-bell-pulse-once",
+            )}
             aria-label={triggerLabel}
           >
             {unreadCount > 0 ? (
@@ -370,7 +477,13 @@ export function MobileNotificationButton({
               <Bell className="size-[1.125rem] text-[var(--admin-primary)]" aria-hidden="true" />
             )}
             {unreadCount > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] px-1 text-[11px] font-bold leading-none text-[oklch(26%_0.13_55)]" aria-hidden="true">
+              <span
+                className={cn(
+                  "absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] font-bold leading-none shadow-[0_1px_2px_rgba(0,0,0,0.12)]",
+                  getBadgeClasses(highestSeverity),
+                )}
+                aria-hidden="true"
+              >
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             ) : null}
@@ -378,7 +491,10 @@ export function MobileNotificationButton({
         ) : (
           <button
             type="button"
-            className="relative inline-flex min-h-12 w-full items-center justify-between gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 shadow-[var(--admin-shadow-subtle)]"
+            className={cn(
+              "relative inline-flex min-h-12 w-full items-center justify-between gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 shadow-[var(--admin-shadow-subtle)]",
+              pulse && "notif-bell-pulse-once",
+            )}
             aria-label={triggerLabel}
           >
             <span className="inline-flex items-center gap-2">
@@ -390,7 +506,7 @@ export function MobileNotificationButton({
               Notification centre
             </span>
             {unreadCount > 0 ? (
-              <AdminStatusBadge value={`${unreadCount} unread`} tone="warning" />
+              <AdminStatusBadge value={`${unreadCount} unread`} tone={fullVariantTone} />
             ) : (
               <AdminStatusBadge value="All read" tone="muted" />
             )}

@@ -132,6 +132,17 @@
   --admin-status-completed-bg: oklch(94% 0.008 270);
   --admin-status-completed-text: oklch(30% 0.018 270);
   --admin-status-completed-border: oklch(88% 0.012 270);
+  /* Notification-bell badge severity tints (R4 redesign 2026-05-21).
+   * Separate family from AdminStatusBadge: bell badge is rendered at ~11px on a
+   * saturated background, so reuses the canonical danger/warning/info hues with
+   * white foreground. All three exceed WCAG 4.5:1 contrast on white fg
+   * (danger 5.39:1, warning 4.71:1, info 7.18:1). */
+  --notif-badge-critical-bg: var(--admin-danger);
+  --notif-badge-critical-fg: #ffffff;
+  --notif-badge-warning-bg: var(--admin-warning);
+  --notif-badge-warning-fg: #ffffff;
+  --notif-badge-info-bg: var(--admin-info);
+  --notif-badge-info-fg: #ffffff;
   --admin-client-accent: #9aaadd;
   /* Radii — 2026-05-20 polish pass: bumped one step up (8/10px → 10/12px)
    * to align with modern admin tools (Linear, Stripe, Notion sit at 12-16px).
@@ -189,6 +200,27 @@
   --breakpoint-3xl: 120rem;
   --ease-gentle: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-snappy: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Notification-bell pulse — fires once when a new critical notification arrives
+ * via realtime/poll. Halo expands and fades over ~1.8s. R4 redesign 2026-05-21. */
+@keyframes notif-bell-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--admin-danger) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 14px color-mix(in oklab, var(--admin-danger) 0%, transparent);
+  }
+}
+
+.notif-bell-pulse-once {
+  animation: notif-bell-pulse 1.8s var(--ease-snappy) 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notif-bell-pulse-once {
+    animation: none;
+  }
 }
 
 @theme inline {
