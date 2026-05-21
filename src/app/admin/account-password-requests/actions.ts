@@ -146,7 +146,7 @@ export async function approvePasswordResetRequest(
     now.getTime() + REQUEST_TTL_HOURS * 60 * 60 * 1000
   );
 
-  const { error: updateError } = await adminClient
+  const { data: updated, error: updateError } = await adminClient
     .from("account_password_requests")
     .update({
       status: "approved",
@@ -158,7 +158,8 @@ export async function approvePasswordResetRequest(
       reviewer_note: reviewerNote || null,
     })
     .eq("id", requestId)
-    .eq("status", "pending"); // belt-and-braces against a concurrent state change.
+    .eq("status", "pending") // belt-and-braces against a concurrent state change.
+    .select("id");
 
   if (updateError) {
     console.error("approvePasswordResetRequest update error:", updateError);
@@ -167,6 +168,20 @@ export async function approvePasswordResetRequest(
       code: "server",
       message: "Couldn't save the approval. Try again.",
     };
+  }
+  if (!updated || updated.length === 0) {
+    // The `.eq("status", "pending")` filter matched zero rows — a concurrent
+    // reviewer beat us to it between the SELECT above and this UPDATE.
+    // Re-read the row so we can attribute the conflict to the right reviewer.
+    const { data: currentRow } = await adminClient
+      .from("account_password_requests")
+      .select("reviewed_by")
+      .eq("id", requestId)
+      .maybeSingle<{ reviewed_by: string | null }>();
+    const otherReviewer = currentRow?.reviewed_by
+      ? await lookupReviewerName(currentRow.reviewed_by)
+      : "another reviewer";
+    return { ok: false, code: "race", otherReviewer };
   }
 
   const resetLinkUrl = `${getSiteUrl()}/admin/password-reset/${token}`;
@@ -269,7 +284,7 @@ export async function rejectPasswordResetRequest(
   }
 
   const now = new Date();
-  const { error: updateError } = await adminClient
+  const { data: updated, error: updateError } = await adminClient
     .from("account_password_requests")
     .update({
       status: "rejected",
@@ -278,7 +293,8 @@ export async function rejectPasswordResetRequest(
       reviewer_note: reviewerNote,
     })
     .eq("id", requestId)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .select("id");
 
   if (updateError) {
     console.error("rejectPasswordResetRequest update error:", updateError);
@@ -287,6 +303,17 @@ export async function rejectPasswordResetRequest(
       code: "server",
       message: "Couldn't save the rejection. Try again.",
     };
+  }
+  if (!updated || updated.length === 0) {
+    const { data: currentRow } = await adminClient
+      .from("account_password_requests")
+      .select("reviewed_by")
+      .eq("id", requestId)
+      .maybeSingle<{ reviewed_by: string | null }>();
+    const otherReviewer = currentRow?.reviewed_by
+      ? await lookupReviewerName(currentRow.reviewed_by)
+      : "another reviewer";
+    return { ok: false, code: "race", otherReviewer };
   }
 
   const emailInput: PasswordResetRejectedEmailInput = {
