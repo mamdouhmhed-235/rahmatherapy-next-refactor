@@ -14,8 +14,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getBusinessDate } from "@/lib/time/london";
 import {
+  canManageAllBookings,
   canManageEmailTemplates,
   canResendBookingEmails,
+  canViewAllBookings,
   canViewEmailLogs,
   getStaffProfile,
 } from "@/lib/auth/rbac";
@@ -153,19 +155,45 @@ export default async function EmailsPage({ searchParams }: PageProps) {
         .returns<EmailEvent[]>() as unknown as Promise<DeliveryResult>)
     : Promise.resolve({ data: [] });
 
-  const remindersPromise = canResend
-    ? adminClient
-        .from("bookings")
-        .select(
-          "id, booking_date, start_time, contact_full_name, contact_email, status"
-        )
-        .gte("booking_date", getBusinessDate())
-        .in("status", ["pending", "confirmed"])
-        .order("booking_date")
-        .order("start_time")
-        .limit(20)
-        .returns<ReminderBooking[]>()
-    : Promise.resolve({ data: [] as ReminderBooking[] });
+  // Reminders scope (H11 middle path). Owner/Admin/Coordinator see the full
+  // clinic queue (they have view_bookings_all / manage_bookings_all). A
+  // Therapist with resend_booking_emails but only assigned-bookings view is
+  // scoped to their own assignments — keeps client contact PII bounded to
+  // bookings they're actually working on without removing the self-serve
+  // "resend" autonomy they need in the field.
+  const canSeeAllBookings = canViewAllBookings(profile) || canManageAllBookings(profile);
+  let allowedReminderBookingIds: string[] | null = null;
+  if (canResend && !canSeeAllBookings) {
+    const { data: ownAssignments } = await adminClient
+      .from("booking_assignments")
+      .select("booking_id")
+      .eq("assigned_staff_id", profile.id)
+      .limit(200);
+    allowedReminderBookingIds = Array.from(
+      new Set((ownAssignments ?? []).map((a) => a.booking_id).filter(Boolean))
+    );
+  }
+
+  const remindersPromise = (() => {
+    if (!canResend) return Promise.resolve({ data: [] as ReminderBooking[] });
+    if (allowedReminderBookingIds !== null && allowedReminderBookingIds.length === 0) {
+      return Promise.resolve({ data: [] as ReminderBooking[] });
+    }
+    let q = adminClient
+      .from("bookings")
+      .select(
+        "id, booking_date, start_time, contact_full_name, contact_email, status"
+      )
+      .gte("booking_date", getBusinessDate())
+      .in("status", ["pending", "confirmed"])
+      .order("booking_date")
+      .order("start_time")
+      .limit(20);
+    if (allowedReminderBookingIds !== null) {
+      q = q.in("id", allowedReminderBookingIds);
+    }
+    return q.returns<ReminderBooking[]>();
+  })();
 
   const templateOverridesPromise =
     activeTab === "templates"

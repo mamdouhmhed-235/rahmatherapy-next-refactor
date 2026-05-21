@@ -184,11 +184,12 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
   const profile = await getStaffProfile(supabase);
   if (!profile || !profile.active) redirect("/admin/login");
 
-  // data-redesign-backend="FAKE" — the canonical gate is MANAGE_ACCOUNT_PASSWORD_REQUESTS,
-  // but BUILD-rbac-permission-account-password-requests.md hasn't seeded that permission
-  // onto Owner / Admin role templates yet. Until that plan lands we bridge via
-  // MANAGE_AUDIT_LOGS (Owner-only) so the page is reachable for the Owner test account.
-  // When the BUILD plan lands, delete the OR branch so only the canonical permission gates.
+  // data-redesign-backend="FAKE" — the canonical gate is MANAGE_ACCOUNT_PASSWORD_REQUESTS
+  // (constant now value-aligned with DB row `manage_account_requests` and seeded to
+  // Owner + Admin via migration 20260521090000). The MANAGE_AUDIT_LOGS bridge stays
+  // as a transitional safety net pending H14 password-reset wiring; remove once the
+  // BUILD-approve-reject-password-reset.md flow lands and the next Phase 7 audit
+  // confirms no regressions.
   const hasReviewAccess =
     profile.permissions.has(PERMISSIONS.MANAGE_ACCOUNT_PASSWORD_REQUESTS) ||
     profile.permissions.has(PERMISSIONS.MANAGE_AUDIT_LOGS);
