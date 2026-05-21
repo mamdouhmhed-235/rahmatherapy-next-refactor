@@ -34,6 +34,16 @@ import type { NotificationItem } from "../reports/reporting";
 import type { AdminShellVariant } from "../shell-variant";
 import { NotificationCard, type NotificationCardActions } from "./notification-card";
 import {
+  getActiveItems,
+  getHighestUnreadSeverity,
+  groupByDuplicate,
+  isItemArchived,
+  isItemRead,
+  isItemSnoozed,
+  type GroupedFeedNode,
+  type Severity,
+} from "./notification-helpers";
+import {
   archiveNotification,
   markAllNotificationsRead,
   markNotificationRead,
@@ -45,41 +55,9 @@ import {
 } from "./notification-state-actions";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-type Severity = NotificationItem["severity"];
-
-function isItemSnoozed(item: NotificationItem, now = new Date()): boolean {
-  if (!item.state?.snoozedUntil) return false;
-  const date = new Date(item.state.snoozedUntil);
-  return !Number.isNaN(date.getTime()) && date > now;
-}
-
-function isItemArchived(item: NotificationItem): boolean {
-  return !!item.state?.archivedAt;
-}
-
-function isItemRead(item: NotificationItem): boolean {
-  return !!item.state?.readAt;
-}
-
-/** Items currently visible in the active feed (not archived, not snoozed). */
-function getActiveItems(items: NotificationItem[]): NotificationItem[] {
-  return items.filter((i) => !isItemArchived(i) && !isItemSnoozed(i));
-}
-
-function getHighestUnreadSeverity(items: NotificationItem[]): Severity | null {
-  let sawWarning = false;
-  let sawInfo = false;
-  for (const item of items) {
-    if (isItemRead(item)) continue;
-    if (item.severity === "critical") return "critical";
-    if (item.severity === "warning") sawWarning = true;
-    else if (item.severity === "info") sawInfo = true;
-  }
-  if (sawWarning) return "warning";
-  if (sawInfo) return "info";
-  return null;
-}
+// Pure data helpers (isItemSnoozed / isItemArchived / isItemRead /
+// getActiveItems / getHighestUnreadSeverity / groupByDuplicate) live in
+// notification-helpers.ts so they're unit-testable without React.
 
 function getBadgeClasses(severity: Severity | null) {
   switch (severity) {
@@ -419,46 +397,6 @@ function getEmptyCopy(tab: StatusTab): { title: string; message: string } {
     case "archived":
       return { title: "Your archive is empty", message: "Archived items live here in case you need them back." };
   }
-}
-
-interface GroupedFeedNode {
-  kind: "single" | "group";
-  items: NotificationItem[];
-  /** Stable key for React. */
-  key: string;
-}
-
-/**
- * Within an already-filtered list of items, group by (type, severity, reason).
- * Groups of size 1 stay as single items; groups of size ≥ 2 collapse with the
- * representative being the most recent item.
- */
-function groupByDuplicate(items: NotificationItem[]): GroupedFeedNode[] {
-  const buckets = new Map<string, NotificationItem[]>();
-  const order: string[] = [];
-  for (const item of items) {
-    if (!item.reason) {
-      // Items without a reason discriminator can't be safely grouped.
-      const key = `single:${item.id}`;
-      buckets.set(key, [item]);
-      order.push(key);
-      continue;
-    }
-    const key = `${item.type}|${item.severity}|${item.reason}`;
-    if (!buckets.has(key)) {
-      buckets.set(key, []);
-      order.push(key);
-    }
-    buckets.get(key)!.push(item);
-  }
-  return order.map((key) => {
-    const bucket = buckets.get(key)!;
-    return {
-      kind: bucket.length >= 2 ? "group" : "single",
-      items: bucket,
-      key,
-    };
-  });
 }
 
 const SEVERITY_BAND_ORDER: Severity[] = ["critical", "warning", "info"];
