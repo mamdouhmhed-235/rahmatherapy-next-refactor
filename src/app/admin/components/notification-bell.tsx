@@ -1,74 +1,77 @@
 "use client";
 
+/**
+ * R4 redesign — admin notification centre.
+ *
+ * Layer split:
+ *   - NotificationBell           desktop trigger (popover anchor)
+ *   - MobileNotificationButton   mobile trigger (icon variant in right rail,
+ *                                  full variant in the slide-out drawer)
+ *   - NotificationPopoverContent shared body — status tabs, type chips,
+ *                                  severity-banded feed, duplicate collapse,
+ *                                  per-tab empty states, ⋯ menu, snooze menu.
+ *
+ * State source of truth is now the server (public.notification_state via
+ * server actions); localStorage is only consulted once for the post-deploy
+ * legacy migration sweep (notification-state-actions.migrateLegacyNotificationState).
+ */
+
 import {
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
+  useTransition,
 } from "react";
-import {
-  Bell,
-  BellRing,
-  Clock,
-  CreditCard,
-  Mail,
-  Siren,
-  Trash2,
-  UserRound,
-  Users,
-  X,
-} from "lucide-react";
+import { Bell, BellRing, CheckCheck, Filter, X } from "lucide-react";
 import { EmptyState } from "./EmptyState";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 import * as AdminPopover from "./admin-popover";
 import { AdminSheet } from "./admin-ui-interactions";
 import { AdminStatusBadge } from "./admin-ui";
 import type { NotificationItem } from "../reports/reporting";
 import type { AdminShellVariant } from "../shell-variant";
+import { NotificationCard, type NotificationCardActions } from "./notification-card";
+import {
+  archiveNotification,
+  markAllNotificationsRead,
+  markNotificationRead,
+  markNotificationUnread,
+  migrateLegacyNotificationState,
+  snoozeNotification,
+  unarchiveNotification,
+  unsnoozeNotification,
+} from "./notification-state-actions";
 
-function getTypeIcon(type: NotificationItem["type"]) {
-  switch (type) {
-    case "email":
-      return Mail;
-    case "operation":
-      return Siren;
-    case "assignment":
-      return Users;
-    case "payment":
-      return CreditCard;
-    case "enquiry":
-      return UserRound;
-    case "availability":
-      return Clock;
-  }
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const SEVERITY_TONES = {
-  critical: "danger" as const,
-  warning: "warning" as const,
-  info: "info" as const,
-};
-
-// ── R4 redesign 2026-05-21 ─────────────────────────────────────────────────
-// Bell trigger now signals severity, not just count. Three helpers:
-//   1. getHighestUnreadSeverity — picks the loudest signal across unread items.
-//   2. getBadgeClasses — maps severity → token-driven Tailwind classes.
-//   3. useCriticalArrivalPulse — fires a one-shot CSS pulse when a new critical
-//      notification ID appears across renders. Seeds the seen-set on first run
-//      so the pulse never fires "on first paint"; only diffs going forward.
 type Severity = NotificationItem["severity"];
 
-function getHighestUnreadSeverity(
-  items: NotificationItem[],
-  readIds: Set<string>,
-): Severity | null {
+function isItemSnoozed(item: NotificationItem, now = new Date()): boolean {
+  if (!item.state?.snoozedUntil) return false;
+  const date = new Date(item.state.snoozedUntil);
+  return !Number.isNaN(date.getTime()) && date > now;
+}
+
+function isItemArchived(item: NotificationItem): boolean {
+  return !!item.state?.archivedAt;
+}
+
+function isItemRead(item: NotificationItem): boolean {
+  return !!item.state?.readAt;
+}
+
+/** Items currently visible in the active feed (not archived, not snoozed). */
+function getActiveItems(items: NotificationItem[]): NotificationItem[] {
+  return items.filter((i) => !isItemArchived(i) && !isItemSnoozed(i));
+}
+
+function getHighestUnreadSeverity(items: NotificationItem[]): Severity | null {
   let sawWarning = false;
   let sawInfo = false;
   for (const item of items) {
-    if (readIds.has(item.id)) continue;
+    if (isItemRead(item)) continue;
     if (item.severity === "critical") return "critical";
     if (item.severity === "warning") sawWarning = true;
     else if (item.severity === "info") sawInfo = true;
@@ -87,9 +90,6 @@ function getBadgeClasses(severity: Severity | null) {
     case "info":
       return "bg-[var(--notif-badge-info-bg)] text-[var(--notif-badge-info-fg)]";
     default:
-      // Fallback: peach-amber legacy (matches pre-R4 visual) — only hit when
-      // there are unread items but severity computation returned null, which
-      // shouldn't happen but keeps the badge visible as a safety net.
       return "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]";
   }
 }
@@ -102,7 +102,6 @@ function useCriticalArrivalPulse(items: NotificationItem[]): boolean {
     const currentCritical = new Set(
       items.filter((i) => i.severity === "critical").map((i) => i.id),
     );
-    // First run: seed without firing. Prevents pulse-on-mount.
     if (seenRef.current === null) {
       seenRef.current = currentCritical;
       return;
@@ -125,203 +124,106 @@ function useCriticalArrivalPulse(items: NotificationItem[]): boolean {
   return pulse;
 }
 
-function parseNotificationDate(value: string) {
-  const [datePart] = value.split(" ");
-  const [year, month, day] = datePart.split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return Date.UTC(year, month - 1, day);
-}
+// ─── Tab + chip structure (per-role) ─────────────────────────────────────────
 
-function getNotificationAgeLabel(timestamp: string) {
-  const dateMs = parseNotificationDate(timestamp);
-  if (dateMs === null) return null;
-  const now = new Date();
-  const todayMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  const diff = Math.round((todayMs - dateMs) / 86_400_000);
-  if (diff === 0) return "Today";
-  if (diff > 0) return `${diff}d old`;
-  return `Due in ${Math.abs(diff)}d`;
-}
+type StatusTab = "all" | "unread" | "critical" | "snoozed" | "archived";
+type TypeChip = "bookings" | "emails" | "operations" | "enquiries" | "payments";
 
-function getStorageKeys(staffId: string) {
-  return {
-    read: `rahmatherapy-notification-read-${staffId}`,
-    dismissed: `rahmatherapy-notification-dismissed-${staffId}`,
-  };
-}
-
-// Module-level store cache. One Store per (staffId, key) tuple so two components
-// reading the same notification state share a snapshot and notify in lockstep.
-// This replaces the previous useEffect+setState waterfall: state subscribes
-// directly via useSyncExternalStore, which:
-//   1. returns the empty-Set server snapshot during SSR (no hydration mismatch),
-//   2. swaps to the live localStorage snapshot on first client render (single
-//      atomic transition, not a manual post-mount setState),
-//   3. multi-tab updates via the native `storage` event propagate immediately.
-type SetStore = {
-  subscribe: (cb: () => void) => () => void;
-  getSnapshot: () => Set<string>;
-  getServerSnapshot: () => Set<string>;
-  write: (next: Set<string>) => void;
+const STATUS_TABS_BY_VARIANT: Record<AdminShellVariant, StatusTab[]> = {
+  owner_admin: ["all", "unread", "critical", "snoozed", "archived"],
+  coordinator: ["all", "unread", "critical", "snoozed", "archived"],
+  // Therapist's notifications are info/warning only and few in number — no
+  // Critical tab; severity bands inside the feed handle urgency ordering.
+  therapist: ["all", "unread", "snoozed", "archived"],
 };
 
-const EMPTY_SET: Set<string> = new Set();
-const storeCache = new Map<string, SetStore>();
-
-function getSetStore(storageKey: string): SetStore {
-  const cached = storeCache.get(storageKey);
-  if (cached) return cached;
-
-  let cachedSnapshot: Set<string> = EMPTY_SET;
-  let cachedRaw: string | null = null;
-  const listeners = new Set<() => void>();
-
-  const readNow = (): Set<string> => {
-    if (typeof window === "undefined") return EMPTY_SET;
-    let raw: string | null = null;
-    try {
-      raw = localStorage.getItem(storageKey);
-    } catch {
-      return EMPTY_SET;
-    }
-    if (raw === cachedRaw) return cachedSnapshot;
-    cachedRaw = raw;
-    try {
-      cachedSnapshot = raw ? new Set(JSON.parse(raw) as string[]) : EMPTY_SET;
-    } catch {
-      cachedSnapshot = EMPTY_SET;
-    }
-    return cachedSnapshot;
-  };
-
-  const subscribe = (cb: () => void) => {
-    listeners.add(cb);
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === storageKey) {
-        // Invalidate cache; readNow will repopulate on next snapshot call.
-        cachedRaw = null;
-        cb();
-      }
-    };
-    if (typeof window !== "undefined") {
-      window.addEventListener("storage", onStorage);
-    }
-    return () => {
-      listeners.delete(cb);
-      if (typeof window !== "undefined") {
-        window.removeEventListener("storage", onStorage);
-      }
-    };
-  };
-
-  const store: SetStore = {
-    subscribe,
-    getSnapshot: readNow,
-    getServerSnapshot: () => EMPTY_SET,
-    write: (next) => {
-      try {
-        const raw = JSON.stringify([...next]);
-        localStorage.setItem(storageKey, raw);
-        cachedRaw = raw;
-        cachedSnapshot = next;
-      } catch {}
-      listeners.forEach((cb) => cb());
-    },
-  };
-  storeCache.set(storageKey, store);
-  return store;
-}
-
-function useLocalStorageStringSet(storageKey: string) {
-  const store = useMemo(() => getSetStore(storageKey), [storageKey]);
-  const value = useSyncExternalStore(
-    store.subscribe,
-    store.getSnapshot,
-    store.getServerSnapshot
-  );
-  return [value, store.write] as const;
-}
-
-function useLocalStorageNotificationState(ids: string[], staffId: string) {
-  const keys = useMemo(() => getStorageKeys(staffId), [staffId]);
-  const [readIds, writeReadIds] = useLocalStorageStringSet(keys.read);
-  const [dismissedIds, writeDismissedIds] = useLocalStorageStringSet(
-    keys.dismissed
-  );
-
-  const markRead = useCallback(
-    (id: string) => {
-      const next = new Set(readIds);
-      next.add(id);
-      writeReadIds(next);
-    },
-    [readIds, writeReadIds]
-  );
-
-  const markUnread = useCallback(
-    (id: string) => {
-      const next = new Set(readIds);
-      next.delete(id);
-      writeReadIds(next);
-    },
-    [readIds, writeReadIds]
-  );
-
-  const markAllRead = useCallback(() => {
-    const next = new Set([...readIds, ...ids]);
-    writeReadIds(next);
-  }, [ids, readIds, writeReadIds]);
-
-  const dismissNotification = useCallback(
-    (id: string) => {
-      const nextDismissed = new Set(dismissedIds);
-      nextDismissed.add(id);
-      writeDismissedIds(nextDismissed);
-      if (readIds.has(id)) {
-        const nextRead = new Set(readIds);
-        nextRead.delete(id);
-        writeReadIds(nextRead);
-      }
-    },
-    [dismissedIds, readIds, writeDismissedIds, writeReadIds]
-  );
-
-  return {
-    readIds,
-    dismissedIds,
-    markRead,
-    markUnread,
-    markAllRead,
-    dismissNotification,
-  };
-}
-
-type NotificationTab =
-  | "all"
-  | "unread"
-  | "read"
-  | "critical"
-  | "emails"
-  | "operations"
-  | "enquiries"
-  | "bookings";
-
-// Per-shell-variant tab tuple. Each variant keeps the four status tabs
-// (all / unread / read / critical); only the type tabs differ.
-// Mirrors the dashboard's role-variant pattern — see plan
-// `i-want-to-make-rosy-eagle.md`.
-const TABS_BY_VARIANT: Record<AdminShellVariant, NotificationTab[]> = {
-  owner_admin: ["all", "unread", "read", "critical", "emails", "operations", "enquiries"],
-  coordinator: ["all", "unread", "read", "critical", "enquiries", "bookings", "emails"],
-  therapist: ["all", "unread", "read", "critical"],
+const TYPE_CHIPS_BY_VARIANT: Record<AdminShellVariant, TypeChip[]> = {
+  owner_admin: ["bookings", "emails", "operations", "enquiries", "payments"],
+  coordinator: ["enquiries", "bookings", "emails"],
+  therapist: [],
 };
 
-const FALLBACK_TABS: NotificationTab[] = ["all", "unread", "read", "critical"];
+const TYPE_CHIP_LABELS: Record<TypeChip, string> = {
+  bookings: "Bookings",
+  emails: "Emails",
+  operations: "Operations",
+  enquiries: "Enquiries",
+  payments: "Payments",
+};
 
-function getTabsForVariant(shellVariant: AdminShellVariant | null | undefined): NotificationTab[] {
-  if (!shellVariant) return FALLBACK_TABS;
-  return TABS_BY_VARIANT[shellVariant] ?? FALLBACK_TABS;
+const STATUS_TAB_LABELS: Record<StatusTab, string> = {
+  all: "All",
+  unread: "Unread",
+  critical: "Critical",
+  snoozed: "Snoozed",
+  archived: "Archived",
+};
+
+function itemMatchesTypeChip(item: NotificationItem, chip: TypeChip): boolean {
+  switch (chip) {
+    case "bookings":
+      // The "Bookings" chip covers assignment-driven items (unassigned,
+      // reschedule, claimable) but NOT payment items.
+      return item.type === "assignment";
+    case "emails":
+      return item.type === "email";
+    case "operations":
+      return item.type === "operation";
+    case "enquiries":
+      return item.type === "enquiry";
+    case "payments":
+      return item.type === "payment";
+  }
 }
+
+const FALLBACK_STATUS_TABS: StatusTab[] = ["all", "unread", "snoozed", "archived"];
+
+function getStatusTabsForVariant(v: AdminShellVariant | null | undefined): StatusTab[] {
+  if (!v) return FALLBACK_STATUS_TABS;
+  return STATUS_TABS_BY_VARIANT[v] ?? FALLBACK_STATUS_TABS;
+}
+
+function getTypeChipsForVariant(v: AdminShellVariant | null | undefined): TypeChip[] {
+  if (!v) return [];
+  return TYPE_CHIPS_BY_VARIANT[v] ?? [];
+}
+
+// ─── Legacy localStorage migration (one-time, post-deploy) ───────────────────
+
+const MIGRATION_SENTINEL = "rahmatherapy-notification-state-migrated-v1";
+
+function readLegacyIds(staffId: string): { readIds: string[]; dismissedIds: string[] } {
+  if (typeof window === "undefined") return { readIds: [], dismissedIds: [] };
+  const readKey = `rahmatherapy-notification-read-${staffId}`;
+  const dismKey = `rahmatherapy-notification-dismissed-${staffId}`;
+  const readRaw = localStorage.getItem(readKey);
+  const dismRaw = localStorage.getItem(dismKey);
+  const parse = (raw: string | null): string[] => {
+    if (!raw) return [];
+    try {
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.filter((v): v is string => typeof v === "string") : [];
+    } catch {
+      return [];
+    }
+  };
+  return { readIds: parse(readRaw), dismissedIds: parse(dismRaw) };
+}
+
+function useLegacyMigration(staffId: string) {
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem(MIGRATION_SENTINEL)) return;
+    const { readIds, dismissedIds } = readLegacyIds(staffId);
+    // Set sentinel first so a transient failure (e.g. offline) doesn't
+    // re-fire infinitely on every render — better to skip than to spam.
+    localStorage.setItem(MIGRATION_SENTINEL, "1");
+    if (readIds.length === 0 && dismissedIds.length === 0) return;
+    void migrateLegacyNotificationState({ readIds, dismissedIds });
+  }, [staffId]);
+}
+
+// ─── Triggers ────────────────────────────────────────────────────────────────
 
 export function NotificationBell({
   items,
@@ -335,25 +237,18 @@ export function NotificationBell({
   shellVariant?: AdminShellVariant | null;
 }) {
   const [open, setOpen] = useState(false);
-  const ids = useMemo(() => items.map((i) => i.id), [items]);
-  const { readIds, dismissedIds, markRead, markUnread, markAllRead, dismissNotification } =
-    useLocalStorageNotificationState(ids, staffId);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  const visibleItems = useMemo(
-    () => items.filter((i) => !dismissedIds.has(i.id)),
-    [items, dismissedIds]
-  );
-  const unreadCount = visibleItems.filter((i) => !readIds.has(i.id)).length;
+  // Active = not archived, not currently snoozed. The bell badge counts only
+  // unread items inside this active set.
+  const activeItems = useMemo(() => getActiveItems(items), [items]);
+  const unreadCount = activeItems.filter((i) => !isItemRead(i)).length;
   const highestSeverity = useMemo(
-    () => getHighestUnreadSeverity(visibleItems, readIds),
-    [visibleItems, readIds]
+    () => getHighestUnreadSeverity(activeItems),
+    [activeItems],
   );
-  const pulse = useCriticalArrivalPulse(visibleItems);
-
-  const closePopover = () => {
-    setOpen(false);
-  };
+  const pulse = useCriticalArrivalPulse(activeItems);
+  useLegacyMigration(staffId);
 
   const isRail = variant === "header-rail";
   const triggerClass = isRail
@@ -368,54 +263,41 @@ export function NotificationBell({
   const iconClass = isRail ? "size-[1rem]" : "size-[1.125rem]";
 
   return (
-    <>
-      <AdminPopover.Root
-        open={open}
-        onOpenChange={(nextOpen) => {
-          setOpen(nextOpen);
-        }}
+    <AdminPopover.Root open={open} onOpenChange={setOpen}>
+      <AdminPopover.Trigger
+        ref={triggerRef}
+        aria-label={unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up"}
+        className={triggerClass}
       >
-        <AdminPopover.Trigger
-          ref={triggerRef}
-          aria-label={unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up"}
-          className={triggerClass}
-        >
-          <span className={innerClass}>
-            {unreadCount > 0 ? (
-              <BellRing className={iconClass} aria-hidden="true" />
-            ) : (
-              <Bell className={iconClass} aria-hidden="true" />
-            )}
-            {unreadCount > 0 ? (
-              <span
-                className={cn(
-                  "absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] font-bold leading-none shadow-[0_1px_2px_rgba(0,0,0,0.12)]",
-                  getBadgeClasses(highestSeverity),
-                )}
-                aria-hidden="true"
-              >
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            ) : null}
-          </span>
-        </AdminPopover.Trigger>
-        <AdminPopover.Content
-          className="max-h-[min(70vh,40rem)] overflow-y-auto"
-        >
-          <NotificationPopoverContent
-            items={visibleItems}
-            readIds={readIds}
-            markRead={markRead}
-            markUnread={markUnread}
-            markAllRead={markAllRead}
-            dismissNotification={dismissNotification}
-            onClose={closePopover}
-            tabs={getTabsForVariant(shellVariant)}
-          />
-        </AdminPopover.Content>
-      </AdminPopover.Root>
-
-    </>
+        <span className={innerClass}>
+          {unreadCount > 0 ? (
+            <BellRing className={iconClass} aria-hidden="true" />
+          ) : (
+            <Bell className={iconClass} aria-hidden="true" />
+          )}
+          {unreadCount > 0 ? (
+            <span
+              className={cn(
+                "absolute -right-1 -top-1 inline-flex min-h-[1.25rem] min-w-[1.25rem] items-center justify-center rounded-full px-1 text-[11px] font-bold leading-none shadow-[0_1px_2px_rgba(0,0,0,0.12)]",
+                getBadgeClasses(highestSeverity),
+              )}
+              aria-hidden="true"
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          ) : null}
+        </span>
+      </AdminPopover.Trigger>
+      <AdminPopover.Content
+        className="max-h-[min(70vh,40rem)] w-[min(calc(100vw-1rem),28rem)] overflow-y-auto p-0"
+      >
+        <NotificationPopoverContent
+          items={items}
+          onClose={() => setOpen(false)}
+          shellVariant={shellVariant}
+        />
+      </AdminPopover.Content>
+    </AdminPopover.Root>
   );
 }
 
@@ -430,23 +312,17 @@ export function MobileNotificationButton({
   staffId?: string;
   shellVariant?: AdminShellVariant | null;
 }) {
-  const ids = useMemo(() => items.map((i) => i.id), [items]);
-  const { readIds, dismissedIds, markRead, markUnread, markAllRead, dismissNotification } =
-    useLocalStorageNotificationState(ids, staffId);
-  const visibleItems = useMemo(
-    () => items.filter((i) => !dismissedIds.has(i.id)),
-    [items, dismissedIds]
-  );
-  const unreadCount = visibleItems.filter((i) => !readIds.has(i.id)).length;
+  const activeItems = useMemo(() => getActiveItems(items), [items]);
+  const unreadCount = activeItems.filter((i) => !isItemRead(i)).length;
   const highestSeverity = useMemo(
-    () => getHighestUnreadSeverity(visibleItems, readIds),
-    [visibleItems, readIds]
+    () => getHighestUnreadSeverity(activeItems),
+    [activeItems],
   );
-  const pulse = useCriticalArrivalPulse(visibleItems);
-  const triggerLabel = unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up";
+  const pulse = useCriticalArrivalPulse(activeItems);
+  useLegacyMigration(staffId);
 
-  // For the "full" variant, the inline summary badge mirrors severity rather
-  // than always reading "warning" — keeps the trigger truthful about urgency.
+  const triggerLabel =
+    unreadCount > 0 ? `${unreadCount} need attention` : "Notifications: all caught up";
   const fullVariantTone: "danger" | "warning" | "info" | "muted" =
     highestSeverity === "critical"
       ? "danger"
@@ -459,7 +335,11 @@ export function MobileNotificationButton({
   return (
     <AdminSheet
       title="Notifications"
-      description={unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}` : "All caught up"}
+      description={
+        unreadCount > 0
+          ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
+          : "All caught up"
+      }
       side="bottom"
       trigger={
         variant === "icon" ? (
@@ -515,105 +395,282 @@ export function MobileNotificationButton({
       }
     >
       <NotificationPopoverContent
-        items={visibleItems}
-        readIds={readIds}
-        markRead={markRead}
-        markUnread={markUnread}
-        markAllRead={markAllRead}
-        dismissNotification={dismissNotification}
+        items={items}
         onClose={() => {}}
-        tabs={getTabsForVariant(shellVariant)}
+        shellVariant={shellVariant}
         isMobile
       />
     </AdminSheet>
   );
 }
 
+// ─── Centre body ─────────────────────────────────────────────────────────────
+
+function getEmptyCopy(tab: StatusTab): { title: string; message: string } {
+  switch (tab) {
+    case "all":
+      return { title: "All clear", message: "You're caught up — nothing needs your attention." };
+    case "unread":
+      return { title: "No unread notifications", message: "Everything visible has been seen." };
+    case "critical":
+      return { title: "Nothing critical right now", message: "Critical items will surface here first." };
+    case "snoozed":
+      return { title: "Nothing snoozed", message: "Use Snooze on any item to come back to it later." };
+    case "archived":
+      return { title: "Your archive is empty", message: "Archived items live here in case you need them back." };
+  }
+}
+
+interface GroupedFeedNode {
+  kind: "single" | "group";
+  items: NotificationItem[];
+  /** Stable key for React. */
+  key: string;
+}
+
+/**
+ * Within an already-filtered list of items, group by (type, severity, reason).
+ * Groups of size 1 stay as single items; groups of size ≥ 2 collapse with the
+ * representative being the most recent item.
+ */
+function groupByDuplicate(items: NotificationItem[]): GroupedFeedNode[] {
+  const buckets = new Map<string, NotificationItem[]>();
+  const order: string[] = [];
+  for (const item of items) {
+    if (!item.reason) {
+      // Items without a reason discriminator can't be safely grouped.
+      const key = `single:${item.id}`;
+      buckets.set(key, [item]);
+      order.push(key);
+      continue;
+    }
+    const key = `${item.type}|${item.severity}|${item.reason}`;
+    if (!buckets.has(key)) {
+      buckets.set(key, []);
+      order.push(key);
+    }
+    buckets.get(key)!.push(item);
+  }
+  return order.map((key) => {
+    const bucket = buckets.get(key)!;
+    return {
+      kind: bucket.length >= 2 ? "group" : "single",
+      items: bucket,
+      key,
+    };
+  });
+}
+
+const SEVERITY_BAND_ORDER: Severity[] = ["critical", "warning", "info"];
+const SEVERITY_BAND_LABEL: Record<Severity, string> = {
+  critical: "Critical",
+  warning: "Warning",
+  info: "Info",
+};
+
 function NotificationPopoverContent({
   items,
-  readIds,
-  markRead,
-  markUnread,
-  markAllRead,
-  dismissNotification,
   onClose,
-  tabs = FALLBACK_TABS,
+  shellVariant,
   isMobile = false,
 }: {
   items: NotificationItem[];
-  readIds: Set<string>;
-  markRead: (id: string) => void;
-  markUnread: (id: string) => void;
-  markAllRead: () => void;
-  dismissNotification: (id: string) => void;
-  onClose: () => void;
-  tabs?: NotificationTab[];
+  onClose(): void;
+  shellVariant?: AdminShellVariant | null;
   isMobile?: boolean;
 }) {
-  const [tab, setTab] = useState<NotificationTab>("all");
+  const statusTabs = getStatusTabsForVariant(shellVariant);
+  const typeChips = getTypeChipsForVariant(shellVariant);
+  const [tab, setTab] = useState<StatusTab>("all");
+  const [chipFilter, setChipFilter] = useState<TypeChip | null>(null);
+  const [chipsOpen, setChipsOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [, startTransition] = useTransition();
 
+  // ── Counts per status tab (raw, before type-chip filter) ──
+  const counts = useMemo(() => {
+    const active = getActiveItems(items);
+    return {
+      all: active.length,
+      unread: active.filter((i) => !isItemRead(i)).length,
+      critical: active.filter((i) => i.severity === "critical").length,
+      snoozed: items.filter((i) => isItemSnoozed(i)).length,
+      archived: items.filter((i) => isItemArchived(i)).length,
+    } satisfies Record<StatusTab, number>;
+  }, [items]);
+
+  // ── Filter pipeline: status tab → optional type chip ──
   const filtered = useMemo(() => {
+    let pool: NotificationItem[];
     switch (tab) {
       case "unread":
-        return items.filter((i) => !readIds.has(i.id));
-      case "read":
-        return items.filter((i) => readIds.has(i.id));
+        pool = getActiveItems(items).filter((i) => !isItemRead(i));
+        break;
       case "critical":
-        return items.filter((i) => i.severity === "critical");
-      case "emails":
-        return items.filter((i) => i.type === "email");
-      case "operations":
-        return items.filter((i) => i.type === "operation");
-      case "enquiries":
-        return items.filter((i) => i.type === "enquiry");
-      case "bookings":
-        return items.filter((i) => i.type === "assignment" || i.type === "payment");
+        pool = getActiveItems(items).filter((i) => i.severity === "critical");
+        break;
+      case "snoozed":
+        pool = items.filter((i) => isItemSnoozed(i));
+        break;
+      case "archived":
+        pool = items.filter((i) => isItemArchived(i));
+        break;
       default:
-        return items;
+        pool = getActiveItems(items);
     }
-  }, [items, readIds, tab]);
+    if (chipFilter) {
+      pool = pool.filter((i) => itemMatchesTypeChip(i, chipFilter));
+    }
+    return pool;
+  }, [items, tab, chipFilter]);
 
-  const unreadCount = items.filter((i) => !readIds.has(i.id)).length;
+  // ── Banding: critical → warning → info, with duplicate-collapse inside each ──
+  const banded = useMemo(() => {
+    return SEVERITY_BAND_ORDER.map((sev) => {
+      const inBand = filtered.filter((i) => i.severity === sev);
+      // Snoozed/Archived tabs don't need severity banding — they're a flat list.
+      if (tab === "snoozed" || tab === "archived") {
+        return { severity: sev, nodes: [] as GroupedFeedNode[] };
+      }
+      return { severity: sev, nodes: groupByDuplicate(inBand) };
+    });
+  }, [filtered, tab]);
 
-  const tabCounts = useMemo<Record<NotificationTab, number>>(
-    () => ({
-      all: items.length,
-      unread: items.filter((i) => !readIds.has(i.id)).length,
-      read: items.filter((i) => readIds.has(i.id)).length,
-      critical: items.filter((i) => i.severity === "critical").length,
-      emails: items.filter((i) => i.type === "email").length,
-      operations: items.filter((i) => i.type === "operation").length,
-      enquiries: items.filter((i) => i.type === "enquiry").length,
-      bookings: items.filter((i) => i.type === "assignment" || i.type === "payment").length,
-    }),
-    [items, readIds]
+  // Flat node list for snoozed/archived tabs.
+  const flatNodes = useMemo(() => groupByDuplicate(filtered), [filtered]);
+
+  // ── Server-action wrapper that wraps each call in a transition and
+  // surfaces failure results in the browser console. Network/RLS errors
+  // would otherwise be silently swallowed by `void`. ──
+  const runAction = useCallback(
+    (label: string, fn: () => Promise<{ ok: true } | { ok: false; error: string }>) => {
+      startTransition(async () => {
+        const result = await fn();
+        if (!result.ok) {
+          console.error(`[notification-centre] ${label} failed:`, result.error);
+        }
+      });
+    },
+    [],
   );
+
+  const actions: NotificationCardActions = useMemo(
+    () => ({
+      markRead: (id) => runAction("markRead", () => markNotificationRead(id)),
+      markUnread: (id) => runAction("markUnread", () => markNotificationUnread(id)),
+      snooze: (id, until) => runAction("snooze", () => snoozeNotification(id, until)),
+      unsnooze: (id) => runAction("unsnooze", () => unsnoozeNotification(id)),
+      archive: (id) => runAction("archive", () => archiveNotification(id)),
+      unarchive: (id) => runAction("unarchive", () => unarchiveNotification(id)),
+    }),
+    [runAction],
+  );
+
+  const handleMarkAllRead = useCallback(() => {
+    const ids = getActiveItems(items)
+      .filter((i) => !isItemRead(i))
+      .map((i) => i.notificationId)
+      .filter((id): id is string => typeof id === "string");
+    if (ids.length === 0) return;
+    startTransition(() => { void markAllNotificationsRead(ids); });
+  }, [items]);
+
+  const toggleExpand = useCallback((key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
+  // Count breakdown subtitle.
+  const summary = useMemo(() => {
+    const c = counts.critical;
+    const w = getActiveItems(items).filter((i) => i.severity === "warning" && !isItemRead(i)).length;
+    const inf = getActiveItems(items).filter((i) => i.severity === "info" && !isItemRead(i)).length;
+    const parts: string[] = [];
+    if (c) parts.push(`${c} critical`);
+    if (w) parts.push(`${w} warning`);
+    if (inf) parts.push(`${inf} info`);
+    if (parts.length === 0) return "You're all caught up.";
+    return parts.join(" · ");
+  }, [counts.critical, items]);
+
+  const renderNode = (node: GroupedFeedNode) => {
+    if (node.kind === "single") {
+      const item = node.items[0];
+      return (
+        <NotificationCard
+          key={node.key}
+          item={item}
+          actions={actions}
+          onPrimaryClick={onClose}
+        />
+      );
+    }
+    const expanded = expandedGroups.has(node.key);
+    if (!expanded) {
+      // Show the most recent item as the leader.
+      const leader = node.items[0];
+      return (
+        <NotificationCard
+          key={node.key}
+          item={leader}
+          actions={actions}
+          onPrimaryClick={onClose}
+          collapsed
+          groupSize={node.items.length}
+          onExpandGroup={() => toggleExpand(node.key)}
+        />
+      );
+    }
+    return (
+      <div key={node.key} className="border-l-2 border-[var(--admin-border)]/40 pl-1">
+        {node.items.map((item) => (
+          <NotificationCard
+            key={item.id}
+            item={item}
+            actions={actions}
+            onPrimaryClick={onClose}
+          />
+        ))}
+        <div className="px-4 pb-2 md:px-5">
+          <button
+            type="button"
+            onClick={() => toggleExpand(node.key)}
+            className="inline-flex items-center gap-1 rounded-[var(--admin-radius-control)] px-2 py-1 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+          >
+            Collapse group
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const emptyCopy = getEmptyCopy(tab);
+  const isEmpty = filtered.length === 0;
 
   return (
     <>
-      {/* ── Header ── */}
-      <div className={cn("flex items-center justify-between gap-3 border-b border-[var(--admin-border)] px-5 py-4", isMobile && "px-4 py-3")}>
-        <div>
+      {/* ── Header ───────────────────────────────────────────── */}
+      <div className={cn("flex items-start justify-between gap-3 border-b border-[var(--admin-border)] px-5 py-4", isMobile && "px-4 py-3")}>
+        <div className="min-w-0 flex-1">
           {!isMobile ? (
             <h2 className="admin-display text-base font-semibold text-[var(--admin-heading)]">
               Notification centre
             </h2>
           ) : null}
-          {unreadCount > 0 ? (
-            <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">
-              {unreadCount} unread notification{unreadCount !== 1 ? "s" : ""}
-            </p>
-          ) : (
-            <p className="text-xs font-medium text-[var(--admin-text-muted)]">All notifications are read.</p>
-          )}
+          <p className="mt-0.5 truncate text-xs text-[var(--admin-text-muted)]">{summary}</p>
         </div>
-        <div className="flex items-center gap-1.5">
-          {unreadCount > 0 ? (
+        <div className="flex shrink-0 items-center gap-1">
+          {counts.unread > 0 ? (
             <button
               type="button"
-              onClick={markAllRead}
-              className="rounded-[var(--admin-radius-control)] px-2.5 py-1.5 text-xs font-semibold text-[var(--admin-primary)] outline-none hover:bg-[var(--admin-primary)]/8 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 transition-colors"
+              onClick={handleMarkAllRead}
+              className="inline-flex min-h-8 items-center gap-1 rounded-[var(--admin-radius-control)] px-2.5 py-1.5 text-xs font-semibold text-[var(--admin-primary)] outline-none transition-colors hover:bg-[var(--admin-primary)]/8 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
             >
+              <CheckCheck className="size-3.5" aria-hidden="true" />
               Mark all read
             </button>
           ) : null}
@@ -630,16 +687,16 @@ function NotificationPopoverContent({
         </div>
       </div>
 
-      {/* ── Tabs ── */}
+      {/* ── Status tabs ──────────────────────────────────────── */}
       <div
         className={cn(
           "flex gap-1 overflow-x-auto border-b border-[var(--admin-border)] px-5 py-2.5",
-          isMobile && "flex-wrap overflow-x-visible px-4"
+          isMobile && "px-4",
         )}
         role="tablist"
-        aria-label="Notification filters"
+        aria-label="Notification status filter"
       >
-        {tabs.map((t) => (
+        {statusTabs.map((t) => (
           <button
             key={t}
             type="button"
@@ -650,138 +707,111 @@ function NotificationPopoverContent({
               "inline-flex min-h-8 shrink-0 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 py-1.5 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
               tab === t
                 ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
-                : "text-[var(--admin-body)] hover:text-[var(--admin-heading)] hover:bg-[var(--admin-panel-muted)]"
+                : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]",
             )}
           >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-            {tabCounts[t] > 0 ? (
-              <span className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
-                tab === t ? "bg-white/20 text-[var(--admin-on-primary)]" : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
-              )}>
-                {tabCounts[t]}
+            {STATUS_TAB_LABELS[t]}
+            {counts[t] > 0 ? (
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none",
+                  tab === t
+                    ? "bg-white/20 text-[var(--admin-on-primary)]"
+                    : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]",
+                )}
+              >
+                {counts[t]}
               </span>
             ) : null}
           </button>
         ))}
       </div>
 
-      {/* ── Notification list ── */}
-      <div className="divide-y divide-[var(--admin-border)]/60">
-        {filtered.slice(0, 30).map((item) => {
-          const read = readIds.has(item.id);
-          const TypeIcon = getTypeIcon(item.type);
-          const ageLabel = getNotificationAgeLabel(item.timestamp);
-          return (
-            <div
-              key={item.id}
-              className={cn(
-                "grid gap-3 px-5 py-5 transition-colors",
-                isMobile && "px-4",
-                item.severity === "critical" && "bg-[oklch(95.5%_0.028_20)]/40",
-                item.severity === "warning" && "bg-[oklch(95%_0.05_65)]/40",
-                item.severity === "info" && !read && "bg-[var(--admin-primary)]/[0.02]"
-              )}
-            >
-              <div className="flex items-start gap-3">
-                <TypeIcon
-                  className={cn(
-                    "mt-0.5 size-4 shrink-0",
-                    item.severity === "critical"
-                      ? "text-[var(--admin-danger)]"
-                      : item.severity === "warning"
-                        ? "text-[var(--admin-warning)]"
-                        : "text-[var(--admin-info)]"
-                  )}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className={cn(
-                      "text-sm leading-snug",
-                      !read ? "font-semibold text-[var(--admin-heading)]" : "text-[var(--admin-text-muted)]"
-                    )}>
-                      {item.title}
-                    </p>
-                    <AdminStatusBadge
-                      value={item.severity}
-                      tone={SEVERITY_TONES[item.severity]}
-                      className="shrink-0 text-[10px]"
-                    />
-                  </div>
-                  <p className="mt-1 break-words text-xs leading-5 text-[var(--admin-text-muted)]">
-                    {item.detail}
-                  </p>
-                  <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--admin-text-muted)]/50">
-                    {[item.timestamp, ageLabel].filter(Boolean).join(" \u00b7 ")}
-                  </p>
-                </div>
-              </div>
-              <div className={cn("flex flex-wrap items-center gap-1.5", isMobile ? "ml-0" : "ml-[1.75rem]")}>
-                {item.href ? (
-                  <Link
-                    href={item.href}
-                    onClick={() => {
-                      markRead(item.id);
-                      onClose();
-                    }}
-                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-2.5 text-[11px] font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                  >
-                    {item.actionLabel ?? "View"}
-                  </Link>
-                ) : null}
-                {item.secondaryHref ? (
-                  <Link
-                    href={item.secondaryHref}
-                    onClick={() => {
-                      markRead(item.id);
-                      onClose();
-                    }}
-                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 text-[11px] font-medium text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                  >
-                    {item.secondaryLabel ?? "Details"}
-                  </Link>
-                ) : null}
-                {!read ? (
-                  <button
-                    type="button"
-                    onClick={() => markRead(item.id)}
-                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                  >
-                    Mark read
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => markUnread(item.id)}
-                    className="inline-flex min-h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                  >
-                    Mark unread
-                  </button>
+      {/* ── Type chip row (collapsible) ──────────────────────── */}
+      {typeChips.length > 0 ? (
+        <div className={cn("border-b border-[var(--admin-border)] px-5 py-2", isMobile && "px-4")}>
+          <button
+            type="button"
+            onClick={() => setChipsOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-[var(--admin-radius-control)] px-1.5 py-1 text-[11px] font-semibold uppercase tracking-[0.04em] text-[var(--admin-text-muted)] outline-none transition-colors hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+            aria-expanded={chipsOpen}
+          >
+            <Filter className="size-3" aria-hidden="true" />
+            Filter by type{chipFilter ? `: ${TYPE_CHIP_LABELS[chipFilter]}` : ""}
+            <span aria-hidden="true">{chipsOpen ? "▴" : "▾"}</span>
+          </button>
+          {chipsOpen ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setChipFilter(null)}
+                className={cn(
+                  "inline-flex min-h-7 items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
+                  chipFilter === null
+                    ? "border-[var(--admin-primary)] bg-[var(--admin-primary)]/10 text-[var(--admin-primary)]"
+                    : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]",
                 )}
+              >
+                All types
+              </button>
+              {typeChips.map((chip) => (
                 <button
+                  key={chip}
                   type="button"
-                  onClick={() => dismissNotification(item.id)}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 text-[11px] font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:border-[var(--admin-danger)]/35 hover:bg-[var(--admin-danger)]/5 hover:text-[var(--admin-danger)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                  aria-label={`Delete notification: ${item.title}`}
+                  onClick={() => setChipFilter((curr) => (curr === chip ? null : chip))}
+                  className={cn(
+                    "inline-flex min-h-7 items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
+                    chipFilter === chip
+                      ? "border-[var(--admin-primary)] bg-[var(--admin-primary)]/10 text-[var(--admin-primary)]"
+                      : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]",
+                  )}
                 >
-                  <Trash2 className="size-3" aria-hidden="true" />
-                  Delete
+                  {TYPE_CHIP_LABELS[chip]}
                 </button>
-              </div>
+              ))}
             </div>
-          );
-        })}
-        {filtered.length === 0 ? (
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* ── Feed ────────────────────────────────────────────── */}
+      <div className="divide-y divide-[var(--admin-border)]/40">
+        {isEmpty ? (
           <div className="px-5 py-10">
             <EmptyState
               icon={Bell}
-              title="All caught up"
-              message="When something needs your attention, it'll appear here."
+              title={emptyCopy.title}
+              message={emptyCopy.message}
               tone="muted"
               compact
             />
           </div>
-        ) : null}
+        ) : tab === "snoozed" || tab === "archived" ? (
+          // Flat list for these tabs — no severity banding.
+          flatNodes.map(renderNode)
+        ) : (
+          banded.map((band) =>
+            band.nodes.length === 0 ? null : (
+              <div key={band.severity}>
+                <div className="flex items-center gap-2 bg-[var(--admin-panel-muted)]/60 px-5 py-1.5">
+                  <span
+                    className={cn(
+                      "inline-block size-1.5 rounded-full",
+                      band.severity === "critical" && "bg-[var(--admin-danger)]",
+                      band.severity === "warning" && "bg-[var(--admin-warning)]",
+                      band.severity === "info" && "bg-[var(--admin-info)]",
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-muted)]">
+                    {SEVERITY_BAND_LABEL[band.severity]} · {band.nodes.reduce((acc, n) => acc + n.items.length, 0)}
+                  </span>
+                </div>
+                {band.nodes.map(renderNode)}
+              </div>
+            ),
+          )
+        )}
       </div>
     </>
   );

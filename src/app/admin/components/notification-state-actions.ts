@@ -3,12 +3,17 @@
 /**
  * R4 redesign 2026-05-21 — server actions that write to public.notification_state.
  *
- * Replaces the previous localStorage-only state model. Each action authenticates
- * via the RLS-scoped server client (cookie session), then writes via the same
- * client so RLS policies enforce per-staff ownership as the ultimate gate. The
- * notification_id parameter is a stable derived hash like
- * 'booking:<uuid>:unassigned' — emitted by nav-notifications.ts and grouped by
- * (type, severity, reason) in the centre UI.
+ * Replaces the previous localStorage-only state model. Follows the project's
+ * established convention (see staff/[staffId]/availability/actions.ts and
+ * phase16_service_role_grants.sql): the cookie-scoped server client resolves
+ * the caller's staff_profile, then the admin client performs the actual write
+ * with staff_id manually scoped to that profile. The RLS policies on
+ * notification_state are defence-in-depth but unused on this admin-client
+ * path; only service_role has table-level DML grants.
+ *
+ * notification_id is a stable derived hash like 'booking:<uuid>:unassigned' —
+ * emitted by nav-notifications.ts and grouped by (type, severity, reason) in
+ * the centre UI.
  *
  * After every successful write, revalidatePath("/admin") so the next layout
  * fetch reflects the change. The realtime subscription in step 5 will push the
@@ -16,6 +21,7 @@
  */
 
 import { revalidatePath } from "next/cache";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
 
@@ -46,13 +52,19 @@ function validateSnoozeUntil(value: unknown): string | null {
   return date.toISOString();
 }
 
+/**
+ * Resolve the active staff profile from the cookie session, then return the
+ * admin client for the actual write. Mirrors ensureStaffAvailabilityActor in
+ * staff/[staffId]/availability/actions.ts.
+ */
 async function authenticate() {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
   if (!profile || !profile.active) {
     return { ok: false as const, error: "Sign in to manage notifications." };
   }
-  return { ok: true as const, supabase, profile };
+  const adminClient = createSupabaseAdminClient();
+  return { ok: true as const, adminClient, profile };
 }
 
 // ─── Read / unread ────────────────────────────────────────────────────────────
@@ -65,7 +77,7 @@ export async function markNotificationRead(
   const auth = await authenticate();
   if (!auth.ok) return auth;
   const now = new Date().toISOString();
-  const { error } = await auth.supabase.from("notification_state").upsert(
+  const { error } = await auth.adminClient.from("notification_state").upsert(
     {
       staff_id: auth.profile.id,
       notification_id: id,
@@ -87,7 +99,7 @@ export async function markNotificationUnread(
   const auth = await authenticate();
   if (!auth.ok) return auth;
   const now = new Date().toISOString();
-  const { error } = await auth.supabase.from("notification_state").upsert(
+  const { error } = await auth.adminClient.from("notification_state").upsert(
     {
       staff_id: auth.profile.id,
       notification_id: id,
@@ -124,7 +136,7 @@ export async function markAllNotificationsRead(
     read_at: now,
     updated_at: now,
   }));
-  const { error } = await auth.supabase
+  const { error } = await auth.adminClient
     .from("notification_state")
     .upsert(rows, { onConflict: "staff_id,notification_id" });
   if (error) return { ok: false, error: error.message };
@@ -145,7 +157,7 @@ export async function snoozeNotification(
   const auth = await authenticate();
   if (!auth.ok) return auth;
   const now = new Date().toISOString();
-  const { error } = await auth.supabase.from("notification_state").upsert(
+  const { error } = await auth.adminClient.from("notification_state").upsert(
     {
       staff_id: auth.profile.id,
       notification_id: id,
@@ -167,7 +179,7 @@ export async function unsnoozeNotification(
   const auth = await authenticate();
   if (!auth.ok) return auth;
   const now = new Date().toISOString();
-  const { error } = await auth.supabase.from("notification_state").upsert(
+  const { error } = await auth.adminClient.from("notification_state").upsert(
     {
       staff_id: auth.profile.id,
       notification_id: id,
@@ -191,7 +203,7 @@ export async function archiveNotification(
   const auth = await authenticate();
   if (!auth.ok) return auth;
   const now = new Date().toISOString();
-  const { error } = await auth.supabase.from("notification_state").upsert(
+  const { error } = await auth.adminClient.from("notification_state").upsert(
     {
       staff_id: auth.profile.id,
       notification_id: id,
@@ -213,7 +225,7 @@ export async function unarchiveNotification(
   const auth = await authenticate();
   if (!auth.ok) return auth;
   const now = new Date().toISOString();
-  const { error } = await auth.supabase.from("notification_state").upsert(
+  const { error } = await auth.adminClient.from("notification_state").upsert(
     {
       staff_id: auth.profile.id,
       notification_id: id,
@@ -264,7 +276,7 @@ export async function migrateLegacyNotificationState(input: {
     archived_at: flags.archived_at,
     updated_at: now,
   }));
-  const { error } = await auth.supabase
+  const { error } = await auth.adminClient
     .from("notification_state")
     .upsert(rows, { onConflict: "staff_id,notification_id" });
   if (error) return { ok: false, error: error.message };
