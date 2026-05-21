@@ -30,9 +30,14 @@ import { EmptyState } from "../../components/EmptyState";
 import { safeFormatDateTime } from "@/lib/time/format";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { canAssignBookings, getStaffProfile } from "@/lib/auth/rbac";
+import {
+  canAssignBookings,
+  canCreateSessionNotes,
+  getStaffProfile,
+} from "@/lib/auth/rbac";
 import { AssignmentManager } from "../AssignmentManager";
 import { BookingActionButton } from "../BookingActionButton";
+import { SessionNotePromptSheet } from "../SessionNotePromptSheet";
 import {
   canClaimAssignments,
   canOpenBookingRecord,
@@ -713,7 +718,7 @@ function AssignmentPanel({
   assignmentPreviews,
   claimEligibility,
 }: {
-  booking: BookingRecord;
+  booking: BookingRecordWithClientId;
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
   canReassignBookings: boolean;
   assignmentPreviews: Record<string, StaffAssignmentPreview[]>;
@@ -760,7 +765,7 @@ function AssignmentRow({
   claimPreview,
 }: {
   assignment: BookingAssignment;
-  booking: BookingRecord;
+  booking: BookingRecordWithClientId;
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
   canReassignBookings: boolean;
   previews: StaffAssignmentPreview[];
@@ -785,9 +790,17 @@ function AssignmentRow({
     assignment.required_therapist_gender === profile.gender &&
     claimPreview?.eligible === true;
 
-  const isOwn =
-    assignment.assigned_staff_id === profile.id &&
-    assignment.status === "assigned";
+  const isAssignedToActor = assignment.assigned_staff_id === profile.id;
+  const isOwn = isAssignedToActor && assignment.status === "assigned";
+
+  // Keep the prompt mounted across the status flip from "assigned" →
+  // "completed" so the dialog state set by onSuccess survives the refresh.
+  const canPromptForSessionNote =
+    isAssignedToActor &&
+    canCreateSessionNotes(profile) &&
+    Boolean(booking.client_id);
+  const clientDisplayName =
+    booking.clients?.full_name ?? booking.contact_full_name ?? "Client";
 
   return (
     <li className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4">
@@ -841,23 +854,30 @@ function AssignmentRow({
       <div className="mt-3 flex flex-wrap gap-2">
         {canClaim ? <ClaimAssignmentButton assignmentId={assignment.id} /> : null}
 
+        {canPromptForSessionNote && booking.client_id ? (
+          <SessionNotePromptSheet
+            assignmentId={assignment.id}
+            clientId={booking.client_id}
+            clientName={clientDisplayName}
+            showButton={isOwn}
+          />
+        ) : isOwn ? (
+          <BookingActionButton
+            assignmentId={assignment.id}
+            action="assignment_completed"
+            variant="ghost"
+          >
+            Mark complete
+          </BookingActionButton>
+        ) : null}
         {isOwn ? (
-          <>
-            <BookingActionButton
-              assignmentId={assignment.id}
-              action="assignment_completed"
-              variant="ghost"
-            >
-              Mark complete
-            </BookingActionButton>
-            <BookingActionButton
-              assignmentId={assignment.id}
-              action="assignment_no_show"
-              variant="ghost"
-            >
-              Mark as no-show
-            </BookingActionButton>
-          </>
+          <BookingActionButton
+            assignmentId={assignment.id}
+            action="assignment_no_show"
+            variant="ghost"
+          >
+            Mark as no-show
+          </BookingActionButton>
         ) : null}
 
         {canReassignBookings ? (

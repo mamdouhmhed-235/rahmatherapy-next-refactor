@@ -30,6 +30,7 @@ interface BookingActionButtonProps {
    */
   size?: "default" | "sm" | "touch";
   icon?: React.ReactNode;
+  onSuccess?: () => void;
 }
 
 const SUCCESS_TOAST: Record<BookingAction, string> = {
@@ -68,6 +69,7 @@ export function BookingActionButton({
   variant = "ghost",
   size = "sm",
   icon,
+  onSuccess,
 }: BookingActionButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -108,6 +110,7 @@ export function BookingActionButton({
 
         toast.success(SUCCESS_TOAST[action]);
         router.refresh();
+        onSuccess?.();
         resolve();
       });
     });

@@ -591,7 +591,11 @@ export function getAttentionItems(data: ReportData) {
         date: booking.booking_date,
       });
     }
-    if (booking.customer_cancelled_at) {
+    if (
+      booking.customer_cancelled_at &&
+      new Date(booking.customer_cancelled_at).getTime() >
+        Date.now() - 14 * 24 * 60 * 60 * 1000
+    ) {
       items.push({
         id: `${booking.id}-customer-cancelled`,
         href: `/admin/bookings/${booking.id}`,
