@@ -60,6 +60,8 @@ function statusTone(status: PasswordResetRequest["status"]) {
       return { tone: "danger" as const, value: "Rejected" };
     case "expired":
       return { tone: "restricted" as const, value: "Expired" };
+    case "used":
+      return { tone: "default" as const, value: "Used" };
   }
 }
 

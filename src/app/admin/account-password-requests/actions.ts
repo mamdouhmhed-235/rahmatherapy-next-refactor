@@ -1,22 +1,29 @@
 "use server";
 
-// data-redesign-backend="FAKE"
-//
-// These server actions are wired through `<form action={…}>` and preserve the
-// forward-looking signatures from the brief Feature Preservation Manifest:
-//   - approvePasswordResetRequest({ requestId, reviewerNote? })
-//   - rejectPasswordResetRequest({ requestId, reviewerNote })
-//
-// Real wiring blocks on three outstanding BUILD plans:
-//   - BUILD-rbac-permission-account-password-requests.md (Layer 0 #1)
-//   - BUILD-password-reset-email-templates.md            (Layer 0 #2)
-//   - BUILD-approve-reject-password-reset.md             (Layer 1 #25)
-//
-// Until those land the handlers no-op (no Supabase Auth admin-API call, no
-// Resend send, no DB write, no audit log) and revalidate the page so the
-// optimistic UI can re-fetch the unchanged row list.
-
 import { revalidatePath } from "next/cache";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  CURRENT_CIPHER_VERSION,
+  generateResetToken,
+  hashResetToken,
+} from "@/lib/auth/password-reset-token";
+import {
+  PasswordResetApprovedEmailInput,
+  PasswordResetRejectedEmailInput,
+  renderPasswordResetApprovedHtml,
+  renderPasswordResetApprovedSubject,
+  renderPasswordResetApprovedText,
+  renderPasswordResetRejectedHtml,
+  renderPasswordResetRejectedSubject,
+  renderPasswordResetRejectedText,
+} from "@/lib/email/templates";
+import {
+  EmailDeliveryError,
+  getSiteUrl,
+  sendEmail,
+} from "@/lib/email/client";
 
 export type ReviewActionResult =
   | { ok: true }
@@ -25,10 +32,54 @@ export type ReviewActionResult =
   | { ok: false; code: "self_approval" }
   | { ok: false; code: "server"; message: string };
 
-const FAKE_DELAY_MS = 320;
+const REQUEST_TTL_HOURS = 24;
+const NOTE_MAX = 240;
+const COMPANY_NAME = "Rahma Therapy";
 
-function sleep(ms: number) {
-  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+interface PendingRowSelect {
+  id: string;
+  staff_id: string;
+  status: string;
+  reviewed_by: string | null;
+}
+
+async function requireReviewer() {
+  const supabase = await createSupabaseServerClient();
+  const profile = await getStaffProfile(supabase);
+  if (
+    !profile ||
+    !profile.active ||
+    !profile.permissions.has(PERMISSIONS.MANAGE_ACCOUNT_PASSWORD_REQUESTS)
+  ) {
+    return null;
+  }
+  return profile;
+}
+
+async function lookupRequester(staffId: string) {
+  const adminClient = createSupabaseAdminClient();
+  const { data: staff } = await adminClient
+    .from("staff_profiles")
+    .select("id, name, auth_user_id")
+    .eq("id", staffId)
+    .maybeSingle();
+  if (!staff?.auth_user_id) return null;
+  const { data: authResult } = await adminClient.auth.admin.getUserById(
+    staff.auth_user_id
+  );
+  const email = authResult?.user?.email ?? null;
+  if (!email) return null;
+  return { staffId: staff.id, name: staff.name, email };
+}
+
+async function lookupReviewerName(reviewerId: string): Promise<string> {
+  const adminClient = createSupabaseAdminClient();
+  const { data } = await adminClient
+    .from("staff_profiles")
+    .select("name")
+    .eq("id", reviewerId)
+    .maybeSingle();
+  return data?.name ?? "another reviewer";
 }
 
 export async function approvePasswordResetRequest(
@@ -40,7 +91,7 @@ export async function approvePasswordResetRequest(
   if (!requestId) {
     return { ok: false, code: "validation", message: "Missing request id." };
   }
-  if (reviewerNote.length > 240) {
+  if (reviewerNote.length > NOTE_MAX) {
     return {
       ok: false,
       code: "validation",
@@ -48,17 +99,111 @@ export async function approvePasswordResetRequest(
     };
   }
 
-  // FAKE: simulate network latency so the spinner pattern is visible.
-  await sleep(FAKE_DELAY_MS);
+  const reviewer = await requireReviewer();
+  if (!reviewer) {
+    return { ok: false, code: "server", message: "Insufficient permissions." };
+  }
 
-  // Real implementation will:
-  //   1. SELECT row WHERE id = requestId FOR UPDATE; verify status = 'pending'
-  //   2. Refuse if reviewed_by === current user (self-approval guard)
-  //   3. Call supabase.auth.admin.generateLink({ type: 'recovery', email })
-  //   4. UPDATE row: status='approved', reviewer_note, reviewed_by, reviewed_at,
-  //      encrypted_token_payload
-  //   5. Send `password_reset_approved` email via Resend
-  //   6. INSERT into audit_logs (action='password_reset_approved')
+  const adminClient = createSupabaseAdminClient();
+  const { data: row, error: readError } = await adminClient
+    .from("account_password_requests")
+    .select("id, staff_id, status, reviewed_by")
+    .eq("id", requestId)
+    .maybeSingle<PendingRowSelect>();
+
+  if (readError || !row) {
+    return {
+      ok: false,
+      code: "server",
+      message: "Couldn't load the request. Refresh and try again.",
+    };
+  }
+
+  if (row.status !== "pending") {
+    const otherReviewer = row.reviewed_by
+      ? await lookupReviewerName(row.reviewed_by)
+      : "another reviewer";
+    return { ok: false, code: "race", otherReviewer };
+  }
+
+  if (row.staff_id === reviewer.id) {
+    return { ok: false, code: "self_approval" };
+  }
+
+  const requester = await lookupRequester(row.staff_id);
+  if (!requester) {
+    return {
+      ok: false,
+      code: "server",
+      message: "The requester's account couldn't be loaded.",
+    };
+  }
+
+  const token = generateResetToken();
+  const hash = await hashResetToken(token);
+  const now = new Date();
+  const expiresAt = new Date(
+    now.getTime() + REQUEST_TTL_HOURS * 60 * 60 * 1000
+  );
+
+  const { error: updateError } = await adminClient
+    .from("account_password_requests")
+    .update({
+      status: "approved",
+      encrypted_payload: hash,
+      payload_cipher_version: CURRENT_CIPHER_VERSION,
+      expires_at: expiresAt.toISOString(),
+      reviewed_by: reviewer.id,
+      reviewed_at: now.toISOString(),
+      reviewer_note: reviewerNote || null,
+    })
+    .eq("id", requestId)
+    .eq("status", "pending"); // belt-and-braces against a concurrent state change.
+
+  if (updateError) {
+    console.error("approvePasswordResetRequest update error:", updateError);
+    return {
+      ok: false,
+      code: "server",
+      message: "Couldn't save the approval. Try again.",
+    };
+  }
+
+  const resetLinkUrl = `${getSiteUrl()}/admin/password-reset/${token}`;
+  const emailInput: PasswordResetApprovedEmailInput = {
+    companyName: COMPANY_NAME,
+    recipientName: requester.name ?? requester.email,
+    resetLinkUrl,
+    expiresInHours: REQUEST_TTL_HOURS,
+  };
+
+  try {
+    await sendEmail({
+      to: requester.email,
+      subject: renderPasswordResetApprovedSubject(),
+      html: renderPasswordResetApprovedHtml(emailInput),
+      text: renderPasswordResetApprovedText(emailInput),
+    });
+  } catch (sendErr) {
+    const message =
+      sendErr instanceof EmailDeliveryError
+        ? sendErr.message
+        : "Email could not be sent.";
+    console.error("approvePasswordResetRequest email error:", sendErr);
+    return { ok: false, code: "server", message };
+  }
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: reviewer.id,
+    action_type: "password_reset_approved",
+    target_type: "account_password_requests",
+    target_id: row.id,
+    after_state: {
+      staff_id: row.staff_id,
+      reviewer_note: reviewerNote || null,
+      expires_at: expiresAt.toISOString(),
+    },
+  });
 
   revalidatePath("/admin/account-password-requests");
   return { ok: true };
@@ -80,7 +225,7 @@ export async function rejectPasswordResetRequest(
       message: "Add a note before rejecting. The requester needs to know why.",
     };
   }
-  if (reviewerNote.length > 240) {
+  if (reviewerNote.length > NOTE_MAX) {
     return {
       ok: false,
       code: "validation",
@@ -88,13 +233,95 @@ export async function rejectPasswordResetRequest(
     };
   }
 
-  await sleep(FAKE_DELAY_MS);
+  const reviewer = await requireReviewer();
+  if (!reviewer) {
+    return { ok: false, code: "server", message: "Insufficient permissions." };
+  }
 
-  // Real implementation will:
-  //   1. SELECT row FOR UPDATE; verify status = 'pending'
-  //   2. UPDATE row: status='rejected', reviewer_note, reviewed_by, reviewed_at
-  //   3. Send `password_reset_rejected` email via Resend
-  //   4. INSERT into audit_logs (action='password_reset_rejected')
+  const adminClient = createSupabaseAdminClient();
+  const { data: row } = await adminClient
+    .from("account_password_requests")
+    .select("id, staff_id, status, reviewed_by")
+    .eq("id", requestId)
+    .maybeSingle<PendingRowSelect>();
+
+  if (!row) {
+    return {
+      ok: false,
+      code: "server",
+      message: "Couldn't load the request. Refresh and try again.",
+    };
+  }
+  if (row.status !== "pending") {
+    const otherReviewer = row.reviewed_by
+      ? await lookupReviewerName(row.reviewed_by)
+      : "another reviewer";
+    return { ok: false, code: "race", otherReviewer };
+  }
+
+  const requester = await lookupRequester(row.staff_id);
+  if (!requester) {
+    return {
+      ok: false,
+      code: "server",
+      message: "The requester's account couldn't be loaded.",
+    };
+  }
+
+  const now = new Date();
+  const { error: updateError } = await adminClient
+    .from("account_password_requests")
+    .update({
+      status: "rejected",
+      reviewed_by: reviewer.id,
+      reviewed_at: now.toISOString(),
+      reviewer_note: reviewerNote,
+    })
+    .eq("id", requestId)
+    .eq("status", "pending");
+
+  if (updateError) {
+    console.error("rejectPasswordResetRequest update error:", updateError);
+    return {
+      ok: false,
+      code: "server",
+      message: "Couldn't save the rejection. Try again.",
+    };
+  }
+
+  const emailInput: PasswordResetRejectedEmailInput = {
+    companyName: COMPANY_NAME,
+    recipientName: requester.name ?? requester.email,
+    reviewerNote,
+    retryUrl: `${getSiteUrl()}/admin/password-reset`,
+  };
+
+  try {
+    await sendEmail({
+      to: requester.email,
+      subject: renderPasswordResetRejectedSubject(),
+      html: renderPasswordResetRejectedHtml(emailInput),
+      text: renderPasswordResetRejectedText(emailInput),
+    });
+  } catch (sendErr) {
+    const message =
+      sendErr instanceof EmailDeliveryError
+        ? sendErr.message
+        : "Email could not be sent.";
+    console.error("rejectPasswordResetRequest email error:", sendErr);
+    return { ok: false, code: "server", message };
+  }
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: reviewer.id,
+    action_type: "password_reset_rejected",
+    target_type: "account_password_requests",
+    target_id: row.id,
+    after_state: {
+      staff_id: row.staff_id,
+      reviewer_note: reviewerNote,
+    },
+  });
 
   revalidatePath("/admin/account-password-requests");
   return { ok: true };

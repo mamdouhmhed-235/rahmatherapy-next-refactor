@@ -1,4 +1,9 @@
 import { AdminStatusBadge } from "@/app/admin/components/admin-ui";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  CURRENT_CIPHER_VERSION,
+  hashResetToken,
+} from "@/lib/auth/password-reset-token";
 import { PasswordResetCard } from "../PasswordResetCard";
 import { SetNewPassword } from "../states/SetNewPassword";
 import { Rejected } from "../states/Rejected";
@@ -10,22 +15,10 @@ import { ForgotForm } from "../states/ForgotForm";
  *
  * Handles states 4 (approved), 5 (rejected on token), 6 (expired).
  *
- * FAKE token verification: real implementation hashes the URL token + looks
- * up the row in `account_password_requests`. Until
- * BUILD-password-reset-request-actions.md lands, we route via a static map of
- * test tokens so the full surface (all six states) is reachable from the UI:
- *
- *   test-approved-token  → state 4 (set new password)
- *   test-rejected-token  → state 5 (rejected, reviewer note present)
- *   test-rejected-empty  → state 5 (rejected, no reviewer note)
- *   test-expired-token   → state 6 (expired, inline state-1 form)
- *
- * Any other token (including hostile / tampered values like
- * `<script>alert(1)</script>`) falls to state 5 with body "This link is no
- * longer valid. Submit a new request below." — the brief §6 hostile-token
- * rule. The token NEVER appears in the rendered HTML; React's default
- * escaping handles any attempted echo, and the rejected state never reads
- * the token into its output.
+ * Resolution: hash the URL token + look up the matching row in
+ * `account_password_requests` by `(encrypted_payload, payload_cipher_version)`.
+ * Row status + expires_at then disambiguate which state renders.
+ * The raw token is NEVER echoed into the rendered HTML.
  */
 
 export const metadata = {
@@ -45,29 +38,41 @@ type ResolvedTokenState =
   | { kind: "expired" }
   | { kind: "hostile" };
 
-function resolveToken(rawToken: string): ResolvedTokenState {
-  // FAKE: deterministic test-token map. Real action will read
-  // account_password_requests by hashed-token equality.
-  switch (rawToken) {
-    case "test-approved-token":
-      return { kind: "approved", token: rawToken };
-    case "test-rejected-token":
-      return {
-        kind: "rejected",
-        reviewerNote:
-          "Thanks for getting in touch. The owner needs a brief chat before approving this one. Drop us a message on WhatsApp and we'll sort it together.",
-      };
-    case "test-rejected-empty":
-      return { kind: "rejected", reviewerNote: null };
-    case "test-expired-token":
-      return { kind: "expired" };
-    default:
-      // Hostile / tampered / unknown token → state 5 chrome (heading + chip)
-      // but the body switches to "This link is no longer valid" and an inline
-      // state-1 form replaces the "Submit a new request" button per brief §6.
-      // The rawToken is NEVER threaded into the render path.
-      return { kind: "hostile" };
+async function resolveToken(rawToken: string): Promise<ResolvedTokenState> {
+  if (!rawToken) return { kind: "hostile" };
+  const hash = await hashResetToken(rawToken);
+  const adminClient = createSupabaseAdminClient();
+  const { data: row } = await adminClient
+    .from("account_password_requests")
+    .select("status, expires_at, reviewer_note")
+    .eq("encrypted_payload", hash)
+    .eq("payload_cipher_version", CURRENT_CIPHER_VERSION)
+    .maybeSingle<{
+      status: "pending" | "approved" | "rejected" | "expired" | "used";
+      expires_at: string;
+      reviewer_note: string | null;
+    }>();
+
+  if (!row) return { kind: "hostile" };
+
+  const expiresAtMs = new Date(row.expires_at).getTime();
+  const expired = Number.isFinite(expiresAtMs)
+    ? expiresAtMs <= Date.now()
+    : true;
+
+  if (row.status === "approved" && !expired) {
+    return { kind: "approved", token: rawToken };
   }
+  if (row.status === "rejected") {
+    return { kind: "rejected", reviewerNote: row.reviewer_note };
+  }
+  if (row.status === "expired" || (row.status === "approved" && expired)) {
+    return { kind: "expired" };
+  }
+  if (row.status === "used") {
+    return { kind: "expired" };
+  }
+  return { kind: "hostile" };
 }
 
 interface TokenPageProps {
@@ -82,7 +87,7 @@ export default async function PasswordResetTokenPage({
   const { token } = await params;
   const { error } = await searchParams;
 
-  const resolved = resolveToken(token);
+  const resolved = await resolveToken(token);
 
   if (resolved.kind === "approved") {
     return (

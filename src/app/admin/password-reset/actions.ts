@@ -2,37 +2,18 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-
-/**
- * FAKE backend.
- *
- * Both server actions in this file are placeholder implementations for Phase 6.
- * Real wiring lands with the following BLOCKS-REDESIGN BUILD plans (still [ ]
- * per IMPLEMENTATION-PLAN.md footer):
- *
- *   - BUILD-password-reset-request-actions.md (Layer 0 #3)
- *   - BUILD-password-reset-email-templates.md (Layer 0 #2)
- *
- * Until those plans land, these handlers:
- *   - do NOT write to `account_password_requests`
- *   - do NOT send email via Resend
- *   - do NOT call Supabase Auth admin-API
- *   - do NOT write audit_logs rows
- *
- * They DO set / clear the `rahma_password_reset_request` cookie so state 1 → 2
- * → 3 routing is end-to-end testable from the UI. Real-token state 4 / 5 / 6
- * routing is driven by the `[token]` route's static token map (see
- * `[token]/page.tsx`) so all six visible states render under FAKE backend.
- *
- * Security-by-uniform-response is preserved: every state-1 submit (valid email,
- * unknown email, malformed email re-render path) sets the same cookie shape and
- * lands on the same state-2 confirmation. The brief §10.1 trade-off + Phase 7
- * audit verification.
- */
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  CURRENT_CIPHER_VERSION,
+  hashResetToken,
+  verifyResetToken,
+} from "@/lib/auth/password-reset-token";
 
 const COOKIE_NAME = "rahma_password_reset_request";
-// 7 days, matches the brief's "short TTL, ~7 days" comment.
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
+const REQUEST_TTL_HOURS = 24;
+const MIN_PASSWORD_LENGTH = 12;
 
 function maskEmail(email: string): string {
   const trimmed = email.trim().toLowerCase();
@@ -44,37 +25,39 @@ function maskEmail(email: string): string {
   return `${head}••@${domain}`;
 }
 
-export async function submitPasswordResetRequest(
-  formData: FormData
-): Promise<void> {
-  const raw = formData.get("email");
-  const email = typeof raw === "string" ? raw.trim() : "";
-
-  // Email shape check happens client-side and (in the real action) server-side.
-  // FAKE handler accepts anything that has an @ — security-by-uniform-response
-  // means we never branch on "is this email in the staff table?".
-  if (!email || !email.includes("@")) {
-    // Re-render state 1 with the error region populated. The brief's matrix
-    // (§6 cross-state row 2) routes invalid email through role="alert" on the
-    // field, not a separate route.
-    const params = new URLSearchParams();
-    if (!email) {
-      params.set("error", "empty");
-    } else {
-      params.set("error", "format");
-    }
-    if (email) params.set("email", email);
-    redirect(`/admin/password-reset?${params.toString()}`);
+async function findStaffByEmail(email: string) {
+  const adminClient = createSupabaseAdminClient();
+  // The `auth` schema isn't exposed via PostgREST by default, so look up the
+  // user via the Auth admin API. Practical bound: pageSize 1000 covers any
+  // realistic single-clinic staff list. If headcount ever exceeds that we'd
+  // switch to an RPC for a single-row email lookup.
+  const { data: list, error: listError } =
+    await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (listError) {
+    console.error("findStaffByEmail listUsers error:", listError);
+    return null;
   }
+  const authUser = list.users.find(
+    (u) => u.email?.toLowerCase() === email
+  );
+  if (!authUser?.email) return null;
+  const { data: staff } = await adminClient
+    .from("staff_profiles")
+    .select("id, name, active, auth_user_id")
+    .eq("auth_user_id", authUser.id)
+    .maybeSingle();
+  if (!staff || !staff.active) return null;
+  return {
+    staff,
+    authUser: { id: authUser.id, email: authUser.email },
+  } as const;
+}
 
-  // FAKE: set the signed-cookie placeholder so state 3 routing works on
-  // subsequent visits. Real implementation will hash the email + store the
-  // request row id (brief §11 state 2 notes).
+async function setRequestCookie(email: string) {
   const cookieStore = await cookies();
   cookieStore.set({
     name: COOKIE_NAME,
     value: JSON.stringify({
-      // FAKE: stable test value. Real action will write a hash + row id.
       maskedEmail: maskEmail(email),
       submittedAt: new Date().toISOString(),
     }),
@@ -84,12 +67,9 @@ export async function submitPasswordResetRequest(
     path: "/admin/password-reset",
     maxAge: COOKIE_MAX_AGE_SECONDS,
   });
-
-  // Re-render state 2 (request submitted) on the same route.
-  redirect("/admin/password-reset?state=submitted");
 }
 
-export async function clearPasswordResetCookie(): Promise<void> {
+async function clearRequestCookie() {
   const cookieStore = await cookies();
   cookieStore.set({
     name: COOKIE_NAME,
@@ -100,14 +80,82 @@ export async function clearPasswordResetCookie(): Promise<void> {
     path: "/admin/password-reset",
     maxAge: 0,
   });
+}
+
+export async function submitPasswordResetRequest(
+  formData: FormData
+): Promise<void> {
+  const raw = formData.get("email");
+  const email = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+
+  if (!email || !email.includes("@")) {
+    const params = new URLSearchParams();
+    params.set("error", email ? "format" : "empty");
+    if (email) params.set("email", email);
+    redirect(`/admin/password-reset?${params.toString()}`);
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const match = await findStaffByEmail(email);
+
+  // Uniform response: same cookie + redirect either way. Email enumeration
+  // is foreclosed by branching only inside the audit + insert paths below.
+  if (match) {
+    const now = new Date();
+    const expiresAt = new Date(
+      now.getTime() + REQUEST_TTL_HOURS * 60 * 60 * 1000
+    );
+    const { data: inserted, error } = await adminClient
+      .from("account_password_requests")
+      .insert({
+        staff_id: match.staff.id,
+        status: "pending",
+        requested_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        payload_cipher_version: CURRENT_CIPHER_VERSION,
+      })
+      .select("id")
+      .single();
+    if (error) {
+      console.error("submitPasswordResetRequest insert error:", error);
+    } else if (inserted) {
+      await adminClient.from("audit_logs").insert({
+        actor_staff_id: match.staff.id,
+        action_type: "password_reset_requested",
+        target_type: "account_password_requests",
+        target_id: inserted.id,
+        after_state: { masked_email: maskEmail(email) },
+      });
+    }
+  } else {
+    await adminClient.from("audit_logs").insert({
+      actor_staff_id: null,
+      action_type: "password_reset_request_lookup_failed",
+      target_type: "account_password_requests",
+      target_id: null,
+      after_state: { masked_email: maskEmail(email) },
+    });
+  }
+
+  await setRequestCookie(email);
+  redirect("/admin/password-reset?state=submitted");
+}
+
+export async function clearPasswordResetCookie(): Promise<void> {
+  await clearRequestCookie();
   redirect("/admin/password-reset");
 }
 
-export async function setPasswordWithToken(formData: FormData): Promise<void> {
-  // FAKE: validate two password fields client-side AND server-side. Real
-  // action will verify the token + call supabase.auth.admin.updateUserById
-  // + write the password_reset_completed audit row.
+interface CandidateRow {
+  id: string;
+  staff_id: string;
+  status: "pending" | "approved" | "rejected" | "expired" | "used";
+  expires_at: string;
+  encrypted_payload: string | null;
+  payload_cipher_version: number;
+}
 
+export async function setPasswordWithToken(formData: FormData): Promise<void> {
   const tokenRaw = formData.get("token");
   const newPwRaw = formData.get("new_password");
   const confirmRaw = formData.get("confirm_new_password");
@@ -115,41 +163,113 @@ export async function setPasswordWithToken(formData: FormData): Promise<void> {
   const newPassword = typeof newPwRaw === "string" ? newPwRaw : "";
   const confirmNew = typeof confirmRaw === "string" ? confirmRaw : "";
 
-  if (!token) {
-    // Should be impossible (token comes from URL via hidden input), but the
-    // brief's hostile-token rule (§6) says fall to state 5, never echo.
-    redirect("/admin/password-reset");
+  if (!token) redirect("/admin/password-reset");
+
+  function failBack(code: string): never {
+    const params = new URLSearchParams({ error: code });
+    redirect(
+      `/admin/password-reset/${encodeURIComponent(token)}?${params.toString()}`
+    );
   }
 
-  function failBack(errorCode: string): never {
-    const params = new URLSearchParams({ error: errorCode });
-    redirect(`/admin/password-reset/${encodeURIComponent(token)}?${params.toString()}`);
+  if (newPassword.length < MIN_PASSWORD_LENGTH) failBack("short");
+  if (newPassword !== confirmNew) failBack("mismatch");
+
+  const adminClient = createSupabaseAdminClient();
+  const hash = await hashResetToken(token);
+  const { data: row } = await adminClient
+    .from("account_password_requests")
+    .select(
+      "id, staff_id, status, expires_at, encrypted_payload, payload_cipher_version"
+    )
+    .eq("encrypted_payload", hash)
+    .eq("payload_cipher_version", CURRENT_CIPHER_VERSION)
+    .maybeSingle<CandidateRow>();
+
+  async function logRejection(targetId: string | null, reason: string) {
+    await adminClient.from("audit_logs").insert({
+      actor_staff_id: null,
+      action_type: "password_reset_token_rejected",
+      target_type: "account_password_requests",
+      target_id: targetId,
+      after_state: { reason },
+    });
   }
 
-  if (newPassword.length < 12) {
-    failBack("short");
+  if (!row) {
+    await logRejection(null, "no_match");
+    failBack("invalid");
   }
-  if (newPassword !== confirmNew) {
-    failBack("mismatch");
+  // Defence-in-depth: verifyResetToken constant-time-compares the hash again.
+  const verified = await verifyResetToken(token, {
+    encrypted_payload: row.encrypted_payload,
+    payload_cipher_version: row.payload_cipher_version,
+  });
+  if (!verified) {
+    await logRejection(row.id, "hash_mismatch");
+    failBack("invalid");
+  }
+  if (row.status === "used") {
+    await logRejection(row.id, "already_used");
+    failBack("expired");
+  }
+  if (row.status !== "approved") {
+    await logRejection(row.id, `status_${row.status}`);
+    failBack("invalid");
+  }
+  if (new Date(row.expires_at).getTime() <= Date.now()) {
+    await logRejection(row.id, "expired");
+    failBack("expired");
   }
 
-  // FAKE success: clear the cookie + redirect to dashboard. Real implementation
-  // creates a Supabase Auth session before the redirect; the dashboard is the
-  // confirmation, per brief §11 state 4 "no intermediate 'password updated'".
-  const cookieStore = await cookies();
-  cookieStore.set({
-    name: COOKIE_NAME,
-    value: "",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/admin/password-reset",
-    maxAge: 0,
+  // Resolve auth_user_id + email for the Supabase Auth admin call.
+  const { data: staff } = await adminClient
+    .from("staff_profiles")
+    .select("id, auth_user_id, name")
+    .eq("id", row.staff_id)
+    .maybeSingle();
+  if (!staff?.auth_user_id) {
+    await logRejection(row.id, "staff_missing");
+    failBack("invalid");
+  }
+
+  const { error: updatePwError } =
+    await adminClient.auth.admin.updateUserById(staff.auth_user_id, {
+      password: newPassword,
+    });
+  if (updatePwError) {
+    console.error("auth.admin.updateUserById error:", updatePwError);
+    await logRejection(row.id, "auth_update_failed");
+    failBack("auth");
+  }
+
+  await adminClient
+    .from("account_password_requests")
+    .update({ status: "used" })
+    .eq("id", row.id);
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: staff.id,
+    action_type: "password_reset_completed",
+    target_type: "account_password_requests",
+    target_id: row.id,
+    after_state: { staff_id: staff.id },
   });
 
-  // FAKE: real action sets a fresh Supabase Auth session, then redirects.
-  // Without that session the dashboard would bounce back to login. Until the
-  // BUILD plan lands, redirect to login with a one-shot "fake-success" reason
-  // so the staff member sees an honest end-state instead of a redirect loop.
-  redirect("/admin/login?reason=fake-success");
+  // Fetch the email to sign the staff member in.
+  const { data: authUserResult } =
+    await adminClient.auth.admin.getUserById(staff.auth_user_id);
+  const userEmail = authUserResult?.user?.email ?? null;
+
+  await clearRequestCookie();
+
+  if (userEmail) {
+    const serverClient = await createSupabaseServerClient();
+    await serverClient.auth.signInWithPassword({
+      email: userEmail,
+      password: newPassword,
+    });
+  }
+
+  redirect("/admin/dashboard");
 }
