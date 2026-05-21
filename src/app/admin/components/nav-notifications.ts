@@ -56,20 +56,73 @@ export async function getNavNotifications(
     // — variant resolution + permission helpers prove the caller is allowed
     // to see each category before the query fires.
     const supabase = createSupabaseAdminClient();
+    let items: NotificationItem[] = [];
     switch (variant) {
       case "owner_admin":
-        return await getOwnerAdminNotifications(profile, supabase);
+        items = await getOwnerAdminNotifications(profile, supabase);
+        break;
       case "coordinator":
-        return await getCoordinatorNotifications(profile, supabase);
+        items = await getCoordinatorNotifications(profile, supabase);
+        break;
       case "therapist":
-        return await getTherapistNotifications(profile, supabase);
+        items = await getTherapistNotifications(profile, supabase);
+        break;
       default:
         return [];
     }
+    // R4 redesign 2026-05-21: merge per-staff state from notification_state.
+    // Each variant fn emits notificationId on every item; we batch-fetch the
+    // matching state rows and attach them. Items without a state row stay
+    // unread-and-not-snoozed-and-not-archived (the implicit default). Failure
+    // here is non-fatal — items render without state.
+    items = await attachNotificationState(supabase, profile.id, items);
+    return items;
   } catch (err) {
     console.error("getNavNotifications failed:", err);
     return [];
   }
+}
+
+/**
+ * Batch-fetch and merge notification_state rows for the given staff. Pure
+ * post-process — does not mutate the input array. Items lacking a
+ * notificationId pass through unchanged.
+ */
+async function attachNotificationState(
+  supabase: SupabaseClient,
+  staffId: string,
+  items: NotificationItem[]
+): Promise<NotificationItem[]> {
+  const ids = items
+    .map((i) => i.notificationId)
+    .filter((id): id is string => typeof id === "string" && id.length > 0);
+  if (ids.length === 0) return items;
+  const { data, error } = await supabase
+    .from("notification_state")
+    .select("notification_id, read_at, snoozed_until, archived_at")
+    .eq("staff_id", staffId)
+    .in("notification_id", ids);
+  if (error) {
+    console.error("attachNotificationState failed:", error);
+    return items;
+  }
+  const byId = new Map<
+    string,
+    { read_at: string | null; snoozed_until: string | null; archived_at: string | null }
+  >((data ?? []).map((row) => [row.notification_id, row]));
+  return items.map((item) => {
+    if (!item.notificationId) return item;
+    const row = byId.get(item.notificationId);
+    if (!row) return item;
+    return {
+      ...item,
+      state: {
+        readAt: row.read_at,
+        snoozedUntil: row.snoozed_until,
+        archivedAt: row.archived_at,
+      },
+    };
+  });
 }
 
 // ─── Owner / Admin ────────────────────────────────────────────────────────────
@@ -171,6 +224,8 @@ async function getOwnerAdminNotifications(
   for (const booking of assignmentsRes.data ?? []) {
     items.push({
       id: `nav-assign-${booking.id}`,
+      notificationId: `booking:${booking.id}:unassigned`,
+      reason: "unassigned",
       type: "assignment",
       title: "Unassigned booking",
       detail: `Booking on ${booking.booking_date} needs a therapist assigned.`,
@@ -184,6 +239,8 @@ async function getOwnerAdminNotifications(
   for (const email of emailsRes.data ?? []) {
     items.push({
       id: `nav-email-${email.id}`,
+      notificationId: `email:${email.id}:failed`,
+      reason: "failed",
       type: "email",
       title: "Email delivery failed",
       detail: email.error_message ?? "An email could not be delivered.",
@@ -199,6 +256,8 @@ async function getOwnerAdminNotifications(
   for (const event of opsRes.data ?? []) {
     items.push({
       id: `nav-ops-${event.id}`,
+      notificationId: `operation:${event.id}:open`,
+      reason: "open",
       type: "operation",
       title: OPS_EVENT_LABELS[event.event_type] ?? "Operational alert",
       detail: event.summary,
@@ -212,6 +271,8 @@ async function getOwnerAdminNotifications(
   for (const enquiry of enquiriesRes.data ?? []) {
     items.push({
       id: `nav-enquiry-${enquiry.id}`,
+      notificationId: `enquiry:${enquiry.id}:new`,
+      reason: "new",
       type: "enquiry",
       title: "New enquiry awaiting follow-up",
       detail: `${enquiry.full_name} · ${ENQUIRY_SOURCE_LABELS[enquiry.source] ?? enquiry.source}`,
@@ -226,6 +287,8 @@ async function getOwnerAdminNotifications(
     const outstanding = Number(booking.amount_due ?? 0) - Number(booking.amount_paid ?? 0);
     items.push({
       id: `nav-unpaid-${booking.id}`,
+      notificationId: `booking:${booking.id}:unpaid`,
+      reason: "unpaid",
       type: "payment",
       title: "Unpaid completed booking",
       detail: `${booking.contact_full_name ?? "Client"} · £${outstanding.toFixed(2)} outstanding`,
@@ -302,6 +365,8 @@ async function getCoordinatorNotifications(
   for (const enquiry of enquiriesRes.data ?? []) {
     items.push({
       id: `nav-enquiry-${enquiry.id}`,
+      notificationId: `enquiry:${enquiry.id}:new`,
+      reason: "new",
       type: "enquiry",
       title: "New enquiry awaiting follow-up",
       detail: `${enquiry.full_name} · ${ENQUIRY_SOURCE_LABELS[enquiry.source] ?? enquiry.source}`,
@@ -315,6 +380,8 @@ async function getCoordinatorNotifications(
   for (const booking of assignmentsRes.data ?? []) {
     items.push({
       id: `nav-assign-${booking.id}`,
+      notificationId: `booking:${booking.id}:unassigned`,
+      reason: "unassigned",
       type: "assignment",
       title: "Unassigned booking",
       detail: `Booking on ${booking.booking_date} needs a therapist assigned.`,
@@ -328,6 +395,8 @@ async function getCoordinatorNotifications(
   for (const email of emailsRes.data ?? []) {
     items.push({
       id: `nav-email-${email.id}`,
+      notificationId: `email:${email.id}:failed`,
+      reason: "failed",
       type: "email",
       title: "Email delivery failed",
       detail: email.error_message ?? "An email could not be delivered.",
@@ -385,6 +454,8 @@ async function getTherapistNotifications(
             : booking.reschedule_preferred_date ?? "—";
         items.push({
           id: `nav-resched-${booking.id}`,
+          notificationId: `booking:${booking.id}:reschedule`,
+          reason: "reschedule",
           type: "assignment",
           title: "Client requested a reschedule",
           detail: `${booking.contact_full_name ?? "Client"} · proposed ${proposed}`,
@@ -422,6 +493,8 @@ async function getTherapistNotifications(
         const time = booking.start_time ? String(booking.start_time).slice(0, 5) : "";
         items.push({
           id: `nav-claim-${booking.id}`,
+          notificationId: `booking:${booking.id}:claimable`,
+          reason: "claimable",
           type: "assignment",
           title: "Visit open to claim",
           detail: time ? `${booking.booking_date} at ${time}` : booking.booking_date,

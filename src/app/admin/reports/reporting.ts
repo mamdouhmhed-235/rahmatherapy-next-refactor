@@ -791,6 +791,18 @@ export interface NotificationItem {
   actionLabel?: string;
   secondaryHref?: string | null;
   secondaryLabel?: string;
+  // ── R4 redesign 2026-05-21 ──────────────────────────────────────────────
+  // Optional persistence-layer fields populated by nav-notifications.ts when
+  // backed by the public.notification_state table. Absent on legacy/reports-
+  // built notifications (buildNotifications below). UI consumers must defend
+  // against absence — items without notificationId cannot be snoozed/archived.
+  notificationId?: string;        // stable derived hash, e.g. 'booking:<uuid>:unassigned'
+  reason?: string;                // discriminator for duplicate-collapse grouping
+  state?: {
+    readAt: string | null;
+    snoozedUntil: string | null;
+    archivedAt: string | null;
+  };
 }
 
 export function buildNotifications(
