@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AdminCommandSearch } from "./AdminCommandSearch";
 import { NotificationBell, MobileNotificationButton } from "./notification-bell";
+import { useCriticalAnnouncer, useNotificationFreshness } from "./use-notification-state";
 import type { AdminShellVariant } from "../shell-variant";
 import type { NotificationItem } from "../reports/reporting";
 
@@ -191,6 +192,12 @@ export function AdminTopNav({
     (item) => !primaryKeys.has(item.pageKey)
   );
 
+  // R4 notification centre freshness — realtime + visibility + 60s poll +
+  // snooze-expiry timer. Hoisted here so the channel + timers exist exactly
+  // once, regardless of which bell trigger is visible at the current viewport.
+  useNotificationFreshness({ items: notifications, staffId: profile.staffId });
+  const criticalAnnouncement = useCriticalAnnouncer(notifications);
+
   return (
     <div className="admin-shell min-h-screen overflow-x-hidden bg-[var(--admin-canvas)]">
       {/* Skip link — first DOM element, visually hidden until focused */}
@@ -200,6 +207,13 @@ export function AdminTopNav({
       >
         Skip to main content
       </a>
+
+      {/* Aria-live announcer for new critical notifications. Hidden visually;
+       *  screen readers read the throttled message produced by
+       *  useCriticalAnnouncer (1 per 5s, coalesced). R4 redesign 2026-05-21. */}
+      <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+        {criticalAnnouncement}
+      </div>
 
       {/* Top nav bar — cream chrome (2026-05-20 brand re-theme).
        *  Was dark Clinic Green; now light cream-deeper-than-canvas with dark
