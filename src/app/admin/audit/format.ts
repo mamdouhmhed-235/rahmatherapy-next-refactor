@@ -108,6 +108,26 @@ export function describeAction(actionType: string): ActionEntry {
   };
 }
 
+// Inverse of describeAction's family field — used to expand a family filter
+// into an `action_type IN (…)` list for SQL. Computed once at module load so
+// the source of truth stays the ACTIONS map above.
+export const ACTION_TYPES_BY_FAMILY: Record<ActionFamily, string[]> = (() => {
+  const map = {
+    bookings_and_assignments: [],
+    clients_and_enquiries: [],
+    staff_and_roles: [],
+    services_and_settings: [],
+    availability: [],
+    operations_and_email: [],
+    reports_and_exports: [],
+    account_security: [],
+  } as Record<ActionFamily, string[]>;
+  for (const [type, entry] of Object.entries(ACTIONS)) {
+    map[entry.family].push(type);
+  }
+  return map;
+})();
+
 export interface ActionFamilyOption {
   key: ActionFamily;
   label: string;

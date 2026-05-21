@@ -18,9 +18,13 @@ import {
   type DateRangePresetKey,
   dayKey,
   dayLabel,
-  describeAction,
 } from "./format";
-import type { AuditEventRow, AuditFilters } from "./actions";
+import {
+  AUDIT_PAGE_SIZE,
+  fetchAuditPage,
+  type AuditEventRow,
+  type AuditFilters,
+} from "./queries";
 
 interface PageProps {
   searchParams: Promise<{
@@ -44,7 +48,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 const SEARCH_MIN_CHARS = 4;
-const PAGE_SIZE = 100;
 
 function resolveRange(range: string | undefined): DateRangePresetKey {
   switch (range) {
@@ -94,27 +97,18 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
   const adminClient = createSupabaseAdminClient();
 
-  // FAKE: BUILD-audit-filter-and-pagination — until the BUILD plan lands, this
-  // returns the unfiltered top-100 slice. Client-side, we still filter the rows
-  // we have so deep-links surface a degraded but useful preview.
-  const [{ data: events, error: eventsError }, { data: staff }] = await Promise.all([
-    adminClient
-      .from("audit_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(PAGE_SIZE)
-      .returns<AuditEventRow[]>(),
-    adminClient.from("staff_profiles").select("id, name"),
-  ]);
+  const [{ rows: events, nextCursor: initialCursor }, { data: staff }] =
+    await Promise.all([
+      fetchAuditPage({ filters, cursor: null }),
+      adminClient.from("staff_profiles").select("id, name"),
+    ]);
 
   const staffById = new Map<string, string>(
     (staff ?? []).map((member: { id: string; name: string }) => [member.id, member.name])
   );
 
-  const allEvents = events ?? [];
-  const filteredEvents = applyClientSideFilter(allEvents, filters);
+  const filteredEvents = events;
 
-  const totalKnown = allEvents.length;
   const visibleCount = filteredEvents.length;
   const hasAnyFilter =
     Boolean(filters.q || filters.actor || filters.family || filters.target_type) ||
@@ -141,9 +135,6 @@ export default async function AuditPage({ searchParams }: PageProps) {
     to: filters.to ?? "",
   };
 
-  const initialCursor =
-    allEvents.length === PAGE_SIZE ? allEvents[allEvents.length - 1].created_at : null;
-
   const staffNamesRecord: Record<string, string> = Object.fromEntries(staffById.entries());
 
   return (
@@ -158,7 +149,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ResultCount
           visibleCount={visibleCount}
-          totalKnown={totalKnown}
+          hasMore={initialCursor !== null}
           searchActive={searchActive}
           searchAttemptedTooShort={q.length > 0 && q.length < SEARCH_MIN_CHARS}
           hasAnyFilter={Boolean(hasAnyFilter)}
@@ -166,22 +157,7 @@ export default async function AuditPage({ searchParams }: PageProps) {
         {visibleCount > 0 ? <AuditPageActions /> : null}
       </div>
 
-      {eventsError ? (
-        <div
-          role="alert"
-          aria-live="polite"
-          className="rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] p-4 text-sm text-[oklch(26%_0.14_25)]"
-        >
-          <p className="font-semibold">Couldn&apos;t load audit log.</p>
-          <p className="mt-1">Try refreshing.</p>
-          <a
-            href="/admin/audit"
-            className="mt-3 inline-flex h-10 items-center rounded-[var(--admin-radius-control)] border border-[oklch(70%_0.10_25)] bg-transparent px-3 text-xs font-semibold text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(92%_0.045_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-          >
-            Try again
-          </a>
-        </div>
-      ) : visibleCount === 0 ? (
+      {visibleCount === 0 ? (
         <TimelineEmptyState
           hasAnyFilter={Boolean(hasAnyFilter)}
           searchActive={searchActive}
@@ -210,13 +186,13 @@ export default async function AuditPage({ searchParams }: PageProps) {
 
 function ResultCount({
   visibleCount,
-  totalKnown,
+  hasMore,
   searchActive,
   searchAttemptedTooShort,
   hasAnyFilter,
 }: {
   visibleCount: number;
-  totalKnown: number;
+  hasMore: boolean;
   searchActive: boolean;
   searchAttemptedTooShort: boolean;
   hasAnyFilter: boolean;
@@ -231,21 +207,19 @@ function ResultCount({
         aria-live="polite"
       >
         Showing <span className="font-semibold text-[var(--admin-heading)]">{visibleCount}</span>{" "}
-        of <span className="font-semibold text-[var(--admin-heading)]">{totalKnown}</span> events.
+        matching {visibleCount === 1 ? "event" : "events"}
+        {hasMore ? ". Load more to see older matches." : ". End of audit log."}
       </p>
     );
   }
-  // Unfiltered: when the loaded slice is smaller than a full page (PAGE_SIZE = 100),
-  // the user is already seeing every audit row in the system — surface that instead
-  // of "Load more to see older entries" copy that implies more pages exist.
-  if (totalKnown < PAGE_SIZE) {
+  if (!hasMore) {
     return (
       <p
         className="text-sm text-[var(--admin-text-muted)] [font-variant-numeric:tabular-nums]"
         aria-live="polite"
       >
-        Showing <span className="font-semibold text-[var(--admin-heading)]">{totalKnown}</span>{" "}
-        {totalKnown === 1 ? "event" : "events"}. End of audit log.
+        Showing <span className="font-semibold text-[var(--admin-heading)]">{visibleCount}</span>{" "}
+        {visibleCount === 1 ? "event" : "events"}. End of audit log.
       </p>
     );
   }
@@ -254,8 +228,8 @@ function ResultCount({
       className="text-sm text-[var(--admin-text-muted)] [font-variant-numeric:tabular-nums]"
       aria-live="polite"
     >
-      Showing <span className="font-semibold text-[var(--admin-heading)]">100</span> most recent
-      events. Load more to see older entries.
+      Showing <span className="font-semibold text-[var(--admin-heading)]">{AUDIT_PAGE_SIZE}</span>{" "}
+      most recent events. Load more to see older entries.
     </p>
   );
 }
@@ -356,50 +330,3 @@ function TimelineEmptyState({
   );
 }
 
-function applyClientSideFilter(events: AuditEventRow[], filters: AuditFilters): AuditEventRow[] {
-  return events.filter((event) => {
-    if (filters.actor && event.actor_staff_id !== filters.actor) return false;
-    if (filters.target_type && event.target_type !== filters.target_type) return false;
-    if (filters.family) {
-      const family = describeAction(event.action_type).family;
-      if (family !== filters.family) return false;
-    }
-    if (filters.q) {
-      const needle = filters.q.toLowerCase();
-      const haystacks = [event.id, event.target_id ?? "", event.actor_staff_id ?? ""];
-      if (!haystacks.some((value) => value.toLowerCase().startsWith(needle))) return false;
-    }
-    if (filters.range && filters.range !== "custom") {
-      const created = new Date(event.created_at).getTime();
-      const now = Date.now();
-      const day = 24 * 60 * 60 * 1000;
-      const cutoff = (() => {
-        switch (filters.range) {
-          case "today":
-            return now - day;
-          case "this_week":
-            return now - 7 * day;
-          case "this_month":
-            return now - 30 * day;
-          case "last_30_days":
-            return now - 30 * day;
-          default:
-            return null;
-        }
-      })();
-      if (cutoff !== null && created < cutoff) return false;
-    }
-    if (filters.range === "custom") {
-      const created = new Date(event.created_at).getTime();
-      if (filters.from) {
-        const fromTs = new Date(filters.from).getTime();
-        if (!Number.isNaN(fromTs) && created < fromTs) return false;
-      }
-      if (filters.to) {
-        const toTs = new Date(filters.to).getTime() + 24 * 60 * 60 * 1000; // inclusive day
-        if (!Number.isNaN(toTs) && created > toTs) return false;
-      }
-    }
-    return true;
-  });
-}

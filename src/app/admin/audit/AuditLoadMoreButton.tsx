@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { auditLoadMore, type AuditEventRow, type AuditFilters } from "./actions";
+import {
+  auditLoadMore,
+  type AuditCursor,
+  type AuditEventRow,
+  type AuditFilters,
+} from "./actions";
 import { AuditEventCard } from "./AuditEventCard";
 import type { AuditFilterState } from "./format";
 
 interface AuditLoadMoreButtonProps {
-  initialCursor: string | null;
+  initialCursor: AuditCursor | null;
   filters: AuditFilters;
   staffNames: Record<string, string>;
   // Existence map is non-blocking — when the BUILD plan lands this is populated
@@ -22,7 +27,7 @@ export function AuditLoadMoreButton({
   targetExistence,
   currentFilters,
 }: AuditLoadMoreButtonProps) {
-  const [cursor, setCursor] = useState<string | null>(initialCursor);
+  const [cursor, setCursor] = useState<AuditCursor | null>(initialCursor);
   const [rows, setRows] = useState<AuditEventRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [exhausted, setExhausted] = useState(initialCursor === null);
@@ -31,7 +36,6 @@ export function AuditLoadMoreButton({
     if (!cursor || loading) return;
     setLoading(true);
     try {
-      // FAKE: BUILD-audit-filter-and-pagination
       const page = await auditLoadMore({ filters, cursor });
       setRows((prev) => [...prev, ...page.rows]);
       setCursor(page.nextCursor);
