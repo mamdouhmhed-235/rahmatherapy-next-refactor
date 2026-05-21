@@ -191,6 +191,12 @@ export function AdminSheet({
               "inset-x-2 bottom-2 w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] max-h-[85vh] rounded-[var(--admin-radius-card)] sm:left-1/2 sm:w-[min(calc(100vw-1rem),36rem)] sm:-translate-x-1/2"
           )}
         >
+          {side === "bottom" ? (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none -mb-2 mx-auto h-1.5 w-12 rounded-full bg-[var(--admin-border)] opacity-70"
+            />
+          ) : null}
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <BaseDialog.Title className="text-lg font-semibold text-[var(--admin-heading)]">
