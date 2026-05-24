@@ -18,7 +18,7 @@
 |---|---|---|---|---|---|---|
 | B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | `8c142c8` | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
 | B-1 | Foundation primitives | ✅ complete | 2026-05-24 | 2026-05-24 | `84f111e` | 77 new specs (charts + tiles + hook). Bundle delta < 0.05 kB / route (primitives dormant). useReducedMotion rewritten to useSyncExternalStore mid-flight after lint. Sandbox path corrected `__sandbox/` → `sandbox-b1/` (Next.js private-folder rule). |
-| B-2 | Metric backend | ✅ complete | 2026-05-24 | 2026-05-24 | `TBD` | 3 migrations applied (Zone-2 × 3); 39 new vitest specs; ~58 `updateTag` inserts (Next 16 API; was `revalidateTag` in plan); `unstable_cache` + Sentry spans on getReportData/getDashboardData/getAuditLogForStaff; idempotent guard on `updateEnquiryStatus.first_contacted_at` proven via Playwright + DB. Chart wrapper TS errors fixed as a B-1 follow-up (commit `11a5f82`) before step 6. |
+| B-2 | Metric backend | ✅ complete | 2026-05-24 | 2026-05-24 | `435560f` | 3 migrations applied (Zone-2 × 3); 39 new vitest specs; ~58 `updateTag` inserts (Next 16 API; was `revalidateTag` in plan); `unstable_cache` + Sentry spans on getReportData/getDashboardData/getAuditLogForStaff; idempotent guard on `updateEnquiryStatus.first_contacted_at` proven via Playwright + DB. Chart wrapper TS errors fixed as a B-1 follow-up (commit `11a5f82`) before step 6. |
 | B-3 | Performance surface | ⏳ pending | — | — | — | — |
 | B-4 | Reports rebuild | ⏳ pending | — | — | — | — |
 | B-5 | Dashboard rebuild | ⏳ pending | — | — | — | — |
@@ -692,7 +692,7 @@ Append a block per phase as you complete it. Template:
 **Hand-off to:** B-2 implementer (metric backend; ~3.5 days; 3 Supabase migrations with Zone-2 per item). B-2 is independent of B-1 at the data-layer level but depends on B-1's helper conventions; read SHARED-NOTES §§1/8/12/14 before starting.
 
 ### B-2 completed — 2026-05-24
-**Commit:** `TBD` (this commit; will backfill SHA after landing)
+**Commit:** `435560f` (this commit; will backfill SHA after landing)
 **Pre-commit:** `11a5f82` fix(admin) chart wrapper TS narrowing (B-1 follow-up — pre-existing tsc errors surfaced when B-2's helpers triggered fresh full-project typecheck).
 **Effort actual:** ~1 day (vs ~3.5d estimate — quicker because: existing reporting.ts conventions were well-established; brief+plan had been audited 3× so deviations were minimal; the audit_log action_type discovery via production grep saved late-stage rework).
 **Migrations applied:** `20260522120000_add_enquiry_first_contacted_at`, `20260522121000_add_band_b_indexes`, `20260522122000_add_insight_dismissals` — all Zone-2-confirmed individually, all verified post-apply.
