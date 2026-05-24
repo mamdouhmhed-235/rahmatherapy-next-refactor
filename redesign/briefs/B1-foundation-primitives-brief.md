@@ -2,7 +2,7 @@
 
 **Phase:** B-1 (foundation; gates B-3, B-4, B-5)
 **Estimated effort:** ~1 day
-**Brief status:** session-4 reframe; user-confirmed
+**Brief status:** session-4 reframe; user-confirmed. **Amended 2026-05-24 (session 5) per B-0 findings** — see §5.4 (5 tokens not 3) and §5.5 (AdminSkeleton already shimmers; scope shifts to route-level `loading.tsx` migration).
 **Plan:** `redesign/plans/B-phase/B1-foundation-plan.md`
 
 ---
@@ -82,48 +82,63 @@ All 6 charts share:
 | `<CountUp value={n} duration={400} />` | Animates from previous value to new value over `duration` ms. Falls back to instant rendering when `prefers-reduced-motion: reduce`. Tabular-nums. Uses a single `requestAnimationFrame` loop, cancels on unmount. |
 | `<DeltaChip value={pct} tone="auto" />` | Renders `+12%` / `−3%` / `→` (zero) with an arrow glyph. `tone="auto"` picks Confirmed family for positive, Cancelled family for negative, Soft Slate for zero. `tone="invert"` flips that pairing for metrics where smaller is better (no-show rate, time-to-first-contact). |
 
-### 5.4 Token additions (`src/styles/tokens.css`)
+### 5.4 Token additions (`src/styles/tokens.css`) — amended 2026-05-24
 
-Three new tokens added to the existing `--admin-{danger|warning|success|info}-bg` family:
+**Five** new tokens added to the existing `--admin-{danger|warning|success|info}` family (was three; B-0 WCAG verification found 2/3 bg-strong/text pairs failed AA — user authorised paired `*-text-strong` tokens 2026-05-24; full record in `redesign/baselines/wcag-severity-tokens.md` + per-page-progress B-0):
 
 ```css
---admin-danger-bg-strong: oklch(92% 0.075 20);     /* stronger soft-coral than current 0.30 tint */
---admin-warning-bg-strong: oklch(93% 0.085 70);    /* stronger amber */
---admin-success-bg-strong: oklch(93% 0.060 155);   /* stronger mint */
+/* bg-strong tints — stronger than the existing -bg variants */
+--admin-danger-bg-strong: oklch(92% 0.075 20);     /* soft-coral; pairs with text-strong */
+--admin-warning-bg-strong: oklch(93% 0.085 70);    /* amber;       pairs with text-strong */
+--admin-success-bg-strong: oklch(93% 0.060 155);   /* mint;        pairs with existing --admin-success (4.56:1 AA ✓) */
+
+/* text-strong tokens — darker than the existing --admin-{severity}, paired with bg-strong */
+--admin-danger-text-strong: oklch(30% 0.18 25);    /* deep maroon; 9.21:1 vs danger-bg-strong */
+--admin-warning-text-strong: oklch(30% 0.16 55);   /* deep brown;  10.71:1 vs warning-bg-strong */
 ```
+
+**Pairing convention** (mirrors the existing `--admin-status-attention-bg` / `--admin-status-attention-text` pair):
+
+| Family | Strong-emphasis bg | Strong-emphasis text |
+|---|---|---|
+| danger | `--admin-danger-bg-strong` | `--admin-danger-text-strong` |
+| warning | `--admin-warning-bg-strong` | `--admin-warning-text-strong` |
+| success | `--admin-success-bg-strong` | (existing) `--admin-success` |
 
 These tokens are used by:
 - B-5 Dashboard: Urgent Attention panel + Operations Health priority rows
 - B-4 Reports: Outstanding tile when > 0; Insights stripe row backgrounds
 - B-3 Performance: No-show rate tile when above threshold
 
-Existing `--admin-{danger|warning|success}-bg` tokens stay as-is (used by the gentler areas like row hover states).
+Whenever a consumer composes one of those zones, it MUST pair the bg-strong with the corresponding text-strong (or, for success, the existing `--admin-success`). Don't mix `--admin-danger-bg-strong` with `--admin-danger` text — that's the WCAG-failing combination that triggered the amendment.
 
-### 5.5 Skeleton shimmer (`admin-ui.tsx`)
+Existing `--admin-{danger|warning|success}-bg` and `--admin-{danger|warning|success}` (text) tokens stay as-is, paired with each other as today (used by the gentler row-hover / chip / nudge surfaces).
 
-Replace the current pulse animation with a horizontal gradient sweep:
+### 5.5 Skeleton shimmer — amended 2026-05-24
 
-```css
-@keyframes admin-skeleton-shimmer {
-  from { background-position: -200% 0; }
-  to   { background-position: 200% 0; }
-}
-.admin-skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--admin-skeleton-base) 0%,
-    var(--admin-skeleton-highlight) 50%,
-    var(--admin-skeleton-base) 100%
-  );
-  background-size: 200% 100%;
-  animation: admin-skeleton-shimmer 1.6s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .admin-skeleton { animation: none; background: var(--admin-skeleton-base); }
-}
-```
+**B-0 finding:** `AdminSkeleton` at [`src/app/admin/components/admin-ui.tsx:1263`](../../src/app/admin/components/admin-ui.tsx#L1263) already uses a shimmer gradient driven by `@keyframes shimmer` in [`src/app/globals.css:41`](../../src/app/globals.css#L41), with `motion-reduce:hidden` on the sweep span (so reduced-motion gets a static skeleton automatically). The original brief framing ("Replace the current pulse animation with a horizontal gradient sweep") is therefore stale — that swap happened at some prior point.
 
-Two new tokens needed alongside: `--admin-skeleton-base: oklch(95% 0.008 88)`, `--admin-skeleton-highlight: oklch(98% 0.008 88)`. Replace the existing pulse keyframe in `admin-ui.tsx`'s style block; preserve the `<AdminSkeleton>` JSX export name and prop interface verbatim so no caller needs to change.
+**Where pulse still lives:** three route-level `loading.tsx` files compose raw `<div className="animate-pulse">` divs instead of `<AdminSkeleton>`. These are what users see during route transitions before a server component finishes streaming:
+
+| File | Pulse occurrences |
+|---|---|
+| `src/app/admin/loading.tsx` | 6 (header bars + 5 list-row skeletons) |
+| `src/app/admin/clients/loading.tsx` | 6 (same shape — clients list) |
+| `src/app/admin/reports/loading.tsx` | verify in step 2 — likely similar pattern |
+
+(`src/app/admin/emails/loading.tsx` also uses `animate-pulse` but Emails is out of Band B scope.)
+
+**B-1 step 2 scope (amended):**
+1. **Migrate the three in-scope `loading.tsx` files** to compose `<AdminSkeleton>` blocks instead of raw `animate-pulse` divs. Result: route-transition skeletons inherit shimmer for free.
+2. **Tune the shimmer animation parameters** (gradient stops + duration + easing) on the existing component to match the brief's design intent, if `pnpm dev` visual inspection shows the current rhythm is too fast/slow/subtle. Acceptable values: 1.4s–1.8s duration; `ease-in-out` or `linear`; via-stop opacity 70%–90%.
+3. **Add two skeleton-tuning tokens** so the gradient is themable from `tokens.css` rather than hardcoded inside the component:
+   ```css
+   --admin-skeleton-base: oklch(95% 0.008 88);
+   --admin-skeleton-highlight: oklch(98% 0.008 88);
+   ```
+   Update the component's gradient to reference these tokens. Preserve the `<AdminSkeleton>` JSX export name and props interface verbatim.
+
+Reduced-motion is already honoured by the existing `motion-reduce:hidden` on the sweep span — no extra `@media` query needed.
 
 ## 6. Key States
 
@@ -211,8 +226,11 @@ Per primitive, the testable states:
 
 | File | Change |
 |---|---|
-| `src/styles/tokens.css` | Add `--admin-danger-bg-strong`, `--admin-warning-bg-strong`, `--admin-success-bg-strong`, `--admin-skeleton-base`, `--admin-skeleton-highlight`. No tokens removed. |
-| `src/app/admin/components/admin-ui.tsx` | Replace pulse keyframe in the `AdminSkeleton` style block with the gradient-sweep shimmer keyframe. Preserve export name + prop interface. No other components in this file change. |
+| `src/styles/tokens.css` | Add 7 new tokens: `--admin-danger-bg-strong`, `--admin-warning-bg-strong`, `--admin-success-bg-strong`, `--admin-danger-text-strong`, `--admin-warning-text-strong`, `--admin-skeleton-base`, `--admin-skeleton-highlight`. No tokens removed. |
+| `src/app/admin/components/admin-ui.tsx` | Tune `AdminSkeleton` shimmer gradient stops to consume `--admin-skeleton-base` / `--admin-skeleton-highlight` tokens (instead of hardcoded `--admin-border` / `--admin-panel`). Adjust duration / easing if visual inspection in step 2 finds the current rhythm needs work. Preserve export name + prop interface. No other components in this file change. |
+| `src/app/admin/loading.tsx` | Replace 6 raw `<div className="animate-pulse">` divs with composed `<AdminSkeleton>` blocks of equivalent shape (header bar, sample list rows). |
+| `src/app/admin/clients/loading.tsx` | Same migration as above (6 raw `animate-pulse` divs → `<AdminSkeleton>`). |
+| `src/app/admin/reports/loading.tsx` | If it uses `animate-pulse`, migrate per the same pattern. Verify in step 2 — pre-check before editing. |
 
 ### Files to NEVER touch
 
