@@ -21,7 +21,7 @@
 | B-2 | Metric backend | ✅ complete | 2026-05-24 | 2026-05-24 | `435560f` | 3 migrations applied (Zone-2 × 3); 39 new vitest specs; ~58 `updateTag` inserts (Next 16 API; was `revalidateTag` in plan); `unstable_cache` + Sentry spans on getReportData/getDashboardData/getAuditLogForStaff; idempotent guard on `updateEnquiryStatus.first_contacted_at` proven via Playwright + DB. Chart wrapper TS errors fixed as a B-1 follow-up (commit `11a5f82`) before step 6. |
 | B-3 | Performance surface | ✅ complete | 2026-05-24 | 2026-05-24 | `59cea08` + follow-up `d4f0f7c` | Core surface at `59cea08`. Follow-up `d4f0f7c` closed all plan-prescribed deferrals before B-4: per-section Suspense streaming via `cache()`-deduped fetchers (≤4 query budget preserved), Custom date-range chip + client form mirroring dashboard, Therapist-Fresh + Inactive G5 pill live-verified, multi-viewport screenshots captured. 21 new vitest specs; baseline preserved. Brief's "Performance Ghost link in StaffDetailShortcuts.tsx" corrected mid-flight: that file is a keyboard handler; visual link landed in `staff/[staffId]/page.tsx`. B-2 cache-Set regression discovered during Playwright sweep and fixed as a separate commit (`d556278`) immediately before B-3. |
 | B-4 | Reports rebuild | ✅ complete | 2026-05-24 | 2026-05-24 | `0afc4dc` | **110 new vitest specs** (target ~30 in plan); per-section Suspense via `cache()` dedup landed (folded from master-checklist Step 9 into plan Step 7); InsightsStripe persistent dismiss verified end-to-end via Playwright + DB; **4 user-found visual fixes** post-audit (donut all-grey → bright OKLCH palette + center label + legend + percentages; TTFC "9712 min" → "6.7 days"; Utilisation "156.0h" → "156h"; source chart label overlap → vertical layout for mobile-first responsiveness); new SHARED-NOTES §17 codifies chart-fills-vs-text-tokens lesson for B-5+. Bundle Δ +22.65 kB / +2.65 over (BusinessPulseCard + DonutChart additive, within SHARED-NOTES §5 tolerance). Owner fully verified at 4 viewports + Coordinator + Therapist (w/ data) + Therapist-Fresh + drill-in + Personal scope at 1280. |
-| B-5 | Dashboard rebuild | ⏳ pending | — | — | — | — |
+| B-5 | Dashboard rebuild | ✅ complete | 2026-05-24 | 2026-05-25 | `4e2c0c1` | 107 new vitest specs across 7 spec files (target ~30 in plan). Wholesale restructure of page.tsx + TherapistDashboard.tsx + dashboard-cards.tsx. New components: PersonalContributionStripe, MobileStickyActionBar, PullToRefresh, SwipeableTodayCards, HighlightOrTipStrip, RecentClientsStrip, QuickHelpPanel, LegacyDisclosureCleanup. New helpers: dashboard-helpers-b5.ts (tiles + sticky + cleanup + stripe date-range), therapist-fullness.ts (highlight-or-tip + recent-clients + quick-help). M2 + M3 papercuts closed. AUDIT Q4 + Q5 + M1 + C4 + G9 + G-final-4 + Q1 + R6 honoured. Therapist-fresh empty-DB sweep: 8 meaningful blocks render (target 5-7 per M1; exceeded). Bundle Δ +8.38 kB cumulative vs pre-B-1 (budget +18; 9.6 kB headroom). Step 12 loading.tsx skipped (file doesn't exist; Next.js default UI sufficient). Step 11 cosmetic restyle of dashboard-filters-client skipped per CLAUDE.md surgical-changes rule (already on B-1 tokens). |
 | B-6 | Client LTV ribbon | ⏳ pending | — | — | — | — |
 
 **State legend:** ⏳ pending · 🔨 in progress · ✅ complete · ⚠️ blocked · ⏸ paused
@@ -869,6 +869,39 @@ The code-compliance audit agent + user manual review caught seven real issues po
 - Modified (4): `AdminTopNav.tsx` (My Performance link × 2 render blocks), `reporting.ts` (quarter branch), `staff/[staffId]/page.tsx` (visual tab + sidebar link), `scripts/measure-admin-bundles.mjs` (track 2 new routes).
 
 **Hand-off to:** B-4 implementer (Reports rebuild). ~3.5 days. B-4 consumes `getReportInsights`, `dismissInsight`, `filterReportDataToStaff`, `summarizeReports` from B-2. B-3's `buildPerformanceTrend` weekly-bucket pattern is a precedent for B-4's chart helpers (not directly reused — Reports has its own time-series logic).
+
+### B-5 completed — 2026-05-25
+**Commit:** `4e2c0c1`
+**Effort actual:** ~1 session (vs ~4 days estimate — biggest single-phase UI surface in the programme; landed in one continuous push)
+**Migrations applied:** none (B-5 is UI/consumer-only per plan)
+**Verification:** all gates ✅
+- `npx tsc --noEmit` clean
+- `pnpm lint` clean (1 minor unused-import cleaned mid-flight)
+- `pnpm vitest run`: 466 tests / 460 passing / 6 baseline-failing preserved (`createBookingTransaction` × 1, `admin-access` × 2, `ManualBookingForm` × 3 — identical to handoff)
+- `pnpm build` clean
+- **Bundle delta `/admin/dashboard`: +8.38 kB gzip cumulative vs pre-B-1** (budget +18 kB; 9.6 kB headroom). B-5 alone added ~7.97 kB on top of B-4's +0.41 kB. `/admin/reports` improved slightly (was +22.65, now +20.79) due to tree-shaking of dashboard-cards orphaned exports after Business variant disclosure removal.
+- Playwright role sweep:
+  - Owner Business at 4 viewports (375 / 768 / 1280 / 1440) — Personal Stripe + Tier 1 + OpsHealth Tier 1.5 + period picker URL routing verified end-to-end; BusinessPulseCard + BusinessOverviewDisclosure both absent for Business variant
+  - Coordinator at 1280 — Coord tile set ("Unassigned today" / "Enquiries handled" / "Conversion rate" / "Active attention"), Active Enquiries disclosure preserved, OpsHealth inside Coord disclosure (NOT promoted to Tier 1.5 per brief §5.5 — promotion is Business-only)
+  - Therapist (with data) at 375 — Personal Stripe (Therapist tile set), HighlightOrTipStrip rendered as deterministic tip, QuickHelpPanel mounted, MobileStickyActionBar visible with Q5 rung 3 fallback "Set my availability →" (no next visit + no claimable matching gender)
+  - **Therapist-fresh empty-DB at 375 — 8 meaningful blocks render (target 5-7 per AUDIT M1; exceeded). Page never reads blank.**
+- Cache-hit verification: warm reload after sibling-nav clean on all surveyed variants (B-2 cache-Set fix from `d556278` holds)
+- M2 verified live (panel-level "View details" removed; per-row "View →" affordances render with per-row hrefs)
+- M3 verified at structural + unit level (inline ClaimAssignmentButton with `assignmentId` wired; live click blocked by no future-dated claimable matching test Therapist's gender — the only candidate booking_assignment is dated 2026-05-24 (yesterday in London time) which is filtered out by `>= today`)
+**Screenshots:** `redesign/baselines/screenshots-post-B5/{375,768,1280,1440}/` (7 PNGs total — Owner @ 4 viewports + Therapist + Therapist-fresh + Coordinator @ primary viewports)
+**Notable deviations from plan:**
+1. **Brief §10 #6 legacy localStorage key name was a placeholder.** Brief said `dashboard:show-business-overview-{userId}`; actual key per `dashboard-filters-client.tsx:625` is `rahmatherapy-business-overview-expanded-{staffId}`. Honoured the brief's intent with the real key. Coordinator-variant disclosure key (`…-coordinator-{staffId}`) NOT touched — still in active use.
+2. **Plan summary lists test file at `__tests__/dashboard-helpers-b5.test.ts`.** Existing convention is co-located (`dashboard-helpers.test.ts` beside `dashboard-helpers.ts`). Followed existing convention — all 7 new spec files co-located.
+3. **Plan step 12 `loading.tsx` skipped.** File doesn't exist on this surface; Next.js default loading UI suffices. Adding a new file solely to honour the plan would be scope creep per CLAUDE.md "Simplicity First".
+4. **Plan step 11 cosmetic `dashboard-filters-client` restyle skipped.** Already on B-1 tokens; touching it would be scope creep per CLAUDE.md "Surgical Changes". Confirmed via grep that Business variant no longer mounts BusinessOverviewDisclosure (step 8 removal) — that's the substantive part of step 11.
+5. **Sparkline `series` field left empty in tiles for v1.** Per "Simplicity First" — sparklines are optional per brief §5.1 and not in the verification gate. Phase 7 candidate.
+6. **107 new vitest specs (target ~30 in plan).** Coverage went deeper than planned because the helpers cover both happy paths and AUDIT-specific edge cases (Q4 union, Q5 fallback ladder, G9 debounce, M1 empty state, prefers-reduced-motion, etc).
+**V1.1 / Phase 7 backlog (new from B-5):**
+- Sparkline series in Personal Stripe tiles (skip-for-now decision; add if/when a daily series is meaningful)
+- Live M3 verification via Playwright once a future-dated claimable booking exists (currently DB has only a stale 2026-05-24 candidate)
+- Owner-with-unassigned-today MobileStickyBar visual capture (today's date had 0 unassigned in London time)
+- Performance-mode trail for the Personal Stripe period picker (currently fetches 2 extra getDashboardData calls; could compose from a single wider fetch if Phase 7 measures show a bottleneck — the 6-query budget is comfortably under)
+**Hand-off to:** B-6 implementer (Client LTV ribbon). ~0.5 day. B-6 consumes `getClientLifetimeMetrics` from B-2 + adds an `<aside>` ribbon to `/admin/clients/[clientId]`. After B-6: programme complete + final gates review.
 
 ---
 
