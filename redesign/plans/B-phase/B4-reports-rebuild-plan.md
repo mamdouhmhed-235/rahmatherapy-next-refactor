@@ -242,6 +242,8 @@ step-12: COMPLETE — committed feat(admin): B-4 — Reports rebuild
 | CSV download | Click each chip | Browser downloads CSV with correct scope |
 | Bundle size | `pnpm build` | Within reasonable bound |
 | Visual screenshots | 4 viewports × 4 roles | Layout matches brief §5 |
+| **Cache-hit (post-B-2 lesson)** | Reload `/admin/reports` after sibling navigation, within 60s of first render | Console clean on second render — proves no `Set<>`/`Map<>`/`Date` shape degraded through `unstable_cache` (SHARED-NOTES §15). MANDATORY per BAND-B-MASTER-CHECKLIST recipe step 6. |
+| **Mutation flow** | Dismiss an Insights row; reload | Row stays dismissed; DB spot-check confirms `insight_dismissals` insert; cache invalidated correctly. MANDATORY per BAND-B-MASTER-CHECKLIST recipe step 7. |
 
 ---
 

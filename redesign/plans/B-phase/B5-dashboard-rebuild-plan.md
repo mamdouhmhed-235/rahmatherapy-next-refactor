@@ -304,6 +304,8 @@ step-19: COMPLETE — committed feat(admin): B-5 — Dashboard rebuild
 | Empty states | Empty DB account | Every section renders encouraging copy |
 | reduced-motion | OS setting | No animations |
 | Screenshots | 3 variants × 4 viewports | Layout matches brief §5 |
+| **Cache-hit (post-B-2 lesson)** | Reload `/admin/dashboard` after sibling navigation, within 60s of first render, per variant | Console clean on second render. This is the surface where the B-2 cache-Set bug LIVED (`d556278`); confirms the fix holds and no new shape-degradation has slipped in. MANDATORY per BAND-B-MASTER-CHECKLIST recipe step 6. |
+| **Mutation flow** | Therapist Claim assignment → reload; Owner mark booking complete → reload; Coordinator reschedule decision → reload | Each mutation reflected in UI + DB spot-check; cache invalidated correctly via `updateTag`; console clean throughout. MANDATORY per BAND-B-MASTER-CHECKLIST recipe step 7. |
 
 ---
 

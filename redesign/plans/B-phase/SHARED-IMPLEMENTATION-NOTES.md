@@ -482,4 +482,60 @@ const dismissedIds = new Set(dismissals.data?.map(d => d.insight_id) ?? []);
 
 ---
 
+## §15 — `unstable_cache` JSON-serialisation hazards (post-B-2 regression, added 2026-05-24)
+
+The B-2 cache-Set bug — `ReportData.staffAvailabilityRuleStaffIds: Set<string>` typed but the `unstable_cache` wrap JSON-serialised it to `{}` on second-render reads — surfaced one phase late (caught during B-3's Playwright sweep, fixed at commit `d556278`). The root cause is broader than one field: **any value passed through `unstable_cache` is serialised via JSON when the cache reads from disk; non-JSON-safe values silently degrade.**
+
+### What degrades through `unstable_cache`
+
+| Input type | Survives JSON round-trip? | Becomes on cache-hit |
+|---|---|---|
+| `string` / `number` / `boolean` / `null` | ✅ yes | unchanged |
+| `Array<T>` (where `T` is JSON-safe) | ✅ yes | unchanged |
+| `{ ... }` plain object | ✅ yes | unchanged |
+| `Set<T>` | ❌ no | `{}` (empty plain object — `.has()` and `.size` throw) |
+| `Map<K, V>` | ❌ no | `{}` (empty plain object — `.get()` and `.size` throw) |
+| `Date` | ❌ no | string (ISO 8601 — `.getTime()` and `.getFullYear()` throw) |
+| `RegExp` / `Function` / `Symbol` | ❌ no | `{}` or omitted |
+| `bigint` | ❌ no | `JSON.stringify` throws synchronously |
+| Class instances | ⚠️ degraded | plain object copy (methods lost) |
+
+### Discipline
+
+Before introducing any cached helper or extending an existing one (B-2 wrapped `getReportData` + `getDashboardData`; B-3 reuses both):
+
+1. **Audit the return-type shape against the table above.** Specifically: search the helper's TypeScript return interface for `Set<` / `Map<` / `: Date` / class names.
+2. **If any non-JSON-safe field is present:** convert to a JSON-safe representation at construction (`Set<T>` → `T[]` via `[...new Set(...)]`; `Date` → `string` via `.toISOString()`; `Map` → `Record<K,V>` via `Object.fromEntries(...)`). Update the type signature to match.
+3. **Consumer sites must use the JSON-safe API** (`.includes()` not `.has()`; `new Date(iso)` not direct `.getTime()`).
+4. **Verify on cache-hit, not just cold-cache.** Use the Playwright recipe's step 6 (Cache-hit verification) — every cached surface must be reloaded after the cache is populated. Cold-cache renders pass against Sets/Dates because the in-memory value still has the right shape; the bug only appears on subsequent reads after the value has round-tripped to disk and back.
+
+### Canonical fix pattern (the one applied at `d556278`)
+
+```ts
+// BEFORE — type lies about runtime shape after cache round-trip
+export interface ReportData {
+  staffAvailabilityRuleStaffIds: Set<string>;  // becomes {} on cache-hit
+}
+
+// AFTER — JSON-safe shape; construction stays a unique-id list
+export interface ReportData {
+  staffAvailabilityRuleStaffIds: string[];
+}
+
+// Construction (helper) — preserve "unique" semantic
+return {
+  ...,
+  staffAvailabilityRuleStaffIds: [...new Set(rows.map(r => r.staff_id))],
+};
+
+// Consumers — swap .has() for .includes()
+data.staffAvailabilityRuleStaffIds.includes(member.id);
+```
+
+### Why this isn't a SHARED-NOTES §2 (Sentry) concern
+
+Sentry won't fire on this class of bug — the error is a thrown `TypeError` from the consumer code path, which IS captured, but it happens *every time* the cache serves a stale-shape value. Sentry sees a flood of identical errors and groups them, but it doesn't prevent the user-visible broken page. Prevention is the audit above; detection is the Playwright cache-hit step.
+
+---
+
 *End of shared notes. Update this file as additional cross-cutting concerns surface during implementation.*

@@ -150,8 +150,23 @@ For each role in the phase's "Roles to verify" list:
    - [ ] Exercise the key interactions: clicks, form submissions, drill-ins, sticky-bar taps, etc.
    - [ ] `mcp__playwright__browser_console_messages` after each flow → confirm 0 errors, 0 new warnings vs pre-phase baseline.
    - [ ] `mcp__playwright__browser_network_requests` → confirm no failed requests, no surprise external calls.
-6. **Sign out**
-   - [ ] `mcp__playwright__browser_navigate` → POST `/admin/signout` (or click sign-out menu item)
+6. **Cache-hit verification (MANDATORY per surface — added 2026-05-24 after B-2 cache-Set regression)**
+   - **Why:** B-2's smoke check only exercised cold-cache state. The cache-Set bug (`unstable_cache` JSON-serializing `Set<string>` → `{}`) only triggered on cache-hit reads — i.e. on every page render after the 60s `revalidate` window had filled in cache. **B-2 shipped, and the dashboard was effectively broken in production-realistic conditions until B-3 caught it one session later.** The lesson: every cached surface must be reloaded a second time before claiming Playwright pass.
+   - [ ] **First render (cold cache):** navigate to the surface — this is the fetch that populates `unstable_cache`.
+   - [ ] `mcp__playwright__browser_console_messages` → 0 errors.
+   - [ ] **Second render (warm cache, ≤ 60s after first):** `mcp__playwright__browser_navigate` to a sibling page (e.g. `/admin/dashboard`), then back to the surface. The second navigation reads from cache. **This is the test that would have caught the B-2 bug.**
+   - [ ] `mcp__playwright__browser_console_messages` → 0 errors. If a TypeError surfaces on the second render but not the first, suspect cache serialisation (Sets/Maps/Dates degrading through JSON). See SHARED-IMPLEMENTATION-NOTES §15.
+   - [ ] Repeat for each surface this phase touches (every page that has an `unstable_cache` wrap or consumes a helper that does).
+7. **Mutation flow verification (MANDATORY per phase if any server actions are wired)**
+   - **Why:** read-only sweeps miss server-action regressions. The standard loop must exercise at least one representative mutation per surface — proves `updateTag(...)` invalidation works AND that the post-mutation render reads fresh data through the cache.
+   - [ ] Identify the phase's headline mutation per surface (e.g. for Reports: dismiss an Insights row; for Dashboard: claim an assignment; for Performance surface: trigger an audit-emitting action from another tab).
+   - [ ] Perform the mutation via the UI.
+   - [ ] `mcp__playwright__browser_navigate` → reload the source page (or back-navigate from sibling). Confirm the post-mutation state is visible (e.g. dismissed insight disappears; new audit row appears; assignment moves out of Claimable).
+   - [ ] `mcp__supabase__execute_sql` → spot-check the DB row reflects the mutation (single-row SELECT — not a full table dump).
+   - [ ] `mcp__playwright__browser_console_messages` → 0 errors during AND after the mutation cycle.
+   - [ ] For phases where the mutation only exists on a denied surface for the active role: skip and document in progress file.
+8. **Sign out**
+   - [ ] `mcp__playwright__browser_navigate` → POST `/admin/signout` (or click sign-out menu item) — note that GET on `/admin/signout` returns 500; use `mcp__playwright__browser_evaluate` with `fetch('/admin/signout', { method: 'POST', credentials: 'include' })` if direct nav fails.
    - [ ] Confirm redirect to login.
 
 ### Edge cases per phase
@@ -480,6 +495,18 @@ Each phase's checklist below lists additional edge cases (e.g. denied-permission
 - [ ] Insights drill-link navigates correctly
 - [ ] `browser_console_messages` clean per role
 
+**Cache-hit verification (recipe step 6, MANDATORY):**
+- [ ] **Owner /admin/reports** — first render (cold), then back-navigate from `/admin/dashboard`, then return → second render reads from `unstable_cache`. Console clean. This is the test that would have caught the B-2 cache-Set bug had it run during B-2.
+- [ ] **Owner /admin/reports?scope=personal** — same cold + warm cycle.
+- [ ] **Coordinator /admin/reports** — same cold + warm cycle (narrower scope = different cache key).
+- [ ] **Therapist /admin/reports** — same cold + warm cycle.
+- [ ] If a TypeError appears on the second render and not the first: stop, root-cause via SHARED-NOTES §15 cache-serialisation audit before continuing.
+
+**Mutation flow verification (recipe step 7, MANDATORY):**
+- [ ] **Owner** dismisses an Insights row → row vanishes optimistically → reload reads from cache → row STAYS dismissed → DB spot-check via `mcp__supabase__execute_sql` confirms `insight_dismissals` row inserted. Console clean throughout.
+- [ ] **Owner** toggles `[Personal]` → URL updates → page narrows → toggles back → page widens. No stale data after toggling.
+- [ ] **Therapist** downloads the single available CSV → file received → spot-check first 5 rows in the file match the visible Reports content.
+
 #### Step 6 — Commit + handoff
 - [ ] Stage scoped files
 - [ ] Commit: `feat(admin): B-4 — Reports rebuild (6 tiles + Insights stripe + Personal/Team + drill-in + semantic charts + print + dismiss)`
@@ -566,6 +593,18 @@ Each phase's checklist below lists additional edge cases (e.g. denied-permission
 - [ ] `prefers-reduced-motion`: enable OS setting → no animations
 - [ ] `browser_console_messages` clean per role
 
+**Cache-hit verification (recipe step 6, MANDATORY — dashboard is the surface where the B-2 bug LIVED):**
+- [ ] **Owner /admin/dashboard** — first render (cold cache), then back-navigate from `/admin/me`, then return → second render reads from `unstable_cache`. Console MUST be clean. The historical B-2 cache-Set bug threw `TypeError: data.staffAvailabilityRuleStaffIds.has is not a function` on this exact second-render path; the fix at `d556278` should keep this clean indefinitely. If anything similar surfaces, audit per SHARED-NOTES §15 first.
+- [ ] **Coordinator /admin/dashboard** — same cold + warm cycle.
+- [ ] **Therapist /admin/dashboard** — same cold + warm cycle.
+- [ ] **Therapist-Fresh /admin/dashboard** — same cold + warm cycle (empty-DB path must also cache safely).
+
+**Mutation flow verification (recipe step 7, MANDATORY — multiple action paths on dashboard):**
+- [ ] **Therapist** clicks Claim assignment → optimistic UI update → toast → reload → assignment moved out of Claimable strip → DB spot-check: `booking_assignments.assigned_staff_id` and `status` reflect the claim. Console clean.
+- [ ] **Owner** clicks "Mark complete" on a booking → reload → booking moves to completed state → DB spot-check. Console clean.
+- [ ] **Coordinator** processes a reschedule decision → reload → status pill updates → DB spot-check.
+- [ ] **Owner** mobile 375: pull-to-refresh → fires `router.refresh()` → 2-second debounce holds the second pull → console clean.
+
 #### Step 6 — Commit + handoff
 - [ ] Stage scoped files
 - [ ] Commit: `feat(admin): B-5 — Dashboard rebuild (Personal Stripe + Ops Health promoted + mobile sticky bar + PTR + M2/M3 fixes + Therapist fullness pass)`
@@ -622,6 +661,13 @@ Each phase's checklist below lists additional edge cases (e.g. denied-permission
 - [ ] Repeat-status chip threshold: navigate to clients at 1 / 3 / 7 / 12 visits; verify mapping `New` / `Returning` / `Regular` / `Loyal`
 - [ ] Hover `Preferred service` (if truncated to 20 chars) → tooltip shows full name
 - [ ] `browser_console_messages` clean
+
+**Cache-hit verification (recipe step 6 — applies even though client-detail isn't directly `unstable_cache`-wrapped):**
+- [ ] **Owner /admin/clients/{loyalClientId}** — first render (cold), then back to `/admin/clients`, then return → second render. Console clean. Per AUDIT H2 the ribbon consumes already-fetched `bookingHistory`, so cache surface area is narrow, but verify regardless.
+- [ ] **Therapist /admin/clients/{ownClientId}** — same cold + warm cycle (scope-narrowed path).
+
+**Mutation flow verification (recipe step 7):**
+- [ ] B-6 ships no new mutations (ribbon is read-only). Smoke an existing client-detail mutation (e.g. add a client note via the existing form) → reload → confirm the ribbon's LTV / visits / sparkline are unaffected by the mutation. Confirms the ribbon's data dependency is correctly isolated.
 
 #### Step 6 — Commit + handoff
 - [ ] Stage: new `ClientLtvRibbon.tsx` + spec; modification to `page.tsx`

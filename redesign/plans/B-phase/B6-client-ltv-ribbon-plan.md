@@ -154,6 +154,8 @@ step-8: COMPLETE — committed feat(admin): B-6 — Client LTV ribbon
 | Repeat status threshold | Navigate to clients at 1/3/7/12 visits | Chip = New / Returning / Regular / Loyal |
 | Visual screenshots | 375 / 768 / 1280 | Layout matches brief §5 |
 | Truncation tooltip | Hover Preferred service >20 chars | Full service name in tooltip |
+| **Cache-hit (post-B-2 lesson)** | Reload `/admin/clients/{id}` after sibling navigation, within 60s | Console clean on second render. Ribbon consumes already-fetched `bookingHistory` (AUDIT H2) so cache surface is narrow, but verify per SHARED-NOTES §15. MANDATORY per BAND-B-MASTER-CHECKLIST recipe step 6. |
+| **Mutation flow** | B-6 ships no new mutations — smoke an existing client-detail mutation (e.g. add a client note) and reload | Note appears; ribbon LTV / visits / sparkline unaffected. Confirms ribbon's data dependency is correctly isolated. MANDATORY per BAND-B-MASTER-CHECKLIST recipe step 7. |
 
 ---
 
