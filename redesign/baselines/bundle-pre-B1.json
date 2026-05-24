@@ -1,0 +1,88 @@
+{
+  "captured_at": "2026-05-24T13:01:09.277Z",
+  "git_sha": "d2e6512",
+  "branch": "redesign/start-state",
+  "node_version": "v24.12.0",
+  "pnpm_version": "10.17.1",
+  "next_version": "16.2.4 (Turbopack)",
+  "sentry_nextjs": "^10.51.0",
+  "measurement_method": "Sum of (rootMainFiles + polyfillFiles from build-manifest.json) + (entryJSFiles + entryCSSFiles from per-route page_client-reference-manifest.js). Gzip via Node zlib at default level 6. Turbopack does NOT print First Load JS in the CLI table, so this is the canonical recovery path.",
+  "shared_baseline": {
+    "chunk_count": 7,
+    "raw_bytes": 571248,
+    "gzip_bytes": 173836,
+    "gzip_kb": 169.76
+  },
+  "routes": [
+    {
+      "url": "/admin/dashboard",
+      "first_load_js_raw_bytes": 1603325,
+      "first_load_js_gzip_bytes": 469826,
+      "first_load_js_gzip_kb": 458.81,
+      "first_load_css_raw_bytes": 254348,
+      "first_load_css_gzip_bytes": 39889,
+      "first_load_css_gzip_kb": 38.95,
+      "chunk_counts": {
+        "shared": 7,
+        "route_specific": 4,
+        "total_unique": 18,
+        "css": 2
+      },
+      "missing_chunks": []
+    },
+    {
+      "url": "/admin/reports",
+      "first_load_js_raw_bytes": 1583250,
+      "first_load_js_gzip_bytes": 462869,
+      "first_load_js_gzip_kb": 452.02,
+      "first_load_css_raw_bytes": 254348,
+      "first_load_css_gzip_bytes": 39889,
+      "first_load_css_gzip_kb": 38.95,
+      "chunk_counts": {
+        "shared": 7,
+        "route_specific": 4,
+        "total_unique": 18,
+        "css": 2
+      },
+      "missing_chunks": []
+    },
+    {
+      "url": "/admin/clients/[clientId]",
+      "first_load_js_raw_bytes": 1170381,
+      "first_load_js_gzip_bytes": 344315,
+      "first_load_js_gzip_kb": 336.25,
+      "first_load_css_raw_bytes": 254348,
+      "first_load_css_gzip_bytes": 39889,
+      "first_load_css_gzip_kb": 38.95,
+      "chunk_counts": {
+        "shared": 7,
+        "route_specific": 2,
+        "total_unique": 16,
+        "css": 2
+      },
+      "missing_chunks": []
+    },
+    {
+      "url": "/admin/staff/[staffId]",
+      "first_load_js_raw_bytes": 1183402,
+      "first_load_js_gzip_bytes": 347752,
+      "first_load_js_gzip_kb": 339.6,
+      "first_load_css_raw_bytes": 254348,
+      "first_load_css_gzip_bytes": 39889,
+      "first_load_css_gzip_kb": 38.95,
+      "chunk_counts": {
+        "shared": 7,
+        "route_specific": 2,
+        "total_unique": 16,
+        "css": 2
+      },
+      "missing_chunks": []
+    }
+  ],
+  "notes": [
+    "/admin/me does not exist yet; will be added in B-3. Recorded here as N/A baseline (no manifest).",
+    "/admin/staff/[staffId]/performance does not exist yet; will be added in B-3. N/A baseline.",
+    "Bundle-delta budgets in SHARED-IMPLEMENTATION-NOTES.md §5 are compared against the gzipped first-load-JS figures below.",
+    "CSS is reported separately but not historically counted against the 'first-load JS' budget. Track for trend only."
+  ]
+}

@@ -16,8 +16,8 @@
 
 | Phase | Title | State | Started | Shipped | Commit SHA | Notes |
 |---|---|---|---|---|---|---|
-| B-0 | Baseline capture | ⏳ pending | — | — | — | — |
-| B-1 | Foundation primitives | ⏳ pending | — | — | — | — |
+| B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | _pending_ | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
+| B-1 | Foundation primitives | ⚠️ blocked | — | — | — | Blocked on B-1 plan adjustment for the two B-0 findings above. Read B-0 progress before starting. |
 | B-2 | Metric backend | ⏳ pending | — | — | — | — |
 | B-3 | Performance surface | ⏳ pending | — | — | — | — |
 | B-4 | Reports rebuild | ⏳ pending | — | — | — | — |
@@ -649,7 +649,18 @@ Append a block per phase as you complete it. Template:
 
 ### Log entries (append below)
 
-(Empty — populate as phases ship.)
+### B-0 completed — 2026-05-24
+**Commit:** _to be filled after commit lands_
+**Effort actual:** ~0.5 day (matches estimate)
+**Migrations applied:** none (the 3 Band B migrations are B-2 scope)
+**Verification:** static lint pending; `pnpm build` ✅ ran clean during step 1; `pnpm vitest run` not run (B-0 added no code); 12 populated + 4 empty-Therapist screenshots ✅; bundle baseline ✅; Sentry baseline ✅ (0 active issues); WCAG ❌ 2/3 (resolution authorised by user — see below)
+**Screenshots:** `redesign/baselines/screenshots-pre-B1/` (16 PNGs total: 12 Owner populated + 4 empty-Therapist) + `redesign/baselines/screenshots-archive-r4/` (25 archived R4-era PNGs/JSONs from prep commit 1)
+**Notable deviations from plan (BLOCK B-1 START):**
+1. **WCAG severity-strong tokens — 2/3 FAIL.** Per B-0 plan step 4 explicit branch. User authorised Option C (add paired `--admin-{danger,warning}-text-strong` tokens) on 2026-05-24. B-1 brief §5.4 and plan step 1 MUST land 5 tokens instead of 3 — `--admin-danger-text-strong: oklch(30% 0.18 25)` (#6e0000, 9.21:1) and `--admin-warning-text-strong: oklch(30% 0.16 55)` (#630000, 10.71:1). Success family OK as-is.
+2. **AdminSkeleton already uses shimmer.** B-1 plan step 2 says "swap pulse → shimmer keyframe at component level" — but the component already has shimmer (`admin-ui.tsx:1263` + `@keyframes shimmer` in `globals.css:41`). The `animate-pulse` usages that remain are in 3 route-level `loading.tsx` files (`src/app/admin/loading.tsx`, `src/app/admin/clients/loading.tsx`, plus `src/app/admin/emails/loading.tsx` which is out of scope). B-1 implementer should re-scope step 2 to either: (a) migrate those `loading.tsx` files to use `<AdminSkeleton>`, OR (b) shimmer-tune (gradient stops, duration) on the existing component. Detail in `redesign/baselines/screenshots-pre-B1/README.md`.
+3. **B-0 plan step 5 `crypt()` H2 warning was a misdiagnosis.** The bcrypt hash via `gen_salt('bf', 10)` IS Supabase-compatible. The real GoTrue rejection cause was NULL values in `auth.users.{confirmation_token, recovery_token, email_change_token_new, email_change}` — they must be empty strings. Documented in B-0 progress + HANDOFF dev-environment notes.
+4. **Bundle baseline numbers are HIGHER than the B-0 plan's example placeholders.** Plan example showed dashboard 247kB; actual is 458.81 kB gzip. Plan placeholders were illustrative templates (not measured); actual numbers are the real baseline. SHARED-NOTES §5 delta budgets are unchanged (they're deltas vs *this* baseline, not absolutes).
+**Hand-off to:** B-1 implementer — must read B-0 progress file end-to-end before step 1; brief + plan need amendment for token + skeleton items above before step 1 executes.
 
 ---
 
