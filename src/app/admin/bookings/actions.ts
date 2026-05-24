@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -226,6 +226,8 @@ export async function updateBookingManagement(
     });
   }
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
@@ -352,6 +354,8 @@ export async function claimBookingAssignment(formData: FormData) {
     console.error("Unable to send staff assignment email.", error);
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${claimedAssignment.booking_id}`);
   revalidatePath("/admin/dashboard");
@@ -432,6 +436,8 @@ export async function quickUpdateBooking(formData: FormData) {
     });
   }
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
@@ -545,6 +551,8 @@ export async function updateBookingAssignment(formData: FormData) {
     }
   }
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${assignment.booking_id}`);
   revalidatePath("/admin/dashboard");
@@ -606,6 +614,8 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
     after_state: updatedAssignment,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${updatedAssignment.booking_id}`);
   revalidatePath("/admin/dashboard");
@@ -669,6 +679,8 @@ export async function respondToCustomerReschedule(formData: FormData): Promise<v
     after_state: updated,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
@@ -908,6 +920,8 @@ export async function createManualBooking(
         after_state: updatedEnquiry,
       });
 
+      updateTag("report-data");
+      updateTag("dashboard-data");
       revalidatePath("/admin/enquiries");
     }
 
@@ -930,6 +944,8 @@ export async function createManualBooking(
       });
     }
 
+    updateTag("report-data");
+    updateTag("dashboard-data");
     revalidatePath("/admin/bookings");
     revalidatePath("/admin/dashboard");
     revalidatePath("/admin/calendar");

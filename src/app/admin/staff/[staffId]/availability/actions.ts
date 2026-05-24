@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -90,6 +90,8 @@ export async function addStaffBlockedDate(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
 }
@@ -135,6 +137,8 @@ export async function deleteStaffBlockedDate(
     before_state: beforeState,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
 }
@@ -207,6 +211,8 @@ export async function addStaffAvailabilityOverride(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
 }
@@ -252,6 +258,8 @@ export async function deleteStaffAvailabilityOverride(
     before_state: beforeState,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
 }

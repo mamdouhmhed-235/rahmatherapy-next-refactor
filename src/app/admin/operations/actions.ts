@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { canManageOperations, getStaffProfile } from "@/lib/auth/rbac";
@@ -63,6 +63,8 @@ export async function updateOperationalEventStatus(formData: FormData) {
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/operations");
   revalidatePath("/admin/dashboard");
 }

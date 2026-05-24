@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import {
   Activity,
   Briefcase,
@@ -77,7 +79,26 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const params = await searchParams;
   const filters = parseReportFilters(params);
   const adminClient = createSupabaseAdminClient();
-  const data = await getReportData(adminClient, profile, filters);
+  // B-2 cache layer per SHARED-IMPLEMENTATION-NOTES §11 (≤8 queries / cold cache)
+  // and §12 (Sentry slow-query spans). 60s revalidate is a fallback; mutation
+  // sites invalidate via `updateTag('report-data')` (Next 16's read-your-own-
+  // writes invalidator — replaces the plan's literal `revalidateTag` per the
+  // Next 16 API change). The cache key includes profile.id so RBAC-narrowed
+  // datasets don't bleed across viewers.
+  const fetchCachedReportData = unstable_cache(
+    () =>
+      Sentry.startSpan(
+        {
+          name: "getReportData",
+          op: "db.query",
+          attributes: { profile_id: profile.id, range: filters.range },
+        },
+        async () => getReportData(adminClient, profile, filters)
+      ),
+    ["report-data", profile.id, JSON.stringify(filters)],
+    { revalidate: 60, tags: ["report-data"] }
+  );
+  const data = await fetchCachedReportData();
   const summary = summarizeReports(data);
   const revenueSeries = getRevenueSeries(data.bookings);
   const servicePerformance = getServicePerformance(data);

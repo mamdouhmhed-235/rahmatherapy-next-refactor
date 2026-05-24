@@ -8,7 +8,7 @@ import {
   requirePermission,
   PERMISSIONS,
 } from "@/lib/auth/rbac";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import {
   getStaffProfileCompletion,
   sanitizeStaffProfileUpdate,
@@ -248,6 +248,8 @@ export async function createStaffProfile(input: {
     after_state: { name, email, role_id: input.role_id, gender: input.gender },
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/staff");
 
   return { data };
@@ -379,6 +381,8 @@ export async function updateStaffProfile(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/staff");
   revalidatePath(`/admin/staff/${staffId}`);
   
@@ -431,6 +435,8 @@ export async function updateStaffAvailabilityMode(
     after_state: { availability_mode: mode },
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
   revalidatePath(`/admin/staff/${staffId}`);
   
@@ -483,6 +489,8 @@ export async function createStaffAvailabilityRule(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
 
   return { data };
@@ -526,6 +534,8 @@ export async function deleteStaffAvailabilityRule(
     before_state: beforeState,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
 
   return { success: true };
@@ -626,6 +636,8 @@ export async function updateStaffPermissionOverride(
     },
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/staff");
   revalidatePath(`/admin/staff/${staffId}`);
 

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -215,6 +215,8 @@ export async function createClient(
     after_state: payload,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/clients");
   revalidatePath("/admin/dashboard");
   redirect(`/admin/clients/${data.id}`);

@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { unstable_cache } from "next/cache";
+import * as Sentry from "@sentry/nextjs";
 import {
   canManageAllClients,
   canManageEnquiries,
@@ -144,7 +146,34 @@ export function getDashboardQueryPlan(profile: StaffProfile | null): DashboardQu
   };
 }
 
+// B-2 cache layer per SHARED-IMPLEMENTATION-NOTES §11 (≤6 queries / cold cache)
+// and §12 (Sentry slow-query spans). The existing aggregation logic moves to
+// `getDashboardDataInner` untouched; the public export wraps it in unstable_cache
+// + Sentry.startSpan. Tag list includes 'report-data' so dismissInsight (and any
+// other report-side mutation) invalidates dashboards too. The cache key includes
+// profile.id so RBAC-scoped datasets don't bleed across viewers.
 export async function getDashboardData(
+  adminClient: SupabaseClient,
+  profile: StaffProfile,
+  filters: ReportFilters
+): Promise<{ data: ReportData; plan: DashboardQueryPlan }> {
+  const fetchCached = unstable_cache(
+    () =>
+      Sentry.startSpan(
+        {
+          name: "getDashboardData",
+          op: "db.query",
+          attributes: { profile_id: profile.id, range: filters.range },
+        },
+        async () => getDashboardDataInner(adminClient, profile, filters)
+      ),
+    ["dashboard-data", profile.id, JSON.stringify(filters)],
+    { revalidate: 60, tags: ["dashboard-data", "report-data"] }
+  );
+  return fetchCached();
+}
+
+async function getDashboardDataInner(
   adminClient: SupabaseClient,
   profile: StaffProfile,
   filters: ReportFilters

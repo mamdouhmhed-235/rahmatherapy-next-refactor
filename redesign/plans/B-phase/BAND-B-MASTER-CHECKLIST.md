@@ -18,7 +18,7 @@
 |---|---|---|---|---|---|---|
 | B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | `8c142c8` | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
 | B-1 | Foundation primitives | ✅ complete | 2026-05-24 | 2026-05-24 | `84f111e` | 77 new specs (charts + tiles + hook). Bundle delta < 0.05 kB / route (primitives dormant). useReducedMotion rewritten to useSyncExternalStore mid-flight after lint. Sandbox path corrected `__sandbox/` → `sandbox-b1/` (Next.js private-folder rule). |
-| B-2 | Metric backend | ⏳ pending | — | — | — | — |
+| B-2 | Metric backend | ✅ complete | 2026-05-24 | 2026-05-24 | `TBD` | 3 migrations applied (Zone-2 × 3); 39 new vitest specs; ~58 `updateTag` inserts (Next 16 API; was `revalidateTag` in plan); `unstable_cache` + Sentry spans on getReportData/getDashboardData/getAuditLogForStaff; idempotent guard on `updateEnquiryStatus.first_contacted_at` proven via Playwright + DB. Chart wrapper TS errors fixed as a B-1 follow-up (commit `11a5f82`) before step 6. |
 | B-3 | Performance surface | ⏳ pending | — | — | — | — |
 | B-4 | Reports rebuild | ⏳ pending | — | — | — | — |
 | B-5 | Dashboard rebuild | ⏳ pending | — | — | — | — |
@@ -690,6 +690,45 @@ Append a block per phase as you complete it. Template:
 - Modified: `src/styles/tokens.css` (+7 tokens), `src/app/admin/components/admin-ui.tsx` (AdminSkeleton tokenisation), `src/app/admin/loading.tsx` (animate-pulse → AdminSkeleton), `src/app/admin/clients/loading.tsx` (same migration), `redesign/per-page-progress/B1-foundation-progress.md`
 
 **Hand-off to:** B-2 implementer (metric backend; ~3.5 days; 3 Supabase migrations with Zone-2 per item). B-2 is independent of B-1 at the data-layer level but depends on B-1's helper conventions; read SHARED-NOTES §§1/8/12/14 before starting.
+
+### B-2 completed — 2026-05-24
+**Commit:** `TBD` (this commit; will backfill SHA after landing)
+**Pre-commit:** `11a5f82` fix(admin) chart wrapper TS narrowing (B-1 follow-up — pre-existing tsc errors surfaced when B-2's helpers triggered fresh full-project typecheck).
+**Effort actual:** ~1 day (vs ~3.5d estimate — quicker because: existing reporting.ts conventions were well-established; brief+plan had been audited 3× so deviations were minimal; the audit_log action_type discovery via production grep saved late-stage rework).
+**Migrations applied:** `20260522120000_add_enquiry_first_contacted_at`, `20260522121000_add_band_b_indexes`, `20260522122000_add_insight_dismissals` — all Zone-2-confirmed individually, all verified post-apply.
+**Verification:** all gates ✅
+- Static lint clean.
+- Static types clean (`npx tsc --noEmit` passes, including the B-1 chart wrapper TS narrowing fix from preceding commit `11a5f82`).
+- Vitest: 234 tests / 228 pass / 6 baseline fail. 39 NEW B-2 specs across 3 new test files (vs ~30 target).
+- `pnpm build`: clean (Next 16 Turbopack).
+- Bundle delta: ≤0.02 kB / route vs `bundle-pre-B1.json` (B-2 budget = 0 kB; tiny variance is Next 16 chunk-shuffle noise).
+- Playwright smoke (Owner): /admin/dashboard + /admin/reports + /admin/enquiries all render cleanly, 0 console errors. Idempotent guard proven via the 3-state trail on `Audit Enquiry One`: `new` (first_contacted_at=NULL) → `contacted` (first_contacted_at=2026-05-24 16:04:52) → `closed` (first_contacted_at=2026-05-24 16:04:52 UNCHANGED).
+
+**Notable deviations from plan:**
+1. **Next 16 cache API delta (RESOLVED inline)**: Next 16 made `revalidateTag(tag)` require a mandatory `profile: string | CacheLifeConfig` 2nd arg AND introduced `updateTag(tag)` for server-action read-your-own-writes. Plan literal `revalidateTag('report-data')` replaced everywhere with `updateTag('report-data')` (semantically correct for mutations; pattern set in step-6 dismissInsight and carried through 29 sites in step-9).
+2. **ReportData type extensions kept optional**: Originally added `staffAvailabilityRules: StaffAvailabilityRule[]` + 3 new enquiry fields as REQUIRED on the type, which broke `dashboard-data.ts` (RECON §5 untouchable). Reverted to optional fields; helpers default to `?? []` / `?? null`. dashboard-data.ts stays untouched apart from the planned cache wrap (split into outer `getDashboardData` cache+span wrapper + `getDashboardDataInner` body).
+3. **getStaffScorecard signature stayed at 4 args** (per brief literal). Admin deltas computed via auditLogs internal date-filter (audit logs span both periods; filter via `data.filters` vs `priorData.filters`).
+4. **Action_type mappings discovered via production grep** (per AUDIT G-final-2): `enquiry_status_updated`, `booking_assignment_reassigned`, `booking_assignment_claimed`, `operational_event_status_updated`. Codified as exported `AUDIT_ACTION_TYPES` const in reporting.ts for future audit visibility.
+5. **`contacted → booked` UI path uses a different action** (`convertEnquiryToBooking`), so the Playwright smoke substituted `contacted → closed` to prove the guard. Both transitions exercise the same guard branch (`status !== 'contacted'`). The vitest "does not double-count" spec covers the re-contact case at the helper level.
+6. **B-1 chart wrapper follow-up fix** committed at `11a5f82` BEFORE the B-2 step-6 work (pre-existing TS errors that the B-1 master-checklist's "pnpm build typecheck passed" claim missed; surfaced when B-2's reporting.ts changes triggered a fresh full-project `npx tsc --noEmit`). Spawned a follow-up task chip for investigating the build-vs-tsc-noEmit divergence.
+7. **Mutation site coverage exceeded plan estimate**: plan estimated ~22 inserts; actual 58 lines (29 sites × 2 tags) because staff/actions.ts has 6 mutation clusters (plan listed 3). Skipped `emails/actions.ts:84` (manual_booking_reminder_sent doesn't mutate report-data fields) and `account-password-requests/actions.ts` (password-reset workflow not surfaced in scorecard / dashboard-data).
+
+**Files shipped:**
+- New: `supabase/migrations/20260522120000_add_enquiry_first_contacted_at.sql` (3 statements; column + comment + partial index)
+- New: `supabase/migrations/20260522121000_add_band_b_indexes.sql` (3 indexes)
+- New: `supabase/migrations/20260522122000_add_insight_dismissals.sql` (table + RLS + 3 policies + service_role grant + index)
+- New: `src/app/admin/reports/report-insights.ts` (getReportInsights + buildInsightId + DEFAULT_INSIGHT_THRESHOLDS)
+- New: `src/app/admin/reports/insight-actions.ts` (dismissInsight server action)
+- New: `src/app/admin/clients/client-metrics.ts` (getClientLifetimeMetrics + getRepeatStatus)
+- New: `src/app/admin/reports/__tests__/reporting-b2.test.ts` + `report-insights.test.ts` + `src/app/admin/clients/__tests__/client-metrics.test.ts` (39 new specs)
+- Modified: `src/app/admin/reports/reporting.ts` (additive — 10 helpers + types + Sentry span on getAuditLogForStaff + extended SELECT in getReportData)
+- Modified: `src/app/admin/reports/page.tsx` (unstable_cache + Sentry.startSpan wrap on getReportData call)
+- Modified: `src/app/admin/dashboard/dashboard-data.ts` (split into outer cache+span wrapper + inner body)
+- Modified: `src/app/admin/enquiries/actions.ts` (idempotent first_contacted_at guard)
+- Modified 7 mutation files: bookings/actions.ts, enquiries/actions.ts, clients/actions.ts, operations/actions.ts, staff/actions.ts, availability/actions.ts, staff/[staffId]/availability/actions.ts (updateTag wiring)
+- Modified: `redesign/per-page-progress/B2-metric-backend-progress.md` (full step log)
+
+**Hand-off to:** B-3 implementer (Performance surface; consumes `getStaffScorecard`, `filterReportDataToStaff`, `getAuditLogForStaff`). B-3 is the first UI consumer of B-2's data layer; read brief §4 + AUDIT C1/H1/G1/G5 + SHARED-NOTES §3/§10/§11.
 
 ---
 

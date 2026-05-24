@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import * as Sentry from "@sentry/nextjs";
 import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
 import {
   canViewRevenueReports,
@@ -105,6 +106,31 @@ export interface OperationalEvent {
   created_at: string;
 }
 
+// B-2: rule row shape (day_of_week 0–6 per Postgres; is_working_day distinguishes
+// "I'm available on day N from start_time to end_time" from "blocked on day N").
+export interface StaffAvailabilityRule {
+  staff_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  is_working_day: boolean;
+}
+
+export interface ReportEnquiry {
+  id: string;
+  full_name: string;
+  source: string;
+  status: string;
+  created_at: string;
+  // B-2 additions — present from migration 20260522120000 onward. Optional on the
+  // type so dashboard-data.ts (RECON §5 untouchable) can keep returning the
+  // pre-B-2 shape without retrofitting. getReportData (the reports surface)
+  // always fetches these; helpers below tolerate absence via `?? null`.
+  first_contacted_at?: string | null;
+  assigned_staff_id?: string | null;
+  converted_booking_id?: string | null;
+}
+
 export interface ReportData {
   filters: ReportFilters;
   bookings: ReportBooking[];
@@ -113,10 +139,14 @@ export interface ReportData {
   bookingItems: ReportBookingItem[];
   clients: ReportClient[];
   staff: ReportStaff[];
-  enquiries: { id: string; full_name: string; source: string; status: string; created_at: string }[];
+  enquiries: ReportEnquiry[];
   emailEvents: EmailEvent[];
   operationalEvents: OperationalEvent[];
   staffAvailabilityRuleStaffIds: Set<string>;
+  // B-2: full rule rows for getUtilisationRate. Optional so dashboard-data.ts
+  // (RECON §5 untouchable) can omit; helpers default to [] when absent. The
+  // Set above is kept for back-compat with R4 attention-items query path.
+  staffAvailabilityRules?: StaffAvailabilityRule[];
 }
 
 export interface MetricDefinition {
@@ -277,12 +307,13 @@ export async function getReportData(
       .returns<ReportStaff[]>(),
     adminClient
       .from("staff_availability_rules")
-      .select("staff_id")
-      .returns<{ staff_id: string }[]>(),
+      .select("staff_id, day_of_week, start_time, end_time, is_working_day")
+      .returns<StaffAvailabilityRule[]>(),
     adminClient
       .from("enquiries")
-      .select("id, full_name, source, status, created_at")
-      .order("created_at", { ascending: false }),
+      .select("id, full_name, source, status, created_at, first_contacted_at, assigned_staff_id, converted_booking_id")
+      .order("created_at", { ascending: false })
+      .returns<ReportEnquiry[]>(),
     adminClient
       .from("email_delivery_events")
       .select("id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, error_message, created_at")
@@ -361,6 +392,7 @@ export async function getReportData(
     staffAvailabilityRuleStaffIds: new Set(
       (staffAvailabilityRulesResult.data ?? []).map((rule) => rule.staff_id)
     ),
+    staffAvailabilityRules: staffAvailabilityRulesResult.data ?? [],
   };
 }
 
@@ -944,4 +976,596 @@ function groupBy<T>(items: T[], getKey: (item: T) => string) {
     groups.set(key, [...(groups.get(key) ?? []), item]);
   }
   return groups;
+}
+
+// =============================================================================
+// B-2 additions (2026-05-22) — metric backend
+//
+// All helpers below are pure functions over an already-fetched ReportData
+// (and optionally a prior-period ReportData + an AuditEventRow[]). The single
+// exception is `getAuditLogForStaff`, which is an async DB read used by B-3
+// Performance surface activity timeline (also feeds getStaffScorecard's admin
+// sub-object). Existing exports above are untouched (RECON §5 untouchables
+// preserved); the ReportData type was extended additively to expose the new
+// columns the helpers below consume. See
+// redesign/plans/B-phase/B2-metric-backend-plan.md.
+// =============================================================================
+
+export interface UtilisationRate {
+  rate: number;
+  bookedHours: number;
+  availableHours: number;
+}
+
+export interface NoShowRate {
+  rate: number;
+  total: number;
+  noShows: number;
+  cancelled: number;
+  lostRevenue: number;
+}
+
+export interface RetentionRate {
+  rate: number;
+  retainedClients: number;
+  totalClients: number;
+}
+
+export interface SourceAttributionRow {
+  source: string;
+  bookings: number;
+  revenue: number;
+  percentageOfRevenue: number;
+}
+
+export interface NetCollectionRate {
+  rate: number;
+  collected: number;
+  billed: number;
+}
+
+// AUDIT G-final-2 + production grep: action_types used by the scorecard admin
+// sub-object. Centralised constants so future audits surface mismatches loudly.
+export const AUDIT_ACTION_TYPES = {
+  ENQUIRY_STATUS_UPDATED: "enquiry_status_updated",
+  BOOKING_ASSIGNMENT_REASSIGNED: "booking_assignment_reassigned",
+  BOOKING_ASSIGNMENT_CLAIMED: "booking_assignment_claimed",
+  OPERATIONAL_EVENT_STATUS_UPDATED: "operational_event_status_updated",
+} as const;
+
+export interface AuditEventRow {
+  id: string;
+  actor_staff_id: string | null;
+  action_type: string;
+  target_type: string | null;
+  target_id: string | null;
+  before_state: Record<string, unknown> | null;
+  after_state: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface StaffScorecardClinical {
+  assignmentsTotal: number;
+  assignmentsCompleted: number;
+  hoursWorked: number;
+  clientsTouched: number;
+  revenueAttributed: number;
+  utilisation: UtilisationRate;
+  retention: RetentionRate;
+  noShowRate: NoShowRate;
+  sameGenderFulfilled: number;
+}
+
+export interface StaffScorecardAdmin {
+  enquiriesContactedCount: number;
+  enquiryConversionRate: number;
+  avgMinutesToFirstContact: number;
+  bookingsAssignedCount: number;
+  opsEventsResolvedCount: number;
+}
+
+export interface StaffScorecardDeltas {
+  clinical: {
+    assignmentsCompleted: number;
+    hoursWorked: number;
+    clientsTouched: number;
+    revenueAttributed: number;
+    utilisationRate: number;
+    retentionRate: number;
+    noShowRate: number;
+  };
+  admin: {
+    enquiriesContactedCount: number;
+    enquiryConversionRate: number;
+    avgMinutesToFirstContact: number;
+    bookingsAssignedCount: number;
+    opsEventsResolvedCount: number;
+  };
+}
+
+export interface StaffScorecard {
+  clinical: StaffScorecardClinical;
+  admin: StaffScorecardAdmin;
+  deltas?: StaffScorecardDeltas;
+}
+
+// ── 1. buildPriorPeriodFilters ───────────────────────────────────────────────
+// Returns the prior-period filter set: same span, immediately preceding window.
+// For lifetime range: returns null (no meaningful prior). For from > to or
+// missing dates: returns null. Sets `range: 'custom'` since from/to are now
+// explicit dates.
+export function buildPriorPeriodFilters(filters: ReportFilters): ReportFilters | null {
+  if (filters.range === "lifetime") return null;
+  if (!filters.from || !filters.to) return null;
+  if (filters.from > filters.to) return null;
+  const spanDays = daysBetweenInclusive(filters.from, filters.to);
+  const priorTo = shiftYmd(filters.from, -1);
+  const priorFrom = shiftYmd(priorTo, -(spanDays - 1));
+  return { ...filters, from: priorFrom, to: priorTo, range: "custom" };
+}
+
+// ── 2. filterReportDataToStaff ───────────────────────────────────────────────
+// Returns a new ReportData clone narrowed to rows that involve `staffId`.
+// Bookings = those with at least one assignment to the staff. Assignments =
+// only this staff's. Items = only those tied to retained bookings. Clients =
+// clients of retained bookings. Preserves immutability of the input.
+export function filterReportDataToStaff(data: ReportData, staffId: string): ReportData {
+  const staffAssignments = data.assignments.filter(
+    (assignment) => assignment.assigned_staff_id === staffId
+  );
+  const staffBookingIds = new Set(staffAssignments.map((a) => a.booking_id));
+  const narrowedBookings = data.bookings.filter((booking) => staffBookingIds.has(booking.id));
+  const narrowedItems = data.bookingItems.filter((item) =>
+    item.booking_id ? staffBookingIds.has(item.booking_id) : false
+  );
+  const clientIds = new Set(
+    narrowedBookings.map((b) => b.client_id).filter((id): id is string => id !== null)
+  );
+  const narrowedClients = data.clients.filter((client) => clientIds.has(client.id));
+  return {
+    ...data,
+    bookings: narrowedBookings,
+    assignments: staffAssignments,
+    bookingItems: narrowedItems,
+    clients: narrowedClients,
+  };
+}
+
+// ── 3. getUtilisationRate ────────────────────────────────────────────────────
+// Booked hours: sum of (end_time − start_time) for assignments status='completed'
+// or 'confirmed', joined to bookings for the time range. Available hours: from
+// staff_availability_rules (sum of (end − start) per is_working_day=true rule;
+// multiplied by the number of weeks in the period for a coarse weekly→period
+// scale). Returns 0 for both numerator and denominator when nothing matches —
+// rate is 0 in that case (NaN guard).
+export function getUtilisationRate(
+  data: ReportData,
+  scope?: { staffId?: string }
+): UtilisationRate {
+  const bookingById = new Map(data.bookings.map((b) => [b.id, b]));
+  const relevantStatuses = new Set(["completed", "confirmed"]);
+  const matchedAssignments = data.assignments.filter((assignment) => {
+    if (!relevantStatuses.has(assignment.status)) return false;
+    if (scope?.staffId && assignment.assigned_staff_id !== scope.staffId) return false;
+    return bookingById.has(assignment.booking_id);
+  });
+  let bookedMinutes = 0;
+  for (const assignment of matchedAssignments) {
+    const booking = bookingById.get(assignment.booking_id);
+    if (!booking) continue;
+    bookedMinutes += diffTimeStringsInMinutes(booking.start_time, booking.end_time);
+  }
+  const bookedHours = bookedMinutes / 60;
+
+  const allRules = data.staffAvailabilityRules ?? [];
+  const relevantRules = scope?.staffId
+    ? allRules.filter((rule) => rule.staff_id === scope.staffId)
+    : allRules;
+  let weeklyMinutes = 0;
+  for (const rule of relevantRules) {
+    if (!rule.is_working_day) continue;
+    weeklyMinutes += diffTimeStringsInMinutes(rule.start_time, rule.end_time);
+  }
+  const periodDays = data.filters.from && data.filters.to
+    ? daysBetweenInclusive(data.filters.from, data.filters.to)
+    : 0;
+  const periodWeeks = periodDays > 0 ? periodDays / 7 : 0;
+  const availableHours = (weeklyMinutes / 60) * periodWeeks;
+  const rate = availableHours > 0 ? bookedHours / availableHours : 0;
+  return { rate, bookedHours, availableHours };
+}
+
+// ── 4. getNoShowRate ─────────────────────────────────────────────────────────
+// (noShows + cancelled) / total. Total = bookings in scope. lostRevenue =
+// sum of total_price across no_show + cancelled (recoverable revenue).
+export function getNoShowRate(
+  data: ReportData,
+  scope?: { staffId?: string }
+): NoShowRate {
+  const bookings = scope?.staffId
+    ? filterBookingsToStaff(data, scope.staffId)
+    : data.bookings;
+  let noShows = 0;
+  let cancelled = 0;
+  let lostRevenue = 0;
+  for (const booking of bookings) {
+    if (booking.status === "no_show") {
+      noShows += 1;
+      lostRevenue += amount(booking.total_price);
+    } else if (booking.status === "cancelled") {
+      cancelled += 1;
+      lostRevenue += amount(booking.total_price);
+    }
+  }
+  const total = bookings.length;
+  const rate = total > 0 ? (noShows + cancelled) / total : 0;
+  return { rate, total, noShows, cancelled, lostRevenue };
+}
+
+// ── 5. getRetentionRate ──────────────────────────────────────────────────────
+// retainedClients / totalClients. retainedClients = unique client_ids with
+// `completed` booking count >= threshold. Default threshold 3 (massage/physical-
+// therapy industry benchmark; mental-health uses 8). Override via 3rd arg.
+export function getRetentionRate(
+  data: ReportData,
+  scope?: { staffId?: string },
+  threshold = 3
+): RetentionRate {
+  const bookings = scope?.staffId
+    ? filterBookingsToStaff(data, scope.staffId)
+    : data.bookings;
+  const completedCounts = new Map<string, number>();
+  for (const booking of bookings) {
+    if (booking.status !== "completed") continue;
+    if (!booking.client_id) continue;
+    completedCounts.set(booking.client_id, (completedCounts.get(booking.client_id) ?? 0) + 1);
+  }
+  const totalClients = completedCounts.size;
+  let retainedClients = 0;
+  for (const count of completedCounts.values()) {
+    if (count >= threshold) retainedClients += 1;
+  }
+  const rate = totalClients > 0 ? retainedClients / totalClients : 0;
+  return { rate, retainedClients, totalClients };
+}
+
+// ── 6. getSourceAttribution ──────────────────────────────────────────────────
+// Group bookings by booking_source. Sum bookings + revenue (total_price).
+// percentageOfRevenue is share-of-total. Sorts by revenue desc.
+// null/empty source groups under "Not set".
+export function getSourceAttribution(data: ReportData): SourceAttributionRow[] {
+  const rows = new Map<string, { bookings: number; revenue: number }>();
+  let totalRevenue = 0;
+  for (const booking of data.bookings) {
+    const key = booking.booking_source?.trim() || "Not set";
+    const existing = rows.get(key) ?? { bookings: 0, revenue: 0 };
+    const bookingRevenue = amount(booking.total_price);
+    existing.bookings += 1;
+    existing.revenue += bookingRevenue;
+    totalRevenue += bookingRevenue;
+    rows.set(key, existing);
+  }
+  return [...rows.entries()]
+    .map(([source, { bookings, revenue }]) => ({
+      source,
+      bookings,
+      revenue,
+      percentageOfRevenue: totalRevenue > 0 ? revenue / totalRevenue : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue || a.source.localeCompare(b.source));
+}
+
+// ── 7. getNetCollectionRate ──────────────────────────────────────────────────
+// collected / billed. "Billed" = sum of total_price excluding cancelled +
+// no_show (these were never collectable). Returns 0 when billed=0. Over-collected
+// returns true ratio (e.g. > 1 from refunded-then-overpaid edge cases).
+export function getNetCollectionRate(data: ReportData): NetCollectionRate {
+  let collected = 0;
+  let billed = 0;
+  for (const booking of data.bookings) {
+    if (["cancelled", "no_show"].includes(booking.status)) continue;
+    billed += amount(booking.total_price);
+    collected += amount(booking.amount_paid);
+  }
+  const rate = billed > 0 ? collected / billed : 0;
+  return { rate, collected, billed };
+}
+
+// ── 8. getAvgBookingValue ────────────────────────────────────────────────────
+// AUDIT-2026-05-22 Q2 lock: completedRevenue / completedBookingCount.
+// "Revenue per completed visit" — matches industry standard + summarizeReports'
+// existing completedRevenue accumulator. Returns 0 when denominator=0.
+export function getAvgBookingValue(data: ReportData): number {
+  let completedRevenue = 0;
+  let completedBookingCount = 0;
+  for (const booking of data.bookings) {
+    if (booking.status !== "completed") continue;
+    completedRevenue += amount(booking.amount_paid || booking.total_price);
+    completedBookingCount += 1;
+  }
+  return completedBookingCount > 0 ? completedRevenue / completedBookingCount : 0;
+}
+
+// ── 9. getStaffScorecard ─────────────────────────────────────────────────────
+// Per-staff snapshot of clinical (Therapist-relevant) + admin (Coordinator-
+// relevant) metrics with optional deltas vs prior period.
+//
+// Args:
+//   data         current-period ReportData (already RBAC-narrowed upstream)
+//   staffId      the staff member to score
+//   priorData    OPTIONAL — prior-period ReportData (from buildPriorPeriodFilters
+//                + a second getReportData call). When supplied, populates
+//                `deltas` (current − prior).
+//   auditLogs    OPTIONAL — audit_log rows spanning BOTH current AND prior
+//                periods. Required for non-zero admin.* counts AND for
+//                deltas.admin.*. Internal date-filter splits into current/prior
+//                using data.filters / priorData.filters.
+//
+// Returns zero-filled scorecard when staffId has no activity (never throws,
+// never NaN). When priorData supplied, deltas contain admin.* fields only when
+// auditLogs also supplied; otherwise admin deltas are all 0.
+export function getStaffScorecard(
+  data: ReportData,
+  staffId: string,
+  priorData?: ReportData,
+  auditLogs?: AuditEventRow[]
+): StaffScorecard {
+  const clinical = computeClinicalScorecard(data, staffId);
+  const admin = computeAdminScorecard(data, staffId, auditLogs, data.filters);
+
+  if (!priorData) {
+    return { clinical, admin };
+  }
+
+  const priorClinical = computeClinicalScorecard(priorData, staffId);
+  const priorAdmin = computeAdminScorecard(priorData, staffId, auditLogs, priorData.filters);
+  const deltas: StaffScorecardDeltas = {
+    clinical: {
+      assignmentsCompleted: clinical.assignmentsCompleted - priorClinical.assignmentsCompleted,
+      hoursWorked: clinical.hoursWorked - priorClinical.hoursWorked,
+      clientsTouched: clinical.clientsTouched - priorClinical.clientsTouched,
+      revenueAttributed: clinical.revenueAttributed - priorClinical.revenueAttributed,
+      utilisationRate: clinical.utilisation.rate - priorClinical.utilisation.rate,
+      retentionRate: clinical.retention.rate - priorClinical.retention.rate,
+      noShowRate: clinical.noShowRate.rate - priorClinical.noShowRate.rate,
+    },
+    admin: {
+      enquiriesContactedCount: admin.enquiriesContactedCount - priorAdmin.enquiriesContactedCount,
+      enquiryConversionRate: admin.enquiryConversionRate - priorAdmin.enquiryConversionRate,
+      avgMinutesToFirstContact: admin.avgMinutesToFirstContact - priorAdmin.avgMinutesToFirstContact,
+      bookingsAssignedCount: admin.bookingsAssignedCount - priorAdmin.bookingsAssignedCount,
+      opsEventsResolvedCount: admin.opsEventsResolvedCount - priorAdmin.opsEventsResolvedCount,
+    },
+  };
+  return { clinical, admin, deltas };
+}
+
+function computeClinicalScorecard(
+  data: ReportData,
+  staffId: string
+): StaffScorecardClinical {
+  const staffAssignments = data.assignments.filter((a) => a.assigned_staff_id === staffId);
+  const assignmentsTotal = staffAssignments.length;
+  const assignmentsCompleted = staffAssignments.filter((a) => a.status === "completed").length;
+  const sameGenderFulfilled = staffAssignments.filter((a) => {
+    const required = a.required_therapist_gender;
+    return required && required !== "any" && a.status === "completed";
+  }).length;
+
+  const bookingById = new Map(data.bookings.map((b) => [b.id, b]));
+  const staffBookings = staffAssignments
+    .map((a) => bookingById.get(a.booking_id))
+    .filter((b): b is ReportBooking => Boolean(b));
+
+  let hoursWorkedMinutes = 0;
+  const clientIds = new Set<string>();
+  for (const booking of staffBookings) {
+    if (booking.status === "completed") {
+      hoursWorkedMinutes += diffTimeStringsInMinutes(booking.start_time, booking.end_time);
+    }
+    if (booking.client_id) clientIds.add(booking.client_id);
+  }
+  const hoursWorked = hoursWorkedMinutes / 60;
+  const clientsTouched = clientIds.size;
+
+  // Revenue attributed: matches the existing getStaffRevenueAttribution shape —
+  // service-item value where the participant's assignment goes to this staff.
+  const assignmentByParticipant = new Map(
+    data.assignments
+      .filter((a) => a.assigned_staff_id === staffId && a.participant_id)
+      .map((a) => [a.participant_id as string, a])
+  );
+  let revenueAttributed = 0;
+  for (const item of data.bookingItems) {
+    if (!item.booking_participant_id) continue;
+    if (assignmentByParticipant.has(item.booking_participant_id)) {
+      revenueAttributed += amount(item.service_price_snapshot);
+    }
+  }
+
+  const utilisation = getUtilisationRate(data, { staffId });
+  const retention = getRetentionRate(data, { staffId });
+  const noShowRate = getNoShowRate(data, { staffId });
+
+  return {
+    assignmentsTotal,
+    assignmentsCompleted,
+    hoursWorked,
+    clientsTouched,
+    revenueAttributed,
+    utilisation,
+    retention,
+    noShowRate,
+    sameGenderFulfilled,
+  };
+}
+
+function computeAdminScorecard(
+  data: ReportData,
+  staffId: string,
+  auditLogs: AuditEventRow[] | undefined,
+  periodFilters: ReportFilters
+): StaffScorecardAdmin {
+  if (!auditLogs || auditLogs.length === 0) {
+    return {
+      enquiriesContactedCount: 0,
+      enquiryConversionRate: 0,
+      avgMinutesToFirstContact: 0,
+      bookingsAssignedCount: 0,
+      opsEventsResolvedCount: 0,
+    };
+  }
+
+  const periodLogs = filterAuditLogsToPeriod(auditLogs, periodFilters);
+
+  // enquiriesContactedCount: first-transition-to-contacted events by this staff
+  const contactedEnquiryIds = new Set<string>();
+  for (const log of periodLogs) {
+    if (log.actor_staff_id !== staffId) continue;
+    if (log.action_type !== AUDIT_ACTION_TYPES.ENQUIRY_STATUS_UPDATED) continue;
+    const afterStatus = (log.after_state as { status?: string } | null)?.status;
+    const beforeStatus = (log.before_state as { status?: string } | null)?.status;
+    if (afterStatus === "contacted" && beforeStatus !== "contacted") {
+      if (log.target_id) contactedEnquiryIds.add(log.target_id);
+    }
+  }
+  const enquiriesContactedCount = contactedEnquiryIds.size;
+
+  // bookingsAssignedCount: any assignment action by this staff (reassign covers
+  // admin/coord dispatching; claim covers self-assignment by the actor)
+  let bookingsAssignedCount = 0;
+  for (const log of periodLogs) {
+    if (log.actor_staff_id !== staffId) continue;
+    if (
+      log.action_type === AUDIT_ACTION_TYPES.BOOKING_ASSIGNMENT_REASSIGNED ||
+      log.action_type === AUDIT_ACTION_TYPES.BOOKING_ASSIGNMENT_CLAIMED
+    ) {
+      bookingsAssignedCount += 1;
+    }
+  }
+
+  // opsEventsResolvedCount: status_updated → resolved by this staff
+  let opsEventsResolvedCount = 0;
+  for (const log of periodLogs) {
+    if (log.actor_staff_id !== staffId) continue;
+    if (log.action_type !== AUDIT_ACTION_TYPES.OPERATIONAL_EVENT_STATUS_UPDATED) continue;
+    const afterStatus = (log.after_state as { status?: string } | null)?.status;
+    if (afterStatus === "resolved") opsEventsResolvedCount += 1;
+  }
+
+  // enquiryConversionRate: of enquiries this staff contacted, how many ended up
+  // converted (status='booked' + converted_booking_id NOT NULL).
+  let convertedFromContactedByMe = 0;
+  for (const enquiry of data.enquiries) {
+    if (!contactedEnquiryIds.has(enquiry.id)) continue;
+    if (enquiry.status === "booked" && enquiry.converted_booking_id != null) {
+      convertedFromContactedByMe += 1;
+    }
+  }
+  const enquiryConversionRate =
+    enquiriesContactedCount > 0 ? convertedFromContactedByMe / enquiriesContactedCount : 0;
+
+  // avgMinutesToFirstContact: mean(first_contacted_at − created_at) across the
+  // enquiries this staff first-contacted in this period.
+  let totalMinutes = 0;
+  let withTimestamp = 0;
+  for (const enquiry of data.enquiries) {
+    if (!contactedEnquiryIds.has(enquiry.id)) continue;
+    if (!enquiry.first_contacted_at || !enquiry.created_at) continue;
+    const created = Date.parse(enquiry.created_at);
+    const contacted = Date.parse(enquiry.first_contacted_at);
+    if (Number.isNaN(created) || Number.isNaN(contacted)) continue;
+    if (contacted < created) continue;
+    totalMinutes += (contacted - created) / 60000;
+    withTimestamp += 1;
+  }
+  const avgMinutesToFirstContact = withTimestamp > 0 ? totalMinutes / withTimestamp : 0;
+
+  return {
+    enquiriesContactedCount,
+    enquiryConversionRate,
+    avgMinutesToFirstContact,
+    bookingsAssignedCount,
+    opsEventsResolvedCount,
+  };
+}
+
+// ── 10. getAuditLogForStaff ──────────────────────────────────────────────────
+// Async DB read. Returns the most recent N audit_logs rows where this staff
+// was the actor, ordered DESC by created_at. Consumes
+// audit_logs_actor_recent_idx (B-2 indexes migration). Used by B-3 Performance
+// surface activity timeline.
+export async function getAuditLogForStaff(
+  adminClient: SupabaseClient,
+  staffId: string,
+  limit = 20
+): Promise<AuditEventRow[]> {
+  return Sentry.startSpan(
+    {
+      name: "getAuditLogForStaff",
+      op: "db.query",
+      attributes: { staff_id: staffId, limit },
+    },
+    async () => {
+      const { data, error } = await adminClient
+        .from("audit_logs")
+        .select(
+          "id, actor_staff_id, action_type, target_type, target_id, before_state, after_state, created_at"
+        )
+        .eq("actor_staff_id", staffId)
+        .order("created_at", { ascending: false })
+        .limit(limit)
+        .returns<AuditEventRow[]>();
+      if (error) return [];
+      return data ?? [];
+    }
+  );
+}
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
+
+function shiftYmd(yyyyMmDd: string, days: number): string {
+  const d = new Date(`${yyyyMmDd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function daysBetweenInclusive(fromYmd: string, toYmd: string): number {
+  const a = new Date(`${fromYmd}T00:00:00Z`);
+  const b = new Date(`${toYmd}T00:00:00Z`);
+  return Math.round((b.getTime() - a.getTime()) / 86400000) + 1;
+}
+
+function diffTimeStringsInMinutes(start: string, end: string): number {
+  // start / end are HH:MM[:SS] strings (Postgres `time` shape). No timezone.
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  const startMin = (sh || 0) * 60 + (sm || 0);
+  const endMin = (eh || 0) * 60 + (em || 0);
+  return Math.max(endMin - startMin, 0);
+}
+
+function filterBookingsToStaff(data: ReportData, staffId: string): ReportBooking[] {
+  const staffBookingIds = new Set(
+    data.assignments
+      .filter((a) => a.assigned_staff_id === staffId)
+      .map((a) => a.booking_id)
+  );
+  return data.bookings.filter((b) => staffBookingIds.has(b.id));
+}
+
+function filterAuditLogsToPeriod(
+  logs: AuditEventRow[],
+  filters: ReportFilters
+): AuditEventRow[] {
+  if (!filters.from || !filters.to) return logs;
+  // filters.from / filters.to are YYYY-MM-DD; expand to inclusive UTC bounds.
+  const fromMs = Date.parse(`${filters.from}T00:00:00.000Z`);
+  const toMs = Date.parse(`${filters.to}T23:59:59.999Z`);
+  if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return logs;
+  return logs.filter((log) => {
+    const t = Date.parse(log.created_at);
+    if (Number.isNaN(t)) return false;
+    return t >= fromMs && t <= toMs;
+  });
 }
