@@ -1,29 +1,46 @@
-// B-3 — shared surface composition for /admin/me + the staff-detail
-// /performance sub-route. Server-rendered + synchronous: takes pre-computed
-// inputs from the route page and lays out header → tile grid → trend +
-// timeline (right rail on desktop) → upcoming work → mobile sticky bar.
+// B-3 — shared surface for /admin/me + /admin/staff/[staffId]/performance.
+// Server-rendered with per-section `<Suspense>` boundaries (plan step 5.5):
+// each section is an async server component that fetches its own data;
+// per-render `cache()` dedup (see performance-data.ts) keeps the total
+// cold-cache query count at ≤4 (SHARED-NOTES §11).
 //
-// Note on architecture: per AUDIT G2 + SHARED-NOTES §10, the original plan
-// floated per-section Suspense boundaries. The first iteration uses a single
-// page-level fetch (≤4 queries via Promise.all) and renders everything
-// synchronously — simpler, no streaming complexity, fits comfortably under
-// the query budget. The Suspense-per-section refactor (plan step 5.5) is
-// deferred to once the basic surface is verified.
+// Why this shape instead of the simpler "page fetches everything, surface
+// renders sync" iteration: faster perceived render. Header paints
+// immediately; tile grid arrives next; trend + timeline + upcoming-work
+// stream in as each query returns. On slow networks (or under load) the
+// user sees content as soon as the fastest section resolves, not after
+// the slowest.
 
+import { Suspense } from "react";
 import Link from "next/link";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { StaffProfile } from "@/lib/auth/rbac";
-import type { AuditEventRow } from "@/app/admin/reports/reporting";
+import { hasPermission, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  buildPriorPeriodFilters,
+  getStaffScorecard,
+  summarizeReports,
+  type ReportFilters,
+} from "@/app/admin/reports/reporting";
 import type { LineChartProps } from "./charts/LineChart";
 import { LineChart } from "./charts/LineChart";
-import { AdminPanel } from "./admin-ui";
+import { AdminPanel, AdminSkeleton } from "./admin-ui";
 import { TileFromSpec } from "./tiles/TileFromSpec";
 import { PerformanceHeader, type RangeChip } from "./PerformanceHeader";
 import { ActivityTimeline } from "./ActivityTimeline";
-import type { TileSpec, PerformanceShell } from "./performance-helpers";
+import {
+  tilesForRole,
+  type TileSpec,
+  type PerformanceShell,
+} from "./performance-helpers";
+import {
+  fetchCachedReportData,
+  fetchAuditLogForStaff,
+  getUpcomingWorkForStaff,
+  buildPerformanceTrend,
+} from "./performance-data";
 
 // ── Upcoming-work shape ──────────────────────────────────────────────────────
-// Defined here so PerformanceSurface compiles independently of step 5's
-// performance-data.ts; step 5 re-exports these types and provides the fetcher.
 
 export interface UpcomingAssignment {
   bookingId: string;
@@ -56,28 +73,30 @@ export interface TrendChartInput {
 // ── Public props ─────────────────────────────────────────────────────────────
 
 export interface PerformanceSurfaceProps {
+  // Subject + viewer (same instance in self mode; distinct in manager mode).
   profile: StaffProfile;
   viewer: StaffProfile;
   mode: "self" | "manager";
   shell: PerformanceShell;
-  tiles: TileSpec[];
-  trend: TrendChartInput;
-  upcomingWork: UpcomingWorkItem[];
-  // Pre-fetched audit events (first ~20 of the page's 100-row scorecard fetch).
-  // Per SHARED-NOTES §11, consolidates the audit query into a single page-level
-  // call rather than duplicating across the timeline + scorecard.
-  auditEvents: AuditEventRow[];
+  // Raw inputs — sections fetch their own data via the cache()-wrapped helpers.
+  filters: ReportFilters;
+  // URL params that influence tile rendering (e.g. ?show=all expands the
+  // owner_admin union from 6 → 13 tiles). Passed as a shallow record so the
+  // surface doesn't need to know the full searchParams contract.
+  tileOptions?: { showAll?: boolean };
+  // Chrome inputs the route page assembles up-front (cheap, no I/O).
   rangeChips: RangeChip[];
   rangeWindowLabel: string;
-  // G5 — render historical scorecard for inactive staff to managers; pill in
-  // the header; upcoming-work panel hidden (no future assignments exist).
   isInactive?: boolean;
   inactiveSinceLabel?: string;
-  // Resolved by the page from viewer.permissions etc.
   viewInReportsHref?: string;
-  viewerCanManageAudit: boolean;
-  mobileStickyHref?: string;
-  mobileStickyLabel?: string;
+  // Custom date-range form support (B-3 follow-up). When the active chip is
+  // "custom", PerformanceHeader renders an inline from/to date input + Apply
+  // button. Caller passes the current from/to so the form pre-fills.
+  customDateRange?: { from: string; to: string };
+  // URL the surface "lives at" — used by CustomDateRangeForm to build the
+  // submit href without hard-coding /admin/me or /admin/staff/{id}/performance.
+  basePath: string;
 }
 
 export function PerformanceSurface({
@@ -85,22 +104,23 @@ export function PerformanceSurface({
   viewer,
   mode,
   shell,
-  tiles,
-  trend,
-  upcomingWork,
-  auditEvents,
+  filters,
+  tileOptions,
   rangeChips,
   rangeWindowLabel,
   isInactive,
   inactiveSinceLabel,
   viewInReportsHref,
-  viewerCanManageAudit,
-  mobileStickyHref,
-  mobileStickyLabel,
+  customDateRange,
+  basePath,
 }: PerformanceSurfaceProps) {
   const activeChip = rangeChips.find((c) => c.active);
   const rangeLabel = activeChip ? activeChip.label.toLowerCase() : "this period";
-  const showUpcoming = !isInactive && shell !== "owner_admin";
+  const viewerCanManageAudit = hasPermission(viewer, PERMISSIONS.MANAGE_AUDIT_LOGS);
+  const tileCount = tilesForRole(shell, EMPTY_SCORECARD, {
+    showAll: tileOptions?.showAll,
+    businessNetRevenue: shell === "owner_admin" ? 0 : undefined,
+  }).length;
 
   return (
     <main id="admin-main" className="mx-auto w-full max-w-6xl space-y-5 px-4 pb-24 pt-4 sm:px-6 sm:pb-8">
@@ -112,37 +132,99 @@ export function PerformanceSurface({
         rangeWindowLabel={rangeWindowLabel}
         inactiveSinceLabel={inactiveSinceLabel}
         viewInReportsHref={viewInReportsHref}
+        customDateRange={customDateRange}
+        basePath={basePath}
       />
 
-      <KpiTileGrid tiles={tiles} />
+      <Suspense fallback={<KpiTileGridSkeleton count={tileCount} />}>
+        <KpiTileGridSection
+          profile={profile}
+          viewer={viewer}
+          shell={shell}
+          filters={filters}
+          tileOptions={tileOptions}
+        />
+      </Suspense>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <TrendChartSection shell={shell} trend={trend} />
+          <Suspense fallback={<TrendChartSkeleton />}>
+            <TrendChartSection
+              viewer={viewer}
+              filters={filters}
+              shell={shell}
+              staffId={profile.id}
+            />
+          </Suspense>
         </div>
         <div>
-          <ActivityTimeline
-            staffId={profile.id}
-            mode={mode}
-            rangeLabel={rangeLabel}
-            viewerCanManageAudit={viewerCanManageAudit}
-            events={auditEvents}
-          />
+          <Suspense fallback={<ActivityTimelineSkeleton />}>
+            <ActivityTimelineSection
+              staffId={profile.id}
+              mode={mode}
+              rangeLabel={rangeLabel}
+              viewerCanManageAudit={viewerCanManageAudit}
+            />
+          </Suspense>
         </div>
       </div>
 
-      {showUpcoming ? (
-        <UpcomingWorkSection shell={shell} items={upcomingWork} />
-      ) : null}
-
-      {mobileStickyHref && mobileStickyLabel ? (
-        <MobileStickyActionBar href={mobileStickyHref} label={mobileStickyLabel} />
-      ) : null}
+      <Suspense fallback={<UpcomingWorkSkeleton />}>
+        <UpcomingWorkAndStickyBarSection
+          staffId={profile.id}
+          shell={shell}
+          mode={mode}
+          isInactive={isInactive}
+        />
+      </Suspense>
     </main>
   );
 }
 
-// ── Sub-sections ─────────────────────────────────────────────────────────────
+// ── KPI tile grid section ────────────────────────────────────────────────────
+
+interface KpiTileGridSectionProps {
+  profile: StaffProfile;
+  viewer: StaffProfile;
+  shell: PerformanceShell;
+  filters: ReportFilters;
+  tileOptions?: { showAll?: boolean };
+}
+
+async function KpiTileGridSection({
+  profile,
+  viewer,
+  shell,
+  filters,
+  tileOptions,
+}: KpiTileGridSectionProps) {
+  const priorFilters = buildPriorPeriodFilters(filters);
+  // `viewer` is used for getReportData's RBAC narrowing — the function filters
+  // the dataset by what the caller is allowed to see. The narrowed scorecard
+  // is then scoped to `profile.id`.
+  const [data, priorData, auditLog] = await Promise.all([
+    fetchCachedReportData(viewer, filters, "current"),
+    priorFilters
+      ? fetchCachedReportData(viewer, priorFilters, "prior")
+      : Promise.resolve(undefined),
+    fetchAuditLogForStaff(profile.id, 100),
+  ]);
+
+  const scorecard = getStaffScorecard(data, profile.id, priorData, auditLog);
+  const businessNetRevenue =
+    shell === "owner_admin" && scorecard.clinical.assignmentsTotal === 0
+      ? summarizeReports(data).collectedRevenue
+      : undefined;
+
+  const tiles = tilesForRole(shell, scorecard, {
+    staffId: profile.id,
+    range: filters.range,
+    businessNetRevenue,
+    showAll: tileOptions?.showAll,
+  });
+
+  return <KpiTileGrid tiles={tiles} />;
+}
 
 function KpiTileGrid({ tiles }: { tiles: TileSpec[] }) {
   return (
@@ -154,7 +236,42 @@ function KpiTileGrid({ tiles }: { tiles: TileSpec[] }) {
   );
 }
 
-function TrendChartSection({ shell, trend }: { shell: PerformanceShell; trend: TrendChartInput }) {
+function KpiTileGridSkeleton({ count }: { count: number }) {
+  return (
+    <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]">
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-6"
+        >
+          <AdminSkeleton className="h-3 w-1/2" />
+          <AdminSkeleton className="mt-4 h-10 w-3/4" />
+          <AdminSkeleton className="mt-3 h-4 w-2/3" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Trend chart section ──────────────────────────────────────────────────────
+
+interface TrendChartSectionProps {
+  viewer: StaffProfile;
+  filters: ReportFilters;
+  shell: PerformanceShell;
+  staffId: string;
+}
+
+async function TrendChartSection({
+  viewer,
+  filters,
+  shell,
+  staffId,
+}: TrendChartSectionProps) {
+  // Same fetch as KpiTileGridSection's "current" — React cache() dedups, so
+  // this awaits the same in-flight promise without a second DB call.
+  const data = await fetchCachedReportData(viewer, filters, "current");
+  const trend = buildPerformanceTrend(data, staffId, shell);
   const title =
     shell === "therapist"
       ? "Sessions per week"
@@ -173,6 +290,113 @@ function TrendChartSection({ shell, trend }: { shell: PerformanceShell; trend: T
       />
     </AdminPanel>
   );
+}
+
+function TrendChartSkeleton() {
+  return (
+    <AdminPanel title="Trend" titleAs="h3" loading>
+      {null}
+    </AdminPanel>
+  );
+}
+
+// ── Activity timeline section ────────────────────────────────────────────────
+
+interface ActivityTimelineSectionProps {
+  staffId: string;
+  mode: "self" | "manager";
+  rangeLabel: string;
+  viewerCanManageAudit: boolean;
+}
+
+async function ActivityTimelineSection({
+  staffId,
+  mode,
+  rangeLabel,
+  viewerCanManageAudit,
+}: ActivityTimelineSectionProps) {
+  // Same audit fetch as KpiTileGridSection's scorecard.admin pass — cache()
+  // dedups so the single 100-row query serves both consumers.
+  const allEvents = await fetchAuditLogForStaff(staffId, 100);
+  return (
+    <ActivityTimeline
+      staffId={staffId}
+      mode={mode}
+      rangeLabel={rangeLabel}
+      viewerCanManageAudit={viewerCanManageAudit}
+      events={allEvents.slice(0, 20)}
+    />
+  );
+}
+
+function ActivityTimelineSkeleton() {
+  return (
+    <AdminPanel title="Recent activity" titleAs="h3" loading>
+      {null}
+    </AdminPanel>
+  );
+}
+
+// ── Upcoming-work + mobile sticky bar (single Suspense child) ────────────────
+// These two share the upcomingWork fetch (the sticky bar's label depends on
+// whether the Therapist has a Next Visit). Wrapping them together avoids a
+// second fetch + lets them stream in as one unit.
+
+interface UpcomingWorkAndStickyBarSectionProps {
+  staffId: string;
+  shell: PerformanceShell;
+  mode: "self" | "manager";
+  isInactive?: boolean;
+}
+
+async function UpcomingWorkAndStickyBarSection({
+  staffId,
+  shell,
+  mode,
+  isInactive,
+}: UpcomingWorkAndStickyBarSectionProps) {
+  // Owner/Admin (owner_admin) → no upcoming-work panel per brief §5.5.
+  // Inactive staff (manager view via G5) → no future work to surface.
+  if (shell === "owner_admin" || isInactive) return null;
+
+  const adminClient = createSupabaseAdminClient();
+  const upcomingWork = await getUpcomingWorkForStaff(adminClient, staffId, shell, 5);
+  const sticky =
+    mode === "self" ? buildStickyForUpcomingWork(shell, upcomingWork) : undefined;
+
+  return (
+    <>
+      <UpcomingWorkSection shell={shell} items={upcomingWork} />
+      {sticky ? <MobileStickyActionBar href={sticky.href} label={sticky.label} /> : null}
+    </>
+  );
+}
+
+function UpcomingWorkSkeleton() {
+  return (
+    <AdminPanel title="Upcoming work" titleAs="h3" loading>
+      {null}
+    </AdminPanel>
+  );
+}
+
+// Brief §5.5 + Q5 fallback ladder. Therapist: Next Visit → Browse claimable.
+// Coordinator: Open enquiries. Mirrors the helper in performance-surface-
+// helpers.ts but stays local because the section already has the upcoming-
+// work array in hand.
+function buildStickyForUpcomingWork(
+  shell: PerformanceShell,
+  upcomingWork: UpcomingWorkItem[]
+): { href: string; label: string } | undefined {
+  if (shell === "owner_admin") return undefined;
+  if (shell === "therapist") {
+    const next = upcomingWork.find((i) => i.kind === "assignment");
+    if (next && next.kind === "assignment") {
+      return { href: `/admin/bookings/${next.data.bookingId}`, label: "Go to my next visit" };
+    }
+    return { href: "/admin/bookings?view=claimable", label: "Browse claimable" };
+  }
+  return { href: "/admin/enquiries", label: "Open enquiries" };
 }
 
 function UpcomingWorkSection({
@@ -258,7 +482,7 @@ function UpcomingWorkSection({
   }
   return (
     <AdminPanel title="Enquiries needing my follow-up" titleAs="h3">
-      <ul role="list" className="-my-1 divide-y divide-[var(--admin-border-subtle)]/60">
+      <ul role="list" className="-my-1 list-none divide-y divide-[var(--admin-border-subtle)]/60">
         {enquiries.map((item) => (
           <li key={item.data.enquiryId} className="py-3">
             <Link
@@ -297,3 +521,29 @@ function MobileStickyActionBar({ href, label }: { href: string; label: string })
     </div>
   );
 }
+
+// ── Tiny placeholder constants ───────────────────────────────────────────────
+// `tilesForRole` needs a StaffScorecard input to compute the tile count for
+// the skeleton fallback. EMPTY_SCORECARD lets us derive tile count without
+// awaiting any data — pure CPU, deterministic by shell + showAll.
+
+const EMPTY_SCORECARD = {
+  clinical: {
+    assignmentsTotal: 0,
+    assignmentsCompleted: 0,
+    hoursWorked: 0,
+    clientsTouched: 0,
+    revenueAttributed: 0,
+    utilisation: { rate: 0, bookedHours: 0, availableHours: 0 },
+    retention: { rate: 0, retainedClients: 0, totalClients: 0 },
+    noShowRate: { rate: 0, total: 0, noShows: 0, cancelled: 0, lostRevenue: 0 },
+    sameGenderFulfilled: 0,
+  },
+  admin: {
+    enquiriesContactedCount: 0,
+    enquiryConversionRate: 0,
+    avgMinutesToFirstContact: 0,
+    bookingsAssignedCount: 0,
+    opsEventsResolvedCount: 0,
+  },
+} as const;

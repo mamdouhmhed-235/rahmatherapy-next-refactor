@@ -5,14 +5,17 @@ import type { RangeChip } from "./PerformanceHeader";
 import type { PerformanceShell } from "./performance-helpers";
 import type { UpcomingWorkItem } from "./PerformanceSurface";
 
-// Range chips in brief order. "Custom" is intentionally omitted from B-3
-// — the existing parseReportFilters handles `?range=custom&from=&to=` URLs,
-// but B-3 ships no date-picker UI; deferred to a follow-up.
+// Range chips in brief §5.1 order. Custom chip activates the inline From/To
+// form rendered by PerformanceHeader → CustomDateRangeForm; the chip itself
+// is a Link to ?range=custom&from=<today>&to=<today> as a starting point so
+// the user has a valid baseline to edit. parseReportFilters already handles
+// custom URLs (B-2).
 const CHIP_DEFS: Array<{ key: string; label: string }> = [
   { key: "today", label: "Today" },
   { key: "week", label: "This week" },
   { key: "month", label: "This month" },
   { key: "quarter", label: "This quarter" },
+  { key: "custom", label: "Custom" },
 ];
 
 export function buildRangeChips(
@@ -31,9 +34,19 @@ export function buildRangeChips(
     if (flat) carried.set(key, flat);
   }
 
+  // For the Custom chip, also carry forward from/to so re-clicking Custom
+  // preserves the user's date selection. For preset chips (today/week/etc.)
+  // we explicitly drop from/to so parseReportFilters re-computes them.
+  const customFrom = pickParam(params, "from");
+  const customTo = pickParam(params, "to");
+
   return CHIP_DEFS.map((chip) => {
     const search = new URLSearchParams(carried);
     search.set("range", chip.key);
+    if (chip.key === "custom" && customFrom && customTo) {
+      search.set("from", customFrom);
+      search.set("to", customTo);
+    }
     return {
       key: chip.key,
       label: chip.label,
@@ -41,6 +54,15 @@ export function buildRangeChips(
       active: currentRange === chip.key,
     };
   });
+}
+
+function pickParam(
+  params: Record<string, string | string[] | undefined>,
+  key: string
+): string | null {
+  const value = params[key];
+  const flat = Array.isArray(value) ? value[0] : value;
+  return flat || null;
 }
 
 const RANGE_FMT = new Intl.DateTimeFormat("en-GB", {

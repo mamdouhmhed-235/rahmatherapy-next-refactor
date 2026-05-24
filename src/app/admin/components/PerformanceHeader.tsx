@@ -8,6 +8,7 @@ import { Activity } from "lucide-react";
 import type { StaffProfile } from "@/lib/auth/rbac";
 import { cn } from "@/lib/utils";
 import { getGreeting, getFirstName } from "@/app/admin/dashboard/TherapistDashboard";
+import { CustomDateRangeForm } from "./CustomDateRangeForm";
 
 export interface RangeChip {
   key: string;
@@ -22,14 +23,23 @@ interface PerformanceHeaderProps {
   mode: "self" | "manager";
   rangeChips: RangeChip[];
   rangeWindowLabel: string;
-  // G5 — when set, the manager-view header shows a discreet "Inactive since"
-  // pill. The page resolves this from the target's staff_profiles.active +
-  // any deactivation audit metadata available.
+  // G5 — when set, the manager-view header shows a discreet inactive-state
+  // pill. Caller passes the FULL pill content (e.g. "Inactive" or
+  // "Inactive since 12 May 2026"); the header renders it verbatim. Schema
+  // has no `inactive_since` column on staff_profiles (verified 2026-05-24)
+  // so B-3 ships the bare "Inactive" string; a future migration can append
+  // the date.
   inactiveSinceLabel?: string;
   // Caller passes a URL when the viewer should see the "View in Reports →"
   // ghost link (Reports does its own RBAC gate; this gate keeps the link
   // out of view for roles who'd hit AdminAccessDenied on click).
   viewInReportsHref?: string;
+  // When the active chip is "custom", render the inline date-range form
+  // beneath the chip row. Caller passes the current from/to so the form
+  // pre-fills. basePath is the surface's URL (/admin/me or
+  // /admin/staff/{id}/performance) so the form can build the submit href.
+  customDateRange?: { from: string; to: string };
+  basePath: string;
 }
 
 const FULL_DATE_FORMAT = new Intl.DateTimeFormat("en-GB", {
@@ -48,7 +58,10 @@ export function PerformanceHeader({
   rangeWindowLabel,
   inactiveSinceLabel,
   viewInReportsHref,
+  customDateRange,
+  basePath,
 }: PerformanceHeaderProps) {
+  const customActive = rangeChips.find((c) => c.active)?.key === "custom";
   const todayLabel = FULL_DATE_FORMAT.format(new Date());
   const roleLabel = profile.role_name;
   const heading =
@@ -77,7 +90,7 @@ export function PerformanceHeader({
                 {" "}
                 <span aria-hidden="true">·</span>{" "}
                 <span className="inline-flex items-center rounded-full bg-[oklch(94%_0.008_280)] px-2 py-0.5 text-xs font-medium text-[oklch(30%_0.02_280)]">
-                  Inactive since {inactiveSinceLabel}
+                  {inactiveSinceLabel}
                 </span>
               </>
             ) : null}
@@ -119,6 +132,14 @@ export function PerformanceHeader({
           {rangeWindowLabel}
         </span>
       </nav>
+
+      {customActive ? (
+        <CustomDateRangeForm
+          basePath={basePath}
+          initialFrom={customDateRange?.from ?? ""}
+          initialTo={customDateRange?.to ?? ""}
+        />
+      ) : null}
     </header>
   );
 }

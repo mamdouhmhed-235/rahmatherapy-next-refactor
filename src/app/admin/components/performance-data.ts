@@ -3,10 +3,20 @@
 // fetchers specific to this surface, not shared infra. Sentry-span-wrapped
 // per SHARED-NOTES §12.
 
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBusinessDate } from "@/lib/time/london";
-import type { ReportData } from "@/app/admin/reports/reporting";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import type { StaffProfile } from "@/lib/auth/rbac";
+import {
+  getReportData,
+  getAuditLogForStaff,
+  type ReportData,
+  type ReportFilters,
+  type AuditEventRow,
+} from "@/app/admin/reports/reporting";
 import type { PerformanceShell } from "./performance-helpers";
 import type { UpcomingWorkItem, TrendChartInput } from "./PerformanceSurface";
 
@@ -14,6 +24,68 @@ import type { UpcomingWorkItem, TrendChartInput } from "./PerformanceSurface";
 // alongside its return type from this single module.
 export type { UpcomingWorkItem, TrendChartInput } from "./PerformanceSurface";
 export type { PerformanceShell } from "./performance-helpers";
+
+// ── Per-render-deduped fetchers (B-3 follow-up) ──────────────────────────────
+// Per-section Suspense (plan step 5.5) requires each section to fetch its
+// own data so it can stream independently. Without dedup, that would multiply
+// queries (KpiTiles + TrendChart both want ReportData → 2 queries; KpiTiles +
+// ActivityTimeline both want auditLog → 2 queries). React `cache()` (per-render
+// dedup) collapses parallel awaits with identical args into a single in-flight
+// promise — keeping the ≤4 query budget intact (SHARED-NOTES §11).
+//
+// Note on argument identity: cache() deduplicates by referential equality.
+// The route page resolves `profile` + `filters` once and passes the SAME
+// references down to PerformanceSurface, which threads them through Suspense
+// children unchanged. So both KpiTilesSection and TrendChartSection see the
+// same object references — dedup fires.
+
+/**
+ * `getReportData` + B-2's `unstable_cache` wrap (60s revalidate, 'report-data'
+ * tag) + Sentry slow-query span + per-render React `cache()` dedup.
+ * Used by KpiTilesSection (current + prior) and TrendChartSection (current).
+ */
+export const fetchCachedReportData = cache(
+  async (
+    profile: StaffProfile,
+    filters: ReportFilters,
+    purpose: "current" | "prior" = "current"
+  ): Promise<ReportData> => {
+    const adminClient = createSupabaseAdminClient();
+    const cachedFetcher = unstable_cache(
+      () =>
+        Sentry.startSpan(
+          {
+            name: "getReportData",
+            op: "db.query",
+            attributes: {
+              profile_id: profile.id,
+              range: filters.range,
+              purpose,
+            },
+          },
+          async () => getReportData(adminClient, profile, filters)
+        ),
+      ["report-data", profile.id, JSON.stringify(filters)],
+      { revalidate: 60, tags: ["report-data"] }
+    );
+    return cachedFetcher();
+  }
+);
+
+/**
+ * Per-render-deduped audit-log fetch. NO `unstable_cache` wrap on this one —
+ * brief §5.4 wants the activity timeline to be fresh-on-reload. React `cache()`
+ * provides per-render dedup only (no cross-render persistence) so the timeline
+ * still reads the latest audit_logs on every page load. Used by KpiTilesSection
+ * (for scorecard.admin computation across current + prior periods, needs the
+ * full 100 rows) and ActivityTimelineSection (slices first 20).
+ */
+export const fetchAuditLogForStaff = cache(
+  async (staffId: string, limit: number = 100): Promise<AuditEventRow[]> => {
+    const adminClient = createSupabaseAdminClient();
+    return getAuditLogForStaff(adminClient, staffId, limit);
+  }
+);
 
 // Row shapes returned by the nested-select query. Narrow what the consumer
 // can use without pulling in the wider booking shape.

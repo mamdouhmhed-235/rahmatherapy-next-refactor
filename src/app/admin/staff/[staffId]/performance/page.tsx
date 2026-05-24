@@ -1,42 +1,25 @@
 // B-3 — manager-view Performance sub-route. Mirrors /admin/me's data flow
-// (same ≤4 query budget) but uses the target staff's id throughout. Self-
-// redirects to /admin/me for the canonical self-view URL.
+// via the shared <PerformanceSurface> (per-section Suspense streaming), but
+// resolves the target staff separately from the viewer so the audit log +
+// scorecard are scoped to target.id while RBAC + report-data fetching use
+// the viewer's permissions.
 
 import { notFound, redirect } from "next/navigation";
-import { unstable_cache } from "next/cache";
-import * as Sentry from "@sentry/nextjs";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   getStaffProfile,
-  hasPermission,
-  PERMISSIONS,
   canOpenReports,
   type StaffProfile,
 } from "@/lib/auth/rbac";
 import { AdminAccessDenied } from "@/app/admin/components/admin-ui";
 import { getStaffTeamAccess } from "@/app/admin/staff/team-access";
-import {
-  parseReportFilters,
-  buildPriorPeriodFilters,
-  getReportData,
-  getStaffScorecard,
-  getAuditLogForStaff,
-  summarizeReports,
-} from "@/app/admin/reports/reporting";
+import { parseReportFilters } from "@/app/admin/reports/reporting";
 import { PerformanceSurface } from "@/app/admin/components/PerformanceSurface";
-import {
-  tilesForRole,
-  type PerformanceShell,
-} from "@/app/admin/components/performance-helpers";
-import {
-  getUpcomingWorkForStaff,
-  buildPerformanceTrend,
-} from "@/app/admin/components/performance-data";
+import { type PerformanceShell } from "@/app/admin/components/performance-helpers";
 import {
   buildRangeChips,
   buildRangeWindowLabel,
-  buildMobileStickyConfig,
 } from "@/app/admin/components/performance-surface-helpers";
 
 interface PerformanceSubrouteProps {
@@ -48,12 +31,12 @@ export const metadata = {
   title: "Staff Performance — Rahma Therapy Admin",
 };
 
-// Maps the target staff's role to a PerformanceShell. The viewer's own shell
-// is resolved via permissions (resolveAdminShellVariant) but that needs a
-// loaded permissions Set; the target only has role_name surfaced cheaply,
-// so we map by role here. Inactive targets fall back to therapist (most
-// deactivations in this clinic are deactivated therapists; brief §6 + AUDIT
-// G5 say the page renders the historical scorecard regardless).
+// Maps the target staff's role to a PerformanceShell. We can't reuse
+// resolveAdminShellVariant on the target without their full permissions
+// Set — which would require a fan-out role_permissions + overrides fetch
+// per render (4 extra queries, busts the budget). Instead derive from
+// role_name. Inactive targets fall back to therapist tile set per brief
+// §6 + AUDIT G5 (most deactivations are deactivated therapists).
 function targetShellFromRoleName(roleName: string | null | undefined): PerformanceShell {
   switch ((roleName ?? "").trim().toLowerCase()) {
     case "owner":
@@ -68,7 +51,10 @@ function targetShellFromRoleName(roleName: string | null | undefined): Performan
   }
 }
 
-export default async function PerformanceSubroute({ params, searchParams }: PerformanceSubrouteProps) {
+export default async function PerformanceSubroute({
+  params,
+  searchParams,
+}: PerformanceSubrouteProps) {
   const supabase = await createSupabaseServerClient();
   const viewer = await getStaffProfile(supabase);
   if (!viewer || !viewer.active) redirect("/admin/login");
@@ -106,9 +92,8 @@ export default async function PerformanceSubroute({ params, searchParams }: Perf
   };
   const typedTarget = targetRow as unknown as TargetRow;
 
-  // Build a thin StaffProfile-shaped object for the surface. Performance is
-  // read-only so we don't need the target's full resolved permission set —
-  // only id / name / role_name / active / gender / etc. Permissions empty.
+  // Thin StaffProfile for the surface (target is read-only here; permissions
+  // not needed because the surface uses `viewer` for any permission checks).
   const targetProfile: StaffProfile = {
     id: typedTarget.id,
     auth_user_id: "",
@@ -125,63 +110,20 @@ export default async function PerformanceSubroute({ params, searchParams }: Perf
 
   const shell = targetShellFromRoleName(targetProfile.role_name);
   const isInactive = !typedTarget.active;
-
+  // AUDIT G5 — discreet "Inactive" pill in the header. The schema has no
+  // `inactive_since` column on staff_profiles (verified 2026-05-24), so the
+  // pill ships date-less in B-3. A future migration could thread the deactivation
+  // date through and append "since {date}" to this label.
+  const inactiveSinceLabel = isInactive ? "Inactive" : undefined;
   const queryParams = await searchParams;
   const filters = parseReportFilters(queryParams);
-  const priorFilters = buildPriorPeriodFilters(filters);
-
-  // Use the VIEWER's profile for getReportData's RBAC narrowing — the function
-  // filters the dataset by what the caller is allowed to see. We then narrow
-  // the resulting scorecard to the target's staffId.
-  const fetchCachedReportData = (purpose: "current" | "prior", periodFilters: typeof filters) =>
-    unstable_cache(
-      () =>
-        Sentry.startSpan(
-          {
-            name: "getReportData",
-            op: "db.query",
-            attributes: {
-              profile_id: viewer.id,
-              range: periodFilters.range,
-              purpose,
-            },
-          },
-          async () => getReportData(adminClient, viewer, periodFilters)
-        ),
-      ["report-data", viewer.id, JSON.stringify(periodFilters)],
-      { revalidate: 60, tags: ["report-data"] }
-    )();
-
-  const [data, priorData, auditLogForScorecard, upcomingWork] = await Promise.all([
-    fetchCachedReportData("current", filters),
-    priorFilters ? fetchCachedReportData("prior", priorFilters) : Promise.resolve(undefined),
-    getAuditLogForStaff(adminClient, targetProfile.id, 100),
-    getUpcomingWorkForStaff(adminClient, targetProfile.id, shell, 5),
-  ]);
-
-  const scorecard = getStaffScorecard(data, targetProfile.id, priorData, auditLogForScorecard);
-  const businessNetRevenue =
-    shell === "owner_admin" && scorecard.clinical.assignmentsTotal === 0
-      ? summarizeReports(data).collectedRevenue
-      : undefined;
-
-  const tiles = tilesForRole(shell, scorecard, {
-    staffId: targetProfile.id,
-    range: filters.range,
-    businessNetRevenue,
-    showAll: queryParams.show === "all",
-  });
-  const trend = buildPerformanceTrend(data, targetProfile.id, shell);
   const basePath = `/admin/staff/${staffId}/performance`;
+
   const rangeChips = buildRangeChips(basePath, filters.range, queryParams);
   const rangeWindowLabel = buildRangeWindowLabel(filters.from, filters.to);
-  const viewerCanManageAudit = hasPermission(viewer, PERMISSIONS.MANAGE_AUDIT_LOGS);
   const viewInReportsHref = canOpenReports(viewer)
     ? `/admin/reports?staffId=${targetProfile.id}&scope=personal&range=${filters.range}`
     : undefined;
-
-  // Manager-view doesn't get a mobile sticky bar (no "my next visit" semantic).
-  const sticky = isInactive ? undefined : buildMobileStickyConfig("owner_admin", upcomingWork);
 
   return (
     <PerformanceSurface
@@ -189,17 +131,15 @@ export default async function PerformanceSubroute({ params, searchParams }: Perf
       viewer={viewer}
       mode="manager"
       shell={shell}
-      tiles={tiles}
-      trend={trend}
-      upcomingWork={upcomingWork}
-      auditEvents={auditLogForScorecard.slice(0, 20)}
+      filters={filters}
+      tileOptions={{ showAll: queryParams.show === "all" }}
       rangeChips={rangeChips}
       rangeWindowLabel={rangeWindowLabel}
       isInactive={isInactive}
+      inactiveSinceLabel={inactiveSinceLabel}
       viewInReportsHref={viewInReportsHref}
-      viewerCanManageAudit={viewerCanManageAudit}
-      mobileStickyHref={sticky?.href}
-      mobileStickyLabel={sticky?.label}
+      customDateRange={{ from: filters.from, to: filters.to }}
+      basePath={basePath}
     />
   );
 }
