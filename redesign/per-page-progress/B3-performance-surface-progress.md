@@ -67,7 +67,7 @@ step-10-11: COMPLETE — mobile sticky bar + audit timeline freshness:
 - Mobile sticky bar verified above (Therapist 375 viewport).
 - Audit timeline freshness: relative-timestamp resolution confirmed correct ("1 hour ago" / "3 days ago" / "last week" / "4 days ago" across roles). The action → reload → new-row sequence is covered structurally by the page being un-cached at the audit-log fetch layer (no `unstable_cache` wrap; every render hits `audit_logs_actor_recent_idx`). Full live-action smoke deferred to V1.1.
 
-step-12: COMPLETE — committed `feat(admin): B-3 — Performance surface` ; backfilled SHA below.
+step-12: COMPLETE — committed `feat(admin): B-3 — Performance surface` at `59cea08`. Preceded by `d556278` (B-2 cache-Set fix).
 
 ## Static-gate snapshot at commit time
 

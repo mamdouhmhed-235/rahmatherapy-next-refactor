@@ -19,7 +19,7 @@
 | B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | `8c142c8` | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
 | B-1 | Foundation primitives | ✅ complete | 2026-05-24 | 2026-05-24 | `84f111e` | 77 new specs (charts + tiles + hook). Bundle delta < 0.05 kB / route (primitives dormant). useReducedMotion rewritten to useSyncExternalStore mid-flight after lint. Sandbox path corrected `__sandbox/` → `sandbox-b1/` (Next.js private-folder rule). |
 | B-2 | Metric backend | ✅ complete | 2026-05-24 | 2026-05-24 | `435560f` | 3 migrations applied (Zone-2 × 3); 39 new vitest specs; ~58 `updateTag` inserts (Next 16 API; was `revalidateTag` in plan); `unstable_cache` + Sentry spans on getReportData/getDashboardData/getAuditLogForStaff; idempotent guard on `updateEnquiryStatus.first_contacted_at` proven via Playwright + DB. Chart wrapper TS errors fixed as a B-1 follow-up (commit `11a5f82`) before step 6. |
-| B-3 | Performance surface | ✅ complete | 2026-05-24 | 2026-05-24 | `<pending>` | 21 new vitest specs; 4 new helper modules + 2 new routes + 3 modified files. Pre-section Suspense (plan step 5.5) deferred to V1.1 — synchronous parallel `Promise.all` retains ≤4 query budget. Brief's "Performance Ghost link in StaffDetailShortcuts.tsx" corrected mid-flight: that file is a keyboard handler; visual link landed in `staff/[staffId]/page.tsx`. B-2 cache-Set regression discovered during Playwright sweep and fixed as a separate commit (`d556278`) immediately before B-3. |
+| B-3 | Performance surface | ✅ complete | 2026-05-24 | 2026-05-24 | `59cea08` | 21 new vitest specs; 4 new helper modules + 2 new routes + 3 modified files. Pre-section Suspense (plan step 5.5) deferred to V1.1 — synchronous parallel `Promise.all` retains ≤4 query budget. Brief's "Performance Ghost link in StaffDetailShortcuts.tsx" corrected mid-flight: that file is a keyboard handler; visual link landed in `staff/[staffId]/page.tsx`. B-2 cache-Set regression discovered during Playwright sweep and fixed as a separate commit (`d556278`) immediately before B-3. |
 | B-4 | Reports rebuild | ⏳ pending | — | — | — | — |
 | B-5 | Dashboard rebuild | ⏳ pending | — | — | — | — |
 | B-6 | Client LTV ribbon | ⏳ pending | — | — | — | — |
@@ -731,7 +731,7 @@ Append a block per phase as you complete it. Template:
 **Hand-off to:** B-3 implementer (Performance surface; consumes `getStaffScorecard`, `filterReportDataToStaff`, `getAuditLogForStaff`). B-3 is the first UI consumer of B-2's data layer; read brief §4 + AUDIT C1/H1/G1/G5 + SHARED-NOTES §3/§10/§11.
 
 ### B-3 completed — 2026-05-24
-**Commit:** `<pending>` (this commit; will backfill SHA after landing)
+**Commit:** `59cea08`
 **Pre-commit:** `d556278` fix(admin) — B-2 follow-up: serialize staffAvailabilityRuleStaffIds as string[] (cache-safe). B-2's `unstable_cache` wrap JSON-serialized `ReportData.staffAvailabilityRuleStaffIds: Set<string>` to `{}`, breaking dashboard's `.has()` on cache-hit. Surfaced during B-3 Playwright sweep; fixed in a dedicated `fix(admin)` commit immediately before B-3 (matches the precedent set by `11a5f82` during B-2).
 **Effort actual:** ~1 day (vs ~2d estimate — faster because B-2 had pre-baked the helpers + the audit-format helpers already existed).
 **Migrations applied:** none (B-3 is UI/consumer-only).
