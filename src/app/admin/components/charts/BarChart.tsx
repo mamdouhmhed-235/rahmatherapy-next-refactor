@@ -35,7 +35,7 @@ export function BarChart<T extends Record<string, unknown>>({
   ariaLabel,
 }: BarChartProps<T>) {
   const reduce = useReducedMotion();
-  if (data === undefined) return <ChartError height={height} />;
+  if (data == null) return <ChartError height={height} />;
   if (data.length === 0)
     return <ChartEmpty height={height} message="No data in this window." />;
   return (

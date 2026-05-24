@@ -35,7 +35,7 @@ export function LineChart<T extends Record<string, unknown>>({
   ariaLabel,
 }: LineChartProps<T>) {
   const reduce = useReducedMotion();
-  if (data === undefined) return <ChartError height={height} />;
+  if (data == null) return <ChartError height={height} />;
   if (data.length === 0)
     return <ChartEmpty height={height} message="No data in this window." />;
   return (
