@@ -538,4 +538,43 @@ Sentry won't fire on this class of bug — the error is a thrown `TypeError` fro
 
 ---
 
+## §16 — `pnpm build` vs `npx tsc --noEmit` (audit-resolved 2026-05-24)
+
+The B-1 → B-2 → B-3 stack carried a recurring note: *"`pnpm build` typecheck is NOT identical to `npx tsc --noEmit`."* The note originated at B-2 step 5 when the B-2 agent found 4 chart-wrapper TS errors (TS18047 + TS2322) via `tsc --noEmit` that B-1's recorded "pnpm build typecheck passed" gate had missed. The HANDOFF §4.1 dev-gotcha telling future agents to "always run `npx tsc --noEmit` separately as the canonical types gate" came from that observation.
+
+**Empirical audit (B-3 follow-up):** the divergence is not real at the config level.
+
+### What I tested
+
+1. Took the live `tsconfig.json` and `next.config.ts` (identical to the B-1 ship commit `84f111e`).
+2. Re-introduced the exact B-1 bug: changed `if (data == null)` → `if (data === undefined)` in `AreaChart.tsx` line 40. This produces a `T[] | null` value that line 41's `data.length` access fails to narrow → TS18047.
+3. Ran `npx tsc --noEmit` → caught the error (TS18047 + the downstream TS2322).
+4. Ran `pnpm build` with a fresh `.next/cache/.tsbuildinfo` → also caught the same error, failed with `Failed to type check.` and exit code 1.
+5. Ran `pnpm build` with a warm cache (after a clean build, then re-introducing the bug without clearing) → also caught the error.
+
+**Both commands catch the same errors with the same tsconfig.** The "divergence" doesn't exist.
+
+### What the B-1 false-positive actually was
+
+Most likely an out-of-order verification. B-1's plan creates the chart primitives across steps 3-5; the agent probably ran `pnpm build` at an intermediate step (when the buggy chart wrappers hadn't been written yet) and then continued without re-running the full gate. The fix at commit `11a5f82` plus the new SHARED-NOTES §15 cache-hit discipline (recipe step 6) together make this category of process-hole significantly harder to repeat.
+
+### Practical guidance (replaces the HANDOFF §4.1 note)
+
+Both gates are useful, but for different reasons — not because they catch different bugs:
+
+| Command | Why run it |
+|---|---|
+| `npx tsc --noEmit` | Fast (no bundling). Reports ALL errors in one pass (Next stops at first file). Good for pre-commit + iterative fixing. |
+| `pnpm build` | Catches the same TS errors AND validates bundling, route registration, Sentry source-map upload, edge runtime constraints. The canonical "everything compiles for production" gate. |
+
+**They serve different scopes.** Run both as separate Step-4 static gates — but understand that for catching TypeScript errors specifically they are equivalent. If one passes, the other will too.
+
+### Discipline that prevents the original mistake
+
+- **Run static gates LAST**, after all implementation steps complete — not at mid-plan checkpoints. Re-run before committing.
+- **Read the build output to the end.** `Failed to type check.` + exit code 1 + ELIFECYCLE error are unmissable; if the build claimed success, it actually succeeded.
+- **Don't trust prior-phase "static gate passed" claims when starting a new phase** — the canonical Step 4 of the master checklist's standard loop includes re-running them.
+
+---
+
 *End of shared notes. Update this file as additional cross-cutting concerns surface during implementation.*
