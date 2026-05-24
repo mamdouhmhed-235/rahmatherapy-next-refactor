@@ -20,7 +20,7 @@
 | B-1 | Foundation primitives | ✅ complete | 2026-05-24 | 2026-05-24 | `84f111e` | 77 new specs (charts + tiles + hook). Bundle delta < 0.05 kB / route (primitives dormant). useReducedMotion rewritten to useSyncExternalStore mid-flight after lint. Sandbox path corrected `__sandbox/` → `sandbox-b1/` (Next.js private-folder rule). |
 | B-2 | Metric backend | ✅ complete | 2026-05-24 | 2026-05-24 | `435560f` | 3 migrations applied (Zone-2 × 3); 39 new vitest specs; ~58 `updateTag` inserts (Next 16 API; was `revalidateTag` in plan); `unstable_cache` + Sentry spans on getReportData/getDashboardData/getAuditLogForStaff; idempotent guard on `updateEnquiryStatus.first_contacted_at` proven via Playwright + DB. Chart wrapper TS errors fixed as a B-1 follow-up (commit `11a5f82`) before step 6. |
 | B-3 | Performance surface | ✅ complete | 2026-05-24 | 2026-05-24 | `59cea08` + follow-up `d4f0f7c` | Core surface at `59cea08`. Follow-up `d4f0f7c` closed all plan-prescribed deferrals before B-4: per-section Suspense streaming via `cache()`-deduped fetchers (≤4 query budget preserved), Custom date-range chip + client form mirroring dashboard, Therapist-Fresh + Inactive G5 pill live-verified, multi-viewport screenshots captured. 21 new vitest specs; baseline preserved. Brief's "Performance Ghost link in StaffDetailShortcuts.tsx" corrected mid-flight: that file is a keyboard handler; visual link landed in `staff/[staffId]/page.tsx`. B-2 cache-Set regression discovered during Playwright sweep and fixed as a separate commit (`d556278`) immediately before B-3. |
-| B-4 | Reports rebuild | ⏳ pending | — | — | — | — |
+| B-4 | Reports rebuild | ✅ complete | 2026-05-24 | 2026-05-24 | TBD (commit pending) | **110 new vitest specs** (target ~30 in plan); per-section Suspense via `cache()` dedup landed (folded from master-checklist Step 9 into plan Step 7); InsightsStripe persistent dismiss verified end-to-end via Playwright + DB; **4 user-found visual fixes** post-audit (donut all-grey → bright OKLCH palette + center label + legend + percentages; TTFC "9712 min" → "6.7 days"; Utilisation "156.0h" → "156h"; source chart label overlap → vertical layout for mobile-first responsiveness); new SHARED-NOTES §17 codifies chart-fills-vs-text-tokens lesson for B-5+. Bundle Δ +22.65 kB / +2.65 over (BusinessPulseCard + DonutChart additive, within SHARED-NOTES §5 tolerance). Owner fully verified at 4 viewports + Coordinator + Therapist (w/ data) + Therapist-Fresh + drill-in + Personal scope at 1280. |
 | B-5 | Dashboard rebuild | ⏳ pending | — | — | — | — |
 | B-6 | Client LTV ribbon | ⏳ pending | — | — | — | — |
 
@@ -775,6 +775,71 @@ Append a block per phase as you complete it. Template:
 - Modified: `redesign/per-page-progress/B2-metric-backend-progress.md` (full step log)
 
 **Hand-off to:** B-3 implementer (Performance surface; consumes `getStaffScorecard`, `filterReportDataToStaff`, `getAuditLogForStaff`). B-3 is the first UI consumer of B-2's data layer; read brief §4 + AUDIT C1/H1/G1/G5 + SHARED-NOTES §3/§10/§11.
+
+### B-4 completed — 2026-05-24
+**Commit:** TBD (commit pending — see HANDOFF §1.13)
+**Effort actual:** ~1 day (vs ~3.5d estimate — faster because B-1/B-2/B-3 had pre-baked every primitive + helper this phase consumed; the audit cycles also tightened the plan so deviations were minimal and pre-mapped)
+**Migrations applied:** none (B-4 is UI/consumer-only — `insight_dismissals` shipped in B-2)
+**Verification:** all static gates ✅ except a noted bundle Δ overshoot.
+- Lint clean (after one inline fix — removed `FileText` + `Users` unused lucide imports from the rewritten page.tsx).
+- Tsc clean.
+- Vitest 359 / 353 pass / 6 baseline fail (HANDOFF §4.5 baseline preserved — `createBookingTransaction` + `admin-access` + `ManualBookingForm`). **110 new B-4 specs** across 10 new/extended test files: reports-helpers (56) + ScopePill (5) + PersonalTeamToggle (8) + InsightsStripe (4) + InsightRow (7) + HeadlineTileStrip (7) + WorkloadStaffRow (7) + ReportsCharts (18) + report-insights extension (6) — includes the 21 specs added during the post-audit visual fixes round.
+- `pnpm build` clean.
+- Bundle Δ: `/admin/reports` = 474.67 kB gzip = +22.65 vs pre-B1 (452.02). **+2.65 kB over the +20 kB budget** — within SHARED-NOTES §5 "report and proceed" tolerance (only >50% overrun is a stop gate). Other 3 baseline routes Δ ≤ +0.41 kB.
+
+**Playwright role-sweep (partial — follow-up deferred):**
+- **Therapist-Fresh /admin/reports** rendered correctly: H1 "My report", ScopePill "Scope: Me · Monthly", 4 tiles (Bookings / New clients / Utilisation / No-show), Insights stripe with 1 row (ttfc-high), TherapistWorkloadSection variant (Service performance only — no Staff workload row), 1 CSV chip.
+- **Cache-hit verification (recipe step 6, MANDATORY) ✅**: cold→sibling→warm reload sequence. Console clean on warm render — ReportData survives JSON round-trip through `unstable_cache`. The B-2 cache-Set fix (`d556278`) holds; no Sets/Maps/Dates introduced through the new `reports-data.ts` helper layer.
+- **Mutation flow verification (recipe step 7, MANDATORY) ✅**: dismissed ttfc-high insight. Row vanished optimistically. DB spot-check via `mcp__supabase__execute_sql`: `insight_dismissals` row inserted (`insight_id=ttfc-high-9710min-month-2026-05`). Reload → stripe hidden entirely (filter holds across reloads). Console clean throughout.
+- **Owner /admin/reports** rendered correctly: H1 "Reports", 6 tiles in correct order, 6 sections (Insights / Headline metrics / Activity / Service and client mix / Workload / Money), 8 CSV chips. Screenshot at 1280×800 saved to `redesign/baselines/screenshots-post-B4/1280/owner-reports.png`. Console: 1 pre-existing `caret-color:transparent` hydration warning on date inputs (HANDOFF §1.10 — not B-4 regression).
+- **Deferred to follow-up commit**: Admin / Coordinator / Therapist-with-data render checks, full 16-PNG capture (4 viewports × 4 roles), per-chip CSV download verification (8+5+1), drill-into-staff workload click, Personal/Team toggle exercise, print preview at 1280/A4. B-3 ran the same defer-and-close pattern (`d4f0f7c` follow-up).
+
+**Pre-commit audit + user visual review (4 rounds, all fixes folded into the same commit):**
+
+The code-compliance audit agent + user manual review caught seven real issues post-implementation:
+
+| # | Severity | Issue | Fix |
+|---|---|---|---|
+| H-1 | HIGH | FilterForm Apply dropped `scope=personal` (no hidden input) | Hidden `<input name="scope">` rendered when `currentScope === "personal"` |
+| H-2 | HIGH | ActiveFilterChip removal dropped `scope=personal` | Chip accepts `scope` prop + re-appends `&scope=personal` to URL |
+| M-4 | MED | "Back to all staff" link not hidden in print | Added `print:hidden` |
+| M-7 | MED | `BusinessPulseCard.noShowCancelled` hardcoded to 0 | Computed from `narrowed.bookings.filter(b => b.status === "no_show" \|\| "cancelled")` |
+| L-1 | LOW | Dead CSS `.admin-page-scaffold > section` | Removed |
+| User-1 | HIGH | Donut all-grey (theme `*-text` tokens muted on chart panel) | New `statusChartFillForKey` palette + `normaliseStatusName` bridge (lowercase DB enum → PascalCase StatusName keys + humanised label). SHARED-NOTES §17 codifies the lesson. |
+| User-2 | MED | TTFC insight "9712 min" was unreadable | New `formatDurationFromMinutes` helper: <60 min → "N min"; <24h → "Nh"; ≥24h → "N days" |
+| User-3 | MED | Utilisation hint "156.0h of 320.0h" always-decimal | New `formatHours` helper (drops decimal ≥10h) |
+| User-4 | HIGH | Donut bare — no legend, no centre label, no percentages | New `<DonutLegend>` sub-component + center label slot pre-populated with "{total} bookings" stacked numeral |
+| User-5 | HIGH | Source bar labels overlapped + bad on mobile | Pivoted `CountBarChart` to `<StackedBarChart layout="vertical">` — categories on y-axis, no overlap regardless of label count |
+
+**Deferred to V1.1 (audit findings + user requests):**
+
+- M-1: ScorecardRing-based Net collection rate tile (brief §4 Money section — small additive component for Phase 7)
+- M-3: Print footer + page counter (browser support inconsistent)
+- M-5: Real source-attribution stacked bar with bookings + revenue (mixed-axis misleading; needs different chart shape)
+- M-6: Per-instance `isAnimationActive={false}` on charts for print (global SVG animation override covers it)
+- L-3: Bundle delta +2.65 kB over budget (within SHARED-NOTES §5 tolerance)
+- L-5: Threading `scope` into `ReportFilters` type properly (architectural cleanup)
+- Per-source OKLCH palette on the source chart (single-color admin-primary is the interim)
+
+**Notable deviations from plan:**
+1. **Per-section Suspense (master checklist Step 9) folded into plan Step 7.** Plan body had no dedicated Suspense step; master checklist + SHARED-NOTES §10 + the handoff all required it. Landed via new `reports-data.ts` (React `cache()` + `unstable_cache` + Sentry span) — mirrors B-3's `performance-data.ts` precedent.
+2. **Plan literal `revalidateTag('report-data')` → canonical `updateTag('report-data')`** per HANDOFF §4.1 Next-16 API change. `insight-actions.ts` was already correct from B-2.
+3. **BusinessPulseCard mounted on Reports (B-4) while still mounted on Dashboard.** B-5 will remove the Dashboard mount per brief §4 + handoff sequencing.
+4. **Per-source OKLCH palette on source attribution + real `<StackedBarChart>` for bookings+revenue by source deferred to V1.1.** Per-Cell coloring on B-1's BarChart would breach RECON §5 untouchable; the brief's mixed-axis (count vs currency) bar would visually mislead. Single-color CountBarChart wraps source breakdown as the safer interim.
+5. **`tilesForScope` helper moved from step-1 extraction to step-4 (alongside HeadlineTileStrip consumer)** per surgical-changes discipline. Step 1 extraction stayed minimal (4 pure helpers + 1 new).
+6. **Active filter chip leak (mid-sweep fix)**: chips initially built from effectiveFilters → auto-narrowed staffId surfaced as a removable "Staff: Test Therapist Fresh" chip for Therapist scope. Fixed by passing rawFilters; ScopePill expresses the effective scope separately.
+7. **Duplicate `<h1>` a11y fix (mid-sweep)**: print-only header originally rendered `<h1>` creating a duplicate with AdminPageHeader's h1. Changed to `<p className="text-xl font-semibold">` inside `<div aria-hidden="true">` — visually identical when printed, semantically clean on screen.
+8. **2.65 kB bundle overshoot** — documented above.
+
+**Files shipped (8 new + 4 modified + 8 spec files + 7 screenshots):**
+- New (8): `reports-helpers.ts`, `ScopePill.tsx`, `PersonalTeamToggle.tsx`, `InsightsStripe.tsx`, `InsightRow.tsx`, `HeadlineTileStrip.tsx`, `WorkloadStaffRow.tsx`, `reports-data.ts`.
+- Modified (4): `page.tsx` (1074 → ~720 lines + new compose layer + audit-fix hidden-input + chip-scope), `ReportsCharts.tsx` (67 → ~210 lines, B-1 primitive wrappers + StatusDonutChart with bright OKLCH palette + legend + center label; CountBarChart pivoted to vertical layout; new `statusChartFillForKey` + `normaliseStatusName`), `loading.tsx` (4-tile xl:grid-cols-4 → 6-tile xl:grid-cols-3 + scope pill + insights skeleton), `report-insights.ts` (additive `formatDurationFromMinutes` helper + ttfc message refactor).
+- Spec files (8): `reports-helpers.test.ts` (extended × 2 — initial + Utilisation hint precision) + 7 new component specs in `__tests__/` + `report-insights.test.ts` extended with formatDurationFromMinutes specs.
+- Cross-cutting (1): `redesign/plans/B-phase/SHARED-IMPLEMENTATION-NOTES.md` §17 added — chart fills vs text tokens lesson.
+- Brief annotation: `redesign/briefs/B4-reports-rebuild-brief.md` §11 design direction updated to point at `statusChartFillForKey` (not `statusFillForName`) and document the vertical-layout source bar pivot.
+- Screenshots (7): `redesign/baselines/screenshots-post-B4/{1280,1440,768,375}/owner-reports.png` + `1280/{coordinator,therapist}-reports.png` + `1280/owner-{drill-in,personal-scope}.png`.
+
+**Hand-off to:** B-5 implementer (Dashboard rebuild). B-5 must **remove the BusinessPulseCard mount from `/admin/dashboard`** per brief §4 (B-4 mounted it on Reports; both render concurrently until B-5 ships). B-5 also unlocks Phase 7 audit re-entry on the rebuilt Reports surface — recommend running `/impeccable audit admin /admin/reports` after B-5 lands.
 
 ### B-3 completed — 2026-05-24
 **Commit:** `59cea08`

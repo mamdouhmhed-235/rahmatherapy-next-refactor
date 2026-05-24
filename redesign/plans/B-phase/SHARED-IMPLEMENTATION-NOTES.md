@@ -577,4 +577,49 @@ Both gates are useful, but for different reasons — not because they catch diff
 
 ---
 
+---
+
+## §17 — Chart fills vs text tokens (post-B-4 user-found bug, added 2026-05-24)
+
+B-1's `theme.statusFillForName(name)` returns the `--admin-status-{name}-text` token variants — these are deliberately dark (lightness ~30%, OKLCH) because they're designed for accessible text-on-light contrast (WCAG AA ≥ 4.5:1). When B-4 first wired them as chart slice fills the donut rendered four *distinct-but-all-dark* colours and the user flagged it as visually muted. The same trap waits for B-5 (Dashboard `Today rows` status pills, Personal Stripe deltas) and any future chart consumer.
+
+### The rule
+
+| Context | Use |
+|---|---|
+| Status pill / chip text + background | `--admin-status-{name}-text` (paired with `--admin-status-{name}-bg` surface) |
+| Chart slice / bar / line fill on light panel | A chart-tuned bright palette (lightness 55-70%, chroma 0.16-0.22, hues spread around the wheel) |
+| Tile severity background (`*-bg-strong`) | B-1 severity tokens — these already pass the WCAG audit (B-0 Option C) and read as warm muted surfaces |
+
+### Canonical chart palette for booking status (B-4 `statusChartFillForKey`, `src/app/admin/reports/ReportsCharts.tsx`)
+
+```ts
+const STATUS_CHART_FILL: Record<string, string> = {
+  Confirmed: "oklch(58% 0.18 155)", // mint-green
+  Pending:   "oklch(70% 0.16 70)",  // amber
+  Completed: "oklch(55% 0.15 230)", // ocean blue
+  Cancelled: "oklch(55% 0.22 25)",  // coral red
+  NoShow:    "oklch(50% 0.18 330)", // magenta (kept distinct from cancelled)
+};
+const UNKNOWN_CHART_FILL = "oklch(60% 0.05 280)"; // soft mauve-grey
+```
+
+Five hues spread around the OKLCH wheel at consistent lightness so each slice POPS but no one slice dominates. Reuse this exact palette across B-5 + future surfaces that show booking-status breakdowns — keeps the visual language uniform.
+
+### When inventing a new chart palette (e.g. source attribution, service-mix, gender)
+
+- Pick distinct hues spaced by ≥40° around the wheel
+- Hold lightness in the 55-70% band so swatches feel "saturated" on a cream / off-white admin panel
+- Use chroma 0.15-0.22 for the foreground bars; reduce to 0.08-0.10 for hover-tinted backgrounds
+- Always add a contrasting "Other" / unknown fallback at low chroma so unrecognised values are visually muted, not surprising
+
+### Discipline
+
+Before introducing a chart consumer in B-5 or beyond:
+1. Look up whether SHARED-NOTES already has a palette for this data dimension (status, severity, source, etc.).
+2. If yes — reuse the exact OKLCH values. Do NOT re-derive.
+3. If no — propose a 5-7 colour palette in the brief / plan; cross-check against the rule above before shipping.
+
+---
+
 *End of shared notes. Update this file as additional cross-cutting concerns surface during implementation.*

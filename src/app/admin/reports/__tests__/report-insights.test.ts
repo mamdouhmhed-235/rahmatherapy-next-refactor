@@ -2,9 +2,46 @@ import { describe, expect, it } from "vitest";
 import {
   buildInsightId,
   DEFAULT_INSIGHT_THRESHOLDS,
+  formatDurationFromMinutes,
   getReportInsights,
 } from "../report-insights";
 import type { ReportData, ReportFilters } from "../reporting";
+
+describe("formatDurationFromMinutes", () => {
+  it("renders sub-hour values in minutes", () => {
+    expect(formatDurationFromMinutes(0)).toBe("0 min");
+    expect(formatDurationFromMinutes(15)).toBe("15 min");
+    expect(formatDurationFromMinutes(59)).toBe("59 min");
+  });
+
+  it("renders 1-23h windows in hours with one decimal under 10h", () => {
+    expect(formatDurationFromMinutes(60)).toBe("1.0 hours");
+    expect(formatDurationFromMinutes(90)).toBe("1.5 hours");
+    expect(formatDurationFromMinutes(540)).toBe("9.0 hours");
+  });
+
+  it("renders 10-23h windows as whole hours", () => {
+    expect(formatDurationFromMinutes(720)).toBe("12 hours");
+    expect(formatDurationFromMinutes(1439)).toBe("24 hours"); // 23.98h → rounded
+  });
+
+  it("renders ≥24h windows in days with one decimal under 10 days", () => {
+    expect(formatDurationFromMinutes(1440)).toBe("1.0 days");
+    expect(formatDurationFromMinutes(9712)).toBe("6.7 days"); // the bug case
+    expect(formatDurationFromMinutes(14399)).toBe("10.0 days"); // boundary
+  });
+
+  it("renders ≥10-day windows as whole days", () => {
+    expect(formatDurationFromMinutes(15000)).toBe("10 days");
+    expect(formatDurationFromMinutes(43200)).toBe("30 days");
+  });
+
+  it("clamps negative / non-finite inputs to '0 min'", () => {
+    expect(formatDurationFromMinutes(-5)).toBe("0 min");
+    expect(formatDurationFromMinutes(Number.NaN)).toBe("0 min");
+    expect(formatDurationFromMinutes(Number.POSITIVE_INFINITY)).toBe("0 min");
+  });
+});
 
 function filters(overrides: Partial<ReportFilters> = {}): ReportFilters {
   return {

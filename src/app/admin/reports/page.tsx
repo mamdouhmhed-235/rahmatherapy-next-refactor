@@ -1,74 +1,111 @@
+// B-4 — Reports rebuild.
+//
+// Wholesale restructure per B4-reports-rebuild-plan step 7. Composes the new
+// surface: ScopePill → InsightsStripe (Suspense) → filter strip +
+// PersonalTeamToggle + active chips → HeadlineTileStrip (Suspense) →
+// Activity (donut + source + business pulse, Suspense) → Workload
+// (per-staff stacked bars + service rows, Suspense) → Money (Owner/Admin,
+// Suspense) → Metric definitions. Per-section Suspense via `cache()`-deduped
+// fetchers (SHARED-NOTES §10 + B-3 precedent in performance-data.ts):
+// every section awaits `fetchCachedReportData(profile, filters)`, sibling
+// awaits collapse to a single in-flight promise + cached on cache-hit.
+//
+// AUDIT Q3 — whole-page narrowing via [Team|Personal] toggle: when `scope=
+// personal` is set, effectiveFilters carries staffId=profile.id and every
+// downstream helper consumes `filterReportDataToStaff(data, staffId)`. The
+// CSV-export deep-links also include staffId so the existing /export route
+// narrows server-side without modification.
+//
+// AUDIT Q6 — Insights stripe dismissals: page-side fetch of dismissed IDs
+// (cache()-deduped) → filter from getReportInsights output → optimistic
+// dismiss in InsightRow.
+//
+// AUDIT Q8 — print stylesheet: B-4 step 8.5 — landed inline below.
+
+import { Suspense } from "react";
 import Link from "next/link";
-import { unstable_cache } from "next/cache";
 import { redirect } from "next/navigation";
-import * as Sentry from "@sentry/nextjs";
 import {
   Activity,
+  ArrowLeft,
   Briefcase,
   Calculator,
   Download,
-  FileText,
   Filter,
   Receipt,
   TrendingUp,
-  Users,
   Wallet,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { canOpenReports, getStaffProfile } from "@/lib/auth/rbac";
+import {
+  canOpenReports,
+  type StaffProfile,
+  getStaffProfile,
+} from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminFilterBar,
   AdminPageHeader,
   AdminPageScaffold,
   AdminPanel,
-  AdminStat,
+  AdminSkeleton,
 } from "../components/admin-ui";
 import { AdminSheet } from "../components/admin-ui-interactions";
+import { BusinessPulseCard } from "../dashboard/dashboard-cards";
 import {
   METRIC_DEFINITIONS,
   canViewRevenueReports,
   hasUniversalReportScope,
+  filterReportDataToStaff,
   formatMoney,
   formatNumber,
   getCountBy,
-  getReportData,
+  getNoShowRate,
   getRevenueSeries,
   getServicePerformance,
   getStaffRevenueAttribution,
-  getStaffWorkload,
+  getUtilisationRate,
   parseReportFilters,
   summarizeReports,
+  type ReportData,
+  type ReportFilters,
 } from "./reporting";
-import { CountBarChart, RevenueChart } from "./ReportsCharts";
+import { CountBarChart, RevenueChart, StatusDonutChart } from "./ReportsCharts";
 import { RangeHelper } from "./RangeHelper";
+import {
+  PAYMENT_OPTIONS,
+  RANGE_OPTIONS,
+  buildActiveFilterChips,
+  buildDailySeries,
+  formatRangeLabel,
+  getStaffWorkloadWithStatus,
+  tilesForScope,
+  validateFarFutureDate,
+  type ActiveFilterChip as ActiveChip,
+  type TileScope,
+} from "./reports-helpers";
+import { ScopePill } from "./ScopePill";
+import { PersonalTeamToggle } from "./PersonalTeamToggle";
+import { InsightsStripe } from "./InsightsStripe";
+import { HeadlineTileStrip } from "./HeadlineTileStrip";
+import { WorkloadStaffRow } from "./WorkloadStaffRow";
+import {
+  fetchCachedReportData,
+  fetchPriorReportData,
+  fetchReportInsights,
+} from "./reports-data";
 
 export const metadata = {
   title: "Reports - Rahma Therapy Admin",
 };
 
-const RANGE_OPTIONS: { value: string; label: string }[] = [
-  { value: "lifetime", label: "Lifetime" },
-  { value: "year", label: "Yearly" },
-  { value: "month", label: "Monthly" },
-  { value: "week", label: "Weekly" },
-  { value: "custom", label: "Custom" },
-];
-
-const PAYMENT_OPTIONS: { value: string; label: string }[] = [
-  { value: "", label: "Any payment" },
-  { value: "paid", label: "Paid" },
-  { value: "unpaid", label: "Outstanding" },
-  { value: "refunded", label: "Refunded" },
-  { value: "waived", label: "Waived" },
-];
-
 interface ReportsPageProps {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
+
+// ── Page entry ────────────────────────────────────────────────────────────────
 
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const supabase = await createSupabaseServerClient();
@@ -77,90 +114,110 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   if (!canOpenReports(profile)) return <InsufficientPermissions />;
 
   const params = await searchParams;
-  const filters = parseReportFilters(params);
-  const adminClient = createSupabaseAdminClient();
-  // B-2 cache layer per SHARED-IMPLEMENTATION-NOTES §11 (≤8 queries / cold cache)
-  // and §12 (Sentry slow-query spans). 60s revalidate is a fallback; mutation
-  // sites invalidate via `updateTag('report-data')` (Next 16's read-your-own-
-  // writes invalidator — replaces the plan's literal `revalidateTag` per the
-  // Next 16 API change). The cache key includes profile.id so RBAC-narrowed
-  // datasets don't bleed across viewers.
-  const fetchCachedReportData = unstable_cache(
-    () =>
-      Sentry.startSpan(
-        {
-          name: "getReportData",
-          op: "db.query",
-          attributes: { profile_id: profile.id, range: filters.range },
-        },
-        async () => getReportData(adminClient, profile, filters)
-      ),
-    ["report-data", profile.id, JSON.stringify(filters)],
-    { revalidate: 60, tags: ["report-data"] }
-  );
-  const data = await fetchCachedReportData();
-  const summary = summarizeReports(data);
-  const revenueSeries = getRevenueSeries(data.bookings);
-  const servicePerformance = getServicePerformance(data);
-  const staffWorkload = getStaffWorkload(data);
-  const staffRevenue = getStaffRevenueAttribution(data);
+  const rawFilters = parseReportFilters(params);
 
   const revenueAllowed = canViewRevenueReports(profile);
   const universalScope = hasUniversalReportScope(profile);
-  // Therapist = the only scope that opens reports but cannot see universal data
-  // and cannot see revenue. Anything else (Owner / Admin / Coordinator) keeps
-  // staff workload + the broader CSV grouping.
   const isTherapistScope = !revenueAllowed && !universalScope;
 
-  const sourceOptions = getCountBy(
-    data.bookings,
-    (booking) => booking.booking_source
-  )
-    .map((row) => row.name)
-    .filter((name): name is string => Boolean(name));
+  // AUDIT Q3 — scope resolution:
+  //   - Therapist always reads as personal (no toggle, no Workload-Staff panel).
+  //   - Owner/Admin/Coordinator opt in via ?scope=personal which auto-fills
+  //     staffId=profile.id so the data layer narrows.
+  const scopeParam = typeof params.scope === "string" ? params.scope : "";
+  const isPersonalScope =
+    isTherapistScope || scopeParam === "personal";
+
+  // Effective filters thread the personal-scope staffId through every helper.
+  // Manually-drilled ?staffId=other-id is preserved when the toggle is "team".
+  const effectiveStaffId = isPersonalScope ? profile.id : rawFilters.staffId;
+  const effectiveFilters: ReportFilters = {
+    ...rawFilters,
+    staffId: effectiveStaffId,
+  };
+
+  // Tile scope key for tilesForScope
+  const tileScope: TileScope = isTherapistScope
+    ? "therapist"
+    : !revenueAllowed
+      ? "coordinator"
+      : "owner_admin";
+
+  // Filter-aware querystring used by tile hrefs + CSV deep-links. Includes
+  // staffId when set so the existing /export route narrows server-side
+  // without route changes (brief §11.5 plan).
+  const filterEntries = Object.entries(effectiveFilters).filter(
+    ([, value]) => Boolean(value)
+  );
+  if (isPersonalScope && scopeParam === "personal") {
+    filterEntries.push(["scope", "personal"]);
+  }
+  const query = new URLSearchParams(filterEntries).toString();
 
   const customRangeError = (() => {
-    if (filters.range !== "custom") {
-      // Future-date guard applies to any range with explicit dates set.
-      return validateFarFutureDate(filters.from, filters.to);
+    if (rawFilters.range !== "custom") {
+      return validateFarFutureDate(rawFilters.from, rawFilters.to);
     }
-    if (!filters.from || !filters.to) {
+    if (!rawFilters.from || !rawFilters.to) {
       return "Pick a start and end date for a custom range.";
     }
-    if (filters.from > filters.to) {
+    if (rawFilters.from > rawFilters.to) {
       return "End date must be on or after start date.";
     }
-    return validateFarFutureDate(filters.from, filters.to);
+    return validateFarFutureDate(rawFilters.from, rawFilters.to);
   })();
 
-  const query = new URLSearchParams(
-    Object.entries(filters).filter(([, value]) => Boolean(value))
-  ).toString();
+  // Top-level: prime the cache once so the FilterStrip's staff dropdown +
+  // ScopePill's drilled-staff name + every Suspense child's await all hit
+  // the React cache. Single DB call per render (cache() dedup); cache-hit
+  // verification at recipe step 6 keeps the unstable_cache shape safe.
+  const data = await fetchCachedReportData(profile, effectiveFilters);
 
+  // Use rawFilters (not effectiveFilters) so the auto-narrowed staffId from
+  // the Therapist-scope / Personal-toggle code path doesn't surface as a
+  // removable filter chip (the user didn't set it; the page enforced it).
   const activeFilterChips = buildActiveFilterChips({
-    filters,
+    filters: rawFilters,
     staff: data.staff,
   });
 
-  const activityCsvChips: { reportKey: string; label: string }[] = [
-    { reportKey: "client_summary", label: "Client summary" },
-    { reportKey: "booking_list", label: "Booking list" },
-    { reportKey: "source_channel_report", label: "Source-channel" },
-  ];
-  const workloadCsvChips: { reportKey: string; label: string }[] = [
-    { reportKey: "staff_workload_report", label: "Staff workload" },
-    { reportKey: "service_performance_report", label: "Service performance" },
-  ];
-  const moneyCsvChips: { reportKey: string; label: string }[] = [
-    { reportKey: "revenue_summary", label: "Revenue summary" },
-    { reportKey: "payment_report", label: "Payment report" },
-    { reportKey: "staff_revenue_attribution_report", label: "Staff revenue attribution" },
-  ];
+  const sourceOptions = getCountBy(data.bookings, (b) => b.booking_source)
+    .map((row) => row.name)
+    .filter((name): name is string => Boolean(name));
+
+  const drilledStaffName = effectiveStaffId
+    ? data.staff.find((s) => s.id === effectiveStaffId)?.name ?? null
+    : null;
+
+  const isManagerDrillingOther =
+    Boolean(effectiveStaffId) && effectiveStaffId !== profile.id && universalScope;
+
+  const pageTitle = isTherapistScope
+    ? "My report"
+    : isManagerDrillingOther && drilledStaffName
+      ? `Reports — ${drilledStaffName}`
+      : "Reports";
+
+  const scopeWho = isPersonalScope
+    ? "Me"
+    : drilledStaffName ?? "All staff";
+  const rangeLabel = formatRangeLabel(rawFilters);
 
   return (
-    <AdminPageScaffold className="gap-8 pb-10 md:pb-0">
+    <AdminPageScaffold className="gap-8 pb-10 md:pb-0 print:gap-4">
+      {/* Print-only header (visible only in @media print — see <style> below).
+          aria-hidden so screen-reader users on-screen don't hear a duplicate
+          page-title alongside AdminPageHeader's <h1>; the print medium has
+          no AT consumer so the hidden semantics are safe. */}
+      <div className="print-only" aria-hidden="true">
+        <p className="text-xl font-semibold">Rahma Therapy — {pageTitle}</p>
+        <p className="text-xs">
+          Scope: {scopeWho} · {rangeLabel}
+        </p>
+      </div>
+
       <AdminPageHeader
-        title={revenueAllowed ? "Reports" : isTherapistScope ? "My report" : "Reports"}
+        title={pageTitle}
         description={
           revenueAllowed
             ? "Server-scoped business, client, booking, payment, staff, service, and source reporting."
@@ -168,10 +225,36 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
               ? "Your workload, completed sessions, and own bookings in the selected range."
               : "Operational reporting for bookings, staff workload, and source/channel."
         }
+        actions={
+          isManagerDrillingOther ? (
+            <Link
+              href={`/admin/reports?${new URLSearchParams(
+                Object.entries(rawFilters).filter(
+                  ([key, value]) => key !== "staffId" && Boolean(value)
+                )
+              ).toString()}`}
+              className="admin-link-action inline-flex items-center gap-1 text-xs print:hidden"
+            >
+              <ArrowLeft className="size-3.5" aria-hidden="true" />
+              Back to all staff
+            </Link>
+          ) : null
+        }
       />
 
+      <div className="print:hidden">
+        <ScopePill who={scopeWho} rangeLabel={rangeLabel} />
+      </div>
+
+      {/* Insights stripe — Suspense for independent streaming */}
+      <div className="print:hidden">
+        <Suspense fallback={<InsightsStripeSkeleton />}>
+          <InsightsSection profile={profile} filters={effectiveFilters} />
+        </Suspense>
+      </div>
+
       {/* Mobile filter sheet (visible <md only). Same GET form contract. */}
-      <div className="grid gap-3 md:hidden">
+      <div className="grid gap-3 md:hidden print:hidden">
         <div className="flex items-center gap-2">
           <AdminSheet
             title="Filters"
@@ -187,7 +270,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
                   Filters
                   <span className="text-[var(--admin-text-muted)]">
                     {" · "}
-                    {RANGE_OPTIONS.find((o) => o.value === filters.range)?.label ?? "Monthly"}
+                    {RANGE_OPTIONS.find((o) => o.value === rawFilters.range)?.label ?? "Monthly"}
                   </span>
                 </span>
                 {activeFilterChips.length > 0 ? (
@@ -198,99 +281,14 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
               </button>
             }
           >
-            <form action="/admin/reports" className="grid gap-4">
-              <FilterField
-                label="Range"
-                hint={
-                  <RangeHelper
-                    initialRange={filters.range}
-                    initialFrom={filters.from}
-                    initialTo={filters.to}
-                  />
-                }
-              >
-                <select
-                  name="range"
-                  data-reports-range="true"
-                  defaultValue={filters.range}
-                  className="h-11 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                >
-                  {RANGE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </FilterField>
-              <div className="grid grid-cols-2 gap-3">
-                <FilterField label="From">
-                  <input
-                    name="from"
-                    type="date"
-                    defaultValue={filters.from}
-                    className="h-11 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                  />
-                </FilterField>
-                <FilterField label="To">
-                  <input
-                    name="to"
-                    type="date"
-                    defaultValue={filters.to}
-                    className="h-11 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                  />
-                </FilterField>
-              </div>
-              {!isTherapistScope ? (
-                <FilterField label="Staff">
-                  <select
-                    name="staffId"
-                    defaultValue={filters.staffId}
-                    className="h-11 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                  >
-                    <option value="">All staff</option>
-                    {data.staff.map((staff) => (
-                      <option key={staff.id} value={staff.id}>
-                        {staff.name}
-                      </option>
-                    ))}
-                  </select>
-                </FilterField>
-              ) : null}
-              <FilterField label="Source">
-                <select
-                  name="source"
-                  defaultValue={filters.source}
-                  className="h-11 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                >
-                  <option value="">Any source</option>
-                  {sourceOptions.map((name) => (
-                    <option key={name} value={name}>
-                      {name}
-                    </option>
-                  ))}
-                </select>
-              </FilterField>
-              <FilterField label="Payment">
-                <select
-                  name="paymentStatus"
-                  defaultValue={filters.paymentStatus}
-                  className="h-11 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                >
-                  {PAYMENT_OPTIONS.map((option) => (
-                    <option key={option.label} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </FilterField>
-              <button
-                type="submit"
-                className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
-              >
-                <Filter className="size-4" aria-hidden="true" />
-                Apply filters
-              </button>
-            </form>
+            <FilterForm
+              filters={rawFilters}
+              staff={data.staff}
+              sourceOptions={sourceOptions}
+              isTherapistScope={isTherapistScope}
+              currentScope={isPersonalScope ? "personal" : "team"}
+              variant="mobile"
+            />
           </AdminSheet>
           {activeFilterChips.length > 0 ? (
             <Link
@@ -303,373 +301,675 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
         </div>
       </div>
 
-      {/* Desktop filter strip (visible md+ only) — GET form. Field names preserved verbatim. */}
-      <form action="/admin/reports" className="hidden gap-3 md:grid">
-        <AdminFilterBar
-          actions={
-            <>
-              <button
-                type="submit"
-                className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-              >
-                <Filter className="size-3.5" aria-hidden="true" />
-                Apply filters
-              </button>
-              {activeFilterChips.length > 0 ? (
-                <Link
-                  href="/admin/reports"
-                  className="inline-flex h-10 items-center gap-1 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-body)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-                >
-                  Clear filters
-                </Link>
-              ) : null}
-            </>
+      {/* Desktop filter strip + Personal/Team toggle (visible md+ only) */}
+      <div id="admin-reports-filters" className="hidden gap-3 md:grid print:hidden">
+        <FilterForm
+          filters={rawFilters}
+          staff={data.staff}
+          sourceOptions={sourceOptions}
+          isTherapistScope={isTherapistScope}
+          currentScope={isPersonalScope ? "personal" : "team"}
+          variant="desktop"
+          extraActions={
+            <PersonalTeamToggle
+              visible={!isTherapistScope}
+              scope={isPersonalScope ? "personal" : "team"}
+              viewerId={profile.id}
+              filters={Object.fromEntries(
+                Object.entries(rawFilters).filter(([, v]) => Boolean(v))
+              ) as Record<string, string>}
+            />
           }
-        >
-          <FilterField label="Range" hint={
-            <RangeHelper
-              initialRange={filters.range}
-              initialFrom={filters.from}
-              initialTo={filters.to}
-            />
-          }>
-            <select
-              name="range"
-              data-reports-range="true"
-              defaultValue={filters.range}
-              className="h-10 w-full min-w-[9rem] rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            >
-              {RANGE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="From">
-            <input
-              name="from"
-              type="date"
-              defaultValue={filters.from}
-              className="h-10 w-full min-w-[8.5rem] rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            />
-          </FilterField>
-          <FilterField label="To">
-            <input
-              name="to"
-              type="date"
-              defaultValue={filters.to}
-              className="h-10 w-full min-w-[8.5rem] rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            />
-          </FilterField>
-          {!isTherapistScope ? (
-            <FilterField label="Staff">
-              <select
-                name="staffId"
-                defaultValue={filters.staffId}
-                className="h-10 w-full min-w-[10rem] rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-              >
-                <option value="">All staff</option>
-                {data.staff.map((staff) => (
-                  <option key={staff.id} value={staff.id}>
-                    {staff.name}
-                  </option>
-                ))}
-              </select>
-            </FilterField>
-          ) : null}
-          <FilterField label="Source">
-            <select
-              name="source"
-              defaultValue={filters.source}
-              className="h-10 w-full min-w-[10rem] rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            >
-              <option value="">Any source</option>
-              {sourceOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-          <FilterField label="Payment">
-            <select
-              name="paymentStatus"
-              defaultValue={filters.paymentStatus}
-              className="h-10 w-full min-w-[9rem] rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            >
-              {PAYMENT_OPTIONS.map((option) => (
-                <option key={option.label} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </FilterField>
-        </AdminFilterBar>
-      </form>
+          activeFilterChipsCount={activeFilterChips.length}
+        />
+      </div>
 
-      {/* Filter feedback (visible on all viewports — driven by URL state) */}
+      {/* Filter feedback */}
       {customRangeError ? (
         <div
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)]"
+          className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)] print:hidden"
         >
           {customRangeError}
         </div>
       ) : null}
 
       {activeFilterChips.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           {activeFilterChips.map((chip) => (
-            <ActiveFilterChip key={chip.id} chip={chip} filters={filters} />
+            <ActiveFilterChip
+              key={chip.id}
+              chip={chip}
+              filters={rawFilters}
+              scope={isPersonalScope ? "personal" : ""}
+            />
           ))}
         </div>
       ) : null}
 
-      {/* Headline stats — Cormorant Garamond numerals via numeral prop. */}
-      <section
-        aria-label="Headline summary"
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-      >
-        <AdminStat
-          icon={FileText}
-          label="Bookings"
-          value={formatNumber(summary.bookingCount)}
-          note="Booking records in scope"
-          numeral
+      {/* Headline tile strip */}
+      <Suspense fallback={<HeadlineSkeleton count={tileScope === "owner_admin" ? 6 : 4} />}>
+        <HeadlineSection
+          profile={profile}
+          filters={effectiveFilters}
+          scope={tileScope}
+          query={query}
         />
-        <AdminStat
-          icon={Users}
-          label="Repeat clients"
-          value={formatNumber(summary.repeatClients)}
-          note={`${formatNumber(summary.newClients)} new clients`}
-          numeral
+      </Suspense>
+
+      {/* Activity section */}
+      <Suspense fallback={<SectionSkeleton heading="Activity" />}>
+        <ActivitySection
+          profile={profile}
+          filters={effectiveFilters}
+          revenueAllowed={revenueAllowed}
+          isTherapistScope={isTherapistScope}
+          query={query}
         />
-        {revenueAllowed ? (
-          <>
-            <AdminStat
+      </Suspense>
+
+      {/* Workload section */}
+      {!isTherapistScope ? (
+        <Suspense fallback={<SectionSkeleton heading="Workload" />}>
+          <WorkloadSection
+            profile={profile}
+            filters={effectiveFilters}
+            revenueAllowed={revenueAllowed}
+            query={query}
+          />
+        </Suspense>
+      ) : (
+        <Suspense fallback={<SectionSkeleton heading="Workload" />}>
+          <TherapistWorkloadSection
+            profile={profile}
+            filters={effectiveFilters}
+          />
+        </Suspense>
+      )}
+
+      {/* Money section (Owner/Admin) */}
+      {revenueAllowed ? (
+        <Suspense fallback={<SectionSkeleton heading="Money" />}>
+          <MoneySection
+            profile={profile}
+            filters={effectiveFilters}
+            query={query}
+          />
+        </Suspense>
+      ) : null}
+
+      <MetricDefinitions />
+
+      {/* AUDIT Q8 — print stylesheet (step 8.5).
+          @page sets A4 portrait; .print-only blocks shown only when printing;
+          chrome (filter strip, scope pill, toggle, CSV chips, drill links,
+          dismiss × buttons) hidden; section break-inside avoid; Recharts
+          animations disabled (M4 fix). */}
+      <style>{`
+        @media screen { .print-only { display: none; } }
+        @media print {
+          @page { size: A4 portrait; margin: 1.5cm; }
+          html, body { background: white; color: black; color-scheme: light; }
+          .print-only { display: block; margin-bottom: 1rem; border-bottom: 1px solid #ccc; padding-bottom: 0.5rem; }
+          section { break-inside: avoid; }
+          svg { animation: none !important; }
+          a[href] { color: black; text-decoration: none; }
+        }
+      `}</style>
+    </AdminPageScaffold>
+  );
+}
+
+// ── Suspense children ─────────────────────────────────────────────────────────
+
+async function InsightsSection({
+  profile,
+  filters,
+}: {
+  profile: StaffProfile;
+  filters: ReportFilters;
+}) {
+  const insights = await fetchReportInsights(profile, filters);
+  return <InsightsStripe insights={insights} />;
+}
+
+async function HeadlineSection({
+  profile,
+  filters,
+  scope,
+  query,
+}: {
+  profile: StaffProfile;
+  filters: ReportFilters;
+  scope: TileScope;
+  query: string;
+}) {
+  const [data, priorData] = await Promise.all([
+    fetchCachedReportData(profile, filters),
+    fetchPriorReportData(profile, filters),
+  ]);
+
+  // When drilled to a specific staff (or personal scope), narrow the data
+  // for tile computation. Top-level fetcher already narrowed via filters.staffId
+  // through the SELECT, but filterReportDataToStaff is a safety net + the
+  // canonical helper for "this staff only" derivations.
+  const narrowed = filters.staffId ? filterReportDataToStaff(data, filters.staffId) : data;
+  const priorNarrowed =
+    filters.staffId && priorData ? filterReportDataToStaff(priorData, filters.staffId) : priorData;
+
+  const summary = summarizeReports(narrowed);
+  const priorSummary = priorNarrowed ? summarizeReports(priorNarrowed) : undefined;
+  const utilisation = getUtilisationRate(narrowed, filters.staffId ? { staffId: filters.staffId } : undefined);
+  const priorUtilisation = priorNarrowed
+    ? getUtilisationRate(priorNarrowed, filters.staffId ? { staffId: filters.staffId } : undefined)
+    : undefined;
+  const noShow = getNoShowRate(narrowed, filters.staffId ? { staffId: filters.staffId } : undefined);
+  const priorNoShow = priorNarrowed
+    ? getNoShowRate(priorNarrowed, filters.staffId ? { staffId: filters.staffId } : undefined)
+    : undefined;
+
+  // Sparkline series — 12-day window from data.bookings + data.clients.
+  const bookingsSeries = buildDailySeries(
+    narrowed.bookings,
+    (b) => b.booking_date,
+    () => 1,
+    12
+  );
+  const collectedSeries = buildDailySeries(
+    narrowed.bookings,
+    (b) => b.booking_date,
+    (b) => Number(b.amount_paid ?? 0),
+    12
+  );
+  const newClientsSeries = buildDailySeries(
+    narrowed.clients ?? [],
+    (c) => (c as { created_at?: string }).created_at,
+    () => 1,
+    12
+  );
+
+  const tiles = tilesForScope({
+    scope,
+    filters,
+    summary,
+    priorSummary,
+    utilisation,
+    priorUtilisation,
+    noShow,
+    priorNoShow,
+    newClients: summary.newClients,
+    priorNewClients: priorSummary?.newClients,
+    series: {
+      bookings: bookingsSeries,
+      collected: collectedSeries,
+      newClients: newClientsSeries,
+    },
+    query,
+  });
+
+  return <HeadlineTileStrip tiles={tiles} />;
+}
+
+async function ActivitySection({
+  profile,
+  filters,
+  revenueAllowed,
+  isTherapistScope,
+  query,
+}: {
+  profile: StaffProfile;
+  filters: ReportFilters;
+  revenueAllowed: boolean;
+  isTherapistScope: boolean;
+  query: string;
+}) {
+  const data = await fetchCachedReportData(profile, filters);
+  const narrowed = filters.staffId ? filterReportDataToStaff(data, filters.staffId) : data;
+  const summary = summarizeReports(narrowed);
+  const servicePerformance = getServicePerformance(narrowed);
+
+  const statusBreakdown = getCountBy(narrowed.bookings, (b) => b.status);
+  const sourceBreakdown = getCountBy(narrowed.bookings, (b) => b.booking_source);
+
+  // Match the Dashboard's BusinessPulseCard math so the relocated card reports
+  // the same noShow/cancelled count as it did on /admin/dashboard.
+  const noShowCancelledCount = narrowed.bookings.filter(
+    (b) => b.status === "no_show" || b.status === "cancelled"
+  ).length;
+  const businessPulseClients = {
+    repeatClients: summary.repeatClients,
+    newClients: summary.newClients,
+    noShowCancelled: noShowCancelledCount,
+    newEnquiries: narrowed.enquiries?.length ?? 0,
+  };
+
+  const activityCsvChips = isTherapistScope
+    ? [{ reportKey: "booking_list", label: "Booking list" }]
+    : [
+        { reportKey: "client_summary", label: "Client summary" },
+        { reportKey: "booking_list", label: "Booking list" },
+        { reportKey: "source_channel_report", label: "Source-channel" },
+      ];
+
+  return (
+    <ReportSection
+      icon={Activity}
+      heading="Activity"
+      framing="How busy the clinic was in this window and where clients came from."
+    >
+      <div className="grid gap-4 xl:grid-cols-2">
+        <AdminPanel title="Bookings by status">
+          <StatusDonutChart data={statusBreakdown} />
+        </AdminPanel>
+        <AdminPanel title="Source and channel">
+          <CountBarChart data={sourceBreakdown} label="Bookings by source chart" />
+        </AdminPanel>
+      </div>
+      {/* BusinessPulseCard — relocated from Dashboard per brief §4 (B-5 later
+          removes its mount from /admin/dashboard) */}
+      <BusinessPulseCard
+        services={servicePerformance}
+        clients={businessPulseClients}
+        revenueAllowed={revenueAllowed}
+      />
+      <CsvExportPanel
+        heading="Export Activity data"
+        chips={activityCsvChips}
+        query={query}
+      />
+    </ReportSection>
+  );
+}
+
+async function WorkloadSection({
+  profile,
+  filters,
+  revenueAllowed,
+  query,
+}: {
+  profile: StaffProfile;
+  filters: ReportFilters;
+  revenueAllowed: boolean;
+  query: string;
+}) {
+  const data = await fetchCachedReportData(profile, filters);
+  const narrowed = filters.staffId ? filterReportDataToStaff(data, filters.staffId) : data;
+
+  const workloadRows = getStaffWorkloadWithStatus({ assignments: narrowed.assignments });
+  const servicePerformance = getServicePerformance(narrowed);
+
+  return (
+    <ReportSection
+      icon={Briefcase}
+      heading="Workload"
+      framing="Who carried the load and which services led."
+    >
+      <div className="grid gap-4 xl:grid-cols-2">
+        <AdminPanel title="Staff workload">
+          {workloadRows.length === 0 ? (
+            <EmptyPanel
+              title="No staff workload recorded in this window."
+              body="Once assignments are made, the breakdown appears here."
+            />
+          ) : (
+            <div className="grid gap-1">
+              {workloadRows.slice(0, 8).map((row) => (
+                <WorkloadStaffRow key={row.staffId} row={row} query={query} />
+              ))}
+            </div>
+          )}
+        </AdminPanel>
+        <AdminPanel title="Service performance">
+          {servicePerformance.length === 0 ? (
+            <EmptyPanel
+              title="No services delivered in this window."
+              body="Service rows surface once bookings complete."
+            />
+          ) : (
+            <div className="grid gap-2">
+              {servicePerformance.slice(0, 8).map((row, idx) => (
+                <ServiceRow
+                  key={`${row.service}-${idx}`}
+                  service={row.service}
+                  bookings={row.bookings}
+                  revenue={row.revenue}
+                  revenueAllowed={revenueAllowed}
+                />
+              ))}
+            </div>
+          )}
+        </AdminPanel>
+      </div>
+      <CsvExportPanel
+        heading="Export Workload data"
+        chips={[
+          { reportKey: "staff_workload_report", label: "Staff workload" },
+          { reportKey: "service_performance_report", label: "Service performance" },
+        ]}
+        query={query}
+      />
+    </ReportSection>
+  );
+}
+
+async function TherapistWorkloadSection({
+  profile,
+  filters,
+}: {
+  profile: StaffProfile;
+  filters: ReportFilters;
+}) {
+  const data = await fetchCachedReportData(profile, filters);
+  const narrowed = filterReportDataToStaff(data, profile.id);
+  const servicePerformance = getServicePerformance(narrowed);
+
+  return (
+    <ReportSection
+      icon={Briefcase}
+      heading="Workload"
+      framing="Which of your services led in this window."
+    >
+      <AdminPanel title="Service performance">
+        {servicePerformance.length === 0 ? (
+          <EmptyPanel
+            title="No services delivered in this window."
+            body="Service rows surface once bookings complete."
+          />
+        ) : (
+          <div className="grid gap-2">
+            {servicePerformance.slice(0, 8).map((row, idx) => (
+              <ServiceRow
+                key={`${row.service}-${idx}`}
+                service={row.service}
+                bookings={row.bookings}
+                revenue={row.revenue}
+                revenueAllowed={false}
+              />
+            ))}
+          </div>
+        )}
+      </AdminPanel>
+    </ReportSection>
+  );
+}
+
+async function MoneySection({
+  profile,
+  filters,
+  query,
+}: {
+  profile: StaffProfile;
+  filters: ReportFilters;
+  query: string;
+}) {
+  const data = await fetchCachedReportData(profile, filters);
+  const narrowed = filters.staffId ? filterReportDataToStaff(data, filters.staffId) : data;
+
+  const summary = summarizeReports(narrowed);
+  const revenueSeries = getRevenueSeries(narrowed.bookings);
+  const staffRevenue = getStaffRevenueAttribution(narrowed);
+
+  return (
+    <ReportSection
+      icon={Receipt}
+      heading="Money"
+      framing="What was collected, what's outstanding, and how it splits across staff."
+    >
+      <AdminPanel title="Revenue by period">
+        <RevenueChart data={revenueSeries} />
+      </AdminPanel>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <AdminPanel title="Outstanding vs collected">
+          <div className="grid gap-2">
+            <CompactStat
               icon={Wallet}
-              label="Collected revenue"
+              label="Collected"
               value={formatMoney(summary.collectedRevenue)}
               note="Actual amount paid"
-              numeral
+              tone="success"
             />
-            <AdminStat
+            <CompactStat
               icon={TrendingUp}
               label="Outstanding"
               value={formatMoney(summary.outstandingRevenue)}
               note="Due minus paid"
-              alert={summary.outstandingRevenue > 0}
               tone={summary.outstandingRevenue > 0 ? "warning" : "default"}
-              numeral
             />
-          </>
-        ) : null}
-      </section>
+          </div>
+        </AdminPanel>
+        <AdminPanel
+          title="Staff revenue attribution"
+          description="Participant service-item attribution avoids group-booking double-counting."
+        >
+          {staffRevenue.length === 0 ? (
+            <EmptyPanel
+              title="No revenue attributed yet"
+              body="Once bookings are paid, attribution appears here."
+            />
+          ) : (
+            <div className="grid gap-2">
+              {staffRevenue.slice(0, 8).map((row, idx) => (
+                <div
+                  key={`${row.staffName}-${idx}`}
+                  className="flex items-center justify-between gap-3 border-b border-[var(--admin-border)] py-2 text-sm last:border-b-0"
+                >
+                  <span className="truncate font-medium text-[var(--admin-heading)]">
+                    {row.staffName}
+                  </span>
+                  <span className="tabular-nums text-[var(--admin-body)]">
+                    {formatMoney(row.revenue)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </AdminPanel>
+      </div>
+      <CsvExportPanel
+        heading="Export Money data"
+        chips={[
+          { reportKey: "revenue_summary", label: "Revenue summary" },
+          { reportKey: "payment_report", label: "Payment report" },
+          { reportKey: "staff_revenue_attribution_report", label: "Staff revenue attribution" },
+        ]}
+        query={query}
+      />
+    </ReportSection>
+  );
+}
 
-      {/* Section A — Activity */}
-      <ReportSection
-        icon={Activity}
-        heading="Activity"
-        framing="How busy the clinic was in this window and where clients came from."
-      >
-        <div className="grid gap-4 xl:grid-cols-2">
-          <AdminPanel title="Bookings by status">
-            {data.bookings.length === 0 ? (
-              <ChartEmpty />
-            ) : (
-              <CountBarChart
-                data={getCountBy(data.bookings, (booking) => booking.status)}
-                label="Bookings by status chart"
-              />
-            )}
-          </AdminPanel>
-          <AdminPanel title="Source and channel">
-            {data.bookings.length === 0 ? (
-              <ChartEmpty
-                title="No source data"
-                body="New leads will show up here as bookings come in."
-              />
-            ) : (
-              <CountBarChart
-                data={getCountBy(data.bookings, (booking) => booking.booking_source)}
-                label="Bookings by source chart"
-              />
-            )}
-          </AdminPanel>
-        </div>
-        <CsvExportPanel
-          heading="Export Activity data"
-          chips={isTherapistScope ? [{ reportKey: "booking_list", label: "Booking list" }] : activityCsvChips}
-          query={query}
-        />
-      </ReportSection>
+// ── Sync sub-sections ─────────────────────────────────────────────────────────
 
-      {/* Section B — Workload (visible to non-therapist; therapist gets Service performance only) */}
-      <ReportSection
-        icon={Briefcase}
-        heading="Workload"
-        framing={
-          isTherapistScope
-            ? "Which of your services led in this window."
-            : "Who carried the load and which services led."
+interface FilterFormProps {
+  filters: ReportFilters;
+  staff: ReportData["staff"];
+  sourceOptions: string[];
+  isTherapistScope: boolean;
+  /** When 'personal' the form emits a hidden scope input so Apply preserves the toggle state. */
+  currentScope: "team" | "personal";
+  variant: "mobile" | "desktop";
+  extraActions?: React.ReactNode;
+  activeFilterChipsCount?: number;
+}
+
+function FilterForm({
+  filters,
+  staff,
+  sourceOptions,
+  isTherapistScope,
+  currentScope,
+  variant,
+  extraActions,
+  activeFilterChipsCount = 0,
+}: FilterFormProps) {
+  const inputBase =
+    "w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35";
+  const inputHeight = variant === "mobile" ? "h-11" : "h-10";
+
+  const formInner = (
+    <>
+      {/* Preserve Personal-toggle state through the GET-form Apply round-trip.
+          Without this hidden input, clicking Apply while in Personal scope
+          would silently drop scope=personal and revert to Team. */}
+      {currentScope === "personal" ? (
+        <input type="hidden" name="scope" value="personal" />
+      ) : null}
+      <FilterField
+        label="Range"
+        hint={
+          <RangeHelper
+            initialRange={filters.range}
+            initialFrom={filters.from}
+            initialTo={filters.to}
+          />
         }
       >
-        <div
-          className={
-            isTherapistScope
-              ? "grid gap-4"
-              : "grid gap-4 xl:grid-cols-2"
-          }
+        <select
+          name="range"
+          data-reports-range="true"
+          defaultValue={filters.range}
+          className={cn(inputBase, inputHeight, variant === "desktop" && "min-w-[9rem]")}
         >
-          {!isTherapistScope ? (
-            <AdminPanel title="Staff workload">
-              <EntityRowList
-                rows={staffWorkload}
-                limit={8}
-                empty={{
-                  title: "No staff activity in this range",
-                  body: "Nobody had a booking assigned in the selected window.",
-                }}
-                render={(row, idx) => ({
-                  key: `${row.staffName}-${idx}`,
-                  leading: <Avatar name={row.staffName} />,
-                  title: row.staffName,
-                  meta: `${formatNumber(row.assignments)} assignments · ${formatNumber(row.completed)} completed`,
-                  htmlTitle: `${row.assignments} assignments, ${row.completed} completed`,
-                })}
-              />
-            </AdminPanel>
-          ) : null}
-          <AdminPanel title="Service performance">
-            <EntityRowList
-              rows={servicePerformance}
-              limit={8}
-              empty={{
-                title: "No services booked",
-                body: "No services had bookings in the selected window.",
-              }}
-              render={(row, idx) => ({
-                key: `${row.service}-${idx}`,
-                leading: <Avatar name={row.service} variant="square" />,
-                title: row.service,
-                meta:
-                  revenueAllowed
-                    ? `${formatNumber(row.bookings)} bookings · ${formatMoney(row.revenue)}`
-                    : `${formatNumber(row.bookings)} bookings`,
-                htmlTitle: revenueAllowed
-                  ? `${row.bookings} bookings · ${formatMoney(row.revenue)} collected`
-                  : `${row.bookings} bookings`,
-              })}
-            />
-          </AdminPanel>
-        </div>
-        {!isTherapistScope ? (
-          <CsvExportPanel
-            heading="Export Workload data"
-            chips={workloadCsvChips}
-            query={query}
+          {RANGE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </FilterField>
+      <div className={variant === "mobile" ? "grid grid-cols-2 gap-3" : "contents"}>
+        <FilterField label="From">
+          <input
+            name="from"
+            type="date"
+            defaultValue={filters.from}
+            className={cn(inputBase, inputHeight, variant === "desktop" && "min-w-[8.5rem]")}
           />
-        ) : null}
-      </ReportSection>
-
-      {/* Section C — Money (revenue scope only) */}
-      {revenueAllowed ? (
-        <ReportSection
-          icon={Receipt}
-          heading="Money"
-          framing="What was collected, what's outstanding, and how it splits across staff."
-        >
-          <AdminPanel title="Revenue by period">
-            {revenueSeries.length === 0 ? (
-              <ChartEmpty />
-            ) : (
-              <RevenueChart data={revenueSeries} />
-            )}
-          </AdminPanel>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <AdminPanel
-              title="Staff revenue attribution"
-              description="Participant service-item attribution avoids group-booking double-counting."
-            >
-              <EntityRowList
-                rows={staffRevenue}
-                limit={8}
-                empty={{
-                  title: "No revenue attributed yet",
-                  body: "Once bookings are paid, attribution appears here.",
-                }}
-                render={(row, idx) => ({
-                  key: `${row.staffName}-${idx}`,
-                  leading: <Avatar name={row.staffName} />,
-                  title: row.staffName,
-                  meta: formatMoney(row.revenue),
-                })}
-              />
-            </AdminPanel>
-            <AdminPanel title="Outstanding vs collected">
-              <div className="grid gap-2">
-                <CompactStat
-                  icon={Wallet}
-                  label="Collected"
-                  value={formatMoney(summary.collectedRevenue)}
-                  note="Actual amount paid"
-                  tone="success"
-                />
-                <CompactStat
-                  icon={TrendingUp}
-                  label="Outstanding"
-                  value={formatMoney(summary.outstandingRevenue)}
-                  note="Due minus paid"
-                  tone={summary.outstandingRevenue > 0 ? "warning" : "default"}
-                />
-              </div>
-            </AdminPanel>
-          </div>
-          <CsvExportPanel
-            heading="Export Money data"
-            chips={moneyCsvChips}
-            query={query}
+        </FilterField>
+        <FilterField label="To">
+          <input
+            name="to"
+            type="date"
+            defaultValue={filters.to}
+            className={cn(inputBase, inputHeight, variant === "desktop" && "min-w-[8.5rem]")}
           />
-        </ReportSection>
+        </FilterField>
+      </div>
+      {!isTherapistScope ? (
+        <FilterField label="Staff">
+          <select
+            name="staffId"
+            defaultValue={filters.staffId}
+            className={cn(inputBase, inputHeight, variant === "desktop" && "min-w-[10rem]")}
+          >
+            <option value="">All staff</option>
+            {staff.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </FilterField>
       ) : null}
+      <FilterField label="Source">
+        <select
+          name="source"
+          defaultValue={filters.source}
+          className={cn(inputBase, inputHeight, variant === "desktop" && "min-w-[10rem]")}
+        >
+          <option value="">Any source</option>
+          {sourceOptions.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </FilterField>
+      <FilterField label="Payment">
+        <select
+          name="paymentStatus"
+          defaultValue={filters.paymentStatus}
+          className={cn(inputBase, inputHeight, variant === "desktop" && "min-w-[9rem]")}
+        >
+          {PAYMENT_OPTIONS.map((option) => (
+            <option key={option.label} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </FilterField>
+    </>
+  );
 
-      {/* How these numbers are calculated. Split into Revenue + Activity
-          groups so the 8-pill 4×2 uniform grid breaks into two semantic
-          clusters with a thin divider between. */}
-      <AdminPanel
-        title="How these numbers are calculated"
-        description="Each metric is computed from the bookings visible in this window. Expand any row for the definition."
+  if (variant === "mobile") {
+    return (
+      <form action="/admin/reports" className="grid gap-4">
+        {formInner}
+        <button
+          type="submit"
+          className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
+        >
+          <Filter className="size-4" aria-hidden="true" />
+          Apply filters
+        </button>
+      </form>
+    );
+  }
+
+  return (
+    <form action="/admin/reports" className="grid gap-3">
+      <AdminFilterBar
+        actions={
+          <>
+            <button
+              type="submit"
+              className="inline-flex h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+            >
+              <Filter className="size-3.5" aria-hidden="true" />
+              Apply filters
+            </button>
+            {extraActions}
+            {activeFilterChipsCount > 0 ? (
+              <Link
+                href="/admin/reports"
+                className="inline-flex h-10 items-center gap-1 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-body)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+              >
+                Clear filters
+              </Link>
+            ) : null}
+          </>
+        }
       >
-        {(() => {
-          const revenueKeys = new Set([
-            "booked_revenue",
-            "expected_revenue",
-            "collected_revenue",
-            "outstanding_revenue",
-            "completed_revenue",
-            "staff_revenue",
-          ]);
-          const revenueMetrics = METRIC_DEFINITIONS.filter((m) => revenueKeys.has(m.key));
-          const activityMetrics = METRIC_DEFINITIONS.filter((m) => !revenueKeys.has(m.key));
-          return (
-            <>
-              <MetricGroupHeading label="Revenue" />
-              <div className="grid gap-2 sm:grid-cols-2">
-                {revenueMetrics.map(renderMetricDetails)}
-              </div>
-              <div className="my-5 border-t border-[var(--admin-border)]" aria-hidden="true" />
-              <MetricGroupHeading label="Activity" />
-              <div className="grid gap-2 sm:grid-cols-2">
-                {activityMetrics.map(renderMetricDetails)}
-              </div>
-            </>
-          );
-        })()}
-      </AdminPanel>
-    </AdminPageScaffold>
+        {formInner}
+      </AdminFilterBar>
+    </form>
+  );
+}
+
+function MetricDefinitions() {
+  const revenueKeys = new Set([
+    "booked_revenue",
+    "expected_revenue",
+    "collected_revenue",
+    "outstanding_revenue",
+    "completed_revenue",
+    "staff_revenue",
+  ]);
+  const revenueMetrics = METRIC_DEFINITIONS.filter((m) => revenueKeys.has(m.key));
+  const activityMetrics = METRIC_DEFINITIONS.filter((m) => !revenueKeys.has(m.key));
+  return (
+    <AdminPanel
+      title="How these numbers are calculated"
+      description="Each metric is computed from the bookings visible in this window. Expand any row for the definition."
+    >
+      <MetricGroupHeading label="Revenue" />
+      <div className="grid gap-2 sm:grid-cols-2">{revenueMetrics.map(renderMetricDetails)}</div>
+      <div className="my-5 border-t border-[var(--admin-border)]" aria-hidden="true" />
+      <MetricGroupHeading label="Activity" />
+      <div className="grid gap-2 sm:grid-cols-2">{activityMetrics.map(renderMetricDetails)}</div>
+    </AdminPanel>
   );
 }
 
@@ -705,14 +1005,12 @@ function renderMetricDetails(metric: { key: string; label: string; definition: s
           ▾
         </span>
       </summary>
-      <p className="mt-2 text-xs leading-5 text-[var(--admin-text-muted)]">
-        {metric.definition}
-      </p>
+      <p className="mt-2 text-xs leading-5 text-[var(--admin-text-muted)]">{metric.definition}</p>
     </details>
   );
 }
 
-// ───────────────────────── Small in-file primitives ──────────────────────────
+// ── Small primitives ──────────────────────────────────────────────────────────
 
 function FilterField({
   label,
@@ -747,10 +1045,7 @@ function ReportSection({
     <section aria-label={heading} className="grid gap-4">
       <header className="min-w-0">
         <h2 className="font-display flex items-center gap-2.5 text-[1.778rem] font-semibold leading-[1.25] tracking-[-0.015em] text-[var(--admin-heading)]">
-          <Icon
-            className="size-5 shrink-0 text-[var(--admin-primary)]"
-            aria-hidden="true"
-          />
+          <Icon className="size-5 shrink-0 text-[var(--admin-primary)]" aria-hidden="true" />
           {heading}
         </h2>
         <p className="mt-1.5 max-w-[60ch] pl-[1.75rem] text-sm leading-6 text-[var(--admin-text-muted)]">
@@ -772,8 +1067,12 @@ function CsvExportPanel({
   query: string;
 }) {
   return (
-    <AdminPanel title={heading} description="CSV downloads use the current filter window." tone="muted">
-      <div className="flex flex-wrap gap-2">
+    <AdminPanel
+      title={heading}
+      description="CSV downloads use the current filter window."
+      tone="muted"
+    >
+      <div className="flex flex-wrap gap-2 print:hidden">
         {chips.map((chip) => (
           <Link
             key={chip.reportKey}
@@ -792,93 +1091,27 @@ function CsvExportPanel({
   );
 }
 
-interface EntityRowProps {
-  key: string;
-  leading: React.ReactNode;
-  title: React.ReactNode;
-  meta?: React.ReactNode;
-  htmlTitle?: string;
-}
-
-function EntityRowList<T>({
-  rows,
-  limit,
-  empty,
-  render,
+function ServiceRow({
+  service,
+  bookings,
+  revenue,
+  revenueAllowed,
 }: {
-  rows: T[];
-  limit: number;
-  empty: { title: string; body: string };
-  render: (row: T, index: number) => EntityRowProps;
+  service: string;
+  bookings: number;
+  revenue: number;
+  revenueAllowed: boolean;
 }) {
-  if (rows.length === 0) {
-    return (
-      <div className="grid gap-1 rounded-[var(--admin-radius-control)] bg-[var(--admin-panel-muted)]/50 px-3 py-4 text-sm">
-        <p className="font-medium text-[var(--admin-heading)]">{empty.title}</p>
-        <p className="text-xs text-[var(--admin-text-muted)]">{empty.body}</p>
-      </div>
-    );
-  }
-
-  const head = rows.slice(0, limit);
-  const tail = rows.slice(limit);
-
   return (
-    <div className="grid gap-2">
-      {head.map((row, idx) => {
-        const props = render(row, idx);
-        return (
-          <RowItem key={props.key} props={props} />
-        );
-      })}
-      {tail.length > 0 ? (
-        <details className="group">
-          <summary
-            className="inline-flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-xs font-medium text-[var(--admin-primary)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-            title={`Show all ${rows.length} rows`}
-          >
-            <span className="group-open:hidden">Show all {rows.length} →</span>
-            <span className="hidden group-open:inline">Show fewer</span>
-          </summary>
-          <div className="mt-2 grid gap-2">
-            {tail.map((row, idx) => {
-              const props = render(row, idx + limit);
-              return <RowItem key={props.key} props={props} />;
-            })}
-          </div>
-        </details>
-      ) : null}
+    <div className="flex items-center justify-between gap-3 border-b border-[var(--admin-border)] py-2 text-sm last:border-b-0">
+      <span className="truncate font-medium text-[var(--admin-heading)]">{service}</span>
+      <span className="tabular-nums text-[var(--admin-text-muted)]">
+        {formatNumber(bookings)} bookings{revenueAllowed ? ` · ${formatMoney(revenue)}` : ""}
+      </span>
     </div>
   );
 }
 
-function RowItem({ props }: { props: EntityRowProps }) {
-  // Flat row inside a panel — surface-page divided lines, not nested cards.
-  // (See DESIGN.md "Data Table" + Tonal Lift Rule; AdminEntityRow is preferred
-  // when the row stands alone outside an AdminPanel.)
-  return (
-    <div
-      className="flex min-w-0 items-center gap-3 border-b border-[var(--admin-border)] py-3 last:border-b-0"
-      title={props.htmlTitle}
-    >
-      {props.leading}
-      <div className="min-w-0 flex-1">
-        <p className="min-w-0 truncate text-sm font-medium text-[var(--admin-heading)]">
-          {props.title}
-        </p>
-        {props.meta ? (
-          <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">{props.meta}</p>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-// AdminStat-like tile at compact scale (heading step instead of display step).
-// Used inside Section C "Outstanding vs collected" so the section anchor reads
-// as subordinate to the headline strip rather than re-rendering it (brief §5
-// mandates "AdminStat-like tiles stacked, Cormorant numerals"; the LIKE gives
-// license for the compact scale).
 function CompactStat({
   icon: Icon,
   label,
@@ -928,105 +1161,56 @@ function CompactStat({
   );
 }
 
-function ChartEmpty({ title, body }: { title?: string; body?: string } = {}) {
+function EmptyPanel({ title, body }: { title: string; body: string }) {
   return (
     <div
-      className="flex min-h-[288px] w-full flex-col items-center justify-center gap-1 rounded-[var(--admin-radius-control)] bg-[var(--admin-panel-muted)]/40 px-4 text-center text-sm"
+      className="grid gap-1 rounded-[var(--admin-radius-control)] bg-[var(--admin-panel-muted)]/50 px-3 py-4 text-sm"
       role="status"
     >
-      {title ? (
-        <p className="font-medium text-[var(--admin-heading)]">{title}</p>
-      ) : null}
-      <p className="text-[var(--admin-text-muted)]">
-        {body ?? "No bookings in this window."}
-      </p>
+      <p className="font-medium text-[var(--admin-heading)]">{title}</p>
+      <p className="text-xs text-[var(--admin-text-muted)]">{body}</p>
     </div>
   );
 }
 
-// Deterministic letter-token avatar; warm Hover-Moss tint via panel-muted token.
-function Avatar({ name, variant = "round" }: { name: string; variant?: "round" | "square" }) {
-  const letter = (name?.trim()?.[0] ?? "·").toUpperCase();
+function InsightsStripeSkeleton() {
   return (
-    <span
-      className={
-        variant === "round"
-          ? "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--admin-hover-mist)] text-sm font-semibold text-[var(--admin-primary)]"
-          : "inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-hover-mist)] text-sm font-semibold text-[var(--admin-primary)]"
-      }
-      aria-hidden="true"
-    >
-      {letter}
-    </span>
+    <div className="grid gap-2">
+      <AdminSkeleton className="h-12 rounded-md" />
+      <AdminSkeleton className="h-12 rounded-md" />
+    </div>
   );
 }
 
-// ───────────────────────── Validation helpers ─────────────────────────────────
-
-function validateFarFutureDate(from: string, to: string): string | null {
-  const FIVE_YEARS_MS = 5 * 365 * 24 * 60 * 60 * 1000;
-  const horizon = Date.now() + FIVE_YEARS_MS;
-  const parsed = [from, to]
-    .filter(Boolean)
-    .map((value) => new Date(`${value}T00:00:00Z`).getTime());
-  if (parsed.some((time) => Number.isFinite(time) && time > horizon)) {
-    return "That date is outside the supported range. Reports cover the last 5 years.";
-  }
-  return null;
+function HeadlineSkeleton({ count }: { count: number }) {
+  return (
+    <section
+      aria-label="Headline metrics"
+      className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+    >
+      {Array.from({ length: count }).map((_, idx) => (
+        <AdminSkeleton key={idx} className="h-[14rem] rounded-[var(--admin-radius-card)]" />
+      ))}
+    </section>
+  );
 }
 
-// ───────────────────────── Active filter chips ────────────────────────────────
-
-type FilterKey = "range" | "from" | "to" | "staffId" | "source" | "paymentStatus";
-
-interface ActiveChip {
-  id: FilterKey;
-  label: string;
-  value: string;
-}
-
-function buildActiveFilterChips({
-  filters,
-  staff,
-}: {
-  filters: {
-    range: string;
-    from: string;
-    to: string;
-    staffId: string;
-    source: string;
-    paymentStatus: string;
-  };
-  staff: { id: string; name: string }[];
-}): ActiveChip[] {
-  const chips: ActiveChip[] = [];
-  if (filters.range && filters.range !== "month") {
-    const label = RANGE_OPTIONS.find((option) => option.value === filters.range)?.label ?? filters.range;
-    chips.push({ id: "range", label: "Range", value: label });
-  }
-  if (filters.range === "custom") {
-    if (filters.from) chips.push({ id: "from", label: "From", value: filters.from });
-    if (filters.to) chips.push({ id: "to", label: "To", value: filters.to });
-  }
-  if (filters.staffId) {
-    const match = staff.find((s) => s.id === filters.staffId);
-    chips.push({ id: "staffId", label: "Staff", value: match?.name ?? filters.staffId });
-  }
-  if (filters.source) {
-    chips.push({ id: "source", label: "Source", value: filters.source });
-  }
-  if (filters.paymentStatus) {
-    const label =
-      PAYMENT_OPTIONS.find((option) => option.value === filters.paymentStatus)?.label ??
-      filters.paymentStatus;
-    chips.push({ id: "paymentStatus", label: "Payment", value: label });
-  }
-  return chips;
+function SectionSkeleton({ heading }: { heading: string }) {
+  return (
+    <section aria-label={heading} className="grid gap-4">
+      <AdminSkeleton className="h-8 w-40 rounded-md" />
+      <div className="grid gap-4 xl:grid-cols-2">
+        <AdminSkeleton className="h-64 rounded-[var(--admin-radius-card)]" />
+        <AdminSkeleton className="h-64 rounded-[var(--admin-radius-card)]" />
+      </div>
+    </section>
+  );
 }
 
 function ActiveFilterChip({
   chip,
   filters,
+  scope,
 }: {
   chip: ActiveChip;
   filters: {
@@ -1037,17 +1221,19 @@ function ActiveFilterChip({
     source: string;
     paymentStatus: string;
   };
+  /** When 'personal', preserved on chip-removal so the toggle state survives. */
+  scope: "" | "personal";
 }) {
   const next = { ...filters, [chip.id]: "" } as typeof filters;
-  // If we're dropping the Custom range pin we should also clear from/to so the
-  // helper line resets cleanly.
   if (chip.id === "range") {
     next.from = "";
     next.to = "";
   }
-  const search = new URLSearchParams(
+  const params = new URLSearchParams(
     Object.entries(next).filter(([, value]) => Boolean(value))
-  ).toString();
+  );
+  if (scope === "personal") params.set("scope", "personal");
+  const search = params.toString();
   return (
     <Link
       href={search ? `/admin/reports?${search}` : "/admin/reports"}
@@ -1061,8 +1247,6 @@ function ActiveFilterChip({
     </Link>
   );
 }
-
-// ───────────────────────── Denied state ───────────────────────────────────────
 
 function InsufficientPermissions() {
   return (

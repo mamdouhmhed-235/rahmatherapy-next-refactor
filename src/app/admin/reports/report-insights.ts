@@ -168,13 +168,13 @@ export function getReportInsights(
   const currTtfc = averageTimeToFirstContactMinutes(data);
   const priorTtfc = averageTimeToFirstContactMinutes(priorData);
   if (currTtfc >= thresholds.timeToFirstContactWarningMinutes) {
-    const bucket = Math.round(currTtfc / 5) * 5; // 5-minute bucket
+    const bucket = Math.round(currTtfc / 5) * 5; // 5-minute bucket (ID stability — see AUDIT M10)
     candidates.push({
       id: buildInsightId("ttfc-high", `${bucket}min`, period, yyyyMm),
       severity: "warning",
       message: priorTtfc > 0
-        ? `Avg time-to-first-contact on new enquiries is ${Math.round(currTtfc)} min this ${period}, up from ${Math.round(priorTtfc)} min.`
-        : `Avg time-to-first-contact on new enquiries is ${Math.round(currTtfc)} min this ${period}.`,
+        ? `Avg time-to-first-contact on new enquiries is ${formatDurationFromMinutes(currTtfc)} this ${period}, up from ${formatDurationFromMinutes(priorTtfc)}.`
+        : `Avg time-to-first-contact on new enquiries is ${formatDurationFromMinutes(currTtfc)} this ${period}.`,
       drillUrl: "/admin/enquiries?tab=new",
     });
   }
@@ -212,6 +212,23 @@ export function getReportInsights(
 
 function bucket5(value: number): number {
   return Math.round(value / 5) * 5;
+}
+
+// Pick the right unit for a duration measured in minutes so the insight text
+// is readable at any magnitude. Pre-B-4-audit the ttfc message always said
+// "X min" — for X=9712 (≈6.7 days) that's noise. Crossover thresholds:
+//   <  60 min      → "N min"
+//   < 1440 min     → "Nh" / "N.Nh"   (1h–24h)
+//   ≥ 1440 min     → "N days" / "N.N days"
+export function formatDurationFromMinutes(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes < 0) return "0 min";
+  if (minutes < 60) return `${Math.round(minutes)} min`;
+  const hours = minutes / 60;
+  if (hours < 24) {
+    return hours < 10 ? `${hours.toFixed(1)} hours` : `${Math.round(hours)} hours`;
+  }
+  const days = hours / 24;
+  return days < 10 ? `${days.toFixed(1)} days` : `${Math.round(days)} days`;
 }
 
 function severityWeight(s: InsightSeverity): number {

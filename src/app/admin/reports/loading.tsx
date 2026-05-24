@@ -1,10 +1,11 @@
-// Per brief §6 K7 (Loading): "AdminSkeleton: filter strip (instant), 4 stat-tile
-// skeletons, then section-by-section: panel headers + chart skeleton (minHeight:
-// 288 placeholder rectangle) + 4 row skeletons in each list panel."
+// B-4 — Reports route skeleton. Mirrors the new page composition:
+// Insights stripe (2 rows) → filter strip (instant, omitted) → 6-tile
+// headline grid (Owner/Admin worst-case — 4-tile Coord/Therapist scopes
+// also render fine in a 3-col grid; minor padding at the right is the
+// only visual delta) → Activity / Workload / Money section skeletons.
 //
-// Rendered automatically by Next.js App Router during route transitions into
-// /admin/reports. Filter strip is omitted from the skeleton because it stays
-// instant (brief: "filter strip (instant)").
+// Rendered automatically by Next.js App Router during route transitions
+// into /admin/reports. Shimmer inherited from `<AdminSkeleton>` (B-1).
 
 import { AdminPageScaffold, AdminPanel, AdminSkeleton } from "../components/admin-ui";
 
@@ -17,20 +18,24 @@ export default function ReportsLoading() {
         <AdminSkeleton className="h-4 w-2/3 max-w-md" />
       </header>
 
-      {/* 4 stat tile skeletons */}
+      {/* Scope pill */}
+      <AdminSkeleton className="h-7 w-48 rounded-full" />
+
+      {/* Insights stripe — render 2 row placeholders (the stripe hides
+          server-side when there are zero insights; skeleton stays
+          conservative so the layout doesn't jitter) */}
+      <div className="grid gap-2">
+        <AdminSkeleton className="h-12 rounded-md" />
+        <AdminSkeleton className="h-12 rounded-md" />
+      </div>
+
+      {/* 6-tile headline grid (3-col on xl; equal min-h-[14rem]) */}
       <section
-        aria-label="Headline summary loading"
-        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Headline metrics loading"
+        className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
       >
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-5 py-4"
-          >
-            <AdminSkeleton className="h-3 w-1/2" />
-            <AdminSkeleton className="mt-3 h-9 w-2/3" />
-            <AdminSkeleton className="mt-2 h-3 w-3/4" />
-          </div>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <AdminSkeleton key={i} className="h-[14rem] rounded-[var(--admin-radius-card)]" />
         ))}
       </section>
 
@@ -40,9 +45,9 @@ export default function ReportsLoading() {
       {/* Section B — Workload */}
       <SectionSkeleton rowCount={4} />
 
-      {/* Section C — Money (rendered conservatively; gated server-side when
-          revenueAllowed === false, but the skeleton mirrors the worst-case
-          surface to avoid a layout shift on hydration) */}
+      {/* Section C — Money (gated server-side when revenueAllowed=false; the
+          skeleton mirrors the worst-case surface to avoid a layout jolt on
+          hydration). */}
       <SectionSkeleton chartCount={1} rowCount={4} />
     </AdminPageScaffold>
   );

@@ -388,8 +388,8 @@ Tile strip is the page's `40-30-20-10` "40%" — large numerals, equal grid, no 
 - **Insights stripe row:** `flex items-center gap-3 rounded-md border px-4 py-3` with `bg-[var(--admin-{severity}-bg-strong)] border-[var(--admin-{severity}-text)]/30`.
 - **Insights icon:** `AlertTriangle` (critical) / `AlertCircle` (warning) / `Sparkles` (info) — all 16px lucide.
 - **Headline tile:** `<KpiTile>` from B-1, equal `min-h-[14rem]`, Cormorant numeral.
-- **Donut chart:** `<DonutChart>` from B-1, semantic 5-colour palette via `statusFillForName()`.
-- **Source attribution stacked bar:** `<StackedBarChart>` from B-1, source-hue palette (deterministic OKLCH per source name).
+- **Donut chart:** `<DonutChart>` from B-1, **5-colour chart palette via the new `statusChartFillForKey()`** (NOT `theme.statusFillForName` — that returns text-tuned dark tokens; see SHARED-NOTES §17). Wrapped by `StatusDonutChart` with center label ("{total} bookings", Cormorant numeral + small-caps unit) + below-donut legend (sorted descending, colour swatch + name + count + percentage; 2-col grid on sm+, single-col on phones). Per-slice tooltip on hover (Recharts default).
+- **Source attribution chart:** B-1's `<StackedBarChart layout="vertical">` single-series with admin-primary fill (sorted descending, height auto-grows with category count). Categories sit on the y-axis so labels never overlap regardless of length or count — the horizontal-axis variant from the original brief crashed labels into each other and was unreadable on mobile (user-flagged during pre-commit audit). Per-source OKLCH palette + a real `bookings + revenue` stacked-bar deferred to V1.1 — mixed-axis (count vs currency) on one stack is visually misleading; deferred until the brief settles on a different chart shape.
 - **Workload stacked-bar row:** custom thin `<StackedBarChart>` at 18px height, three-segment (assigned/completed/cancelled).
 - **Revenue trend chart:** `<AreaChart>` from B-1, `minHeight: 320`, prior-year overlay.
 - **Net collection rate tile:** `<ScorecardRing>` from B-1, target=95%.
