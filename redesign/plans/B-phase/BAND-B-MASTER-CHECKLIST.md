@@ -16,7 +16,7 @@
 
 | Phase | Title | State | Started | Shipped | Commit SHA | Notes |
 |---|---|---|---|---|---|---|
-| B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | _pending_ | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
+| B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | `8c142c8` | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
 | B-1 | Foundation primitives | ⚠️ blocked | — | — | — | Blocked on B-1 plan adjustment for the two B-0 findings above. Read B-0 progress before starting. |
 | B-2 | Metric backend | ⏳ pending | — | — | — | — |
 | B-3 | Performance surface | ⏳ pending | — | — | — | — |
@@ -650,7 +650,7 @@ Append a block per phase as you complete it. Template:
 ### Log entries (append below)
 
 ### B-0 completed — 2026-05-24
-**Commit:** _to be filled after commit lands_
+**Commit:** `8c142c8` (preceded by prep commits `6f3ff8f` archive sweep PNGs + `d2e6512` land session-4 planning artefacts)
 **Effort actual:** ~0.5 day (matches estimate)
 **Migrations applied:** none (the 3 Band B migrations are B-2 scope)
 **Verification:** static lint pending; `pnpm build` ✅ ran clean during step 1; `pnpm vitest run` not run (B-0 added no code); 12 populated + 4 empty-Therapist screenshots ✅; bundle baseline ✅; Sentry baseline ✅ (0 active issues); WCAG ❌ 2/3 (resolution authorised by user — see below)
