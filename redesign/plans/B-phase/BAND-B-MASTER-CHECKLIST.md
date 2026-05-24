@@ -19,7 +19,7 @@
 | B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | `8c142c8` | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
 | B-1 | Foundation primitives | ✅ complete | 2026-05-24 | 2026-05-24 | `84f111e` | 77 new specs (charts + tiles + hook). Bundle delta < 0.05 kB / route (primitives dormant). useReducedMotion rewritten to useSyncExternalStore mid-flight after lint. Sandbox path corrected `__sandbox/` → `sandbox-b1/` (Next.js private-folder rule). |
 | B-2 | Metric backend | ✅ complete | 2026-05-24 | 2026-05-24 | `435560f` | 3 migrations applied (Zone-2 × 3); 39 new vitest specs; ~58 `updateTag` inserts (Next 16 API; was `revalidateTag` in plan); `unstable_cache` + Sentry spans on getReportData/getDashboardData/getAuditLogForStaff; idempotent guard on `updateEnquiryStatus.first_contacted_at` proven via Playwright + DB. Chart wrapper TS errors fixed as a B-1 follow-up (commit `11a5f82`) before step 6. |
-| B-3 | Performance surface | ⏳ pending | — | — | — | — |
+| B-3 | Performance surface | ✅ complete | 2026-05-24 | 2026-05-24 | `<pending>` | 21 new vitest specs; 4 new helper modules + 2 new routes + 3 modified files. Pre-section Suspense (plan step 5.5) deferred to V1.1 — synchronous parallel `Promise.all` retains ≤4 query budget. Brief's "Performance Ghost link in StaffDetailShortcuts.tsx" corrected mid-flight: that file is a keyboard handler; visual link landed in `staff/[staffId]/page.tsx`. B-2 cache-Set regression discovered during Playwright sweep and fixed as a separate commit (`d556278`) immediately before B-3. |
 | B-4 | Reports rebuild | ⏳ pending | — | — | — | — |
 | B-5 | Dashboard rebuild | ⏳ pending | — | — | — | — |
 | B-6 | Client LTV ribbon | ⏳ pending | — | — | — | — |
@@ -729,6 +729,35 @@ Append a block per phase as you complete it. Template:
 - Modified: `redesign/per-page-progress/B2-metric-backend-progress.md` (full step log)
 
 **Hand-off to:** B-3 implementer (Performance surface; consumes `getStaffScorecard`, `filterReportDataToStaff`, `getAuditLogForStaff`). B-3 is the first UI consumer of B-2's data layer; read brief §4 + AUDIT C1/H1/G1/G5 + SHARED-NOTES §3/§10/§11.
+
+### B-3 completed — 2026-05-24
+**Commit:** `<pending>` (this commit; will backfill SHA after landing)
+**Pre-commit:** `d556278` fix(admin) — B-2 follow-up: serialize staffAvailabilityRuleStaffIds as string[] (cache-safe). B-2's `unstable_cache` wrap JSON-serialized `ReportData.staffAvailabilityRuleStaffIds: Set<string>` to `{}`, breaking dashboard's `.has()` on cache-hit. Surfaced during B-3 Playwright sweep; fixed in a dedicated `fix(admin)` commit immediately before B-3 (matches the precedent set by `11a5f82` during B-2).
+**Effort actual:** ~1 day (vs ~2d estimate — faster because B-2 had pre-baked the helpers + the audit-format helpers already existed).
+**Migrations applied:** none (B-3 is UI/consumer-only).
+**Verification:** all static gates ✅. Lint clean (after one inline fix — React 19's `react-hooks/static-components` rule rejected the original `const Icon = iconForActionType(...)` pattern in `ActivityTimeline`; refactored to a static-switch `<ActionIcon family={...}>` renderer). Tsc clean (`npx tsc --noEmit`). Vitest 255 / 249 pass / 6 baseline fail (21 new B-3 specs across `performance-helpers.test.ts`; HANDOFF §4.5 6-fail baseline preserved). `pnpm build` clean — 2 new dynamic routes registered (`/admin/me`, `/admin/staff/[staffId]/performance`). Bundle delta: new routes 455.77 kB gzip (peer to dashboard 458.81 / reports 454.38); existing 4 routes Δ ≤ +2.36 kB vs pre-B1 baseline.
+
+**Playwright role-sweep verified:**
+- Owner / Therapist / Coordinator each navigated to `/admin/me` — correct tile set + chart title per shell + audit timeline humanized + upcoming-work panel per role.
+- Owner → `/admin/staff/{therapistId}/performance` — manager-view chrome, "Performance — Test Therapist" Urbanist H1, audit verbs without "You" prefix, "View full audit timeline" footer link.
+- Owner + Therapist both self-redirect from `/admin/staff/{ownId}/performance` → `/admin/me`.
+- Therapist hitting `/admin/staff/{otherTherapistId}/performance` → `AdminAccessDenied` with non-leaking copy.
+- Therapist mobile 375 viewport: sticky bar visible, label "Browse claimable", href `/admin/bookings/?view=claimable` (Q5 fallback ladder).
+
+**Notable deviations from plan:**
+1. **Per-section Suspense (plan step 5.5) deferred to V1.1.** Synchronous parallel `Promise.all` keeps ≤4 query budget and ships deterministic render order; per-section streaming refactor would force either 5+ queries (over budget) or coupled fetches inside each Suspense child. Wall-clock latency identical under cold-cache; ~150ms in practice.
+2. **B-3 "Custom" chip dropped** — needs a date-picker UI out of scope. `?range=custom&from=&to=` URLs still work via `parseReportFilters`. Ship 4 chips: Today/Week/Month/Quarter. V1.1 follow-up.
+3. **Brief's `StaffDetailShortcuts.tsx` target was wrong** — that file is a `"use client"` keyboard handler returning `null`. Real visual surface is `staff/[staffId]/page.tsx`; Performance tab landed at line ~580 (nav strip) and ~750 (sidebar "Open performance" Ghost). Pre-flight finding D1.
+4. **`reporting.ts` quarter branch (additive)** — `getRangeDefaults` didn't handle `range=quarter` (brief §5.1 chip set). Added one branch via additive edit, sanctioned per HANDOFF §5 RECON guidance.
+5. **`PerformanceShell` collapses `owner` + `admin`** — brief had separate strings; using existing `AdminShellVariant` (`owner_admin | coordinator | therapist`) avoids duplicate code paths.
+6. **`tilesForRole` accepts an `options` object** — plan literal was `tilesForRole(role, scorecard)`; added optional `{ staffId, range, businessNetRevenue, showAll, series }` for href construction + Owner-doesn't-treat 6th tile + `?show=all` + per-tile sparklines. Additive.
+7. **`getAuditLogForStaff` fetch consolidated to one query** — original plan implied `ActivityTimeline` fetches its own 20-row slice. Doing so would bust the ≤4 budget (route's scorecard.admin also needs audit logs). Route fetches once at limit=100, slices first 20 → `ActivityTimeline events` prop. `ActivityTimeline` flipped from async to synchronous server component.
+
+**Files shipped (14 changed):**
+- New (10): `me/page.tsx`, `staff/[staffId]/performance/page.tsx`, 4 components in `components/` (`PerformanceSurface.tsx`, `PerformanceHeader.tsx`, `ActivityTimeline.tsx`, `tiles/TileFromSpec.tsx`), 3 helpers (`performance-helpers.ts`, `performance-data.ts`, `performance-surface-helpers.ts`), 1 vitest spec (`__tests__/performance-helpers.test.ts`).
+- Modified (4): `AdminTopNav.tsx` (My Performance link × 2 render blocks), `reporting.ts` (quarter branch), `staff/[staffId]/page.tsx` (visual tab + sidebar link), `scripts/measure-admin-bundles.mjs` (track 2 new routes).
+
+**Hand-off to:** B-4 implementer (Reports rebuild). ~3.5 days. B-4 consumes `getReportInsights`, `dismissInsight`, `filterReportDataToStaff`, `summarizeReports` from B-2. B-3's `buildPerformanceTrend` weekly-bucket pattern is a precedent for B-4's chart helpers (not directly reused — Reports has its own time-series logic).
 
 ---
 

@@ -576,6 +576,14 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
             Availability
           </Link>
         ) : null}
+        {showAvailabilityTab ? (
+          <Link
+            href={`/admin/staff/${staffId}/performance`}
+            className="inline-flex min-h-9 shrink-0 items-center rounded-[6px] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Performance
+          </Link>
+        ) : null}
       </nav>
 
       {/* Two-column workstation grid */}
@@ -747,14 +755,24 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
                 </div>
               </dl>
               {showAvailabilityTab ? (
-                <Link
-                  href={`/admin/staff/${staffId}/availability`}
-                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--admin-primary)] outline-none transition-colors hover:text-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-sm"
-                  title="Open this staff member's availability tab"
-                >
-                  Open availability
-                  <ArrowRight className="size-3.5" aria-hidden="true" />
-                </Link>
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href={`/admin/staff/${staffId}/availability`}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--admin-primary)] outline-none transition-colors hover:text-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-sm"
+                    title="Open this staff member's availability tab"
+                  >
+                    Open availability
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </Link>
+                  <Link
+                    href={`/admin/staff/${staffId}/performance`}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--admin-primary)] outline-none transition-colors hover:text-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-sm"
+                    title="Open this staff member's performance tab"
+                  >
+                    Open performance
+                    <ArrowRight className="size-3.5" aria-hidden="true" />
+                  </Link>
+                </div>
               ) : null}
             </div>
           </AdminPanel>

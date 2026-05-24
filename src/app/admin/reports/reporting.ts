@@ -965,6 +965,16 @@ function getRangeDefaults(range: string, currentYear: string, currentMonth: stri
   if (range === "today") return { from: today, to: today };
   if (range === "week") return { from: today, to: addBusinessDays(today, 7) };
   if (range === "custom") return { from: today, to: today };
+  // B-3 additive (brief §5.1 chip set). Calendar-quarter window matching the
+  // existing "year" semantics — Q1 Jan-Mar / Q2 Apr-Jun / Q3 Jul-Sep / Q4 Oct-Dec.
+  if (range === "quarter") {
+    const month = Number(currentMonth.slice(5, 7));
+    const qStart = Math.floor((month - 1) / 3) * 3 + 1;
+    const qEnd = qStart + 2;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const lastDay = new Date(Date.UTC(Number(currentYear), qEnd, 0)).getUTCDate();
+    return { from: `${currentYear}-${pad(qStart)}-01`, to: `${currentYear}-${pad(qEnd)}-${pad(lastDay)}` };
+  }
   return { from: `${currentMonth}-01`, to: addBusinessDays(today, 30) };
 }
 

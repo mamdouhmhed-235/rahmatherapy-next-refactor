@@ -33,6 +33,14 @@ const ROUTES = [
   { url: "/admin/reports", manifestRoute: "admin/reports" },
   { url: "/admin/clients/[clientId]", manifestRoute: "admin/clients/[clientId]" },
   { url: "/admin/staff/[staffId]", manifestRoute: "admin/staff/[staffId]" },
+  // B-3 — new routes; no pre-B1 baseline entry, so delta_vs_pre_B1_kb is null.
+  // Budget per SHARED-NOTES §5: first_load_js_gzip_kb minus shared_baseline.gzip_kb
+  // must stay within +25 kB (me) / +18 kB (staff perf sub-route).
+  { url: "/admin/me", manifestRoute: "admin/me" },
+  {
+    url: "/admin/staff/[staffId]/performance",
+    manifestRoute: "admin/staff/[staffId]/performance",
+  },
 ];
 
 function readChunkSize(relPath) {

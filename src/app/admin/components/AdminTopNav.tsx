@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 import {
+  Activity,
   CalendarCheck,
   CalendarDays,
   ChevronDown,
@@ -576,6 +577,15 @@ function UserMenuButton({
           {/* Divider + account actions */}
           <div className={cn("py-1.5", navGroups.length > 0 && "border-t border-[var(--admin-border)]")}>
             <Link
+              href="/admin/me"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex min-h-9 items-center gap-2.5 rounded-[var(--admin-radius-control)] mx-1.5 px-2.5 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            >
+              <Activity className="size-4 shrink-0 text-[var(--admin-text-muted)]" aria-hidden="true" />
+              My Performance
+            </Link>
+            <Link
               href={profile.staffId ? `/admin/staff/${profile.staffId}` : "#"}
               role="menuitem"
               onClick={() => setOpen(false)}
@@ -864,6 +874,14 @@ function UserMenuSheet({
 
           {/* Account actions */}
           <div className="grid gap-1 pb-2">
+            <Link
+              href="/admin/me"
+              onClick={onClose}
+              className="flex min-h-11 items-center gap-3 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            >
+              <Activity className="size-5 shrink-0 text-[var(--admin-text-muted)]" aria-hidden="true" />
+              My Performance
+            </Link>
             <Link
               href={profile.staffId ? `/admin/staff/${profile.staffId}` : "#"}
               onClick={onClose}
