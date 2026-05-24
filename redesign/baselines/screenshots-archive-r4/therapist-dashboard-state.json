@@ -1,0 +1,15 @@
+{
+  "bellLabel": "Notifications: all caught up",
+  "bellBadgeText": "",
+  "pageH1": "Good evening, Phase10.",
+  "primaryNavLinks": [
+    "My day",
+    "My bookings",
+    "Team",
+    "Today",
+    "Tomorrow",
+    "This week",
+    "Custom",
+    "My day"
+  ]
+}
