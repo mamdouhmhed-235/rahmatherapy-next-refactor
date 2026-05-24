@@ -17,7 +17,7 @@
 | Phase | Title | State | Started | Shipped | Commit SHA | Notes |
 |---|---|---|---|---|---|---|
 | B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | `8c142c8` | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
-| B-1 | Foundation primitives | ✅ complete | 2026-05-24 | 2026-05-24 | _pending_ | 77 new specs (charts + tiles + hook). Bundle delta < 0.05 kB / route (primitives dormant). useReducedMotion rewritten to useSyncExternalStore mid-flight after lint. Sandbox path corrected `__sandbox/` → `sandbox-b1/` (Next.js private-folder rule). |
+| B-1 | Foundation primitives | ✅ complete | 2026-05-24 | 2026-05-24 | `84f111e` | 77 new specs (charts + tiles + hook). Bundle delta < 0.05 kB / route (primitives dormant). useReducedMotion rewritten to useSyncExternalStore mid-flight after lint. Sandbox path corrected `__sandbox/` → `sandbox-b1/` (Next.js private-folder rule). |
 | B-2 | Metric backend | ⏳ pending | — | — | — | — |
 | B-3 | Performance surface | ⏳ pending | — | — | — | — |
 | B-4 | Reports rebuild | ⏳ pending | — | — | — | — |
@@ -663,7 +663,7 @@ Append a block per phase as you complete it. Template:
 **Hand-off to:** B-1 implementer — must read B-0 progress file end-to-end before step 1; brief + plan need amendment for token + skeleton items above before step 1 executes.
 
 ### B-1 completed — 2026-05-24
-**Commit:** _to be filled after commit lands_ (preceded by amendment commit `0812518` for the B-0 findings)
+**Commit:** `84f111e` (preceded by amendment commit `0812518` for the B-0 findings)
 **Effort actual:** ~0.5 day (vs ~1 day estimate — quicker than planned because the bulk of step 2 work was already done at the component level)
 **Migrations applied:** none (B-1 is UI-only)
 **Verification:** all four gates ✅
