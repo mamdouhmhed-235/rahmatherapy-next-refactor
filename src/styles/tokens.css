@@ -82,6 +82,24 @@
   --admin-warning-bg: #fff7df;
   --admin-danger: #c52b28;
   --admin-danger-bg: #fff0ee;
+  /* Strong-emphasis severity tints (B-1 / Band B).
+   * Used by Dashboard Urgent Attention + Ops Health priority rows, Reports
+   * Outstanding + Insights stripe row backgrounds, Performance no-show tile.
+   * MUST pair *-bg-strong with the corresponding *-text-strong (or, for
+   * success, the existing --admin-success which passes AA at 4.56:1). The
+   * legacy *-bg + * pair (above) is reserved for gentler row-hover/chip
+   * surfaces; mixing -bg-strong with the legacy text fails WCAG (verified
+   * during B-0 — see redesign/baselines/wcag-severity-tokens.md). */
+  --admin-danger-bg-strong: oklch(92% 0.075 20);
+  --admin-warning-bg-strong: oklch(93% 0.085 70);
+  --admin-success-bg-strong: oklch(93% 0.060 155);
+  --admin-danger-text-strong: oklch(30% 0.18 25);   /* 9.21:1 vs danger-bg-strong */
+  --admin-warning-text-strong: oklch(30% 0.16 55);  /* 10.71:1 vs warning-bg-strong */
+  /* Skeleton shimmer pair (B-1). AdminSkeleton's gradient sweep references
+   * these so the loading-state colours are themable from tokens, not
+   * hardcoded inside the component. */
+  --admin-skeleton-base: oklch(95% 0.008 88);
+  --admin-skeleton-highlight: oklch(98% 0.008 88);
   /* Info family aligns with new primary blue (Info badges read as
    * primary-adjacent). Previously Focus Azure (#1b6f93). */
   --admin-info: #0f5e8e;

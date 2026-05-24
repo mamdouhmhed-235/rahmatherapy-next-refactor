@@ -17,7 +17,7 @@
 | Phase | Title | State | Started | Shipped | Commit SHA | Notes |
 |---|---|---|---|---|---|---|
 | B-0 | Baseline capture | ✅ complete | 2026-05-24 | 2026-05-24 | `8c142c8` | WCAG 2/3 tokens FAILED — Option C adjustment authorised; B-1 brief §5.4 must add 2 new `*-text-strong` tokens. Fresh Therapist account live. AdminSkeleton already shimmer — B-1 step 2 needs re-scoping. |
-| B-1 | Foundation primitives | ⚠️ blocked | — | — | — | Blocked on B-1 plan adjustment for the two B-0 findings above. Read B-0 progress before starting. |
+| B-1 | Foundation primitives | ✅ complete | 2026-05-24 | 2026-05-24 | _pending_ | 77 new specs (charts + tiles + hook). Bundle delta < 0.05 kB / route (primitives dormant). useReducedMotion rewritten to useSyncExternalStore mid-flight after lint. Sandbox path corrected `__sandbox/` → `sandbox-b1/` (Next.js private-folder rule). |
 | B-2 | Metric backend | ⏳ pending | — | — | — | — |
 | B-3 | Performance surface | ⏳ pending | — | — | — | — |
 | B-4 | Reports rebuild | ⏳ pending | — | — | — | — |
@@ -661,6 +661,35 @@ Append a block per phase as you complete it. Template:
 3. **B-0 plan step 5 `crypt()` H2 warning was a misdiagnosis.** The bcrypt hash via `gen_salt('bf', 10)` IS Supabase-compatible. The real GoTrue rejection cause was NULL values in `auth.users.{confirmation_token, recovery_token, email_change_token_new, email_change}` — they must be empty strings. Documented in B-0 progress + HANDOFF dev-environment notes.
 4. **Bundle baseline numbers are HIGHER than the B-0 plan's example placeholders.** Plan example showed dashboard 247kB; actual is 458.81 kB gzip. Plan placeholders were illustrative templates (not measured); actual numbers are the real baseline. SHARED-NOTES §5 delta budgets are unchanged (they're deltas vs *this* baseline, not absolutes).
 **Hand-off to:** B-1 implementer — must read B-0 progress file end-to-end before step 1; brief + plan need amendment for token + skeleton items above before step 1 executes.
+
+### B-1 completed — 2026-05-24
+**Commit:** _to be filled after commit lands_ (preceded by amendment commit `0812518` for the B-0 findings)
+**Effort actual:** ~0.5 day (vs ~1 day estimate — quicker than planned because the bulk of step 2 work was already done at the component level)
+**Migrations applied:** none (B-1 is UI-only)
+**Verification:** all four gates ✅
+- Static lint clean (after one fix — `useReducedMotion` rewritten to `useSyncExternalStore` to satisfy `react-hooks/set-state-in-effect`).
+- Static types clean (`pnpm build` typecheck passed).
+- Vitest: 77 new B-1 specs across 15 files (8 charts + 7 tiles), all passing. Baseline 112 passing preserved (the 6 pre-existing failures in `createBookingTransaction`/`admin-access`/`ManualBookingForm` stay failing — not B-1's concern per HANDOFF §4.5).
+- Bundle delta: all four target routes under +0.05 kB gzip vs `bundle-pre-B1.json` (budget +12 kB). Expected — primitives are dormant; real growth lands in B-3/B-4/B-5 when consumers ship.
+- Playwright sweep (Owner): `/admin/dashboard` + `/admin/reports` both render cleanly, 0 console errors. `/admin/clients` has 1 pre-existing `caret-color` hydration warning, not a B-1 regression.
+
+**Notable deviations from plan:**
+1. **B-0-driven token amendment landed before step 1** in commit `0812518` per the B-0 hand-off requirement. 7 tokens shipped (was 5 in the original brief).
+2. **`useReducedMotion` mid-flight rewrite.** Initial implementation used `useEffect + useState`. React 19 lint rule `react-hooks/set-state-in-effect` flagged the setState. Rewrote to `useSyncExternalStore` (canonical external-subscription primitive) — semantically identical, lint-clean, SSR-safe. Updated hook spec to match.
+3. **Sandbox path corrected.** Plan step 6 specified `src/app/admin/__sandbox/b1/page.tsx`, but the `_` prefix makes Next.js treat the folder as private and not routable. Used `src/app/admin/sandbox-b1/page.tsx` instead (deleted before commit per step 7).
+4. **Sandbox page required `"use client"`.** First attempt 500'd because the server-rendered sandbox tried to pass `formatValue` / `format` function props to client components. Fixed by marking the sandbox as a client component.
+5. **B-0 plan step 5 H2 misdiagnosis carried forward by the auth.users gotcha** — now documented in HANDOFF §4.1 + B-0 progress.
+6. **New committed dev script `scripts/measure-admin-bundles.mjs`** — reusable bundle-extraction logic. Needed because Next 16 Turbopack omits per-route First Load JS from the CLI table. Every subsequent B-phase will use this script for delta measurement.
+7. **`AdminSkeleton` already had shimmer at component level** (B-0 finding 2) — the work that actually landed in step 2 was tuning + token migration + route-level `loading.tsx` migration. The original "swap pulse → shimmer at component level" framing did not apply.
+
+**Files shipped:**
+- New: `src/app/admin/components/charts/{theme,SparklineChart,LineChart,AreaChart,BarChart,StackedBarChart,DonutChart,chart-states}.tsx` (8 files) + 7 specs in same dir
+- New: `src/app/admin/components/tiles/{DeltaChip,Sparkline,CountUp,MetricRow,KpiTile,TrendTile,ScorecardRing}.tsx` (7 files) + 7 specs in same dir
+- New: `src/app/admin/components/use-reduced-motion.ts` + spec
+- New: `scripts/measure-admin-bundles.mjs`
+- Modified: `src/styles/tokens.css` (+7 tokens), `src/app/admin/components/admin-ui.tsx` (AdminSkeleton tokenisation), `src/app/admin/loading.tsx` (animate-pulse → AdminSkeleton), `src/app/admin/clients/loading.tsx` (same migration), `redesign/per-page-progress/B1-foundation-progress.md`
+
+**Hand-off to:** B-2 implementer (metric backend; ~3.5 days; 3 Supabase migrations with Zone-2 per item). B-2 is independent of B-1 at the data-layer level but depends on B-1's helper conventions; read SHARED-NOTES §§1/8/12/14 before starting.
 
 ---
 

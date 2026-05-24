@@ -1265,14 +1265,14 @@ export function AdminSkeleton({ className }: { className?: string }) {
     <div
       aria-hidden="true"
       className={cn(
-        "relative overflow-hidden rounded-[var(--admin-radius-control)] bg-[var(--admin-border)]/40",
+        "relative overflow-hidden rounded-[var(--admin-radius-control)] bg-[var(--admin-skeleton-base)]",
         className
       )}
     >
       <span
         aria-hidden="true"
-        className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[var(--admin-panel)]/80 to-transparent motion-reduce:hidden"
-        style={{ animation: "shimmer 1.6s infinite" }}
+        className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-[var(--admin-skeleton-highlight)] to-transparent motion-reduce:hidden"
+        style={{ animation: "shimmer 1.6s ease-in-out infinite" }}
       />
     </div>
   );
