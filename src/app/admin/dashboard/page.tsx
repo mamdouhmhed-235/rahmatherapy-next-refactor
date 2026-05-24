@@ -23,9 +23,7 @@ import {
   findNextAppointment,
   formatNumber,
   getAttentionItems,
-  getGenderCapacity,
-  getServicePerformance,
-  getStaffWorkload,
+  getStaffScorecard,
   humanizeEventType,
   parseReportFilters,
   summarizeReports,
@@ -33,11 +31,7 @@ import {
 import {
   ActiveEnquiriesCard,
   AttentionItemCard,
-  BusinessPulseCard,
-  DemandTrendCard,
   OperationsHealthCard,
-  PaymentHealthCard,
-  StaffCapacityCard,
   TodayAtAGlanceCard,
   UrgentAttentionPanel,
 } from "./dashboard-cards";
@@ -55,6 +49,20 @@ import { AdminErrorBoundary } from "../components/admin-error-boundary";
 import { DashboardHeader } from "./dashboard-header";
 import { getDashboardData, type DashboardVariant } from "./dashboard-data";
 import { buildDemandTrendData } from "./dashboard-helpers";
+import {
+  getPriorStripeDateRange,
+  getStripeDateRange,
+  mobileStickyActionForVariant,
+  tilesForVariant,
+  type StripeRange,
+} from "./dashboard-helpers-b5";
+import {
+  PersonalContributionStripe,
+  parseStripeRange,
+} from "./PersonalContributionStripe";
+import { MobileStickyActionBar } from "./MobileStickyActionBar";
+import { PullToRefresh } from "./PullToRefresh";
+import { LegacyDisclosureCleanup } from "./LegacyDisclosureCleanup";
 import { TherapistDashboard } from "./TherapistDashboard";
 import { resolveAdminShellVariant } from "../shell-variant";
 
@@ -466,7 +474,39 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     city: params.city,
   });
   const adminClient = createSupabaseAdminClient();
-  const { data, plan } = await getDashboardData(adminClient, profile, filters);
+
+  // Personal Stripe (B-5 §5.1) period is independent of the filter strip; we
+  // fetch its own getDashboardData scope plus an immediately-preceding window
+  // for prior-period deltas. Per SHARED-NOTES §11 budget: 3 helper invocations
+  // total (existing + stripe + stripe-prior) — well under the 6-query cap.
+  // `unstable_cache` deduplicates if any of these happen to share a key.
+  const rawStripeRange = Array.isArray(params.contribStripeRange)
+    ? params.contribStripeRange[0]
+    : params.contribStripeRange;
+  const contribStripeRange: StripeRange = parseStripeRange(rawStripeRange);
+  const stripeWindow = getStripeDateRange(contribStripeRange, today);
+  const stripePriorWindow = getPriorStripeDateRange(contribStripeRange, today);
+  const stripeFilters = parseReportFilters({
+    range: "custom",
+    from: stripeWindow.from,
+    to: stripeWindow.to,
+  });
+  const stripePriorFilters = parseReportFilters({
+    range: "custom",
+    from: stripePriorWindow.from,
+    to: stripePriorWindow.to,
+  });
+
+  const [
+    { data, plan },
+    { data: stripeData },
+    { data: stripePriorData },
+  ] = await Promise.all([
+    getDashboardData(adminClient, profile, filters),
+    getDashboardData(adminClient, profile, stripeFilters),
+    getDashboardData(adminClient, profile, stripePriorFilters),
+  ]);
+
   const summary = summarizeReports(data);
   const attentionItems = getAttentionItems(data);
   const dailySeries = buildDemandTrendData(data.bookings, filters.from, filters.to);
@@ -479,8 +519,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const needsAssignment: typeof data.bookings = [];
   const unassignedOnly: typeof data.bookings = [];
   const unpaidBookings: typeof data.bookings = [];
-  const unpaidCompleted: typeof data.bookings = [];
-  let noShowCancelledCount = 0;
   const sevenDayLimit = addBusinessDays(today, 7);
 
   for (const booking of data.bookings) {
@@ -520,49 +558,139 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       !["cancelled", "no_show"].includes(booking.status)
     ) {
       unpaidBookings.push(booking);
-      if (booking.status === "completed") unpaidCompleted.push(booking);
     }
-    if (booking.status === "cancelled" || booking.status === "no_show") {
-      noShowCancelledCount++;
+  }
+
+  // ── Personal Stripe + Mobile sticky bar setup (B-5 steps 2, 5, 8) ──────────
+  // Computed before the variant branching so both Therapist branch (props
+  // forwarded to TherapistDashboard) and Business/Coordinator branch (rendered
+  // inline) consume the same canonical inputs.
+  const stripeVariant =
+    plan.variant === "therapist"
+      ? "therapist"
+      : plan.variant === "coordinator"
+        ? "coordinator"
+        : "business";
+  const stripeScorecard = getStaffScorecard(
+    stripeData,
+    profile.id,
+    stripePriorData
+  );
+  const stripeNextAppointment =
+    stripeVariant === "therapist"
+      ? findNextAppointment(data.bookings, today)
+      : null;
+  // "My bookings today" — own assignments on today's date. For Therapist
+  // variant `data` is already narrowed via assigned_and_claimable so the
+  // count includes claimable bookings too; for Business/Coord we join via
+  // data.assignments to get strictly own-assigned bookings.
+  const todayBookingIdsForStripe = new Set(
+    data.bookings.filter((b) => b.booking_date === today).map((b) => b.id)
+  );
+  const myBookingsToday = data.assignments.filter(
+    (a) =>
+      a.assigned_staff_id === profile.id &&
+      todayBookingIdsForStripe.has(a.booking_id)
+  ).length;
+  const unassignedTodayCount = data.bookings.filter(
+    (b) =>
+      b.booking_date === today &&
+      b.assignment_status === "unassigned" &&
+      !["cancelled", "no_show"].includes(b.status)
+  ).length;
+  const stripeTiles = tilesForVariant(stripeVariant, stripeScorecard, {
+    staffId: profile.id,
+    todayKey: today,
+    attentionCount: attentionItems.length,
+    nextAppointment: stripeNextAppointment,
+    todayVisitsCount:
+      stripeVariant === "coordinator" ? unassignedTodayCount : myBookingsToday,
+    unassignedTodayCount,
+  });
+
+  // Therapist claimable count for the sticky bar fallback ladder (AUDIT Q5).
+  const claimableForTherapistCount =
+    stripeVariant === "therapist"
+      ? data.bookings.filter(
+          (b) =>
+            b.assignment_status === "unassigned" &&
+            b.booking_date >= today &&
+            !["cancelled", "no_show"].includes(b.status)
+        ).length
+      : 0;
+  const stripeStickyAction = mobileStickyActionForVariant({
+    variant: stripeVariant,
+    staffId: profile.id,
+    unassignedCount: needsAssignment.length,
+    claimableCount: claimableForTherapistCount,
+    nextAppointment: stripeNextAppointment,
+  });
+
+  // Preserved search params for the period-picker links (everything except
+  // contribStripeRange, which the picker controls). Array-valued params
+  // collapse to the first entry — keeps URL shapes stable.
+  const preservedSearchParams: Record<string, string> = {};
+  for (const [key, val] of Object.entries(params)) {
+    if (key === "contribStripeRange") continue;
+    const single = Array.isArray(val) ? val[0] : val;
+    if (typeof single === "string" && single.length > 0) {
+      preservedSearchParams[key] = single;
     }
   }
 
   // Therapist branch: focused worker UI. The owner/admin/coordinator
   // command-centre below is admin chrome that's noise for therapists.
   if (resolveAdminShellVariant(profile) === "therapist") {
-    const nextAppointmentForTherapist = findNextAppointment(data.bookings, today);
     return (
-      <TherapistDashboard
-        staffId={profile.id}
-        staffName={profile.name}
-        today={today}
-        data={data}
-        weekCount={
-          data.bookings.filter((booking) => {
-            const sevenDayLimit = addBusinessDays(today, 7);
-            return (
-              booking.booking_date >= today &&
-              booking.booking_date <= sevenDayLimit &&
-              !["cancelled", "no_show"].includes(booking.status)
-            );
-          }).length
-        }
-        todayAppointments={data.bookings.filter(
-          (booking) =>
-            booking.booking_date === today &&
-            !["cancelled", "no_show"].includes(booking.status)
-        )}
-        nextAppointment={nextAppointmentForTherapist}
-        activeRange={filters.range}
-        profileCompletionFields={{
-          phone: profile.phone ?? null,
-          shortBio: profile.short_bio ?? null,
-          specialties: profile.specialties ?? null,
-          languages: profile.languages ?? null,
-          serviceAreas: profile.service_areas ?? null,
-          profileCompletedAt: profile.profile_completed_at ?? null,
-        }}
-      />
+      <>
+        <PullToRefresh>
+          <LegacyDisclosureCleanup staffId={profile.id} />
+          <TherapistDashboard
+            staffId={profile.id}
+            staffName={profile.name}
+            today={today}
+            data={data}
+            weekCount={
+              data.bookings.filter((booking) => {
+                const sevenDayLimit = addBusinessDays(today, 7);
+                return (
+                  booking.booking_date >= today &&
+                  booking.booking_date <= sevenDayLimit &&
+                  !["cancelled", "no_show"].includes(booking.status)
+                );
+              }).length
+            }
+            todayAppointments={data.bookings.filter(
+              (booking) =>
+                booking.booking_date === today &&
+                !["cancelled", "no_show"].includes(booking.status)
+            )}
+            nextAppointment={stripeNextAppointment}
+            activeRange={filters.range}
+            profileCompletionFields={{
+              phone: profile.phone ?? null,
+              shortBio: profile.short_bio ?? null,
+              specialties: profile.specialties ?? null,
+              languages: profile.languages ?? null,
+              serviceAreas: profile.service_areas ?? null,
+              profileCompletedAt: profile.profile_completed_at ?? null,
+            }}
+            personalStripeTiles={stripeTiles}
+            contribStripeRange={contribStripeRange}
+            preservedSearchParams={preservedSearchParams}
+            stripeScorecard={stripeScorecard}
+            stripePriorScorecard={getStaffScorecard(stripePriorData, profile.id)}
+            quickHelpPermissions={{
+              canEditProfile: true,
+              canEditAvailability: getAdminPageAccess(profile, "availability")
+                .access,
+              canBrowseClaimable: canViewAssignedBookings(profile),
+              canViewOwnBookings: canViewAssignedBookings(profile),
+            }}
+          />
+        </PullToRefresh>
+        <MobileStickyActionBar action={stripeStickyAction} />
+      </>
     );
   }
 
@@ -575,9 +703,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       member.availability_mode === "custom" &&
       !data.staffAvailabilityRuleStaffIds.includes(member.id)
   );
-  const staffWorkload = getStaffWorkload(data);
-  const genderCapacity = getGenderCapacity(data);
-  const services = getServicePerformance(data);
   const revenueAllowed = plan.includeRevenue;
   const permissionAccess = getPermissionAccess(profile);
   const dashboardCopy = getDashboardCopy(plan.variant, today);
@@ -592,10 +717,6 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   const roleLabel =
     getRoleLabel(profile as unknown as { roles?: { name?: string | null }[]; role?: string }) ??
     variantRoleLabelFallback[plan.variant];
-  const showStaffCapacity = plan.variant === "business" && permissionAccess.staff;
-  // Coordinators don't see money — render the money card only when revenue
-  // is actually viewable. Avoids the "Revenue hidden" carrot.
-  const showPaymentHealth = plan.variant !== "therapist" && revenueAllowed;
   const showOperationsHealth = plan.variant !== "therapist";
   const newEnquiries = data.enquiries.filter((enquiry) => enquiry.status === "new");
   const nextAppointment = findNextAppointment(data.bookings, today);
@@ -735,6 +856,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     : false;
 
   return (
+    <>
+    <PullToRefresh>
     <AdminPageScaffold className="min-w-0 gap-4 grid-cols-[minmax(0,1fr)] pb-24 md:pb-8">
       <DashboardHeader
         title={dashboardCopy.title}
@@ -743,6 +866,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         roleLabel={roleLabel}
         rangeLabel={rangeLabel}
         updatedAtIso={new Date().toISOString()}
+      />
+
+      <LegacyDisclosureCleanup staffId={profile.id} />
+
+      <PersonalContributionStripe
+        tiles={stripeTiles}
+        activeRange={contribStripeRange}
+        variant={stripeVariant}
+        preservedSearchParams={preservedSearchParams}
       />
 
       <AdminErrorBoundary sectionName="Dashboard filters">
@@ -858,89 +990,28 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           </section>
         </BusinessOverviewDisclosure>
       ) : (
-      <BusinessOverviewDisclosure
-        staffId={profile.id}
-        hasActivity={
-          (showStaffCapacity && staffWorkload.length > 0) ||
-          (showPaymentHealth && (summary.bookedRevenue > 0 || unpaidBookings.length > 0)) ||
-          (showOperationsHealth &&
-            (failedEmails.length > 0 ||
-              openOperationalErrors.length > 0 ||
-              staffAvailabilityGaps.length > 0 ||
-              newEnquiries.length > 0)) ||
-          services.length > 0 ||
-          data.bookings.length > 0
-        }
-      >
-        <section className="grid min-w-0 items-start gap-4 md:grid-cols-2">
-          {showStaffCapacity ? (
-            <div className="order-2 xl:order-1">
-              <StaffCapacityCard
-                genderCapacity={genderCapacity}
-                staffWorkload={staffWorkload.map((row) => ({
-                  staffName: row.staffName,
-                  assignments: row.assignments,
-                  completed: row.completed,
-                }))}
-                permissionAccess={permissionAccess}
-              />
-            </div>
-          ) : null}
-          {showPaymentHealth ? (
-            <div className="order-3 xl:order-2">
-              <PaymentHealthCard
-                summary={{
-                  bookedRevenue: summary.bookedRevenue,
-                  collectedRevenue: summary.collectedRevenue,
-                  outstandingRevenue: summary.outstandingRevenue,
-                }}
-                unpaidCount={unpaidBookings.length}
-                unpaidCompletedCount={unpaidCompleted.length}
-                revenueAllowed={revenueAllowed}
-                canReviewBookings={permissionAccess.bookings}
-                canViewReports={permissionAccess.reports}
-              />
-            </div>
-          ) : null}
-          {showOperationsHealth ? (
-            <div className="order-1 xl:order-3">
-              <OperationsHealthCard
-                failedEmails={failedEmails.length}
-                openEnquiries={newEnquiries.length}
-                openOperations={openOperationalErrors.length}
-                availabilityGaps={staffAvailabilityGaps.length}
-                permissionAccess={permissionAccess}
-              />
-            </div>
-          ) : null}
-          <div className="order-4">
-            <AdminErrorBoundary sectionName="Demand trend">
-              <DemandTrendCard
-                bookings={data.bookings}
-                dateRange={{ from: filters.from, to: filters.to }}
-                rangeLabel={rangeLabel}
-              />
-            </AdminErrorBoundary>
-          </div>
-        </section>
-
-        <AdminErrorBoundary sectionName="Service & client mix">
-          <BusinessPulseCard
-            services={services}
-            clients={{
-              repeatClients: summary.repeatClients,
-              newClients: summary.newClients,
-              noShowCancelled: noShowCancelledCount,
-              newEnquiries: newEnquiries.length,
-            }}
-            revenueAllowed={revenueAllowed}
-            canViewReports={permissionAccess.reports}
+        /*
+         * B-5 Tier 1.5: OperationsHealth promoted from buried-inside-Tier-2
+         * disclosure to a full-width primary panel (brief §5.5). The
+         * disclosure wrapper + StaffCapacity / PaymentHealth / DemandTrend
+         * / BusinessPulseCard sub-tiles are removed — their data lives in
+         * the Reports B-4 surface now.
+         */
+        showOperationsHealth ? (
+          <OperationsHealthCard
+            failedEmails={failedEmails.length}
+            openEnquiries={newEnquiries.length}
+            openOperations={openOperationalErrors.length}
+            availabilityGaps={staffAvailabilityGaps.length}
+            permissionAccess={permissionAccess}
           />
-        </AdminErrorBoundary>
-      </BusinessOverviewDisclosure>
+        ) : null
       )}
 
     </AdminPageScaffold>
+    </PullToRefresh>
+    <MobileStickyActionBar action={stripeStickyAction} />
+    </>
   );
 }
 

@@ -138,8 +138,10 @@ export function AttentionItemCard({
     <div
       className={cn(
         "dashboard-attention-item grid min-w-0 gap-3 rounded-[var(--admin-radius-card)] border bg-[var(--admin-panel)] px-4 py-4",
-        severity === "critical" && "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/30",
-        severity === "warning" && "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/30",
+        // B-5 step 10: switch from literal OKLCH to the B-1 severity-strong
+        // tokens. WCAG verified at B-0; SHARED-NOTES §17 + G3.
+        severity === "critical" && "border-[var(--admin-danger)] bg-[var(--admin-danger-bg-strong)]/30",
+        severity === "warning" && "border-[var(--admin-warning)] bg-[var(--admin-warning-bg-strong)]/30",
         severity === "info" && "border-[var(--admin-border)]"
       )}
     >
@@ -1536,11 +1538,12 @@ export function OperationsHealthCard({
             </p>
           </div>
         </div>
-        {permissionAccess?.operations ? (
-          <Link className="admin-link-action" href="/admin/operations">
-            View details
-          </Link>
-        ) : null}
+        {/*
+         * M2 fix (B-5): panel-level "View details" link removed; each row in
+         * the priority list now carries its own href + visible "View →"
+         * affordance (see below). Avoids the misleading "panel goes to one
+         * place" cue when rows actually point to distinct destinations.
+         */}
       </div>
 
       <div
@@ -1584,8 +1587,10 @@ export function OperationsHealthCard({
               <div
                 className={cn(
                   "flex items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3 transition-colors",
-                  row.severity === "critical" && "border-[var(--admin-danger-bg)] bg-[var(--admin-danger-bg)]/30 hover:bg-[var(--admin-danger-bg)]/55",
-                  row.severity === "warning" && "border-[var(--admin-warning-bg)] bg-[var(--admin-warning-bg)]/30 hover:bg-[var(--admin-warning-bg)]/55",
+                  // B-5 step 10: severity-strong tokens for stronger
+                  // affordance per brief §5.5.
+                  row.severity === "critical" && "border-[var(--admin-danger)] bg-[var(--admin-danger-bg-strong)]/40 hover:bg-[var(--admin-danger-bg-strong)]/60",
+                  row.severity === "warning" && "border-[var(--admin-warning)] bg-[var(--admin-warning-bg-strong)]/40 hover:bg-[var(--admin-warning-bg-strong)]/60",
                   row.severity === "info" && "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:bg-[var(--admin-panel-muted)]/60"
                 )}
               >
@@ -1609,12 +1614,30 @@ export function OperationsHealthCard({
                 >
                   {row.value}
                 </p>
+                {row.href ? (
+                  // M2 fix (B-5): explicit "View →" affordance per row so the
+                  // operator sees that EACH row is its own destination. The
+                  // anchor wrapping the whole row keeps the click target wide;
+                  // this is visual hint text only (the chevron span lives
+                  // inside the wrapping Link, not as a nested anchor).
+                  <span
+                    aria-hidden="true"
+                    className="ml-2 inline-flex shrink-0 items-center text-xs font-semibold text-[var(--admin-body)]"
+                  >
+                    View →
+                  </span>
+                ) : null}
               </div>
             );
             return (
               <li key={row.key}>
                 {row.href ? (
-                  <Link href={row.href} className="block outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35">
+                  <Link
+                    href={row.href}
+                    aria-label={`${row.label}: ${row.status}`}
+                    data-row-key={row.key}
+                    className="block outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
+                  >
                     {content}
                   </Link>
                 ) : (

@@ -24,7 +24,22 @@ import { BusinessOverviewDisclosure } from "./dashboard-filters-client";
 import { DashboardHeader } from "./dashboard-header";
 import { EmptyState } from "../components/EmptyState";
 import { ProfileCompletionNudge } from "./ProfileCompletionNudge";
-import type { ReportData } from "../reports/reporting";
+import { ClaimAssignmentButton } from "../bookings/ClaimAssignmentButton";
+import type { ReportData, StaffScorecard } from "../reports/reporting";
+import type {
+  PersonalStripeTile,
+  StripeRange,
+} from "./dashboard-helpers-b5";
+import { PersonalContributionStripe } from "./PersonalContributionStripe";
+import { HighlightOrTipStrip } from "./HighlightOrTipStrip";
+import { RecentClientsStrip } from "./RecentClientsStrip";
+import { QuickHelpPanel } from "./QuickHelpPanel";
+import {
+  getRecentClientsForTherapist,
+  getTherapistHighlightOrTip,
+  quickHelpLinksForTherapist,
+  type QuickHelpPermissions,
+} from "./therapist-fullness";
 
 interface TherapistDashboardProps {
   staffId: string;
@@ -46,6 +61,16 @@ interface TherapistDashboardProps {
     serviceAreas: string[] | null;
     profileCompletedAt: string | null;
   };
+  // B-5 Personal Stripe + fullness pass inputs (step 9 wires them into the
+  // rendered tier sequence). All optional so the component still renders
+  // sensibly when the fullness flag is off OR when called from contexts that
+  // pre-date the rebuild.
+  personalStripeTiles?: PersonalStripeTile[];
+  contribStripeRange?: StripeRange;
+  preservedSearchParams?: Record<string, string>;
+  stripeScorecard?: StaffScorecard;
+  stripePriorScorecard?: StaffScorecard;
+  quickHelpPermissions?: QuickHelpPermissions;
 }
 
 const FORMATTERS = {
@@ -136,6 +161,12 @@ export function TherapistDashboard({
   nextAppointment,
   activeRange = "today",
   profileCompletionFields,
+  personalStripeTiles,
+  contribStripeRange,
+  preservedSearchParams,
+  stripeScorecard,
+  stripePriorScorecard,
+  quickHelpPermissions,
 }: TherapistDashboardProps) {
   const greeting = getGreeting();
   const firstName = getFirstName(staffName);
@@ -154,6 +185,29 @@ export function TherapistDashboard({
     custom: "Custom range",
   };
   const rangeLabel = rangeLabelMap[activeRange] ?? "Today";
+
+  // B-5 fullness pass (brief §5.6 + AUDIT R6). Default-on; disable via
+  // NEXT_PUBLIC_B5_THERAPIST_FULLNESS=off without redeploy. Each new block is
+  // additionally gated on its own input data being present so partial inputs
+  // degrade gracefully.
+  const fullnessEnabled =
+    process.env.NEXT_PUBLIC_B5_THERAPIST_FULLNESS !== "off";
+  const highlight =
+    fullnessEnabled && stripeScorecard
+      ? getTherapistHighlightOrTip(
+          stripeScorecard,
+          stripePriorScorecard ?? null,
+          { id: staffId },
+          contribStripeRange ?? "this_week"
+        )
+      : null;
+  const fullnessRecentClients = fullnessEnabled
+    ? getRecentClientsForTherapist(data, today, 30, 6)
+    : [];
+  const quickHelpLinks =
+    fullnessEnabled && quickHelpPermissions
+      ? quickHelpLinksForTherapist(staffId, quickHelpPermissions)
+      : [];
 
   const completedThisWeek = data.bookings.filter(
     (booking) => booking.status === "completed"
@@ -175,6 +229,23 @@ export function TherapistDashboard({
       !["cancelled", "no_show"].includes(booking.status)
   );
 
+  // M3 fix (B-5 step 4 — AUDIT C4): map each claimable booking to its
+  // unassigned assignment id so the inline <ClaimAssignmentButton> (which
+  // takes `assignmentId` NOT `bookingId`) can fire the optimistic claim flow.
+  // Therapist data layer (dashboard-data.ts) already filters assignments to
+  // assigned-to-self + claimable-matching-gender, so the first unassigned
+  // assignment per booking is the right target.
+  const claimableAssignmentByBookingId = new Map<string, string>();
+  for (const assignment of data.assignments) {
+    if (
+      assignment.assigned_staff_id === null &&
+      assignment.status !== "completed" &&
+      !claimableAssignmentByBookingId.has(assignment.booking_id)
+    ) {
+      claimableAssignmentByBookingId.set(assignment.booking_id, assignment.id);
+    }
+  }
+
   // Compute tomorrow's date (UTC-safe) for the "fully quiet" forward-anchor.
   const tomorrowDate = new Date(todayDate);
   tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
@@ -190,11 +261,21 @@ export function TherapistDashboard({
   // Today's-visits list excludes the Next Visit row to avoid duplication AND
   // excludes any unassigned booking (those belong to the Claimable strip, not
   // the therapist's personal Today's list — they're "open to anyone" not "yours").
+  // Claimable strip promotion (B-5 brief §5.6 block 7): when Today + Next
+  // Visit are both empty AND claimable work exists, the strip moves above
+  // the hero AND uses the strong warning bg. Triggered only when fullness is
+  // enabled — otherwise existing layout is preserved.
   const remainingToday = (
     nextAppointment
       ? todayAppointments.filter((booking) => booking.id !== nextAppointment.id)
       : todayAppointments
   ).filter((booking) => booking.assignment_status !== "unassigned");
+
+  const claimablePromoted =
+    fullnessEnabled &&
+    !nextAppointment &&
+    remainingToday.length === 0 &&
+    claimable.length > 0;
 
   const heroIsToday = nextAppointment?.booking_date === today;
   const todayWeekday = todayDate.getUTCDay();
@@ -348,7 +429,29 @@ export function TherapistDashboard({
         profileCompletedAt={profileCompletionFields.profileCompletedAt}
       />
 
+      {fullnessEnabled && personalStripeTiles && contribStripeRange ? (
+        <PersonalContributionStripe
+          tiles={personalStripeTiles}
+          activeRange={contribStripeRange}
+          variant="therapist"
+          preservedSearchParams={preservedSearchParams}
+        />
+      ) : null}
+
+      {fullnessEnabled && highlight ? (
+        <HighlightOrTipStrip highlight={highlight} />
+      ) : null}
+
       <DateRangeChips activeRange={activeRange} />
+
+      {claimablePromoted ? (
+        <ClaimableStrip
+          claimable={claimable}
+          serviceLookup={serviceLookup}
+          assignmentByBookingId={claimableAssignmentByBookingId}
+          promoted
+        />
+      ) : null}
 
       {nextAppointment ? (
         <NextVisitHero
@@ -398,7 +501,17 @@ export function TherapistDashboard({
         />
       )}
 
-      <ClaimableStrip claimable={claimable} serviceLookup={serviceLookup} />
+      {claimablePromoted ? null : (
+        <ClaimableStrip
+          claimable={claimable}
+          serviceLookup={serviceLookup}
+          assignmentByBookingId={claimableAssignmentByBookingId}
+        />
+      )}
+
+      {fullnessEnabled && fullnessRecentClients.length > 0 ? (
+        <RecentClientsStrip clients={fullnessRecentClients} />
+      ) : null}
 
       <MyWeekDisclosure
         staffName={staffName}
@@ -412,6 +525,10 @@ export function TherapistDashboard({
         serviceMixRows={serviceMixRows}
         serviceMixTotal={serviceMixTotal}
       />
+
+      {fullnessEnabled && quickHelpLinks.length > 0 ? (
+        <QuickHelpPanel links={quickHelpLinks} />
+      ) : null}
     </AdminPageScaffold>
   );
 }
@@ -791,18 +908,35 @@ function StatusPill({
 function ClaimableStrip({
   claimable,
   serviceLookup,
+  assignmentByBookingId,
+  promoted = false,
 }: {
   claimable: ReportData["bookings"];
   serviceLookup: Map<string, ServiceMeta>;
+  assignmentByBookingId: Map<string, string>;
+  /**
+   * B-5 promotion (brief §5.6 block 7): when Today + Next Visit are both empty
+   * but claimable work exists, the strip moves up in the page flow AND uses
+   * the B-1 `--admin-warning-bg-strong` token to invite engagement.
+   */
+  promoted?: boolean;
 }) {
   return (
     <section
       aria-labelledby="claimable-heading"
+      data-promoted={promoted ? "true" : "false"}
       className="flex flex-col gap-4 rounded-[var(--admin-radius-card)] border p-5 sm:p-6"
-      style={{
-        backgroundColor: "var(--status-attention-bg)",
-        borderColor: "var(--status-attention-text)",
-      }}
+      style={
+        promoted
+          ? {
+              backgroundColor: "var(--admin-warning-bg-strong)",
+              borderColor: "var(--admin-warning)",
+            }
+          : {
+              backgroundColor: "var(--status-attention-bg)",
+              borderColor: "var(--status-attention-text)",
+            }
+      }
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2
@@ -842,6 +976,7 @@ function ClaimableStrip({
               <ClaimableCard
                 booking={booking}
                 service={serviceLookup.get(booking.id)}
+                assignmentId={assignmentByBookingId.get(booking.id) ?? null}
               />
             </li>
           ))}
@@ -862,9 +997,18 @@ function ClaimableStrip({
 function ClaimableCard({
   booking,
   service,
+  assignmentId,
 }: {
   booking: ReportData["bookings"][number];
   service?: ServiceMeta;
+  /**
+   * Unassigned `booking_assignments.id` matched to this booking. Drives the
+   * inline <ClaimAssignmentButton> (M3 fix). Null when no claimable assignment
+   * row is available — in practice that should not happen because the booking
+   * landed in the claimable strip via an unassigned assignment, but we tolerate
+   * it defensively (button just hides).
+   */
+  assignmentId: string | null;
 }) {
   const time = booking.start_time?.slice(0, 5) ?? "—";
   const date = booking.booking_date
@@ -883,13 +1027,24 @@ function ClaimableCard({
         </p>
       </header>
       <StatusPill family="attention" label="Available" />
-      <Link
-        href={`/admin/bookings/${booking.id}`}
-        className="mt-auto inline-flex h-11 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-panel-muted)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
-      >
-        View
-        <ArrowRight className="size-4" aria-hidden="true" />
-      </Link>
+      {/*
+       * M3 fix (B-5 step 4 — AUDIT C4): inline <ClaimAssignmentButton> beside
+       * the View link. Optimistic claim + sonner toast; NO confirm modal
+       * (matches the existing booking-detail behaviour). View link continues
+       * to deep-link into the booking record for full context.
+       */}
+      <div className="mt-auto flex flex-wrap items-stretch gap-2">
+        <Link
+          href={`/admin/bookings/${booking.id}`}
+          className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-panel-muted)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
+        >
+          View
+          <ArrowRight className="size-4" aria-hidden="true" />
+        </Link>
+        {assignmentId ? (
+          <ClaimAssignmentButton assignmentId={assignmentId} />
+        ) : null}
+      </div>
     </article>
   );
 }
@@ -1035,6 +1190,14 @@ function WeeklyStatsCard({
           ) : null}
         </dl>
       )}
+      {/* Brief §5.6 block 9: weekly summary links into the new B-3 Performance self-view. */}
+      <Link
+        href="/admin/me?range=this_week"
+        className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--admin-body)] underline-offset-4 hover:underline focus-visible:underline"
+      >
+        View weekly detail
+        <ArrowRight className="size-3.5" aria-hidden="true" />
+      </Link>
     </section>
   );
 }
