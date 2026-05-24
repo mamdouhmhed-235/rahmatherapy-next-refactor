@@ -142,10 +142,13 @@ export interface ReportData {
   enquiries: ReportEnquiry[];
   emailEvents: EmailEvent[];
   operationalEvents: OperationalEvent[];
-  staffAvailabilityRuleStaffIds: Set<string>;
+  // Was Set<string>; flipped to string[] because B-2's unstable_cache wrap
+  // (dashboard-data.ts) JSON-serializes this payload — JSON.stringify(Set)
+  // returns '{}' and `.has` then throws on cache-hit reads. Consumers use
+  // `.includes(id)`. Stays a unique-id list; construction uses [...new Set(...)].
+  staffAvailabilityRuleStaffIds: string[];
   // B-2: full rule rows for getUtilisationRate. Optional so dashboard-data.ts
-  // (RECON §5 untouchable) can omit; helpers default to [] when absent. The
-  // Set above is kept for back-compat with R4 attention-items query path.
+  // (RECON §5 untouchable) can omit; helpers default to [] when absent.
   staffAvailabilityRules?: StaffAvailabilityRule[];
 }
 
@@ -389,9 +392,9 @@ export async function getReportData(
     enquiries: enquiriesResult.data ?? [],
     emailEvents: emailEventsResult.data ?? [],
     operationalEvents: operationalEventsResult.data ?? [],
-    staffAvailabilityRuleStaffIds: new Set(
-      (staffAvailabilityRulesResult.data ?? []).map((rule) => rule.staff_id)
-    ),
+    staffAvailabilityRuleStaffIds: [
+      ...new Set((staffAvailabilityRulesResult.data ?? []).map((rule) => rule.staff_id)),
+    ],
     staffAvailabilityRules: staffAvailabilityRulesResult.data ?? [],
   };
 }
@@ -714,7 +717,7 @@ export function getAttentionItems(data: ReportData) {
       member.active &&
       member.can_take_bookings &&
       member.availability_mode === "custom" &&
-      !data.staffAvailabilityRuleStaffIds.has(member.id)
+      !data.staffAvailabilityRuleStaffIds.includes(member.id)
   )) {
     attention.push({
       id: `${staff.id}-availability-gap`,

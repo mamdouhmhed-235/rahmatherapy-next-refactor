@@ -33,7 +33,7 @@ function reportData(overrides: Partial<ReportData> = {}): ReportData {
     enquiries: [],
     emailEvents: [],
     operationalEvents: [],
-    staffAvailabilityRuleStaffIds: new Set(),
+    staffAvailabilityRuleStaffIds: [],
     staffAvailabilityRules: [],
     ...overrides,
   };

@@ -573,7 +573,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
       member.active &&
       member.can_take_bookings &&
       member.availability_mode === "custom" &&
-      !data.staffAvailabilityRuleStaffIds.has(member.id)
+      !data.staffAvailabilityRuleStaffIds.includes(member.id)
   );
   const staffWorkload = getStaffWorkload(data);
   const genderCapacity = getGenderCapacity(data);

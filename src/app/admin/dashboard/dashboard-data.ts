@@ -435,8 +435,8 @@ async function getStaffAvailabilityRuleIds(
   adminClient: SupabaseClient,
   plan: DashboardQueryPlan,
   profile: StaffProfile
-) {
-  if (!plan.includeStaff) return new Set<string>();
+): Promise<string[]> {
+  if (!plan.includeStaff) return [];
   let query = adminClient.from("staff_availability_rules").select("staff_id");
 
   if (plan.includeStaff === "own") {
@@ -444,7 +444,7 @@ async function getStaffAvailabilityRuleIds(
   }
 
   const { data } = await query.returns<{ staff_id: string }[]>();
-  return new Set((data ?? []).map((rule) => rule.staff_id));
+  return [...new Set((data ?? []).map((rule) => rule.staff_id))];
 }
 
 async function getEnquiries(adminClient: SupabaseClient, plan: DashboardQueryPlan) {
@@ -537,7 +537,7 @@ function emptyReportData(filters: ReportFilters): ReportData {
     enquiries: [],
     emailEvents: [],
     operationalEvents: [],
-    staffAvailabilityRuleStaffIds: new Set(),
+    staffAvailabilityRuleStaffIds: [],
   };
 }
 
