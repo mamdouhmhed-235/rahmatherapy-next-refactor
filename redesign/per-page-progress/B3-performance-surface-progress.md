@@ -69,6 +69,33 @@ step-10-11: COMPLETE — mobile sticky bar + audit timeline freshness:
 
 step-12: COMPLETE — committed `feat(admin): B-3 — Performance surface` at `59cea08`. Preceded by `d556278` (B-2 cache-Set fix).
 
+## B-3 follow-up (commit `d4f0f7c`, 2026-05-24)
+
+Per user directive: the deferrals tagged "V1.1" in the original B-3 ship summary were re-audited against the B-3 plan + brief. Items explicitly in the plan were implemented BEFORE B-4 starts; only genuinely out-of-plan items stay on V1.1.
+
+**Reclassified (now implemented in `d4f0f7c`):**
+- Per-section Suspense (plan step 5.5) — `PerformanceSurface` restructured: each section is an async server component wrapped in `<Suspense>` with a skeleton fallback. Header paints instantly; tile grid + trend + timeline + upcoming-work stream in as each query resolves. The ≤4 query budget is preserved via React `cache()` per-render dedup — added two cached wrappers (`fetchCachedReportData`, `fetchAuditLogForStaff`) in `performance-data.ts`. Parallel awaits with identical args collapse to one in-flight promise.
+- Custom period chip (brief §5.1 — "mirrors Dashboard's date-range chips") — added 5th chip + new `CustomDateRangeForm` client component (mirrors `dashboard-filters-client.tsx` pattern). Renders inline beneath the chip row when the active range is "custom". Validates from ≤ to. Submits via `router.push` (transition, no full reload). `buildRangeChips` preserves from/to params for the Custom chip so re-clicking keeps the user's selection.
+- AUDIT G5 inactive pill — sub-route fetches target staff and renders the "Inactive" pill when `target.active === false`. Schema has no `inactive_since` column on `staff_profiles` (verified via direct SELECT — my earlier query was malformed and picked up an unrelated `pg_catalog.pg_replication_slots.inactive_since`), so the pill ships date-less in B-3. Header prop semantics changed to accept the FULL pill content as a string so a future migration could append "since {date}" with no header change.
+- Therapist-Fresh runtime check — Playwright sign-in + navigate to `/admin/me`: 8 zero-formatted Therapist tiles, sticky bar reads "Browse claimable" (Q5 fallback ladder, no Next Visit). Screenshot at `screenshots-post-B3/{375,768,1280,1440}/therapist-fresh-me.png` (full 4-viewport coverage proves the layout adapts cleanly).
+- Inactive-staff manager-view check — Owner navigates to `/admin/staff/{Test-Inactive-id}/performance`: H1 "Performance — Test Inactive", sub-line shows "Reviewing Inactive · Inactive" pill, historical scorecard rendered, upcoming-work panel hidden per G5. Screenshot at `screenshots-post-B3/1280/owner-inactive-performance.png`.
+- Cache-hit verification (new recipe step 6 per `ca7ec68`) — `/admin/me` reloaded after sibling navigation to `/admin/dashboard` produced 0 console errors on the warm-cache render. Confirms the per-section Suspense + `cache()` dedup didn't reintroduce any `Set<>`/`Map<>`/`Date` shape degradation. The B-2 fix at `d556278` plus the new architecture both hold clean.
+- Audit timeline freshness (plan step 11) — relative timestamps confirmed up-to-date during the cache-hit check ("2 hours ago" for recent enquiry updates from earlier in this session). `getAuditLogForStaff` has no `unstable_cache` wrap by design (brief §5.4 wants fresh-on-reload), so action→reload structurally always shows new rows; no live mutation smoke needed beyond the structural guarantee.
+
+**Still V1.1 (not in any B-3 doc):**
+- `pnpm build` vs `npx tsc --noEmit` divergence root-cause audit — pure tooling investigation. Workaround (run both as separate gates) is stable.
+
+**Files added/modified in the follow-up:**
+- New: `src/app/admin/components/CustomDateRangeForm.tsx`
+- Modified: `PerformanceSurface.tsx` (Suspense restructure), `PerformanceHeader.tsx` (Custom form mount + pill content semantics), `performance-data.ts` (cache()-wrapped fetchers), `performance-surface-helpers.ts` (Custom chip + from/to preservation), `me/page.tsx` (thinned to chrome inputs), `staff/[staffId]/performance/page.tsx` (thinned + Inactive pill).
+
+**Static gates (follow-up commit time):**
+- `pnpm lint` ✓ clean
+- `npx tsc --noEmit` ✓ clean
+- `pnpm vitest run` ✓ 255/249 pass · 6 baseline fail preserved · 21 B-3 specs untouched
+- `pnpm build` ✓ clean
+- Bundle: /admin/me + /admin/staff/[staffId]/performance gained ~2.1 KB raw from the CustomDateRangeForm client chunk; still peer-level with dashboard.
+
 ## Static-gate snapshot at commit time
 
 | Gate | Status |
