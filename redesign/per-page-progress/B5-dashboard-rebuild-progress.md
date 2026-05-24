@@ -54,7 +54,37 @@ step-17: COMPLETE — Empty-state pass via Therapist-fresh account: all 8 sectio
 
 step-18: COMPLETE (via unit coverage) — `prefers-reduced-motion` honoured: PullToRefresh.test.tsx asserts `.animate-spin` is omitted under reduced-motion; SwipeableTodayCards.test.tsx asserts scroll behavior swaps from `smooth` → `auto`. No new count-up animations introduced in B-5; existing primitives (CountUp from B-1) already honour the setting.
 
-step-19: COMPLETE (pending commit + master-checklist + HANDOFF doc updates).
+step-19: COMPLETE — committed at `4e2c0c1` + docs at `8283437`.
+
+## Post-ship user-found visual fixes (2026-05-25)
+
+User flagged the Personal Stripe at 375 viewport: "Hours this ..." + "Cl..." truncating labels, "Nothing scheduled" wrapping into the value slot, "→ 0.0%" delta chip rendering when there's no actual change. Root cause: composed `<MetricRow>` (B-1 primitive designed for narrow horizontal rows with single-line truncate label) inside a 2×2 grid — wrong primitive for this layout. User also asked to audit other surfaces for similar issues.
+
+**Fixes applied:**
+
+1. **PersonalContributionStripe.tsx** — replaced `<MetricRow>` with a custom inline `StripeTile` sub-component composing `<DeltaChip>` + `<Sparkline>` (still B-1 primitives, just better-composed). Stacked layout: label on top (small uppercase, no truncate), value below (`break-words`, `text-base sm:text-lg`), delta + sparkline in a sub-row beneath. Hides DeltaChip when delta is exactly 0. Mobile (2×2) and desktop (4-up) both render cleanly with full labels and no spurious zero-delta noise.
+
+2. **Cross-surface: zero-delta noise** — same audit found 3 zero-delta chips on `/admin/me` and 1 on `/admin/reports`. Fixed at the helper level (not at every consumer site — DRY):
+   - `pctDelta` + `ppDelta` in `src/app/admin/reports/reports-helpers.ts`: now return `undefined` when `|result| < 0.05%` (B-4 surface, affects HeadlineTileStrip).
+   - `percentPointDelta` in `src/app/admin/components/performance-helpers.ts`: now returns `null` when result rounds to 0 (B-3 surface, affects PerformanceSurface).
+   - New `nzDelta()` helper added to `performance-helpers.ts` for the raw count/value deltas that bypass `percentPointDelta` (assignmentsCompleted, hoursWorked, revenueAttributed, clientsTouched, enquiriesContactedCount, avgMinutesToFirstContact, bookingsAssignedCount, opsEventsResolvedCount). Wrapped at 8 call sites.
+   - Dashboard helper-b5 left unchanged at the data layer; render-level filter in StripeTile is sufficient (consistent with B-1 primitive's data-pure design).
+
+3. **PersonalContributionStripe spec** — added 7 new specs covering data-tile-label hooks, no-truncate labels, break-words values, zero-delta-hidden, positive-delta-shown, negative-delta-shown, null-delta-hidden. Total 17 specs (up from 10).
+
+**Verification:**
+- `npx tsc --noEmit` clean
+- `pnpm vitest run`: 473 tests, 467 passing, 6 baseline-failing preserved (identical set)
+- `pnpm build` clean
+- Bundle Δ `/admin/dashboard` slightly improved: 467.03 kB = +8.22 kB cumulative (was +8.38 before fix; -0.16 kB from cleaning the unused `<MetricRow>` import)
+- Live Playwright sweep at 375:
+  - `/admin/dashboard` Business: 0 truncated tile labels, 0 zero-delta chips, full tile-set rendered ("Bookings today" / "My contribution" / "Revenue this week" / "Open attention")
+  - `/admin/dashboard` Therapist: full tile-set rendered ("Next visit · Nothing scheduled" / "Today's visits 0" / "Hours this week 0h" / "Clients this month 0"), no spurious deltas, sticky bar Q5 rung 3 still correct
+  - `/admin/me`: 0 zero-delta chips (was 3 before fix)
+  - `/admin/reports`: 0 zero-delta chips (was 1 before fix); single intentional truncation on "Supreme Combo Package" service name in dense workload-list row preserved (matches existing pattern)
+- Live Playwright sweep at 1280: 4-up grid renders correctly; no regression
+
+**No new architectural deviations.** B-1 primitives (DeltaChip, Sparkline, MetricRow, KpiTile, TrendTile) remain import-only per RECON §5 — fixes are at consumer files only.
 
 ## Verification gate
 

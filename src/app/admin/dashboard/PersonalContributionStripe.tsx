@@ -1,20 +1,28 @@
 // SERVER COMPONENT — Personal Contribution stripe (B-5 brief §5.1).
 //
-// Renders 4 <MetricRow> tiles per role variant + a segmented period picker
-// (today / this_week / this_month) wired to `?contribStripeRange=` URL param.
+// 4 stacked tiles (label / value / delta+sparkline row) + segmented period
+// picker (today / this_week / this_month) wired to `?contribStripeRange=`.
 // Tile composition is owned by `tilesForVariant` in `dashboard-helpers-b5.ts`;
-// this component only handles layout + the picker chrome.
+// this component handles layout + picker chrome + per-tile presentation.
+//
+// Mobile-first: the brief originally specced `<MetricRow>` from B-1 but that
+// primitive truncates the label and keeps everything on one line — fine for
+// wide row strips, wrong for a 2×2 tile grid at 375px. A user-found bug
+// surfaced "Hours this ..." / "Cl..." truncation + "Nothing scheduled"
+// wrapping into the value slot. We now render a custom stacked tile that
+// honours the brief's tile composition (label + value + delta + optional
+// sparkline) without the single-line constraint. MetricRow stays a B-1
+// primitive for other consumers; we just don't compose it here.
 //
 // A11y: per SHARED-IMPLEMENTATION-NOTES §3, the period picker is a <fieldset>
 // with an sr-only <legend>; active chip carries `aria-current="page"`.
-//
-// Mobile: tiles collapse from 4-up to a 2×2 grid below md.
 //
 // The component is render-only — values come pre-formatted as strings to
 // avoid the server→client function-prop boundary (B-1 lesson).
 
 import Link from "next/link";
-import { MetricRow } from "../components/tiles/MetricRow";
+import { DeltaChip } from "../components/tiles/DeltaChip";
+import { Sparkline } from "../components/tiles/Sparkline";
 import type {
   PersonalStripeTile,
   StripeRange,
@@ -65,6 +73,39 @@ function buildPickerHref(
   return query ? `/admin/dashboard?${query}` : "/admin/dashboard";
 }
 
+function StripeTile({ tile }: { tile: PersonalStripeTile }) {
+  // Hide the delta chip when the value is exactly 0 — "→ 0.0%" is visual
+  // noise that doesn't earn its space on mobile. Negative AND positive
+  // deltas still render. Null/undefined already short-circuit in DeltaChip.
+  const showDelta = typeof tile.delta === "number" && tile.delta !== 0;
+  const showSeries = Boolean(tile.series && tile.series.length > 0);
+  return (
+    <div
+      data-tile-label={tile.label}
+      className="flex min-w-0 flex-col gap-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)]/60 bg-[var(--admin-panel-muted)]/40 px-3 py-2.5"
+    >
+      <p className="text-[0.6875rem] font-medium uppercase tracking-[0.04em] text-[var(--admin-text-muted)]">
+        {tile.label}
+      </p>
+      <p className="break-words text-base font-semibold leading-tight tabular-nums text-[var(--admin-text)] sm:text-lg">
+        {tile.value}
+      </p>
+      {showDelta || showSeries ? (
+        <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2">
+          {showDelta ? (
+            <DeltaChip value={tile.delta} tone={tile.tone} />
+          ) : (
+            <span aria-hidden="true" />
+          )}
+          {showSeries ? (
+            <Sparkline values={tile.series} height={16} className="w-14" />
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function PersonalContributionStripe({
   tiles,
   activeRange,
@@ -113,19 +154,7 @@ export function PersonalContributionStripe({
 
       <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
         {tiles.map((tile) => (
-          <div
-            key={tile.label}
-            className="min-w-0 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)]/60 bg-[var(--admin-panel-muted)]/40 px-3 py-2.5"
-          >
-            <MetricRow
-              label={tile.label}
-              value={tile.value}
-              delta={tile.delta}
-              series={tile.series}
-              tone={tile.tone}
-              className="flex-wrap"
-            />
-          </div>
+          <StripeTile key={tile.label} tile={tile} />
         ))}
       </div>
     </section>

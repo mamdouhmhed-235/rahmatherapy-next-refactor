@@ -214,7 +214,12 @@ interface TilesForScopeArgs {
 
 function pctDelta(curr: number, prior: number | undefined): number | undefined {
   if (prior === undefined || prior === null || prior <= 0) return undefined;
-  return ((curr - prior) / prior) * 100;
+  const result = ((curr - prior) / prior) * 100;
+  // Hide negligible deltas (<0.05% absolute) so the DeltaChip doesn't render
+  // a meaningless "→ 0.0%" pill — user-found regression from B-5 mobile
+  // review (2026-05-25).
+  if (Math.abs(result) < 0.05) return undefined;
+  return result;
 }
 
 // Hours-with-smart-precision: keep a decimal under 10h (so "1.5h of 16.0h"
@@ -228,7 +233,10 @@ function formatHours(hours: number): string {
 
 function ppDelta(curr: number, prior: number | undefined): number | undefined {
   if (prior === undefined || prior === null) return undefined;
-  return (curr - prior) * 100;
+  const result = (curr - prior) * 100;
+  // Hide negligible deltas — same rationale as pctDelta above.
+  if (Math.abs(result) < 0.05) return undefined;
+  return result;
 }
 
 function appendQuery(baseHref: string, query: string, extra?: string): string {

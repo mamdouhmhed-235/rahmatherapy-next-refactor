@@ -136,4 +136,116 @@ describe("PersonalContributionStripe", () => {
     const section = container.querySelector("section[data-variant]");
     expect(section?.getAttribute("data-variant")).toBe("therapist");
   });
+
+  // ── Mobile-first tile rendering (user-found bug 2026-05-25) ───────────────
+  // The original implementation composed <MetricRow> (single-line truncate)
+  // inside a 2×2 grid. At 375px viewport "Hours this week" → "Hours this …",
+  // "Clients this month" → "Cl…", and "Nothing scheduled" wrapped into the
+  // value slot. The fix is a custom stacked tile (label / value / delta+spark).
+
+  it("each tile carries a data-tile-label hook for Playwright targeting", () => {
+    const { container } = render(
+      <PersonalContributionStripe
+        tiles={tiles()}
+        activeRange="this_week"
+        variant="therapist"
+      />
+    );
+    const tileNodes = container.querySelectorAll("[data-tile-label]");
+    expect(tileNodes).toHaveLength(4);
+    expect(
+      Array.from(tileNodes).map((n) => n.getAttribute("data-tile-label"))
+    ).toEqual([
+      "Bookings today",
+      "My contribution",
+      "Revenue this week",
+      "Open attention",
+    ]);
+  });
+
+  it("label is NOT truncate-class (long labels wrap on narrow tiles)", () => {
+    const { container } = render(
+      <PersonalContributionStripe
+        tiles={[
+          { label: "Hours this week", value: "0h" },
+          { label: "Clients this month", value: "0" },
+          { label: "Next visit", value: "Nothing scheduled" },
+          { label: "Open attention", value: "0", tone: "invert" },
+        ]}
+        activeRange="this_week"
+        variant="therapist"
+      />
+    );
+    const labels = container.querySelectorAll("[data-tile-label] > p:first-child");
+    for (const label of Array.from(labels)) {
+      expect(label.className).not.toContain("truncate");
+    }
+  });
+
+  it("value is break-words so long strings like 'Nothing scheduled' wrap", () => {
+    const { container } = render(
+      <PersonalContributionStripe
+        tiles={[
+          { label: "Next visit", value: "Nothing scheduled" },
+          { label: "Today's visits", value: "0" },
+          { label: "Hours this week", value: "0h" },
+          { label: "Clients this month", value: "0" },
+        ]}
+        activeRange="this_week"
+        variant="therapist"
+      />
+    );
+    const valueP = container.querySelector("[data-tile-label='Next visit'] > p:nth-child(2)");
+    expect(valueP?.textContent).toBe("Nothing scheduled");
+    expect(valueP?.className).toContain("break-words");
+    expect(valueP?.className).not.toContain("truncate");
+  });
+
+  it("delta chip is HIDDEN when delta is exactly 0 (no '→ 0.0%' noise)", () => {
+    const { container } = render(
+      <PersonalContributionStripe
+        tiles={[
+          { label: "Clients this month", value: "0", delta: 0 },
+        ]}
+        activeRange="this_month"
+        variant="therapist"
+      />
+    );
+    const tile = container.querySelector("[data-tile-label='Clients this month']");
+    expect(tile?.textContent).not.toContain("0.0%");
+    expect(tile?.textContent).not.toContain("→");
+  });
+
+  it("delta chip renders when delta is positive", () => {
+    const { container } = render(
+      <PersonalContributionStripe
+        tiles={[{ label: "Hours this week", value: "8h", delta: 3 }]}
+        activeRange="this_week"
+        variant="therapist"
+      />
+    );
+    expect(container.textContent).toContain("+3.0%");
+  });
+
+  it("delta chip renders when delta is negative", () => {
+    const { container } = render(
+      <PersonalContributionStripe
+        tiles={[{ label: "Hours this week", value: "8h", delta: -2 }]}
+        activeRange="this_week"
+        variant="therapist"
+      />
+    );
+    expect(container.textContent).toContain("-2.0%");
+  });
+
+  it("delta chip hidden when delta is null (existing DeltaChip behaviour)", () => {
+    const { container } = render(
+      <PersonalContributionStripe
+        tiles={[{ label: "Hours this week", value: "8h", delta: null }]}
+        activeRange="this_week"
+        variant="therapist"
+      />
+    );
+    expect(container.textContent).not.toContain("%");
+  });
 });

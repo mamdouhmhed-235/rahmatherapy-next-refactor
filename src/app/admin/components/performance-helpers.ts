@@ -134,7 +134,7 @@ function buildTherapistTiles(
       id: "completed-sessions",
       label: "Completed sessions",
       value: clinical.assignmentsCompleted,
-      delta: deltas?.clinical.assignmentsCompleted ?? null,
+      delta: nzDelta(deltas?.clinical.assignmentsCompleted),
       series: options.series?.assignmentsCompleted,
       href: hrefBookings,
     },
@@ -143,7 +143,7 @@ function buildTherapistTiles(
       id: "hours-worked",
       label: "Hours worked",
       value: roundHours(clinical.hoursWorked),
-      delta: deltas?.clinical.hoursWorked ?? null,
+      delta: nzDelta(deltas?.clinical.hoursWorked),
       series: options.series?.hoursWorked,
       formatKey: "hours",
     },
@@ -152,7 +152,7 @@ function buildTherapistTiles(
       id: "revenue-attributed",
       label: "Revenue attributed",
       value: Math.round(clinical.revenueAttributed),
-      delta: deltas?.clinical.revenueAttributed ?? null,
+      delta: nzDelta(deltas?.clinical.revenueAttributed),
       series: options.series?.revenueAttributed,
       formatKey: "money",
       href: hrefRevenue,
@@ -196,7 +196,7 @@ function buildTherapistTiles(
       id: "clients-touched",
       label: "Clients touched",
       value: clinical.clientsTouched,
-      delta: deltas?.clinical.clientsTouched ?? null,
+      delta: nzDelta(deltas?.clinical.clientsTouched),
       series: options.series?.clientsTouched,
     },
     {
@@ -223,7 +223,7 @@ function buildCoordinatorTiles(
       id: "enquiries-handled",
       label: "Enquiries handled",
       value: admin.enquiriesContactedCount,
-      delta: deltas?.admin.enquiriesContactedCount ?? null,
+      delta: nzDelta(deltas?.admin.enquiriesContactedCount),
       series: options.series?.enquiriesContactedCount,
       href: hrefEnquiries,
     },
@@ -244,7 +244,7 @@ function buildCoordinatorTiles(
       id: "avg-time-to-first-contact",
       label: "Avg time-to-first-contact",
       value: Math.round(admin.avgMinutesToFirstContact),
-      delta: admin.avgMinutesToFirstContact > 0 ? Math.round(deltas?.admin.avgMinutesToFirstContact ?? 0) : null,
+      delta: admin.avgMinutesToFirstContact > 0 ? nzDelta(Math.round(deltas?.admin.avgMinutesToFirstContact ?? 0)) : null,
       formatKey: "minutes",
       tone: "invert",
       hint: `across ${admin.enquiriesContactedCount} enquiries`,
@@ -254,7 +254,7 @@ function buildCoordinatorTiles(
       id: "bookings-assigned",
       label: "Bookings assigned",
       value: admin.bookingsAssignedCount,
-      delta: deltas?.admin.bookingsAssignedCount ?? null,
+      delta: nzDelta(deltas?.admin.bookingsAssignedCount),
       series: options.series?.bookingsAssignedCount,
     },
     {
@@ -262,7 +262,7 @@ function buildCoordinatorTiles(
       id: "ops-events-resolved",
       label: "Operational events resolved",
       value: admin.opsEventsResolvedCount,
-      delta: deltas?.admin.opsEventsResolvedCount ?? null,
+      delta: nzDelta(deltas?.admin.opsEventsResolvedCount),
     },
   ];
 }
@@ -317,5 +317,19 @@ function roundHours(n: number): number {
 // percentage-point deltas (e.g. "+5pp" instead of "+0.05").
 function percentPointDelta(rawDiff: number | undefined): number | null {
   if (rawDiff == null) return null;
-  return Math.round(rawDiff * 100);
+  const rounded = Math.round(rawDiff * 100);
+  // Hide zero deltas so KpiTile / TrendTile don't show a "→ 0.0%" pill —
+  // user-found regression from B-5 mobile review (2026-05-25).
+  if (rounded === 0) return null;
+  return rounded;
+}
+
+/**
+ * Coerce a raw count/value delta to null when it's zero. Used at every
+ * `delta:` assignment site so an "unchanged" reading doesn't render a
+ * "→ 0.0%" pill. Pass-through for non-zero numbers and null/undefined.
+ */
+function nzDelta(raw: number | null | undefined): number | null {
+  if (raw == null || raw === 0) return null;
+  return raw;
 }
