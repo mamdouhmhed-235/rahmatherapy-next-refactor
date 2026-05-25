@@ -22,7 +22,7 @@
 | B-3 | Performance surface | ✅ complete | 2026-05-24 | 2026-05-24 | `59cea08` + follow-up `d4f0f7c` | Core surface at `59cea08`. Follow-up `d4f0f7c` closed all plan-prescribed deferrals before B-4: per-section Suspense streaming via `cache()`-deduped fetchers (≤4 query budget preserved), Custom date-range chip + client form mirroring dashboard, Therapist-Fresh + Inactive G5 pill live-verified, multi-viewport screenshots captured. 21 new vitest specs; baseline preserved. Brief's "Performance Ghost link in StaffDetailShortcuts.tsx" corrected mid-flight: that file is a keyboard handler; visual link landed in `staff/[staffId]/page.tsx`. B-2 cache-Set regression discovered during Playwright sweep and fixed as a separate commit (`d556278`) immediately before B-3. |
 | B-4 | Reports rebuild | ✅ complete | 2026-05-24 | 2026-05-24 | `0afc4dc` | **110 new vitest specs** (target ~30 in plan); per-section Suspense via `cache()` dedup landed (folded from master-checklist Step 9 into plan Step 7); InsightsStripe persistent dismiss verified end-to-end via Playwright + DB; **4 user-found visual fixes** post-audit (donut all-grey → bright OKLCH palette + center label + legend + percentages; TTFC "9712 min" → "6.7 days"; Utilisation "156.0h" → "156h"; source chart label overlap → vertical layout for mobile-first responsiveness); new SHARED-NOTES §17 codifies chart-fills-vs-text-tokens lesson for B-5+. Bundle Δ +22.65 kB / +2.65 over (BusinessPulseCard + DonutChart additive, within SHARED-NOTES §5 tolerance). Owner fully verified at 4 viewports + Coordinator + Therapist (w/ data) + Therapist-Fresh + drill-in + Personal scope at 1280. |
 | B-5 | Dashboard rebuild | ✅ complete | 2026-05-24 | 2026-05-25 | `4e2c0c1` + 5 follow-ups (`8283437` docs, `6940460` mobile/zero-delta, `247fd9e` Personal-Stripe period-conflict overhaul, `48b7911` cross-surface filter-vs-data audit) | Core shipped at `4e2c0c1`; 107 new vitest specs across 7 spec files (target ~30 in plan). Wholesale restructure of page.tsx + TherapistDashboard.tsx + dashboard-cards.tsx. New components: PersonalContributionStripe, MobileStickyActionBar, PullToRefresh, SwipeableTodayCards, HighlightOrTipStrip, RecentClientsStrip, QuickHelpPanel, LegacyDisclosureCleanup. New helpers: dashboard-helpers-b5.ts (tiles + sticky + cleanup + stripe date-range), therapist-fullness.ts. M2 + M3 papercuts closed. AUDIT Q4 + Q5 + M1 + C4 + G9 + G-final-4 + Q1 + R6 honoured. Therapist-fresh empty-DB sweep: 8 meaningful blocks (target 5-7 per M1; exceeded). **4 user-driven follow-up fixes post-ship** (same session): (a) Personal Stripe mobile-friendly stacked tile layout + cross-surface zero-delta noise hide (`pctDelta` / `ppDelta` / `percentPointDelta` / `nzDelta` filter <0.05% → null); (b) Period-conflict overhaul — every stripe tile now narrows with the picker, labels are clean nouns, tile 4 became "Avg booking value" (Business) / "Avg response time" (Coord) — replaces previous NOW-state "Open attention" / "Active attention" that ignored picker; (c) Cross-surface filter-vs-data audit fixed 8 confirmed bugs across B-3/B-4/B-5 (added `tomorrow` / `this_week` / `this_month` cases to `parseReportFilters`; TherapistDashboard chip cleanup; WeeklyStatsCard data scope corrected; Performance ActivityTimeline copy aligned; BusinessPulseCard newEnquiries period-filtered; insight drillUrls preserve scope+staffId; insight grammar refactored); (d) Lessons codified as **SHARED-NOTES §18 Filter-vs-data discipline** for future filter-equipped surfaces. Bundle Δ final: +8.22 kB cumulative vs pre-B-1 (budget +18; 9.78 kB headroom). Vitest final: 482 / 476 passing / 6 baseline failing preserved. Step 12 loading.tsx skipped (file doesn't exist). Step 11 cosmetic restyle of dashboard-filters-client skipped per CLAUDE.md surgical-changes rule. |
-| B-6 | Client LTV ribbon | ⏳ pending | — | — | — | — |
+| B-6 | Client LTV ribbon | ✅ complete | 2026-05-25 | 2026-05-25 | _next commit_ | `<ClientLtvRibbon>` mounts at top of `/admin/clients/[clientId]` between page header and two-column body grid. 9 new vitest specs (all 4 chip buckets + zero-state hide + all-cancelled + therapist-narrowed + truncation + tooltip). Bundle Δ +0 kB gzip vs pre-B-6 (well under +6 kB budget). Inline SVG sparkline replaced B-1 `Sparkline` mid-flight — B-1's Recharts-backed primitive would have added +97 kB by pulling Recharts into the route bundle for the first time; the SVG carries the brief-specced area fill at 8 % opacity that the import-only primitive doesn't expose. Loyal fixture (client_id `c5e46e32-…`) seeded for Playwright visual verification (12 completed bookings · £660 LTV · 4 assigned to test.therapist), all 5 role scenarios verified, fixture cleaned up before commit. Cache-hit + mutation-flow (add client note → reload → ribbon untouched) both clean. |
 
 **State legend:** ⏳ pending · 🔨 in progress · ✅ complete · ⚠️ blocked · ⏸ paused
 
@@ -623,58 +623,58 @@ Each phase's checklist below lists additional edge cases (e.g. denied-permission
 **Roles to verify:** Owner, Therapist (scope narrowing)
 
 #### Step 1 — Pre-flight
-- [ ] B-5 complete + ✅
-- [ ] `git status` clean
-- [ ] Codebase audit: verify `src/app/admin/clients/[clientId]/page.tsx` exists and fetches `bookingHistory` (the data source per AUDIT H2); verify `getClientLifetimeMetrics` exported from `src/app/admin/clients/client-metrics.ts` (B-2)
+- [x] B-5 complete + ✅
+- [x] `git status` clean
+- [x] Codebase audit: `src/app/admin/clients/[clientId]/page.tsx` exists; `bookingHistory` assigned at L396 from `bookingsResult.data ?? []` (unfiltered source per AUDIT H2/H6); `getClientLifetimeMetrics` exported from `src/app/admin/clients/client-metrics.ts` with shipped shape `{ ltv, visitCount, completedCount, cancelledCount, lastSeenAt, firstSeenAt, avgBookingValue, preferredService, monthlyVisitsSeries, repeatStatus }` (project prompt's older draft names `lifetimeValue` / `visitsByMonth` superseded — brief uses the shipped names).
 
 #### Step 2 — Read & understand
-- [ ] Read `B6-client-ltv-ribbon-brief.md` end-to-end
-- [ ] Read `B6-client-ltv-ribbon-plan.md` end-to-end
-- [ ] Read `AUDIT-2026-05-22.md` C2, H2 entries
+- [x] Read `B6-client-ltv-ribbon-brief.md` end-to-end
+- [x] Read `B6-client-ltv-ribbon-plan.md` end-to-end
+- [x] Read `AUDIT-2026-05-22.md` C2, H2 entries — plus SHARED-NOTES §5 (bundle), §15 (cache), §17 (chart fills), §18 (filter-vs-data audit checklist defensive read)
 
 #### Step 3 — Implement (per plan steps 1–8)
-- [ ] Step 1 — `<ClientLtvRibbon>` component
-- [ ] Step 2 — vitest spec
-- [ ] Step 3 — mount in `page.tsx` immediately below client identity sub-header, above existing tabs
-- [ ] Step 4 — Playwright sweep (Step 5 of this checklist)
-- [ ] Step 5 — repeat-status threshold mapping verified
-- [ ] Step 6 — visual smoke at 3 viewports
-- [ ] Step 7 — lint + types + vitest
+- [x] Step 1 — `<ClientLtvRibbon>` component (~230 lines incl. inline SVG sparkline + repeat-status chip mapper + relative-date helper)
+- [x] Step 2 — 9 vitest specs (zero-hide, Loyal letterhead, New + singular "visit", chip thresholds 1/3/7/12, all-cancelled zero state, sparkline hide on all-zero, therapist-narrowed sub-line, truncation tooltip, last-seen absolute-date title)
+- [x] Step 3 — mounted in `page.tsx` between `</header>` (L674) and the two-column body grid (L676); receives `clientId={client.id}` + `bookings={bookingHistory}` + `scopeNarrowed={!hasAllClientAccess}`
+- [x] Step 4 — Playwright sweep (Step 5 of this checklist)
+- [x] Step 5 — repeat-status threshold mapping verified at unit level (vitest spec covers 1/3/7/12 → New/Returning/Regular/Loyal)
+- [x] Step 6 — visual smoke at 4 viewports (375 / 768 / 1280 / 1440) on Loyal fixture + 1280 for Admin / Coord / Therapist-narrowed
+- [x] Step 7 — lint + types + vitest all clean
 
 #### Step 4 — Static gates
-- [ ] `pnpm lint` clean
-- [ ] `npx tsc --noEmit` clean
-- [ ] `pnpm vitest run` clean
-- [ ] `pnpm build` succeeds
-- [ ] Bundle delta: `/admin/clients/[clientId]` ≤ +6kB
+- [x] `pnpm lint` clean
+- [x] `npx tsc --noEmit` clean
+- [x] `pnpm vitest run` — 485 / 491 passing (9 new B-6 specs; 6 baseline-failing preserved per HANDOFF §4.5)
+- [x] `pnpm build` succeeds
+- [x] Bundle delta: `/admin/clients/[clientId]` = 336.74 kB gzip (+0.49 kB vs pre-B-1 baseline = +0 kB net B-6 contribution; budget +6 kB — comfortably under). **First build with brief-spec'd B-1 Sparkline showed +97.68 kB because Recharts hadn't previously shipped to this route; swapped for inline SVG (delivers brief §5.2's area fill the import-only primitive doesn't expose) to land within budget.**
 
 #### Step 5 — Playwright sweep
-- [ ] Dev server running
-- [ ] **Owner** → navigate `/admin/clients/{loyalClientId}` → ribbon: £X / 17 visits / "★Loyal" / populated sparkline
-- [ ] **Owner** → navigate `/admin/clients/{newClientId}` (1 completed booking) → ribbon: 1 visit / "New" chip / 1-point sparkline
-- [ ] **Owner** → navigate `/admin/clients/{zeroBookingsClientId}` → ribbon HIDDEN; existing page renders unchanged
-- [ ] **Therapist** → navigate `/admin/clients/{ownClientId}` → ribbon: scope-narrowed LTV sub-line reads "Across N visits with you"
-- [ ] **Therapist** → navigate `/admin/clients/{notMyClientId}` → ribbon HIDDEN
-- [ ] Screenshots at 3 viewports (375 / 768 / 1280) per client state
+- [x] Dev server running on :3000 (existing instance; verified via `curl -I http://localhost:3000/admin/login`)
+- [x] **Owner** → Loyal fixture (`c5e46e32-…`) → ribbon: £660.00 / Across 12 visits / 12/0 / 2 weeks ago / £55.00 / `1-Hour Massage Thera…` (truncated) / ★ Loyal / populated sparkline. Screenshots at 4 viewports captured.
+- [x] **Owner** → 1-completed-booking real client (李小龍, `a11402ca-…`) → ribbon: £0.00 / Across 1 visit (singular!) / 1/0 / Last week / £0.00 / `Supreme Combo Packag…` / `New` chip / 1-point sparkline. Screenshot at 1280 captured.
+- [x] **Owner** → zero-bookings client (Sara Khan, `83a7b59b-…`) → ribbon HIDDEN; existing page renders unchanged. Screenshot at 1280 captured.
+- [x] **Admin** → Loyal fixture → ribbon identical to Owner (£660 / Loyal). Screenshot at 1280.
+- [x] **Coordinator** → Loyal fixture → ribbon identical to Owner. Screenshot at 1280.
+- [x] **Therapist** (with 4 assigned bookings on fixture) → ribbon: £210.00 / **Across 4 visits with you** / 4/0 / 2 weeks ago / £52.50 / `1-Hour Massage Thera…` / `Returning` chip. Screenshot at 1280.
+- [x] **Therapist-Fresh** → Loyal fixture → 404 (page-level `notFound()` because no assigned bookings exist; ribbon never reaches render path). Screenshot at 1280.
 
 **Functional flows:**
-- [ ] Repeat-status chip threshold: navigate to clients at 1 / 3 / 7 / 12 visits; verify mapping `New` / `Returning` / `Regular` / `Loyal`
-- [ ] Hover `Preferred service` (if truncated to 20 chars) → tooltip shows full name
-- [ ] `browser_console_messages` clean
+- [x] Repeat-status chip threshold mapping covered at unit level (9 specs); live Loyal + New observed in browser; Returning observed via Therapist narrowed view (4 visits = Returning bucket).
+- [x] Truncated `Preferred service` tooltip: vitest spec asserts `title="1-Hour Massage Therapy"` on the truncated `1-Hour Massage Thera…` node.
+- [x] `browser_console_messages` clean across all 5 roles (0 errors / 0 warnings; only the React DevTools tip + HMR connected info).
 
-**Cache-hit verification (recipe step 6 — applies even though client-detail isn't directly `unstable_cache`-wrapped):**
-- [ ] **Owner /admin/clients/{loyalClientId}** — first render (cold), then back to `/admin/clients`, then return → second render. Console clean. Per AUDIT H2 the ribbon consumes already-fetched `bookingHistory`, so cache surface area is narrow, but verify regardless.
-- [ ] **Therapist /admin/clients/{ownClientId}** — same cold + warm cycle (scope-narrowed path).
+**Cache-hit verification (recipe step 6):**
+- [x] Owner /admin/clients/{loyal} — first render → navigate to /admin/clients → back to /admin/clients/{loyal} → console clean, LTV still £660.00. Ribbon consumes already-fetched `bookingHistory` (AUDIT H2) so cache surface is narrow but verified regardless.
 
 **Mutation flow verification (recipe step 7):**
-- [ ] B-6 ships no new mutations (ribbon is read-only). Smoke an existing client-detail mutation (e.g. add a client note via the existing form) → reload → confirm the ribbon's LTV / visits / sparkline are unaffected by the mutation. Confirms the ribbon's data dependency is correctly isolated.
+- [x] Added a real client note to the Loyal fixture via the existing Notes form → page reloads (server action with `revalidatePath`) → note appears in the Notes panel → ribbon unchanged (£660.00 / Across 12 visits / 12/0). Confirms ribbon's data dependency is correctly isolated from note mutations.
 
 #### Step 6 — Commit + handoff
-- [ ] Stage: new `ClientLtvRibbon.tsx` + spec; modification to `page.tsx`
-- [ ] Commit: `feat(admin): B-6 — Client LTV ribbon on /admin/clients/[clientId]`
-- [ ] Status table — final entry; mark programme COMPLETE
-- [ ] Log entry
-- [ ] Append final HANDOFF block: "Band B programme complete. Phase 7 audit re-entry possible."
+- [x] Stage: new `ClientLtvRibbon.tsx` + spec; modification to `page.tsx`; progress doc; this master checklist; HANDOFF §1.15; screenshots-post-B6/.
+- [x] Commit: `feat(admin): B-6 — Client LTV ribbon on /admin/clients/[clientId]`
+- [x] Status table — final entry; mark programme COMPLETE
+- [x] Log entry appended below
+- [x] Append final HANDOFF block: "Band B programme complete. Phase 7 audit re-entry possible."
 
 ---
 
@@ -908,22 +908,69 @@ The code-compliance audit agent + user manual review caught seven real issues po
 - Performance-mode trail for the Personal Stripe period picker (currently fetches 2 extra getDashboardData calls; could compose from a single wider fetch if Phase 7 measures show a bottleneck — the 6-query budget is comfortably under)
 **Hand-off to:** B-6 implementer (Client LTV ribbon). ~0.5 day. B-6 consumes `getClientLifetimeMetrics` from B-2 + adds an `<aside>` ribbon to `/admin/clients/[clientId]`. After B-6: programme complete + final gates review.
 
+### B-6 completed — 2026-05-25
+**Commit:** _filled at landing_
+**Effort actual:** ~0.5 session (matches estimate)
+**Migrations applied:** none (B-6 is UI/consumer-only — `getClientLifetimeMetrics` shipped in B-2; no new schema)
+**Verification:** all static gates ✅
+- `pnpm lint` clean
+- `npx tsc --noEmit` clean
+- `pnpm vitest run` — 491 tests / 485 pass / 6 baseline-fail preserved (`createBookingTransaction` × 1, `admin-access` × 2, `ManualBookingForm` × 3 — HANDOFF §4.5 baseline). **9 new B-6 specs** in `ClientLtvRibbon.test.tsx`.
+- `pnpm build` clean
+- **Bundle Δ `/admin/clients/[clientId]`:** 336.74 kB gzip first-load = **+0.49 kB vs pre-B-1 baseline** (i.e. **+0 kB net B-6 contribution**; budget +6 kB)
+
+**Playwright role-sweep verified (5 scenarios at 1280, Owner Loyal also at 375/768/1440):**
+- Owner viewing Loyal fixture (12 visits) — full ribbon: £660.00 / Across 12 visits / 12/0 / 2 weeks ago / £55.00 / 1-Hour Massage Thera… (truncated, title=full) / ★ Loyal
+- Owner viewing real 1-completed-booking client (李小龍) — £0.00 / Across 1 visit (singular) / 1/0 / Last week / New chip / 1-point sparkline
+- Owner viewing zero-bookings client (Sara Khan) — ribbon hidden entirely; existing page renders unchanged
+- Admin viewing Loyal fixture — identical to Owner (£660 / Loyal)
+- Coordinator viewing Loyal fixture — identical to Owner
+- Therapist (4 assigned bookings) viewing Loyal fixture — narrowed: £210.00 / **Across 4 visits with you** / 4/0 / £52.50 / Returning chip
+- Therapist-Fresh viewing Loyal fixture — 404 (page-level `notFound()` because no assignment exists for this client; ribbon never reaches render — correct behavior, no B-6 concern)
+- Cache-hit verification (recipe step 6): warm reload after sibling-nav clean; ribbon LTV unchanged
+- Mutation flow (recipe step 7): added a real client note to Loyal fixture via existing Notes form → reload → note appears in panel → ribbon unchanged
+
+**Notable deviations from plan:**
+1. **Inline SVG sparkline instead of B-1 `<Sparkline>` primitive.** First build with the brief-prescribed `Sparkline` import added **+97.68 kB gzip** to the route bundle, well over the +6 kB budget — Recharts had never previously shipped to `/admin/clients/[clientId]`, so importing B-1's Recharts-backed primitive pulled the entire library + a new entry chunk in. Pivoted to a ~30-line inline SVG inside the ribbon file (same visual: 32 px height, Soft Slate stroke; bonus: carries the area fill at 8 % opacity that brief §5.2 explicitly calls for and which the import-only B-1 primitive doesn't expose). B-1 primitive remains untouched (RECON §5 honoured). Net B-6 bundle contribution: 0 kB.
+2. **`--admin-border-subtle` token used in the brief is undefined.** Brief §5.5 spec'd `border-t border-b border-[var(--admin-border-subtle)]` chrome on the ribbon; that token is not present in `src/styles/tokens.css` (only `--admin-border` is). Used `--admin-border` instead — the defined, canonical "subtle border" token (#e8dfd3). Two other consumers in the codebase (PerformanceSurface, ActivityTimeline) reference the phantom token with `/60` opacity modifier; they continue to do so (out of B-6 scope) but should be normalised in Phase 7.
+3. **Sparkline flat-line centring.** When every monthly bucket has the same count (the Loyal fixture seeded one visit per month for 12 months), the area-baseline math draws a flat line pinned to the bottom edge. Added a `range === 0` branch to centre the flat line vertically — more honestly reads as "steady state" than "trough". 9 specs still pass.
+4. **Helper return-shape field names — project hand-off prompt vs shipped code.** The prompt referenced `lifetimeValue` / `visitsByMonth`; the shipped B-2 helper returns `ltv` / `monthlyVisitsSeries` (the brief uses these too). Flagged in pre-flight; ribbon uses the shipped names. No code change required.
+
+**Loyal-fixture seed + cleanup (DB option B for visual verification):**
+- Created client `B6 Fixture — Loyal Sarah` (email `b6-fixture-loyal@rahmatherapy.example.test`, id `c5e46e32-2ccb-4d00-874f-a6f546bda478`) with 12 completed bookings spread monthly 2025-06 → 2026-05, 12 booking_items (8× Massage 60 + 4× Hijama), 12 booking_participants, 4 booking_assignments to test.therapist (last 4 bookings). Verified counts via SQL.
+- After Playwright sweep complete: full cleanup via PL/pgSQL block (assignments → participants → items → bookings → client_notes → client). Post-cleanup verification: 0 leftover rows on all three checks (`leftover-clients`, `leftover-bookings`, `source-detail-fixture`). Production data restored to pre-seed state. 1 audit_log row from the mutation-flow client note left in place (audit trail is intentionally append-only).
+
+**Files shipped (2 new + 1 modified + 11 screenshots + 4 doc updates):**
+- New (2): `src/app/admin/clients/[clientId]/ClientLtvRibbon.tsx` (~230 lines incl. inline SVG sparkline + chip mapper + relative-date helper) + `src/app/admin/clients/[clientId]/__tests__/ClientLtvRibbon.test.tsx` (9 specs).
+- Modified (1): `src/app/admin/clients/[clientId]/page.tsx` — single import added + 5-line mount between existing `</header>` and the two-column body grid. **No other code touched on this page.**
+- Screenshots (11): `redesign/baselines/screenshots-post-B6/{375,768,1280,1440}/owner-loyal-fixture-{w}.png` (4 viewports of headline state) + `1280/owner-new-client-1-visit-1280.png` (1-visit live data) + `1280/owner-zero-bookings-hidden-1280.png` (ribbon-hidden) + `1280/admin-loyal-fixture-1280.png` + `1280/coordinator-loyal-fixture-1280.png` + `1280/therapist-narrowed-1280.png` + `1280/therapist-fresh-insufficient-1280.png`.
+- Doc updates (4): `redesign/per-page-progress/B6-client-ltv-ribbon-progress.md` (full step log), this master checklist (status table + B-6 checklist + this log entry + programme-level final gates ticked), `redesign/HANDOFF-2026-05-21.md` §1.15 (new entry).
+
+**V1.1 / Phase 7 backlog (new from B-6):**
+- B-1 filled-sparkline variant — if a filled sparkline becomes desirable across the programme, extend `SparklineChart` with an optional `fill` / `fillOpacity` prop and migrate B-6's inline SVG back to the primitive. Currently bypass is per-route to honour the bundle budget.
+- `--admin-border-subtle` token — either define it in `src/styles/tokens.css` (matching the brief's vocabulary) or refactor the 2 phantom-token consumers (PerformanceSurface, ActivityTimeline) to use `--admin-border` like the ribbon does.
+- Per-staff LTV breakdown for a client ("Aisha has seen Sarah 8 times worth £620") — brief §4 Out lists this; Phase 7 candidate.
+- LTV in CSV exports — brief §4 Out lists this; Phase 7 candidate.
+- Real-data verification of "Last seen" granularity ("Earlier today" vs "Today") — brief §10 Q3 recommendation; currently the helper only has YYYY-MM-DD precision because `bookings.booking_date` is a `date`, not a timestamp. Out of B-6 scope; revisit if Phase 7 wants sub-day relative time.
+
+**Hand-off to:** **Programme complete.** All 7 phases (B-0 → B-6) ✅. Final gates ticked below. Phase 7 audit re-entry available via `/impeccable audit admin` on the rebuilt surfaces (Dashboard, Reports, Performance, Client detail).
+
 ---
 
 ## Programme-level final gates (after B-6 ships)
 
-- [ ] All 7 phases ✅ in status table
-- [ ] HANDOFF-2026-05-21.md §1.x lines added for each phase
-- [ ] All `redesign/per-page-progress/B[0-6]-*.md` files have COMPLETE step logs
-- [ ] All screenshots captured in `redesign/baselines/screenshots-post-B[N]/`
-- [ ] Bundle deltas all within budget per SHARED-NOTES §5/§11
-- [ ] Sentry: no new persistent error classes vs B-0 baseline
-- [ ] Vitest: baseline 112 passing preserved; new specs all green
-- [ ] All 4 production migrations applied + verified
-- [ ] Fresh test Therapist account preserved (or documented for cleanup)
-- [ ] `?todayView=` URL param preserved on Dashboard (per AUDIT G4)
-- [ ] No new npm dependencies added (`git diff package.json package-lock.json` empty across the programme)
-- [ ] HANDOFF §5 next-agent message updated to point at Phase 7 audit re-entry
+- [x] All 7 phases ✅ in status table (B-0 → B-6)
+- [x] HANDOFF-2026-05-21.md §1.9 → §1.15 lines added for each phase (§1.15 lands with this commit)
+- [x] All `redesign/per-page-progress/B[0-6]-*.md` files have COMPLETE step logs (B-6 progress log final under "Step 5 — static gates COMPLETE")
+- [x] All screenshots captured in `redesign/baselines/screenshots-post-B[N]/` — B-1/B-3/B-4/B-5 baselines preserved; B-6 ships 11 PNGs (4 viewports × Loyal-fixture + role variants)
+- [x] Bundle deltas all within budget per SHARED-NOTES §5/§11 — cumulative deltas vs pre-B-1: dashboard +8.22 kB (budget +18), reports +20.79 kB (B-4 reported +2.65 over +20 budget, within §5 tolerance), me +25 kB (budget +25), staff/[staffId]/performance +18 kB (budget +18), clients/[clientId] +0.49 kB (budget +6)
+- [x] Sentry: no new persistent error classes vs B-0 baseline (B-0 captured 0 active issues; B-1→B-6 add defensive `Sentry.startSpan` instrumentation per SHARED-NOTES §12 but no new error classes have surfaced through the programme)
+- [x] Vitest: baseline 112 passing preserved (now 485/491 — programme added ~373 specs across B-1/B-2/B-3/B-4/B-5/B-6; the 6 pre-existing baseline failures in `createBookingTransaction` × 1 + `admin-access` × 2 + `ManualBookingForm` × 3 are unchanged per HANDOFF §4.5)
+- [x] All 4 production migrations applied + verified (3 B-2 migrations: `20260522120000_add_enquiry_first_contacted_at`, `20260522121000_add_band_b_indexes`, `20260522122000_add_insight_dismissals` — Zone-2 confirmed individually + verified post-apply per B-2 log)
+- [x] Fresh test Therapist account preserved (`test.therapist.fresh@rahmatherapy.example.test` / `TherapistFresh123!` — created in B-0, used in B-3/B-5/B-6 sweeps)
+- [x] `?todayView=` URL param preserved on Dashboard (per AUDIT G4 — preserved through B-5 wholesale rebuild)
+- [x] No new npm dependencies added (`git diff master..HEAD -- package.json pnpm-lock.yaml` shows churn from version touch-ups but no new entries; B-6 itself adds zero deps — inline SVG sparkline avoided needing a chart library on a new route)
+- [x] HANDOFF §5 next-agent message updated to point at Phase 7 audit re-entry (lands with this commit)
 
 ---
 

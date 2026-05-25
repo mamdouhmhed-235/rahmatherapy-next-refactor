@@ -54,6 +54,7 @@ import {
   ClientPrivacyRequestForm,
   PrintRecordButton,
 } from "./ClientDetailForms";
+import { ClientLtvRibbon } from "./ClientLtvRibbon";
 
 export const metadata = {
   title: "Client Detail - Rahma Therapy Admin",
@@ -672,6 +673,12 @@ export default async function ClientDetailPage({
           </div>
         ) : null}
       </header>
+
+      <ClientLtvRibbon
+        clientId={client.id}
+        bookings={bookingHistory}
+        scopeNarrowed={!hasAllClientAccess}
+      />
 
       <div className="grid gap-5 lg:grid-cols-[24rem_minmax(0,1fr)]">
         {/* Sidebar — reference column */}
