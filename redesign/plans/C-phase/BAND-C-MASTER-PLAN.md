@@ -423,7 +423,7 @@ Once all C-B plans are written:
 
 | # | Plan file | State | Started | Shipped | Commit | Blocked by | Notes |
 |---|---|---|---|---|---|---|---|
-| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01-#22 shipped (#22 PRIVACY: ⚠️ PARTIAL not ❌. Triage works but P0 GDPR fulfilment gaps — "Completed" is a UI lie. HEADLINE finding of the audit phase); 4 surfaces remaining |
+| C-A.1 | per-page audit files (25 surfaces) | ✅ | 2026-05-25 | 2026-05-25 | bundle | — | **C-A.1 COMPLETE.** All 25 surfaces audited. #21+#23+#24+#25 batched: roles delete is stubbed (PE-58 guard pattern correct), password-requests notes not persisted (data-loss), audit log has proper cursor pagination (C-09 template alongside operations), reports has zero animate-spin (cleanest a11y posture). |
 | C-A.2 | workflow audit files (10 flows) | ⏳ | — | — | — | C-A.1 | C-A discovery |
 | C-A.3 | role-day audit files (5 roles) | ⏳ | — | — | — | C-A.1, C-A.2 | C-A discovery |
 | C-B | per-item brief + plan writing | ⏳ | — | — | — | C-A.3 | covers 11 user items + audit-surfaced items |
