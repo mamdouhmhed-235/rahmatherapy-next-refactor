@@ -22,6 +22,7 @@ import type {
   StaffScorecard,
 } from "../reports/reporting";
 import { formatMoney, formatNumber } from "../reports/reporting";
+import { formatDurationFromMinutes } from "../reports/report-insights";
 
 export type StripeVariant = "business" | "coordinator" | "therapist";
 
@@ -40,16 +41,18 @@ export interface PersonalStripeTile {
 
 export interface PersonalStripeContext {
   staffId: string;
-  /** ISO yyyy-mm-dd for "today" — passed in to keep the helper pure-deterministic. */
-  todayKey: string;
-  /** Clinic-wide attention items count (for the rightmost Business/Coord tile). */
-  attentionCount: number;
-  /** The therapist's next upcoming booking; only used for the Therapist tile 1 string. */
+  /**
+   * Therapist tile 1 — the only forward-looking exception in the stripe.
+   * Sits outside the picker's period frame by design ("what's next?" doesn't
+   * narrow to today/week/month meaningfully).
+   */
   nextAppointment: ReportBooking | null;
-  /** Pre-computed count of bookings on `todayKey` already narrowed to the relevant scope. */
-  todayVisitsCount: number;
-  /** Pre-computed count of unassigned bookings today (Coordinator tile 1). */
-  unassignedTodayCount: number;
+  /**
+   * Coordinator tile 1 — count of enquiries CREATED in the stripe period
+   * (not "open right now"). Computed page-side from `stripeData.enquiries`
+   * filtered by `created_at` within the stripe window.
+   */
+  newEnquiriesInPeriod: number;
 }
 
 // ── tile composition ────────────────────────────────────────────────────────
@@ -72,6 +75,9 @@ function businessTiles(
   scorecard: StaffScorecard,
   context: PersonalStripeContext
 ): PersonalStripeTile[] {
+  // context parameter retained for signature uniformity across variant
+  // builders; Business currently derives all four tiles from `scorecard`.
+  void context;
   // Tile 2 union per AUDIT Q4: clinical (completed visits) + admin (bookings
   // assigned to staff). An Owner who never treats sees `0 + N`, not hidden.
   const contributionValue =
@@ -82,10 +88,22 @@ function businessTiles(
       scorecard.deltas.admin.bookingsAssignedCount
     : null;
 
+  // Avg booking value — personal scope (my completed visits' revenue / count).
+  // Owner who doesn't treat → both are 0 → show "—". Truthful + consistent
+  // with tile 2's clinical-zero behaviour. Period-able because the source
+  // scorecard is built from period-scoped `stripeData`.
+  const avgBookingValue =
+    scorecard.clinical.assignmentsCompleted > 0
+      ? scorecard.clinical.revenueAttributed /
+        scorecard.clinical.assignmentsCompleted
+      : null;
+
   return [
     {
-      label: "Bookings today",
-      value: formatNumber(context.todayVisitsCount),
+      // Period-scoped count of my assignments — replaces the prior
+      // "Bookings today" NOW-snapshot (which ignored the picker).
+      label: "My bookings",
+      value: formatNumber(scorecard.clinical.assignmentsTotal),
     },
     {
       label: "My contribution",
@@ -93,16 +111,18 @@ function businessTiles(
       delta: contributionDelta,
     },
     {
-      label: "Revenue this week",
+      // Label drops hardcoded "this week" suffix — the eyebrow already
+      // shows the period, the tile shouldn't repeat or contradict it.
+      label: "Revenue",
       value: formatMoney(scorecard.clinical.revenueAttributed),
       delta: scorecard.deltas?.clinical.revenueAttributed ?? null,
     },
     {
-      label: "Open attention",
-      value: formatNumber(context.attentionCount),
-      // "fewer attention items is better" — invert colour semantics so a
-      // negative delta reads green.
-      tone: "invert",
+      // Replaces "Open attention" (which was clinic-wide NOW state and
+      // ignored the picker). AUDIT Q2 specced this formula for B-4 Reports;
+      // same denominator applies here at personal scope.
+      label: "Avg booking value",
+      value: avgBookingValue !== null ? formatMoney(avgBookingValue) : "—",
     },
   ];
 }
@@ -111,11 +131,20 @@ function coordinatorTiles(
   scorecard: StaffScorecard,
   context: PersonalStripeContext
 ): PersonalStripeTile[] {
+  // Avg time-to-first-contact reads naturally as a duration — reuse the B-4
+  // smart-unit formatter so 9712 min renders as "6.7 days" not raw minutes.
+  const avgResponseMinutes = scorecard.admin.avgMinutesToFirstContact;
+  const avgResponseValue =
+    avgResponseMinutes > 0
+      ? formatDurationFromMinutes(avgResponseMinutes)
+      : "—";
+
   return [
     {
-      label: "Unassigned today",
-      value: formatNumber(context.unassignedTodayCount),
-      tone: "invert",
+      // Period-able front-of-funnel volume — replaces "Unassigned today"
+      // (which was a NOW-state snapshot that ignored the picker).
+      label: "New enquiries",
+      value: formatNumber(context.newEnquiriesInPeriod),
     },
     {
       label: "Enquiries handled",
@@ -130,8 +159,11 @@ function coordinatorTiles(
         : null,
     },
     {
-      label: "Active attention",
-      value: formatNumber(context.attentionCount),
+      // Replaces "Active attention" (clinic-wide NOW) with the Coordinator's
+      // signature operational metric — period-able + personal. Already in
+      // the B-2 scorecard.
+      label: "Avg response time",
+      value: avgResponseValue,
       tone: "invert",
     },
   ];
@@ -144,22 +176,30 @@ function therapistTiles(
   const nextVisitLabel = formatNextVisitLabel(context.nextAppointment);
   return [
     {
+      // Forward-looking exception — the only stripe tile that legitimately
+      // doesn't narrow with the picker. Worker-app pattern (Uber Driver,
+      // DoorDash Dasher) — "what's next?" beats "what did I do?" for the
+      // on-the-road operator.
       label: "Next visit",
       value: nextVisitLabel,
     },
     {
-      label: "Today's visits",
-      value: formatNumber(context.todayVisitsCount),
+      // Period-scoped count of my assignments (was "Today's visits" — a
+      // NOW snapshot that ignored the picker).
+      label: "Visits",
+      value: formatNumber(scorecard.clinical.assignmentsTotal),
     },
     {
-      label: "Hours this week",
+      // Label drops "this week" suffix; value already period-scoped.
+      label: "Hours",
       value: formatHoursDecimal(scorecard.clinical.hoursWorked),
       delta: scorecard.deltas?.clinical.hoursWorked
         ? Math.round(scorecard.deltas.clinical.hoursWorked)
         : null,
     },
     {
-      label: "Clients this month",
+      // Label drops "this month" suffix; value already period-scoped.
+      label: "Clients",
       value: formatNumber(scorecard.clinical.clientsTouched),
       delta: scorecard.deltas?.clinical.clientsTouched ?? null,
     },

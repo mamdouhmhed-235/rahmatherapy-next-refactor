@@ -580,32 +580,22 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     stripeVariant === "therapist"
       ? findNextAppointment(data.bookings, today)
       : null;
-  // "My bookings today" — own assignments on today's date. For Therapist
-  // variant `data` is already narrowed via assigned_and_claimable so the
-  // count includes claimable bookings too; for Business/Coord we join via
-  // data.assignments to get strictly own-assigned bookings.
-  const todayBookingIdsForStripe = new Set(
-    data.bookings.filter((b) => b.booking_date === today).map((b) => b.id)
-  );
-  const myBookingsToday = data.assignments.filter(
-    (a) =>
-      a.assigned_staff_id === profile.id &&
-      todayBookingIdsForStripe.has(a.booking_id)
-  ).length;
-  const unassignedTodayCount = data.bookings.filter(
-    (b) =>
-      b.booking_date === today &&
-      b.assignment_status === "unassigned" &&
-      !["cancelled", "no_show"].includes(b.status)
-  ).length;
+  // New enquiries CREATED in the stripe period — for Coordinator tile 1.
+  // `stripeData.enquiries` returns all visible enquiries unfiltered by date,
+  // so we filter on `created_at` here. ISO-prefix string compare is safe
+  // because `created_at` is timestamptz formatted ISO 8601 and the stripe
+  // window from/to are yyyy-mm-dd.
+  const newEnquiriesInPeriod =
+    stripeVariant === "coordinator"
+      ? stripeData.enquiries.filter((e) => {
+          const d = e.created_at?.slice(0, 10) ?? "";
+          return d >= stripeWindow.from && d <= stripeWindow.to;
+        }).length
+      : 0;
   const stripeTiles = tilesForVariant(stripeVariant, stripeScorecard, {
     staffId: profile.id,
-    todayKey: today,
-    attentionCount: attentionItems.length,
     nextAppointment: stripeNextAppointment,
-    todayVisitsCount:
-      stripeVariant === "coordinator" ? unassignedTodayCount : myBookingsToday,
-    unassignedTodayCount,
+    newEnquiriesInPeriod,
   });
 
   // Therapist claimable count for the sticky bar fallback ladder (AUDIT Q5).

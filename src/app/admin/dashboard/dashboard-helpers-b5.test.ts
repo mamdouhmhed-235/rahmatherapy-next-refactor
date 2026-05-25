@@ -49,11 +49,8 @@ function makeContext(
 ): PersonalStripeContext {
   return {
     staffId: "staff-1",
-    todayKey: "2026-05-25",
-    attentionCount: 0,
     nextAppointment: null,
-    todayVisitsCount: 0,
-    unassignedTodayCount: 0,
+    newEnquiriesInPeriod: 0,
     ...overrides,
   };
 }
@@ -87,7 +84,7 @@ function makeBooking(overrides?: Partial<ReportBooking>): ReportBooking {
 }
 
 describe("tilesForVariant — business", () => {
-  it("emits 4 tiles with labels per brief §5.1", () => {
+  it("emits 4 tiles with period-able labels (no hardcoded period suffixes)", () => {
     const tiles = tilesForVariant(
       "business",
       makeScorecard(),
@@ -95,11 +92,20 @@ describe("tilesForVariant — business", () => {
     );
     expect(tiles).toHaveLength(4);
     expect(tiles.map((t) => t.label)).toEqual([
-      "Bookings today",
+      "My bookings",
       "My contribution",
-      "Revenue this week",
-      "Open attention",
+      "Revenue",
+      "Avg booking value",
     ]);
+  });
+
+  it("tile 1 (My bookings) uses scorecard.clinical.assignmentsTotal so it narrows with the picker", () => {
+    const tiles = tilesForVariant(
+      "business",
+      makeScorecard({ clinical: { assignmentsTotal: 7 } }),
+      makeContext()
+    );
+    expect(tiles[0].value).toBe("7");
   });
 
   it("tile 2 sums clinical + admin contribution (AUDIT Q4)", () => {
@@ -135,14 +141,26 @@ describe("tilesForVariant — business", () => {
     expect(tiles[2].value).toBe("£540.00");
   });
 
-  it("tile 4 (Open attention) uses invert tone so fewer is better", () => {
+  it("tile 4 (Avg booking value) = clinical revenue / clinical completed", () => {
     const tiles = tilesForVariant(
       "business",
-      makeScorecard(),
-      makeContext({ attentionCount: 3 })
+      makeScorecard({
+        clinical: { revenueAttributed: 400, assignmentsCompleted: 5 },
+      }),
+      makeContext()
     );
-    expect(tiles[3].value).toBe("3");
-    expect(tiles[3].tone).toBe("invert");
+    expect(tiles[3].value).toBe("£80.00");
+  });
+
+  it("tile 4 (Avg booking value) shows '—' for non-treating Owner (assignmentsCompleted === 0)", () => {
+    const tiles = tilesForVariant(
+      "business",
+      makeScorecard({
+        clinical: { revenueAttributed: 0, assignmentsCompleted: 0 },
+      }),
+      makeContext()
+    );
+    expect(tiles[3].value).toBe("—");
   });
 
   it("tile 2 delta combines clinical + admin deltas when present", () => {
@@ -175,18 +193,27 @@ describe("tilesForVariant — business", () => {
 });
 
 describe("tilesForVariant — coordinator", () => {
-  it("emits the Coord tile set", () => {
+  it("emits the Coord tile set (period-able labels)", () => {
     const tiles = tilesForVariant(
       "coordinator",
       makeScorecard(),
       makeContext()
     );
     expect(tiles.map((t) => t.label)).toEqual([
-      "Unassigned today",
+      "New enquiries",
       "Enquiries handled",
       "Conversion rate",
-      "Active attention",
+      "Avg response time",
     ]);
+  });
+
+  it("tile 1 (New enquiries) uses context.newEnquiriesInPeriod so it narrows with the picker", () => {
+    const tiles = tilesForVariant(
+      "coordinator",
+      makeScorecard(),
+      makeContext({ newEnquiriesInPeriod: 5 })
+    );
+    expect(tiles[0].value).toBe("5");
   });
 
   it("formats conversion rate as integer percent", () => {
@@ -198,21 +225,53 @@ describe("tilesForVariant — coordinator", () => {
     expect(tiles[2].value).toBe("43%");
   });
 
-  it("Unassigned today and Active attention invert tone (fewer = better)", () => {
+  it("tile 4 (Avg response time) formats minutes via smart-unit duration formatter", () => {
+    // <60 min — keep raw minutes
+    const fast = tilesForVariant(
+      "coordinator",
+      makeScorecard({ admin: { avgMinutesToFirstContact: 25 } }),
+      makeContext()
+    );
+    expect(fast[3].value).toBe("25 min");
+
+    // 60..1440 min — render as hours
+    const medium = tilesForVariant(
+      "coordinator",
+      makeScorecard({ admin: { avgMinutesToFirstContact: 90 } }),
+      makeContext()
+    );
+    expect(medium[3].value).toBe("1.5 hours");
+
+    // >24h — render as days
+    const slow = tilesForVariant(
+      "coordinator",
+      makeScorecard({ admin: { avgMinutesToFirstContact: 9710 } }),
+      makeContext()
+    );
+    expect(slow[3].value).toBe("6.7 days");
+  });
+
+  it("tile 4 (Avg response time) shows '—' when no enquiries have been contacted yet", () => {
     const tiles = tilesForVariant(
       "coordinator",
-      makeScorecard(),
-      makeContext({ unassignedTodayCount: 2, attentionCount: 5 })
+      makeScorecard({ admin: { avgMinutesToFirstContact: 0 } }),
+      makeContext()
     );
-    expect(tiles[0].tone).toBe("invert");
+    expect(tiles[3].value).toBe("—");
+  });
+
+  it("tile 4 (Avg response time) inverts tone — faster is better", () => {
+    const tiles = tilesForVariant(
+      "coordinator",
+      makeScorecard({ admin: { avgMinutesToFirstContact: 25 } }),
+      makeContext()
+    );
     expect(tiles[3].tone).toBe("invert");
-    expect(tiles[0].value).toBe("2");
-    expect(tiles[3].value).toBe("5");
   });
 });
 
 describe("tilesForVariant — therapist", () => {
-  it("emits the Therapist tile set", () => {
+  it("emits the Therapist tile set (period-able labels)", () => {
     const tiles = tilesForVariant(
       "therapist",
       makeScorecard(),
@@ -220,9 +279,9 @@ describe("tilesForVariant — therapist", () => {
     );
     expect(tiles.map((t) => t.label)).toEqual([
       "Next visit",
-      "Today's visits",
-      "Hours this week",
-      "Clients this month",
+      "Visits",
+      "Hours",
+      "Clients",
     ]);
   });
 
@@ -238,6 +297,15 @@ describe("tilesForVariant — therapist", () => {
   it("renders 'Nothing scheduled' when next appointment is null", () => {
     const tiles = tilesForVariant("therapist", makeScorecard(), makeContext());
     expect(tiles[0].value).toBe("Nothing scheduled");
+  });
+
+  it("tile 2 (Visits) uses scorecard.clinical.assignmentsTotal so it narrows with the picker", () => {
+    const tiles = tilesForVariant(
+      "therapist",
+      makeScorecard({ clinical: { assignmentsTotal: 4 } }),
+      makeContext()
+    );
+    expect(tiles[1].value).toBe("4");
   });
 
   it("formats hours: <10 keeps one decimal (no trailing .0); ≥10 rounds", () => {

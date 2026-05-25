@@ -86,6 +86,44 @@ User flagged the Personal Stripe at 375 viewport: "Hours this ..." + "Cl..." tru
 
 **No new architectural deviations.** B-1 primitives (DeltaChip, Sparkline, MetricRow, KpiTile, TrendTile) remain import-only per RECON §5 — fixes are at consumer files only.
 
+## Personal Stripe period-conflict overhaul (2026-05-25)
+
+User raised a sharper diagnosis after my "Open attention" cleanup proposal: that tile (and several others in the stripe) was conceptually NOW-state pretending to live in a period-scoped surface. The picker had no effect on tile 4 (and labels like "Revenue this week" stayed hardcoded even when the picker said "this month"). Truth in advertising: out of 12 tiles, only 5 actually obeyed the picker; 3 were NOW-snapshots silently ignoring it; 4 had picker-scoped values with hardcoded period suffixes that contradicted the picker label.
+
+**Refactor applied (Part 1 + Part 2 from the proposed plan):**
+
+1. **`dashboard-helpers-b5.ts` — tile composition rewritten:**
+   - **`PersonalStripeContext` slimmed**: dropped `todayKey`, `attentionCount`, `todayVisitsCount`, `unassignedTodayCount`. Added `newEnquiriesInPeriod`. Kept `nextAppointment` (Therapist forward-looking exception) and `staffId`.
+   - **Business tiles**: `"Bookings today"` → `"My bookings"` (now `scorecard.clinical.assignmentsTotal` — period-scoped); `"Revenue this week"` → `"Revenue"` (label drops suffix); `"Open attention"` → `"Avg booking value"` (clinical revenueAttributed / assignmentsCompleted; "—" when non-treating Owner has 0 completions). AUDIT Q2 specced the formula for B-4 Reports — same denominator applied here at personal scope.
+   - **Coordinator tiles**: `"Unassigned today"` → `"New enquiries"` (count of enquiries created in stripe period); `"Active attention"` → `"Avg response time"` (`admin.avgMinutesToFirstContact` formatted via `formatDurationFromMinutes` — "25 min" / "1.5 hours" / "6.7 days"). Front-desk Coordinator's signature metric.
+   - **Therapist tiles**: `"Today's visits"` → `"Visits"` (now `scorecard.clinical.assignmentsTotal` — period-scoped); `"Hours this week"` → `"Hours"`; `"Clients this month"` → `"Clients"`. Forward-looking `"Next visit"` kept as the legitimate semantic exception.
+   - Added comment on each tile explaining what changed and why.
+
+2. **`page.tsx` — context plumbing:**
+   - Computed `newEnquiriesInPeriod` from `stripeData.enquiries.filter(e => e.created_at.slice(0, 10) within stripe window)` for Coordinator variant.
+   - Removed unused `todayBookingIdsForStripe`, `myBookingsToday`, `unassignedTodayCount` (now handled at scorecard layer via `assignmentsTotal`).
+   - Cleaner tile call: just `{ staffId, nextAppointment, newEnquiriesInPeriod }`.
+
+3. **`dashboard-helpers-b5.test.ts` — 42 specs total (up from 36):**
+   - Updated all label assertions to new period-able names.
+   - Replaced "Open attention tone/value" specs with "Avg booking value" coverage (treating Owner, non-treating Owner "—", revenue division formula).
+   - Replaced "Unassigned today / Active attention" specs with "New enquiries" + "Avg response time" coverage (smart-unit duration formatter, "—" when zero, invert tone faster-is-better).
+   - Added specs proving Business tile 1 and Therapist tile 2 narrow with the picker via `scorecard.clinical.assignmentsTotal`.
+
+**Verification:**
+- `npx tsc --noEmit` clean
+- `pnpm lint` clean (no warnings)
+- `pnpm vitest run`: helper specs 42/42 pass; full project sweep preserves baseline failures (6) only
+- `pnpm build` clean
+- Bundle Δ `/admin/dashboard` unchanged: 467.03 kB = +8.22 kB cumulative (no change — helper is pure, no new components)
+- Live Playwright at 375 + 1280, Owner + Therapist:
+  - Eyebrow text updates dynamically per `?contribStripeRange=` (today → "My contribution · Today"; this_month → "My contribution · This month")
+  - Tile labels are clean nouns; no "this week" / "this month" / "today" suffix contradictions
+  - Business tile 4 shows "Avg booking value · —" for non-treating Owner (correct + honest)
+  - Therapist tiles show "Next visit / Visits / Hours / Clients" — coherent period-scoped set with the forward-looking exception clearly marked
+
+**Result:** every tile that semantically can narrow now narrows with the picker. The one tile that can't ("Next visit" — forward-looking) is the only legitimate exception. Labels are honest; the picker means what it shows.
+
 ## Verification gate
 
 - [ ] Static lint + types clean
