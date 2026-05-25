@@ -423,7 +423,7 @@ Once all C-B plans are written:
 
 | # | Plan file | State | Started | Shipped | Commit | Blocked by | Notes |
 |---|---|---|---|---|---|---|---|
-| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01-#07 shipped (#07 verified B-6 LTV ribbon on spec + Privacy workflow lives here, NOT on list; client profile edit may be missing); 18 surfaces remaining |
+| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01-#08 shipped (#08 CORRECTED C-03 scope — Convert button exists at EnquiryList.tsx:522, only service-prefill missing; FAKE filter-query comments are explicit C-09 breadcrumbs); 17 surfaces remaining |
 | C-A.2 | workflow audit files (10 flows) | ⏳ | — | — | — | C-A.1 | C-A discovery |
 | C-A.3 | role-day audit files (5 roles) | ⏳ | — | — | — | C-A.1, C-A.2 | C-A discovery |
 | C-B | per-item brief + plan writing | ⏳ | — | — | — | C-A.3 | covers 11 user items + audit-surfaced items |
