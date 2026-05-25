@@ -423,7 +423,7 @@ Once all C-B plans are written:
 
 | # | Plan file | State | Started | Shipped | Commit | Blocked by | Notes |
 |---|---|---|---|---|---|---|---|
-| C-A.1 | per-page audit files (25 surfaces) | ⏳ | — | — | — | — | C-A discovery; no fixes |
+| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01 dashboard shipped (8 findings); 24 surfaces remaining |
 | C-A.2 | workflow audit files (10 flows) | ⏳ | — | — | — | C-A.1 | C-A discovery |
 | C-A.3 | role-day audit files (5 roles) | ⏳ | — | — | — | C-A.1, C-A.2 | C-A discovery |
 | C-B | per-item brief + plan writing | ⏳ | — | — | — | C-A.3 | covers 11 user items + audit-surfaced items |
