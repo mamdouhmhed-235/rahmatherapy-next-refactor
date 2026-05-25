@@ -155,7 +155,7 @@ Captured 2026-05-25 from the post-Band-B audit. This is the **as-is** state befo
 | `/admin/availability` (global) | ⚠️ PARTIAL | 635 LOC. Verify the global form persists, shows affected-staff count, and warns on unsaved changes. |
 | `/admin/settings` | ⚠️ PARTIAL | Form wrapping visible; verify validation + audit-log integration + concurrent-edit handling. |
 | `/admin/roles` + `/admin/roles/[roleId]` | ⚠️ PARTIAL | 406 + 462 LOC. Verify create/edit/delete + cascade behaviour when archiving a role with assigned staff. |
-| `/admin/privacy` | ❌ UNKNOWN | Not deeply audited; might be a stub. Critical given GDPR findings. Needs a look. |
+| `/admin/privacy` | ⚠️ PARTIAL | **Updated 2026-05-25 via #22 audit.** Surface IS implemented (838 LOC). Triage works. But FULFILMENT is missing — see audit `22-privacy-audit.md` for P0 GDPR gaps: no SAR export, no cascade delete on completion, no 30-day SLA timer, no ICO breach workflow. The "Completed" button is a UI lie. |
 
 ---
 
@@ -423,7 +423,7 @@ Once all C-B plans are written:
 
 | # | Plan file | State | Started | Shipped | Commit | Blocked by | Notes |
 |---|---|---|---|---|---|---|---|
-| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01-#20 shipped (#19+#20 batched: 7 event types exist, C-08 needs 3 more (assignment/claim/client-assigned); template editor + iframe preview already high-quality); 5 surfaces remaining |
+| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01-#22 shipped (#22 PRIVACY: ⚠️ PARTIAL not ❌. Triage works but P0 GDPR fulfilment gaps — "Completed" is a UI lie. HEADLINE finding of the audit phase); 4 surfaces remaining |
 | C-A.2 | workflow audit files (10 flows) | ⏳ | — | — | — | C-A.1 | C-A discovery |
 | C-A.3 | role-day audit files (5 roles) | ⏳ | — | — | — | C-A.1, C-A.2 | C-A discovery |
 | C-B | per-item brief + plan writing | ⏳ | — | — | — | C-A.3 | covers 11 user items + audit-surfaced items |
