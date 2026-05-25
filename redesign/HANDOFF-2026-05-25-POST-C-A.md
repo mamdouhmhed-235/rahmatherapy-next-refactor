@@ -12,11 +12,13 @@
 
 ## 0 — Opening template for the next session
 
+> **Updated 2026-05-26 — all 11 open questions resolved (see `redesign/plans/C-phase/C-B-DECISIONS.md`). Tier-A Privacy GDPR sprint deferred (folded into C-06). Test-data cleanup still pending user direction. C-B plan-writing is unblocked.**
+
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-A handoff. On `redesign/start-state` HEAD `84045f4` clean. 253 commits ahead of master. **All of C-A is complete** — 25 per-surface audits + 10 per-workflow audits + 5 per-role-day audits = 40 audit files, 173 bugs catalogued (B-01..B-173). Read `redesign/HANDOFF-2026-05-25-POST-C-A.md` end-to-end. Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. **C-A discovery is done; we're at the C-A → C-B inflection point.** The 4 things needing user direction: (1) Tier-A Privacy GDPR sprint (P0 regulatory — B-87/88/89 + B-158) — yes/no/defer? (2) test-data cleanup (~30 min) — do first or skip? (3) the 11 open questions blocking C-B (see §6 of handoff) — answer in batch now or inline as plans are written? (4) which C-B plan to write first. Awaiting user direction.
+> Loaded the post-C-A handoff + C-B decisions doc. On `redesign/start-state` HEAD [SHA] clean. [N] commits ahead of master. **All of C-A is complete** — 40 audit files, 173 bugs catalogued (B-01..B-173). **All 11 C-B open questions resolved 2026-05-26** — full reasoning in `redesign/plans/C-phase/C-B-DECISIONS.md`. Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. **C-B plan-writing is unblocked.** Two things still needing user direction: (1) test-data cleanup (~30 min Zone-2 SQL) — do first or skip? (2) which C-B plan to write first (recommended order in C-B-DECISIONS §5: C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-02 → C-09 → C-03 → C-07 → C-10). Awaiting user direction.
 
-Then pause. Do not proceed without user direction on at least (1) and (3).
+Then pause. Do not proceed without user direction on at least (2).
 
 ---
 
@@ -227,36 +229,31 @@ C-A.3 additions (per `C-A-3-SUMMARY.md` §8):
 
 ## 6 — 11 open questions BLOCKING C-B plan-writing
 
-C-A.1 §7 listed 6. C-A.2 added 3. C-A.3 added 2. Total = 11. **C-B can't write plans until these are answered.**
+> **ALL 11 RESOLVED 2026-05-26 — see `redesign/plans/C-phase/C-B-DECISIONS.md` for full reasoning + scope per C-NN plan.** Brief disposition per question below; the decisions doc is the source of truth.
 
-1. **C-05 vantage clarification (B-130)** — master-plan framing was INVERTED at data layer. Owner CAN claim cancelled bookings today. Which is the bug — Owner-can or Therapist-can't?
+C-A.1 §7 listed 6. C-A.2 added 3. C-A.3 added 2. Total = 11.
 
-2. **/admin/privacy GDPR scope** — expand Band C with `C-PRIVACY-FULFILMENT-plan.md` (cascade delete + SAR export + 30-day SLA + ICO breach workflow + the role-trust angle B-158), OR defer to a dedicated compliance band? Migrations needed → Zone-2 confirmation per migration.
+1. **C-05 vantage clarification (B-130)** — RESOLVED: **lock down** — cancelled/no_show inert for all roles. `ensureBookingActive` helper at 7 edit points (6 from W05 + B-171 past-dated). Restore-first via C-04a.
 
-3. **C-02 recurring bookings discovery — 7 questions** (per W07 §10):
-   - which services should support recurrence?
-   - which roles can set it?
-   - cadence options (weekly / fortnightly / monthly / custom / lunar-cycle / Hijri-aware Sunnah-days)?
-   - end-conditions (forever / N occurrences / until date)?
-   - single-occurrence cancellation cascade?
-   - reschedule cascade?
-   - therapist binding (locked vs re-claimable per occurrence)?
+2. **/admin/privacy GDPR scope** — RESOLVED: **defer dedicated sprint, fold honesty fix into C-06.** Privacy "Completed" calls `deleteClient(reason='gdpr_erasure')`; data_export "Completed" produces minimal JSON dump. B-89 ICO breach stays deferred to compliance band. No `C-PRIVACY-FULFILMENT-plan.md` written.
 
-4. **C-01 Google review link + assets** — clinic's Google Business profile URL + service-specific message copy templates.
+3. **C-02 recurring bookings discovery — 7 questions** — RESOLVED: weekly/fortnightly/monthly (no Hijri/Sunnah); all services on by default; Owner+Admin+Coord can set, not Therapist; per-occurrence cancel/reschedule default; therapist locked with "Open to any therapist" toggle; until-cancelled / N / until-date end-conditions; hybrid 12-week generation; template-table schema; single plan.
 
-5. **C-06 framing** — primarily client-deletion via privacy workflow, hard-delete with audit preservation, or both? **W06 §10 architecture already pre-decides the structure** but user confirms.
+4. **C-01 Google review link + assets** — RESOLVED: URL `https://g.page/r/Ccfwk27JycKDEBM/review`. 10 variants (5 massage + 5 cupping) editable via existing `email_template_overrides` infrastructure — no new table. 3 picked randomly per email, `{city}` injected from `clients.city`.
 
-6. **B-34 client edit surface** — confirmed missing across admin. Build an edit route, or accept that client details are immutable after creation?
+5. **C-06 framing** — RESOLVED: **both entry points share one `deleteClient` primitive** — privacy workflow and admin Delete button. No undo window, no booking hard-delete. C-06 expanded to 11 steps (overwrite fix + delete + edit route + privacy wiring).
 
-7. **C-08 scope decision** — C-08 expanded from 3 to ~7+ missing event types. Which to ship in C-08 vs defer to C-12+?
+6. **B-34 client edit surface** — RESOLVED: **build it, fold into C-06.** Dedicated `/admin/clients/[clientId]/edit` route. All fields editable except id/created_at/updated_at. Email change uses same collision check. Coord operational-fields only; Therapist no access. Audit log `client_updated` with diff.
 
-8. **C-04 refund-paired scope** — W09 §10 proposes pairing cancel/restore + refund into a single "lifecycle correction" plan. User confirms scope or splits.
+7. **C-08 scope decision** — RESOLVED: **5 templates ship in C-08** — assignment, client_assigned_therapist, booking_confirmed_client, staff_unassignment, claim. Plus per-row Resend on `/admin/emails`. Drop review_request_client (C-01), booking_restored_client (C-04a), refund_issued (C-04b dropped), booking_completed_client (redundant).
 
-9. **C-09 cache-invalidation approach** — (a) per-mutation cherry-pick, (b) central helper, OR (c) tag-based everywhere. Recommended (c).
+8. **C-04 refund-paired scope** — RESOLVED: **split — C-04a only, C-04b DROPPED.** Payment is in-person, no in-app refund tracking. Remove dead `refunded`/`waived` from filter UI. 1-char `\|\|`→`??` reports correctness fix folded into C-04a hygiene tail.
 
-10. **Therapist Field Experience sub-plan vs C-12+ fold** — bundle R04's mobile-field gaps (B-164/165/166/167/169 + W05 B-127) into a dedicated plan, or fold into C-12+? **Recommend dedicated plan** since the structurally-different mobile-fieldwork context warrants focused design.
+9. **C-09 cache-invalidation approach** — RESOLVED: **(c) tag-based pragmatic** with 7 resource-level tags (clients, bookings, staff, enquiries, settings, audit, emails). Plus filter-query FAKE cleanup folded in (~10 markers). Non-filter FAKEs distribute to C-12+.
 
-11. **Per-role dashboard variants vs universal+conditional** — currently TherapistDashboard.tsx is the only role-specific variant. Should Owner / Admin / Coord get their own variants too? **Recommend yes** following the TherapistDashboard pattern.
+10. **Therapist Field Experience sub-plan vs C-12+ fold** — RESOLVED: **dedicated plan, renamed `C-FIELDWORK-EXPERIENCE-plan.md`.** Capability-keyed via `can_take_bookings` + active assignment, NOT role-keyed (applies to Owner/Admin/Coord who fulfil work too). `PractitionerTodaySection` drop-in component, `tel:` / maps / mobile-sticky primitives.
+
+11. **Per-role dashboard variants vs universal+conditional** — RESOLVED: **3 variant files matching existing `DashboardVariant` taxonomy** (Business / Coordinator / Therapist) — NOT 4. Owner+Admin stay lumped as `BusinessDashboard.tsx` (no current divergence). Future Owner/Admin split is cheap if/when needed.
 
 ---
 
@@ -264,16 +261,14 @@ C-A.1 §7 listed 6. C-A.2 added 3. C-A.3 added 2. Total = 11. **C-B can't write 
 
 Master plan's recommended sequence is C-A → C-B → C-C. C-A is now complete.
 
-| Path | When to choose | Effort | Output |
-|---|---|---|---|
-| **(A) C-B plan-writing** | If user answers (most of) the 11 questions in §6 | 7-15 plan files × ~half-day each | Brief + plan + progress per item |
-| **(B) Tier-A Privacy GDPR sprint first** | P0 regulatory priority overrides Band C sequence | ~3-5 days (migrations + cascade + SAR export + SLA + ICO workflow) | `C-PRIVACY-FULFILMENT` shipped before any other C-NN item |
-| **(C) Test-data cleanup first** | Independent low-effort hygiene | ~30 min scripted DELETE pass | Production DB clean of `Phase10 *`, `Audit *`, `Test *`, Arabic-prefix, long-name fixtures |
-| **(D) Answer the 11 questions in batch** | If user wants to front-load decisions before any work | 1 session of clarification | Updated handoff with answers locked |
+| Path | Status | Notes |
+|---|---|---|
+| **(A) C-B plan-writing** | **UNBLOCKED** | 13 plans to write (C-04b dropped, C-PRIVACY not written). Recommended order in C-B-DECISIONS §5. |
+| **(B) Tier-A Privacy GDPR sprint first** | **DEFERRED** per Q2 decision | Honesty fix folded into C-06 (cascade delete + JSON export only). B-89 ICO breach to compliance band. |
+| **(C) Test-data cleanup first** | PENDING user direction | ~30 min scripted DELETE pass. Independent of plan-writing — could run in parallel or skip. |
+| **(D) Answer the 11 questions in batch** | ✅ **DONE 2026-05-26** | See `redesign/plans/C-phase/C-B-DECISIONS.md`. |
 
-**Recommended sequence:** (D) → (C) → (B) → (A) sequentially. Or (D) → (A) with (B) deferred if Privacy is not blocking.
-
-**Default if user is unsure:** start with (D) — gather the 11 answers in one go. Then plan-writing flows freely.
+**Recommended sequence going forward:** (C) test-data cleanup → (A) C-B plan-writing per the order in C-B-DECISIONS §5. Or skip (C) and jump straight to (A).
 
 ---
 
@@ -569,13 +564,16 @@ SELECT action_type, COUNT(*) FROM audit_logs WHERE action_type LIKE 'booking%' G
 ## 17 — End-of-handoff state at write time
 
 - **Branch:** `redesign/start-state`
-- **HEAD:** `84045f4`
-- **Working tree:** clean
-- **Commits ahead of master:** 253
-- **Audits committed in this session (C-A.2 + C-A.3):** 16 (10 W + 5 R + 2 summary + 1 master-plan-update commits)
-- **New bugs in this session:** 70 (B-104 → B-173)
-- **Files touched:** 16 new audit files + 1 master-plan edit + this handoff
+- **HEAD at original write (2026-05-25):** `84045f4`
+- **HEAD at C-B-DECISIONS lock (2026-05-26):** updated by the decisions commit; check `git log --oneline -5`
+- **Working tree:** clean (after decisions commit)
+- **Commits ahead of master at original write:** 253
+- **Audits committed in the original session (C-A.2 + C-A.3):** 16 (10 W + 5 R + 2 summary + 1 master-plan-update commits)
+- **New bugs in original session:** 70 (B-104 → B-173)
+- **Files touched in original session:** 16 new audit files + 1 master-plan edit + this handoff
 
-**No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
+**2026-05-26 update:** all 11 C-B open questions resolved. See `redesign/plans/C-phase/C-B-DECISIONS.md`. Handoff §0/§6/§7 + master plan Part 2 + master implementation checklist updated to reflect locked scope. C-B plan-writing unblocked.
+
+**No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves in §7.
 
 *End of handoff. The next session opens here. Read top-to-bottom; pause at §0 template; await user direction.*

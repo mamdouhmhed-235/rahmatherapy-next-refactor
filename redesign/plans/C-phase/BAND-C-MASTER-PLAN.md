@@ -163,6 +163,8 @@ Captured 2026-05-25 from the post-Band-B audit. This is the **as-is** state befo
 
 These are the user-specified additions and fixes that Band C must address. Per-item briefs + plans get written in C-B, then implementation lands in C-C against the master checklist. **Preserved in the user's voice** as the source of truth for intent.
 
+> **Updated 2026-05-26 — all 11 user-direction decisions locked.** See `redesign/plans/C-phase/C-B-DECISIONS.md` for full reasoning per question + per-plan final scope. The per-item Status lines below reflect the post-decisions verdict (scope + adjacent fold-ins). The original intent paragraphs are preserved in the user's voice.
+
 ### C-01 — Google Business review email after appointment completion
 
 Send a Google Business review email to clients **2 hours after their appointment is marked completed**. Includes:
@@ -170,7 +172,7 @@ Send a Google Business review email to clients **2 hours after their appointment
 - **Service-aware pre-filled review text** — depending on what service the client had, the Google review link should carry a ready-made message that's relevant to that service. Makes it easier for the client to leave a review and makes the resulting reviews more service-specific (and therefore more effective for local-search SEO).
 - The clinic has a Google Business profile. The implementer should ask for the Google review link + any other relevant assets before writing the plan.
 
-**Status:** ⏳ pending brief + plan.
+**Status (post-decisions 2026-05-26):** scope locked — URL `https://g.page/r/Ccfwk27JycKDEBM/review`. 10 variants (5 massage + 5 cupping) editable via existing `email_template_overrides` infrastructure (no new schema). 3 picked randomly per email, `{city}` injected from `clients.city`. Trigger `bookings.status='completed'` + 2h via pg_cron. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q4 + §3 C-01.
 
 ### C-02 — Recurring / standing bookings
 
@@ -182,25 +184,25 @@ Where relevant, admin users with the appropriate roles can set a booking as **re
 - Make suggestions on the right shape.
 - Confirm direction with the user before writing the implementation plan.
 
-**Status:** ⏳ pending discovery + brief + plan.
+**Status (post-decisions 2026-05-26):** scope locked — weekly/fortnightly/monthly cadences only (no Hijri/Sunnah, dropped); all services on by default; Owner+Admin+Coord set; Therapist cannot; per-occurrence cancel/reschedule default; therapist binding locked with "Open to any therapist" toggle; hybrid 12-week generation; `recurring_booking_templates` table + RPC + cron; single plan. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q3 + §3 C-02.
 
 ### C-03 — Enquiry → Booking one-click conversion
 
 Add a one-click flow from an enquiry to a booking. Currently the conversion is manual re-entry in the new-booking form. The best way possible + easy.
 
-**Status:** ⏳ pending brief + plan.
+**Status (post-decisions 2026-05-26):** narrow scope confirmed (~half-day fix). Service fuzzy-match + cross-page bug bundle from W01. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §3 C-03.
 
 ### C-04 — Cancellation restore / undo
 
 A cancelled booking can be **restored** (un-cancelled) instead of having to recreate it from scratch. Pairs with C-05.
 
-**Status:** ⏳ pending brief + plan.
+**Status (post-decisions 2026-05-26):** **split — C-04a only, C-04b DROPPED.** Payment is in-person, no in-app refund tracking. C-04a scope: Restore button + restore email + state-machine guard + no-show quick action + assigned-practitioner auto-promote + hygiene tail (remove dead refunded/waived filters + 1-char `\|\|`→`??` reports fix). **Must ship before/with C-05** (Restore is load-bearing). ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q8 + §3 C-04a.
 
 ### C-05 — Bug: cancelled bookings can't be assigned or claimed
 
 Fix the issue where bookings that have been cancelled cannot be assigned or claimed unless they get restored first. (Today they're in a dead state.) Pairs with C-04.
 
-**Status:** ⏳ pending root-cause investigation + plan.
+**Status (post-decisions 2026-05-26):** vantage locked — **lock down** (cancelled/no_show inert for all roles). `ensureBookingActive` helper at 7 edit points (6 from W05 §10 + B-171 past-dated). Restore-first via C-04a. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q1 + §3 C-05.
 
 ### C-06 — Delete + bulk delete where relevant
 
@@ -211,13 +213,13 @@ Add delete and bulk-delete options where appropriate — clients, bookings, and 
 - RBAC — who can delete what.
 - Undo window if any.
 
-**Status:** ⏳ pending design + brief + plan.
+**Status (post-decisions 2026-05-26):** scope EXPANDED to 11 steps — absorbs B-110/B-131 destructive-overwrite fix + B-34 client edit route (Q6 fold) + privacy GDPR honesty fix (Q2 fold). One `deleteClient` primitive shared by privacy workflow and admin Delete button. No undo window, no booking hard-delete. Largest plan alongside C-02. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q5/Q6/Q2 + §3 C-06.
 
 ### C-07 — Proper routing between pages
 
 Improve cross-page navigation. Right now it feels **rudimentary** — too many flows force the user back to a list page and into another detail page, rather than jumping directly. Audit cross-page navigation patterns across the admin and propose a coherent routing model (drill-link patterns, breadcrumb behaviour, back-link semantics, modal-vs-route decisions).
 
-**Status:** ⏳ pending audit findings + plan.
+**Status (post-decisions 2026-05-26):** scope grew significantly via C-A.3. Recommend split: C-07a (routing primitives) + C-07b (per-role defaults). Bundle of bugs from C-A.3 (B-108, W01-V-1, B-134, B-140, W05-V-2, W02-V-2, B-139, W08-V-1, W02-E-1, B-154/155/157, B-161, B-167, B-170). ⏳ pending brief + plan. See `C-B-DECISIONS.md` §3 C-07.
 
 ### C-08 — More email templates + automated email sends
 
@@ -230,25 +232,33 @@ The emails surface feels incomplete. Audit + expand. Templates + automation for 
 
 Make `/admin/emails` properly production-ready. **Drops the page's verdict from ✅ READY to ⚠️ pending audit.**
 
-**Status:** ⏳ pending email-domain audit + brief + plan.
+**Status (post-decisions 2026-05-26):** scope locked — **5 templates ship in C-08:** assignment, client_assigned_therapist, booking_confirmed_client, staff_unassignment, claim. Plus per-row Resend button on `/admin/emails` delivery log. Drop review_request_client (C-01), booking_restored_client (C-04a), refund_issued (C-04b dropped), booking_completed_client (redundant). Uses existing `email_template_overrides` infrastructure. Single plan. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q7 + §3 C-08.
 
 ### C-09 — Pagination + scale-aware design
 
 Add pagination + other design treatments to pages and sections where unbounded lists ruin the visual design or break design principles at scale. **Headline example: the Recent Activity panel on `/admin/me` for the Owner role** — currently a long list that extends down the page indefinitely, ruining the entire visual hierarchy. Audit the whole admin for similar issues and plan fixes.
 
-**Status:** ⏳ pending audit findings + plan.
+**Status (post-decisions 2026-05-26):** scope EXPANDED to cache-invalidation theme + filter-query FAKE cleanup. Tag-based pragmatic approach with 7 resource-level tags (clients, bookings, staff, enquiries, settings, audit, emails). Plus ~10 filter-query FAKE markers wired (enquiries, staff list, operations, emails, privacy). Non-filter FAKEs distribute to C-12+. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q9 + §3 C-09.
 
 ### C-10 — Bottom-of-page spacing / footer overlap fix
 
 Some pages have the bottom section sitting too close to the footer, so the bottom content can't be seen properly. Fix spacing + alignment across **all pages and variants, both mobile and desktop**, wherever the issue exists.
 
-**Status:** ⏳ pending audit findings + plan.
+**Status:** unchanged. Need Playwright 375 audit pass to catalogue, then fix. ⏳ pending audit findings + plan.
 
 ### C-11 — Dark mode (default on, toggle to light)
 
 Introduce dark mode as the **default**, with a user-switchable toggle to light mode. Persists per user. Honours `prefers-color-scheme` only as a tertiary fallback (default-on means the explicit default beats system preference unless the user toggles).
 
-**Status:** ⏳ pending design tokens audit + brief + plan (this one is a big design-system pass).
+**Status (post-decisions 2026-05-26):** scope EXPANDED to dashboard variants + design system. **3 variant files matching existing `DashboardVariant` taxonomy** (Business / Coordinator / Therapist) — NOT 4 (Owner+Admin lumped, no current divergence). Shared building blocks + R05 pattern lifts + `PractitionerTodaySection` integration from C-FIELDWORK + dark mode + motion-reduce pass. Single phased plan. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q11 + §3 C-11.
+
+### C-FIELDWORK-EXPERIENCE — Fieldwork ergonomics (NEW)
+
+Mobile fieldwork experience for any user fulfilling bookings (Owner / Admin / Coord / Therapist — capability-keyed via `staff_profiles.can_take_bookings`, NOT role-keyed). Surfaced from R04 audit findings + user clarification 2026-05-26.
+
+Bundles: booking-detail mobile sidebar reorder (client phone + address prominent), `tel:` deep-link, maps deep-link, mobile-sticky complete action, `PractitionerTodaySection` drop-in component (used by C-11 dashboard variants), time-of-day greeting extraction, pull-to-refresh.
+
+**Status (post-decisions 2026-05-26):** scope locked. Capability-keyed via `isViewerAssignedPractitioner(booking, viewerStaffId, viewerCanTakeBookings)` predicate. Booking detail page renders two ways per viewer (practitioner view vs admin-curator view). Out of scope: offline cache, PWA, native app, push notifications. ⏳ pending brief + plan. See `C-B-DECISIONS.md` §2 Q10 + §3 C-FIELDWORK-EXPERIENCE.
 
 ---
 
@@ -426,19 +436,23 @@ Once all C-B plans are written:
 | C-A.1 | per-page audit files (25 surfaces) | ✅ | 2026-05-25 | 2026-05-25 | bundle | — | **C-A.1 COMPLETE.** All 25 surfaces audited. #21+#23+#24+#25 batched: roles delete is stubbed (PE-58 guard pattern correct), password-requests notes not persisted (data-loss), audit log has proper cursor pagination (C-09 template alongside operations), reports has zero animate-spin (cleanest a11y posture). |
 | C-A.2 | workflow audit files (10 flows W01..W10) | ✅ | 2026-05-25 | 2026-05-25 | `46bfa1e` | C-A.1 | **C-A.2 COMPLETE.** All 10 workflows audited. 50 new bugs (B-104..B-153). HEADLINE findings: B-110+B-131 destructive client overwrite (3 paths) → C-06 architecture in W06§10. B-116 C-01 review email fully greenfield → C-01 architecture in W03§11. C-02 fully greenfield → C-02 architecture in W07§10. B-126 6th C-05 edit point + `ensureBookingActive` helper recommendation in W05§10. B-149 settings save only revalidates /admin/settings → C-09 cache pass in W10§10. See `redesign/audits/C-A/C-A-2-SUMMARY.md` for full handoff. |
 | C-A.3 | role-day audit files (5 roles) | ✅ | 2026-05-25 | 2026-05-25 | `ac96fe4` | C-A.1, C-A.2 | **C-A.3 COMPLETE.** R01..R05 audited. 20 new bugs (B-154..B-173). HEADLINE: TherapistDashboard.tsx is the strongest empty-state surface — reference template for C-11. B-158 (R02) Admin role-trust on Privacy "Completed" — regulatory exposure. **C-A COMPLETE** (173 bugs across 25 surfaces + 10 workflows + 5 role-days). See `redesign/audits/C-A/C-A-3-SUMMARY.md`. |
-| C-B | per-item brief + plan writing | ⏳ | — | — | — | C-A.3 | covers 11 user items + audit-surfaced items |
-| C-01 | Google review post-completion email | ⏳ | — | — | — | C-B | item 1 |
-| C-02 | Recurring / standing bookings | ⏳ | — | — | — | C-B | item 2 — needs DB migration |
-| C-03 | Enquiry → booking conversion | ⏳ | — | — | — | C-B | item 3 |
-| C-04 | Cancellation restore | ⏳ | — | — | — | C-B | item 4 — pairs with C-05 |
-| C-05 | Bug: cancelled bookings claim/assign | ⏳ | — | — | — | C-B | item 5 — pairs with C-04 |
-| C-06 | Delete + bulk delete | ⏳ | — | — | — | C-B | item 6 — soft vs hard delete design call |
-| C-07 | Routing between pages | ⏳ | — | — | — | C-B | item 7 — cross-cutting |
-| C-08 | Email templates + automation expansion | ⏳ | — | — | — | C-B | item 8 — likely 2+ plans |
-| C-09 | Pagination + scale-aware design | ⏳ | — | — | — | C-B | item 9 — cross-cutting |
-| C-10 | Bottom-spacing / footer overlap | ⏳ | — | — | — | C-B | item 10 — global polish |
-| C-11 | Dark mode default + toggle | ⏳ | — | — | — | C-B | item 11 — design-system pass |
-| C-12+ | TBD — audit-surfaced items | ⏳ | — | — | — | C-B | filled in once C-A.1–3 complete |
+| C-B-DECISIONS | answers to 11 open questions blocking C-B | ✅ | 2026-05-26 | 2026-05-26 | (this commit) | C-A | **All 11 questions locked.** See `redesign/plans/C-phase/C-B-DECISIONS.md`. Tier-A Privacy GDPR deferred (folded into C-06). C-04b DROPPED (no in-app refund tracking). C-FIELDWORK-EXPERIENCE added as new plan. C-11 expanded to dashboard variants + design system. C-06 absorbed B-34 client edit + privacy honesty fix. Recommended C-B plan-writing order in §5. |
+| C-B | per-item brief + plan writing | ⏳ | — | — | — | C-B-DECISIONS | covers 12 plans (C-04b dropped, C-PRIVACY not written, C-FIELDWORK added). Recommended order: C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-02 → C-09 → C-03 → C-07 → C-10. |
+| C-01 | Google review post-completion email | ⏳ | — | — | — | C-B | item 1 — scope locked (see C-B-DECISIONS §3 C-01) |
+| C-02 | Recurring / standing bookings | ⏳ | — | — | — | C-B | item 2 — needs DB migration. Weekly/fortnightly/monthly only (no Hijri/Sunnah, dropped). Hybrid 12-week generation. |
+| C-03 | Enquiry → booking conversion | ⏳ | — | — | — | C-B | item 3 — narrow (~half-day) scope confirmed |
+| C-04a | Cancellation restore | ⏳ | — | — | — | C-B | item 4 — **must ship before/with C-05** (load-bearing). Plus hygiene tail (remove dead refunded/waived filters + 1-char reports fix). |
+| ~~C-04b~~ | ~~Refund modal~~ | **DROPPED** | — | — | — | — | Payment is in-person, no in-app refund tracking. See C-B-DECISIONS §2 Q8. |
+| C-05 | Bug: cancelled bookings claim/assign | ⏳ | — | — | — | C-B, C-04a | item 5 — lock down via `ensureBookingActive` helper at 7 edit points |
+| C-06 | Delete + bulk delete + client CRUD hardening | ⏳ | — | — | — | C-B | item 6 — **EXPANDED to 11 steps.** Absorbs B-110/B-131 destructive-overwrite fix + B-34 client edit (Q6) + privacy GDPR honesty fix (Q2). Largest plan alongside C-02. |
+| C-07 | Routing between pages | ⏳ | — | — | — | C-B | item 7 — recommend split C-07a + C-07b |
+| C-08 | Email templates + automation expansion | ⏳ | — | — | — | C-B | item 8 — 5 templates + per-row Resend tooling. Uses existing `email_template_overrides` (no new schema). Single plan. |
+| C-09 | Cache invalidation + pagination + filter FAKE cleanup | ⏳ | — | — | — | C-B | item 9 — tag-based pragmatic approach (7 resource-level tags) + ~10 filter-query FAKE markers wired |
+| C-10 | Bottom-spacing / footer overlap | ⏳ | — | — | — | C-B | item 10 — global polish (unchanged scope) |
+| C-11 | Dashboard variants + design system + dark mode | ⏳ | — | — | — | C-B, C-FIELDWORK | item 11 — **EXPANDED.** 3 variant files (Business / Coordinator / Therapist) + shared building blocks + R05 pattern lifts + `PractitionerTodaySection` integration + dark mode + motion-reduce pass. Single phased plan. |
+| C-FIELDWORK | Fieldwork ergonomics (capability-keyed) | ⏳ | — | — | — | C-B | NEW from Q10 — `C-FIELDWORK-EXPERIENCE-plan.md`. Capability-keyed via `can_take_bookings` + active assignment. Booking-detail dual-view + `PractitionerTodaySection` (consumed by C-11) + `tel:`/maps/mobile-sticky primitives. |
+| ~~C-PRIVACY~~ | ~~Privacy GDPR fulfilment sprint~~ | **NOT WRITTEN** | — | — | — | — | Deferred per Q2. Honesty fix folded into C-06. Full GDPR sprint (B-89 ICO breach + B-90 SLA) deferred to separate compliance band. |
+| C-12+ | TBD — audit-surfaced items | ⏳ | — | — | — | C-B | Inventory in C-B-DECISIONS §3: heterogeneous FAKE markers (non-filter), B-89 ICO breach, B-90 SLA, Owner-from-Admin dashboard split (if/when needed). |
 
 **State legend:** ⏳ pending · 🔨 in progress · ✅ complete · ⚠️ blocked · ⏸ paused
 
