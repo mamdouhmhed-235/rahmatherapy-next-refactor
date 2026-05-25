@@ -423,7 +423,7 @@ Once all C-B plans are written:
 
 | # | Plan file | State | Started | Shipped | Commit | Blocked by | Notes |
 |---|---|---|---|---|---|---|---|
-| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01 dashboard + #02 bookings list + #03 bookings/new shipped (#03 verified C-03 prefill is partial — service not pre-selected, no entry point); 22 surfaces remaining |
+| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01-#04 shipped (#04 mapped C-05 to 3 UI predicates + 1 server action; surfaced that C-04 "restore via audit log" copy is misleading — actual restore is via Status form); 21 surfaces remaining |
 | C-A.2 | workflow audit files (10 flows) | ⏳ | — | — | — | C-A.1 | C-A discovery |
 | C-A.3 | role-day audit files (5 roles) | ⏳ | — | — | — | C-A.1, C-A.2 | C-A discovery |
 | C-B | per-item brief + plan writing | ⏳ | — | — | — | C-A.3 | covers 11 user items + audit-surfaced items |
