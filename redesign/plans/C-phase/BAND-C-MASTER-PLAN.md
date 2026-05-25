@@ -423,7 +423,7 @@ Once all C-B plans are written:
 
 | # | Plan file | State | Started | Shipped | Commit | Blocked by | Notes |
 |---|---|---|---|---|---|---|---|
-| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01-#18 shipped (#16-18 batched: services has working delete-with-in-use-guard pattern → C-06 template; operations has proper pagination + bulk → C-09 template); 7 surfaces remaining |
+| C-A.1 | per-page audit files (25 surfaces) | 🔨 | 2026-05-25 | — | — | — | C-A discovery; no fixes. #01-#20 shipped (#19+#20 batched: 7 event types exist, C-08 needs 3 more (assignment/claim/client-assigned); template editor + iframe preview already high-quality); 5 surfaces remaining |
 | C-A.2 | workflow audit files (10 flows) | ⏳ | — | — | — | C-A.1 | C-A discovery |
 | C-A.3 | role-day audit files (5 roles) | ⏳ | — | — | — | C-A.1, C-A.2 | C-A discovery |
 | C-B | per-item brief + plan writing | ⏳ | — | — | — | C-A.3 | covers 11 user items + audit-surfaced items |
