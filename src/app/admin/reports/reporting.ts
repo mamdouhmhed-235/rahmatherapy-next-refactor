@@ -963,7 +963,45 @@ function getRangeDefaults(range: string, currentYear: string, currentMonth: stri
   if (range === "lifetime") return { from: "2000-01-01", to: "2100-12-31" };
   if (range === "year") return { from: `${currentYear}-01-01`, to: `${currentYear}-12-31` };
   if (range === "today") return { from: today, to: today };
+  // `tomorrow` — single day forward. Used by the Therapist worker-dashboard
+  // chip group ("Today / Tomorrow / This week"). Added 2026-05-25 after the
+  // audit found the chip was silently falling through to a month-forward
+  // catch-all.
+  if (range === "tomorrow") {
+    const d = new Date(`${today}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 1);
+    const tomorrow = d.toISOString().slice(0, 10);
+    return { from: tomorrow, to: tomorrow };
+  }
   if (range === "week") return { from: today, to: addBusinessDays(today, 7) };
+  // `this_week` — current calendar week, Monday-anchored, full Mon-Sun. Worker
+  // app & Therapist self-view semantic ("the week I'm in" — includes past and
+  // future days of the same week). Distinct from `week` which is rolling +7
+  // business-days forward.
+  if (range === "this_week") {
+    const d = new Date(`${today}T00:00:00Z`);
+    const dow = d.getUTCDay(); // 0=Sun, 1=Mon, …, 6=Sat
+    const daysFromMonday = dow === 0 ? 6 : dow - 1;
+    const monday = new Date(d);
+    monday.setUTCDate(d.getUTCDate() - daysFromMonday);
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+    return {
+      from: monday.toISOString().slice(0, 10),
+      to: sunday.toISOString().slice(0, 10),
+    };
+  }
+  // `this_month` — current calendar month, 1st to last day. Distinct from
+  // `month` which is month-start to today+30 rolling.
+  if (range === "this_month") {
+    const [y, m] = currentMonth.split("-").map(Number);
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return {
+      from: `${currentMonth}-01`,
+      to: `${currentMonth}-${pad(lastDay)}`,
+    };
+  }
   if (range === "custom") return { from: today, to: today };
   // B-3 additive (brief §5.1 chip set). Calendar-quarter window matching the
   // existing "year" semantics — Q1 Jan-Mar / Q2 Apr-Jun / Q3 Jul-Sep / Q4 Oct-Dec.

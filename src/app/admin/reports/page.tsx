@@ -249,7 +249,16 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
       {/* Insights stripe — Suspense for independent streaming */}
       <div className="print:hidden">
         <Suspense fallback={<InsightsStripeSkeleton />}>
-          <InsightsSection profile={profile} filters={effectiveFilters} />
+          <InsightsSection
+            profile={profile}
+            filters={effectiveFilters}
+            scopeForDrills={
+              isPersonalScope && scopeParam === "personal" ? "personal" : null
+            }
+            staffIdForDrills={
+              isPersonalScope && scopeParam === "personal" ? profile.id : null
+            }
+          />
         </Suspense>
       </div>
 
@@ -427,12 +436,34 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
 async function InsightsSection({
   profile,
   filters,
+  scopeForDrills,
+  staffIdForDrills,
 }: {
   profile: StaffProfile;
   filters: ReportFilters;
+  // Preserve `?scope=personal` and `?staffId=X` on the destination of each
+  // insight's drillUrl. Without this, a Personal-scope viewer clicking an
+  // insight derived from their own data would land on Team-scoped Reports
+  // (silent scope widening). Audit-found 2026-05-25.
+  scopeForDrills: "personal" | null;
+  staffIdForDrills: string | null;
 }) {
   const insights = await fetchReportInsights(profile, filters);
-  return <InsightsStripe insights={insights} />;
+  const enriched = insights.map((insight) => {
+    if (!insight.drillUrl) return insight;
+    if (!scopeForDrills && !staffIdForDrills) return insight;
+    const separator = insight.drillUrl.includes("?") ? "&" : "?";
+    const extras: string[] = [];
+    if (scopeForDrills) extras.push(`scope=${scopeForDrills}`);
+    if (staffIdForDrills) extras.push(`staffId=${staffIdForDrills}`);
+    return {
+      ...insight,
+      drillUrl: extras.length
+        ? `${insight.drillUrl}${separator}${extras.join("&")}`
+        : insight.drillUrl,
+    };
+  });
+  return <InsightsStripe insights={enriched} />;
 }
 
 async function HeadlineSection({
@@ -538,11 +569,28 @@ async function ActivitySection({
   const noShowCancelledCount = narrowed.bookings.filter(
     (b) => b.status === "no_show" || b.status === "cancelled"
   ).length;
+  // newEnquiries narrowed by created_at within the page period — audit-found
+  // 2026-05-25. Previously this read the unfiltered enquiries list so the
+  // count was always lifetime-total while the three sibling buckets (repeat /
+  // new / no-show-cancelled) were period-scoped. Mixed time-scope inside one
+  // "client mix" card.
+  const fromBound = filters.from
+    ? `${filters.from}T00:00:00.000Z`
+    : null;
+  const toBound = filters.to
+    ? `${filters.to}T23:59:59.999Z`
+    : null;
+  const newEnquiriesInPeriod = (narrowed.enquiries ?? []).filter((e) => {
+    if (!e.created_at) return false;
+    if (fromBound && e.created_at < fromBound) return false;
+    if (toBound && e.created_at > toBound) return false;
+    return true;
+  }).length;
   const businessPulseClients = {
     repeatClients: summary.repeatClients,
     newClients: summary.newClients,
     noShowCancelled: noShowCancelledCount,
-    newEnquiries: narrowed.enquiries?.length ?? 0,
+    newEnquiries: newEnquiriesInPeriod,
   };
 
   const activityCsvChips = isTherapistScope

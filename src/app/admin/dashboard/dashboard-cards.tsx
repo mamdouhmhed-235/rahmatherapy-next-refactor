@@ -311,7 +311,14 @@ export function TodayAtAGlanceCard({
           <div className="flex flex-wrap items-center gap-3 pb-1">
             <div className="text-sm text-[var(--admin-text-muted)]">
               <span className="font-semibold text-[var(--admin-heading)] tabular-nums">{upcomingCount}</span>{" "}
-              {isToday ? "this week" : "upcoming"}
+              {/*
+               * Label honesty (audit-fix 2026-05-25): upcomingCount is
+               * computed page-side as `addBusinessDays(today, 7)` — rolling
+               * 7 business days forward, NOT calendar Mon-Sun. Previous
+               * "this week" copy mis-named the data. The forward-7-day shape
+               * is the right operational signal; only the label was wrong.
+               */}
+              {isToday ? "next 7 days" : "upcoming"}
             </div>
             {dailySeries && dailySeries.length > 1 && dailySeries.some((v) => v > 0) ? (
               <Sparkline points={dailySeries.slice(-7)} />

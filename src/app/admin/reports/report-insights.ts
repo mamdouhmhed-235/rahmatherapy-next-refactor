@@ -98,21 +98,21 @@ export function getReportInsights(
     candidates.push({
       id: buildInsightId("bookings-dropped-critical", `${bucket}pct`, period, yyyyMm),
       severity: "critical",
-      message: `Bookings this ${period} dropped sharply — ${Math.round(Math.abs(bookingsDeltaPct))}% lower than the prior ${priorLabel}.`,
+      message: `Bookings ${period} dropped sharply — ${Math.round(Math.abs(bookingsDeltaPct))}% lower than ${priorLabel}.`,
     });
   } else if (prior.bookingCount > 0 && bookingsDeltaPct <= -thresholds.bookingsDropWarningPct) {
     const bucket = bucket5(Math.abs(bookingsDeltaPct));
     candidates.push({
       id: buildInsightId("bookings-dropped", `${bucket}pct`, period, yyyyMm),
       severity: "warning",
-      message: `Bookings this ${period} are ${Math.round(Math.abs(bookingsDeltaPct))}% lower than the prior ${priorLabel}.`,
+      message: `Bookings ${period} are ${Math.round(Math.abs(bookingsDeltaPct))}% lower than ${priorLabel}.`,
     });
   } else if (prior.bookingCount > 0 && bookingsDeltaPct >= thresholds.bookingsGrowthInfoPct) {
     const bucket = bucket5(bookingsDeltaPct);
     candidates.push({
       id: buildInsightId("bookings-grew", `${bucket}pct`, period, yyyyMm),
       severity: "info",
-      message: `Bookings up ${Math.round(bookingsDeltaPct)}% on the prior ${priorLabel} — nice.`,
+      message: `Bookings up ${Math.round(bookingsDeltaPct)}% on ${priorLabel} — nice.`,
     });
   }
 
@@ -124,7 +124,7 @@ export function getReportInsights(
     candidates.push({
       id: buildInsightId("outstanding-grew", `${gbpBucket}gbp`, period, yyyyMm),
       severity: "warning",
-      message: `Outstanding revenue grew £${Math.round(outstandingDelta)} vs last ${priorLabel} — review unpaid bookings.`,
+      message: `Outstanding revenue grew £${Math.round(outstandingDelta)} vs ${priorLabel} — review unpaid bookings.`,
       drillUrl: "/admin/reports?paymentStatus=unpaid",
     });
   }
@@ -159,7 +159,7 @@ export function getReportInsights(
         yyyyMm
       ),
       severity: "warning",
-      message: `${worstDrop.staffName}'s utilisation dropped from ${worstDrop.prior}% to ${worstDrop.current}% this ${period}.`,
+      message: `${worstDrop.staffName}'s utilisation dropped from ${worstDrop.prior}% to ${worstDrop.current}% ${period}.`,
       drillUrl: `/admin/staff/${worstDrop.staffId}?range=${data.filters.range}`,
     });
   }
@@ -173,8 +173,8 @@ export function getReportInsights(
       id: buildInsightId("ttfc-high", `${bucket}min`, period, yyyyMm),
       severity: "warning",
       message: priorTtfc > 0
-        ? `Avg time-to-first-contact on new enquiries is ${formatDurationFromMinutes(currTtfc)} this ${period}, up from ${formatDurationFromMinutes(priorTtfc)}.`
-        : `Avg time-to-first-contact on new enquiries is ${formatDurationFromMinutes(currTtfc)} this ${period}.`,
+        ? `Avg time-to-first-contact on new enquiries is ${formatDurationFromMinutes(currTtfc)} ${period}, up from ${formatDurationFromMinutes(priorTtfc)}.`
+        : `Avg time-to-first-contact on new enquiries is ${formatDurationFromMinutes(currTtfc)} ${period}.`,
       drillUrl: "/admin/enquiries?tab=new",
     });
   }
@@ -186,7 +186,7 @@ export function getReportInsights(
     candidates.push({
       id: buildInsightId("noshow-high", `${bucket}pct`, period, yyyyMm),
       severity: "warning",
-      message: `No-show rate is ${Math.round(noShow.rate * 100)}% this ${period} — £${Math.round(noShow.lostRevenue)} potential revenue lost.`,
+      message: `No-show rate is ${Math.round(noShow.rate * 100)}% ${period} — £${Math.round(noShow.lostRevenue)} potential revenue lost.`,
     });
   }
 
@@ -235,21 +235,31 @@ function severityWeight(s: InsightSeverity): number {
   return s === "critical" ? 3 : s === "warning" ? 2 : 1;
 }
 
+// Returns the period as a self-contained noun phrase. Templates should
+// concatenate directly ("Bookings ${period} dropped…") rather than prefixing
+// "this " — that produced "Bookings this **day** dropped…" before the
+// audit-fix 2026-05-25.
 function periodLabel(filters: ReportFilters): string {
-  if (filters.range === "today") return "day";
-  if (filters.range === "week") return "week";
-  if (filters.range === "month") return "month";
-  if (filters.range === "year") return "year";
-  if (filters.range === "lifetime") return "period";
-  return "period";
+  if (filters.range === "today") return "today";
+  if (filters.range === "tomorrow") return "tomorrow";
+  if (filters.range === "week") return "this week";
+  if (filters.range === "this_week") return "this week";
+  if (filters.range === "month") return "this month";
+  if (filters.range === "this_month") return "this month";
+  if (filters.range === "quarter") return "this quarter";
+  if (filters.range === "year") return "this year";
+  if (filters.range === "lifetime") return "to date";
+  return "in this period";
 }
 
 function priorPeriodLabel(filters: ReportFilters): string {
-  if (filters.range === "today") return "day";
-  if (filters.range === "week") return "week";
-  if (filters.range === "month") return "month";
-  if (filters.range === "year") return "year";
-  return "period";
+  if (filters.range === "today") return "yesterday";
+  if (filters.range === "tomorrow") return "today";
+  if (filters.range === "week" || filters.range === "this_week") return "last week";
+  if (filters.range === "month" || filters.range === "this_month") return "last month";
+  if (filters.range === "quarter") return "last quarter";
+  if (filters.range === "year") return "last year";
+  return "the prior period";
 }
 
 // Average minutes between enquiry created_at and first_contacted_at, across

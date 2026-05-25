@@ -114,8 +114,6 @@ export function PerformanceSurface({
   customDateRange,
   basePath,
 }: PerformanceSurfaceProps) {
-  const activeChip = rangeChips.find((c) => c.active);
-  const rangeLabel = activeChip ? activeChip.label.toLowerCase() : "this period";
   const viewerCanManageAudit = hasPermission(viewer, PERMISSIONS.MANAGE_AUDIT_LOGS);
   const tileCount = tilesForRole(shell, EMPTY_SCORECARD, {
     showAll: tileOptions?.showAll,
@@ -162,7 +160,6 @@ export function PerformanceSurface({
             <ActivityTimelineSection
               staffId={profile.id}
               mode={mode}
-              rangeLabel={rangeLabel}
               viewerCanManageAudit={viewerCanManageAudit}
             />
           </Suspense>
@@ -305,24 +302,25 @@ function TrendChartSkeleton() {
 interface ActivityTimelineSectionProps {
   staffId: string;
   mode: "self" | "manager";
-  rangeLabel: string;
   viewerCanManageAudit: boolean;
 }
 
 async function ActivityTimelineSection({
   staffId,
   mode,
-  rangeLabel,
   viewerCanManageAudit,
 }: ActivityTimelineSectionProps) {
   // Same audit fetch as KpiTileGridSection's scorecard.admin pass — cache()
-  // dedups so the single 100-row query serves both consumers.
+  // dedups so the single 100-row query serves both consumers. The list is
+  // intentionally NOT date-filtered — the "Recent activity" panel shows the
+  // most recent 20 actions taken by this staffer regardless of the page
+  // period filter (it's a "what have you been up to lately" panel, not a
+  // period audit). The empty-state copy reflects that framing.
   const allEvents = await fetchAuditLogForStaff(staffId, 100);
   return (
     <ActivityTimeline
       staffId={staffId}
       mode={mode}
-      rangeLabel={rangeLabel}
       viewerCanManageAudit={viewerCanManageAudit}
       events={allEvents.slice(0, 20)}
     />

@@ -64,6 +64,54 @@ describe("reporting metrics", () => {
     });
   });
 
+  // Added 2026-05-25 after audit found Therapist DateRangeChips's "Tomorrow"
+  // chip silently fell through to the catch-all month-forward window.
+  it("range=tomorrow narrows to the single day after today", () => {
+    const today = getBusinessDate();
+    const next = new Date(`${today}T00:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    const tomorrow = next.toISOString().slice(0, 10);
+
+    expect(parseReportFilters({ range: "tomorrow" })).toMatchObject({
+      range: "tomorrow",
+      from: tomorrow,
+      to: tomorrow,
+    });
+  });
+
+  // range=this_week is the calendar Mon-Sun shape. Distinct from `week`
+  // which is rolling +7 business days forward (different semantic — kept
+  // for backwards-compat with consumers that expect forward-7-days).
+  it("range=this_week narrows to the calendar Mon-Sun of the current week", () => {
+    const today = getBusinessDate();
+    const result = parseReportFilters({ range: "this_week" });
+
+    expect(result.range).toBe("this_week");
+    // from must be a Monday, to must be the Sunday 6 days later
+    const fromDate = new Date(`${result.from}T00:00:00Z`);
+    const toDate = new Date(`${result.to}T00:00:00Z`);
+    expect(fromDate.getUTCDay()).toBe(1); // Monday
+    expect(toDate.getUTCDay()).toBe(0); // Sunday
+    // window must contain today
+    expect(result.from <= today && today <= result.to).toBe(true);
+    // window is exactly 7 days
+    const ms = (toDate.getTime() - fromDate.getTime()) / 86_400_000;
+    expect(ms).toBe(6);
+  });
+
+  it("range=this_month narrows to the calendar month-01 through last-day", () => {
+    const today = getBusinessDate();
+    const currentMonth = today.slice(0, 7);
+    const result = parseReportFilters({ range: "this_month" });
+
+    expect(result.range).toBe("this_month");
+    expect(result.from).toBe(`${currentMonth}-01`);
+    // to must be the last day of this month
+    const [y, m] = currentMonth.split("-").map(Number);
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    expect(result.to).toBe(`${currentMonth}-${String(lastDay).padStart(2, "0")}`);
+  });
+
   it("does not expose revenue reports to own-booking-only therapist scope", () => {
     expect(canViewRevenueReports(profile([PERMISSIONS.VIEW_REPORTS_OWN]))).toBe(false);
     expect(canViewRevenueReports(profile([PERMISSIONS.VIEW_REPORTS_OPERATIONAL]))).toBe(false);

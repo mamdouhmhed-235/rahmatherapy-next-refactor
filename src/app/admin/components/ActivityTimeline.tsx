@@ -33,7 +33,6 @@ import { humanizeAuditAction } from "./performance-helpers";
 interface ActivityTimelineProps {
   staffId: string;
   mode: "self" | "manager";
-  rangeLabel: string;
   viewerCanManageAudit: boolean;
   events: AuditEventRow[];
 }
@@ -41,7 +40,6 @@ interface ActivityTimelineProps {
 export function ActivityTimeline({
   staffId,
   mode,
-  rangeLabel,
   viewerCanManageAudit,
   events,
 }: ActivityTimelineProps) {
@@ -63,9 +61,15 @@ export function ActivityTimeline({
         footer={footer}
       >
         <p className="text-sm text-[var(--admin-text-muted)]">
-          {`No activity in ${rangeLabel} yet.`}
+          No recent activity yet.
         </p>
         <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
+          {/*
+           * Copy aligned 2026-05-25: this panel shows the last 100 audit
+           * events regardless of the page period filter, so the empty-state
+           * shouldn't claim period scope. The "Recent activity" title is
+           * the canonical framing.
+           */}
           Recent actions will appear here as you work.
         </p>
       </AdminPanel>

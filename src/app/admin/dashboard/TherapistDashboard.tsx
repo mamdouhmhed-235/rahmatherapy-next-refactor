@@ -181,8 +181,10 @@ export function TherapistDashboard({
   const rangeLabelMap: Record<string, string> = {
     today: "Today",
     tomorrow: "Tomorrow",
-    week: "This week",
-    custom: "Custom range",
+    this_week: "This week",
+    // `week` (rolling +7 business days) still mapped for backwards-compat in
+    // case any deep-link survives from before the audit fix.
+    week: "Next 7 days",
   };
   const rangeLabel = rangeLabelMap[activeRange] ?? "Today";
 
@@ -209,8 +211,29 @@ export function TherapistDashboard({
       ? quickHelpLinksForTherapist(staffId, quickHelpPermissions)
       : [];
 
+  // The "My week" disclosure is a CALENDAR-WEEK snapshot regardless of the
+  // page-level date filter — the heading literally says "This week" and the
+  // panel exists to summarise the operator's calendar week. Computing from
+  // the page filter (the previous behaviour) caused the same numbers to
+  // show under "This week" even when the filter said Today / Tomorrow /
+  // Next 7 days — audit-found 2026-05-25.
+  const weekStartDate = (() => {
+    const d = new Date(`${today}T00:00:00Z`);
+    const dow = d.getUTCDay(); // 0=Sun, 1=Mon, …, 6=Sat
+    const daysFromMonday = dow === 0 ? 6 : dow - 1;
+    d.setUTCDate(d.getUTCDate() - daysFromMonday);
+    return d.toISOString().slice(0, 10);
+  })();
+  const weekEndDate = (() => {
+    const d = new Date(`${weekStartDate}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 6);
+    return d.toISOString().slice(0, 10);
+  })();
   const completedThisWeek = data.bookings.filter(
-    (booking) => booking.status === "completed"
+    (booking) =>
+      booking.status === "completed" &&
+      booking.booking_date >= weekStartDate &&
+      booking.booking_date <= weekEndDate
   );
   const minutesThisWeek = completedThisWeek.reduce((acc, booking) => {
     if (!booking.start_time || !booking.end_time) return acc;
@@ -536,11 +559,21 @@ export function TherapistDashboard({
 
 function DateRangeChips({ activeRange }: { activeRange: string }) {
   // ≥768px only. Mobile (<768px) omits the strip entirely per brief.
+  //
+  // Range keys must match parseReportFilters cases (reports/reporting.ts):
+  //   - `today`     → today only
+  //   - `tomorrow`  → tomorrow only (added 2026-05-25 audit fix; previously
+  //                   silently fell through to a month-forward window)
+  //   - `this_week` → calendar Mon–Sun of the current week (added in same
+  //                   audit fix; previously used `week` which is rolling
+  //                   +7 business days and mismatched the "This week" label)
+  //   - (`custom` chip removed — Therapist surface has no inline custom-date
+  //      form; chip linked to a degenerate single-day window. Worker view is
+  //      intentionally minimal per brief §5.2.)
   const chips: Array<{ label: string; range: string }> = [
     { label: "Today", range: "today" },
     { label: "Tomorrow", range: "tomorrow" },
-    { label: "This week", range: "week" },
-    { label: "Custom", range: "custom" },
+    { label: "This week", range: "this_week" },
   ];
   return (
     <nav
