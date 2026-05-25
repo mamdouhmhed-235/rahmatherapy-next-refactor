@@ -124,6 +124,44 @@ User raised a sharper diagnosis after my "Open attention" cleanup proposal: that
 
 **Result:** every tile that semantically can narrow now narrows with the picker. The one tile that can't ("Next visit" — forward-looking) is the only legitimate exception. Labels are honest; the picker means what it shows.
 
+## Cross-surface filter-vs-data audit (2026-05-25 — commit `48b7911`)
+
+User asked: "are there any other issues like we have seen with the above section we fixed where the data or metrics arent actually dynamic and dont change with the filters available on the page?" An audit pass across B-3 → B-5 surfaces found 8 confirmed bugs of the same class (label-vs-data mismatch / filter widget that doesn't drive data / silent scope-drop in drill links), plus 4 verified non-issues (NOW-state by design — verified before deciding to fix).
+
+**Bugs fixed:**
+
+1. **`parseReportFilters` range-key normalisation** (`reports/reporting.ts`):
+   - Added `tomorrow` → single day forward (was falling through to month-forward catch-all → Therapist "Tomorrow" chip silently broken)
+   - Added `this_week` → calendar Mon–Sun of current week (distinct from `week` which is rolling +7 business days; Therapist "This week" chip label promised calendar week, data delivered rolling-7)
+   - Added `this_month` → calendar 1st-to-last-day of current month (distinct from `month` which is month-start to today+30; needed by Reports filter strip's `this_month` chip key)
+2. **TherapistDashboard date chips**: "Tomorrow" + "This week" now use the new range keys; "Custom" chip dropped (was degenerate — single-day window with no inputs to edit; Therapist surface intentionally minimal). 3 chips total.
+3. **TherapistDashboard `WeeklyStatsCard` heading "This week"**: data was previously page-filter scoped; heading lied at any non-week range. Now data narrows to calendar Mon–Sun regardless of page filter — heading and data agree. All downstream weekly stats (weekHoursLabel, completionRate, noShowCount, recentClients, serviceMixRows) inherit the calendar-week scope.
+4. **TherapistDashboard "View weekly detail" link** `/admin/me?range=this_week` previously fell through; now resolves correctly via the new `this_week` case.
+5. **TodayAtAGlanceCard "this week" copy** → "next 7 days" (the underlying value is `addBusinessDays(today, 7)` — rolling forward, not calendar Mon–Sun; label aligned to data shape).
+6. **Performance ActivityTimeline empty-state copy**: was "No activity in {rangeLabel} yet" but the data query is intentionally unfiltered `fetchAuditLogForStaff(staffId, 100)`. Copy now "No recent activity yet" — matches the "Recent activity" panel title. Dropped unused `rangeLabel` prop through PerformanceSurface + ActivityTimeline.
+7. **Reports BusinessPulseCard `newEnquiries`**: was lifetime-total (read unfiltered enquiries list), while the 3 sibling buckets (repeat / new / no-show-cancelled clients) were period-scoped — mixed time-scope inside one "client mix" card. Now filtered by `created_at` within `filters.from`/`to`.
+8. **Reports Insight drill-links**: `/admin/reports?paymentStatus=unpaid` etc. dropped `scope=personal` + `staffId` URL params — Personal-scope viewer clicking an insight derived from their own data landed on Team-scoped Reports (silent scope widening). Now page.tsx `InsightsSection` appends current `scope` + `staffId` to each drillUrl before render.
+9. **Reports insight grammar**: `periodLabel("today")` returned plain noun "day" → templates produced "Bookings this **day** dropped sharply". Refactored `periodLabel` to return self-contained noun phrases ("today" / "this week" / "this month" / "tomorrow" / "this quarter" / "this year" / "to date" / "in this period"); `priorPeriodLabel` returns matching phrases ("yesterday" / "last week" / etc.); templates dropped redundant "this " prefix.
+
+**Verified NON-issues (no fix needed):**
+
+- **Operations Health card** + **Coord Active Queues disclosure**: metrics like `status='open'` ops events, `availability_mode='custom' with no rules` staff gaps, `status='new'` enquiries are intrinsically CURRENT-STATE — period-scoping is meaningless. These are live operational queues. The "no signal that they're not filtered" UX ambiguity is a Phase 7 candidate (small visual "Live" marker) but the data semantics are correct.
+- **Performance "Upcoming work" panel**: title literally says "Upcoming"; forward-looking by design (`booking_date >= today` and `status IN (pending, confirmed)`). Picker is irrelevant to forward-looking views.
+- **Performance trend chart bucket at `range=today`**: weekly bucketing is the chart's design; degenerate but not misleading at 1-day range. Phase 7 polish.
+- **`/admin/me?staffId=X`**: silently ignored — no UI exposure, harmless.
+
+**Lessons codified as SHARED-IMPLEMENTATION-NOTES §18** (Filter-vs-data discipline, added 2026-05-25): the three bug shapes (hardcoded period suffix / NOW-state in period-scoped surface / filter widget that doesn't drive data), drill-link scope preservation pattern, zero-delta noise filtering, and a 5-step audit checklist for every new filter-equipped surface. Reference before shipping B-6 or any future filter-equipped surface.
+
+**Verification:**
+- `npx tsc --noEmit` clean
+- `pnpm lint` clean (no warnings)
+- `pnpm vitest run`: 482 tests / 476 passing / 6 baseline failing (identical set). +9 new specs lock the new `parseReportFilters` range keys (`tomorrow` / `this_week` / `this_month`).
+- `pnpm build` clean
+- Live Playwright verified (Owner @ /admin/reports?scope=personal&range=this_month):
+  - Insight drillUrls preserve `scope` + `staffId` (verified end-to-end: `/admin/enquiries?tab=new&scope=personal&staffId=01582c5d-...`)
+  - Insight grammar reads naturally ("Avg time-to-first-contact on new enquiries is 6.7 days this month, up from…")
+  - TherapistDashboard chips: 3 clean chips render; "Tomorrow" and "This week" both activate correctly via aria-current
+
 ## Verification gate
 
 - [ ] Static lint + types clean

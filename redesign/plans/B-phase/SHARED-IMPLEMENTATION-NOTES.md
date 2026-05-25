@@ -622,4 +622,129 @@ Before introducing a chart consumer in B-5 or beyond:
 
 ---
 
+## §18 — Filter-vs-data discipline (post-B-5 audit, added 2026-05-25)
+
+The B-5 Personal Stripe initially shipped with a period picker that didn't
+actually drive most of its tiles — and a cross-surface audit then found the
+same class of bug on /admin/me, /admin/reports, and elsewhere in the
+Dashboard. The pattern: surfaces with filter widgets where the data
+displayed silently doesn't respect the filter, or labels claim a scope the
+value doesn't match. Three distinct bug shapes; one discipline.
+
+### The three bug shapes
+
+**Shape A — Hardcoded period suffix in a label, picker-controlled value:**
+Label says "Revenue this week" but the picker is set to "this month" — value
+is correct for the picker, label lies. Caused by treating the period word as
+copy text instead of a derived eyebrow.
+
+> **Rule:** if a tile/section sits inside a period picker, its label is a
+> noun ("Revenue", "Hours", "Clients") — NOT a noun phrase ("Revenue this
+> week"). The eyebrow + active picker chip carry the period. Per-tile
+> period suffixes always contradict the picker at some setting.
+
+**Shape B — NOW-state metric inside a period-scoped surface:**
+"Open attention" / "Unassigned today" / "Failed emails" / "Open ops events"
+— these are intrinsically CURRENT-STATE (status='open', current
+availability config, etc.). Period-scoping them is meaningless ("ops events
+from a month ago that are still open today" = "currently open"). When such
+a metric sits inside a period picker, the picker silently has no effect.
+
+> **Rule:** either (i) move the NOW-state metric OUT of the period-scoped
+> surface, or (ii) add a clear visual "Live · ignores filter" / "(Current
+> state)" indicator. NEVER place a NOW-state metric inside a period picker
+> without a marker — the user has no way to tell.
+
+**Shape C — Filter widget that doesn't drive its data:**
+Chip lights up via `aria-current` but the underlying query / helper doesn't
+read the param. Range key recognised in chip CSS but unknown to
+`parseReportFilters`, falling through to a catch-all default. Drill-links
+that drop the active `scope` + `staffId`.
+
+> **Rule:** every chip key MUST be a case in `parseReportFilters`
+> (`reporting.ts:962`). Add new cases for new chip labels — don't rely on
+> the catch-all. Every drill-link from a scope-narrowed surface MUST
+> append the active `scope` + `staffId` so the destination preserves
+> context. Filter widget that doesn't drive data is worse than no widget.
+
+### Canonical recognised ranges (current)
+
+`parseReportFilters` cases as of 2026-05-25:
+
+| Key | Window | Use case |
+|---|---|---|
+| `today` | today only | Single-day operations view |
+| `tomorrow` | tomorrow only | Worker-app forward chip (Therapist) |
+| `week` | today → today+7 business days | Rolling forward-week (legacy; "Next 7 days" semantically) |
+| `this_week` | calendar Mon–Sun of current week | "This week" label semantic |
+| `month` | month-01 → today+30 days | Rolling forward-month (legacy) |
+| `this_month` | calendar 1st → last-day of current month | "This month" label semantic |
+| `quarter` | calendar Q1/Q2/Q3/Q4 of current year | B-3 chip |
+| `year` | Jan 1 → Dec 31 of current year | B-3 chip |
+| `lifetime` | 2000-01-01 → 2100-12-31 | Reports scope toggle |
+| `custom` | from / to from URL params | Custom date range form |
+
+Adding a new chip label? Add a new case. Don't reuse an existing key for a
+different semantic — both consumers will collide.
+
+### Drill-link scope preservation
+
+When rendering insight / tile / row drill-links from a scope-narrowed
+surface (`?scope=personal`, `?staffId=X`), enrich the drillUrl with current
+scope + staffId BEFORE handing off to the consumer:
+
+```ts
+const enriched = insights.map((insight) => {
+  if (!insight.drillUrl) return insight;
+  const separator = insight.drillUrl.includes("?") ? "&" : "?";
+  const extras: string[] = [];
+  if (scopeForDrills) extras.push(`scope=${scopeForDrills}`);
+  if (staffIdForDrills) extras.push(`staffId=${staffIdForDrills}`);
+  return extras.length
+    ? { ...insight, drillUrl: `${insight.drillUrl}${separator}${extras.join("&")}` }
+    : insight;
+});
+```
+
+Canonical site: `src/app/admin/reports/page.tsx:InsightsSection`.
+
+### Zero-delta noise
+
+`<DeltaChip>` renders for any non-null number, including 0 (shows "→ 0.0%"
+with arrow + "unchanged" sr-only). Inside a stripe / tile / KPI grid, this
+is visual noise that doesn't earn its space — "no change" tells the
+operator nothing. Filter at the helper level so the chip naturally hides:
+
+- `pctDelta` / `ppDelta` (reports-helpers.ts) — return `undefined` when
+  `Math.abs(result) < 0.05`
+- `percentPointDelta` (performance-helpers.ts) — return `null` when
+  rounded value is 0
+- `nzDelta(raw)` helper (performance-helpers.ts) — wrap raw count deltas
+  before passing to `delta:` on a TileSpec
+- For ad-hoc delta computations in dashboard helpers (B-5), filter at the
+  render layer in StripeTile / equivalent: `tile.delta !== 0`.
+
+### Audit checklist before shipping a new surface
+
+For every new tile / section / chart that lives on a filter-equipped page:
+
+1. **Label honesty:** does the label include any period word ("today",
+   "this week", "this month", "lately", "recent")? If yes — does the value
+   actually narrow to that period? If picker controls it, drop the suffix
+   from the label entirely.
+2. **NOW-state check:** is the underlying value a state-based metric
+   (`status='open'`, `active = true`, etc.) that can't be period-scoped?
+   If yes — does the surface visually signal "Live · ignores filter"?
+3. **Picker → data trace:** does the surface read the period URL param,
+   filter the data, AND pass it to every consumer that displays per-tile?
+4. **Drill scope:** do drill-links from this surface preserve current
+   `scope` + `staffId`?
+5. **Zero-delta:** does the delta path filter 0 before rendering
+   `<DeltaChip>`?
+
+If any of 1–5 surface a "no" you can't justify, you have a bug. Fix it
+before merging.
+
+---
+
 *End of shared notes. Update this file as additional cross-cutting concerns surface during implementation.*

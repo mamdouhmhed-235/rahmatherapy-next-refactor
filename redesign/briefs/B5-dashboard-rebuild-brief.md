@@ -144,22 +144,38 @@ Anti-anchor: the current Phase-6 dashboard — Tier-2 disclosure collapsed makes
 
 ### 5.1 Personal Contribution stripe (NEW; all variants)
 
-`<PersonalContributionStripe>` — horizontal strip of 4 `<MetricRow>` from B-1.
+`<PersonalContributionStripe>` — horizontal strip of 4 stacked tiles (custom
+`<StripeTile>` server component composing B-1's `<DeltaChip>` + `<Sparkline>`).
+**Post-ship amendment (2026-05-25):** initially specced `<MetricRow>` from B-1
+but that primitive truncates labels on a single line — wrong shape for a 2×2
+grid at 375 px. Replaced with a stacked layout (label on top, value below,
+delta + sparkline in a sub-row beneath). Labels are clean nouns; period
+context comes from the eyebrow + picker, not from per-tile suffixes.
 
-Per variant tile sets (all values come from `getStaffScorecard(data, profile.id, priorData)` from B-2; period defaults to "this week" but configurable via a small picker at strip right):
+Per variant tile sets (all values come from `getStaffScorecard(stripeData,
+profile.id, stripePriorData)` from B-2 with the picker's stripe period as
+the scope; period defaults to "this week" but configurable via a small
+picker at strip right):
 
 | Variant | Tile 1 | Tile 2 | Tile 3 | Tile 4 |
 |---|---|---|---|---|
-| **Business** (Owner/Admin) | My bookings today (own; `scorecard.clinical.assignmentsCompleted` for today) | My contribution this week (own; `scorecard.clinical.assignmentsCompleted` + `scorecard.admin.bookingsAssignedCount`) | My revenue this week (own; `scorecard.clinical.revenueAttributed`) | Open attention items (business-wide; the operational handle stays clinic-wide) |
-| **Coordinator** | Today's unassigned to clear | Enquiries handled this week (mine) | My conversion rate | Active attention items |
-| **Therapist** | Next visit (time + client first name) | Today's visits count | My hours this week | My clients this month |
+| **Business** (Owner/Admin) | **My bookings** (own; `scorecard.clinical.assignmentsTotal` in period) | **My contribution** (own; `scorecard.clinical.assignmentsCompleted` + `scorecard.admin.bookingsAssignedCount` — AUDIT Q4 union) | **Revenue** (own; `scorecard.clinical.revenueAttributed`) | **Avg booking value** (own; `revenueAttributed / assignmentsCompleted`; "—" when non-treating Owner has 0 completions — AUDIT Q2 denominator) |
+| **Coordinator** | **New enquiries** (count of enquiries with `created_at` in the stripe period) | **Enquiries handled** (own; `scorecard.admin.enquiriesContactedCount`) | **Conversion rate** (own; `scorecard.admin.enquiryConversionRate`) | **Avg response time** (own; `scorecard.admin.avgMinutesToFirstContact` formatted via `formatDurationFromMinutes`; invert tone — faster is better) |
+| **Therapist** | **Next visit** (time + client first name; forward-looking exception — picker N/A by design) | **Visits** (own; `scorecard.clinical.assignmentsTotal` in period) | **Hours** (own; `scorecard.clinical.hoursWorked`) | **Clients** (own; `scorecard.clinical.clientsTouched`) |
 
-Each `<MetricRow>` has its mini-sparkline if a time series is meaningful; "Next visit" tile renders the time + client name instead. Period picker (top-right of stripe) cycles `today / this week / this month`. Stripe collapses to 2×2 grid on mobile.
+**Period semantics (post-ship 2026-05-25 audit):** every tile EXCEPT Therapist
+tile 1 ("Next visit", semantically forward-looking) narrows with the picker.
+Labels carry no hardcoded period suffix — the eyebrow ("My contribution ·
+This week") and the picker carry that context. This replaced an earlier
+implementation where tile 1 was "Bookings today" (NOW snapshot, ignored
+picker) and tile 4 was "Open attention" (clinic-wide NOW state, also ignored
+picker). Zero-deltas hidden — no "→ 0.0%" pill when there's no meaningful
+change. Stripe collapses to 2×2 grid on mobile.
 
 ### 5.2 Filter strip (per variant)
 
 - Business + Coordinator: full filter strip (Today / This week / This month / Last 30 days / Custom + More filters + Export). Export visible only when `view_reports_revenue` (Owner/Admin/PM).
-- Therapist: narrowed to date-range chips only (Today · Tomorrow · This week · Custom). No More filters. No Export.
+- Therapist: 3 date-range chips only (Today · Tomorrow · This week). Custom chip dropped post-ship 2026-05-25 — was degenerate (linked to `?range=custom` which falls to a single-day window with no inputs to edit; Therapist surface is intentionally minimal). No More filters. No Export. `range=this_week` keyword added to `parseReportFilters` for the calendar Mon–Sun semantic the chip label promises (distinct from `range=week` which is rolling +7 business days).
 
 ### 5.3 Today panel (per variant)
 
