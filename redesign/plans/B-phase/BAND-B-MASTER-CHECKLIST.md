@@ -969,7 +969,7 @@ The code-compliance audit agent + user manual review caught seven real issues po
 - [x] All 4 production migrations applied + verified (3 B-2 migrations: `20260522120000_add_enquiry_first_contacted_at`, `20260522121000_add_band_b_indexes`, `20260522122000_add_insight_dismissals` — Zone-2 confirmed individually + verified post-apply per B-2 log)
 - [x] Fresh test Therapist account preserved (`test.therapist.fresh@rahmatherapy.example.test` / `TherapistFresh123!` — created in B-0, used in B-3/B-5/B-6 sweeps)
 - [x] `?todayView=` URL param preserved on Dashboard (per AUDIT G4 — preserved through B-5 wholesale rebuild)
-- [x] No new npm dependencies added (`git diff master..HEAD -- package.json pnpm-lock.yaml` shows churn from version touch-ups but no new entries; B-6 itself adds zero deps — inline SVG sparkline avoided needing a chart library on a new route)
+- [x] **No new npm dependencies added in-programme.** `git diff 8c142c8..HEAD -- package.json pnpm-lock.yaml` returns **0 lines** — across all 7 Band B phases the dep set is untouched. (`git diff master..HEAD` shows pre-programme churn from May 9-10 commits `e13b212` + `d45c854`, both of which predate B-0 by ~2 weeks — they're not Band B work and not part of the programme delta.) B-6 specifically avoided adding Recharts to a new route by inline-SVG'ing the sparkline, preserving the streak.
 - [x] HANDOFF §5 next-agent message updated to point at Phase 7 audit re-entry (lands with this commit)
 
 ---
