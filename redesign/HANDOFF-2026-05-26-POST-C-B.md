@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 12/12 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ as of 2026-05-26. **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-02 → C-09 → C-03 → C-07 → C-10**. C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11 respectively). Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 13/13 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ as of 2026-05-26 (original 12 + C-13 added same day via user-direction amendment). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + 2026-05-26 amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**. C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11 respectively). C-13 ships after C-08 (extends templates) + before C-11 (provides BookingCard for shared blocks). Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -47,7 +47,7 @@ Three phases:
 
 ---
 
-## 3 — The 12 C-B plans (all ✅ brief + plan written 2026-05-26)
+## 3 — The 13 C-B plans (all ✅ brief + plan written 2026-05-26 — C-13 added same day via post-handoff amendment)
 
 Each row links the brief + plan + summarises scope + key decisions + sequencing.
 
@@ -147,7 +147,15 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Plan:** `redesign/plans/C-phase/C-10-bottom-spacing-footer-overlap-plan.md` (~360 lines)
 - **Scope:** Smallest C-B plan. Two-phase discovery + remediation. Phase A: Playwright walk at 375 + 768 + 1280 across every admin surface; verification snippet captures breathing room between content bottom and fixed mobile nav top. Output: `c-10-overlap-catalogue.md`. Phase B: remediate per catalogued entry via one of four fix patterns (wrap with AdminPageScaffold / raise sticky save bar to bottom-14 / fix local pb override / document nested-scaffold).
 - **Migration:** None.
-- **Sequencing:** Ships LAST so it catalogues new routes from C-06 + C-02 alongside existing surfaces.
+- **Sequencing:** Ships LAST so it catalogues new routes from C-06 + C-02 + C-13 alongside existing surfaces.
+
+### C-13 — Group-booking surface + gender-clarity chips + composite identity
+
+- **Brief:** `redesign/briefs/C-13-group-bookings-and-gender-clarity-brief.md` (~530 lines — NEW 2026-05-26 post-handoff)
+- **Plan:** `redesign/plans/C-phase/C-13-group-bookings-and-gender-clarity-plan.md` (~750 lines — NEW 2026-05-26 post-handoff)
+- **Scope:** 7 changes across 8 phases (A–H). Gender-clarity chips (replace generic `"Same-gender required"` with per-participant phrasing: `"Needs female therapist"` / `"Needs 2 female + 1 male"`). Group cards become first-class on `/admin/bookings` list — nested per-participant sub-rows + Users icon + group tint (option c). Composite identity (`"Aisha Khan + 2 others"`) on row headlines, detail page, browser title, calendar tooltips. Per-participant assignment progress (`"1 of 3 therapists assigned"`). Calendar tile gets Users icon + Group chip + composite-identity tooltip. Email templates (`staff_assignment`, `staff_claim`, `booking_confirmed_client`) gain conditional group-context block. `BookingCard` extracted as shared component — consumed by C-11 + C-FIELDWORK.
+- **Migration:** None. Zero new permissions, zero new server actions. Pure UI render work.
+- **Sequencing:** Soft-coupled to **C-FIELDWORK** (consume its card pattern), **C-08** (templates exist before extending), **C-11** (shared blocks adopt BookingCard), **C-05** (cancelled-row strikethrough class-composition preserved). Hard dependency: none.
 
 ---
 
@@ -169,6 +177,7 @@ Each plan's body is largely self-contained execution detail. Pre-flight checks +
 | C-03 | `service-fuzzy-match.ts` full helper code in plan §1 Step 2. |
 | C-07 | DashboardScopeToggle + SavedFiltersBar component sketches in plan §1. |
 | C-10 | Verification snippet for Playwright catalogue (plan §1 Step 1). |
+| C-13 | `composeGenderRequirementChip` + `composeBookingIdentity` helpers (plan §1 Phase A Step 1 + Phase C Step 8). `GroupBookingCard` nested-layout JSX (plan §1 Phase B Step 6). `renderGroupContextBlockHtml` template fragment (plan §1 Phase G Step 16). |
 
 ---
 
@@ -243,6 +252,38 @@ Following user direction on a cancelled-booking ease+restore bundle, both C-04a 
 
 **Bundle impact:** C-04a ceiling raised +5 kB → +7 kB. C-05 ceiling raised +2 kB → +3 kB.
 
+### 5.12 C-13 added as a 13th plan (2026-05-26 post-handoff)
+
+Following user direction on the cancelled-booking amendment bundle (§5.11), a second user-direction session 2026-05-26 surfaced a related but distinct UX gap: **group bookings + gender-required bookings render with generic, information-thin chips that lose actionable detail**. Audit verified the data model is already correct (per-participant `booking_participants` rows + per-participant `booking_assignments`, claim/assign already per-participant gender-matched). The fix is **pure UI render work** across 4 surfaces (list, detail, dashboard, calendar) + 3 email templates.
+
+**C-13 created** as a 13th plan (master plan checklist now lists 13/13 ✅). Briefs/plans landed at:
+- `redesign/briefs/C-13-group-bookings-and-gender-clarity-brief.md`
+- `redesign/plans/C-phase/C-13-group-bookings-and-gender-clarity-plan.md`
+
+**7 changes / 8 phases (A–H):**
+1. **Gender-clarity chip helper** (`composeGenderRequirementChip`) replacing generic `"Same-gender required"` with per-participant phrasing.
+2. **Group cards as first-class** — option (c) nested layout with per-participant sub-rows on `/admin/bookings` list rows. New shared component `BookingCard.tsx`.
+3. **Composite identity helper** (`composeBookingIdentity`) — `"{main_contact} + {N} others"`.
+4. **Per-participant assignment progress** — `"1 of 3 therapists assigned"` for groups.
+5. **Calendar surface treatment** — Users icon + Group chip + composite identity tooltip on event tiles.
+6. **Booking detail refinement** — header composite identity; remove redundant "Group booking" badge; ParticipantCard chip refactor.
+7. **Email templates with group context block** — extended `staff_assignment`, `staff_claim` (C-08), `booking_confirmed_client` (C-08) with conditional group-context section.
+
+**Zero migrations, zero new permissions, zero new server actions.** No backend changes. The data model has been correct all along; the UI just rendered it generically.
+
+**Shared helpers:** `_helpers.ts` (created by C-04a/C-05 amendments per §5.11) gains two more pure functions — `composeGenderRequirementChip` + `composeBookingIdentity`. Single source.
+
+**Sequencing:** C-13 inserts between **C-08** and **C-02** in the recommended order. Soft-coupled to C-FIELDWORK (consume canonical card shape), C-08 (templates exist before extending), C-11 (shared blocks library adopts `BookingCard`), C-05 (cancelled-row strikethrough class-composition preserved on the extracted card).
+
+**Bundle impact:** +5 kB across `/admin/bookings/*` + `/admin/calendar/*`.
+
+**Cross-plan coordination:**
+- **C-FIELDWORK:** its `PractitionerTodaySection` renders booking cards. C-13's `BookingCard` is the canonical shape; coordinate at impl time so both consume the same component.
+- **C-08:** introduces `staff_claim` + `booking_confirmed_client` templates. C-13's Phase G plugs the group-context block into these renderers — ship C-08 first to avoid double-touching template renderer files.
+- **C-11:** shared blocks library at `dashboard/blocks/` adopts `BookingCard` as its booking-row primitive. C-13 ships first so C-11 imports rather than reinvents.
+- **C-05:** `isInertRow` class composition (Edit Point 9) applies on the outer `BookingCard` wrapper; sub-rows inherit naturally via CSS cascade.
+- **C-02:** future recurring-group bookings render with the same group card (data model supports recurring + group composition).
+
 ---
 
 ## 6 — Cross-plan coordination + dependencies + sequencing
@@ -260,14 +301,15 @@ Following user direction on a cancelled-booking ease+restore bundle, both C-04a 
 
 ### 6.2 Soft sequencing (recommended order)
 
-Per C-B-DECISIONS §5: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-02 → C-09 → C-03 → C-07 → C-10**.
+Per C-B-DECISIONS §5 + 2026-05-26 amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
 
 Order rationale:
 - C-06 first — biggest data-integrity fix.
 - C-04a → C-05 — locked sequence.
 - C-01 → C-02 — cron infrastructure first.
 - C-FIELDWORK → C-11 — drop-in component first.
-- C-09 ninth — tag sweep catches all prior plans' new actions.
+- C-08 → **C-13** — email templates exist before C-13 extends them with group-context block. C-13's `BookingCard` available before C-11's shared-blocks adoption sweep (in practice C-11 ships ahead; coordinate at impl).
+- C-09 (now positioned mid-pack after C-13) — tag sweep catches all prior plans' new actions.
 - C-03 / C-07 — UX polish on top of stable surfaces.
 - C-10 last — catalogues new routes alongside existing.
 
@@ -281,6 +323,7 @@ Order rationale:
 - **C-05** orthogonal to C-FIELDWORK's mobile reorder (reorder applies to cancelled bookings too — practitioner needs phone for follow-up).
 - **C-09** retrofits cache tags on all C-NN plans' new server actions.
 - **C-10** catalogues new routes from C-06 + C-02.
+- **C-13** extracts `BookingCard` consumed by C-FIELDWORK + C-11; plugs into C-08's new email templates; preserves C-05's `isInertRow` class composition on the outer card.
 
 ---
 
@@ -400,7 +443,7 @@ d2a3f26 docs(redesign): C-B decisions — lock answers to 11 open questions
 
 ## 9 — File inventory (relevant to C-C)
 
-### C-B plan-writing outputs (12 briefs + 12 plans)
+### C-B plan-writing outputs (13 briefs + 13 plans)
 
 ```
 redesign/briefs/
@@ -415,10 +458,11 @@ redesign/briefs/
 ├── C-09-cache-invalidation-filter-cleanup-brief.md
 ├── C-10-bottom-spacing-footer-overlap-brief.md
 ├── C-11-dashboard-variants-design-system-brief.md
+├── C-13-group-bookings-and-gender-clarity-brief.md           # NEW 2026-05-26 post-handoff
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
-├── BAND-C-MASTER-PLAN.md                                     # master checklist (12/12 ✅ as of 2026-05-26)
+├── BAND-C-MASTER-PLAN.md                                     # master checklist (13/13 ✅ as of 2026-05-26)
 ├── C-B-DECISIONS.md                                          # 11 locked decisions
 ├── C-01-review-request-email-plan.md
 ├── C-02-recurring-bookings-plan.md
@@ -431,6 +475,7 @@ redesign/plans/C-phase/
 ├── C-09-cache-invalidation-filter-cleanup-plan.md
 ├── C-10-bottom-spacing-footer-overlap-plan.md
 ├── C-11-dashboard-variants-design-system-plan.md
+├── C-13-group-bookings-and-gender-clarity-plan.md            # NEW 2026-05-26 post-handoff
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -537,6 +582,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 
 - **C-06 plan §1 Step 9 (`deleteClient` cascade):** extend to cancel active recurring templates before deleting the client. Required before C-02 ships. See §5.8.
 - **(2026-05-26 amendment)** C-04a + C-05 amended for the cancelled-booking ease+restore bundle. C-04a now 14 changes / 8 phases with a Zone-2 migration (`scheduled_for` + payload columns); C-05 now 9 edit points / 4 phases. See §5.11. Both briefs + plans updated; no further amendments needed before C-C.
+- **(2026-05-26 amendment)** C-13 added as a 13th plan for group-booking surface + gender-clarity. 7 changes / 8 phases / zero migrations / pure UI render. See §5.12. Brief + plan written; master plan checklist updated to 13/13. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -594,10 +640,10 @@ To be ticked once C-C ships all 12 plans:
 
 - **Branch:** `master`
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
-- **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11).
+- **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12 — brief + plan + bookkeeping).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (12/12 plans). C-04a + C-05 amended 2026-05-26 — see §5.11.
-- **C-C status:** ⏳ UNBLOCKED. Recommended order in `C-B-DECISIONS.md` §5.
+- **C-B status:** ✅ COMPLETE (13/13 plans). C-04a + C-05 amended + C-13 added 2026-05-26 — see §5.11 + §5.12.
+- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
 
