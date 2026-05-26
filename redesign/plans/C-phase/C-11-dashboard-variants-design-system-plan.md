@@ -49,6 +49,53 @@
 
    Record both numbers in the progress file.
 
+7b. **Hardcoded-color inventory (admin-wide):**
+
+   ```bash
+   # OKLCH literals (excludes those already inside var() definitions, which are fine)
+   git grep -nE "oklch\\(" src/app/admin/ | grep -v "globals.css\\|admin-theme" | wc -l
+
+   # Hex literals
+   git grep -nE "#[0-9a-fA-F]{3,8}\\b" src/app/admin/ | wc -l
+
+   # rgb / rgba literals
+   git grep -nE "rgb\\(|rgba\\(" src/app/admin/ | wc -l
+
+   # Per-file breakdown for the sweep targets
+   git grep -lE "oklch\\(|#[0-9a-fA-F]{6}\\b" src/app/admin/ | head -30
+   ```
+
+   Record the counts + per-file list in the progress file. These are the files where Phase E Step 11b sweeps hardcoded colors → CSS variables.
+
+7c. **Admin surface inventory** (for the verification sweep):
+
+   ```bash
+   # Top-level admin routes — Phase G Playwright walks one representative page per section
+   ls -d src/app/admin/*/ src/app/admin/*/[*]/ 2>/dev/null | sort
+   ```
+
+   Confirm at least these surfaces are reachable + theme-relevant:
+   - `/admin/dashboard`
+   - `/admin/bookings` + `/admin/bookings/[id]` + `/admin/bookings/new`
+   - `/admin/clients` + `/admin/clients/[id]` + `/admin/clients/new`
+   - `/admin/calendar`
+   - `/admin/enquiries`
+   - `/admin/staff` + `/admin/staff/[id]` + `/admin/staff/[id]/availability` + `/admin/staff/[id]/performance`
+   - `/admin/availability` (global)
+   - `/admin/reports`
+   - `/admin/emails` + `/admin/email-templates/preview/[id]`
+   - `/admin/services`
+   - `/admin/settings`
+   - `/admin/operations`
+   - `/admin/roles` + `/admin/roles/[id]`
+   - `/admin/privacy`
+   - `/admin/audit`
+   - `/admin/account-password-requests`
+   - `/admin/me`
+   - `/admin/login` (theme not applied here — pre-auth; document if any styling looks off)
+
+   The dark mode applies to ALL of these uniformly. Phase G Playwright walks at least one page from each section.
+
 8. **Theme infrastructure absence confirmed:**
 
    ```bash
@@ -330,6 +377,61 @@ Edit `src/app/globals.css` (or `admin-theme.css` — verify the canonical locati
 ```
 
 **Plan locks: dark is the root default.** `[data-theme="dark"]` selector is redundant but explicit for cascade clarity. `[data-theme="light"]` triggers light. Absence of `data-theme` (e.g., during FOUC) falls through to `:root` (dark). Designer + WCAG verification at impl time confirms exact OKLCH values.
+
+**Admin-wide scope of the CSS variable change:** `:root` selectors apply globally to every page. The variable remapping in `globals.css` automatically cascades to every admin route under `/admin/*` (and to public routes too, since the selectors aren't admin-scoped). To prevent the public booking site from inheriting the dark theme unintentionally, **Step 11a (NEW)** below scopes the dark theme to the admin tree.
+
+**Step 11a — Scope the dark theme to admin pages only.**
+
+Wrap the dark theme CSS variables under a more specific selector so the public site keeps its current single theme:
+
+```css
+/* Light theme defaults at :root — covers public site + admin in 'light' mode */
+:root {
+  --admin-bg: oklch(97% 0.018 88);
+  /* ... light values for every --admin-* variable */
+}
+
+/* Dark theme — ONLY applies under the admin tree's data-theme attribute.
+   The admin layout sets data-theme on <html>; this selector targets when
+   the active theme is 'dark'. */
+[data-theme="dark"] {
+  --admin-bg: oklch(15% 0.012 88);
+  /* ... dark values */
+}
+
+[data-theme="light"] {
+  /* Redundant with :root but explicit; ensures admin's 'light' choice
+     doesn't accidentally inherit a future :root change. */
+  --admin-bg: oklch(97% 0.018 88);
+  /* ... light values (matches :root) */
+}
+
+@media print {
+  :root, [data-theme="dark"], [data-theme="light"] {
+    --admin-bg: white;
+    --admin-heading: black;
+    /* ... print overrides */
+  }
+}
+```
+
+**Decision: light is the `:root` default, dark is selector-triggered.** This flips the earlier brief framing (which said `:root` = dark default). The flip is necessary so the public site (which doesn't set `data-theme`) stays in its current appearance unchanged. The admin layout sets `<html data-theme="dark">` server-side by default for admin pages, achieving the user-facing "dark default in the admin" goal.
+
+**FOUC mitigation script** (Step 15 — adjusted): sets `data-theme="dark"` on `<html>` by default for the admin tree before React hydrates, OR `"light"` / `"system"` based on localStorage mirror. The script only runs on admin pages (gated by route check inside the script — or simply because the script lives in `src/app/admin/layout.tsx`).
+
+**Step 11b — Hardcoded-color sweep (admin-wide).**
+
+Run the inventory from §0 Step 7b. For each file with hardcoded OKLCH / hex / RGB literals:
+
+1. **Read the file in context.** Determine the colour's intent:
+   - Brand colour (Rahma Gold, status tones) — keep, OR migrate to a `--admin-status-*` variable if not already.
+   - Surface colour (background, border, text) — migrate to existing `--admin-bg` / `--admin-panel` / `--admin-border` / `--admin-heading` etc.
+   - Dynamic colour (avatar tints, deterministic-hue) — usually theme-neutral; keep as-is.
+2. **Apply the migration** with a small refactor commit per logical group of files (e.g., "Migrate status badge colours to CSS variables").
+3. **Verify visually** at impl time — the existing light-theme rendering should be byte-identical post-migration (variables resolve to the same values).
+4. **Add dark counterparts** to `globals.css` for any new variable introduced.
+
+**Phase E sub-commit cadence:** these can ship as separate small commits before the ThemeProvider lands — each is a pure refactor with no behaviour change. Bonus: future theme work becomes trivial.
 
 **Step 12 — ThemeProvider context.**
 
@@ -670,26 +772,28 @@ node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 
 Compare against `/tmp/c11-pre-bundle.txt` baseline.
 
-### 3.2 Playwright role × theme sweep (16 walks)
+### 3.2 Playwright role × theme sweep (admin-wide)
 
-For each role × theme × viewport:
+**Scope:** dark mode applies admin-wide, so verification walks ALL admin sections in both themes. The full matrix is intentionally large; impl can prioritise critical surfaces first (dashboard + bookings + clients) and complete the remaining surfaces in a final-verification pass.
+
+**Per role × theme × viewport** (4 viewports each):
 - Sign in
-- Capture dashboard
-- Verify variant + theme + key elements
+- Walk the role's primary surfaces (matrix below)
+- Capture screenshots in both themes
+- Verify no surface is "stuck" in the opposite theme
 - Sign out
 
-| Role | Theme | Viewport (375 / 768 / 1280 / 1440) |
+| Role | Themes | Surfaces walked |
 |---|---|---|
-| Owner | Dark | All 4 |
-| Owner | Light | All 4 |
-| Admin | Dark | All 4 |
-| Admin | Light | All 4 |
-| Coord | Dark | All 4 |
-| Coord | Light | All 4 |
-| Therapist | Dark | All 4 |
-| Therapist | Light | All 4 |
+| Owner | Dark + Light + System spot-check | Dashboard, Bookings list + detail + new, Clients list + detail + new, Calendar, Staff list + detail, Reports, Emails + Email-templates preview, Settings, Operations, Privacy, Audit, /admin/me |
+| Admin | Dark + Light | Same as Owner (slightly narrower data scope per RBAC) |
+| Coord | Dark + Light | Dashboard, Bookings list + detail + new, Clients list + detail, Calendar, Enquiries, Reports (scoped) |
+| Therapist | Dark + Light | Dashboard, Bookings list + detail (own assignments), Clients detail (assigned only), /admin/me, Reports (Personal-only) |
+| Therapist-Fresh | Dark | Dashboard (zero-state), /admin/me (zero-state) — confirms empty-state copy reads in both themes |
 
-Plus 'system' theme spot-check on Owner.
+**Smoke walks at 4 viewports per surface** — at minimum a hard refresh of each route in each theme to catch any surface where CSS variables don't resolve correctly. 1280 + 375 are mandatory; 768 + 1440 are spot-checks.
+
+**Toggle verification per session:** in one Playwright session per role, toggle Dark → Light → System → Dark via the header dropdown. Verify each transition applies instantly (no FOUC), persists across navigation, and persists across sign-out + sign-in (DB-backed).
 
 ### 3.3 V-01 + B-01 + B-03 verification
 
@@ -709,14 +813,28 @@ SELECT theme_preference FROM staff_profiles WHERE email = 'rahmatherapy@outlook.
 -- Expected: 'system'
 ```
 
-### 3.5 WCAG contrast verification
+### 3.5 WCAG contrast verification (admin-wide)
 
-Run axe-core / Lighthouse on:
-- `/admin/dashboard` in dark + light
-- `/admin/bookings` in dark + light
-- `/admin/clients/[id]` in dark + light
+Run axe-core / Lighthouse on AT LEAST one representative page from each admin section, in both themes:
 
-Target: WCAG AA (4.5:1 body, 3:1 large/UI). Document any failures + remediation.
+- `/admin/dashboard` (all 3 variants, both themes — 6 runs)
+- `/admin/bookings` list (both themes)
+- `/admin/bookings/[id]` detail (both themes)
+- `/admin/bookings/new` form (both themes)
+- `/admin/clients` list (both themes)
+- `/admin/clients/[id]` detail (both themes — high stakes, B-6 LTV ribbon + status badges)
+- `/admin/clients/new` form (both themes)
+- `/admin/calendar` (both themes — chart cells must be legible)
+- `/admin/reports` (both themes — chart fills must be legible per SHARED-NOTES §17)
+- `/admin/staff/[id]` (both themes)
+- `/admin/emails` delivery log (both themes)
+- `/admin/settings` (both themes)
+- `/admin/audit` (both themes)
+- `/admin/privacy` (both themes)
+
+Target: WCAG AA (4.5:1 body, 3:1 large/UI). Document any failures + remediation. Surfaces with bespoke colour systems (charts, status badges, LTV ribbon) are highest-risk; verify carefully.
+
+**Brand-asset spot-check:** any logo, illustration, or hardcoded brand image used in the admin (e.g., on `/admin/login`, in email previews, in dashboard hero) must remain legible against a dark background OR be wrapped in a light container per brief §5.9.
 
 ### 3.6 Print mode verification
 
@@ -726,14 +844,30 @@ In browser print preview: dashboard renders in light theme regardless of user's 
 
 Hard refresh `/admin/dashboard` 5-10 times with each theme. No light-flash-then-dark (or vice versa). Inline script runs before React hydrates.
 
-### 3.8 Screenshot evidence
+### 3.8 Screenshot evidence (admin-wide)
 
-- 375 + 1280 × dark + light = 4 screenshots per variant × 3 variants = 12 screenshots
-- 1280 × Health check disclosure expanded (Business) = 1 screenshot
-- 1280 × Coord dashboard with B-01 bug gone = 1 screenshot
-- 1280 × theme toggle dropdown open = 1 screenshot
+**Dashboard variants (per brief §4.1-4.3):**
+- 375 + 1280 × dark + light × 3 variants = 12 screenshots
+- 1280 × Health check disclosure expanded (Business) = 1
+- 1280 × Coord dashboard with B-01 bug gone = 1
+- 1280 × theme toggle dropdown open = 1
 
-Store in `redesign/audits/C-A/screenshots-01-dashboard/c-11-after/`.
+**Other admin surfaces (1280, both themes — confirms admin-wide coverage):**
+- /admin/bookings list × 2 themes
+- /admin/bookings/[id] detail × 2 themes
+- /admin/clients/[id] detail (with LTV ribbon) × 2 themes
+- /admin/calendar × 2 themes
+- /admin/reports × 2 themes
+- /admin/staff/[id] × 2 themes
+- /admin/settings × 2 themes
+- /admin/emails × 2 themes
+- /admin/audit × 2 themes
+- /admin/privacy × 2 themes
+- /admin/me × 2 themes
+
+Total: ~35 screenshots minimum. Mobile (375) spot-checks for the surfaces with significant mobile reflow (Bookings list, Bookings detail, Calendar, /admin/me).
+
+Store in `redesign/audits/C-A/screenshots-01-dashboard/c-11-after/` (dashboard) + `redesign/audits/C-A/c-11-theme-coverage/` (admin-wide). C-C plan-writer can adjust the directory structure if a different convention is cleaner.
 
 ---
 
@@ -760,6 +894,24 @@ Store in `redesign/audits/C-A/screenshots-01-dashboard/c-11-after/`.
 ### 4.1 Real risk: scope creep within C-11
 
 C-11 is the largest plan. Phases are designed to ship in isolation, but the temptation to fold extra polish (new icons, new Empty State copy, etc.) is real. **Plan locks: each phase ships AS DESIGNED. No additional polish without user approval.** Future polish goes to C-12+.
+
+### 4.2 Real risk: admin-wide hardcoded-color sweep surface area
+
+Per user clarification 2026-05-26, dark mode applies to ALL admin pages. The hardcoded-color sweep (§Step 11b) touches every admin component using OKLCH / hex literals. **Risk:** a missed file shows up in dark theme with stuck-light colours (e.g., a status badge that's `oklch(50% 0.10 25)` in code instead of `var(--admin-status-danger)`). Mitigation:
+- Pre-flight Step 7b enumerates all hardcoded-colour files.
+- Phase G Step 21 Playwright walks every admin section in both themes.
+- Phase G Step 23 axe-core / Lighthouse contrast on representative pages catches surfaces with low contrast in either theme.
+- If a surface is missed in C-11, fix is a quick one-file CSS variable migration; document as a C-12+ polish item if discovered post-ship.
+
+The sweep is the high-effort surface; pre-flight count sets expectations. If the count is >30 files, the C-C plan-executor may opt to split the sweep into multiple smaller commits to keep review tractable.
+
+### 4.3 Real risk: chart + LTV ribbon need bespoke dark-theme variants
+
+`reporting.ts` is RECON §5 untouchable, but the chart rendering layer (`ReportsCharts.tsx`) uses `statusChartFillForKey` for status-coloured chart fills (SHARED-NOTES §17). The B-6 LTV ribbon uses a similar pattern. Both will need dark-theme palette variants — and the change MUST come from the CSS-variable layer (not from `reporting.ts`). Plan locks:
+- Audit chart-fill helpers during Phase E Step 11b
+- Ensure `statusChartFillForKey` reads from CSS variables that have dark counterparts
+- Verify chart legibility in both themes during Phase G Step 23 axe-core run
+- Same for LTV ribbon (B-6 primitive — additive only per RECON §5 + DESIGN.md sanctioned brand colours)
 
 ---
 
@@ -817,9 +969,11 @@ Phase E reverts the CSS variable duplication. The default light theme returns.
 | 4 | Phase C — CoordinatorDashboard extraction + B-01 fix |
 | 5 | Phase D — TherapistDashboard refactor to consume blocks |
 | 6 | Phase E Step 10 — Migration applied + types regenerated |
-| 7 | Phase E Steps 11-17 — Dark mode infrastructure (CSS + ThemeProvider + Toggle + actions + FOUC) |
-| 8 | Phase F — Motion-reduce sweep |
-| 9 | Phase G — Verification (screenshots + WCAG + progress file + master plan checklist → ✅) |
+| 7 | Phase E Step 11 — CSS variable duplication (`:root` light, `[data-theme="dark"]` dark, print override) |
+| 8 | Phase E Step 11b — Hardcoded-color sweep (admin-wide; can be split into multiple sub-commits per file group if extensive) |
+| 9 | Phase E Steps 12-17 — ThemeProvider + Toggle + theme-actions + FOUC mitigation + tests |
+| 10 | Phase F — Motion-reduce sweep |
+| 11 | Phase G — Verification (admin-wide Playwright × theme sweep + WCAG + screenshots + progress file + master plan checklist → ✅) |
 
 Each commit ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`. Stage files explicitly.
 

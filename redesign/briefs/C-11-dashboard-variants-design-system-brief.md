@@ -20,7 +20,7 @@ C-11 is **the largest C-B plan by scope** alongside C-02. It does four things at
 
 1. **Extract 3 dashboard variant files** matching the existing `DashboardVariant` taxonomy: `BusinessDashboard.tsx` (NEW — Owner + Admin), `CoordinatorDashboard.tsx` (NEW), `TherapistDashboard.tsx` (already exists — refactor to consume shared blocks). `page.tsx` becomes a thin variant router.
 2. **Build a shared dashboard building blocks library** so each variant composes from the same primitives (`RevenueStripe`, `EnquiriesTodoStripe`, `ClaimQueueStripe`, `PendingBookingsStripe`, `ScheduleGapStripe`, `RecentActivityStripe`, `EmptyState` narrative pattern, `QuickHelpPanel`, `DashboardHeader`, `MobileStickyActionBar`).
-3. **Add dark mode** — default-on, user-switchable toggle to light, persists per user via `staff_profiles.theme_preference` (new column), honours `prefers-color-scheme` as tertiary fallback only. Every CSS variable in `globals.css` / `admin-theme.css` gets a dark counterpart.
+3. **Add dark mode — admin-wide, not dashboard-only.** Applies to **every page under `/admin/*`** — dashboard, bookings (list + detail + new), clients (list + detail + new + edit), calendar, staff (list + detail + availability + performance), enquiries, reports, emails, email-templates, operations, services, settings, roles, privacy, audit, account-password-requests, /admin/me, and any future admin surfaces. ThemeProvider wraps the entire admin tree via `src/app/admin/layout.tsx`; CSS variables in `globals.css` are global. Default-on, user-switchable toggle to light, persists per user via `staff_profiles.theme_preference` (new column), honours `prefers-color-scheme` as tertiary fallback only. Every CSS variable in `globals.css` / `admin-theme.css` gets a dark counterpart, and the plan includes a sweep to find + remap any hardcoded color literals in admin components.
 4. **Sweep `animate-spin` instances** across the admin tree to apply `motion-reduce:animate-none` consistently (currently inconsistent — AuditPageActions has it; ~30 other instances don't).
 
 **Key scope discoveries during plan-writing:**
@@ -65,7 +65,9 @@ Decisions doc Q11:
 2. App default — dark (locked).
 3. System `prefers-color-scheme` — tertiary fallback if no user choice AND default-on logic is bypassed (e.g., for an Owner who explicitly wants system-tracking — see §9.4).
 
-**Zero infrastructure today:** verified via grep — no `dark:`, no `data-theme`, no `useTheme`. Every CSS variable in the admin theme needs a dark counterpart.
+**Scope: ALL admin pages, not just the dashboard.** The user clarification 2026-05-26: "the dark mode is for all of the admin pages no matter which role or variant and not just for specific pages". This was already the implementation intent (ThemeProvider mounts in `src/app/admin/layout.tsx`; CSS variables in `globals.css` are global), but the brief explicitly calls it out. Every admin route under `/admin/*` — listed exhaustively in §0 TL;DR — renders in the active theme. Public booking pages (`/booking/*`, the homepage, etc.) are **out of scope** for C-11 — those would need a separate plan if dark mode extends to the public site.
+
+**Zero infrastructure today:** verified via grep across `src/` — no `dark:` Tailwind classes, no `data-theme` attribute, no `useTheme` hook, no `ThemeProvider`. Every CSS variable in the admin theme needs a dark counterpart, AND any admin component that hardcodes an OKLCH / hex / RGB literal instead of consuming a `--admin-*` variable will need to be migrated. The plan includes a hardcoded-color audit sweep (§7 Files touched + plan Phase E).
 
 ### 1.4 Motion-reduce pass is consistency hygiene
 
@@ -181,6 +183,8 @@ Estimated post-refactor length: ~300-400 lines (down from 1017). Most reduction 
 
 ### 2.6 Dark mode infrastructure (work area 6)
 
+**Admin-wide scope reminder:** the work below lands once in `src/app/admin/layout.tsx` + `globals.css` and applies to **every page under `/admin/*`**. There is no per-page opt-in. The Plan also includes a hardcoded-color audit sweep (work area 7b) — every admin component that uses an OKLCH / hex / RGB literal instead of a `--admin-*` CSS variable will be migrated so the theme switch works uniformly.
+
 **Three new pieces:**
 
 (a) **Schema:** new column `staff_profiles.theme_preference text` (nullable; values: `'dark' | 'light' | 'system'`). Default NULL = use app default (dark).
@@ -231,6 +235,24 @@ Sweep `git grep -n "animate-spin" src/app/admin/`. For each match:
 Estimated touch: ~30 files. Pure mechanical edit; no behaviour change for users without `prefers-reduced-motion`.
 
 Also: `dashboard-filters-client.tsx:372, :473, :521` (per audit B-03) — three known violators in the dashboard surface itself.
+
+### 2.7b Hardcoded-color audit sweep (NEW work area, paired with dark-mode rollout)
+
+Because dark mode applies admin-wide, any admin component that bakes in an OKLCH / hex / RGB literal (instead of consuming a `--admin-*` CSS variable) will look wrong in the opposite theme. Sweep:
+
+```bash
+git grep -nE "oklch\(|#[0-9a-fA-F]{3,8}\b|rgb\(|rgba\(" src/app/admin/
+```
+
+For each match, classify:
+- **Brand colour intentional** (e.g., `oklch(58% 0.135 72)` Rahma Gold for Cormorant numerals — DESIGN.md §2 sanctioned): keep, but verify it reads at AA contrast in both themes. May need a paired dark variant via CSS variable.
+- **Status tone** (e.g., `oklch(26% 0.14 25)` for cancelled red): migrate to a `--admin-status-*` variable that has dark counterparts.
+- **Background / border literal**: migrate to existing `--admin-bg` / `--admin-panel` / `--admin-border` variable.
+- **Generated dynamic colour** (e.g., avatar tints from `deterministicHue(seed)`): keep as-is if the calculation is theme-neutral; otherwise parameterise on the active theme.
+
+This sweep is **per-file judgement**, not a blanket find-and-replace. Estimated touch: ~10-15 files with hardcoded colors (a rough scan found instances in BookingDetailSidebar, ClientLtvRibbon, dashboard cards, status badges). Real count established at pre-flight.
+
+**Scope discipline:** the sweep stays inside `src/app/admin/`. Public-facing pages, marketing site, and shared UI primitives outside the admin tree are out of C-11 scope.
 
 ### 2.8 Fix the V-01 + B-01 + B-03 dashboard bugs (work area 8)
 
@@ -390,6 +412,8 @@ MobileStickyActionBar
 
 ### 4.4 Dark mode visual change
 
+**Applies to EVERY admin page** — dashboard, bookings, clients, calendar, staff, reports, emails, settings, etc. The CSS variables in `globals.css` are global; flipping the `data-theme` attribute on `<html>` cascades to every admin surface simultaneously. No per-page or per-variant override.
+
 CSS variables remap. Key transitions:
 
 | Token | Light (current) | Dark (new) |
@@ -487,6 +511,8 @@ No backfill needed — NULL means "use app default" (which is dark). Per-row upd
 
 ## 7 — Files touched (preview — full list in plan)
 
+**Scope note:** dark mode adds touches to many admin files (CSS variable consumption + hardcoded-color migration). Files-touched count is an estimate; impl-time grep finalises.
+
 ### NEW (~15 files)
 - `src/app/admin/dashboard/blocks/DashboardHeader.tsx`
 - `src/app/admin/dashboard/blocks/EmptyState.tsx`
@@ -511,9 +537,10 @@ No backfill needed — NULL means "use app default" (which is dark). Per-row upd
 |---|---|
 | `src/app/admin/dashboard/page.tsx` | Shrink to thin variant router (~300 lines down from 1017) |
 | `src/app/admin/dashboard/TherapistDashboard.tsx` | Consume shared blocks; remove inlined helpers (already exported via shared-helpers.ts per C-FIELDWORK) |
-| `src/app/admin/layout.tsx` | Wrap with ThemeProvider; fetch initial theme server-side |
-| `src/app/globals.css` (or admin-theme.css) | Duplicate every `--admin-*` variable under `[data-theme="dark"]` and `[data-theme="light"]` selectors; add inline `<script>` for FOUC mitigation |
-| `~30 files with animate-spin` | Add `motion-reduce:animate-none` modifier |
+| `src/app/admin/layout.tsx` | Wrap entire admin tree with ThemeProvider; fetch initial theme server-side; inline FOUC mitigation script |
+| `src/app/globals.css` (or admin-theme.css) | Duplicate every `--admin-*` variable under `[data-theme="dark"]` and `[data-theme="light"]` selectors; `@media print` forces light |
+| `~30 files with animate-spin` (admin-wide) | Add `motion-reduce:animate-none` modifier |
+| `~10-15 files with hardcoded colors` (admin-wide) | Migrate OKLCH / hex literals to `--admin-*` CSS variables OR add theme-paired variants (see brief §2.7b sweep) |
 
 ### UNCHANGED (do NOT touch)
 - `reporting.ts`, `dashboard-helpers.ts`, RBAC matrix, middleware, B-1 primitives.
@@ -600,10 +627,12 @@ A C-11 implementation is complete when:
 8. **Light + System variants work** — user can toggle to each, verified visually.
 9. **No FOUC** — page loads with the correct theme applied immediately (no light-then-dark flash).
 10. **Motion-reduce sweep complete** — every `animate-spin` in `src/app/admin/` has `motion-reduce:animate-none` adjacent. Verified via grep + manual file scan.
-11. **WCAG AA contrast met** in both dark + light themes.
-12. **No regressions on Therapist dashboard** — existing Therapist UX preserved including ProfileCompletionNudge, Personal Stripe, RecentClientsStrip, Need help?, mobile pull-to-refresh.
-13. **All static gates pass** — lint, tsc, vitest, build, bundle delta within budget.
-14. **Playwright role sweep at 375 / 768 / 1280 / 1440 passes** for all 4 roles in BOTH light + dark themes (8 total combinations).
+11. **WCAG AA contrast met** in both dark + light themes — verified on at least one representative page from EACH admin section (dashboard, bookings list, bookings detail, clients list, clients detail, calendar, staff list, staff detail, reports, emails, settings, privacy, audit).
+12. **Hardcoded-color sweep complete** — admin components consume `--admin-*` CSS variables consistently; intentional brand-colour literals (e.g., Rahma Gold for Cormorant numerals) verified at AA contrast in both themes.
+13. **Theme applies admin-wide** — verified by walking each admin section in both dark + light themes; no surface looks "stuck" in one theme.
+14. **No regressions on Therapist dashboard** — existing Therapist UX preserved including ProfileCompletionNudge, Personal Stripe, RecentClientsStrip, Need help?, mobile pull-to-refresh.
+15. **All static gates pass** — lint, tsc, vitest, build, bundle delta within budget.
+16. **Playwright role × theme sweep** at 375 / 768 / 1280 / 1440 passes for all 4 roles in BOTH light + dark themes (8 combinations), and walks ≥ 1 representative page per admin section (not just dashboard).
 
 ---
 
@@ -640,6 +669,8 @@ A C-11 implementation is complete when:
 - **`/admin/me` redesign** — separate surface; C-12+ Therapist UX.
 - **Animations on bar chart transitions** — out of scope; existing charts respect motion-reduce.
 - **i18n / multi-language** — out of scope; English-only.
+- **Dark mode on PUBLIC pages** — `/booking/*`, the homepage, the public booking widget, customer manage page: NOT in C-11. Public-facing UI stays in its current single theme. If dark mode extends to the public site, that's a separate plan (likely C-12+ with its own UX brief — public CTAs + brand impression differ from admin tooling).
+- **Per-page or per-variant theme override** — every admin page renders in the user's chosen theme uniformly. No "this page is always light" exceptions (except the print stylesheet).
 
 ---
 
