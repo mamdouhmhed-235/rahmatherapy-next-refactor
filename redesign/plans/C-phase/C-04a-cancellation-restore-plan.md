@@ -1,4 +1,4 @@
-# C-04a — Cancellation restore + auto-promote + hygiene tail — **PLAN**
+# C-04a — Cancellation restore + delayed-email infra + row-level affordances + auto-promote + hygiene tail — **PLAN**
 
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
@@ -36,6 +36,16 @@ This plan covers the "how" — execution order, verify-checkpoints, files touche
    WHERE action_type IN ('booking_restored', 'booking_auto_promoted_completed', 'booking_quick_no_show')
    GROUP BY action_type;
    -- expect 0 rows for all three
+
+   -- (d) AMENDMENT 2026-05-26 — verify Change 13 columns don't already exist
+   SELECT column_name FROM information_schema.columns
+   WHERE table_name = 'email_delivery_events'
+     AND column_name IN ('scheduled_for', 'html_payload', 'text_payload', 'to_email', 'subject');
+   -- expect: 0 rows (all 5 columns to be added by the migration)
+
+   -- (e) AMENDMENT 2026-05-26 — verify BookingRowActions component exists with current shape
+   -- (cheap grep, not DB — done via the codebase)
+   -- expect: BookingRowAction union at BookingRowActions.tsx:17-22 with 5 actions
    ```
 
 6. **Test fixture inventory.** Confirm via `mcp__supabase__execute_sql`:
@@ -60,9 +70,9 @@ If any pre-flight step fails or reveals unexpected state, **stop** and surface t
 
 ---
 
-## 1 — Safe implementation order (4 phases, 9 changes, with verify-checkpoints)
+## 1 — Safe implementation order (8 phases, 14 changes, with verify-checkpoints)
 
-Each phase is committable independently. Verify-checkpoints between phases.
+Each phase is committable independently. Verify-checkpoints between phases. Phases A–E are the original C-04a body; Phases F–H were added in the 2026-05-26 amendment (Changes 10–14 + S3/S6 refinements).
 
 ### Phase A — Restore primitive (changes 1-3 from brief)
 
@@ -105,6 +115,21 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
     return { error: "Only cancelled, no-show, or completed bookings can be restored." };
   }
 
+  // S6 amendment 2026-05-26: past-datetime guard
+  // Reject restore when now() > booking_date + start_time (Europe/London zoning).
+  // Stricter than C-05's date-only lockdown — see brief §5.8.
+  if (isInertSource) {
+    const bookingMoment = computeBookingMomentLondon(
+      beforeState.booking_date,
+      beforeState.start_time
+    );
+    if (Date.now() > bookingMoment.getTime()) {
+      return {
+        error: "This booking's appointment time has already passed and cannot be restored.",
+      };
+    }
+  }
+
   if (isCompletedReopen) {
     if (!forceCompleted || reason.length < 5) {
       return {
@@ -141,6 +166,19 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
 
   if (error) return { error: error.message };
 
+  // Change 13 integration (amendment 2026-05-26): cancel any queued cancellation email
+  // for this booking. If matched, the cancellation never left the system — suppress the
+  // restore email too, since the client never saw the round-trip.
+  const { count: cancelledQueuedCount } = await adminClient
+    .from("email_delivery_events")
+    .update({ delivery_status: "cancelled_by_restore" }, { count: "exact" })
+    .eq("booking_id", bookingId)
+    .eq("event_type", "booking_cancellation_client")
+    .eq("delivery_status", "queued")
+    .gt("scheduled_for", new Date().toISOString());
+
+  const suppressRestoreEmail = (cancelledQueuedCount ?? 0) > 0;
+
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
     action_type: "booking_restored",
@@ -153,15 +191,19 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
       restore_target_status: targetStatus,
       force_completed: forceCompleted || undefined,
       reason: reason || undefined,
+      cancelled_queued_email: suppressRestoreEmail,  // Change 14 forensic
     },
   });
 
-  // Client email — wrapped so a delivery failure doesn't roll back the restore
-  await sendBookingRestoredClientEmail(bookingId, adminClient, {
-    fromStatus: beforeState.status as BookingStatus,
-  }).catch((emailError) => {
-    console.error("Unable to send restore email to client.", emailError);
-  });
+  // Client email — skip if the cancel email was killed within its undo window
+  // (client never saw the cancellation; no round-trip "restored" message needed).
+  if (!suppressRestoreEmail) {
+    await sendBookingRestoredClientEmail(bookingId, adminClient, {
+      fromStatus: beforeState.status as BookingStatus,
+    }).catch((emailError) => {
+      console.error("Unable to send restore email to client.", emailError);
+    });
+  }
 
   // Assigned staff awareness
   await sendAssignedStaffBookingChangeEmails(
@@ -194,8 +236,14 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
 - Client deleted (mock clients.deleted_at non-null): refuse.
 - Therapist actor: insufficient permissions.
 - Email failure mocked: restore still succeeds; error logged.
+- **S6 — Past-datetime cancelled booking** (`booking_date+start_time` < now): returns `"This booking's appointment time has already passed and cannot be restored."`. No DB write. No emails.
+- **S6 — Same-day morning cancelled, viewed in the afternoon** (`booking_date=today AND start_time < now()`): same rejection. C-05 considers this active for date-only checks; restore is stricter.
+- **S6 — Today's afternoon cancelled, viewed in the morning** (`booking_date=today AND start_time > now()`): restore succeeds (datetime in future).
+- **Change 13/14 — Queued cancellation email exists** (`scheduled_for > now() AND delivery_status='queued'`): `cancelled_queued_email=true` in audit; `sendBookingRestoredClientEmail` NOT called; queued row updated to `delivery_status='cancelled_by_restore'`.
+- **Change 13/14 — Queued cancellation email already sent** (race: cron fired in the gap): `scheduled_for <= now()` so the UPDATE matches 0 rows; `cancelled_queued_email=false` in audit; `sendBookingRestoredClientEmail` called normally (client gets cancel-then-restore round trip).
+- **Change 13/14 — No queued email at all** (natural late restore — hours after cancel): `cancelled_queued_email=false`; restore email sent.
 
-Pattern: lift the existing test scaffolding from `clients/__tests__/updateClient.test.ts` (when C-06 lands) or from any existing booking-action test file. Use vi.fn() for the `createSupabaseAdminClient` factory.
+Pattern: lift the existing test scaffolding from `clients/__tests__/updateClient.test.ts` (when C-06 lands) or from any existing booking-action test file. Use vi.fn() for the `createSupabaseAdminClient` factory. For datetime mocking, use `vi.setSystemTime`.
 
 **Step 2 — Replace misleading hint + add Restore button on detail page.**
 
@@ -274,6 +322,83 @@ If the button is in a server component (the page is server-rendered), lift the a
 ```
 
 - Verify: lint + tsc green. Manual visual check at `http://localhost:3000/admin/bookings/<a-cancelled-test-booking>` after Phase A commit.
+
+**Step 2 amendments (S3 + S6 — 2026-05-26):**
+
+**S6 — hide the `action` field on past-datetime cancelled/no_show bookings.** In the same branches above, wrap the `action` property with a datetime check:
+
+```ts
+if (booking.status === "cancelled") {
+  const bookingMomentPassed = isBookingMomentPastLondon(booking);  // see Phase A helper
+  return {
+    tone: "danger",
+    icon: ShieldX,
+    headline: "This booking is cancelled.",
+    hint: bookingMomentPassed
+      ? "The appointment time has already passed — restore is no longer available. The audit log preserves the record."
+      : "Restore it if it was cancelled by mistake — the client will be notified.",
+    action: bookingMomentPassed
+      ? undefined
+      : { kind: "restore_booking", targetStatus: "confirmed", label: "Restore booking" },
+  };
+}
+```
+
+Same pattern for `no_show` branch — hide action when past-datetime.
+
+Helper `isBookingMomentPastLondon(booking)` lives in `src/app/admin/bookings/_helpers.ts` (the same shared util C-05 introduces — see C-05 plan Step 8). Implementation:
+
+```ts
+export function isBookingMomentPastLondon(booking: {
+  booking_date: string;
+  start_time: string;
+}): boolean {
+  // booking_date is "YYYY-MM-DD", start_time is "HH:MM:SS"
+  // Construct as Europe/London local time, compare to now()
+  // Use date-fns-tz if available, else manual offset (BST/GMT switching)
+  const moment = computeBookingMomentLondon(booking.booking_date, booking.start_time);
+  return Date.now() > moment.getTime();
+}
+```
+
+Lifting / cross-coordinating with C-05 — if C-05 ships first, this helper already exists; if C-04a ships first, C-04a creates it and C-05 imports.
+
+**S3 — Restore confirm modal shows prior cancellation reason.** The `NextActionButton` client component composes the modal body from booking context:
+
+```tsx
+function buildRestoreConfirmBody(booking: BookingRecord, auditLogs?: AuditLog[]): React.ReactNode {
+  const customerNote = booking.customer_cancellation_note;
+  const lastCancelAudit = auditLogs?.find(
+    (row) =>
+      row.target_id === booking.id &&
+      row.action_type === "booking_management_updated" &&
+      (row.after_state as { status?: string })?.status === "cancelled"
+  );
+  return (
+    <div className="space-y-2">
+      <p>Restore this booking?</p>
+      {customerNote ? (
+        <p className="text-sm text-[var(--admin-text-muted)]">
+          Customer's note: "{customerNote}"
+        </p>
+      ) : lastCancelAudit ? (
+        <p className="text-sm text-[var(--admin-text-muted)]">
+          Cancelled by {lastCancelAudit.actor_name ?? "unknown"} on{" "}
+          {formatDate(lastCancelAudit.created_at)}.
+        </p>
+      ) : null}
+      <ul className="list-disc space-y-1 pl-5 text-sm text-[var(--admin-text-muted)]">
+        <li>Status will change from cancelled to confirmed.</li>
+        <li>The client will be emailed: "your booking is back on".</li>
+        <li>Assigned staff will be notified.</li>
+        <li>Audit log records the restore.</li>
+      </ul>
+    </div>
+  );
+}
+```
+
+`actor_name` requires a join on `staff_profiles.name` — fetch with the booking's audit log SELECT (the page already SELECTs audit_logs for the audit-log section). Verify the SELECT shape includes `actor_staff_id` and join to staff_profiles inline OR cache the join in a helper.
 
 **Step 3 — `sendBookingRestoredClientEmail` send function + template.**
 
@@ -634,31 +759,438 @@ if (booking.status === "completed") {
 - `pnpm lint` + `tsc` + `vitest run` all green
 - Re-run the pre-flight `completed_count / sum_paid / sum_price` query — if `completedRevenue` calculation in production data changes, the change is correct (was a bug). Document the delta in progress.
 
+### Phase F — Delayed-email infrastructure (Change 13 — amendment 2026-05-26)
+
+**Step 10 — Migration: add scheduled-email columns + index.**
+
+Zone-2 — explicit user confirmation before applying.
+
+```sql
+ALTER TABLE email_delivery_events
+  ADD COLUMN scheduled_for timestamptz,
+  ADD COLUMN html_payload text,
+  ADD COLUMN text_payload text,
+  ADD COLUMN to_email text,
+  ADD COLUMN subject text;
+
+CREATE INDEX idx_email_delivery_events_scheduled_pending
+  ON email_delivery_events (scheduled_for)
+  WHERE scheduled_for IS NOT NULL AND delivery_status = 'queued';
+
+COMMENT ON COLUMN email_delivery_events.scheduled_for IS
+  'When set, this row is queued for a scheduled-emails cron tick. NULL = immediate send (legacy semantics).';
+COMMENT ON COLUMN email_delivery_events.html_payload IS
+  'Rendered HTML body stored alongside scheduled_for so the cron can dispatch without re-rendering.';
+```
+
+File path: `supabase/migrations/<ts>_c04a_scheduled_emails.sql`. Generate timestamp via `date +%Y%m%d%H%M%S`.
+
+Apply via `mcp__supabase__apply_migration` with `project_id='twzutkfgqclqurvkmvqz'`. Verify via:
+
+```sql
+SELECT column_name FROM information_schema.columns
+WHERE table_name = 'email_delivery_events'
+  AND column_name IN ('scheduled_for', 'html_payload', 'text_payload', 'to_email', 'subject');
+-- expect 5 rows
+```
+
+Run `mcp__supabase__generate_typescript_types` after, save to `src/types/supabase.ts`.
+
+**Step 11 — Extend `sendTrackedEmail` with `delaySeconds`.**
+
+Edit `src/lib/email/notifications.ts`. Locate `sendTrackedEmail` function. Extend its input type + branch:
+
+```ts
+type SendTrackedEmailInput = {
+  bookingId?: string;
+  eventType: string;
+  recipientRole: string;
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  delaySeconds?: number;  // NEW
+};
+
+export async function sendTrackedEmail(
+  supabase: SupabaseClient,
+  input: SendTrackedEmailInput
+) {
+  if (input.delaySeconds && input.delaySeconds > 0) {
+    const scheduledFor = new Date(Date.now() + input.delaySeconds * 1000).toISOString();
+    const { error } = await supabase.from("email_delivery_events").insert({
+      booking_id: input.bookingId,
+      event_type: input.eventType,
+      recipient_role: input.recipientRole,
+      to_email: input.to,
+      subject: input.subject,
+      html_payload: input.html,
+      text_payload: input.text,
+      scheduled_for: scheduledFor,
+      delivery_status: "queued",
+    });
+    if (error) throw new Error(`Failed to queue scheduled email: ${error.message}`);
+    return { queued: true, scheduledFor };
+  }
+  // ... existing immediate-send path unchanged
+}
+```
+
+Extend `sendBookingCancellationEmails` (line 385) signature:
+
+```ts
+export async function sendBookingCancellationEmails(
+  bookingId: string,
+  supabase: SupabaseClient,
+  options: { delaySeconds?: number } = {}  // NEW
+) {
+  const { booking, settings, input } = await getBookingTemplateInput(bookingId, supabase);
+  // ... existing logic
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "booking_cancellation_client",
+    recipientRole: "customer",
+    to: customerEmail,
+    subject: `${input.companyName} — booking cancellation confirmed`,
+    html: renderBookingCancellationEmail(input),
+    text: renderBookingPlainText("Booking cancelled", input),
+    delaySeconds: options.delaySeconds,  // threaded
+  });
+}
+```
+
+**Step 12 — Cron route + worker registration.**
+
+New file `src/app/api/cron/scheduled-emails/route.ts` — copy the verify-secret pattern from `src/app/api/cron/booking-reminders/route.ts`:
+
+```ts
+import { NextResponse } from "next/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { resend, senderAddress } from "@/lib/email/resend";
+
+export async function GET(request: Request) {
+  const secret = request.headers.get("authorization");
+  if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const nowIso = new Date().toISOString();
+
+  const { data: queued, error } = await supabase
+    .from("email_delivery_events")
+    .select("*")
+    .lte("scheduled_for", nowIso)
+    .eq("delivery_status", "queued")
+    .order("scheduled_for", { ascending: true })
+    .limit(50);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!queued?.length) return NextResponse.json({ sent: 0, total: 0 });
+
+  let sent = 0;
+  const failures: string[] = [];
+
+  for (const row of queued) {
+    try {
+      await resend.emails.send({
+        from: senderAddress,
+        to: row.to_email!,
+        subject: row.subject!,
+        html: row.html_payload!,
+        text: row.text_payload!,
+      });
+      await supabase
+        .from("email_delivery_events")
+        .update({ delivery_status: "sent" })
+        .eq("id", row.id);
+      sent++;
+    } catch (err) {
+      failures.push(`${row.id}: ${(err as Error).message}`);
+      await supabase
+        .from("email_delivery_events")
+        .update({ delivery_status: "failed" })
+        .eq("id", row.id);
+    }
+  }
+
+  return NextResponse.json({ sent, total: queued.length, failures });
+}
+```
+
+Register in `worker-entrypoint.ts`:
+
+```ts
+// In the cron dispatch block alongside booking-reminders + review-emails (C-01):
+case "scheduled-emails":
+  return handleScheduledTask(
+    () => handle("/api/cron/scheduled-emails"),
+    "scheduled-emails"
+  );
+```
+
+Add to `wrangler.jsonc` cron triggers:
+
+```jsonc
+{
+  "triggers": {
+    "crons": [
+      "*/15 * * * *",  // booking-reminders (existing)
+      "*/15 * * * *",  // review-emails (C-01)
+      "* * * * *"      // scheduled-emails (C-04a) — every minute
+    ]
+  }
+}
+```
+
+The dispatch logic in `worker-entrypoint.ts` selects based on `event.scheduledTime`'s pattern OR a dedicated route key. Verify the current selection mechanism during impl (likely a switch on cron expression or a routing table).
+
+**Phase F verify checkpoint:**
+- Migration applied; columns exist; index exists.
+- `npx tsc --noEmit` green after types regen.
+- New unit test for the cron route's queued-row handling (mock Resend; assert status flip).
+- Manual cron-fire test via `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/scheduled-emails` — should return `{ sent: 0, total: 0 }` when no queued rows exist.
+
+### Phase G — Row-level Restore + status-aware row menu (Changes 10-12 — amendment 2026-05-26)
+
+**Step 13 — Extend `BookingRowAction` union + `quickUpdateBooking` delegation.**
+
+Edit `src/app/admin/bookings/BookingRowActions.tsx:17-22`:
+
+```ts
+export type BookingRowAction =
+  | "confirm"
+  | "mark_paid"
+  | "cancel"
+  | "complete"
+  | "no_show"   // (from Change 5 — Phase C)
+  | "restore"   // NEW Change 10
+  | "send_reminder";
+```
+
+Edit `src/app/admin/bookings/actions.ts:quickUpdateBooking` — at the top of the function body, before the existing `action` switch, add:
+
+```ts
+if (action === "restore") {
+  // Change 11: delegate to the full restoreBooking semantics
+  return restoreBooking(formData);
+}
+```
+
+The remaining switch handles `confirm | mark_paid | cancel | complete | no_show | send_reminder` as before.
+
+**Step 13b — `runQuickAction` restore case + status-aware menu.**
+
+In `BookingRowActions.tsx`, extend the `runQuickAction` switch (~lines 117-155):
+
+```tsx
+async function runQuickAction(action: BookingRowAction) {
+  // ... existing send_reminder + concurrency guards
+
+  if (action === "restore") {
+    // S6 guard short-circuit
+    if (isBookingMomentPastLondon({ booking_date: bookingDate, start_time: startTime })) {
+      toast.error("This booking's appointment time has already passed.");
+      return;
+    }
+    setPendingAction(action);
+    try {
+      const formData = new FormData();
+      formData.set("booking_id", bookingId);
+      formData.set("action", "restore");
+      const result = await quickUpdateBooking(formData);
+      if (result.error) {
+        toast.error(friendlyError(result.error, "quick"));
+        return;
+      }
+      toast.success("Booking restored. The client has been notified.");
+      router.refresh();
+    } catch (error) {
+      console.error("[bookings] restore failed", { bookingId, error });
+      toast.error("Couldn't restore that booking. Try again.");
+    } finally {
+      setPendingAction(null);
+    }
+    return;
+  }
+
+  // ... rest of existing switch
+}
+```
+
+**Step 13c — Status-aware menu rendering.**
+
+In the JSX where the menu items are rendered (find the popover content area), wrap the action set in a status branch:
+
+```tsx
+{(status === "cancelled" || status === "no_show") ? (
+  isBookingMomentPastLondon({ booking_date: bookingDate, start_time: startTime }) ? (
+    <button
+      type="button"
+      role="menuitem"
+      disabled
+      className="..."
+    >
+      No actions available (appointment time has passed)
+    </button>
+  ) : (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={() => runQuickAction("restore")}
+      className="..."
+    >
+      <RotateCcw className="size-4" aria-hidden="true" /> Restore booking
+    </button>
+  )
+) : (
+  <>
+    {/* Existing menu items — Confirm, Mark paid, Cancel, Complete, Mark no-show, Send reminder */}
+    {/* No change to this block */}
+  </>
+)}
+```
+
+Pass `booking_date` + `start_time` through Props (extend the `Props` type at lines 24-33 with `bookingDate: string; startTime: string;`). The list-page component at `page.tsx:916` passes them through.
+
+**Step 13d — Vitest spec for `quickUpdateBooking` action=restore.**
+
+New file `src/app/admin/bookings/__tests__/quickUpdateBookingRestore.test.ts`:
+- action=restore on cancelled booking: delegates to `restoreBooking`, returns success.
+- action=restore on past-datetime cancelled booking: returns S6 error.
+- action=restore on confirmed booking: returns "Only cancelled, no-show, or completed bookings can be restored."
+- action=restore without booking_id: error.
+
+**Phase G verify checkpoint:**
+- Lint + tsc green.
+- Playwright manual: at `/admin/bookings?status=cancelled` (after C-05 N1 lands — see soft co-ship note in brief §8), find a cancelled row → click overflow menu → only "Restore booking" visible → click → confirm modal → confirm → row re-renders as confirmed.
+- Past-datetime cancelled row's overflow menu shows the "No actions available" disabled item.
+
+### Phase H — Cancel-with-Undo toast (Change 14 — amendment 2026-05-26)
+
+**Step 14 — Wire delaySeconds=10 into cancellation paths.**
+
+Edit `src/app/admin/bookings/actions.ts`. In `updateBookingManagement` (~line 213-227 — the existing cancellation email broadcast):
+
+```ts
+if (data.status === "cancelled" && beforeState.status !== "cancelled") {
+  await sendBookingCancellationEmails(bookingId, adminClient, {
+    delaySeconds: 10,  // NEW — Change 14 undo window
+  });
+}
+```
+
+In `quickUpdateBooking` action=cancel branch (~line 423-437), similarly:
+
+```ts
+if (action === "cancel" && beforeState.status !== "cancelled") {
+  await sendBookingCancellationEmails(bookingId, adminClient, {
+    delaySeconds: 10,
+  });
+}
+```
+
+**Step 14b — Toast Undo affordance on list-row cancel.**
+
+In `BookingRowActions.tsx:runQuickAction` case `cancel` (~line 145-147), replace the current `toast.success("Booking cancelled. The client has been notified.")` with:
+
+```tsx
+toast.success("Booking cancelled. The client will be notified in 10 seconds.", {
+  action: {
+    label: "Undo",
+    onClick: async () => {
+      const undoFormData = new FormData();
+      undoFormData.set("booking_id", bookingId);
+      undoFormData.set("action", "restore");
+      const undoResult = await quickUpdateBooking(undoFormData);
+      if (undoResult.error) {
+        toast.error("Couldn't undo: " + friendlyError(undoResult.error, "quick"));
+      } else {
+        toast.success("Cancellation undone.");
+      }
+      router.refresh();
+    },
+  },
+  duration: 10_000,
+});
+```
+
+**Step 14c — Toast Undo on detail-page Status form cancel.**
+
+In `bookings/[bookingId]/page.tsx` (the Status form's success handler — find the `useActionState` consumer for `updateBookingManagement`), apply the same toast pattern when the form transitions a booking to `cancelled`. The form's response state needs a flag indicating "this was a cancellation transition" so the toast logic can differentiate from other status changes:
+
+```ts
+// In updateBookingManagement return value:
+return {
+  success: true,
+  cancelledWithUndoWindow: data.status === "cancelled" && beforeState.status !== "cancelled",
+};
+```
+
+Client-side:
+
+```tsx
+useEffect(() => {
+  if (state?.success && state?.cancelledWithUndoWindow) {
+    toast.success("Booking cancelled. The client will be notified in 10 seconds.", {
+      action: { label: "Undo", onClick: () => restoreFromForm(bookingId) },
+      duration: 10_000,
+    });
+  } else if (state?.success) {
+    toast.success("Booking updated.");
+  }
+}, [state]);
+```
+
+**Step 14d — Edge-case handling.**
+
+Per brief §5.9 — if `restoreBooking` finds the queued email has already fired (race: cron processed within the gap), the audit `cancelled_queued_email=false`. The Undo toast should NOT chain into a follow-up "client got the email anyway" toast; the standard "Cancellation undone." messaging is sufficient. The client will receive a "your booking is back on" email automatically (Change 1 step 8) since `suppressRestoreEmail` is false in that case — honest round-trip.
+
+**Step 14e — Vitest spec extension.**
+
+In `bookings/__tests__/quickUpdateBookingCancel.test.ts` (extend existing or create):
+- cancel → email_delivery_events row inserted with `scheduled_for ≈ now()+10s`, `delivery_status='queued'`, payload columns populated.
+- cancel + immediate restore via action=restore → queued row updated to `delivery_status='cancelled_by_restore'`.
+- cancel + wait 10s + manually call scheduled-emails cron → queued row flips to `delivery_status='sent'`; Resend send fn called.
+
+**Phase H verify checkpoint:**
+- Lint + tsc green.
+- Playwright manual: cancel a row → success toast with Undo button → click Undo within 10s → status reverts → "Cancellation undone." → verify no email in `email_delivery_events` with `delivery_status='sent'` for this booking.
+- Same flow but let toast expire → wait ≥ 60s → verify cron fired the email (`delivery_status='sent'`).
+
 ---
 
 ## 2 — Files touched (final list)
 
-### NEW (3 files)
+### NEW (6 files)
 | File | Purpose |
 |---|---|
-| `src/app/admin/bookings/__tests__/restoreBooking.test.ts` | Vitest coverage for restore action |
+| `src/app/admin/bookings/__tests__/restoreBooking.test.ts` | Vitest coverage for restore action (incl. S6 datetime guard + queued-email cancellation paths) |
 | `src/app/admin/bookings/__tests__/autoPromoteBookingFromAssignments.test.ts` | Vitest coverage for auto-promote helper |
+| `src/app/admin/bookings/__tests__/quickUpdateBookingRestore.test.ts` | Vitest for Change 11 (action=restore delegation) |
 | `src/app/admin/bookings/[bookingId]/NextActionButton.tsx` | (conditional — if Next.js server-component constraints force a client wrapper for the form) |
+| `src/app/api/cron/scheduled-emails/route.ts` | NEW cron entrypoint (Change 13c) |
+| `supabase/migrations/<ts>_c04a_scheduled_emails.sql` | Zone-2 migration (Change 13a) |
 
 (Optionally also `src/app/admin/reports/__tests__/completedRevenue-refund-correctness.test.ts` if no existing test file exists at that boundary.)
 
-### EDITED (~10 files)
+### EDITED (~14 files)
 | File | Change summary |
 |---|---|
-| `src/app/admin/bookings/actions.ts` | + `restoreBooking`, + `autoPromoteBookingFromAssignments` helper, + `no_show` in `quickUpdateBooking`, + state-machine guard in `updateBookingManagement`, + hook in `updateOwnAssignmentStatus` (+ `updateBookingAssignment` if needed) |
-| `src/app/admin/bookings/[bookingId]/page.tsx` | `NextAction` type extension, replace misleading hint, render Restore/no-show action buttons, render Auto-completed banner, modal for reopen-completed via Status form |
-| `src/lib/email/notifications.ts` | + `sendBookingRestoredClientEmail` |
+| `src/app/admin/bookings/actions.ts` | + `restoreBooking` (with S6 datetime guard + queued-email cancellation), + `autoPromoteBookingFromAssignments` helper, + `no_show` + `restore` in `quickUpdateBooking`, + state-machine guard in `updateBookingManagement`, + `delaySeconds: 10` wiring in cancellation branches, + hook in `updateOwnAssignmentStatus` (+ `updateBookingAssignment` if needed) |
+| `src/app/admin/bookings/[bookingId]/page.tsx` | `NextAction` type extension, replace misleading hint, render Restore/no-show action buttons (S6-conditional), render Auto-completed banner, modal for reopen-completed via Status form with S3 reason display, wire Undo toast on Status-form cancel |
+| `src/app/admin/bookings/BookingRowActions.tsx` | + `restore` in `BookingRowAction` union, + `runQuickAction` restore case, + status-aware menu rendering (Change 12), + Undo toast on cancel (Change 14) |
+| `src/app/admin/bookings/_helpers.ts` | + `isBookingMomentPastLondon` + `computeBookingMomentLondon` (shared with C-05 — see C-05 plan Step 8) |
+| `src/lib/email/notifications.ts` | + `sendBookingRestoredClientEmail`; + `delaySeconds` on `sendTrackedEmail` + `sendBookingCancellationEmails` |
 | `src/lib/email/templates.ts` | + `renderBookingRestoredEmail` template |
 | `src/app/admin/clients/[clientId]/page.tsx` | + `AUDIT_PHRASING` entries for `booking_restored`, `booking_auto_promoted_completed`, `booking_quick_no_show`; − `case "refunded":` branch |
 | `src/app/admin/reports/reports-helpers.ts` | − `refunded` + `waived` from `PAYMENT_OPTIONS` |
 | `src/app/admin/reports/reporting.ts` | line 438 `||` → `??` (RECON §5 untouchable exception approved per C-B-DECISIONS Q8) |
 | `src/app/admin/reports/__tests__/reports-helpers.test.ts` | Update "4 statuses" test to "2 statuses" |
 | `src/app/admin/clients/page.tsx` | − `hasRefund` helper, − `refund_issued` filter logic |
+| `worker-entrypoint.ts` | Register `/api/cron/scheduled-emails` in cron dispatch (Change 13c) |
+| `wrangler.jsonc` | Add `* * * * *` cron schedule (Change 13c) |
+| `src/types/supabase.ts` | Regenerated post-migration via `mcp__supabase__generate_typescript_types` |
 
 ### CONDITIONAL (only if email_event_type is enum)
 | File | Change |
@@ -688,7 +1220,7 @@ pnpm build                      # clean
 node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ```
 
-**Bundle budget for C-04a:** new client component for next-action button (~2 kB) + template renderer additions (~1 kB). Plan ceiling: **+5 kB cumulative** across `/admin/bookings/*`. Hygiene-tail deletions are net-negative bytes.
+**Bundle budget for C-04a:** new client component for next-action button (~2 kB) + template renderer additions (~1 kB) + amendment 2026-05-26 additions (BookingRowActions extensions ~1.5 kB + cron route is server-only, no bundle impact). Plan ceiling: **+7 kB cumulative** across `/admin/bookings/*`. Hygiene-tail deletions are net-negative bytes.
 
 ### 3.2 Playwright role sweep (4 roles × 4 viewports)
 
@@ -702,7 +1234,31 @@ Recipe per role:
 6. (Therapist/Therapist-Fresh) Navigate to an assigned booking. Mark own assignment complete via the existing assignment-status form. If this is the last open assignment, observe auto-promote: detail page reloads, booking status now `completed`, "Auto-completed" banner visible.
 7. (All roles) Navigate to `/admin/reports`. Verify payment filter dropdown shows 3 options (Any / Paid / Outstanding). No Refunded, no Waived.
 8. (All roles) Navigate to `/admin/clients`. Verify the payment-status filter no longer offers "Refund issued".
-9. Sign out via `fetch('/admin/signout', ...)`.
+9. **(Owner/Admin/Coord) Row-level Restore via list (Phase G)** — Navigate to `/admin/bookings?status=cancelled` (requires C-05 N1 to be merged first; if not, force-navigate to any view that shows cancelled rows). On a cancelled row, open the overflow menu. Verify ONLY "Restore booking" is visible (Change 12 status-aware menu). Click → confirm modal opens with the prior cancellation reason (S3) → confirm → row updates to confirmed status. Verify via DB:
+    ```sql
+    SELECT status FROM bookings WHERE id = '<test-cancelled-id>';
+    -- Expected: 'confirmed'
+    SELECT action_type FROM audit_logs WHERE target_id = '<test-cancelled-id>'
+      AND created_at > now() - interval '1 minute';
+    -- Expected: includes 'booking_restored'
+    ```
+10. **(Owner/Admin/Coord) Cancel-with-Undo toast (Phase H)** — On a confirmed row, click Cancel via overflow menu. Verify success toast appears with "Booking cancelled. The client will be notified in 10 seconds." + Undo button. Click Undo within 10s. Verify "Cancellation undone." toast. Verify via DB:
+    ```sql
+    SELECT delivery_status FROM email_delivery_events
+    WHERE booking_id = '<test-booking>' AND event_type = 'booking_cancellation_client'
+    ORDER BY created_at DESC LIMIT 1;
+    -- Expected: 'cancelled_by_restore'
+    ```
+11. **(Owner/Admin/Coord) Cancel + let toast expire** — Cancel another confirmed booking; do not click Undo. Wait ≥ 65s (one full cron tick). Verify:
+    ```sql
+    SELECT delivery_status, scheduled_for FROM email_delivery_events
+    WHERE booking_id = '<test-booking-2>' AND event_type = 'booking_cancellation_client'
+    ORDER BY created_at DESC LIMIT 1;
+    -- Expected: delivery_status='sent', scheduled_for in the past
+    ```
+12. **(Owner) Past-datetime restore disallowed (S6)** — Back-date a test booking via SQL to yesterday with a morning start_time. Cancel it. Attempt restore via row-level menu — verify menu shows "No actions available (appointment time has passed)" (disabled). Attempt restore via detail-page next-action card — verify card has no Restore button. Direct POST to `restoreBooking` with the booking_id returns structured error. No DB change.
+13. **(Owner) Scheduled-emails cron route** — Manually invoke via `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/scheduled-emails`. With no queued rows: `{ sent: 0, total: 0 }`. With one queued row past scheduled_for: `{ sent: 1, total: 1 }` + row's `delivery_status` flips to 'sent'.
+14. Sign out via `fetch('/admin/signout', ...)`.
 
 **Pre/post DB queries via `mcp__supabase__execute_sql`:**
 
@@ -770,6 +1326,13 @@ Store in `redesign/audits/C-A/screenshots-04-bookings-detail/c-04a-after/` (or n
 | Restore on a no_show booking that should have stayed no_show (admin misclick) | low | low | Confirm modal requires explicit user action. Restore is reversible (admin can re-cancel via Status form). |
 | `email_event_type` is an enum and the new value fails | medium | low | Pre-flight Step 5(b) detects it; conditional migration prepared. |
 | Removing `hasRefund` from `clients/page.tsx` breaks a unit test | low | low | grep for usages first; remove all sites in one commit. |
+| **Scheduled-emails cron route fails to register** (worker dispatch misroute) | low | medium | Phase F verify checkpoint includes manual `curl` test before relying on the cron. If misrouted, queued emails accumulate; the `idx_email_delivery_events_scheduled_pending` index helps catch this via `SELECT COUNT(*) WHERE delivery_status='queued' AND scheduled_for < now() - interval '5 min'`. |
+| **Undo-window race** — user clicks Undo at 9.9s, cron fires at 10.05s | low | low | Brief §5.9 + Step 14d documents the audit-log fork. `cancelled_queued_email=false` in audit; user sees correct state; client gets honest round-trip email. |
+| **Migration adds columns to a table touched by C-08** | medium | low | C-08 plan §6 documents that `email_delivery_events.metadata` may need an ALTER if absent. C-04a's migration is independent (5 new columns, none colliding). Migrations stack cleanly. Pre-flight Step 5(d) verifies. |
+| **`scheduled_for` set in the past at insert time** (clock skew) | low | low | Cron handler's `WHERE scheduled_for <= now()` picks up any past-due row on its next tick. Send-fn doesn't reject negative delays; floored to 0 (immediate-equivalent) via Math.max in `Date.now() + Math.max(0, delaySeconds) * 1000`. |
+| **Cancel email payload size** (storing rendered HTML in `html_payload`) | very low | low | Cancellation email HTML is ~5-10 kB rendered. 5/day × 365 = ~1.8 MB/year row storage. Negligible. Optional GC: post-send `UPDATE ... SET html_payload=NULL` to reclaim. Out of C-04a scope. |
+| **`computeBookingMomentLondon` BST/GMT switching edge case** | low | low | Plan Step 2 amendments calls out date-fns-tz if available; otherwise a manual offset table. Vitest spec covers both seasons explicitly. Same helper used by C-05 — shared bug-class. |
+| **Row-level Restore renders for Therapists** (RBAC leak) | low | medium | `BookingRowActions` Props already includes `role` (`"full" | "therapist"`). The status-aware menu branch must check `role === "full"` before rendering the Restore item. Add explicit check + unit test. |
 
 ### 4.1 Specific real risk: `reporting.ts` RECON §5
 
@@ -779,18 +1342,43 @@ The line 438 change is approved per C-B-DECISIONS Q8 as an explicit one-char exc
 
 ## 5 — Undo procedure
 
-### 5.1 Undo code (Phases A-E)
+### 5.1 Undo code (Phases A-H)
 
 Each phase is a self-contained git commit. Revert in reverse order:
-1. `git revert <phase-E-hygiene-tail-commit>` — reinstates dead refunded/waived references + reverts `||→??` (production reports go back to overstating completedRevenue)
-2. `git revert <phase-D-auto-promote-commit>` — removes auto-promote hook + helper
-3. `git revert <phase-C-no-show-commit>` — removes `no_show` from `quickUpdateBooking`
-4. `git revert <phase-B-state-machine-commit>` — removes the completed-reopen guard (Status form goes back to free-form transitions)
-5. `git revert <phase-A-restore-commit>` — removes `restoreBooking` action + Restore button + email — reinstates the misleading "Restore from audit log" copy
+1. `git revert <phase-H-undo-toast-commit>` — removes Undo affordance on cancel; `delaySeconds: 10` wiring reverts; cancel emails fire immediately again. **No queued-email backlog risk** — toast UX is purely client-side; revert is safe.
+2. `git revert <phase-G-row-level-restore-commit>` — removes row-level Restore action + status-aware menu; full active-state menu re-renders for cancelled rows (those rows will route through the cancel action again, harmless since C-05 lockdown holds at the server level).
+3. `git revert <phase-F-scheduled-emails-commit>` — removes cron route + worker registration + `sendTrackedEmail.delaySeconds` extension. **Pre-revert step:** flush any queued rows via one cron invocation OR `UPDATE email_delivery_events SET delivery_status='cancelled_manual' WHERE delivery_status='queued'`. Otherwise queued emails are orphaned.
+4. `git revert <phase-E-hygiene-tail-commit>` — reinstates dead refunded/waived references + reverts `||→??` (production reports go back to overstating completedRevenue)
+5. `git revert <phase-D-auto-promote-commit>` — removes auto-promote hook + helper
+6. `git revert <phase-C-no-show-commit>` — removes `no_show` from `quickUpdateBooking`
+7. `git revert <phase-B-state-machine-commit>` — removes the completed-reopen guard (Status form goes back to free-form transitions)
+8. `git revert <phase-A-restore-commit>` — removes `restoreBooking` action + Restore button + email — reinstates the misleading "Restore from audit log" copy
 
-If only one phase needs to be undone, revert just that phase's commit. Phases are independent enough.
+If only one phase needs to be undone, revert just that phase's commit. Phases F–H interlock (Phase H requires Phase F's `delaySeconds` infra); revert H before F to avoid broken intermediate state.
 
-### 5.2 Undo migration (if email_event_type was migrated)
+### 5.2 Undo migration
+
+**Phase F migration (Change 13 — scheduled-email columns):**
+
+```sql
+-- Reverse the column adds + index
+DROP INDEX IF EXISTS idx_email_delivery_events_scheduled_pending;
+ALTER TABLE email_delivery_events
+  DROP COLUMN IF EXISTS scheduled_for,
+  DROP COLUMN IF EXISTS html_payload,
+  DROP COLUMN IF EXISTS text_payload,
+  DROP COLUMN IF EXISTS to_email,
+  DROP COLUMN IF EXISTS subject;
+```
+
+**Pre-revert step:** ensure no queued rows exist that depend on the columns. Run:
+
+```sql
+SELECT COUNT(*) FROM email_delivery_events WHERE delivery_status = 'queued';
+-- Expected: 0 (run the cron route or manually flip status first)
+```
+
+**Phase A migration (event_type, if it was needed):**
 
 If a CHECK constraint or enum was modified to allow `booking_restored_client`:
 
@@ -845,13 +1433,16 @@ Verify against the safe-fixture list before clicking.
 
 | Commit | Coverage |
 |---|---|
-| 1 | Phase A — `restoreBooking` action + Next-action button + email send-fn + template |
+| 1 | Phase A — `restoreBooking` action (with S6 + queued-email cancellation) + Next-action button (S6-conditional) + email send-fn + template + S3 confirm modal reason display |
 | 2 | Phase B — State-machine guard + Status form confirm modal |
 | 3 | Phase C — `no_show` quick action + Mark no-show button |
 | 4 | Phase D — Auto-promote helper + hooks + banner |
 | 5 | Phase E — Hygiene tail (filter UI cleanup + `||→??` fix + test updates) |
-| 6 | (conditional) Migration for `email_event_type` if enum-constrained |
-| 7 | Verification gate — Playwright screenshots + progress file + master plan checklist row → ✅ |
+| 6 | Phase F — Migration (scheduled-email columns + index) + `sendTrackedEmail` delaySeconds + cron route + worker registration |
+| 7 | Phase G — Row-level Restore action + quickUpdateBooking restore case + status-aware row menu (Change 12) |
+| 8 | Phase H — Undo toast on cancel paths + `delaySeconds: 10` wiring in `updateBookingManagement` + `quickUpdateBooking` |
+| 9 | (conditional) Migration for `email_event_type` if enum-constrained |
+| 10 | Verification gate — Playwright screenshots + progress file + master plan checklist row → ✅ |
 
 Each commit ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`. Stage files explicitly.
 
@@ -888,6 +1479,14 @@ Surfaced during plan-writing — not blocking, but worth noting:
    - (c) Keep in `clients/[clientId]` since that's where the client's audit history renders
 
 5. **C-04a progress file pre-creation** — convention from C-06: progress file is filled during C-C, not now. Empty placeholder file is optional during C-B plan-writing.
+
+6. **(amendment 2026-05-26) `computeBookingMomentLondon` shared helper ownership** — both C-04a (S6 guard) and C-05 (datetime-aware UI) want this util. Plan §1 Step 2 amendments has C-04a create it in `src/app/admin/bookings/_helpers.ts`. If C-05 ships first (against recommended order), C-05 creates it and C-04a imports. Either way, the helper is single-source.
+
+7. **(amendment 2026-05-26) Scheduled-emails cron generalisation** — Change 13's infrastructure could replace C-01's status-trigger model entirely (uniform `scheduled_for` semantics). Out of C-04a scope; flagged in handoff §5 as a C-12+ refactor candidate.
+
+8. **(amendment 2026-05-26) Worker-entrypoint dispatch mechanism** — `worker-entrypoint.ts` may use cron-expression matching, a routing table, or a switch on event metadata to dispatch incoming cron events to the right route. Plan Step 12 sketches "case 'scheduled-emails'" but the exact pattern must be verified during impl. Cheap grep at pre-flight time: `git grep -n "scheduledTime\|cron" worker-entrypoint.ts`.
+
+9. **(amendment 2026-05-26) Reliable Undo race detection in audit logs** — brief §5.9 + Q9.10 surfaces the audit-fork forensics. If real-world misclick rate is high, a C-12+ improvement could surface "undid within X seconds" badge on the booking detail page for transparency. Out of C-04a scope.
 
 ---
 
