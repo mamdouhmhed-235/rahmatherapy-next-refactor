@@ -1,4 +1,4 @@
-# C-05 — Lock cancelled / no_show / past-dated bookings inert (the lockdown)
+# C-05 — Lock cancelled / no_show / past-dated bookings inert + status-aware filter + cancelled-row strikethrough
 
 **Type:** Band C plan-writing brief (C-B phase)
 **Date written:** 2026-05-26
@@ -16,9 +16,9 @@
 
 ## 0 — TL;DR
 
-C-05 is the smallest C-B plan by scope and the **defensive complement to C-04a**. It says: *cancelled, no_show, and past-dated bookings are inert for all roles*. To act on them, the actor must first restore via C-04a's Restore button. The lockdown is implemented via one centralised server-side helper (`ensureBookingActive`) plus UI-layer defense-in-depth at 6 predicate sites.
+C-05 is the **defensive complement to C-04a** (with an additional filter-correctness + visual-treatment amendment 2026-05-26). It says: *cancelled, no_show, and past-dated bookings are inert for all roles, but discoverable when the user explicitly filters for them, and visually distinct in the list when they do appear*. To act on them, the actor must first restore via C-04a's Restore button. The lockdown is implemented via one centralised server-side helper (`ensureBookingActive`) plus UI-layer defense-in-depth at 6 predicate sites, plus filter-aware view exclusion, plus strikethrough rendering.
 
-**The 7 edit points** (consolidated from W05 §10 + R05 B-171):
+**The 9 edit points** (consolidated from W05 §10 + R05 B-171 + amendment 2026-05-26):
 
 | # | Site | Layer | Today's gap |
 |---|---|---|---|
@@ -29,10 +29,12 @@ C-05 is the smallest C-B plan by scope and the **defensive complement to C-04a**
 | 5 | `bookings/page.tsx:114-122` — `claimableRows` SQL fetch | SQL | No JOIN to filter cancelled bookings (masked by in-memory filter — defense gap) |
 | 6 | `bookings/access.ts:24-33` — `hasClaimableAssignment` predicate | predicate (foundational) | No booking-status check |
 | **7** | **Same helper** — past-date guard | predicate + server | **NEW** — no temporal guard; past-dated bookings can be claimed (B-171) |
+| **8** | **`bookings/page.tsx:167-193`** — `filterBookings` view-level exclusion | UI (data filter) | **AMENDMENT 2026-05-26 (N1)** — view filters (attention/today/upcoming/unassigned/partially_assigned) unconditionally exclude cancelled/no_show before the status filter runs (line 195), so the user's "Cancelled" status dropdown returns 0 rows. Per S1(b): cancelled stays hidden when status filter is "Any" / active subset, but appears when user explicitly picks Cancelled or No-show. |
+| **9** | **`BookingsList` row rendering** | UI (visual) | **AMENDMENT 2026-05-26 (S2)** — cancelled rows render with no visual distinction once they appear (today they never appear; bug masked). Apply `line-through` Tailwind class + muted colour to the date + service-name lines on cancelled / no_show / past-dated rows. |
 
-**The shape:** one helper, applied centrally at the server action layer for primary defense; the 6 UI predicate sites add a multiplied `isBookingActive` factor so the affordances disappear cleanly.
+**The shape:** one helper, applied centrally at the server action layer for primary defense; the 6 UI predicate sites add a multiplied `isBookingActive` factor so the affordances disappear cleanly; the filter-correctness fix (8) makes cancelled bookings findable when the user explicitly asks; the strikethrough (9) makes them visually distinguishable when they appear mixed with active rows.
 
-**Sequencing:** **C-05 ships AFTER or WITH C-04a.** The lockdown is only survivable when admins have the Restore button.
+**Sequencing:** **C-05 ships AFTER or WITH C-04a.** The lockdown is only survivable when admins have the Restore button. Edit point 8 is what makes C-04a's new row-level Restore (Change 10) discoverable on the list.
 
 ---
 
@@ -62,9 +64,49 @@ R05 surfaced live: `/admin/bookings?view=claimable` showed a booking dated `2026
 
 W05 B-129 flagged that `bookings.status` and `booking_assignments.status` are independent. C-04a's auto-promote (when all assignments are terminal) addresses one side of this. C-05 doesn't unify the state machines; it just asks "is the parent booking actively bookable?" — a single boolean predicate that uses `bookings.status` as the authoritative signal.
 
+### 1.5 The "Cancelled" status filter on `/admin/bookings` is a UX lie (amendment 2026-05-26)
+
+User-surfaced bug: on `/admin/bookings`, the filter dropdown's Status select offers `Pending / Confirmed / Completed / Cancelled / No show`. When the user picks **Cancelled**, the list returns zero rows — even though cancelled bookings exist in the database. The user's only path to find a cancelled booking today is via the audit log, which is forensic-only (not actionable). Stated framing: *"if the filter is there it should obviously work"*.
+
+Root cause (verified via code read of `bookings/page.tsx:148-258`):
+
+The `filterBookings` function runs **two filter passes**:
+
+1. **View filter** (lines 167-193) — keyed off `?view=attention|today|upcoming|...` query param. The default view is `attention` (for canViewAll roles). Most views unconditionally exclude `cancelled` and `no_show`:
+   ```ts
+   (view === "today" && booking.booking_date === today &&
+     !["cancelled", "no_show"].includes(booking.status)) ||
+   (view === "upcoming" && booking.booking_date >= today &&
+     !["completed", "cancelled", "no_show"].includes(booking.status)) ||
+   // ... attention, unassigned, partially_assigned, claimable: all exclude cancelled/no_show
+   ```
+
+2. **Status filter** (line 195) — runs AFTER the view filter:
+   ```ts
+   if (status && booking.status !== status) return false;
+   ```
+
+So when the user is on `view=attention` (the default) and picks `status=cancelled`, the view filter rejects cancelled rows first → 0 rows reach the status filter → empty list. The status dropdown is effectively a lie for cancelled/no_show values on every view except `view=cancelled` and `view=all` (both buried under the "More" overflow menu — `BookingsChrome.tsx:41-48`).
+
+**The fix (Phase D — Step 14):** make view filters status-aware. When the user explicitly picks `status=cancelled` or `status=no_show`, the view-level exclusion for those statuses is suspended. Per S1(b) locked decision: "Any status" (no filter) keeps cancelled/no_show hidden (cancelled is graveyard state; working views default to live work). Claimable view stays strict (cancelled never claimable regardless of status filter — C-05 invariant).
+
+**Cross-page sweep (S9 — doc only):**
+
+- `clients/[clientId]/page.tsx` (client bookings history): already shows cancelled bookings (the `showAssignmentChip` logic at line 1408 doesn't filter the underlying fetch). No change needed.
+- `reports/reporting.ts:813`: intentionally excludes cancelled/no_show for upcoming-revenue rollup (audit-confirmed W04-PE-2). Don't touch.
+- `calendar/page.tsx:264`: intentionally excludes cancelled/no_show from the schedule grid. Don't touch.
+
+C-05's filter fix is localised to `/admin/bookings`.
+
+### 1.6 Cancelled rows need visual distinction (amendment 2026-05-26 — S2)
+
+Once Edit Point 8 makes cancelled rows visible, they appear mixed with active rows in the list (depending on which view + filter combination the user has chosen). The current row card has no visual treatment differentiating status — all rows look identical (`bookings/page.tsx` row rendering ~line 850-928). A cancelled booking dated next Tuesday looks indistinguishable from a confirmed booking dated next Tuesday at a glance.
+
+User-locked decision (S2): apply `line-through` styling to the date + service-name lines on cancelled / no_show / past-dated rows, plus mute the text colour, so cancelled rows are unambiguous at a glance.
+
 ---
 
-## 2 — Scope (lifted from C-B-DECISIONS §3 C-05)
+## 2 — Scope (lifted from C-B-DECISIONS §3 C-05 + amendment 2026-05-26)
 
 C-05 ships:
 
@@ -231,7 +273,118 @@ The signature gains an optional `todayISO?: string` parameter for the temporal g
 
 Folded into the helper + the foundational predicate. The detail-page top-level `isBookingActive` boolean already includes the check.
 
-**Explicit policy:** "past-dated" means `booking_date < today` (Europe/London midnight). A booking happening LATER today (e.g., start_time = 14:00 and now = 10:00) is still active. A booking at TODAY 09:00 when current time is 13:00 is **still considered active by the helper** — the helper is date-level, not time-level. Time-level guard belongs in C-04a's auto-promote / no_show flow. The Therapist-Fresh phantom-claimable case in R05 was about a yesterday booking, which this guard catches.
+**Explicit policy:** "past-dated" means `booking_date < today` (Europe/London midnight). A booking happening LATER today (e.g., start_time = 14:00 and now = 10:00) is still active. A booking at TODAY 09:00 when current time is 13:00 is **still considered active by the helper** — the helper is date-level, not time-level. Time-level guard belongs in C-04a's auto-promote / no_show flow + C-04a's S6 restore disallow (which IS time-level — stricter than C-05). The Therapist-Fresh phantom-claimable case in R05 was about a yesterday booking, which this guard catches.
+
+### 2.7 Edit point 8 (NEW — amendment 2026-05-26) — status-aware view filter
+
+In `bookings/page.tsx:148-258`, restructure `filterBookings` so view-level cancelled/no_show exclusion is suspended when the user explicitly selects those statuses:
+
+```ts
+function filterBookings(bookings: BookingRecord[], query: ..., profile: ...) {
+  const view = (getQueryValue(query.view) || "attention") as BookingViewKey;
+  const status = getQueryValue(query.status) ?? "";
+  // NEW: detect explicit user opt-in to inert statuses
+  const userWantsCancelledOrNoShow = status === "cancelled" || status === "no_show";
+  // ... existing other-filter parsing
+
+  return bookings.filter((booking) => {
+    // Helper: does the current view normally exclude cancelled/no_show?
+    const viewExcludesInert = !["cancelled", "all"].includes(view);
+
+    // If view normally excludes AND user hasn't asked for those statuses, drop the row
+    if (
+      viewExcludesInert &&
+      !userWantsCancelledOrNoShow &&
+      ["cancelled", "no_show"].includes(booking.status)
+    ) {
+      return false;
+    }
+
+    const matchesView =
+      view === "all" ||
+      (view === "attention" && (booking.status === "pending" ||
+        booking.assignment_status !== "fully_assigned" ||
+        booking.reschedule_status === "requested" ||
+        Boolean(booking.customer_cancelled_at))) ||
+      (view === "assigned" && isOwnBooking(booking, profile)) ||
+      // CLAIMABLE stays strict — cancelled NEVER claimable regardless of status filter
+      (view === "claimable" &&
+        !["cancelled", "no_show"].includes(booking.status) &&
+        booking.booking_date >= today &&
+        hasClaimableAssignment(booking, profile, today)) ||
+      // OTHER views: status exclusion handled by the early-return above
+      (view === "today" && booking.booking_date === today) ||
+      (view === "upcoming" && booking.booking_date >= today &&
+        booking.status !== "completed") ||  // (still excludes completed which is its own archive bucket)
+      (view === "unassigned" && booking.assignment_status === "unassigned") ||
+      (view === "partially_assigned" && booking.assignment_status === "partially_assigned") ||
+      (view === "completed" && booking.status === "completed") ||
+      (view === "cancelled" && ["cancelled", "no_show"].includes(booking.status));
+
+    if (!matchesView) return false;
+    if (status && booking.status !== status) return false;
+    // ... existing other-filter logic
+  });
+}
+```
+
+**Two key invariants preserved:**
+1. **Claimable view stays unconditionally strict** — even with `status=cancelled` explicitly picked, the claimable view shows nothing (per C-05's design: cancelled is never claimable, full stop).
+2. **"Any status" (no filter) keeps cancelled hidden** — per S1(b). The early-return guards on `userWantsCancelledOrNoShow=false`.
+
+### 2.8 Edit point 9 (NEW — amendment 2026-05-26) — cancelled-row strikethrough
+
+In the list's row card rendering (`bookings/page.tsx` ~lines 850-928, the `<article>` block before `<BookingRowActions>`), apply visual treatment to cancelled / no_show / past-dated rows:
+
+```tsx
+// Compute once per row
+const isInertRow =
+  ["cancelled", "no_show"].includes(booking.status) ||
+  booking.booking_date < today;
+
+return (
+  <article className={cn(
+    "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4",
+    isInertRow && "opacity-75"  // overall muted
+  )}>
+    <div className="flex items-start justify-between gap-3">
+      {/* Date + service-name lines get the line-through */}
+      <div className={cn("min-w-0 flex-1", isInertRow && "line-through decoration-[var(--admin-text-muted)] decoration-1")}>
+        <p className="text-base font-semibold text-[var(--admin-heading)]">
+          {formatDate(booking.booking_date)} · {formatTime(booking.start_time)}
+        </p>
+        <p className="mt-1 text-sm text-[var(--admin-body)]">
+          {serviceNames.join(", ")}
+        </p>
+      </div>
+      {/* Status badge stays visible (NO strikethrough) — it's the row's classification */}
+      <AdminStatusBadge value={formatLabel(booking.status)} ... />
+    </div>
+    {/* ... rest of row */}
+  </article>
+);
+```
+
+**Treatment rules:**
+- `line-through` applies to date + service name (the "what happened / would happen" content).
+- Status badge does NOT get strikethrough — it's the row's classification label.
+- Overall `opacity-75` reinforces "this is past/inactive" subtly.
+- `BookingRowActions` button is NOT struck through — it's an action affordance.
+
+**Visual sample:**
+
+```
+Active row:                          Cancelled row:
+┌─────────────────────────────┐      ┌─────────────────────────────┐
+│ Tue 4 Jun · 14:00     [✓]   │      │ ̶T̶u̶e̶ ̶4̶ ̶J̶u̶n̶ ̶·̶ ̶1̶4̶:̶0̶0̶     [✗]   │  (opacity-75)
+│ Holistic massage            │      │ ̶H̶o̶l̶i̶s̶t̶i̶c̶ ̶m̶a̶s̶s̶a̶g̶e̶          [⋯] │
+│                       [⋯]   │      └─────────────────────────────┘
+└─────────────────────────────┘
+```
+
+(Strikethrough rendered with `decoration-[var(--admin-text-muted)]` for low-contrast emphasis — visible but not harsh.)
+
+**Cross-surface application:** the same isInertRow logic applies on `clients/[clientId]/page.tsx` `BookingHistoryCard` (~line 1397+) since cancelled bookings appear there too. Cross-page sweep §1.5 confirmed the fetch already includes them; just add the visual treatment. Coordinate during impl — either lift `isInertRow` derivation + class composition into a shared helper, or duplicate inline if the row shapes differ enough.
 
 ---
 
@@ -308,6 +461,33 @@ When a server action fails the `ensureBookingActive` check:
 
 These surface as toast / form-banner errors via the existing `{ error: ... }` action-state pattern.
 
+### 4.5 Status-aware filter UX flow (amendment 2026-05-26 — edit point 8)
+
+Today (broken):
+1. User on `/admin/bookings?view=attention` (default).
+2. Opens filter panel → picks Status = "Cancelled" → Apply.
+3. URL becomes `/admin/bookings?view=attention&status=cancelled`.
+4. View filter excludes cancelled rows first → 0 rows render → empty state shows.
+
+After fix:
+1. Same start: `/admin/bookings?view=attention`.
+2. Picks Status = "Cancelled" → Apply.
+3. URL: `/admin/bookings?view=attention&status=cancelled`.
+4. View filter detects `userWantsCancelledOrNoShow=true` → cancelled rows survive the view-level pass.
+5. Status filter at line 195 passes them through.
+6. Cancelled rows render in the list with strikethrough (§2.8) and overflow menu showing only Restore (C-04a Change 12).
+
+**Discoverability path 2 — dedicated tab:** the existing `view=cancelled` tab (labelled "Cancelled / No-show") under the "More" overflow menu in `BookingsChrome.tsx:41-48` continues to work. **Not promoted to top-level** per amendment audit (see C-05 plan §1 deviation note for rationale: top tier stays forward-looking; cancelled fits the archive overflow grouping alongside Completed). User has two paths: filter dropdown or dedicated tab.
+
+### 4.6 Cancelled row strikethrough (amendment 2026-05-26 — edit point 9)
+
+See §2.8 for the visual treatment specification + ASCII sample. Three viewports validated during Playwright sweep:
+- 375 mobile: strikethrough must remain legible at small text size (`decoration-1` instead of default thicker line).
+- 768 tablet: same treatment, more horizontal room.
+- 1280+ desktop: row card layout unchanged; strikethrough on date + service name visible.
+
+Touch surfaces: `/admin/bookings` list rows + `/admin/clients/[id]` BookingHistoryCard (per §2.8 cross-surface note).
+
 ---
 
 ## 5 — States & edge cases
@@ -351,15 +531,18 @@ The helper + predicate edits are all in TypeScript. The SQL query change at edit
 
 ## 7 — Files touched (preview — full list in plan)
 
-### NEW (1 file)
+### NEW (2 files)
 - `src/app/admin/bookings/__tests__/ensureBookingActive.test.ts` — vitest coverage for the helper
+- `src/app/admin/bookings/__tests__/filterBookings.test.ts` — **NEW (amendment 2026-05-26)** — vitest coverage for the status-aware view filter (Edit Point 8): default "Any status" hides cancelled, explicit `status=cancelled` shows them on attention/today/upcoming, claimable stays strict regardless.
 
-### EDITED (~5 files)
+### EDITED (~6 files)
 - `src/app/admin/bookings/access.ts` — `hasClaimableAssignment` adds booking-status + temporal-guard; export new `ensureBookingActive` helper (or colocate in a new file — see plan §1).
 - `src/app/admin/bookings/actions.ts` — `ensureBookingActive` call at top of `claimBookingAssignment` + `updateBookingAssignment`; `updateOwnAssignmentStatus` left as-is per §2.2.
 - `src/app/admin/bookings/[bookingId]/page.tsx` — `isBookingActive` top-level derivation; multiply through `canClaim`, `isOwn`-derived buttons, `canPromptForSessionNote`, `canReassignBookings`. Add inline notice block.
-- `src/app/admin/bookings/page.tsx` — `claimableRows` SQL JOIN; in-memory filter adds past-date check; lift `getTodayIsoDate()` to shared util OR inline.
+- `src/app/admin/bookings/page.tsx` — `claimableRows` SQL JOIN; **`filterBookings` becomes status-aware (Edit Point 8 — amendment)**; **row card gains `isInertRow` class composition for strikethrough (Edit Point 9 — amendment)**; lift `getTodayIsoDate()` to shared util OR inline.
+- `src/app/admin/clients/[clientId]/page.tsx` — **NEW (amendment 2026-05-26)** — apply the same strikethrough treatment to cancelled rows in `BookingHistoryCard` (cross-surface consistency per §2.8).
 - `src/app/admin/bookings/__tests__/access.test.ts` — extend existing tests (if present) with cancelled/no_show/past-dated cases.
+- `src/app/admin/bookings/_helpers.ts` — **NEW (amendment 2026-05-26)** — shared `isBookingMomentPastLondon` + `computeBookingMomentLondon` utilities (consumed by C-04a's S6 guard too — single source).
 
 ### UNCHANGED
 - `manage/actions.ts` (customer-facing) — out of scope; customer can't claim/reassign anyway.
@@ -410,6 +593,22 @@ Locked: **include today** (`booking_date >= today` is allowed). The Therapist ar
 
 C-04a adds `no_show` to `quickUpdateBooking` with its own temporal guard (rejects future-dated). C-05's `ensureBookingActive` rejects past-dated. The two guards are independent and non-overlapping. Both ship.
 
+**Q9.7 — (amendment 2026-05-26) "Any status" semantics — confirm S1(b).**
+
+Locked per user direction: `status=""` (Any) hides cancelled / no_show. Only explicit `status=cancelled` or `status=no_show` surfaces them. Rationale: cancelled is a graveyard state; the working view should default to live work. The user can always pick the dedicated "Cancelled / No-show" tab under More for archive review. No flag-day knob; codified in `filterBookings`.
+
+**Q9.8 — (amendment 2026-05-26) Cancelled-tab promotion to top-level — DECLINED.**
+
+Verified via audit of `BookingsChrome.tsx:40-50`: top-tier tabs are forward-looking action surfaces (Needs Attention / Today / Upcoming / Claimable). Cancelled fits the archive grouping in the overflow alongside Completed. Promoting Cancelled without Completed creates asymmetry; promoting both bloats top-tier on mobile (already overflow-scroll). Two discovery paths are enough post-fix: explicit status filter + dedicated overflow tab. Plan §1 deviation note locks this.
+
+**Q9.9 — (amendment 2026-05-26) Strikethrough scope — date+service only.**
+
+Per S2 + §2.8: strikethrough applies to date + service name (the "what happens" content). Status badge stays normal (it's the row's classification). Action button stays normal (it's the recovery affordance). Overall row opacity reduced 75% as additional subtle muting.
+
+**Q9.10 — (amendment 2026-05-26) Empty-state copy when status=cancelled returns 0 rows.**
+
+Per `02-bookings-list-audit.md` §85, 8 distinct empty states exist including `cancelled`. The fix lifts the existing empty-state copy for the dedicated tab to also apply when filter=cancelled returns 0 rows on other views. Verify during impl that the empty-state branch in `BookingsEmptyStateInner` triggers correctly when `status=cancelled` is the active filter but no cancelled bookings exist in the period.
+
 ---
 
 ## 10 — Acceptance criteria (what "done" looks like)
@@ -426,9 +625,15 @@ A C-05 implementation is complete when:
 8. **Claimable list excludes** cancelled / no_show / past-dated bookings — at both SQL fetch (edit point 5) and in-memory filter (defense-in-depth).
 9. **Therapist-Fresh no longer sees the phantom past-dated booking** in `/admin/bookings?view=claimable`. The B-171 reproduction repeats clean.
 10. **Restore via C-04a flips the booking back to active** — claim/reassign/complete-buttons reappear immediately after restore.
-11. **All static gates pass:** lint, tsc, vitest, build, bundle delta within budget.
-12. **Playwright role sweep at 375 / 768 / 1280 / 1440 passes** for all 4 roles.
-13. **Badar's `9d55ce2a` cancelled booking is untouched** during E2E testing.
+11. **(amendment 2026-05-26) Status filter for "Cancelled" returns cancelled rows** — `/admin/bookings?view=attention&status=cancelled` displays cancelled bookings; `/admin/bookings?view=today&status=cancelled` same; `/admin/bookings?view=upcoming&status=cancelled` same. **`/admin/bookings?view=claimable&status=cancelled` shows 0 rows** (claimable stays strict — C-05 invariant).
+12. **(amendment 2026-05-26) Default "Any status" hides cancelled** — `/admin/bookings?view=upcoming` (no status filter) does NOT show cancelled rows. Confirmed via DB count vs UI count match.
+13. **(amendment 2026-05-26) Cancelled rows render with strikethrough** — date + service name lines have `line-through` styling, status badge stays normal, action button stays normal, row opacity-75. Verified at 375 / 768 / 1280 / 1440.
+14. **(amendment 2026-05-26) Cross-surface strikethrough on client detail** — `/admin/clients/[id]` BookingHistoryCard applies same treatment for cancelled bookings in the client's history.
+15. **(amendment 2026-05-26) Cancelled-tab continues to work** — `/admin/bookings?view=cancelled` (under "More" overflow) shows the dedicated archive view, no behavioural regression.
+16. **(amendment 2026-05-26) C-04a's row-level Restore is discoverable** — when N1 lands together with C-04a's Phase G, clicking the overflow menu on a cancelled row shows ONLY "Restore booking". Click → restore round-trip completes.
+17. **All static gates pass:** lint, tsc, vitest, build, bundle delta within budget.
+18. **Playwright role sweep at 375 / 768 / 1280 / 1440 passes** for all 4 roles.
+19. **Badar's `9d55ce2a` cancelled booking is untouched** during E2E testing.
 
 ---
 
@@ -454,7 +659,7 @@ A C-05 implementation is complete when:
 
 ## 12 — Out of scope (explicit non-goals)
 
-- **Time-of-day temporal guard** — C-05's past-date check is date-level, not time-level. C-04a handles the future-date guard on `complete` / `no_show`.
+- **Time-of-day temporal guard for C-05 lockdown** — C-05's past-date check is date-level, not time-level. C-04a handles the future-date guard on `complete` / `no_show` AND the past-datetime restore disallow (S6, stricter than C-05). The two precisions coexist intentionally per amendment 2026-05-26.
 - **State-machine unification** (bookings.status vs booking_assignments.status) — W05 B-129, deferred.
 - **Per-role override permission** (e.g., Owner can override the lockdown) — rejected during plan-writing. The Restore-first workflow is the override path; explicit + audited.
 - **`updateOwnAssignmentStatus` lockdown** — §2.2 design note keeps it open.
@@ -462,6 +667,10 @@ A C-05 implementation is complete when:
 - **`bookings.deleted_at` integration** with `ensureBookingActive` beyond the basic null-safe check — C-06 owns the deleted-row read-filter sweep; C-05 just adds the column to the helper's SELECT.
 - **Audit log "lockdown_attempt" entries** — speculative; no entry written when the helper blocks. The existing server-action error path is sufficient (caller's error toast renders the structured reason).
 - **`canOpenBookingRecord` filtering** — preserved (cancelled bookings remain navigable for audit purposes). Only forward actions are gated.
+- **(amendment 2026-05-26) Promoting "Cancelled / No-show" view to top-level tab** — DECLINED per Q9.8. Stays under "More" overflow.
+- **(amendment 2026-05-26) Calendar visibility of cancelled bookings** — calendar (`calendar/page.tsx:264`) intentionally excludes cancelled. No change. Cross-page sweep §1.5 confirmed.
+- **(amendment 2026-05-26) Reports inclusion of cancelled bookings** — `reporting.ts:813` intentionally excludes for upcoming-revenue rollups (audit-confirmed W04-PE-2). No change.
+- **(amendment 2026-05-26) Empty-state hint when status=cancelled returns 0 rows** — Q9.10 recommends verification during impl; baseline empty-state copy from `BookingsEmptyStateInner` is sufficient. Adding a "Try the Cancelled tab" hint is optional polish — flag during impl, defer to C-12+ if scoped out.
 
 ---
 
