@@ -16,8 +16,7 @@
 
 # next.js
 /.next/
-/.open-next/*
-!/.open-next/worker.d.ts
+/.open-next/
 /out/
 /dist/
 /.dist-parity-dev/

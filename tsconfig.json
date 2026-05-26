@@ -41,6 +41,7 @@
     ".dist-parity-dev/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "worker-entrypoint.ts"
   ]
 }
