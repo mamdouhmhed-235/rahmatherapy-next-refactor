@@ -1,0 +1,643 @@
+# C-05 — Lock cancelled / no_show / past-dated bookings inert — **PLAN**
+
+**Type:** Band C plan-writing output (C-B phase)
+**Date written:** 2026-05-26
+**Brief:** `redesign/briefs/C-05-cancelled-bookings-inert-brief.md` (companion — read first)
+**Progress (filled in C-C):** `redesign/per-page-progress/C-05-cancelled-bookings-inert-progress.md`
+**Operating discipline:** per `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md#part-0-operating-discipline`
+
+---
+
+## 0 — Pre-flight (verify before touching code)
+
+1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → `HTTP/1.1 200 OK`.
+3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 baseline failures preserved).
+4. **Static gates green.** `pnpm lint`, `npx tsc --noEmit` both 0 errors.
+5. **C-04a must be merged.** Verify: `git log --oneline | grep -i "C-04a"` returns the C-04a implementation commits. If C-04a is not in HEAD, **stop** — sequencing constraint requires Restore button before lockdown.
+6. **C-06 status.** Not a hard dependency, but if C-06 is in HEAD, `bookings.deleted_at` column exists. The helper's SELECT can include it; otherwise the helper omits the field and the deleted_at branch becomes a no-op. The plan handles both cases (see Step 1 conditional).
+7. **DB introspection.** Confirm via `mcp__supabase__execute_sql`:
+
+   ```sql
+   -- (a) Confirm no test booking is in a state that would mask the C-05 fix
+   SELECT id, status, booking_date FROM bookings
+   WHERE status IN ('cancelled', 'no_show') OR booking_date < CURRENT_DATE
+   ORDER BY booking_date DESC LIMIT 20;
+   ```
+   At least one cancelled + one past-dated booking should exist for the E2E sweep. If not, create via C-04a's Cancel action against a test booking and via SQL date back-dating (Zone-2 — explicit confirmation).
+
+8. **Capture pre-state for the claimable race scenario:**
+   ```sql
+   -- Find any booking_assignments with unassigned + matching a real Therapist's gender
+   -- (these are the rows that would surface in /admin/bookings?view=claimable for that Therapist)
+   SELECT ba.id, ba.booking_id, b.status, b.booking_date, b.start_time
+   FROM booking_assignments ba
+   JOIN bookings b ON b.id = ba.booking_id
+   WHERE ba.status = 'unassigned' AND ba.assigned_staff_id IS NULL
+   ORDER BY b.booking_date DESC LIMIT 20;
+   ```
+
+9. **Test data DO-NOT-TOUCH list:** Badar's `9d55ce2a` and any non-test client. The C-05 sweep will create/use cancelled test bookings — never Badar's.
+
+If any pre-flight check fails (especially #5 C-04a sequencing), **stop** and surface to the user.
+
+---
+
+## 1 — Safe implementation order (3 phases, 7 edits, with verify-checkpoints)
+
+### Phase A — The helper + foundational predicate (edit points 6 + 7)
+
+**Step 1 — Implement `ensureBookingActive` helper.**
+
+- Edit `src/app/admin/bookings/access.ts`. Add at the bottom (after `canAccessBooking`):
+
+```ts
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+export type BookingActivityCheck =
+  | {
+      active: true;
+      booking: {
+        id: string;
+        status: string;
+        booking_date: string;
+        start_time: string;
+      };
+    }
+  | {
+      active: false;
+      reason: "not_found" | "cancelled" | "no_show" | "past_dated" | "client_deleted";
+      message: string;
+    };
+
+function getLondonToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+export async function ensureBookingActive(
+  bookingId: string,
+  supabase: SupabaseClient,
+  options: { allowToday?: boolean } = {}
+): Promise<BookingActivityCheck> {
+  const allowToday = options.allowToday ?? true;
+
+  // SELECT shape: include deleted_at + clients!inner(deleted_at) ONLY if C-06 has shipped.
+  // Pre-C-06, the missing columns return error rows, so we SELECT defensively:
+  const selectColumns = "id, status, booking_date, start_time, deleted_at, clients(deleted_at)";
+
+  const { data: booking, error } = await supabase
+    .from("bookings")
+    .select(selectColumns)
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (error || !booking) {
+    return { active: false, reason: "not_found", message: "Booking not found." };
+  }
+
+  // (Forward-looking C-06) Booking soft-deleted
+  if ((booking as { deleted_at?: string | null }).deleted_at) {
+    return {
+      active: false,
+      reason: "not_found",
+      message: "Booking not found.",
+    };
+  }
+
+  // (Forward-looking C-06) Parent client soft-deleted
+  const clientsRow = (booking as { clients?: { deleted_at?: string | null } | null }).clients;
+  if (clientsRow?.deleted_at) {
+    return {
+      active: false,
+      reason: "client_deleted",
+      message: "This booking's client has been deleted.",
+    };
+  }
+
+  if (booking.status === "cancelled") {
+    return {
+      active: false,
+      reason: "cancelled",
+      message: "This booking is cancelled. Restore it from the booking detail page first.",
+    };
+  }
+
+  if (booking.status === "no_show") {
+    return {
+      active: false,
+      reason: "no_show",
+      message: "This booking is marked no-show. Restore it from the booking detail page first.",
+    };
+  }
+
+  const today = getLondonToday();
+  const minDate = allowToday ? today : addDaysISO(today, 1);
+  if (booking.booking_date < minDate) {
+    return {
+      active: false,
+      reason: "past_dated",
+      message: "This booking is in the past. Actions are no longer available.",
+    };
+  }
+
+  return {
+    active: true,
+    booking: {
+      id: booking.id,
+      status: booking.status,
+      booking_date: booking.booking_date,
+      start_time: booking.start_time,
+    },
+  };
+}
+
+function addDaysISO(iso: string, days: number): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+```
+
+**Conditional behaviour pre-C-06:** if `bookings.deleted_at` column doesn't exist yet, the SELECT will fail with a PostgREST error. **Pre-flight Step 6 dictates the SELECT shape:**
+
+- If C-06 is in HEAD → SELECT includes `deleted_at` + `clients(deleted_at)` as shown.
+- If C-06 is NOT in HEAD → SELECT only `id, status, booking_date, start_time` (drop the forward-looking branches).
+
+Given the recommended C-B order has C-06 → C-04a → C-05 and the C-C ship order will respect plan dependencies, by the time C-05's C-C work runs, C-06 should be merged. Plan locks the full SELECT and adds a small `try/catch` fallback: if the SELECT errors on `deleted_at`, retry with the minimal column set.
+
+**Step 2 — Update `hasClaimableAssignment` predicate (edit point 6).**
+
+In the same file:
+
+```ts
+export function hasClaimableAssignment(
+  booking: BookingRecord,
+  profile: StaffProfile,
+  todayISO?: string
+) {
+  if (!canClaimAssignments(profile)) return false;
+
+  // Lockdown (C-05): cancelled / no_show / past-dated are inert
+  if (booking.status === "cancelled" || booking.status === "no_show") return false;
+  const today = todayISO ?? getLondonToday();
+  if (booking.booking_date < today) return false;
+
+  return booking.booking_assignments.some(
+    (assignment) =>
+      assignment.status === "unassigned" &&
+      !assignment.assigned_staff_id &&
+      assignment.required_therapist_gender === profile.gender
+  );
+}
+```
+
+Lift `getLondonToday()` into a helper at module scope (shared with `ensureBookingActive`). Callers (`bookings/page.tsx:177`, `:759`, `canOpenBookingRecord:40`) all gain access without signature change — the `todayISO` param is optional.
+
+**Step 2b — `canOpenBookingRecord` posture decision.**
+
+`canOpenBookingRecord` (`access.ts:35-42`) is currently:
+
+```ts
+return canManageAllBookings(profile) || canViewAllBookings(profile) ||
+       isOwnBooking(booking, profile) || hasClaimableAssignment(booking, profile);
+```
+
+With the new lockdown logic in `hasClaimableAssignment`, a Therapist who only had a (now-cancelled) claimable assignment is suddenly locked out of opening that booking's detail page. **That's wrong** — they should still be able to view the page for audit purposes (per brief §3 — Therapist who was previously assigned to a now-cancelled booking can still navigate to the detail).
+
+**Mitigation:** the existing `isOwnBooking` branch already covers the previously-assigned case (the assignment row still has `assigned_staff_id = profile.id`). For a brand-new Therapist who NEVER had a relationship with the now-cancelled booking, they wouldn't have been able to open it before C-05 either — `hasClaimableAssignment` already returned false (they couldn't claim a cancelled-then-cancelled-again booking through any normal flow).
+
+Actually, the pre-C-05 case was: Therapist opens the claimable-LIST → cancelled booking not visible → never finds the deep link. The detail-page-via-deep-link case is the unsanctioned route. C-05 closes that route.
+
+**Locked decision:** the `canOpenBookingRecord` posture stands as-is. Therapists previously assigned remain in via `isOwnBooking`. Therapists with no prior relationship can't open cancelled bookings (correct — they have no business there). Document this in the plan but don't change the function.
+
+**Step 3 — Vitest spec for the helper + predicate.**
+
+New file `src/app/admin/bookings/__tests__/ensureBookingActive.test.ts`:
+- Active booking (confirmed, today) → returns `{ active: true, booking: {...} }`
+- Cancelled booking → returns `{ active: false, reason: 'cancelled', message: '...' }`
+- No_show booking → returns `{ active: false, reason: 'no_show' }`
+- Past-dated booking → returns `{ active: false, reason: 'past_dated' }`
+- `booking_date === today` with `allowToday: true` → active
+- `booking_date === today` with `allowToday: false` → past_dated
+- Non-existent bookingId → returns `{ active: false, reason: 'not_found' }`
+- (forward-looking) `bookings.deleted_at !== null` → not_found
+- (forward-looking) `clients.deleted_at !== null` → client_deleted
+
+Extend `bookings/__tests__/access.test.ts` (if exists) with `hasClaimableAssignment` cases:
+- Active booking + unassigned slot + matching gender → true
+- Cancelled booking + matching slot → false
+- No_show booking + matching slot → false
+- Past-dated booking + matching slot → false
+- Active booking + unassigned slot + non-matching gender → false (existing case)
+
+**Phase A verify checkpoint:**
+- `npx tsc --noEmit` green
+- `pnpm vitest run bookings` — new tests pass; existing tests still pass
+
+### Phase B — Server-action defense (edit point 1 + extension to reassign action)
+
+**Step 4 — Hook `ensureBookingActive` into `claimBookingAssignment`.**
+
+In `bookings/actions.ts:239-365`. Replace lines 269-275 (current SELECT) with:
+
+```ts
+const activityCheck = await ensureBookingActive(assignment.booking_id, adminClient);
+if (!activityCheck.active) {
+  return { error: activityCheck.message };
+}
+const booking = activityCheck.booking;
+```
+
+Remove the existing `.select("id, booking_date, start_time, end_time")` block. The helper's SELECT covers the same fields except `end_time`. If `end_time` is referenced downstream (line 277-287 `getClaimAssignmentEligibility` call), extend the helper's SELECT OR re-fetch downstream when needed.
+
+Actually checking `getClaimAssignmentEligibility` signature in `assignment-eligibility.ts` — it accepts `booking: { id, booking_date, start_time, end_time }`. So end_time IS needed. **Adjust the helper:** add `end_time` to its SELECT and to the success-branch return shape:
+
+```ts
+booking: {
+  id: string;
+  status: string;
+  booking_date: string;
+  start_time: string;
+  end_time: string;
+};
+```
+
+**Step 5 — Hook into `updateBookingAssignment` (admin reassign path).**
+
+In `bookings/actions.ts:449-562`. Near the top of the function body (after RBAC checks, before any UPDATE):
+
+```ts
+const activityCheck = await ensureBookingActive(bookingId, adminClient);
+if (!activityCheck.active) {
+  return { error: activityCheck.message };
+}
+```
+
+The `bookingId` comes from somewhere in formData / lookup. Verify the variable name in context.
+
+**Step 6 — `updateOwnAssignmentStatus` — explicitly NOT gated.**
+
+Per brief §2.2 + Q9.1. Add a code comment at line 564:
+
+```ts
+// C-05 design: this server action is INTENTIONALLY NOT gated by ensureBookingActive.
+// Practitioners can mark their own assignment complete/no_show on a cancelled
+// booking — forensic edge case (visit happened before cancellation propagated).
+// Auto-promote (C-04a's autoPromoteBookingFromAssignments) is conditional on
+// booking.status NOT IN ('cancelled', 'completed'), so the parent booking stays
+// cancelled. See brief §5.1.
+export async function updateOwnAssignmentStatus(formData: FormData) {
+```
+
+No behavioural change here; just documentation against future regressions.
+
+**Step 7 — Server-action unit-test additions.**
+
+In `bookings/__tests__/actions.test.ts` (or equivalent — verify existence):
+- `claimBookingAssignment` on cancelled booking → returns structured error, no DB write.
+- `claimBookingAssignment` on past-dated booking → same.
+- `claimBookingAssignment` on no_show booking → same.
+- `updateBookingAssignment` (assign action) on cancelled → same.
+- `updateOwnAssignmentStatus` on cancelled → succeeds (per design); auto-promote does NOT fire.
+
+**Phase B verify checkpoint:**
+- New + existing tests pass.
+- Manual Playwright: as Therapist, attempt to claim a cancelled test booking via direct URL `/admin/bookings/[id]` → Claim button gone (after Phase C); inspect network to verify the helper's error surfaces if the POST is sent directly.
+
+### Phase C — UI defense-in-depth + list filtering (edit points 2-5)
+
+**Step 8 — Lift `getTodayIsoDate` to a shared util.**
+
+The function exists in `bookings/page.tsx:139-146` and now needs to be used by `[bookingId]/page.tsx`. Options:
+- (a) Lift to `src/lib/date-utils.ts` or a colocated `src/app/admin/bookings/_helpers.ts`. Cleaner.
+- (b) Duplicate inline. Quick.
+
+Going with (a). Create `src/app/admin/bookings/_helpers.ts` with the lifted util + re-export from `page.tsx`.
+
+**Step 9 — Top-level `isBookingActive` derivation on detail page.**
+
+Edit `src/app/admin/bookings/[bookingId]/page.tsx`. Near the top of the page's server-component body (where `booking` is fetched), add:
+
+```ts
+const today = getTodayIsoDate();
+const isBookingActive =
+  booking.status !== "cancelled" &&
+  booking.status !== "no_show" &&
+  booking.booking_date >= today;
+const inactivityReason: "cancelled" | "no_show" | "past_dated" | null =
+  !isBookingActive
+    ? booking.status === "cancelled" ? "cancelled"
+    : booking.status === "no_show" ? "no_show"
+    : "past_dated"
+    : null;
+```
+
+Pass `isBookingActive` + `inactivityReason` through to any child component that renders the assignment list.
+
+**Step 10 — Multiply through UI predicates.**
+
+In the same file:
+
+- Line 787-791 (`canClaim`): prepend `isBookingActive &&`.
+- Line 794 (`isOwn`): unchanged (informational). But the buttons it gates (lines 864-872 + 873-881) get a wrapping condition `{isOwn && isBookingActive ? ... : null}`.
+- Line 798-801 (`canPromptForSessionNote`): prepend `isBookingActive &&`.
+- Line 883-890 — the `canReassignBookings` boolean must be multiplied at the top-level where it's derived. Look for the assignment near the top of the file (probably `const canReassignBookings = canManageBookings(profile) && canAssignBookings(profile)` — grep for it). Append `&& isBookingActive`.
+
+**Step 11 — Inline notice block in the assignments section.**
+
+Above the assignments `<ul>` rendering, conditionally render:
+
+```tsx
+{!isBookingActive && (
+  <div role="status" aria-live="polite" className="rahma-pop-in rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-sm">
+    <div className="flex gap-2.5">
+      <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="font-medium text-[var(--admin-body)]">
+          {inactivityReason === "cancelled" && "This booking is cancelled."}
+          {inactivityReason === "no_show" && "This booking is marked no-show."}
+          {inactivityReason === "past_dated" && "This booking is in the past."}
+        </p>
+        <p className="mt-1 leading-6 text-[var(--admin-text-muted)]">
+          {inactivityReason === "cancelled" && "Restore it before claiming, reassigning, or marking work complete."}
+          {inactivityReason === "no_show" && "Restore it if the client did attend."}
+          {inactivityReason === "past_dated" && "Editing past bookings should go through support."}
+        </p>
+      </div>
+    </div>
+  </div>
+)}
+```
+
+Place between the next-action strip (from C-04a) and the assignment list. Verify with C-04a's Restore button card that the two cards don't visually fight — adjust spacing or merge if needed (the next-action card already says "This booking is cancelled. Restore it..." — the inline notice could be redundant; consider rendering only when there are practitioners who would have seen affordances).
+
+**Decision (during plan-writing):** render the inline notice **only when there's an assignments section AND the actor has practitioner-role affordances** (`canClaim || isOwn || canReassignBookings would-be-true-if-active`). Reduces redundancy with C-04a's next-action card for non-practitioners.
+
+**Step 12 — SQL `claimableRows` JOIN (edit point 5).**
+
+Edit `bookings/page.tsx:114-122`. Replace:
+
+```ts
+const claimableRows = canClaimAssignments(profile)
+  ? (
+      await adminClient
+        .from("booking_assignments")
+        .select("booking_id, bookings!inner(status, booking_date)")
+        .eq("status", "unassigned")
+        .is("assigned_staff_id", null)
+        .eq("required_therapist_gender", profile.gender)
+        .not("bookings.status", "in", '("cancelled","no_show")')
+        .gte("bookings.booking_date", todayISO)
+    ).data ?? []
+  : [];
+```
+
+Hoist `todayISO = getTodayIsoDate()` to before line 107 so it's in scope for the helper call.
+
+**Step 13 — In-memory view filter past-date defense (edit point 5b).**
+
+Edit `bookings/page.tsx:175-177` (the claimable view filter):
+
+```ts
+(view === "claimable" &&
+  !["cancelled", "no_show"].includes(booking.status) &&
+  booking.booking_date >= today &&
+  hasClaimableAssignment(booking, profile, today)) ||
+```
+
+Pass `today` into `hasClaimableAssignment` as the explicit param (Step 2 added the optional param).
+
+**Phase C verify checkpoint:**
+- Lint + tsc green.
+- Playwright manual at 4 viewports:
+  - Cancelled test booking detail → no Claim, no Mark complete, no AssignmentManager, no Mark no-show. Inline notice rendered (if actor has practitioner role).
+  - Past-dated test booking detail → same shape, with "past" copy.
+  - Active test booking detail → all affordances visible.
+  - `/admin/bookings?view=claimable` as Therapist → no cancelled, no past-dated rows.
+
+---
+
+## 2 — Files touched (final list)
+
+### NEW (2 files)
+| File | Purpose |
+|---|---|
+| `src/app/admin/bookings/__tests__/ensureBookingActive.test.ts` | Vitest coverage for the helper |
+| `src/app/admin/bookings/_helpers.ts` | Lifted `getTodayIsoDate` (or co-located in `access.ts` if cleaner) |
+
+### EDITED (~5 files)
+| File | Change summary |
+|---|---|
+| `src/app/admin/bookings/access.ts` | + `ensureBookingActive` helper + types; modify `hasClaimableAssignment` with status + past-date guards |
+| `src/app/admin/bookings/actions.ts` | Hook `ensureBookingActive` into `claimBookingAssignment` (replace SELECT lines 269-275) + `updateBookingAssignment` (top-of-function); add design-note comment on `updateOwnAssignmentStatus` |
+| `src/app/admin/bookings/[bookingId]/page.tsx` | Top-level `isBookingActive` + `inactivityReason`; multiply through `canClaim`, isOwn-derived buttons, `canPromptForSessionNote`, `canReassignBookings`; render inline notice |
+| `src/app/admin/bookings/page.tsx` | SQL JOIN in `claimableRows`; in-memory filter past-date; thread `today` to `hasClaimableAssignment` |
+| `src/app/admin/bookings/__tests__/actions.test.ts` | (or equivalent) New cases for the gated paths; assert `updateOwnAssignmentStatus` cancelled-allowed |
+
+### UNCHANGED (do NOT touch)
+- `reporting.ts`, `dashboard-helpers.ts`, RBAC matrix, middleware, B-1 primitives.
+- `canOpenBookingRecord` — explicit no-change per Step 2b.
+- `updateOwnAssignmentStatus` body — explicit no-change per Step 6.
+- `manage/actions.ts` (customer-facing) — out of scope.
+- Email templates / notifications — C-05 doesn't fire emails.
+
+---
+
+## 3 — Verification gate (commands + pass criteria)
+
+Run after Phase C lands. Every command must pass.
+
+### 3.1 Static gates
+
+```bash
+pnpm lint                       # 0 errors
+npx tsc --noEmit                # 0 errors
+pnpm vitest run                 # new specs pass; baseline failures preserved
+pnpm build                      # clean
+node scripts/measure-admin-bundles.mjs  # bundle delta within budget
+```
+
+**Bundle budget for C-05:** ~1 kB additive (one helper function + a few predicate multiplications). Deletions are net-negative (the existing SELECT in `claimBookingAssignment` shrinks). **Plan ceiling: +2 kB across `/admin/bookings/*`.** No new components, no new routes.
+
+### 3.2 Playwright role sweep (4 roles × 4 viewports — 16 walks minimum)
+
+Recipe per role:
+
+1. Sign in via standard pattern.
+2. Navigate to a CANCELLED test booking detail (NOT Badar's). Verify:
+   - Claim button absent (where it would otherwise render — e.g., Therapist with unassigned slot)
+   - Mark complete + Mark no-show buttons absent on own assignments
+   - AssignmentManager absent
+   - Inline notice rendered (for actor with practitioner-role affordances)
+   - Detail page renders without errors; audit log + history accessible
+3. Navigate to a PAST-DATED active test booking detail. Verify:
+   - Same affordances absent
+   - Inline notice copy reads "past" variant
+4. Navigate to an ACTIVE confirmed test booking detail. Verify:
+   - All expected affordances visible per role
+5. Navigate to `/admin/bookings?view=claimable`. Verify:
+   - No cancelled rows
+   - No no_show rows
+   - No past-dated rows (the B-171 repro from R05 is clean — no `2026-05-24` row from session 2026-05-25)
+6. (Therapist only) Attempt to claim a CANCELLED booking via direct POST to the server action (via `browser_evaluate` issuing a fetch). Verify structured error response.
+7. (Therapist only) Mark own assignment complete on a CANCELLED booking → succeeds per §2.2 design note. Audit row written for assignment; auto-promote does NOT fire (booking.status stays cancelled).
+8. (Owner) Restore the cancelled test booking via C-04a's Restore button. Re-navigate to detail. Verify affordances reappear. Verify booking shows in the active filter views.
+9. Sign out.
+
+### 3.3 Pre/post DB queries
+
+```sql
+-- Before sweep
+SELECT id, status, booking_date FROM bookings WHERE id = '<cancelled-test-booking>';
+
+-- After attempted server-side claim
+SELECT id, status, assigned_staff_id FROM booking_assignments
+WHERE booking_id = '<cancelled-test-booking>';
+-- Expected: assigned_staff_id IS NULL (claim was blocked)
+
+-- After Therapist marks own assignment complete on cancelled booking
+SELECT id, status FROM booking_assignments
+WHERE assigned_staff_id = '<therapist-id>' AND booking_id = '<cancelled-booking>';
+-- Expected: status = 'completed' (per §2.2 design note)
+
+-- Verify auto-promote DID NOT fire
+SELECT status FROM bookings WHERE id = '<cancelled-test-booking>';
+-- Expected: status STAYS 'cancelled' (per C-04a auto-promote predicate)
+
+-- Audit log check
+SELECT action_type, created_at FROM audit_logs
+WHERE target_id = '<cancelled-test-booking>'
+  AND action_type IN ('booking_assignment_completed', 'booking_auto_promoted_completed');
+-- Expected: 'booking_assignment_completed' row exists, 'booking_auto_promoted_completed' DOES NOT
+```
+
+### 3.4 Screenshot evidence
+
+- 375 + 1280: cancelled booking detail (Owner view) — no affordances + inline notice
+- 375 + 1280: past-dated booking detail (Therapist view) — inline notice "past" variant
+- 375: cancelled booking detail (Therapist with assignment) — affordances gone but assignment row still visible
+- 1280: `/admin/bookings?view=claimable` (Therapist) — no cancelled/past-dated rows
+
+Store in `redesign/audits/C-A/screenshots-04-bookings-detail/c-05-after/`.
+
+---
+
+## 4 — Risks and mitigations
+
+| Risk | Likelihood | Severity | Mitigation |
+|---|---|---|---|
+| Helper SELECT fails when `deleted_at` column doesn't exist (pre-C-06 sequencing) | low | medium | Pre-flight Step 6 verifies; conditional SELECT shape. Plan locks the full select with try/catch fallback. |
+| Therapist previously assigned to cancelled booking loses detail-page access | low | medium | `canOpenBookingRecord` keeps `isOwnBooking` branch unchanged (Step 2b). Verified in plan §1. |
+| `ensureBookingActive` adds latency to every claim/reassign action | very low | low | Single extra SELECT (~10ms). Negligible. |
+| SQL JOIN at edit point 5 changes claimable count visibly mid-sweep | low | low | Expected behaviour. Document the count delta in progress file. |
+| Race condition: claim succeeds milliseconds before booking is cancelled | low | low | §5.2 in brief — acceptable. Auto-promote correctly skips. Mark complete via §2.2 design note. |
+| `getTodayIsoDate` lift creates a circular import | low | low | Co-locate in `access.ts` or use a new minimal helpers file. Verify import graph during impl. |
+| Test fixture pre-flight finds no cancelled bookings | low | low | Create on-the-fly via C-04a's Cancel action against `Audit Test Client 1..5` bookings during pre-flight. |
+| Inline notice + C-04a next-action card duplicate "this is cancelled" copy | medium | low | Step 11 design — inline notice rendered only when there are practitioner-affordance-paths. Reduces duplication. Manual visual QA during impl. |
+| `updateOwnAssignmentStatus` allowing cancelled-completion confuses admins via audit log | low | low | §2.2 + Q9.1 + code comment in Step 6. Documented design. |
+
+### 4.1 Real risk: `canReassignBookings` derivation location
+
+The plan assumes `canReassignBookings` is derived once at the top of `bookings/[bookingId]/page.tsx`. Verify this during impl — grep `git grep -n "canReassignBookings" src/app/admin/bookings/`. If it's computed in multiple places, add `isBookingActive &&` to each.
+
+---
+
+## 5 — Undo procedure
+
+### 5.1 Undo code (3 phases)
+
+Phases are commits in order. Revert in reverse:
+1. `git revert <phase-C-ui-commit>` — UI predicates revert; cancelled bookings show affordances again. SQL JOIN reverts (claimable list shows cancelled). Inline notice removed.
+2. `git revert <phase-B-server-commit>` — server actions no longer gated. Direct claim attempts on cancelled bookings succeed again.
+3. `git revert <phase-A-helper-commit>` — `ensureBookingActive` + `hasClaimableAssignment` past-date filter removed.
+
+If only phase C is reverted but A + B stay, the system has server-side defense + foundational-predicate defense, but UI shows stale affordances. Functional but ugly. **Recommend keeping all 3 phases together** for clean rollback semantics.
+
+### 5.2 Test data restoration
+
+Any cancelled test bookings used in E2E should be restored via C-04a's Restore button at the end of the sweep:
+
+```sql
+-- Or via SQL if Restore button isn't accessible during rollback:
+UPDATE bookings SET status = 'confirmed' WHERE id IN ('<test-cancelled-ids>');
+```
+
+Document the round-trip in the progress file.
+
+### 5.3 No DB rollback
+
+C-05 has no migrations. No DB state to undo.
+
+---
+
+## 6 — Test fixture guidance
+
+**Safe for any C-05 E2E walk:**
+- Cancelled test bookings — create via C-04a Cancel action against `Audit Test Client *` bookings during pre-flight.
+- Past-dated active test bookings — manually back-date `booking_date` via SQL (Zone-2 — explicit user confirmation per back-date).
+- No_show test bookings — create via C-04a's new no_show quick action against test bookings.
+
+**DO NOT touch:**
+- Badar's `9d55ce2a` (real email `avonrk@hotmail.co.uk`) — explicitly off-limits.
+- Any non-test client booking.
+
+**Pre/post SQL check before any state mutation:**
+```sql
+SELECT id, contact_full_name, contact_email, status, booking_date FROM bookings WHERE id = '<id>';
+```
+Cross-reference against the safe-fixture list before clicking.
+
+---
+
+## 7 — Commit cadence in C-C (recommendation)
+
+| Commit | Coverage |
+|---|---|
+| 1 | Phase A — `ensureBookingActive` helper + `hasClaimableAssignment` update + tests |
+| 2 | Phase B — server action hooks (claimBookingAssignment + updateBookingAssignment) + design-note comment on updateOwnAssignmentStatus + test additions |
+| 3 | Phase C — UI predicates + inline notice + SQL JOIN + in-memory filter past-date defense |
+| 4 | Verification gate — Playwright screenshots + progress file + master plan checklist row → ✅ |
+
+Each commit ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`. Stage files explicitly.
+
+`feat(redesign): C-05 {phase}` prefix during C-C.
+
+---
+
+## 8 — Hand-off to C-C
+
+1. Read brief + this plan end-to-end.
+2. **Verify C-04a is merged** before starting (pre-flight Step 5). C-04a's Restore button is the lockdown's survival path.
+3. Run §0 Pre-flight in full.
+4. Execute Phase A → B → C in order.
+5. No migration needed — purely code changes.
+6. Verification gate (§3) non-negotiable.
+7. Update `redesign/per-page-progress/C-05-cancelled-bookings-inert-progress.md` per phase.
+8. Final commit updates master plan checklist C-05 row from `⏳` to `✅` with shipped date + commit SHA.
+9. After C-05 ships, **C-04a + C-05 together complete the cancellation/restore lifecycle hardening.** Next plan in the recommended C-B order: C-01.
+
+---
+
+## 9 — Open questions remaining
+
+Surfaced during plan-writing:
+
+1. **`canReassignBookings` derivation site verification** — §4.1. Grep at impl time to confirm single derivation point.
+
+2. **Inline notice vs next-action card overlap** — Step 11 + §4 table. Visual QA at impl time may merge them or adjust spacing.
+
+3. **`bookings.deleted_at` SELECT conditional handling** — Step 1 + pre-flight Step 6. If C-06 ships after C-05 (against recommended order), the helper SELECT needs a fallback. Plan handles both cases.
+
+4. **`canOpenBookingRecord` posture** — Step 2b documents the decision (keep as-is). Reviewer (you) may want stricter gating; trade-off is breaking Therapist's audit-trail access to their previously-assigned bookings.
+
+5. **Test fixture creation Zone-2 prompts** — back-dating bookings for past-date testing requires SQL writes. Pre-flight Step 7 + §6 flag the need for user confirmation per back-date.
+
+---
+
+*End of C-05 plan. Brief: `redesign/briefs/C-05-cancelled-bookings-inert-brief.md`. Progress: `redesign/per-page-progress/C-05-cancelled-bookings-inert-progress.md` (filled during C-C).*
