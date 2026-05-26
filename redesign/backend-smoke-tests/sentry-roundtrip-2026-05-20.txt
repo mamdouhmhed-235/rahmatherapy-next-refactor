@@ -1,0 +1,376 @@
+==============================================================================
+SMOKE TEST — L1-a + L1-b Sentry server-side roundtrip (Session 5a)
+==============================================================================
+Date:        2026-05-19 → 2026-05-20 (UTC; spans the date boundary)
+Project:     Rahma-therapy (twzutkfgqclqurvkmvqz)
+Branch:      engineering/track-a-backend-gap-fill
+Sentry:      @sentry/nextjs 10.51.0 (built on @sentry/node 10.51.0)
+Next.js:     16.2.4 with Turbopack dev mode
+OpenNext:    @opennextjs/cloudflare 1.19.4
+Commits:     (code) chore(sentry): Sentry production fixes — #18871 fetch
+                    transport workaround + scrubber envelope-protocol exclusions
+                    — TBD this session
+             (docs) docs(engineering): Session 5a close — L1-a + L1-b PASS
+                    (Sentry roundtrip verified end-to-end) — TBD this session
+             (env)  prior:
+                      c6d795d chore(sentry): remove redundant root
+                              instrumentation.ts (src/instrumentation.ts is
+                              the live file)
+                      9440eb3 fix(sentry): add instrumentation.ts to wire
+                              Sentry server + edge config at runtime
+                              [SUPERSEDED by c6d795d]
+Test runner: Claude — diagnostic console.log + bash curl + manual envelope POST
+             via curl + dev-console log reading + Sentry dashboard inspection.
+Plan source: /redesign/ENGINEERING-PAUSE-EXPLAINED.html (Session 5a section).
+             Note: the playbook describes the route as
+             /admin/__sentry-test__; final implementation lives at /sentry-test
+             — see Phase B4 for why.
+
+SCOPE
+=====
+Verify end-to-end that a server-side throw in a Next.js route handler:
+  (i) is captured by Sentry's onRequestError / captureRequestError plumbing,
+  (ii) passes through the beforeSend scrubber without corruption,
+  (iii) is transmitted via the SDK transport to Sentry ingest,
+  (iv) lands as a visible issue in the lanternvale/rahmatherapy-next-refactor
+       Sentry project dashboard.
+
+This corresponds to FINAL-REPORT.md gates L1-a (Sentry server-side capture)
+and L1-b (Sentry transmission to dashboard). Both were marked DEFER prior
+to this session because the Phase 0 documentation gap (no test route, no
+documented smoke test) blocked verdict.
+
+This is dev-mode verification on localhost. Cloudflare-runtime verification
+remains required on the post-deploy checklist — see Phase D.
+
+------------------------------------------------------------------------------
+PHASE A — Pre-flight (read-only)
+------------------------------------------------------------------------------
+
+A1. Sentry config files present and wired
+  - sentry.server.config.ts: Sentry.init({ ... beforeSend: scrubSentryEvent })
+  - sentry.edge.config.ts: same pattern, no transport override
+  - src/instrumentation.ts: exports register() (dynamic-imports the right
+    config based on process.env.NEXT_RUNTIME) and onRequestError =
+    Sentry.captureRequestError. Already committed (since d50c796).
+  - next.config.ts: wrapped with withSentryConfig(); org=lanternvale,
+    project=rahmatherapy-next-refactor, tunnelRoute=/monitoring,
+    widenClientFileUpload=true.
+
+A2. DSN parse + project ID + project key
+  Confirmed NEXT_PUBLIC_SENTRY_DSN parses to:
+    org=4511308328927232, project=4511308644221008,
+    region=ingest.de.sentry.io (EU).
+  (Verbatim DSN not transcribed — .env is gitignored and DSN is treated as
+  sensitive per session discipline.)
+
+A3. Manual envelope POST → Sentry ingest
+  Built a minimal valid envelope by hand:
+    line 1: {"event_id":"<random 32 hex>","sent_at":"<ISO>"}
+    line 2: {"type":"event","content_type":"application/json"}
+    line 3: {<event payload with same event_id>}
+  POSTed to https://o4511308328927232.ingest.de.sentry.io/api/4511308644221008/envelope/
+  with X-Sentry-Auth: Sentry sentry_version=7, sentry_key=<public key>, sentry_client=curl/1.0
+  and Content-Type: application/x-sentry-envelope.
+  Response: HTTP 200, body contained the event_id we sent.
+  Dashboard: event_id 43752b92c1b022989e0045e6031f55c1 visible at
+  2026-05-19T21:45:59Z in lanternvale/rahmatherapy-next-refactor.
+
+  Conclusion from A3: DSN parse OK, network egress OK, auth OK, project
+  routing OK. Any failure observed below is downstream of these — in the
+  SDK's local instrumentation, scrubber, or transport.
+
+------------------------------------------------------------------------------
+PHASE B — Live test (with diagnostic instrumentation)
+------------------------------------------------------------------------------
+
+B1. Test route
+  Created src/app/sentry-test/route.ts. GET handler:
+    - 404 if process.env.NODE_ENV === "production" (defense in depth)
+    - 404 if process.env.SENTRY_TEST_ROUTE !== "1" (operator opt-in)
+    - else throws new Error("Sentry smoke test — Phase 7 Gate 0 L1-a/L1-b
+        — engineering pause Session 5a — DELETE this route after verification")
+  .env: SENTRY_TEST_ROUTE=1 (gitignored, removed during Phase C cleanup).
+
+  Route path note (B4):
+    1st attempt: /admin/__sentry-test__ → middleware blocked (admin requires
+                 auth; the throw never fired because the request was redirected
+                 to /admin/login). Moved out from under /admin/.
+    2nd attempt: /__sentry-test__ → Next.js's private-folder convention
+                 (leading-double-underscore) excludes the segment from routing
+                 entirely — 404 before our handler runs.
+    Final:       /sentry-test → loads, gates work, throw fires.
+
+B2. First observation — 66s response then HTTP 500
+  $ curl -sS -L -w "STATUS=%{http_code}\nTIME_TOTAL=%{time_total}s\n" \
+      http://localhost:3000/sentry-test
+  STATUS=500
+  FINAL_URL=http://localhost:3000/sentry-test/
+  TIME_TOTAL=66.496141s
+
+  Dashboard: NO new issue.
+
+  The 66s delay was striking. Sentry's @sentry/nextjs dev-mode source-map
+  symbolication processor (devErrorSymbolicationEventProcessor.js) calls back
+  to the Next.js dev server with a 3s AbortController; the processor stalls
+  for many cycles, eventually times out per-frame, and only then submits the
+  event. This is annoying-but-tolerable in isolation.
+
+B3. Misdiagnosis #1 — duplicate instrumentation.ts
+  Initial Glob "instrumentation.*" search did not return src/instrumentation.ts
+  (which has existed since commit d50c796), so I concluded the instrumentation
+  hook was missing entirely and created a root instrumentation.ts (commit
+  9440eb3). On the next verification pass I noticed the duplicate and reverted
+  (commit c6d795d). Discipline note: verification-before-completion miss; the
+  Glob result should have been cross-checked with an ls of src/ before
+  concluding the file was absent. No production impact — the duplicate was
+  reverted before cleanup.
+
+B4. Misdiagnosis #2 — symbolication deadlock blamed as root cause
+  After confirming the file structure, I diagnosed the 66s delay as the root
+  cause for events not reaching Sentry (theory: AbortController + Turbopack +
+  async-context interaction was breaking the post-symbolication send).
+  Recommended pivot: ship with PASS-WITH-CAVEAT, document the dev-mode
+  blocker, defer real verification to Cloudflare deploy.
+
+  Operator pushed back: "the diagnosis may be incomplete and there's a
+  documented workaround worth trying." Web research surfaced
+  getsentry/sentry-javascript#18871: "makeNodeTransport silently drops
+  server-side events with Next.js 16 + Turbopack." Root cause: the default
+  transport uses Node http.request + a stream pipe inside a suppressTracing()
+  wrapper; that wrapper manipulates OpenTelemetry async context, which
+  interacts badly with Turbopack's async-context handling — stream callbacks
+  never fire and events are silently dropped despite captureRequestError +
+  onRequestError running and Sentry's ingest returning 200 OK on the direct
+  envelope POST tested in A3.
+
+  Workaround posted in the issue: replace makeNodeTransport with a custom
+  transport that uses Node 18+ native fetch() instead of http.request.
+
+  Discipline note: this operator-led course-correction prevented shipping
+  a real production-blocking bug behind a "deferred" verdict. Memorialized.
+
+B5. (intentionally removed)
+  An earlier compaction-summary handoff claimed that removing
+  `turbopack: { root: ROOT_DIR }` from next.config.ts was load-bearing.
+  Pre-commit verification (git log + git diff) showed next.config.ts has NOT
+  been touched in this engineering pause — `turbopack.root` is still in place
+  at HEAD, and the final passing curl (B11) was performed against that config.
+  The claim in the handoff was incorrect; the section is removed rather than
+  preserve an inaccurate historical note. The actual root-cause path is B6
+  onward.
+
+B6. Apply #18871 workaround — first try, HTTP 400
+  Added makeFetchTransport to sentry.server.config.ts, passing
+  `transport: makeFetchTransport` into Sentry.init. The function as posted in
+  the issue thread passes `headers: options.headers` straight to fetch().
+
+  After dev restart (with `.next/` wipe), curl response time dropped from 66s
+  to ~0.8s — confirms the symbolication delay was an *additional* dev-mode
+  symptom, not the actual transmission blocker. But dashboard still showed
+  no event. Dev console showed:
+    Sentry Logger [warn]: Sentry responded with status code 400 to sent event.
+
+B7. Diagnose the 400 — Content-Type missing in fetch() call
+  Added two diagnostic console.log lines inside makeFetchTransport:
+    [sentry-transport] options.headers (no Content-Type detected): {...}
+    [sentry-transport] 400 response body: {...}
+
+  Result: options.headers contained only { 'user-agent':
+  'sentry.javascript.nextjs/10.51.0' }. No Content-Type. Sentry's
+  makeNodeTransport sets Content-Type at the body-write step (not in
+  options.headers), so the #18871 workaround as posted produces a request
+  with no Content-Type header, and Sentry's ingest rejects the envelope.
+
+  Fix: explicitly add "Content-Type": "application/x-sentry-envelope" in
+  the fetch() headers object, alongside the spread of options.headers.
+  This Content-Type addition is NOT in the originally-posted #18871
+  workaround — it's our extension and is required for the workaround to
+  actually function. Worth recording in case the #18871 workaround is
+  ported to other projects.
+
+B8. Apply Content-Type fix — second try, HTTP 400 again (but different)
+  After the Content-Type fix + dev restart + .next/ wipe:
+    [sentry-transport] 400 response body: {"detail":"invalid event envelope",
+      "causes":["invalid envelope header","invalid value: string
+      \"[Filtered]\", expected an event identifier at line 1 column 24"]}
+
+  This was the smoking gun. "[Filtered]" is the literal sentinel string used
+  by our PII scrubber at src/lib/observability/sentry-scrubbing.ts. The
+  envelope header's `event_id` field had been replaced with "[Filtered]" —
+  our own scrubber was corrupting Sentry's protocol fields.
+
+B9. Diagnose the scrubber over-redaction
+  LONG_TOKEN_PATTERN in sentry-scrubbing.ts:
+    /\b(?:eyJ[A-Za-z0-9_-]+|[A-Za-z0-9_-]{24,})\b/g
+
+  This is designed to catch long opaque tokens (API keys, JWTs). But a
+  Sentry event_id is a 32-char hex string (e.g.,
+  43752b92c1b022989e0045e6031f55c1) which exactly matches
+  `[A-Za-z0-9_-]{24,}`. When scrubValue walks the captured event, it sees
+  key="event_id", value="<32-char hex>", runs redactText (because event_id
+  is not in SAFE_USER_KEYS or SAFE_CONTEXT_KEYS and the key name doesn't
+  match the SENSITIVE_KEY_PATTERN), LONG_TOKEN_PATTERN matches the value,
+  and the value is replaced with "[Filtered]". The SDK then serializes the
+  envelope with `{"event_id": "[Filtered]", ...}` in the header.
+
+  This affected EVERY captured event, not just our smoke test. The bug
+  was masked by:
+    (a) the makeNodeTransport + Turbopack deadlock (B4) — no event ever
+        reached Sentry, so the corrupted envelope header was never
+        evaluated by ingest;
+    (b) the manual envelope POST in A3 bypassed the SDK entirely, so the
+        scrubber never ran on it.
+  With the transport fix in place, the scrubber bug becomes the next
+  blocker. It is a real production bug — production deploys would have
+  every Sentry event silently rejected with HTTP 400.
+
+B10. Apply scrubber fix
+  Added SAFE_SENTRY_KEYS to sentry-scrubbing.ts covering the Sentry envelope
+  + event protocol fields that must pass through the scrubber unchanged:
+    event_id, trace_id, span_id, parent_span_id, timestamp, platform, level,
+    environment, release, dist, logger, server_name, type.
+  In scrubValue's string branch, short-circuit BEFORE running the
+  SENSITIVE_KEY_PATTERN check + redactText:
+    if (SAFE_SENTRY_KEYS.has(key)) return value;
+  Same pattern as the existing SAFE_USER_KEYS / SAFE_CONTEXT_KEYS
+  exclusions. Surgical: protocol fields pass through unchanged, all other
+  fields (message, tags, breadcrumb data, etc.) still scrub as before.
+
+B11. Final test — PASS
+  After dev restart + .next/ wipe, with the two Session 5a production fixes
+  in place (plus src/instrumentation.ts which was already present at HEAD):
+    1. src/instrumentation.ts (already present since d50c796; B3 was a
+       self-correction to remove a redundant duplicate I had created)
+    2. makeFetchTransport with Content-Type header in sentry.server.config.ts
+       (B6, B7)
+    3. SAFE_SENTRY_KEYS in src/lib/observability/sentry-scrubbing.ts (B10)
+
+  Final curl:
+    START: 2026-05-20T04:24:14.478Z
+    HTTP/1.1 308 Permanent Redirect (trailingSlash: true in next.config.ts)
+    HTTP/1.1 500 Internal Server Error
+    STATUS=500
+    FINAL_URL=http://localhost:3000/sentry-test/
+    TIME_TOTAL=4.346101s
+    END:   2026-05-20T04:24:19.160Z
+
+  Dev console showed:
+    [Tracing] Finishing "< unknown op >" span "executing api route (app)
+      /sentry-test" ...
+    ⨯ Error: Sentry smoke test — Phase 7 Gate 0 L1-a/L1-b — engineering
+      pause Session 5a — DELETE this route after verification
+    Sentry Logger [log]: Captured error event `Sentry smoke test — Phase 7
+      Gate 0 L1-a/L1-b — engineering pause Session 5a — DELETE this route
+      after verification`
+    Sentry Logger [log]: Flushing events...
+    Sentry Logger [log]: Done flushing events
+  NO `[sentry-transport] 400 response body` line.
+  NO `Sentry Logger [warn]: Sentry responded with status code 400` line.
+
+  Dashboard: issue visible at
+    https://lanternvale.sentry.io/issues/?project=rahmatherapy-next-refactor
+  with first-seen ~2026-05-20T04:24:18Z and message exactly:
+    "Sentry smoke test — Phase 7 Gate 0 L1-a/L1-b — engineering pause
+     Session 5a — DELETE this route after verification"
+
+  L1-a: PASS (server-side onRequestError plumbing functions correctly)
+  L1-b: PASS (envelope transmission through the SDK to Sentry ingest
+              succeeds end-to-end, scrubber preserves protocol fields).
+
+------------------------------------------------------------------------------
+PHASE C — Cleanup (2026-05-20)
+------------------------------------------------------------------------------
+
+C1. Reverted diagnostic-only changes
+  - sentry.server.config.ts: removed `debug: true`, removed the two
+    `[sentry-transport]` diagnostic console.log blocks. KEPT makeFetchTransport
+    (with Content-Type header) and the explanatory comment block.
+  - sentry.edge.config.ts: removed `debug: true`.
+  - src/instrumentation.ts: removed the `[instrumentation] register() called`
+    console.log. KEPT the file itself + register() + onRequestError export.
+
+C2. Deleted test route + env entry
+  - Deleted src/app/sentry-test/ (route.ts + directory).
+  - Removed SENTRY_TEST_ROUTE=1 + its comment from .env (.env is gitignored).
+
+C3. Production fixes that REMAIN in the codebase
+  - src/instrumentation.ts — already present since d50c796 (Next.js
+    register()/onRequestError pattern, not a Session 5a change).
+  - sentry.server.config.ts — makeFetchTransport with explicit Content-Type
+    "application/x-sentry-envelope" (Session 5a — new).
+  - src/lib/observability/sentry-scrubbing.ts — SAFE_SENTRY_KEYS exclusion
+    in scrubValue (Session 5a — new).
+
+------------------------------------------------------------------------------
+PHASE D — Cloudflare-deploy verification (REMAINING, post-deploy)
+------------------------------------------------------------------------------
+
+The verification above is dev-mode only. Cloudflare Workers runtime is a
+different beast — separate compatibility risks per upstream issues:
+  - getsentry/sentry-javascript#18842 — @sentry/nextjs runtime detection
+    quirks under @opennextjs/cloudflare
+  - getsentry/sentry-javascript#18843 — related Cloudflare runtime issues
+  - getsentry/sentry-javascript#14931 — older but still-cited Cloudflare
+    transport edge cases
+Plus: makeFetchTransport uses Node 18+ native fetch which IS available on
+the Cloudflare Workers runtime, but the underlying createTransport plumbing
+needs to be re-verified there.
+
+POST-DEPLOY CHECKLIST ITEM (must complete before Cloudflare cutover marks
+this gate truly closed):
+  1. Deploy to a Cloudflare Workers preview environment (not production).
+  2. Temporarily restore the /sentry-test route + SENTRY_TEST_ROUTE=1 env
+     in the preview deploy ONLY (NEVER production — the route's first gate
+     blocks NODE_ENV=production but defense in depth still says no).
+  3. curl the preview URL's /sentry-test endpoint, expect 500.
+  4. Confirm event lands in Sentry dashboard with a fresh event_id.
+  5. Remove the test route + env from the preview, redeploy.
+  6. Only then mark L1-a + L1-b as PASS in the Cloudflare-production
+     verdict (separate from the dev-mode PASS recorded today).
+
+------------------------------------------------------------------------------
+ARTIFACTS + REFERENCES
+------------------------------------------------------------------------------
+
+Code changes (live):
+  - sentry.server.config.ts — makeFetchTransport + Content-Type header
+  - src/lib/observability/sentry-scrubbing.ts — SAFE_SENTRY_KEYS
+
+Code changes (Session 5a transient; reverted in Phase C):
+  - src/app/sentry-test/route.ts (created, deleted)
+  - .env: SENTRY_TEST_ROUTE=1 (added, removed)
+  - debug: true on both sentry config files (added, removed)
+  - diagnostic console.log lines (added, removed)
+
+Code changes (already committed earlier in pre-Session-5a):
+  - c6d795d chore(sentry): remove redundant root instrumentation.ts
+  - 9440eb3 fix(sentry): add instrumentation.ts to wire Sentry server + edge
+            config at runtime [SUPERSEDED by c6d795d — kept in history]
+
+Upstream issue references:
+  - getsentry/sentry-javascript#18871 (root cause of the transport deadlock)
+  - getsentry/sentry-javascript#18842, #18843, #14931 (Cloudflare compat
+    risks for Phase D verification)
+
+Sentry dashboard event IDs from this session (for audit cross-reference):
+  - 43752b92c1b022989e0045e6031f55c1 — manual envelope POST (A3),
+    2026-05-19T21:45:59Z
+  - (final B11 event id) — recorded in the dashboard at 2026-05-20T04:24:18Z;
+    operator-confirmed visible.
+
+------------------------------------------------------------------------------
+VERDICT
+------------------------------------------------------------------------------
+L1-a (Sentry server-side capture):       PASS (dev mode; Cloudflare TBD)
+L1-b (Sentry transmission to dashboard): PASS (dev mode; Cloudflare TBD)
+
+Two production-essential bugs uncovered and fixed in this session:
+  1. makeNodeTransport silently drops events with Next.js 16 + Turbopack
+     (workaround: makeFetchTransport — @sentry/nextjs#18871).
+  2. PII scrubber over-redacts Sentry envelope protocol fields
+     (fix: SAFE_SENTRY_KEYS exclusion).
+
+The dev-mode verdict closes the FINAL-REPORT.md DEFER status that was
+blocking the Phase 7 Gate 0 sign-off. The Cloudflare-runtime verification
+(Phase D above) is a separate post-deploy gate.

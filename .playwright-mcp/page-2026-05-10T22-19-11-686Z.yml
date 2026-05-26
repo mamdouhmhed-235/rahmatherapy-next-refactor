@@ -1,0 +1,316 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+        - generic [ref=e8]: Rahma Therapy
+      - button "Search" [ref=e10]:
+        - img [ref=e11]
+        - generic [ref=e14]: Search
+      - generic [ref=e15]:
+        - link "Reports" [ref=e16] [cursor=pointer]:
+          - /url: /admin/reports/
+          - img [ref=e17]
+          - text: Reports
+        - link "Calendar" [ref=e20] [cursor=pointer]:
+          - /url: /admin/calendar/
+          - img [ref=e21]
+          - text: Calendar
+        - link "Settings" [ref=e23] [cursor=pointer]:
+          - /url: /admin/settings/
+          - img [ref=e24]
+        - button "Rahma Therapy" [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e33]: Rahma Therapy
+          - img [ref=e34]
+  - main [ref=e36]:
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - heading "Staff Management" [level=1] [ref=e41]
+          - paragraph [ref=e42]: Manage your team, their roles, and booking availability.
+        - button "New Staff" [ref=e43]:
+          - img [ref=e44]
+          - text: New Staff
+      - generic [ref=e47]:
+        - 'link "Phase10 ADMIN Admin / Practice Manager phase10.admin@example.test Gender: female 0 upcoming assignments Bookings off use global Onboarding 5/6 Profile 1/6 View profile" [ref=e48] [cursor=pointer]':
+          - /url: /admin/staff/1f4f7581-9b26-4c1f-bd50-364b4924a3a0/
+          - generic [ref=e50]:
+            - img [ref=e52]
+            - generic [ref=e55]:
+              - heading "Phase10 ADMIN" [level=3] [ref=e56]
+              - paragraph [ref=e57]: Admin / Practice Manager
+          - generic [ref=e58]:
+            - generic [ref=e59]:
+              - img [ref=e60]
+              - generic [ref=e63]: phase10.admin@example.test
+            - generic [ref=e64]:
+              - img [ref=e65]
+              - generic [ref=e68]: "Gender: female"
+            - generic [ref=e69]:
+              - img [ref=e70]
+              - generic [ref=e73]: 0 upcoming assignments
+            - generic [ref=e74]:
+              - generic [ref=e75]: Bookings off
+              - generic [ref=e76]: use global
+              - generic [ref=e77]: Onboarding 5/6
+              - generic [ref=e78]: Profile 1/6
+          - generic [ref=e79]:
+            - generic [ref=e80]: View profile
+            - img [ref=e81]
+        - 'link "Phase10 COORDINATOR Client Care / Booking Coordinator phase10.coordinator@example.test Gender: female 0 upcoming assignments Bookings off use global Onboarding 5/6 Profile 1/6 View profile" [ref=e83] [cursor=pointer]':
+          - /url: /admin/staff/e9439e2a-17e2-463a-b6cb-6c0d15c57f47/
+          - generic [ref=e85]:
+            - img [ref=e87]
+            - generic [ref=e90]:
+              - heading "Phase10 COORDINATOR" [level=3] [ref=e91]
+              - paragraph [ref=e92]: Client Care / Booking Coordinator
+          - generic [ref=e93]:
+            - generic [ref=e94]:
+              - img [ref=e95]
+              - generic [ref=e98]: phase10.coordinator@example.test
+            - generic [ref=e99]:
+              - img [ref=e100]
+              - generic [ref=e103]: "Gender: female"
+            - generic [ref=e104]:
+              - img [ref=e105]
+              - generic [ref=e108]: 0 upcoming assignments
+            - generic [ref=e109]:
+              - generic [ref=e110]: Bookings off
+              - generic [ref=e111]: use global
+              - generic [ref=e112]: Onboarding 5/6
+              - generic [ref=e113]: Profile 1/6
+          - generic [ref=e114]:
+            - generic [ref=e115]: View profile
+            - img [ref=e116]
+        - 'link "Phase10 INACTIVE Inactive / Suspended Inactive phase10.inactive@example.test Gender: female 0 upcoming assignments Bookings off use global Onboarding 4/6 Profile 1/6 View profile" [ref=e118] [cursor=pointer]':
+          - /url: /admin/staff/8098f0f3-3934-4e47-ae22-cd639eefd2b3/
+          - generic [ref=e119]:
+            - generic [ref=e120]:
+              - img [ref=e122]
+              - generic [ref=e125]:
+                - heading "Phase10 INACTIVE" [level=3] [ref=e126]
+                - paragraph [ref=e127]: Inactive / Suspended
+            - generic [ref=e128]: Inactive
+          - generic [ref=e129]:
+            - generic [ref=e130]:
+              - img [ref=e131]
+              - generic [ref=e134]: phase10.inactive@example.test
+            - generic [ref=e135]:
+              - img [ref=e136]
+              - generic [ref=e139]: "Gender: female"
+            - generic [ref=e140]:
+              - img [ref=e141]
+              - generic [ref=e144]: 0 upcoming assignments
+            - generic [ref=e145]:
+              - generic [ref=e146]: Bookings off
+              - generic [ref=e147]: use global
+              - generic [ref=e148]: Onboarding 4/6
+              - generic [ref=e149]: Profile 1/6
+          - generic [ref=e150]:
+            - generic [ref=e151]: View profile
+            - img [ref=e152]
+        - 'link "Phase10 OWNER Owner / Main Admin phase10.owner@example.test Gender: male 0 upcoming assignments Bookings off use global Onboarding 5/6 Profile 1/6 View profile" [ref=e154] [cursor=pointer]':
+          - /url: /admin/staff/b0f79294-74c0-40e6-8e5f-ade81c1d4d87/
+          - generic [ref=e156]:
+            - img [ref=e158]
+            - generic [ref=e161]:
+              - heading "Phase10 OWNER" [level=3] [ref=e162]
+              - paragraph [ref=e163]: Owner / Main Admin
+          - generic [ref=e164]:
+            - generic [ref=e165]:
+              - img [ref=e166]
+              - generic [ref=e169]: phase10.owner@example.test
+            - generic [ref=e170]:
+              - img [ref=e171]
+              - generic [ref=e174]: "Gender: male"
+            - generic [ref=e175]:
+              - img [ref=e176]
+              - generic [ref=e179]: 0 upcoming assignments
+            - generic [ref=e180]:
+              - generic [ref=e181]: Bookings off
+              - generic [ref=e182]: use global
+              - generic [ref=e183]: Onboarding 5/6
+              - generic [ref=e184]: Profile 1/6
+          - generic [ref=e185]:
+            - generic [ref=e186]: View profile
+            - img [ref=e187]
+        - 'link "Phase10 THERAPIST A Therapist phase10.therapist.a@example.test Gender: female 0 upcoming assignments Accepting bookings use global Onboarding 6/6 Profile 1/6 View profile" [ref=e189] [cursor=pointer]':
+          - /url: /admin/staff/976ea184-e878-441b-b2ee-9a3684b71985/
+          - generic [ref=e191]:
+            - img [ref=e193]
+            - generic [ref=e196]:
+              - heading "Phase10 THERAPIST A" [level=3] [ref=e197]
+              - paragraph [ref=e198]: Therapist
+          - generic [ref=e199]:
+            - generic [ref=e200]:
+              - img [ref=e201]
+              - generic [ref=e204]: phase10.therapist.a@example.test
+            - generic [ref=e205]:
+              - img [ref=e206]
+              - generic [ref=e209]: "Gender: female"
+            - generic [ref=e210]:
+              - img [ref=e211]
+              - generic [ref=e214]: 0 upcoming assignments
+            - generic [ref=e215]:
+              - generic [ref=e216]: Accepting bookings
+              - generic [ref=e217]: use global
+              - generic [ref=e218]: Onboarding 6/6
+              - generic [ref=e219]: Profile 1/6
+          - generic [ref=e220]:
+            - generic [ref=e221]: View profile
+            - img [ref=e222]
+        - 'link "Phase10 THERAPIST B Therapist phase10.therapist.b@example.test Gender: female 0 upcoming assignments Accepting bookings use global Onboarding 6/6 Profile 1/6 View profile" [ref=e224] [cursor=pointer]':
+          - /url: /admin/staff/1ae328ef-2f33-42dd-acb4-2e541543f162/
+          - generic [ref=e226]:
+            - img [ref=e228]
+            - generic [ref=e231]:
+              - heading "Phase10 THERAPIST B" [level=3] [ref=e232]
+              - paragraph [ref=e233]: Therapist
+          - generic [ref=e234]:
+            - generic [ref=e235]:
+              - img [ref=e236]
+              - generic [ref=e239]: phase10.therapist.b@example.test
+            - generic [ref=e240]:
+              - img [ref=e241]
+              - generic [ref=e244]: "Gender: female"
+            - generic [ref=e245]:
+              - img [ref=e246]
+              - generic [ref=e249]: 0 upcoming assignments
+            - generic [ref=e250]:
+              - generic [ref=e251]: Accepting bookings
+              - generic [ref=e252]: use global
+              - generic [ref=e253]: Onboarding 6/6
+              - generic [ref=e254]: Profile 1/6
+          - generic [ref=e255]:
+            - generic [ref=e256]: View profile
+            - img [ref=e257]
+        - 'link "Rahma Therapy Owner / Main Admin rahmatherapy@outlook.com Gender: male 0 upcoming assignments Accepting bookings use global Onboarding 6/6 Profile 1/6 View profile" [ref=e259] [cursor=pointer]':
+          - /url: /admin/staff/01582c5d-bd75-4c49-b207-6f5597e15218/
+          - generic [ref=e261]:
+            - img [ref=e263]
+            - generic [ref=e266]:
+              - heading "Rahma Therapy" [level=3] [ref=e267]
+              - paragraph [ref=e268]: Owner / Main Admin
+          - generic [ref=e269]:
+            - generic [ref=e270]:
+              - img [ref=e271]
+              - generic [ref=e274]: rahmatherapy@outlook.com
+            - generic [ref=e275]:
+              - img [ref=e276]
+              - generic [ref=e279]: "Gender: male"
+            - generic [ref=e280]:
+              - img [ref=e281]
+              - generic [ref=e284]: 0 upcoming assignments
+            - generic [ref=e285]:
+              - generic [ref=e286]: Accepting bookings
+              - generic [ref=e287]: use global
+              - generic [ref=e288]: Onboarding 6/6
+              - generic [ref=e289]: Profile 1/6
+          - generic [ref=e290]:
+            - generic [ref=e291]: View profile
+            - img [ref=e292]
+        - 'link "Test Admin Admin / Practice Manager test.admin@rahmatherapy.example.test Gender: male 0 upcoming assignments Accepting bookings use global Onboarding 6/6 Profile 1/6 View profile" [ref=e294] [cursor=pointer]':
+          - /url: /admin/staff/97310f6b-4e2f-4a9f-bec1-20224e57d8e6/
+          - generic [ref=e296]:
+            - img [ref=e298]
+            - generic [ref=e301]:
+              - heading "Test Admin" [level=3] [ref=e302]
+              - paragraph [ref=e303]: Admin / Practice Manager
+          - generic [ref=e304]:
+            - generic [ref=e305]:
+              - img [ref=e306]
+              - generic [ref=e309]: test.admin@rahmatherapy.example.test
+            - generic [ref=e310]:
+              - img [ref=e311]
+              - generic [ref=e314]: "Gender: male"
+            - generic [ref=e315]:
+              - img [ref=e316]
+              - generic [ref=e319]: 0 upcoming assignments
+            - generic [ref=e320]:
+              - generic [ref=e321]: Accepting bookings
+              - generic [ref=e322]: use global
+              - generic [ref=e323]: Onboarding 6/6
+              - generic [ref=e324]: Profile 1/6
+          - generic [ref=e325]:
+            - generic [ref=e326]: View profile
+            - img [ref=e327]
+        - 'link "Test Booking Coordinator Client Care / Booking Coordinator test.coordinator@rahmatherapy.example.test Gender: female 0 upcoming assignments Bookings off use global Onboarding 5/6 Profile 1/6 View profile" [ref=e329] [cursor=pointer]':
+          - /url: /admin/staff/998075ff-26fc-4451-9015-fadfbcd9f4df/
+          - generic [ref=e331]:
+            - img [ref=e333]
+            - generic [ref=e336]:
+              - heading "Test Booking Coordinator" [level=3] [ref=e337]
+              - paragraph [ref=e338]: Client Care / Booking Coordinator
+          - generic [ref=e339]:
+            - generic [ref=e340]:
+              - img [ref=e341]
+              - generic [ref=e344]: test.coordinator@rahmatherapy.example.test
+            - generic [ref=e345]:
+              - img [ref=e346]
+              - generic [ref=e349]: "Gender: female"
+            - generic [ref=e350]:
+              - img [ref=e351]
+              - generic [ref=e354]: 0 upcoming assignments
+            - generic [ref=e355]:
+              - generic [ref=e356]: Bookings off
+              - generic [ref=e357]: use global
+              - generic [ref=e358]: Onboarding 5/6
+              - generic [ref=e359]: Profile 1/6
+          - generic [ref=e360]:
+            - generic [ref=e361]: View profile
+            - img [ref=e362]
+        - 'link "Test Inactive Inactive / Suspended Inactive test.inactive@rahmatherapy.example.test Gender: female 0 upcoming assignments Bookings off use global Onboarding 4/6 Profile 1/6 View profile" [ref=e364] [cursor=pointer]':
+          - /url: /admin/staff/58784433-cb42-4773-9b22-b792c24b852d/
+          - generic [ref=e365]:
+            - generic [ref=e366]:
+              - img [ref=e368]
+              - generic [ref=e371]:
+                - heading "Test Inactive" [level=3] [ref=e372]
+                - paragraph [ref=e373]: Inactive / Suspended
+            - generic [ref=e374]: Inactive
+          - generic [ref=e375]:
+            - generic [ref=e376]:
+              - img [ref=e377]
+              - generic [ref=e380]: test.inactive@rahmatherapy.example.test
+            - generic [ref=e381]:
+              - img [ref=e382]
+              - generic [ref=e385]: "Gender: female"
+            - generic [ref=e386]:
+              - img [ref=e387]
+              - generic [ref=e390]: 0 upcoming assignments
+            - generic [ref=e391]:
+              - generic [ref=e392]: Bookings off
+              - generic [ref=e393]: use global
+              - generic [ref=e394]: Onboarding 4/6
+              - generic [ref=e395]: Profile 1/6
+          - generic [ref=e396]:
+            - generic [ref=e397]: View profile
+            - img [ref=e398]
+        - 'link "Test Therapist Therapist test.therapist@rahmatherapy.example.test Gender: female 0 upcoming assignments Accepting bookings use global Onboarding 6/6 Profile 1/6 View profile" [ref=e400] [cursor=pointer]':
+          - /url: /admin/staff/884311b1-e9d0-44b9-91f3-14188a3baf59/
+          - generic [ref=e402]:
+            - img [ref=e404]
+            - generic [ref=e407]:
+              - heading "Test Therapist" [level=3] [ref=e408]
+              - paragraph [ref=e409]: Therapist
+          - generic [ref=e410]:
+            - generic [ref=e411]:
+              - img [ref=e412]
+              - generic [ref=e415]: test.therapist@rahmatherapy.example.test
+            - generic [ref=e416]:
+              - img [ref=e417]
+              - generic [ref=e420]: "Gender: female"
+            - generic [ref=e421]:
+              - img [ref=e422]
+              - generic [ref=e425]: 0 upcoming assignments
+            - generic [ref=e426]:
+              - generic [ref=e427]: Accepting bookings
+              - generic [ref=e428]: use global
+              - generic [ref=e429]: Onboarding 6/6
+              - generic [ref=e430]: Profile 1/6
+          - generic [ref=e431]:
+            - generic [ref=e432]: View profile
+            - img [ref=e433]

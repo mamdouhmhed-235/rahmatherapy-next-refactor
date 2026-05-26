@@ -20,6 +20,26 @@ const SAFE_CONTEXT_KEYS = new Set([
   "staff_id",
   "staffId",
 ]);
+// Sentry envelope/event protocol fields. Sentry's ingest requires these in
+// specific formats (32-char hex IDs, ISO timestamps, etc.); replacing them
+// with [Filtered] produces "invalid envelope header" 400s and silently drops
+// every event. event_id matches LONG_TOKEN_PATTERN (24+ alphanumeric) so it
+// was being scrubbed.
+const SAFE_SENTRY_KEYS = new Set([
+  "event_id",
+  "trace_id",
+  "span_id",
+  "parent_span_id",
+  "timestamp",
+  "platform",
+  "level",
+  "environment",
+  "release",
+  "dist",
+  "logger",
+  "server_name",
+  "type",
+]);
 
 function redactText(value: string) {
   return value
@@ -33,6 +53,7 @@ function scrubValue(value: unknown, key = "", depth = 0): unknown {
   if (depth > 8) return "[Filtered]";
 
   if (typeof value === "string") {
+    if (SAFE_SENTRY_KEYS.has(key)) return value;
     return SENSITIVE_KEY_PATTERN.test(key) ? "[Filtered]" : redactText(value);
   }
 

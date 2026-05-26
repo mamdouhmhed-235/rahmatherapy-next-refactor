@@ -30,12 +30,17 @@ export function CardHeader({
   );
 }
 
+type CardTitleProps = React.HTMLAttributes<HTMLHeadingElement> & {
+  as?: "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+};
+
 export function CardTitle({
   className,
+  as: Tag = "h3",
   ...props
-}: React.HTMLAttributes<HTMLHeadingElement>) {
+}: CardTitleProps) {
   return (
-    <h3
+    <Tag
       data-slot="card-title"
       className={cn("font-display text-heading-2 text-foreground", className)}
       {...props}

@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CalendarDays, Loader2, Trash2 } from "lucide-react";
+import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
+import { AdminPanel } from "../components/admin-ui";
+import { ConfirmActionModal } from "../components/admin-ui-interactions";
 import {
-  deleteAvailabilityRule,
   saveAvailabilityRule,
   type AvailabilityActionState,
 } from "./actions";
@@ -23,200 +23,394 @@ interface AvailabilityRule {
 
 interface AvailabilityRulesManagerProps {
   initialRules: AvailabilityRule[];
+  /** "Last saved by {actor} on {date}" line for the panel description. */
+  lastSavedBy?: string | null;
 }
 
-const DAYS = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-];
+type DayState = {
+  ruleId: string;
+  dayOfWeek: number;
+  isWorkingDay: boolean;
+  startTime: string;
+  endTime: string;
+};
+
+// Brief renders the week as Mon → Sun. day_of_week column convention is 0 = Sunday.
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+
+const DAY_NAMES: Record<number, string> = {
+  0: "Sunday",
+  1: "Monday",
+  2: "Tuesday",
+  3: "Wednesday",
+  4: "Thursday",
+  5: "Friday",
+  6: "Saturday",
+};
 
 function formatTime(value: string) {
   return value.slice(0, 5);
 }
 
+function buildInitialState(initialRules: AvailabilityRule[]): Record<number, DayState> {
+  const next: Record<number, DayState> = {};
+  for (const day of WEEK_ORDER) {
+    const rule = initialRules.find((r) => r.day_of_week === day);
+    next[day] = {
+      ruleId: rule?.id ?? "",
+      dayOfWeek: day,
+      isWorkingDay: rule?.is_working_day ?? (day !== 0),
+      startTime: rule ? formatTime(rule.start_time) : "09:00",
+      endTime: rule ? formatTime(rule.end_time) : "18:00",
+    };
+  }
+  return next;
+}
+
 export function AvailabilityRulesManager({
   initialRules,
+  lastSavedBy,
 }: AvailabilityRulesManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [state, setState] = useState<AvailabilityActionState>({});
-  const [editingRule, setEditingRule] = useState<AvailabilityRule | null>(
-    initialRules[0] ?? null
+  const [days, setDays] = useState<Record<number, DayState>>(() =>
+    buildInitialState(initialRules)
+  );
+  const [errors, setErrors] = useState<Record<number, string>>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const formErrorId = useId();
+
+  const orderedDays = useMemo(
+    () => WEEK_ORDER.map((day) => days[day]),
+    [days]
   );
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+  function updateDay(day: number, patch: Partial<DayState>) {
+    setDays((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], ...patch },
+    }));
+    if (errors[day]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[day];
+        return next;
+      });
+    }
+  }
+
+  function validate(): boolean {
+    const next: Record<number, string> = {};
+    for (const day of orderedDays) {
+      if (!day.isWorkingDay) continue;
+      if (!day.startTime || !day.endTime) {
+        next[day.dayOfWeek] = "Set opening and closing times, or toggle the day off.";
+        continue;
+      }
+      if (day.endTime <= day.startTime) {
+        next[day.dayOfWeek] = "End time has to be after start time.";
+      }
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }
+
+  function copyMondayToWeekdays() {
+    const monday = days[1];
+    if (!monday) return;
+    setDays((prev) => {
+      const next = { ...prev };
+      for (const target of [2, 3, 4, 5, 6]) {
+        next[target] = {
+          ...prev[target],
+          isWorkingDay: monday.isWorkingDay,
+          startTime: monday.startTime,
+          endTime: monday.endTime,
+        };
+      }
+      return next;
+    });
+    setErrors({});
+    setFormError(null);
+    toast.success("Copied Monday hours to Tue–Sat.");
+  }
+
+  const allDaysClosed = useMemo(
+    () => orderedDays.every((d) => !d.isWorkingDay),
+    [orderedDays]
+  );
+
+  function performSave() {
+    setFormError(null);
+    if (!validate()) return;
 
     startTransition(async () => {
-      const result = await saveAvailabilityRule({}, formData);
+      const results = await Promise.all(
+        orderedDays.map(async (day) => {
+          const fd = new FormData();
+          fd.set("rule_id", day.ruleId);
+          fd.set("day_of_week", String(day.dayOfWeek));
+          fd.set("start_time", day.startTime);
+          fd.set("end_time", day.endTime);
+          if (day.isWorkingDay) fd.set("is_working_day", "on");
+          const result: AvailabilityActionState = await saveAvailabilityRule({}, fd);
+          return { day: day.dayOfWeek, result };
+        })
+      );
 
-      if (result.error || result.fieldErrors) {
-        setState(result);
-        if (result.error) toast.error(result.error);
+      const fieldFails: Record<number, string> = {};
+      let topError: string | null = null;
+      for (const { day, result } of results) {
+        if (result.fieldErrors) {
+          const message =
+            result.fieldErrors.start_time ??
+            result.fieldErrors.end_time ??
+            result.fieldErrors.day_of_week ??
+            "Couldn't save the hours. Try again.";
+          fieldFails[day] = message;
+        } else if (result.error) {
+          topError = result.error;
+        }
+      }
+
+      if (Object.keys(fieldFails).length > 0 || topError) {
+        setErrors(fieldFails);
+        setFormError(topError ?? "Couldn't save the hours. Try again.");
+        toast.error("Couldn't save the hours. Try again.");
         return;
       }
 
-      setState({});
-      toast.success("Working day saved");
+      toast.success("Working hours saved.");
       router.refresh();
     });
   }
 
-  function handleDelete(ruleId: string) {
-    startTransition(async () => {
-      const result = await deleteAvailabilityRule(ruleId);
+  const saveButtonClass =
+    "inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-5 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:w-auto sm:min-w-[12.5rem]";
 
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-
-      toast.success("Working day removed");
-      setEditingRule(null);
-      router.refresh();
-    });
+  function buildSaveButton(onClick?: () => void) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={isPending}
+        aria-busy={isPending || undefined}
+        className={saveButtonClass}
+      >
+        {isPending ? (
+          <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+        ) : null}
+        Save hours
+      </button>
+    );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-          <CalendarDays className="size-5 text-[var(--rahma-green)]" />
-          Global Working Hours
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <div className="divide-y divide-[var(--rahma-border)] rounded-xl border border-[var(--rahma-border)] bg-white">
-          {initialRules.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-[var(--rahma-muted)]">
-              No global working hours set.
-            </p>
-          ) : (
-            initialRules.map((rule) => (
-              <button
-                key={rule.id}
-                type="button"
-                onClick={() => setEditingRule(rule)}
-                className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition-colors hover:bg-[var(--rahma-ivory)]/40"
-              >
-                <div>
-                  <p className="font-medium text-[var(--rahma-charcoal)]">
-                    {DAYS[rule.day_of_week]}
-                  </p>
-                  <p className="text-sm text-[var(--rahma-muted)]">
-                    {rule.is_working_day
-                      ? `${formatTime(rule.start_time)} - ${formatTime(rule.end_time)}`
-                      : "Closed"}
-                  </p>
-                </div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-[var(--rahma-muted)]">
-                  Edit
-                </span>
-              </button>
-            ))
-          )}
-        </div>
+    <AdminPanel
+      title="Working hours"
+      description="Recurring weekly schedule for the clinic. Closed dates and hour adjustments override these defaults."
+    >
+      {lastSavedBy ? (
+        <p className="-mt-2 mb-4 text-xs text-[var(--admin-text-muted)]">
+          {lastSavedBy}
+        </p>
+      ) : null}
 
-        <form
-          key={editingRule?.id ?? "new"}
-          onSubmit={handleSubmit}
-          className="grid gap-4 rounded-xl border border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/30 p-4"
+      <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={copyMondayToWeekdays}
+          disabled={isPending}
+          title="Copy Monday's switch state and times to Tuesday through Saturday"
+          className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-canvas)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50 sm:w-auto"
         >
-          <input type="hidden" name="rule_id" value={editingRule?.id ?? ""} />
+          <Copy className="size-3.5 shrink-0" aria-hidden="true" />
+          Copy Monday to Tue–Sat
+        </button>
+      </div>
 
-          {state.error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-              {state.error}
-            </p>
-          ) : null}
+      <div
+        className="grid divide-y divide-[var(--admin-border)] overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)]"
+        role="list"
+      >
+        {orderedDays.map((day) => (
+          <DayRow
+            key={day.dayOfWeek}
+            day={day}
+            error={errors[day.dayOfWeek]}
+            disabled={isPending}
+            onToggle={(checked) =>
+              updateDay(day.dayOfWeek, { isWorkingDay: checked })
+            }
+            onStartChange={(value) =>
+              updateDay(day.dayOfWeek, { startTime: value })
+            }
+            onEndChange={(value) =>
+              updateDay(day.dayOfWeek, { endTime: value })
+            }
+          />
+        ))}
+      </div>
 
-          <label className="grid gap-1.5">
-            <span className="text-sm font-medium text-[var(--rahma-charcoal)]">
-              Day
-            </span>
-            <select
-              name="day_of_week"
-              defaultValue={editingRule?.day_of_week ?? 1}
-              disabled={isPending}
-              className="h-11 rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-50"
-            >
-              {DAYS.map((day, index) => (
-                <option key={day} value={index}>
-                  {day}
-                </option>
-              ))}
-            </select>
-          </label>
+      {formError ? (
+        <div
+          id={formErrorId}
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="mt-4 rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/30 bg-[oklch(95.5%_0.028_20)] px-3 py-2 text-sm text-[oklch(26%_0.14_25)]"
+        >
+          {formError}
+        </div>
+      ) : null}
 
-          <label className="grid gap-1.5">
-            <span className="text-sm font-medium text-[var(--rahma-charcoal)]">
-              Start
-            </span>
-            <Input
-              name="start_time"
-              type="time"
-              defaultValue={formatTime(editingRule?.start_time ?? "08:00")}
-              disabled={isPending}
-              required
-            />
-            {state.fieldErrors?.start_time ? (
-              <span className="text-xs text-red-600">
-                {state.fieldErrors.start_time}
-              </span>
-            ) : null}
-          </label>
+      <div className="mt-5 flex justify-end">
+        {allDaysClosed ? (
+          <ConfirmActionModal
+            title="Save with the clinic closed every day?"
+            description="The clinic will appear closed every day of the week. Existing bookings stay put, but customers won't be able to book new visits until at least one day is reopened."
+            confirmLabel="Save"
+            cancelLabel="Keep editing"
+            destructive
+            onConfirm={performSave}
+            trigger={buildSaveButton()}
+          />
+        ) : (
+          buildSaveButton(performSave)
+        )}
+      </div>
+    </AdminPanel>
+  );
+}
 
-          <label className="grid gap-1.5">
-            <span className="text-sm font-medium text-[var(--rahma-charcoal)]">
-              End
-            </span>
-            <Input
-              name="end_time"
-              type="time"
-              defaultValue={formatTime(editingRule?.end_time ?? "20:00")}
-              disabled={isPending}
-              required
-            />
-          </label>
+function DayRow({
+  day,
+  error,
+  disabled,
+  onToggle,
+  onStartChange,
+  onEndChange,
+}: {
+  day: DayState;
+  error?: string;
+  disabled: boolean;
+  onToggle: (checked: boolean) => void;
+  onStartChange: (value: string) => void;
+  onEndChange: (value: string) => void;
+}) {
+  const startId = useId();
+  const endId = useId();
+  const labelId = useId();
+  const errorId = `${labelId}-error`;
+  const dayName = DAY_NAMES[day.dayOfWeek];
 
-          <label className="flex items-center gap-2 text-sm text-[var(--rahma-charcoal)]">
-            <input
-              name="is_working_day"
-              type="checkbox"
-              defaultChecked={editingRule?.is_working_day ?? true}
-              disabled={isPending}
-              className="size-4 accent-[var(--rahma-green)]"
-            />
-            Working day
-          </label>
+  return (
+    <div
+      role="listitem"
+      className={cn(
+        "grid min-h-[3.5rem] gap-3 px-4 py-3 transition-colors duration-[var(--motion-duration-fast)] ease-gentle sm:grid-cols-[9rem_minmax(0,28rem)_1fr] sm:items-center sm:gap-6",
+        day.isWorkingDay
+          ? "bg-[oklch(93.5%_0.038_155)]"
+          : "bg-[oklch(94.0%_0.008_280)]"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <Switch
+          checked={day.isWorkingDay}
+          disabled={disabled}
+          aria-label={`${dayName}, open`}
+          onCheckedChange={onToggle}
+        />
+        <span
+          id={labelId}
+          className="text-sm font-medium text-[var(--admin-heading)]"
+        >
+          {dayName}
+        </span>
+      </div>
 
-          <div className="flex justify-between gap-2">
-            {editingRule ? (
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={() => handleDelete(editingRule.id)}
-                className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+      <div
+        // Outer wrapper drives the 160ms collapse via grid-template-rows
+        // (animatable in modern browsers; display:none would cancel transitions).
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-[var(--motion-duration-fast)] ease-gentle motion-reduce:transition-none",
+          day.isWorkingDay
+            ? "[grid-template-rows:1fr] opacity-100"
+            : "pointer-events-none [grid-template-rows:0fr] select-none opacity-0"
+        )}
+        aria-hidden={!day.isWorkingDay}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr] sm:gap-3">
+            <div className="grid gap-1">
+              <label
+                htmlFor={startId}
+                className="text-xs font-medium text-[var(--admin-text-muted)]"
               >
-                <Trash2 className="size-4" />
-                Delete
-              </button>
-            ) : (
-              <span />
-            )}
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-              Save
-            </Button>
+                Opens
+              </label>
+              <input
+                id={startId}
+                name={`start_time_${day.dayOfWeek}`}
+                type="time"
+                value={day.startTime}
+                onChange={(event) => onStartChange(event.target.value)}
+                disabled={disabled || !day.isWorkingDay}
+                tabIndex={day.isWorkingDay ? 0 : -1}
+                aria-invalid={error ? "true" : undefined}
+                aria-describedby={error ? errorId : undefined}
+                className={cn(
+                  "h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
+                  error
+                    ? "border-[oklch(26%_0.14_25)]"
+                    : "border-[var(--admin-border-form)]"
+                )}
+              />
+            </div>
+            <span
+              aria-hidden="true"
+              className="hidden text-sm text-[var(--admin-text-muted)] sm:block"
+            >
+              –
+            </span>
+            <div className="grid gap-1">
+              <label
+                htmlFor={endId}
+                className="text-xs font-medium text-[var(--admin-text-muted)]"
+              >
+                Closes
+              </label>
+              <input
+                id={endId}
+                name={`end_time_${day.dayOfWeek}`}
+                type="time"
+                value={day.endTime}
+                onChange={(event) => onEndChange(event.target.value)}
+                disabled={disabled || !day.isWorkingDay}
+                tabIndex={day.isWorkingDay ? 0 : -1}
+                className={cn(
+                  "h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
+                  error
+                    ? "border-[oklch(26%_0.14_25)]"
+                    : "border-[var(--admin-border-form)]"
+                )}
+              />
+            </div>
           </div>
-        </form>
-      </CardContent>
-    </Card>
+        </div>
+      </div>
+
+      {error ? (
+        <div
+          id={errorId}
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="text-xs text-[oklch(26%_0.14_25)] sm:col-span-3"
+        >
+          {error}
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, Loader2, Trash2 } from "lucide-react";
+import { Dialog as BaseDialog } from "@base-ui/react/dialog";
+import { CalendarX, Loader2, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
+import { AdminPanel } from "../components/admin-ui";
+import { EmptyState } from "../components/EmptyState";
+import { ConfirmActionModal } from "../components/admin-ui-interactions";
 import {
   createBlockedDate,
   deleteBlockedDate,
@@ -21,134 +23,344 @@ interface BlockedDate {
 
 interface BlockedDatesManagerProps {
   blockedDates: BlockedDate[];
+  /** "Last saved by {actor} on {date}" line for the panel description. */
+  lastSavedBy?: string | null;
+  /** ISO date → count of non-cancelled bookings on that date. Triggers a guard
+   *  confirm when the user tries to block a date that already has bookings. */
+  bookingsByDate?: Record<string, number>;
+}
+
+function formatDateLong(value: string) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export function BlockedDatesManager({
   blockedDates,
+  lastSavedBy,
+  bookingsByDate,
 }: BlockedDatesManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<AvailabilityActionState>({});
+  const [pendingMismatch, setPendingMismatch] = useState<{
+    date: string;
+    bookingCount: number;
+    formData: FormData;
+    formEl: HTMLFormElement;
+  } | null>(null);
+  const dateInputId = useId();
+  const reasonInputId = useId();
+  const dateErrorId = `${dateInputId}-error`;
+  const formErrorId = `${dateInputId}-form-error`;
+
+  const today = new Date().toISOString().slice(0, 10);
+  const sortedDates = [...blockedDates].sort((a, b) =>
+    a.blocked_date.localeCompare(b.blocked_date)
+  );
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
 
+    const dateValue = String(formData.get("blocked_date") ?? "");
+    if (dateValue && dateValue < today) {
+      setState({
+        fieldErrors: { blocked_date: "Pick a date from today onwards." },
+      });
+      return;
+    }
+    if (dateValue && sortedDates.some((row) => row.blocked_date === dateValue)) {
+      setState({
+        fieldErrors: {
+          blocked_date:
+            "That date is already closed. Edit or delete the existing entry.",
+        },
+      });
+      return;
+    }
+
+    // Booking-mismatch guard: if the chosen date already has bookings, pause
+    // and ask the operator to confirm before blocking the day.
+    const bookingsOnDate = bookingsByDate?.[dateValue] ?? 0;
+    if (dateValue && bookingsOnDate > 0) {
+      setState({});
+      setPendingMismatch({
+        date: dateValue,
+        bookingCount: bookingsOnDate,
+        formData,
+        formEl: form,
+      });
+      return;
+    }
+
+    submitBlockedDate(formData, form);
+  }
+
+  function submitBlockedDate(formData: FormData, formEl: HTMLFormElement) {
     startTransition(async () => {
       const result = await createBlockedDate({}, formData);
 
       if (result.error || result.fieldErrors) {
-        setState(result);
-        if (result.error) toast.error(result.error);
+        // Map known Postgres unique-constraint message to brief friendly copy.
+        if (result.error && /duplicate key|unique constraint/i.test(result.error)) {
+          setState({
+            fieldErrors: {
+              blocked_date:
+                "That date is already closed. Edit or delete the existing entry.",
+            },
+          });
+          return;
+        }
+        setState({
+          error:
+            result.error && !result.fieldErrors
+              ? "Couldn't add the entry. Try again."
+              : undefined,
+          fieldErrors: result.fieldErrors,
+        });
         return;
       }
 
       setState({});
-      form.reset();
-      toast.success("Blocked date saved");
+      formEl.reset();
+      toast.success("Closed date added.");
       router.refresh();
     });
+  }
+
+  function confirmBookingMismatch() {
+    if (!pendingMismatch) return;
+    const { formData, formEl } = pendingMismatch;
+    setPendingMismatch(null);
+    submitBlockedDate(formData, formEl);
+  }
+
+  function cancelBookingMismatch() {
+    setPendingMismatch(null);
   }
 
   function handleDelete(blockedDateId: string) {
-    startTransition(async () => {
+    return async () => {
       const result = await deleteBlockedDate(blockedDateId);
 
       if (result.error) {
-        toast.error(result.error);
+        toast.error("Couldn't remove the entry. Try again.");
         return;
       }
 
-      toast.success("Blocked date removed");
+      toast.success("Removed.");
       router.refresh();
-    });
+    };
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-          <Ban className="size-5 text-[var(--rahma-green)]" />
-          Blocked Dates
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-        <div className="divide-y divide-[var(--rahma-border)] rounded-xl border border-[var(--rahma-border)] bg-white">
-          {blockedDates.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-[var(--rahma-muted)]">
-              No blocked dates set.
-            </p>
-          ) : (
-            blockedDates.map((blockedDate) => (
-              <div
-                key={blockedDate.id}
-                className="flex items-center justify-between gap-4 px-4 py-3"
-              >
-                <div>
-                  <p className="font-medium text-[var(--rahma-charcoal)]">
-                    {blockedDate.blocked_date}
-                  </p>
-                  <p className="text-sm text-[var(--rahma-muted)]">
-                    {blockedDate.reason ?? "No reason set"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => handleDelete(blockedDate.id)}
-                  className="inline-flex size-9 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-                  aria-label={`Remove blocked date ${blockedDate.blocked_date}`}
-                >
-                  <Trash2 className="size-4" />
-                </button>
+    <AdminPanel
+      title="Closed dates"
+      description="Days when the whole clinic is unavailable. These take precedence over the weekly schedule."
+    >
+      {lastSavedBy ? (
+        <p className="-mt-2 mb-4 text-xs text-[var(--admin-text-muted)]">
+          {lastSavedBy}
+        </p>
+      ) : null}
+
+      {/* Controlled mismatch confirm: opens when the user tries to block a
+          date that already has bookings. Self-contained so we don't have to
+          extend the shared ConfirmActionModal API. */}
+      <BaseDialog.Root
+        open={pendingMismatch !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingMismatch(null);
+        }}
+      >
+        <BaseDialog.Portal>
+          <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm" />
+          <BaseDialog.Popup className="fixed left-1/2 top-[30vh] z-50 w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]">
+                <XCircle
+                  className="size-5 text-[oklch(26%_0.14_25)]"
+                  aria-hidden="true"
+                />
+              </span>
+              <div className="min-w-0 flex-1">
+                <BaseDialog.Title className="text-base font-semibold text-[var(--admin-heading)]">
+                  Block this date even though bookings exist?
+                </BaseDialog.Title>
+                <BaseDialog.Description className="mt-1.5 text-sm leading-6 text-[var(--admin-text-muted)]">
+                  {pendingMismatch
+                    ? `${pendingMismatch.bookingCount} booking${pendingMismatch.bookingCount === 1 ? "" : "s"} on ${formatDateLong(pendingMismatch.date)} will stay scheduled, but customers will see the clinic as closed. Move or cancel the existing bookings first if that's not what you intend.`
+                    : ""}
+                </BaseDialog.Description>
               </div>
-            ))
-          )}
+            </div>
+            <div className="mt-5 flex flex-wrap-reverse justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelBookingMismatch}
+                className="inline-flex min-h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-canvas)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                Review bookings first
+              </button>
+              <button
+                type="button"
+                onClick={confirmBookingMismatch}
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                Block anyway
+              </button>
+            </div>
+          </BaseDialog.Popup>
+        </BaseDialog.Portal>
+      </BaseDialog.Root>
+
+      <form
+        onSubmit={handleSubmit}
+        className="grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-canvas)] p-4 sm:grid-cols-[1fr_minmax(0,2fr)_auto] sm:items-end"
+        aria-busy={isPending || undefined}
+      >
+        <div className="grid gap-1.5">
+          <label
+            htmlFor={dateInputId}
+            className="text-sm font-medium text-[var(--admin-heading)]"
+          >
+            Date
+            <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+              *
+            </span>
+          </label>
+          <input
+            id={dateInputId}
+            name="blocked_date"
+            type="date"
+            required
+            min={today}
+            disabled={isPending}
+            aria-invalid={state.fieldErrors?.blocked_date ? "true" : undefined}
+            aria-describedby={
+              state.fieldErrors?.blocked_date ? dateErrorId : undefined
+            }
+            className={cn(
+              "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
+              state.fieldErrors?.blocked_date
+                ? "border-[oklch(26%_0.14_25)]"
+                : "border-[var(--admin-border-form)]"
+            )}
+          />
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="grid gap-4 rounded-xl border border-[var(--rahma-border)] bg-[var(--rahma-ivory)]/30 p-4"
+        <div className="grid gap-1.5">
+          <label
+            htmlFor={reasonInputId}
+            className="text-sm font-medium text-[var(--admin-heading)]"
+          >
+            Reason (optional)
+          </label>
+          <input
+            id={reasonInputId}
+            name="reason"
+            type="text"
+            placeholder="e.g. Eid al-Fitr, staff training day"
+            disabled={isPending}
+            className="flex h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={isPending}
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:h-10 sm:w-auto sm:min-w-[9.5rem]"
         >
-          {state.error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-              {state.error}
-            </p>
+          {isPending ? (
+            <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
           ) : null}
+          Add closed date
+        </button>
 
-          <label className="grid gap-1.5">
-            <span className="text-sm font-medium text-[var(--rahma-charcoal)]">
-              Date
-            </span>
-            <Input
-              name="blocked_date"
-              type="date"
-              disabled={isPending}
-              required
-            />
-            {state.fieldErrors?.blocked_date ? (
-              <span className="text-xs text-red-600">
-                {state.fieldErrors.blocked_date}
-              </span>
-            ) : null}
-          </label>
-
-          <label className="grid gap-1.5">
-            <span className="text-sm font-medium text-[var(--rahma-charcoal)]">
-              Reason
-            </span>
-            <Input name="reason" disabled={isPending} />
-          </label>
-
-          <div className="flex justify-end">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-              Add blocked date
-            </Button>
+        {state.error ? (
+          <div
+            id={formErrorId}
+            role="alert"
+            aria-live="polite"
+            aria-atomic="true"
+            className="text-sm text-[oklch(26%_0.14_25)] sm:col-span-3"
+          >
+            {state.error}
           </div>
-        </form>
-      </CardContent>
-    </Card>
+        ) : null}
+
+        {state.fieldErrors?.blocked_date ? (
+          <div
+            id={dateErrorId}
+            role="alert"
+            aria-live="polite"
+            aria-atomic="true"
+            className="text-xs text-[oklch(26%_0.14_25)] sm:col-span-3"
+          >
+            {state.fieldErrors.blocked_date}
+          </div>
+        ) : null}
+      </form>
+
+      <div className="mt-5">
+        {sortedDates.length === 0 ? (
+          <EmptyState
+            icon={CalendarX}
+            illustrationSrc="/images/admin/empty-states/closed-dates.svg"
+            title="No closed dates"
+            message="Add a date when the whole clinic is unavailable."
+          />
+        ) : (
+          <ul className="grid list-none gap-2 pl-0" aria-label="Closed dates">
+            {sortedDates.map((entry) => (
+              <li
+                key={entry.id}
+                className="flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3 transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:border-[var(--admin-primary)]/30"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-mono text-sm font-medium text-[var(--admin-heading)]">
+                    {formatDateLong(entry.blocked_date)}
+                  </p>
+                  {entry.reason ? (
+                    <p className="mt-0.5 text-sm text-[var(--admin-text-muted)]">
+                      {entry.reason}
+                    </p>
+                  ) : null}
+                </div>
+                <ConfirmActionModal
+                  title="Remove this closed date?"
+                  description={`The clinic will show as available on ${formatDateLong(
+                    entry.blocked_date
+                  )}. Existing bookings on that day stay put.`}
+                  confirmLabel="Remove"
+                  cancelLabel="Keep it"
+                  destructive
+                  onConfirm={handleDelete(entry.id)}
+                  trigger={
+                    <button
+                      type="button"
+                      title={`Remove this closed date: ${formatDateLong(entry.blocked_date)}`}
+                      aria-label={`Remove closed date ${formatDateLong(entry.blocked_date)}`}
+                      className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[oklch(95.5%_0.028_20)] hover:text-[oklch(26%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                    >
+                      <Trash2 className="size-4" aria-hidden="true" />
+                    </button>
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </AdminPanel>
   );
 }
+

@@ -1,18 +1,14 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canManageOperations, getStaffProfile } from "@/lib/auth/rbac";
 
 function canManageOperationalEvents(
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
 ) {
-  return (
-    profile.permissions.has(PERMISSIONS.MANAGE_SETTINGS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_EMAILS) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL)
-  );
+  return canManageOperations(profile);
 }
 
 export async function updateOperationalEventStatus(formData: FormData) {
@@ -67,6 +63,8 @@ export async function updateOperationalEventStatus(formData: FormData) {
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/operations");
   revalidatePath("/admin/dashboard");
 }

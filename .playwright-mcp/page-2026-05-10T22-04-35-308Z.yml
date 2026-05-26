@@ -1,0 +1,81 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+      - generic [ref=e8]:
+        - button "Search" [ref=e9]:
+          - img [ref=e10]
+        - button "Open admin navigation" [ref=e13]:
+          - img [ref=e14]
+  - main [ref=e15]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - heading "Enquiries" [level=1] [ref=e21]
+          - paragraph [ref=e22]: Track phone, WhatsApp, Instagram, referral, and website leads before they become bookings.
+        - generic [ref=e24]: 1 new
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - heading "Record enquiry" [level=2] [ref=e27]
+          - generic [ref=e28]:
+            - generic [ref=e29]:
+              - generic [ref=e30]: Name
+              - textbox "Name" [ref=e31]
+            - generic [ref=e32]:
+              - generic [ref=e33]: Source
+              - combobox "Source" [ref=e34]:
+                - option "Website"
+                - option "Phone"
+                - option "WhatsApp" [selected]
+                - option "Instagram"
+                - option "Referral"
+                - option "Other"
+            - generic [ref=e35]:
+              - generic [ref=e36]: Phone
+              - textbox "Phone" [ref=e37]
+            - generic [ref=e38]:
+              - generic [ref=e39]: Email
+              - textbox "Email" [ref=e40]
+            - generic [ref=e41]:
+              - generic [ref=e42]: Service interest
+              - textbox "Service interest" [ref=e43]
+            - generic [ref=e44]:
+              - generic [ref=e45]: Owner
+              - combobox "Owner" [ref=e46]:
+                - option "Unassigned" [selected]
+                - option "Phase10 ADMIN"
+                - option "Phase10 COORDINATOR"
+                - option "Phase10 OWNER"
+                - option "Phase10 THERAPIST A"
+                - option "Phase10 THERAPIST B"
+                - option "Rahma Therapy"
+                - option "Test Admin"
+                - option "Test Booking Coordinator"
+                - option "Test Therapist"
+          - generic [ref=e47]:
+            - generic [ref=e48]: Enquiry notes
+            - textbox "Enquiry notes" [ref=e49]
+          - button "Save enquiry" [ref=e50]:
+            - img
+            - text: Save enquiry
+        - article [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e54]:
+              - generic [ref=e55]:
+                - heading "Phase10 E2E Enquiry" [level=2] [ref=e56]
+                - generic [ref=e57]: new
+                - generic [ref=e58]: whatsapp
+              - paragraph [ref=e59]: 07123456788 - phase10.enquiry@example.test
+              - paragraph [ref=e60]: Hijama Package - Unassigned
+              - paragraph [ref=e61]: phase10_e2e
+              - paragraph [ref=e62]: Created 10 May 2026, 18:55
+            - generic [ref=e63]:
+              - link "Convert" [ref=e64] [cursor=pointer]:
+                - /url: /admin/bookings/new/?enquiryId=7d817187-ad00-4ebb-ac51-2c51677ae43e
+                - img
+                - text: Convert
+              - button "contacted" [ref=e65]
+              - button "closed" [ref=e66]

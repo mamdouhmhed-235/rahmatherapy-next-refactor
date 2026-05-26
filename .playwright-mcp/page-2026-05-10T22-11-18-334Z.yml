@@ -1,0 +1,66 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e22]: Dashboard - Rahma Therapy Admin
+  - generic [ref=e23]:
+    - link "Skip to admin content" [ref=e24] [cursor=pointer]:
+      - /url: "#admin-main"
+    - banner [ref=e25]:
+      - generic [ref=e26]:
+        - link "Rahma Therapy admin dashboard" [ref=e27] [cursor=pointer]:
+          - /url: /admin/dashboard/
+          - generic [ref=e29]: Rahma Therapy
+        - generic [ref=e30]:
+          - link "Reports" [ref=e31] [cursor=pointer]:
+            - /url: /admin/reports/
+            - img [ref=e32]
+            - text: Reports
+          - link "Calendar" [ref=e35] [cursor=pointer]:
+            - /url: /admin/calendar/
+            - img [ref=e36]
+            - text: Calendar
+          - button "Test Therapist" [ref=e39]:
+            - img [ref=e41]
+            - generic [ref=e44]: Test Therapist
+            - img [ref=e45]
+    - main [ref=e47]:
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - paragraph [ref=e51]: Today · Sunday 10 May
+          - heading "Good evening, Test" [level=1] [ref=e52]
+          - paragraph [ref=e53]: No more sessions on your calendar today. Take a moment to review your assignments or check claimable work below.
+        - generic [ref=e54]:
+          - generic [ref=e55]:
+            - generic [ref=e56]:
+              - heading "Today's schedule" [level=2] [ref=e57]
+              - paragraph [ref=e58]: Nothing scheduled today.
+            - link "View all my bookings" [ref=e59] [cursor=pointer]:
+              - /url: /admin/bookings/
+              - text: View all my bookings
+              - img [ref=e60]
+          - generic [ref=e62]:
+            - img [ref=e64]
+            - paragraph [ref=e67]: No appointments today
+            - paragraph [ref=e68]: Take a moment to plan tomorrow or claim available work.
+            - link "View claimable work" [ref=e69] [cursor=pointer]:
+              - /url: /admin/bookings/?view=claimable
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]:
+              - heading "This week" [level=2] [ref=e73]
+              - paragraph [ref=e74]: Your work in the selected range.
+            - link "View my report" [ref=e75] [cursor=pointer]:
+              - /url: /admin/reports/
+              - text: View my report
+              - img [ref=e76]
+          - generic [ref=e78]:
+            - generic [ref=e79]:
+              - paragraph [ref=e80]: Sessions completed
+              - paragraph [ref=e81]: "0"
+            - generic [ref=e82]:
+              - paragraph [ref=e83]: Hours worked
+              - paragraph [ref=e84]: 0h
+            - generic [ref=e85]:
+              - paragraph [ref=e86]: On the calendar this week
+              - paragraph [ref=e87]: "0"
+            - generic [ref=e88]:
+              - paragraph [ref=e89]: No-shows / cancellations
+              - paragraph [ref=e90]: "0"

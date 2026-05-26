@@ -1,158 +1,218 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateStaffAvailabilityMode } from "../../actions";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Calendar, Globe, UserCheck, Info, CheckCircle2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { CheckCircle, Globe, Loader2, UserCheck } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { updateStaffAvailabilityMode } from "../../actions";
+import { AdminFieldHelp, AdminStatusBadge } from "../../../components/admin-ui";
+import { ConfirmActionModal } from "../../../components/admin-ui-interactions";
 
-type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
+type AvailabilityMode = "use_global" | "custom";
 
 interface AvailabilityModeSelectorProps {
   staff: {
     id: string;
-    availability_mode: AvailabilityMode;
+    availability_mode: string;
   };
-  canManageGlobal: boolean;
-  isOwnProfile: boolean;
+  canEdit: boolean;
+  isSelfView: boolean;
 }
 
-export function AvailabilityModeSelector({ staff, canManageGlobal, isOwnProfile }: AvailabilityModeSelectorProps) {
+export function AvailabilityModeSelector({
+  staff,
+  canEdit,
+  isSelfView,
+}: AvailabilityModeSelectorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
   const [currentMode, setCurrentMode] = useState<AvailabilityMode>(
-    staff.availability_mode
+    staff.availability_mode === "custom" ? "custom" : "use_global"
   );
+  const sublineId = useId();
 
-  const modes: {
-    id: AvailabilityMode;
-    title: string;
-    description: string;
-    icon: typeof Globe;
-  }[] = [
-    {
-      id: "use_global",
-      title: "Use Global Schedule",
-      description: "Follow the practice-wide working hours and holidays. Ideal for regular part-time or full-time staff.",
-      icon: Globe,
-    },
-    {
-      id: "custom",
-      title: "Strictly Custom",
-      description: "Override all global rules with a unique schedule. Best for contractors or visiting therapists.",
-      icon: UserCheck,
-    },
-    {
-      id: "global_with_overrides",
-      title: "Global with Overrides",
-      description: "Base availability on global rules, but allow specific custom shifts or block-outs.",
-      icon: Calendar,
-    }
-  ];
-
-  async function handleModeChange(modeId: AvailabilityMode) {
+  function applyMode(modeId: AvailabilityMode) {
     if (modeId === currentMode) return;
-
     startTransition(async () => {
       const result = await updateStaffAvailabilityMode(staff.id, modeId);
       if (result.error) {
-        setError(result.error);
         toast.error(result.error);
-      } else {
-        setError(null);
-        setCurrentMode(modeId);
-        toast.success("Availability mode updated");
-        router.refresh();
+        return;
       }
+      setCurrentMode(modeId);
+      toast.success(
+        `Now using ${modeId === "use_global" ? "global" : "custom"} hours.`
+      );
+      router.refresh();
     });
   }
 
-  const canEdit = canManageGlobal || isOwnProfile;
+  const isCustom = currentMode === "custom";
+  const subline = isCustom
+    ? isSelfView
+      ? "You have your own working pattern set below."
+      : "This staff member has their own working pattern set below."
+    : isSelfView
+      ? "Your schedule follows the clinic-wide working hours from Settings."
+      : "This staff member follows the clinic-wide working hours from Settings.";
 
   return (
-    <div className="space-y-6">
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600 flex items-center gap-3">
-          <Info className="size-4 shrink-0" />
-          {error}
+    <section
+      aria-labelledby="availability-mode-heading"
+      className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-canvas)] p-5"
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <h2
+              id="availability-mode-heading"
+              className="text-sm font-medium text-[var(--admin-text-muted)]"
+            >
+              Availability mode
+            </h2>
+            <AdminFieldHelp label="When should I use custom vs global hours?">
+              &lsquo;Global hours&rsquo; uses the clinic-wide working
+              pattern from Settings. Pick &lsquo;Custom hours&rsquo; only
+              when this therapist&apos;s schedule differs (works one
+              weekday off, evenings only, etc.). Custom rules live with
+              this staff member &mdash; switching back to global hides
+              them, not deletes.
+            </AdminFieldHelp>
+          </div>
+          <p
+            id={sublineId}
+            className="mt-1 text-sm text-[var(--admin-body)]"
+          >
+            {subline}
+          </p>
         </div>
+
+        <div
+          className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end"
+          aria-describedby={sublineId}
+        >
+          <span
+            title={
+              isCustom
+                ? "Has their own working pattern set here."
+                : "Falls back to the clinic-wide working hours in Settings."
+            }
+            className="inline-flex self-start sm:self-center"
+          >
+            <AdminStatusBadge
+              value={isCustom ? "Custom hours" : "Using global hours"}
+              tone={isCustom ? "success" : "info"}
+            />
+          </span>
+
+          <ModeSegmentedControl
+            isCustom={isCustom}
+            disabled={!canEdit || isPending}
+            isPending={isPending}
+            isSelfView={isSelfView}
+            onUseGlobal={() => applyMode("use_global")}
+            onCustom={() => applyMode("custom")}
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ModeSegmentedControl({
+  isCustom,
+  disabled,
+  isPending,
+  isSelfView,
+  onUseGlobal,
+  onCustom,
+}: {
+  isCustom: boolean;
+  disabled: boolean;
+  isPending: boolean;
+  isSelfView: boolean;
+  onUseGlobal: () => void;
+  onCustom: () => void;
+}) {
+  const confirmBody = isSelfView
+    ? "The clinic's working hours will replace yours below. Your custom rules will be hidden but not deleted — switching back to custom restores them."
+    : "The custom rules you've set for this staff member will be hidden but not deleted. Switching back to custom restores them.";
+
+  return (
+    <div
+      role="group"
+      aria-label="Availability mode"
+      className="inline-flex w-full flex-wrap items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] p-1 sm:w-auto"
+    >
+      {isCustom ? (
+        <ConfirmActionModal
+          title="Switch to global hours?"
+          description={confirmBody}
+          confirmLabel="Use global hours"
+          cancelLabel="Cancel"
+          destructive
+          onConfirm={async () => onUseGlobal()}
+          trigger={
+            <button
+              type="button"
+              disabled={disabled}
+              aria-pressed={false}
+              className={cn(
+                "inline-flex h-11 flex-1 min-w-[8.5rem] items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:h-10 sm:flex-initial",
+                "bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-canvas)]"
+              )}
+            >
+              {isPending ? (
+                <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+              ) : (
+                <Globe className="size-4 shrink-0" aria-hidden="true" />
+              )}
+              Use global hours
+            </button>
+          }
+        />
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          aria-pressed={true}
+          onClick={onUseGlobal}
+          className={cn(
+            "inline-flex h-11 flex-1 min-w-[8.5rem] items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-on-primary)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:h-10 sm:flex-initial",
+            "bg-[var(--admin-primary)] shadow-sm"
+          )}
+        >
+          {isPending ? (
+            <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+          ) : (
+            <CheckCircle className="size-4 shrink-0" aria-hidden="true" />
+          )}
+          Use global hours
+        </button>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <Globe className="size-5 text-[var(--rahma-green)]" />
-            Availability Mode
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {modes.map((mode) => {
-              const isSelected = currentMode === mode.id;
-              const Icon = mode.icon;
-
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  disabled={isPending || !canEdit}
-                  onClick={() => handleModeChange(mode.id)}
-                  className={cn(
-                    "relative flex flex-col items-start rounded-2xl border p-5 text-left transition-all duration-200",
-                    isSelected
-                      ? "border-[var(--rahma-green)] bg-[var(--rahma-ivory)] ring-1 ring-[var(--rahma-green)]"
-                      : "border-[var(--rahma-border)] bg-white hover:border-[var(--rahma-muted)]",
-                    isPending && "opacity-50 grayscale"
-                  )}
-                >
-                  <div className={cn(
-                    "mb-4 flex size-10 items-center justify-center rounded-xl",
-                    isSelected ? "bg-[var(--rahma-green)] text-white" : "bg-gray-100 text-[var(--rahma-muted)]"
-                  )}>
-                    <Icon className="size-5" />
-                  </div>
-                  
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <p className={cn(
-                      "font-semibold text-sm",
-                      isSelected ? "text-[var(--rahma-charcoal)]" : "text-[var(--rahma-muted)]"
-                    )}>
-                      {mode.title}
-                    </p>
-                    {isSelected && (
-                      <CheckCircle2 className="size-4 text-[var(--rahma-green)]" />
-                    )}
-                  </div>
-                  
-                  <p className="text-xs leading-relaxed text-[var(--rahma-muted)]">
-                    {mode.description}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-8 rounded-xl bg-[var(--rahma-ivory)]/50 p-4 border border-[var(--rahma-border)]">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--rahma-muted)] mb-3">Current Active Logic</h4>
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="mt-1 size-1.5 shrink-0 rounded-full bg-[var(--rahma-green)]" />
-                <p className="text-sm text-[var(--rahma-charcoal)]">
-                  {currentMode === 'use_global' 
-                    ? "Currently pulling 08:00 - 20:00 schedule from Global Settings." 
-                    : currentMode === 'custom' 
-                    ? "Global schedule is ignored. Using custom rules defined below."
-                    : "Merging Global schedule with staff-specific overrides."
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-pressed={isCustom}
+        onClick={isCustom ? undefined : onCustom}
+        className={cn(
+          "inline-flex h-11 flex-1 min-w-[8.5rem] items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:h-10 sm:flex-initial",
+          isCustom
+            ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-sm"
+            : "bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-canvas)]"
+        )}
+      >
+        {isPending && isCustom ? (
+          <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+        ) : isCustom ? (
+          <CheckCircle className="size-4 shrink-0" aria-hidden="true" />
+        ) : (
+          <UserCheck className="size-4 shrink-0" aria-hidden="true" />
+        )}
+        Custom hours
+      </button>
     </div>
   );
 }

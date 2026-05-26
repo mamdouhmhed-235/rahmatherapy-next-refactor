@@ -1,0 +1,186 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+        - generic [ref=e8]: Rahma Therapy
+      - button "Search" [ref=e10]:
+        - img [ref=e11]
+        - generic [ref=e14]: Search
+      - generic [ref=e15]:
+        - link "Reports" [ref=e16] [cursor=pointer]:
+          - /url: /admin/reports/
+          - img [ref=e17]
+          - text: Reports
+        - link "Calendar" [ref=e20] [cursor=pointer]:
+          - /url: /admin/calendar/
+          - img [ref=e21]
+          - text: Calendar
+        - link "Settings" [ref=e23] [cursor=pointer]:
+          - /url: /admin/settings/
+          - img [ref=e24]
+        - button "Rahma Therapy" [ref=e28]:
+          - img [ref=e30]
+          - generic [ref=e33]: Rahma Therapy
+          - img [ref=e34]
+  - main [ref=e36]:
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - heading "Reports" [level=1] [ref=e42]
+          - paragraph [ref=e43]: Server-scoped business, client, booking, payment, staff, service, and source reporting.
+        - link "Export CSV" [ref=e45] [cursor=pointer]:
+          - /url: /admin/reports/export/?report=revenue_summary&range=month&from=2026-05-01&to=2026-06-09
+          - img
+          - text: Export CSV
+      - generic [ref=e48]:
+        - generic [ref=e49]:
+          - text: Range
+          - combobox "Range" [ref=e50]:
+            - option "Lifetime"
+            - option "Yearly"
+            - option "Monthly" [selected]
+            - option "Weekly"
+            - option "Custom"
+        - generic [ref=e51]:
+          - text: From
+          - textbox "From" [ref=e52]: 2026-05-01
+        - generic [ref=e53]:
+          - text: To
+          - textbox "To" [ref=e54]: 2026-06-09
+        - generic [ref=e55]:
+          - text: Staff
+          - combobox "Staff" [ref=e56]:
+            - option "All staff" [selected]
+            - option "Rahma Therapy"
+            - option "Test Admin"
+            - option "Test Booking Coordinator"
+            - option "Test Inactive"
+            - option "Test Therapist"
+        - generic [ref=e57]:
+          - text: Source
+          - combobox "Source" [ref=e58]:
+            - option "Any source" [selected]
+        - generic [ref=e59]:
+          - text: Payment
+          - combobox "Payment" [ref=e60]:
+            - option "Any payment" [selected]
+            - option "Paid"
+            - option "Unpaid"
+        - button "Apply" [ref=e61]
+      - generic [ref=e62]:
+        - article [ref=e63]:
+          - generic [ref=e64]:
+            - paragraph [ref=e65]: Bookings
+            - img [ref=e66]
+          - paragraph [ref=e69]: "0"
+          - paragraph [ref=e70]: Booking records in scope
+        - article [ref=e71]:
+          - generic [ref=e72]:
+            - paragraph [ref=e73]: Repeat clients
+            - img [ref=e74]
+          - paragraph [ref=e79]: "0"
+          - paragraph [ref=e80]: 0 new clients
+        - article [ref=e81]:
+          - generic [ref=e82]:
+            - paragraph [ref=e83]: Collected revenue
+            - img [ref=e84]
+          - paragraph [ref=e87]: £0.00
+          - paragraph [ref=e88]: Actual amount paid
+        - article [ref=e89]:
+          - generic [ref=e90]:
+            - paragraph [ref=e91]: Outstanding
+            - img [ref=e92]
+          - paragraph [ref=e95]: £0.00
+          - paragraph [ref=e96]: Due minus paid
+      - generic [ref=e97]:
+        - generic [ref=e98]:
+          - generic [ref=e100]:
+            - heading "Revenue by period" [level=2] [ref=e101]
+            - paragraph [ref=e102]: Booked, collected, and outstanding revenue from scoped booking rows.
+          - generic "Revenue by period chart" [ref=e103]
+        - generic [ref=e105]:
+          - heading "Bookings by status" [level=2] [ref=e108]
+          - generic "Bookings by status chart" [ref=e109]
+      - generic [ref=e111]:
+        - generic [ref=e112]:
+          - heading "Service performance" [level=2] [ref=e115]
+          - paragraph [ref=e116]: No records in this range.
+        - generic [ref=e117]:
+          - heading "Staff workload" [level=2] [ref=e120]
+          - paragraph [ref=e121]: No records in this range.
+        - generic [ref=e122]:
+          - generic [ref=e124]:
+            - heading "Staff revenue attribution" [level=2] [ref=e125]
+            - paragraph [ref=e126]: Participant service-item attribution avoids group-booking double-counting.
+          - paragraph [ref=e127]: No records in this range.
+      - generic [ref=e128]:
+        - generic [ref=e130]:
+          - heading "CSV exports" [level=2] [ref=e131]
+          - paragraph [ref=e132]: Default exports exclude health notes, treatment notes, admin notes, consent details, and raw audit payloads.
+        - generic [ref=e133]:
+          - link "Revenue summary" [ref=e134] [cursor=pointer]:
+            - /url: /admin/reports/export/?report=revenue_summary&range=month&from=2026-05-01&to=2026-06-09
+            - img
+            - text: Revenue summary
+          - link "Client summary" [ref=e135] [cursor=pointer]:
+            - /url: /admin/reports/export/?report=client_summary&range=month&from=2026-05-01&to=2026-06-09
+            - img
+            - text: Client summary
+          - link "Booking list" [ref=e136] [cursor=pointer]:
+            - /url: /admin/reports/export/?report=booking_list&range=month&from=2026-05-01&to=2026-06-09
+            - img
+            - text: Booking list
+          - link "Payment report" [ref=e137] [cursor=pointer]:
+            - /url: /admin/reports/export/?report=payment_report&range=month&from=2026-05-01&to=2026-06-09
+            - img
+            - text: Payment report
+          - link "Staff workload" [ref=e138] [cursor=pointer]:
+            - /url: /admin/reports/export/?report=staff_workload_report&range=month&from=2026-05-01&to=2026-06-09
+            - img
+            - text: Staff workload
+          - link "Staff revenue attribution" [ref=e139] [cursor=pointer]:
+            - /url: /admin/reports/export/?report=staff_revenue_attribution_report&range=month&from=2026-05-01&to=2026-06-09
+            - img
+            - text: Staff revenue attribution
+          - link "Service performance" [ref=e140] [cursor=pointer]:
+            - /url: /admin/reports/export/?report=service_performance_report&range=month&from=2026-05-01&to=2026-06-09
+            - img
+            - text: Service performance
+          - link "Source/channel" [ref=e141] [cursor=pointer]:
+            - /url: /admin/reports/export/?report=source_channel_report&range=month&from=2026-05-01&to=2026-06-09
+            - img
+            - text: Source/channel
+      - generic [ref=e142]:
+        - generic [ref=e143]:
+          - heading "Source/channel report" [level=2] [ref=e146]
+          - generic "Bookings by source chart" [ref=e147]
+        - generic [ref=e149]:
+          - heading "Metric definitions" [level=2] [ref=e152]
+          - generic [ref=e153]:
+            - generic [ref=e154]:
+              - generic [ref=e156]: Booked revenue
+              - paragraph [ref=e157]: Total booking value created in the selected period.
+            - generic [ref=e158]:
+              - generic [ref=e160]: Expected revenue
+              - paragraph [ref=e161]: Confirmed or upcoming unpaid booking value.
+            - generic [ref=e162]:
+              - generic [ref=e164]: Collected revenue
+              - paragraph [ref=e165]: Actual amount paid in the selected period.
+            - generic [ref=e166]:
+              - generic [ref=e168]: Outstanding revenue
+              - paragraph [ref=e169]: Amount due minus amount paid.
+            - generic [ref=e170]:
+              - generic [ref=e172]: Completed revenue
+              - paragraph [ref=e173]: Paid or completed booking revenue.
+            - generic [ref=e174]:
+              - generic [ref=e176]: Repeat clients
+              - paragraph [ref=e177]: Clients with more than one booking in scope.
+            - generic [ref=e178]:
+              - generic [ref=e180]: Participant count
+              - paragraph [ref=e181]: Booking participants, separate from deduplicated client profiles.
+            - generic [ref=e182]:
+              - generic [ref=e184]: Staff revenue attribution
+              - paragraph [ref=e185]: Service-item value attributed to the assigned staff member for that participant; group bookings are not counted once per therapist.

@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Loader2 } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
@@ -7,14 +8,31 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
+        // ── Public-site variants ────────────────────────────────────────────
         primary:
           "bg-primary text-primary-foreground shadow-soft hover:bg-primary/90",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         outline:
           "border border-border bg-background text-foreground hover:bg-muted",
-        ghost: "text-foreground hover:bg-muted",
-        link: "rounded-none px-0 text-primary underline-offset-4 hover:underline",
+        ghost:
+          "text-foreground hover:bg-muted",
+        link:
+          "rounded-none px-0 text-primary underline-offset-4 hover:underline",
+
+        // ── Admin variants — DESIGN.md §5 ──────────────────────────────────
+        // Primary: Clinic Green fill, Field White text.
+        "admin-primary":
+          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[oklch(15%_0.065_155)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+        // Secondary: Form Seam border, transparent fill.
+        "admin-secondary":
+          "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] active:bg-[oklch(92%_0.022_155)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+        // Destructive: Cancelled-family fill. Use only for explicit destructive confirmed actions.
+        "admin-destructive":
+          "bg-[oklch(40%_0.14_25)] text-white hover:bg-[oklch(33%_0.14_25)] active:bg-[oklch(28%_0.14_25)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+        // Ghost: no border, no fill. Hover Moss on hover.
+        "admin-ghost":
+          "bg-transparent text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] active:bg-[oklch(92%_0.022_155)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
       },
       size: {
         sm: "h-9 px-3 text-sm",
@@ -36,7 +54,23 @@ export const buttonVariants = cva(
 );
 
 export type ButtonProps = React.ComponentPropsWithoutRef<"button"> &
-  VariantProps<typeof buttonVariants>;
+  VariantProps<typeof buttonVariants> & {
+    /**
+     * Leading icon slot. Pass a Lucide icon element (not a component — pass the
+     * rendered element so it appears before children).
+     * When `loading` is true, the spinner renders here instead of the icon,
+     * so the button text does not shift.
+     */
+    icon?: React.ReactNode;
+    /**
+     * Loading state. When true:
+     * - If `icon` is provided: spinner replaces icon (§12.6 fix — never shows both).
+     * - If no `icon`: spinner is prepended before children.
+     * - Button is disabled and `aria-busy="true"` is set.
+     * - Button text is unchanged.
+     */
+    loading?: boolean;
+  };
 
 export function Button({
   className,
@@ -44,14 +78,35 @@ export function Button({
   size,
   fullWidth,
   type = "button",
+  icon,
+  loading = false,
+  disabled,
+  children,
   ...props
 }: ButtonProps) {
+  const isDisabled = disabled || loading;
+
+  // §12.6 icon-slot: spinner replaces icon when loading, never alongside it.
+  const leadingSlot = loading ? (
+    <Loader2
+      className="size-4 animate-spin"
+      aria-hidden="true"
+    />
+  ) : icon ? (
+    <>{icon}</>
+  ) : null;
+
   return (
     <button
       data-slot="button"
       type={type}
+      disabled={isDisabled}
+      aria-busy={loading || undefined}
       className={cn(buttonVariants({ variant, size, fullWidth }), className)}
       {...props}
-    />
+    >
+      {leadingSlot}
+      {children}
+    </button>
   );
 }

@@ -1,13 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Save, Settings } from "lucide-react";
+import { Dialog as BaseDialog } from "@base-ui/react/dialog";
+import { CheckCircle, Loader2, Lock, Plus, Save, X, XCircle } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  AdminPanel,
+  AdminPanelHeader,
+} from "@/app/admin/components/admin-ui";
+import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 import {
   updateBusinessSettings,
   type SettingsActionState,
@@ -25,14 +28,135 @@ interface BusinessSettings {
   booking_status_enabled: boolean;
 }
 
-interface SettingsFormProps {
-  settings: BusinessSettings;
+interface LastChange {
+  actor: string;
+  display: string;
+  isoTimestamp: string;
 }
 
-export function SettingsForm({ settings }: SettingsFormProps) {
+interface SettingsFormProps {
+  settings: BusinessSettings;
+  lastChange?: LastChange | null;
+}
+
+const requiredMark = (
+  <span
+    aria-hidden="true"
+    className="ml-0.5 align-middle text-base font-bold leading-none text-[oklch(26%_0.14_25)]"
+  >
+    *
+  </span>
+);
+
+export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<SettingsActionState>({});
+
+  const [intakeOn, setIntakeOn] = useState(settings.booking_status_enabled);
+  const [pauseModalOpen, setPauseModalOpen] = useState(false);
+
+  const [cities, setCities] = useState<string[]>(settings.allowed_cities);
+  const [cityDraft, setCityDraft] = useState("");
+
+  const [windowDays, setWindowDays] = useState(String(settings.booking_window_days));
+  const [noticeHours, setNoticeHours] = useState(String(settings.minimum_notice_hours));
+  const [bufferMins, setBufferMins] = useState(String(settings.buffer_time_mins));
+  const [cancelHours, setCancelHours] = useState(
+    String(settings.customer_cancellation_cutoff_hours)
+  );
+
+  const [companyName, setCompanyName] = useState(settings.company_name);
+  const [contactPhone, setContactPhone] = useState(settings.contact_phone ?? "");
+  const [contactEmail, setContactEmail] = useState(settings.contact_email ?? "");
+
+  const initial = useMemo(
+    () => ({
+      intakeOn: settings.booking_status_enabled,
+      cities: settings.allowed_cities,
+      windowDays: String(settings.booking_window_days),
+      noticeHours: String(settings.minimum_notice_hours),
+      bufferMins: String(settings.buffer_time_mins),
+      cancelHours: String(settings.customer_cancellation_cutoff_hours),
+      companyName: settings.company_name,
+      contactPhone: settings.contact_phone ?? "",
+      contactEmail: settings.contact_email ?? "",
+    }),
+    [settings]
+  );
+
+  const isDirty =
+    intakeOn !== initial.intakeOn ||
+    cities.join("\n") !== initial.cities.join("\n") ||
+    windowDays !== initial.windowDays ||
+    noticeHours !== initial.noticeHours ||
+    bufferMins !== initial.bufferMins ||
+    cancelHours !== initial.cancelHours ||
+    companyName !== initial.companyName ||
+    contactPhone !== initial.contactPhone ||
+    contactEmail !== initial.contactEmail;
+
+  useEffect(() => {
+    if (!isDirty) return;
+    function handler(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [isDirty]);
+
+  function handleSwitchChange(next: boolean) {
+    if (intakeOn && !next) {
+      setPauseModalOpen(true);
+      return;
+    }
+    setIntakeOn(true);
+    toast.success("Intake reopened. The public booking page is accepting requests.");
+  }
+
+  function confirmPause() {
+    setIntakeOn(false);
+    setPauseModalOpen(false);
+    toast.success("Intake paused. Customer-facing booking page is now closed.");
+  }
+
+  function discardChanges() {
+    setIntakeOn(initial.intakeOn);
+    setCities(initial.cities);
+    setCityDraft("");
+    setWindowDays(initial.windowDays);
+    setNoticeHours(initial.noticeHours);
+    setBufferMins(initial.bufferMins);
+    setCancelHours(initial.cancelHours);
+    setCompanyName(initial.companyName);
+    setContactPhone(initial.contactPhone);
+    setContactEmail(initial.contactEmail);
+    setState({});
+  }
+
+  function addCity(raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed) return;
+    const lower = trimmed.toLowerCase();
+    setCities((prev) =>
+      prev.map((c) => c.toLowerCase()).includes(lower) ? prev : [...prev, trimmed]
+    );
+    setCityDraft("");
+  }
+
+  function handleCityKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addCity(cityDraft);
+    } else if (event.key === "Backspace" && cityDraft === "" && cities.length > 0) {
+      setCities((prev) => prev.slice(0, -1));
+    }
+  }
+
+  function removeCity(index: number) {
+    setCities((prev) => prev.filter((_, i) => i !== index));
+  }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -43,204 +167,623 @@ export function SettingsForm({ settings }: SettingsFormProps) {
 
       if (result.error || result.fieldErrors) {
         setState(result);
-        if (result.error) toast.error(result.error);
+        if (result.error) toast.error("Couldn't save settings. Try again.");
         return;
       }
 
       setState({});
-      toast.success("Settings updated");
+      toast.success("Settings saved.");
       router.refresh();
     });
   }
 
   return (
-    <form onSubmit={handleSubmit}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
-            <Settings className="size-5 text-[var(--rahma-green)]" />
-            Business Rules
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {state.error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-              {state.error}
-            </p>
-          ) : null}
+    <form onSubmit={handleSubmit} className="pb-44 md:pb-24" noValidate>
+      <p className="mb-4 text-xs text-[var(--admin-text-muted)]">
+        <span
+          aria-hidden="true"
+          className="mr-0.5 align-middle text-base font-bold leading-none text-[oklch(26%_0.14_25)]"
+        >
+          *
+        </span>
+        means required.
+      </p>
 
-          <SettingsGroup title="Contact details">
-            <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Company name" error={state.fieldErrors?.company_name}>
-              <Input
-                name="company_name"
-                defaultValue={settings.company_name}
-                disabled={isPending}
-                required
-              />
-            </Field>
+      {state.error ? (
+        <div
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="mb-5 flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-4 py-3 text-sm text-[oklch(26%_0.14_25)]"
+        >
+          <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{state.error}</span>
+        </div>
+      ) : null}
 
-            <Field label="Contact phone">
-              <Input
-                name="contact_phone"
-                defaultValue={settings.contact_phone ?? ""}
-                disabled={isPending}
-              />
-            </Field>
+      <div className="grid gap-5">
+        {/* ─── Panel 1: Customer booking intake ─────────────────── */}
+        <AdminPanel>
+          <div className="grid gap-4">
+            <AdminPanelHeader
+              title="Customer booking intake"
+              description="When this is off, the public booking page shows a closed-for-intake notice and doesn't accept new requests. Existing bookings, reminders, and admin-side flows keep working."
+            />
 
-            <Field label="Contact email">
-              <Input
-                name="contact_email"
-                type="email"
-                defaultValue={settings.contact_email ?? ""}
-                disabled={isPending}
-              />
-            </Field>
-            </div>
-          </SettingsGroup>
+            <IntakeStateBanner intakeOn={intakeOn} />
 
-          <SettingsGroup title="Booking availability">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field
-                label="Booking window days"
-                error={state.fieldErrors?.booking_window_days}
+            <div
+              className={cn(
+                "flex flex-wrap items-center justify-between gap-3 rounded-[var(--admin-radius-control)] border px-4 py-3 transition-colors duration-[var(--motion-duration-fast)] ease-gentle",
+                intakeOn
+                  ? "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)]/50"
+                  : "border-[var(--admin-border)] bg-[var(--admin-panel-muted)]"
+              )}
+            >
+              <label
+                htmlFor="settings-intake-switch"
+                className="text-sm font-medium text-[var(--admin-heading)]"
               >
-                <Input
+                Accept new bookings
+              </label>
+              <span
+                title={
+                  intakeOn
+                    ? "Flipping this off pauses public bookings."
+                    : "Flipping this on reopens the public booking page."
+                }
+              >
+                <Switch
+                  id="settings-intake-switch"
+                  name="booking_status_enabled"
+                  checked={intakeOn}
+                  onCheckedChange={handleSwitchChange}
+                  disabled={isPending}
+                  aria-label="Accept new bookings"
+                />
+              </span>
+            </div>
+
+            {lastChange ? (
+              <p
+                className="text-xs text-[var(--admin-text-muted)]"
+                title={lastChange.isoTimestamp}
+              >
+                Last changed by {lastChange.actor} on {lastChange.display}.
+              </p>
+            ) : null}
+          </div>
+        </AdminPanel>
+
+        {/* ─── Panel 2: Clinic identity ─────────────────────────── */}
+        <AdminPanel>
+          <div className="grid gap-4">
+            <AdminPanelHeader
+              title="Clinic identity"
+              description="Shown to customers in emails and on the booking page footer."
+            />
+
+            <fieldset className="m-0 min-w-0 border-0 p-0">
+              <legend className="sr-only">Clinic identity</legend>
+              <div className="grid gap-4 md:grid-cols-2">
+                <FieldRow
+                  name="company_name"
+                  label="Clinic name"
+                  required
+                  helper="Appears in confirmation emails as the sender name."
+                  error={state.fieldErrors?.company_name}
+                  value={companyName}
+                  onChange={setCompanyName}
+                  placeholder="Rahma Therapy"
+                  disabled={isPending}
+                />
+
+                <FieldRow
+                  name="contact_phone"
+                  label="Contact phone"
+                  helper="Shown to customers in confirmation emails."
+                  error={state.fieldErrors?.contact_phone}
+                  value={contactPhone}
+                  onChange={setContactPhone}
+                  placeholder="01582 …"
+                  disabled={isPending}
+                />
+
+                <div className="md:col-span-2">
+                  <FieldRow
+                    name="contact_email"
+                    label="Contact email"
+                    type="email"
+                    helper="Shown to customers as the reply-to address."
+                    error={state.fieldErrors?.contact_email}
+                    value={contactEmail}
+                    onChange={setContactEmail}
+                    placeholder="hello@rahmatherapy.com"
+                    disabled={isPending}
+                  />
+                </div>
+              </div>
+            </fieldset>
+          </div>
+        </AdminPanel>
+
+        {/* ─── Panel 3: Booking rules ───────────────────────────── */}
+        <AdminPanel>
+          <div className="grid gap-4">
+            <AdminPanelHeader
+              title="Booking rules"
+              description="How far ahead customers can book, how soon, and the gap each therapist needs between visits."
+            />
+
+            <fieldset className="m-0 min-w-0 border-0 p-0">
+              <legend className="sr-only">Booking rules</legend>
+              <div className="grid gap-4 md:grid-cols-2">
+                <NumericField
                   name="booking_window_days"
-                  type="number"
-                  min="1"
-                  step="1"
-                  defaultValue={settings.booking_window_days}
+                  label="Booking window"
+                  suffix="days"
+                  min={1}
+                  value={windowDays}
+                  onChange={setWindowDays}
+                  helper={`Customers can book up to ${windowDays || "—"} days into the future.`}
+                  error={state.fieldErrors?.booking_window_days}
                   disabled={isPending}
-                  required
                 />
-              </Field>
 
-              <Field
-                label="Minimum notice hours"
-                error={state.fieldErrors?.minimum_notice_hours}
-              >
-                <Input
+                <NumericField
                   name="minimum_notice_hours"
-                  type="number"
-                  min="0"
-                  step="1"
-                  defaultValue={settings.minimum_notice_hours}
+                  label="Minimum notice"
+                  suffix="hours"
+                  min={0}
+                  value={noticeHours}
+                  onChange={setNoticeHours}
+                  helper={`Customers can't book a slot starting in less than ${noticeHours || "—"} hours.`}
+                  error={state.fieldErrors?.minimum_notice_hours}
                   disabled={isPending}
-                  required
                 />
-              </Field>
 
-              <Field
-                label="Travel buffer minutes"
-                error={state.fieldErrors?.buffer_time_mins}
-              >
-                <Input
+                <NumericField
                   name="buffer_time_mins"
-                  type="number"
-                  min="0"
-                  step="1"
-                  defaultValue={settings.buffer_time_mins}
+                  label="Travel buffer"
+                  suffix="minutes"
+                  min={0}
+                  value={bufferMins}
+                  onChange={setBufferMins}
+                  helper={`Each visit leaves ${bufferMins || "—"} minutes of travel time after it for the therapist's next stop.`}
+                  error={state.fieldErrors?.buffer_time_mins}
                   disabled={isPending}
-                  required
                 />
-              </Field>
-            </div>
-          </SettingsGroup>
 
-          <SettingsGroup title="Cancellation cutoff">
-            <Field
-              label="Customer cancellation cutoff hours"
-              error={state.fieldErrors?.customer_cancellation_cutoff_hours}
-            >
-              <Input
-                name="customer_cancellation_cutoff_hours"
-                type="number"
-                min="0"
-                step="1"
-                defaultValue={settings.customer_cancellation_cutoff_hours}
-                disabled={isPending}
-                required
-              />
-            </Field>
-          </SettingsGroup>
+                <NumericField
+                  name="customer_cancellation_cutoff_hours"
+                  label="Customer cancellation cutoff"
+                  suffix="hours"
+                  min={0}
+                  value={cancelHours}
+                  onChange={setCancelHours}
+                  helper={`Customers can self-cancel up to ${cancelHours || "—"} hours before the visit starts. Closer cancellations need staff.`}
+                  error={state.fieldErrors?.customer_cancellation_cutoff_hours}
+                  disabled={isPending}
+                />
+              </div>
+            </fieldset>
+          </div>
+        </AdminPanel>
 
-          <SettingsGroup title="Service areas">
-            <Field
-              label="Allowed service areas"
+        {/* ─── Panel 4: Service areas ───────────────────────────── */}
+        <AdminPanel>
+          <div className="grid gap-4">
+            <AdminPanelHeader
+              title="Service areas"
+              description="Cities and towns where the team will travel. Customers booking outside these areas see a helpful message instead of a closed door."
+            />
+
+            <ServiceAreaField
+              cities={cities}
+              draft={cityDraft}
+              onDraftChange={setCityDraft}
+              onKeyDown={handleCityKeyDown}
+              onAdd={() => addCity(cityDraft)}
+              onRemove={removeCity}
               error={state.fieldErrors?.allowed_cities}
+              disabled={isPending}
+            />
+
+            {/* Hidden input preserves the original server contract: newline-delimited. */}
+            <input
+              type="hidden"
+              name="allowed_cities"
+              value={cities.join("\n")}
+            />
+          </div>
+        </AdminPanel>
+      </div>
+
+      {/* ─── Sticky save bar (flat surface-card, no blur) ──────── */}
+      <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] pb-3 pt-3 shadow-[0_-1px_8px_oklch(23%_0.073_155_/_0.04)] md:bottom-0 md:pb-[max(env(safe-area-inset-bottom,0),0.75rem)]">
+        <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex w-full justify-end sm:w-auto sm:justify-start">
+            {isDirty ? (
+              <button
+                type="button"
+                onClick={discardChanges}
+                disabled={isPending}
+                className="inline-flex min-h-9 items-center justify-center rounded-[var(--admin-radius-control)] px-2 text-xs font-medium text-[var(--admin-text-muted)] outline-none transition-colors hover:text-[var(--admin-body)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:min-h-10 sm:border sm:border-[var(--admin-border-form)] sm:bg-transparent sm:px-4 sm:text-sm sm:font-semibold sm:text-[var(--admin-body)] sm:hover:bg-[var(--admin-panel-muted)]"
+                title="Revert all fields to their last-saved values"
+              >
+                Discard changes
+              </button>
+            ) : null}
+          </div>
+          <div className="flex w-full sm:w-auto">
+            <button
+              type="submit"
+              disabled={isPending}
+              aria-busy={isPending || undefined}
+              className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 sm:w-auto"
+              title="Save changes to settings"
             >
-              <Textarea
-                name="allowed_cities"
-                rows={5}
-                defaultValue={settings.allowed_cities.join("\n")}
-                disabled={isPending}
-              />
-            </Field>
-          </SettingsGroup>
-
-          <SettingsGroup title="Payment expectations and email readiness">
-            <label className="flex items-center gap-2 text-sm text-[var(--rahma-charcoal)]">
-              <input
-                name="booking_status_enabled"
-                type="checkbox"
-                defaultChecked={settings.booking_status_enabled}
-                disabled={isPending}
-                className="size-4 accent-[var(--rahma-green)]"
-              />
-              Accept new booking requests and confirmation emails when configured
-            </label>
-          </SettingsGroup>
-
-          <div className="flex justify-end">
-            <Button type="submit" disabled={isPending}>
               {isPending ? (
-                <Loader2 className="size-4 animate-spin" />
+                <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
               ) : (
-                <Save className="size-4" />
+                <Save className="size-4 shrink-0" aria-hidden="true" />
               )}
               Save settings
-            </Button>
+            </button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      {/* ─── Pause-intake confirm modal (controlled) ───────────── */}
+      <BaseDialog.Root open={pauseModalOpen} onOpenChange={setPauseModalOpen}>
+        <BaseDialog.Portal>
+          <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35" />
+          <BaseDialog.Popup className="fixed left-1/2 top-[30vh] z-50 w-[min(calc(100vw-2rem),30rem)] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]">
+                <XCircle className="size-5 text-[oklch(26%_0.14_25)]" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <BaseDialog.Title className="text-base font-semibold text-[var(--admin-heading)]">
+                  Pause new bookings?
+                </BaseDialog.Title>
+                <BaseDialog.Description className="mt-1.5 text-sm leading-6 text-[var(--admin-text-muted)]">
+                  The public booking page will show a closed-for-intake notice
+                  until you turn this back on. Existing bookings, reminders, and
+                  admin work continue.
+                </BaseDialog.Description>
+              </div>
+            </div>
+            <div className="mt-5 flex flex-wrap-reverse justify-end gap-2">
+              <BaseDialog.Close
+                render={
+                  <button
+                    type="button"
+                    className="inline-flex min-h-10 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                  >
+                    Cancel
+                  </button>
+                }
+              />
+              <button
+                type="button"
+                onClick={confirmPause}
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                Pause intake
+              </button>
+            </div>
+          </BaseDialog.Popup>
+        </BaseDialog.Portal>
+      </BaseDialog.Root>
     </form>
   );
 }
 
-function SettingsGroup({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function IntakeStateBanner({ intakeOn }: { intakeOn: boolean }) {
+  if (intakeOn) {
+    return (
+      <div
+        key="on"
+        title="Customers can submit new bookings via the public site."
+        className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] px-4 py-3 text-sm text-[oklch(22%_0.085_155)] motion-safe:[animation:rahma-fade-up_200ms_ease-out]"
+      >
+        <CheckCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-semibold">Accepting new bookings</p>
+          <p className="mt-0.5 text-[oklch(22%_0.085_155)]/85">
+            Customers can submit new bookings.
+          </p>
+        </div>
+      </div>
+    );
+  }
   return (
-    <section className="rounded-lg border border-[var(--rahma-border)] bg-white/70 p-4">
-      <h3 className="mb-3 text-sm font-semibold text-[var(--rahma-charcoal)]">
-        {title}
-      </h3>
-      {children}
-    </section>
+    <div
+      key="off"
+      title="Public site shows a closed-for-intake message until intake is resumed."
+      className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.012_280)] bg-[oklch(94%_0.008_280)] px-4 py-3 text-sm text-[oklch(30%_0.02_280)] motion-safe:[animation:rahma-fade-up_200ms_ease-out]"
+    >
+      <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="font-semibold">Intake paused</p>
+        <p className="mt-0.5 text-[oklch(30%_0.02_280)]/85">
+          The public booking page is closed. Existing bookings, reminders, and
+          admin work continue.
+        </p>
+      </div>
+    </div>
   );
 }
 
-function Field({
+function FieldRow({
+  name,
   label,
+  helper,
   error,
-  children,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  required = false,
+  disabled,
 }: {
+  name: string;
   label: string;
+  helper: string;
   error?: string;
-  children: React.ReactNode;
+  value: string;
+  onChange: (next: string) => void;
+  type?: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
 }) {
+  const autoId = useId();
+  const errorId = `${autoId}-error`;
+  const helperId = `${autoId}-helper`;
+
   return (
-    <label className="grid gap-1.5">
-      <span className="text-sm font-medium text-[var(--rahma-charcoal)]">
+    <div className="grid gap-1.5">
+      <label
+        htmlFor={autoId}
+        className="text-sm font-medium text-[var(--admin-heading)]"
+      >
         {label}
-      </span>
-      {children}
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
-    </label>
+        {required ? requiredMark : null}
+      </label>
+      <input
+        id={autoId}
+        name={name}
+        type={type}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        disabled={disabled}
+        required={required}
+        aria-describedby={cn(error ? errorId : undefined, helper ? helperId : undefined) || undefined}
+        aria-invalid={error ? "true" : undefined}
+        className={cn(
+          "flex h-10 w-full scroll-mb-24 rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50",
+          error
+            ? "border-[oklch(26%_0.14_25)]"
+            : "border-[var(--admin-border-form)]"
+        )}
+      />
+      {error ? (
+        <p
+          id={errorId}
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="text-xs text-[oklch(26%_0.14_25)]"
+        >
+          {error}
+        </p>
+      ) : (
+        <p id={helperId} className="text-xs text-[var(--admin-text-muted)]">
+          {helper}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function NumericField({
+  name,
+  label,
+  suffix,
+  min,
+  value,
+  onChange,
+  helper,
+  error,
+  disabled,
+}: {
+  name: string;
+  label: string;
+  suffix: string;
+  min: number;
+  value: string;
+  onChange: (next: string) => void;
+  helper: string;
+  error?: string;
+  disabled?: boolean;
+}) {
+  const autoId = useId();
+  const errorId = `${autoId}-error`;
+  const helperId = `${autoId}-helper`;
+
+  return (
+    <div className="grid gap-1.5">
+      <label
+        htmlFor={autoId}
+        className="text-sm font-medium text-[var(--admin-heading)]"
+      >
+        {label}
+        {requiredMark}
+      </label>
+      <div className="flex items-stretch gap-2">
+        <input
+          id={autoId}
+          name={name}
+          type="number"
+          inputMode="numeric"
+          min={min}
+          step={1}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          disabled={disabled}
+          required
+          aria-describedby={cn(error ? errorId : undefined, helperId)}
+          aria-invalid={error ? "true" : undefined}
+          className={cn(
+            "h-10 w-24 flex-shrink-0 scroll-mb-24 rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50",
+            "[appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none",
+            error
+              ? "border-[oklch(26%_0.14_25)]"
+              : "border-[var(--admin-border-form)]"
+          )}
+        />
+        <span
+          title={helper}
+          className="inline-flex items-center text-sm text-[var(--admin-text-muted)]"
+        >
+          {suffix}
+        </span>
+      </div>
+      {error ? (
+        <p
+          id={errorId}
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="text-xs text-[oklch(26%_0.14_25)]"
+        >
+          {error}
+        </p>
+      ) : (
+        <p id={helperId} className="text-xs text-[var(--admin-text-muted)]">
+          {helper}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ServiceAreaField({
+  cities,
+  draft,
+  onDraftChange,
+  onKeyDown,
+  onAdd,
+  onRemove,
+  error,
+  disabled,
+}: {
+  cities: string[];
+  draft: string;
+  onDraftChange: (next: string) => void;
+  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  error?: string;
+  disabled?: boolean;
+}) {
+  const autoId = useId();
+  const errorId = `${autoId}-error`;
+  const helperId = `${autoId}-helper`;
+
+  return (
+    <div className="grid gap-3">
+      <label htmlFor={autoId} className="sr-only">
+        Service areas
+      </label>
+
+      {cities.length === 0 ? (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-2 text-xs text-[oklch(26%_0.13_55)]"
+        >
+          <span>
+            No service areas yet. The booking form will currently turn every
+            customer away. Add at least one city below.
+          </span>
+        </div>
+      ) : (
+        <ul className="flex list-none flex-wrap gap-1.5 p-0">
+          {cities.map((city, index) => (
+            <li key={`${city}-${index}`}>
+              <span
+                title="Service area. Customers within this area can book."
+                className="inline-flex items-center gap-1 rounded-full border border-[oklch(88%_0.012_280)] bg-[oklch(94%_0.008_280)] py-1 pl-3 pr-1 text-xs text-[oklch(30%_0.02_280)] transition-colors hover:bg-[oklch(91%_0.012_280)]"
+              >
+                <span>{city}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemove(index)}
+                  disabled={disabled}
+                  aria-label={`Remove ${city}`}
+                  title={`Remove ${city}`}
+                  className="relative inline-flex size-5 items-center justify-center rounded-full text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(85%_0.012_280)] hover:text-[oklch(20%_0.02_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50 before:absolute before:inset-[-8px] before:content-['']"
+                >
+                  <X
+                    className="size-3.5 shrink-0"
+                    style={{ minWidth: 14 }}
+                    strokeWidth={2.5}
+                    aria-hidden="true"
+                  />
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          id={autoId}
+          type="text"
+          value={draft}
+          onChange={(event) => onDraftChange(event.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="Add a city or town and press Enter"
+          disabled={disabled}
+          aria-describedby={cn(error ? errorId : undefined, helperId)}
+          aria-invalid={error ? "true" : undefined}
+          className={cn(
+            "h-10 w-full flex-1 scroll-mb-24 rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50",
+            error
+              ? "border-[oklch(26%_0.14_25)]"
+              : "border-[var(--admin-border-form)]"
+          )}
+        />
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={disabled || !draft.trim()}
+          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          Add
+        </button>
+      </div>
+
+      {error ? (
+        <p
+          id={errorId}
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="text-xs text-[oklch(26%_0.14_25)]"
+        >
+          {error}
+        </p>
+      ) : (
+        <p id={helperId} className="text-xs text-[var(--admin-text-muted)]">
+          {cities.length} {cities.length === 1 ? "area" : "areas"} configured.
+        </p>
+      )}
+    </div>
   );
 }

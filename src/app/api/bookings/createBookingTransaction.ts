@@ -5,6 +5,7 @@ export type BookingSource =
   | "website"
   | "phone"
   | "whatsapp"
+  | "facebook"
   | "instagram"
   | "referral"
   | "admin"
@@ -38,6 +39,8 @@ export interface CreateBookingTransactionInput {
   preferredDate: string;
   preferredTime: string;
   bookingSource?: BookingSource;
+  overrideAvailability?: boolean;
+  participantServiceSlugs?: string[][];
 }
 
 export class BookingCreationError extends Error {
@@ -125,6 +128,11 @@ export async function createBookingTransaction(
     p_participant_display_names: participantNames,
     p_participant_notes: participantNotes,
     p_booking_source: input.bookingSource ?? "website",
+    p_override_availability: input.overrideAvailability ?? false,
+    p_participant_service_slugs: input.participantServiceSlugs?.map((services) =>
+      services.join(",")
+    ) ?? null,
+    p_area: input.details.area || null,
   });
 
   if (error || !data || typeof data !== "object") {

@@ -14,8 +14,9 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "test:e2e:setup": "node scripts/phase10-e2e-data.mjs setup",
-    "test:e2e:cleanup": "node scripts/phase10-e2e-data.mjs cleanup",
+    "test:e2e:setup": "node scripts/seed-e2e-staff.mjs setup",
+    "test:e2e:cleanup": "node scripts/seed-e2e-staff.mjs cleanup",
+    "reset:live-auth-owner": "node scripts/reset-live-auth-owner.mjs",
     "test:security:secrets": "node scripts/scan-browser-secrets.mjs",
     "bootstrap:owner-admin": "node scripts/bootstrap-owner-admin.mjs",
     "verify:london-time": "node scripts/verify-london-time.mjs",
@@ -27,6 +28,7 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
+    "@radix-ui/react-popover": "1.1.15",
     "@sentry/nextjs": "^10.51.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.104.1",
@@ -68,6 +70,12 @@
     "wrangler": "^4.86.0"
   },
   "pnpm": {
+    "overrides": {
+      "fast-uri": "3.1.2",
+      "postcss": "8.5.10",
+      "hono": "4.12.18",
+      "ip-address": "10.1.1"
+    },
     "onlyBuiltDependencies": [
       "esbuild",
       "workerd"

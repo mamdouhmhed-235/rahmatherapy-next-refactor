@@ -40,9 +40,21 @@ phase*.err.log
 
 # env files (can opt-in for committing if needed)
 .env*
-.env  
+!.env.example
+.env
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 cloudflare-env.d.ts
+
+# Claude Code / Impeccable skill / Playwright MCP — per-machine runtime artifacts
+.claude/launch.json
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.impeccable/
+.playwright-mcp/
+
+# Superpowers brainstorming skill + Kilo Code extension runtime state
+.superpowers/
+redesign/.kilo/

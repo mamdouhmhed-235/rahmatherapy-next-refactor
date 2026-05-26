@@ -1,0 +1,46 @@
+Sentry baseline — B-0 (Band B start)
+====================================
+
+Captured: 2026-05-24
+Branch: redesign/start-state
+HEAD (at capture): d2e6512 (after the two B-0 prep commits)
+Sentry SDK: @sentry/nextjs ^10.51.0 (per package.json)
+Sentry config files present:
+  - sentry.client.config.ts
+  - sentry.server.config.ts
+  - sentry.edge.config.ts
+
+Active issues (last 7 days):
+  0
+
+Top issues (last 7 days):
+  (none — no active Sentry issues confirmed by project owner at this baseline snapshot)
+
+Method:
+  Project owner manually confirmed zero active Sentry issues at the
+  baseline snapshot point. No Sentry MCP / API access from the
+  implementation session, so the figure is owner-reported rather than
+  programmatically extracted. This is sufficient for Band B's
+  "no new Sentry error classes vs B-0 baseline" gate: any new error
+  class observed during B-1 to B-6 verification is by definition a
+  regression introduced by Band B work.
+
+What this baseline supports:
+  - Each subsequent B-phase plan's "Sentry instrumentation" section
+    (SHARED-IMPLEMENTATION-NOTES.md §2) tells the implementer to
+    capture exceptions in defensive try/catch around new code paths.
+  - Band B's exit gate (master checklist §programme-final): "Sentry:
+    no new persistent error classes vs B-0 baseline" — measured by
+    re-checking active issue count after B-6 ships.
+  - Slow-query span tagging (SHARED-NOTES §12) lands in B-2; no
+    baseline needed (additive instrumentation, not a regression
+    surface).
+
+Refresh schedule:
+  - After B-2 (3 migrations applied) — verify no new server-side errors
+    surface from `getReportData`/`getDashboardData` cache wrap.
+  - After B-3, B-4, B-5 — verify no client-side errors from the new
+    pages, hooks, and gesture handlers.
+  - After B-6 — verify the LTV ribbon doesn't crash on edge-case
+    bookings shape.
+  - Programme exit — verify final active-issue count is still 0.

@@ -1,0 +1,21 @@
+-- Adds the terminal 'used' value to the `account_request_status` enum used
+-- by `account_password_requests.status`. Before this migration the lifecycle
+-- ended at `approved` / `rejected` / `expired`; an approved request that
+-- was actually consumed (the staff member set a new password through the
+-- one-time link) had no distinct status. The audit-log row was the only
+-- record that the token had been used.
+--
+-- H14 password-reset flow uses 'used' as the post-success terminal state:
+--   `pending` → `approved` → `used` (after `setPasswordWithToken` succeeds)
+--   `pending` → `rejected`
+--   `pending` → `expired` (TTL elapsed without review)
+--
+-- Adding a new enum value is non-blocking in Postgres 12+ and safe under
+-- concurrent reads. No existing row state changes — rows currently in
+-- `approved` stay `approved` and only transition forward when the application
+-- code that calls `setPasswordWithToken` lands together with this migration.
+--
+-- Idempotent via IF NOT EXISTS so re-applying against a previewed branch
+-- or local dev DB that already has the value is a no-op.
+
+alter type public.account_request_status add value if not exists 'used';

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -11,7 +11,7 @@ import {
   sendStaffAssignmentEmail,
 } from "@/lib/email/notifications";
 import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canAssignBookings, getStaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   BookingCreationError,
@@ -19,12 +19,14 @@ import {
   type BookingSource,
 } from "@/app/api/bookings/createBookingTransaction";
 import {
-  canAccessBooking,
   canClaimAssignments,
   canManageAllBookings,
   canManageBookings,
 } from "./access";
-import { getStaffAssignmentPreviews } from "./assignment-eligibility";
+import {
+  getClaimAssignmentEligibility,
+  getStaffAssignmentPreviews,
+} from "./assignment-eligibility";
 import type { AssignmentStatus, BookingStatus, PaymentMethod, PaymentStatus } from "./types";
 
 export interface BookingUpdateState {
@@ -45,10 +47,10 @@ const PAYMENT_METHODS: PaymentMethod[] = ["cash", "card"];
 const BOOKING_SOURCES: BookingSource[] = [
   "phone",
   "whatsapp",
+  "facebook",
   "instagram",
   "referral",
   "admin",
-  "manual",
   "other",
 ];
 const OWN_ASSIGNMENT_STATUSES: AssignmentStatus[] = ["completed", "no_show"];
@@ -57,8 +59,8 @@ interface AssignmentClaimRecord {
   id: string;
   booking_id: string;
   assigned_staff_id: string | null;
-  required_therapist_gender: string;
-  status: string;
+  required_therapist_gender: "male" | "female";
+  status: AssignmentStatus;
 }
 
 interface BookingAssignmentStatusRecord {
@@ -78,10 +80,7 @@ async function requireBookingManager() {
 }
 
 function canReassignBookings(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
-  return (
-    canManageAllBookings(profile) &&
-    profile.permissions.has(PERMISSIONS.REASSIGN_BOOKINGS)
-  );
+  return canManageAllBookings(profile) && canAssignBookings(profile);
 }
 
 async function recomputeBookingAssignmentStatus(
@@ -122,6 +121,7 @@ export async function updateBookingManagement(
 ): Promise<BookingUpdateState> {
   const actor = await requireBookingManager();
   if (!actor) return { error: "Insufficient permissions." };
+  if (!canManageAllBookings(actor)) return { error: "Insufficient permissions." };
 
   const bookingId = String(formData.get("booking_id") ?? "").trim();
   const status = String(formData.get("status") ?? "") as BookingStatus;
@@ -164,9 +164,6 @@ export async function updateBookingManagement(
   }
 
   if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
-
-  const canAccess = await canAccessBooking(bookingId, actor);
-  if (!canAccess) return { error: "Insufficient permissions." };
 
   const adminClient = createSupabaseAdminClient();
   const { data: beforeState } = await adminClient
@@ -229,9 +226,12 @@ export async function updateBookingManagement(
     });
   }
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }
@@ -264,6 +264,25 @@ export async function claimBookingAssignment(formData: FormData) {
 
   if (assignment.required_therapist_gender !== actor.gender) {
     return { error: "You cannot claim an assignment for another therapist gender." };
+  }
+
+  const { data: booking } = await adminClient
+    .from("bookings")
+    .select("id, booking_date, start_time, end_time")
+    .eq("id", assignment.booking_id)
+    .single();
+
+  if (!booking) return { error: "Booking not found." };
+
+  const eligibility = await getClaimAssignmentEligibility({
+    actor,
+    assignment,
+    booking,
+    supabase: adminClient,
+  });
+
+  if (!eligibility.eligible) {
+    return { error: eligibility.reason };
   }
 
   const { data: claimedAssignment, error: claimError } = await adminClient
@@ -335,9 +354,12 @@ export async function claimBookingAssignment(formData: FormData) {
     console.error("Unable to send staff assignment email.", error);
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${claimedAssignment.booking_id}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }
@@ -414,9 +436,12 @@ export async function quickUpdateBooking(formData: FormData) {
     });
   }
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }
@@ -526,9 +551,12 @@ export async function updateBookingAssignment(formData: FormData) {
     }
   }
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${assignment.booking_id}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
 }
@@ -571,6 +599,12 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
     return { error: error?.message ?? "Unable to update assignment." };
   }
 
+  const assignmentStatusResult = await recomputeBookingAssignmentStatus(
+    updatedAssignment.booking_id,
+    adminClient
+  );
+  if (assignmentStatusResult.error) return assignmentStatusResult;
+
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
     action_type: `booking_assignment_${status}`,
@@ -580,11 +614,77 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
     after_state: updatedAssignment,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${updatedAssignment.booking_id}`);
   revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 
   return { success: true };
+}
+
+// ─── H4 — reschedule response ───────────────────────────────────────────────
+// Give admin a way to acknowledge a customer reschedule request so
+// `reschedule_status` doesn't hang on "requested" forever (the cause of
+// permanent attention inflation flagged by Agent 1). Decision is recorded
+// on the booking row + audit trail; the actual move-of-booking-date is
+// handled out-of-band per the existing operator workflow (no admin path
+// currently edits booking_date, and adding one is a separate feature).
+//
+// Schema vocabulary: the `bookings.reschedule_status` CHECK constraint
+// allows ['none','requested','reviewed','declined','completed']. "Accept"
+// maps to 'reviewed' (admin has reviewed the request; the actual booking
+// move is out-of-band). "Decline" maps to 'declined'. UI labels stay
+// operator-friendly ("Accept request" / "Decline request") but the stored
+// values match the schema's allowed vocabulary.
+const RESCHEDULE_DECISIONS = ["reviewed", "declined"] as const;
+type RescheduleDecision = (typeof RESCHEDULE_DECISIONS)[number];
+
+export async function respondToCustomerReschedule(formData: FormData): Promise<void> {
+  const actor = await requireBookingManager();
+  if (!actor || !canManageAllBookings(actor)) return;
+
+  const bookingId = String(formData.get("booking_id") ?? "").trim();
+  const decisionRaw = String(formData.get("decision") ?? "") as RescheduleDecision;
+  if (!bookingId || !RESCHEDULE_DECISIONS.includes(decisionRaw)) return;
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: beforeState } = await adminClient
+    .from("bookings")
+    .select(
+      "id, reschedule_status, reschedule_requested_at, reschedule_preferred_date, reschedule_preferred_time, reschedule_note"
+    )
+    .eq("id", bookingId)
+    .single();
+  if (!beforeState || beforeState.reschedule_status !== "requested") return;
+
+  const { data: updated, error } = await adminClient
+    .from("bookings")
+    .update({ reschedule_status: decisionRaw })
+    .eq("id", bookingId)
+    .select("id, reschedule_status")
+    .single();
+  if (error) return;
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type:
+      decisionRaw === "reviewed"
+        ? "booking_reschedule_reviewed"
+        : "booking_reschedule_declined",
+    target_type: "bookings",
+    target_id: bookingId,
+    before_state: beforeState,
+    after_state: updated,
+  });
+
+  updateTag("report-data");
+  updateTag("dashboard-data");
+  revalidatePath("/admin/bookings");
+  revalidatePath(`/admin/bookings/${bookingId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
 }
 
 export interface ManualBookingState {
@@ -596,6 +696,7 @@ const manualBookingSchema = z.object({
   selectedPackageIds: z.array(z.string().trim().min(1)).min(1, "Choose at least one service."),
   bookingSource: z.enum(BOOKING_SOURCES),
   sendConfirmationEmail: z.boolean(),
+  overrideAvailability: z.boolean().default(false),
   preferredDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choose a booking date."),
   preferredTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Choose a booking time."),
   details: z.object({
@@ -638,10 +739,15 @@ export async function createManualBooking(
   );
   const selectedPackageIds = formData.getAll("service_slugs").map(String);
   const enquiryId = String(formData.get("enquiry_id") ?? "").trim();
+  const overrideAvailability = formData.get("override_availability") === "on";
+  const participantServiceSlugs: string[][] = participantIndexes.map((index) =>
+    formData.getAll(`participant_services_${index}[]`).map(String).filter(Boolean)
+  );
   const parsed = manualBookingSchema.safeParse({
     selectedPackageIds,
     bookingSource: String(formData.get("booking_source") ?? ""),
     sendConfirmationEmail: formData.get("send_confirmation_email") === "on",
+    overrideAvailability,
     preferredDate: String(formData.get("booking_date") ?? ""),
     preferredTime: String(formData.get("start_time") ?? ""),
     details: {
@@ -705,6 +811,10 @@ export async function createManualBooking(
         preferredDate: parsed.data.preferredDate,
         preferredTime: parsed.data.preferredTime,
         bookingSource: parsed.data.bookingSource,
+        overrideAvailability: parsed.data.overrideAvailability,
+        participantServiceSlugs: participantServiceSlugs.some((s) => s.length > 0)
+          ? participantServiceSlugs
+          : undefined,
       },
       adminClient
     );
@@ -721,6 +831,68 @@ export async function createManualBooking(
         assignmentCount: result.assignmentCount,
       },
     });
+
+    // Inline assignment — apply therapist selections from step 4 if present
+    try {
+      const therapistAssignments = participantIndexes.map((i) =>
+        String(formData.get(`therapist_assignment_${i}`) ?? "").trim()
+      );
+      const hasAnyAssignment = therapistAssignments.some((id) => id.length > 0);
+
+      if (hasAnyAssignment) {
+        const { data: participants } = await adminClient
+          .from("booking_participants")
+          .select("id")
+          .eq("booking_id", result.bookingId)
+          .order("created_at", { ascending: true });
+
+        if (participants && participants.length > 0) {
+          let appliedCount = 0;
+
+          for (let i = 0; i < therapistAssignments.length; i++) {
+            const staffId = therapistAssignments[i];
+            if (!staffId || !participants[i]) continue;
+
+            const { data: assignment } = await adminClient
+              .from("booking_assignments")
+              .select("id")
+              .eq("participant_id", participants[i].id)
+              .single();
+
+            if (!assignment) continue;
+
+            await adminClient
+              .from("booking_assignments")
+              .update({ assigned_staff_id: staffId, status: "assigned" })
+              .eq("id", assignment.id);
+
+            await adminClient.from("audit_logs").insert({
+              actor_staff_id: actor.id,
+              action_type: "booking_assignment_reassigned",
+              target_type: "booking_assignments",
+              target_id: assignment.id,
+              after_state: { assigned_staff_id: staffId },
+            });
+
+            appliedCount++;
+          }
+
+          if (appliedCount > 0) {
+            const newStatus =
+              appliedCount >= result.participantCount
+                ? "fully_assigned"
+                : "partially_assigned";
+
+            await adminClient
+              .from("bookings")
+              .update({ assignment_status: newStatus })
+              .eq("id", result.bookingId);
+          }
+        }
+      }
+    } catch (assignmentError) {
+      console.error("Inline assignment failed (booking was created):", assignmentError);
+    }
 
     if (enquiryId) {
       const { data: beforeEnquiry } = await adminClient
@@ -748,6 +920,8 @@ export async function createManualBooking(
         after_state: updatedEnquiry,
       });
 
+      updateTag("report-data");
+      updateTag("dashboard-data");
       revalidatePath("/admin/enquiries");
     }
 
@@ -770,8 +944,11 @@ export async function createManualBooking(
       });
     }
 
+    updateTag("report-data");
+    updateTag("dashboard-data");
     revalidatePath("/admin/bookings");
     revalidatePath("/admin/dashboard");
+    revalidatePath("/admin/calendar");
     redirect(`/admin/bookings/${result.bookingId}`);
   } catch (error) {
     if (error instanceof BookingCreationError) {

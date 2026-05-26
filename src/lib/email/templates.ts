@@ -1,4 +1,5 @@
 // SERVER ONLY - do not import from client components.
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export interface EmailParticipant {
   label: string;
@@ -37,6 +38,47 @@ function escapeHtml(value: string) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+// Substitute `{varName}` placeholders inside an override template string.
+// Unknown variables stay literal (e.g. `{wrongName}`) so an operator can see
+// their typo in a test send. Known-but-null/undefined values render as "".
+function substituteVars(
+  template: string,
+  vars: Record<string, unknown>
+): string {
+  return template.replace(/\{(\w+)\}/g, (match, key) => {
+    if (!(key in vars)) return match;
+    const v = vars[key];
+    return v == null ? "" : String(v);
+  });
+}
+
+// Build the variable map an override string can reference. Mirrors the
+// ALLOWED_VARIABLES set in TemplateEditForm.tsx — anything in that set should
+// be resolvable here. Extra `extras` lets per-template callers add fields
+// (changeSummary, bookingId, requestedDate, requestedTime) without inflating
+// the base BookingEmailTemplateInput.
+function buildVarMap(
+  input: BookingEmailTemplateInput,
+  extras: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return {
+    clientName: input.clientName,
+    companyName: input.companyName,
+    bookingDate: input.bookingDate,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    contactPhone: input.contactPhone ?? null,
+    contactEmail: input.contactEmail ?? null,
+    participantCount: input.participantCount,
+    manageUrl: input.manageUrl ?? null,
+    addressLines: (input.addressLines ?? []).join(", "),
+    totalPrice: input.totalPrice,
+    therapistName: input.participants[0]?.assignedStaffName ?? null,
+    customerNotes: input.customerNotes ?? null,
+    ...extras,
+  };
 }
 
 function formatLabel(value: string) {
@@ -126,21 +168,44 @@ function renderParticipants(input: BookingEmailTemplateInput) {
     </div>`;
 }
 
-function renderFooter(input: BookingEmailTemplateInput) {
-  const contactParts = [input.contactEmail, input.contactPhone].filter(
-    (value): value is string => Boolean(value)
-  );
+function renderFooter(
+  input: BookingEmailTemplateInput,
+  overrides: Record<string, string> = {}
+) {
+  let footerLine = "";
+  if (overrides.footer_contact) {
+    footerLine = escapeHtml(
+      substituteVars(overrides.footer_contact, buildVarMap(input))
+    );
+  } else {
+    const contactParts = [input.contactEmail, input.contactPhone].filter(
+      (value): value is string => Boolean(value)
+    );
+    if (contactParts.length > 0) {
+      footerLine = `Questions? Contact ${escapeHtml(contactParts.join(" or "))}.`;
+    }
+  }
 
   return `<p style="margin:22px 0 0;font-size:13px;line-height:1.5;color:#53615d;">
-    ${contactParts.length > 0 ? `Questions? Contact ${escapeHtml(contactParts.join(" or "))}.` : ""}
+    ${footerLine}
   </p>`;
 }
 
-export function renderBookingConfirmationEmail(input: BookingEmailTemplateInput) {
-  const groupCopy =
-    input.participantCount > 1
-      ? `This is a group booking for ${input.participantCount} participants.`
-      : "This booking is for one participant.";
+export function renderBookingConfirmationEmail(
+  input: BookingEmailTemplateInput,
+  overrides: Record<string, string> = {}
+) {
+  const vars = buildVarMap(input);
+  const greetingIntroHtml = overrides.greeting_intro
+    ? escapeHtml(substituteVars(overrides.greeting_intro, vars))
+    : `Hi ${escapeHtml(input.clientName)}, we have received your ${escapeHtml(input.companyName)} booking request.`;
+  const groupCopyHtml = overrides.group_copy
+    ? escapeHtml(substituteVars(overrides.group_copy, vars))
+    : escapeHtml(
+        input.participantCount > 1
+          ? `This is a group booking for ${input.participantCount} participants.`
+          : "This booking is for one participant."
+      );
   const manageLink = input.manageUrl
     ? `<p style="margin:18px 0 0;"><a href="${escapeHtml(
         input.manageUrl
@@ -150,11 +215,7 @@ export function renderBookingConfirmationEmail(input: BookingEmailTemplateInput)
   return renderLayout(
     "Booking request received",
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking request received</h1>
-    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">Hi ${escapeHtml(
-      input.clientName
-    )}, we have received your ${escapeHtml(input.companyName)} booking request. ${escapeHtml(
-      groupCopy
-    )}</p>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${greetingIntroHtml} ${groupCopyHtml}</p>
     ${renderSummary(input)}
     ${renderParticipants(input)}
     ${
@@ -163,7 +224,7 @@ export function renderBookingConfirmationEmail(input: BookingEmailTemplateInput)
         : ""
     }
     ${manageLink}
-    ${renderFooter(input)}`
+    ${renderFooter(input, overrides)}`
   );
 }
 
@@ -172,7 +233,8 @@ export function renderAdminBookingNotificationEmail(
     bookingId: string;
     clientEmail: string | null;
     clientPhone: string | null;
-  }
+  },
+  overrides: Record<string, string> = {}
 ) {
   return renderLayout(
     "New booking request",
@@ -186,20 +248,24 @@ export function renderAdminBookingNotificationEmail(
       Phone: ${escapeHtml(input.clientPhone ?? "Not provided")}
     </div>
     ${renderParticipants(input)}
-    ${renderFooter(input)}`
+    ${renderFooter(input, overrides)}`
   );
 }
 
-export function renderBookingCancellationEmail(input: BookingEmailTemplateInput) {
+export function renderBookingCancellationEmail(
+  input: BookingEmailTemplateInput,
+  overrides: Record<string, string> = {}
+) {
+  const greetingIntroHtml = overrides.greeting_intro
+    ? escapeHtml(substituteVars(overrides.greeting_intro, buildVarMap(input)))
+    : `Hi ${escapeHtml(input.clientName)}, your ${escapeHtml(input.companyName)} booking has been cancelled.`;
   return renderLayout(
     "Booking cancelled",
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking cancelled</h1>
-    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">Hi ${escapeHtml(
-      input.clientName
-    )}, your ${escapeHtml(input.companyName)} booking has been cancelled.</p>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${greetingIntroHtml}</p>
     ${renderSummary(input)}
     ${renderParticipants(input)}
-    ${renderFooter(input)}`
+    ${renderFooter(input, overrides)}`
   );
 }
 
@@ -208,7 +274,8 @@ export function renderAdminBookingCancellationEmail(
     bookingId: string;
     initiatedBy: "customer" | "admin";
     cancellationNote?: string | null;
-  }
+  },
+  overrides: Record<string, string> = {}
 ) {
   return renderLayout(
     "Booking cancellation",
@@ -225,12 +292,13 @@ export function renderAdminBookingCancellationEmail(
         : ""
     }
     ${renderParticipants(input)}
-    ${renderFooter(input)}`
+    ${renderFooter(input, overrides)}`
   );
 }
 
 export function renderAdminRescheduleRequestEmail(
-  input: RescheduleRequestEmailInput & { bookingId: string }
+  input: RescheduleRequestEmailInput & { bookingId: string },
+  overrides: Record<string, string> = {}
 ) {
   return renderLayout(
     "Reschedule request",
@@ -251,56 +319,69 @@ export function renderAdminRescheduleRequestEmail(
       }
     </div>
     ${renderParticipants(input)}
-    ${renderFooter(input)}`
+    ${renderFooter(input, overrides)}`
   );
 }
 
-export function renderStaffAssignmentEmail(input: BookingEmailTemplateInput) {
+export function renderStaffAssignmentEmail(
+  input: BookingEmailTemplateInput,
+  overrides: Record<string, string> = {}
+) {
+  const introHtml = overrides.intro
+    ? escapeHtml(substituteVars(overrides.intro, buildVarMap(input)))
+    : `You have been assigned to a ${escapeHtml(input.companyName)} booking.`;
   return renderLayout(
     "Booking assignment",
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking assignment</h1>
-    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">You have been assigned to a ${escapeHtml(
-      input.companyName
-    )} booking.</p>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
     ${renderParticipants(input)}
-    ${renderFooter(input)}`
+    ${renderFooter(input, overrides)}`
   );
 }
 
 export function renderStaffBookingChangeEmail(
-  input: BookingEmailTemplateInput & { changeSummary: string }
+  input: BookingEmailTemplateInput & { changeSummary: string },
+  overrides: Record<string, string> = {}
 ) {
+  const vars = buildVarMap(input, {
+    changeSummary: input.changeSummary,
+    date: input.bookingDate,
+  });
+  const wrapperHtml = overrides.wrapper_change_summary
+    ? escapeHtml(substituteVars(overrides.wrapper_change_summary, vars))
+    : escapeHtml(input.changeSummary);
   return renderLayout(
     "Assigned booking changed",
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Assigned booking changed</h1>
-    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
-      input.changeSummary
-    )}</p>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${wrapperHtml}</p>
     ${renderSummary(input)}
     ${renderParticipants(input)}
-    ${renderFooter(input)}`
+    ${renderFooter(input, overrides)}`
   );
 }
 
-export function renderBookingReminderEmail(input: BookingEmailTemplateInput) {
+export function renderBookingReminderEmail(
+  input: BookingEmailTemplateInput,
+  overrides: Record<string, string> = {}
+) {
+  const introHtml = overrides.intro
+    ? escapeHtml(substituteVars(overrides.intro, buildVarMap(input)))
+    : `Hi ${escapeHtml(input.clientName)}, this is a reminder for your upcoming ${escapeHtml(input.companyName)} appointment.`;
   return renderLayout(
     "Booking reminder",
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking reminder</h1>
-    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">Hi ${escapeHtml(
-      input.clientName
-    )}, this is a reminder for your upcoming ${escapeHtml(
-      input.companyName
-    )} appointment.</p>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
     ${renderParticipants(input)}
-    ${renderFooter(input)}`
+    ${renderFooter(input, overrides)}`
   );
 }
 
 export function renderBookingPlainText(
   heading: string,
-  input: BookingEmailTemplateInput
+  input: BookingEmailTemplateInput,
+  overrides: Record<string, string> = {}
 ) {
   const address = input.addressLines.join(", ");
   const participants = input.participants
@@ -314,6 +395,10 @@ export function renderBookingPlainText(
     )
     .join("\n");
 
+  const footerLine = overrides.footer_contact
+    ? substituteVars(overrides.footer_contact, buildVarMap(input))
+    : `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
+
   return `${heading}
 
 ${input.companyName}
@@ -326,7 +411,177 @@ Participants: ${input.participantCount}
 
 ${participants}
 
-${input.manageUrl ? `Manage booking: ${input.manageUrl}\n\n` : ""}${
-    input.contactEmail ? `Contact: ${input.contactEmail}` : ""
-  }${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
+${input.manageUrl ? `Manage booking: ${input.manageUrl}\n\n` : ""}${footerLine}`;
+}
+
+// Async overlay reader — called by the manual-send action (and any future
+// caller that wants override-aware rendering). Reads all override rows for a
+// given templateId via the service-role client and returns a fieldKey → value
+// map.
+//
+// Silent fallback: if the lookup throws (network error, DB unreachable, table
+// missing during a transient state), we log to console.error and return {}.
+// This keeps the email path resilient — the worst case is that overrides
+// don't apply on this send and the hardcoded defaults render instead.
+//
+// `getAllOverrides()` is the bulk variant used by the templates UI to
+// pre-populate every editable field on page load without a per-template
+// round-trip per template.
+export async function resolveTemplateOverrides(
+  templateId: string
+): Promise<Record<string, string>> {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("email_template_overrides")
+      .select("field_key, value")
+      .eq("template_id", templateId);
+    if (error) {
+      console.error("resolveTemplateOverrides lookup failed:", error.message);
+      return {};
+    }
+    const map: Record<string, string> = {};
+    for (const row of (data ?? []) as { field_key: string; value: string }[]) {
+      map[row.field_key] = row.value;
+    }
+    return map;
+  } catch (error) {
+    console.error("resolveTemplateOverrides threw:", error);
+    return {};
+  }
+}
+
+export async function getAllTemplateOverrides(): Promise<
+  Record<string, Record<string, string>>
+> {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("email_template_overrides")
+      .select("template_id, field_key, value");
+    if (error) {
+      console.error("getAllTemplateOverrides lookup failed:", error.message);
+      return {};
+    }
+    const map: Record<string, Record<string, string>> = {};
+    for (const row of (data ?? []) as {
+      template_id: string;
+      field_key: string;
+      value: string;
+    }[]) {
+      if (!map[row.template_id]) map[row.template_id] = {};
+      map[row.template_id][row.field_key] = row.value;
+    }
+    return map;
+  } catch (error) {
+    console.error("getAllTemplateOverrides threw:", error);
+    return {};
+  }
+}
+
+// ─── Password-reset email templates ──────────────────────────────────────────
+// FAKE: structure only. Real Resend send wiring lands with
+// BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).
+// The on-page voice (see /redesign/briefs/password-reset-brief.md §11) and the
+// email-template voice must stay aligned; cross-brief consistency is checked at
+// Phase 7 Gate 2 clarify.
+
+export interface PasswordResetApprovedEmailInput {
+  companyName: string;
+  recipientName: string;
+  resetLinkUrl: string;
+  expiresInHours: number;
+}
+
+export interface PasswordResetRejectedEmailInput {
+  companyName: string;
+  recipientName: string;
+  reviewerNote: string | null;
+  retryUrl: string;
+}
+
+export function renderPasswordResetApprovedSubject(): string {
+  return "Your password-reset request has been approved";
+}
+
+export function renderPasswordResetApprovedHtml(
+  input: PasswordResetApprovedEmailInput
+): string {
+  // escapeHtml is already defined at the top of this file.
+  const name = escapeHtml(input.recipientName);
+  const company = escapeHtml(input.companyName);
+  const url = escapeHtml(input.resetLinkUrl);
+  return `<!DOCTYPE html>
+<html lang="en">
+  <body style="font-family: 'Work Sans', Arial, sans-serif; color: #313731; background: #fbf8f2; padding: 32px;">
+    <div style="max-width: 480px; margin: 0 auto; background: #fffefa; border: 1px solid #e8dfd3; border-radius: 10px; padding: 32px;">
+      <h1 style="font-family: 'Urbanist', Arial, sans-serif; color: #151b18; font-size: 1.5rem; margin: 0 0 16px;">Your password-reset request has been approved</h1>
+      <p style="margin: 0 0 16px;">Hi ${name},</p>
+      <p style="margin: 0 0 16px;">An Owner has approved your password-reset request. Use the link below to set a new password. The link works for ${input.expiresInHours} hours.</p>
+      <p style="margin: 24px 0;"><a href="${url}" style="display: inline-block; background: #0f5e8e; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">Set a new password</a></p>
+      <p style="margin: 0 0 16px; color: #5e625e; font-size: 0.875rem;">If the button doesn't work, paste this address into your browser: ${url}</p>
+      <p style="margin: 24px 0 0; color: #5e625e; font-size: 0.875rem;">${company} staff portal.</p>
+    </div>
+  </body>
+</html>`;
+}
+
+export function renderPasswordResetApprovedText(
+  input: PasswordResetApprovedEmailInput
+): string {
+  return `Your password-reset request has been approved
+
+Hi ${input.recipientName},
+
+An Owner has approved your password-reset request. Use the link below to set a new password. The link works for ${input.expiresInHours} hours.
+
+Set a new password: ${input.resetLinkUrl}
+
+${input.companyName} staff portal.`;
+}
+
+export function renderPasswordResetRejectedSubject(): string {
+  return "Update on your password-reset request";
+}
+
+export function renderPasswordResetRejectedHtml(
+  input: PasswordResetRejectedEmailInput
+): string {
+  const name = escapeHtml(input.recipientName);
+  const company = escapeHtml(input.companyName);
+  const retry = escapeHtml(input.retryUrl);
+  const note = input.reviewerNote ? escapeHtml(input.reviewerNote) : null;
+  const noteBlock = note
+    ? `<div style="margin: 16px 0; padding: 16px; background: #fbf8f2; border: 1px solid #e8dfd3; border-radius: 8px;"><p style="margin: 0 0 8px; font-weight: 500; color: #313731;">Note from the reviewer:</p><p style="margin: 0; white-space: pre-wrap;">${note}</p></div>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="en">
+  <body style="font-family: 'Work Sans', Arial, sans-serif; color: #313731; background: #fbf8f2; padding: 32px;">
+    <div style="max-width: 480px; margin: 0 auto; background: #fffefa; border: 1px solid #e8dfd3; border-radius: 10px; padding: 32px;">
+      <h1 style="font-family: 'Urbanist', Arial, sans-serif; color: #151b18; font-size: 1.5rem; margin: 0 0 16px;">Update on your password-reset request</h1>
+      <p style="margin: 0 0 16px;">Hi ${name},</p>
+      <p style="margin: 0 0 16px;">An Owner reviewed your request and decided not to approve it this time.</p>
+      ${noteBlock}
+      <p style="margin: 24px 0;"><a href="${retry}" style="display: inline-block; background: #0f5e8e; color: #ffffff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">Submit a new request</a></p>
+      <p style="margin: 24px 0 0; color: #5e625e; font-size: 0.875rem;">${company} staff portal.</p>
+    </div>
+  </body>
+</html>`;
+}
+
+export function renderPasswordResetRejectedText(
+  input: PasswordResetRejectedEmailInput
+): string {
+  const noteBlock = input.reviewerNote
+    ? `\n\nNote from the reviewer:\n${input.reviewerNote}`
+    : "";
+  return `Update on your password-reset request
+
+Hi ${input.recipientName},
+
+An Owner reviewed your request and decided not to approve it this time.${noteBlock}
+
+Submit a new request: ${input.retryUrl}
+
+${input.companyName} staff portal.`;
 }

@@ -1,0 +1,1556 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Role-Specific Admin CRM Implementation Plan</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1f2f2b;
+        --muted: #5f6f69;
+        --line: #dce5df;
+        --panel: #ffffff;
+        --soft: #f5f8f4;
+        --accent: #3b6f5a;
+        --accent-soft: #e6f1ea;
+        --warn: #7c4d12;
+        --warn-soft: #fff5df;
+        --danger: #7a1f1f;
+        --danger-soft: #fff0f0;
+        --code: #10231d;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: #f8faf7;
+        color: var(--ink);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        line-height: 1.55;
+      }
+
+      main {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 40px 0 72px;
+      }
+
+      header,
+      section {
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel);
+        box-shadow: 0 14px 40px rgba(31, 47, 43, 0.06);
+      }
+
+      header {
+        padding: 32px;
+        margin-bottom: 20px;
+      }
+
+      section {
+        padding: 28px;
+        margin-top: 18px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.2;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: clamp(1.35rem, 2.2vw, 1.85rem);
+      }
+
+      h3 {
+        margin-top: 22px;
+        font-size: 1.02rem;
+      }
+
+      p {
+        margin: 12px 0 0;
+        color: var(--muted);
+      }
+
+      ul,
+      ol {
+        margin: 12px 0 0;
+        padding-left: 22px;
+      }
+
+      li {
+        margin: 6px 0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+
+      th,
+      td {
+        padding: 11px 12px;
+        border-bottom: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        background: var(--soft);
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      code,
+      pre {
+        font-family:
+          "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+
+      code {
+        border-radius: 5px;
+        background: var(--soft);
+        padding: 0.12rem 0.28rem;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        margin: 14px 0 0;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--code);
+        color: #edf7f0;
+        font-size: 0.9rem;
+        line-height: 1.55;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        color: var(--accent);
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .summary-grid,
+      .two-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 20px;
+      }
+
+      .two-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .summary-card {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--soft);
+        padding: 16px;
+      }
+
+      .summary-card strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+
+      .tag-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+        padding: 0;
+        list-style: none;
+      }
+
+      .tag-list li {
+        margin: 0;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        padding: 5px 10px;
+        font-size: 0.86rem;
+        font-weight: 700;
+      }
+
+      .phase-label {
+        display: inline-flex;
+        margin-bottom: 10px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        padding: 5px 10px;
+        font-size: 0.82rem;
+        font-weight: 800;
+      }
+
+      .phase-heading-row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .copy-phase-button {
+        flex: 0 0 auto;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--accent);
+        color: #ffffff;
+        cursor: pointer;
+        padding: 7px 12px;
+        font: inherit;
+        font-size: 0.84rem;
+        font-weight: 800;
+      }
+
+      .copy-phase-button:hover,
+      .copy-phase-button:focus {
+        background: #2f5948;
+        outline: none;
+      }
+
+      .note {
+        border-left: 4px solid var(--accent);
+        border-radius: 8px;
+        background: var(--accent-soft);
+        padding: 14px 16px;
+        color: var(--ink);
+      }
+
+      .warning {
+        border-left-color: #c28220;
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+
+      .danger {
+        border-left-color: #b44747;
+        background: var(--danger-soft);
+        color: var(--danger);
+      }
+
+      .phase-pack {
+        border-top: 1px solid var(--line);
+        margin-top: 24px;
+        padding-top: 22px;
+      }
+
+      .quick-nav {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        margin-bottom: 18px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 10px 28px rgba(31, 47, 43, 0.08);
+        backdrop-filter: blur(10px);
+      }
+
+      .quick-nav-inner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+      }
+
+      .quick-nav strong {
+        flex: 0 0 auto;
+        color: var(--accent);
+        font-size: 0.85rem;
+      }
+
+      .quick-nav-links {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .quick-nav a {
+        flex: 0 0 auto;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--soft);
+        color: var(--ink);
+        padding: 5px 10px;
+        font-size: 0.84rem;
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .quick-nav a:hover,
+      .quick-nav a:focus {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+        color: var(--accent);
+        outline: none;
+      }
+
+      @media (max-width: 820px) {
+        main {
+          width: min(100% - 20px, 1180px);
+          padding-top: 20px;
+        }
+
+        header,
+        section {
+          padding: 20px;
+        }
+
+        .summary-grid,
+        .two-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .quick-nav-inner {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .phase-heading-row {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .copy-phase-button {
+          width: 100%;
+        }
+
+        table {
+          display: block;
+          overflow-x: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">Rahma Therapy CRM</p>
+        <h1>Role-Specific Admin CRM Implementation Plan</h1>
+        <p>
+          This plan turns the admin CRM from one owner-style interface into a
+          role-aware business system where every admin-facing page changes by
+          access, data scope, actions, and relevance.
+        </p>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <strong>Core Principle</strong>
+            Permissions decide actions, scopes decide data, and role-specific
+            UI decides what is relevant.
+          </div>
+          <div class="summary-card">
+            <strong>Standalone Phases</strong>
+            Each phase includes enough context, gates, files, checks, and a
+            copyable prompt to send to another model independently.
+          </div>
+          <div class="summary-card">
+            <strong>Execution Safety</strong>
+            App code, RLS, browser behavior, and Supabase state must be checked
+            together before any phase is considered complete.
+          </div>
+        </div>
+      </header>
+
+      <nav class="quick-nav" aria-label="Plan sections">
+        <div class="quick-nav-inner">
+          <strong>Jump to</strong>
+          <div class="quick-nav-links">
+            <a href="#context">Context</a>
+            <a href="#roles">Roles</a>
+            <a href="#gates">Gates</a>
+            <a href="#kickoff">Kickoff</a>
+            <a href="#phase-1">Phase 1</a>
+            <a href="#phase-2">Phase 2</a>
+            <a href="#phase-3">Phase 3</a>
+            <a href="#phase-4">Phase 4</a>
+            <a href="#phase-5">Phase 5</a>
+            <a href="#phase-6">Phase 6</a>
+            <a href="#phase-7">Phase 7</a>
+            <a href="#phase-8">Phase 8</a>
+            <a href="#phase-9">Phase 9</a>
+            <a href="#phase-10">Phase 10</a>
+            <a href="#success">Success</a>
+          </div>
+        </div>
+      </nav>
+
+      <section id="context">
+        <h2>Known Current Repo Context</h2>
+        <p>
+          These paths and facts should be treated as starting points. A model
+          executing any phase must inspect them first because the codebase may
+          have changed since this plan was written.
+        </p>
+        <div class="two-grid">
+          <div class="summary-card">
+            <strong>Project Root</strong>
+            <code>rahmatherapy-next-refactor</code>
+          </div>
+          <div class="summary-card">
+            <strong>Do Not Touch By Default</strong>
+            Historical migrations, unrelated public pages, unrelated styling,
+            live users/data, or role permission grants unless the phase
+            explicitly requires it.
+          </div>
+        </div>
+        <h3>Important Files To Inspect</h3>
+        <ul>
+          <li><code>src/lib/auth/rbac.ts</code> - canonical permission constants, role display names, profile shape, and helpers.</li>
+          <li><code>src/app/admin/layout.tsx</code> - admin shell and staff profile resolution.</li>
+          <li><code>src/app/admin/components/AdminTopNav.tsx</code> - role-aware navigation.</li>
+          <li><code>src/app/admin/dashboard/page.tsx</code> - current dashboard behavior.</li>
+          <li><code>src/app/admin/bookings/page.tsx</code> and <code>src/app/admin/bookings/[bookingId]/page.tsx</code> - booking list/detail behavior.</li>
+          <li><code>src/app/admin/bookings/actions.ts</code> and <code>src/app/admin/bookings/assignment-eligibility.ts</code> - assignment and claiming behavior.</li>
+          <li><code>src/app/admin/clients/page.tsx</code>, <code>src/app/admin/clients/[clientId]/page.tsx</code>, and <code>src/app/admin/clients/actions.ts</code> - client access and mutation behavior.</li>
+          <li><code>src/app/admin/reports/page.tsx</code> and <code>src/app/admin/reports/reporting.ts</code> - report data scope.</li>
+          <li><code>src/app/admin/staff/page.tsx</code>, <code>src/app/admin/staff/[staffId]/page.tsx</code>, and <code>src/app/admin/staff/actions.ts</code> - staff/team behavior.</li>
+          <li><code>src/app/admin/roles/page.tsx</code>, <code>src/app/admin/roles/[roleId]/page.tsx</code>, and <code>src/app/admin/roles/actions.ts</code> - role templates and permission management.</li>
+          <li><code>src/app/admin/emails/page.tsx</code>, <code>src/app/admin/enquiries/page.tsx</code>, <code>src/app/admin/operations/page.tsx</code>, <code>src/app/admin/audit/page.tsx</code>, and <code>src/app/admin/privacy/page.tsx</code> - operational and sensitive pages.</li>
+          <li><code>src/middleware.ts</code> - request/auth routing behavior.</li>
+          <li><code>supabase/verification/canonical_rbac_verification.sql</code> - canonical RBAC verification.</li>
+          <li><code>supabase/migrations/</code> - add new migrations only; do not rewrite historical migrations.</li>
+        </ul>
+      </section>
+
+      <section id="roles">
+        <h2>Canonical Roles And Permissions</h2>
+        <p>
+          Do not reintroduce legacy permission names. These roles and
+          permissions are the source of truth unless Supabase MCP shows a newer
+          canonical setup.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>DB Role</th>
+              <th>UI Label</th>
+              <th>Default Intent</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>Owner</code></td>
+              <td>Owner / Main Admin</td>
+              <td>Full access, role templates, permission overrides, all reports, all staff, all operations.</td>
+            </tr>
+            <tr>
+              <td><code>Admin</code></td>
+              <td>Admin / Practice Manager</td>
+              <td>Operational management, staff profiles, bookings, clients, reports, services, settings, audit/privacy where bundled.</td>
+            </tr>
+            <tr>
+              <td><code>Booking Coordinator</code></td>
+              <td>Client Care / Booking Coordinator</td>
+              <td>Bookings, clients, enquiries, email logs/resends, operational reports, assignment support.</td>
+            </tr>
+            <tr>
+              <td><code>Therapist</code></td>
+              <td>Therapist</td>
+              <td>Assigned work, claimable work, own availability, assigned clients, session context, own reports.</td>
+            </tr>
+            <tr>
+              <td><code>Inactive</code></td>
+              <td>Inactive / Suspended</td>
+              <td>No admin access. Profile should be inactive.</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>Canonical Permission Slugs</h3>
+        <ul class="tag-list">
+          <li>view_dashboard</li>
+          <li>view_bookings_all</li>
+          <li>view_bookings_assigned</li>
+          <li>manage_bookings_all</li>
+          <li>manage_bookings_assigned</li>
+          <li>assign_bookings</li>
+          <li>claim_assignments</li>
+          <li>view_reports_own</li>
+          <li>export_reports_own</li>
+          <li>view_reports_operational</li>
+          <li>view_reports_revenue</li>
+          <li>export_reports_revenue</li>
+          <li>view_reports_business</li>
+          <li>view_clients_assigned</li>
+          <li>view_clients_all</li>
+          <li>view_client_contact_details</li>
+          <li>view_client_health_notes_assigned</li>
+          <li>create_client_session_notes</li>
+          <li>manage_clients_all</li>
+          <li>manage_sensitive_client_notes</li>
+          <li>view_staff</li>
+          <li>manage_staff_profiles</li>
+          <li>assign_staff_roles</li>
+          <li>manage_permission_overrides</li>
+          <li>manage_role_templates</li>
+          <li>view_email_logs</li>
+          <li>resend_booking_emails</li>
+          <li>manage_email_settings</li>
+          <li>manage_enquiries</li>
+          <li>manage_services</li>
+          <li>manage_settings</li>
+          <li>manage_availability_global</li>
+          <li>manage_availability_own</li>
+          <li>manage_audit_logs</li>
+          <li>manage_privacy_operations</li>
+        </ul>
+        <p class="note warning">
+          Legacy permission names may exist in old migration history only. They
+          must not appear in current app code, current scripts, live
+          permissions, live grants, RLS policies, views, or function bodies.
+        </p>
+      </section>
+
+      <section id="gates">
+        <h2>Global Gates For Every Phase</h2>
+        <p>
+          These gates apply to every standalone phase, even if the phase prompt
+          is sent by itself.
+        </p>
+        <h3>Before Editing</h3>
+        <ul>
+          <li>State assumptions and the exact files you plan to inspect.</li>
+          <li>Run <code>git status --short</code> and do not revert unrelated changes.</li>
+          <li>Inspect the relevant files with <code>rg</code> and direct reads before asserting behavior.</li>
+          <li>Use Supabase MCP for Supabase schema/RLS/permission verification when a phase touches backend behavior.</li>
+          <li>Ask for explicit approval before live destructive data changes, mass updates, storage bucket deletion, or Auth user mutation.</li>
+        </ul>
+        <h3>During Implementation</h3>
+        <ul>
+          <li>Use canonical permissions only. Do not add legacy aliases.</li>
+          <li>Prefer scoped queries over fetching all rows and hiding fields in the UI.</li>
+          <li>Keep role permission bundles in Supabase data; app code may check stable permission slugs but must not hardcode role-to-permission bundles.</li>
+          <li>Do not add staff permission overrides unless the phase explicitly asks for overrides.</li>
+          <li>Do not change historical migrations; add new timestamped migrations only.</li>
+          <li>Do not start a dev server if one is already running. If browser verification is needed, use the already-running <code>http://localhost:3000</code> unless the user says otherwise.</li>
+        </ul>
+        <h3>Before Completion</h3>
+        <ul>
+          <li>Run the narrowest meaningful tests first, then broader checks when the phase is complete.</li>
+          <li>Run <code>pnpm lint</code> and <code>pnpm build</code> for frontend/admin changes unless impossible.</li>
+          <li>Run <code>pnpm test</code> when tests were added or behavior changed across shared helpers.</li>
+          <li>Run an exact <code>rg</code> check for deprecated permission names in <code>src</code> and <code>scripts</code>.</li>
+          <li>Use Playwright/Chrome DevTools browser checks for role-facing UI phases.</li>
+          <li>Provide evidence: files changed, commands run, role behavior verified, Supabase checks run, and remaining caveats.</li>
+        </ul>
+      </section>
+
+      <section id="kickoff">
+        <h2>New Session Kickoff Prompt</h2>
+        <p>
+          Use this at the start of a fresh model session, after context
+          compaction, or before sending one standalone phase. Paste this first,
+          then paste the phase prompt below it.
+        </p>
+        <pre>You are working in the Rahma Therapy Next.js/Supabase CRM codebase.
+
+Before doing anything, orient yourself from the repository and do not rely on prior chat memory.
+
+Core project context:
+- Project folder: rahmatherapy-next-refactor.
+- Admin CRM uses Supabase Auth, Postgres/RLS, and canonical RBAC permissions.
+- Canonical roles: Owner, Admin, Booking Coordinator, Therapist, Inactive.
+- Role labels: Owner / Main Admin, Admin / Practice Manager, Client Care / Booking Coordinator, Therapist, Inactive / Suspended.
+- Permissions are canonical only. Do not reintroduce legacy permission slugs or compatibility aliases.
+- Role permission bundles live in Supabase data. App code may check stable permission slugs, but must not hardcode role-to-permission bundles.
+- Each admin page must be controlled by three layers: page access, data scope, and visible actions.
+- Scope data before rendering wherever possible. Do not fetch owner-level data for lower roles and merely hide it in the UI.
+
+Start every phase like this:
+1. State assumptions and success criteria.
+2. Run git status --short and do not revert unrelated changes.
+3. Inspect relevant files before claiming how the code works.
+4. Use Supabase MCP for database, RLS, function, policy, storage, role, and permission verification whenever the phase touches backend behavior.
+5. Ask explicit approval before destructive live data changes, Auth user mutation, storage deletion, or production/shared infrastructure changes.
+6. Do not start a dev server if http://localhost:3000 is already running.
+7. Keep changes surgical and limited to the phase.
+
+Important files to inspect as needed:
+- src/lib/auth/rbac.ts
+- src/app/admin/layout.tsx
+- src/app/admin/components/AdminTopNav.tsx
+- src/app/admin/dashboard/page.tsx
+- src/app/admin/bookings/page.tsx
+- src/app/admin/bookings/[bookingId]/page.tsx
+- src/app/admin/bookings/actions.ts
+- src/app/admin/bookings/assignment-eligibility.ts
+- src/app/admin/clients/page.tsx
+- src/app/admin/clients/[clientId]/page.tsx
+- src/app/admin/clients/actions.ts
+- src/app/admin/reports/page.tsx
+- src/app/admin/reports/reporting.ts
+- src/app/admin/staff/page.tsx
+- src/app/admin/staff/[staffId]/page.tsx
+- src/app/admin/staff/actions.ts
+- src/app/admin/roles/page.tsx
+- src/app/admin/roles/[roleId]/page.tsx
+- src/app/admin/roles/actions.ts
+- src/app/admin/emails/page.tsx
+- src/app/admin/enquiries/page.tsx
+- src/app/admin/operations/page.tsx
+- src/app/admin/audit/page.tsx
+- src/app/admin/privacy/page.tsx
+- src/middleware.ts
+- supabase/verification/canonical_rbac_verification.sql
+- supabase/migrations/
+
+Verification expectations:
+- Run focused tests for the changed behavior.
+- Run pnpm lint and pnpm build for admin/frontend changes.
+- Run pnpm test when shared helpers, backend behavior, permissions, or data scope changes.
+- Use browser checks for user-facing admin page changes.
+- Use Supabase MCP verification for RLS, policies, functions, permissions, role grants, storage, and data-scope changes.
+- Run an exact search for deprecated permission names in current src and scripts before finalizing.
+
+Final response must include:
+- What changed.
+- Files changed.
+- Tests/checks run.
+- Supabase MCP verification run, if relevant.
+- Role behavior verified.
+- Any caveats or unverified items.
+
+Now implement only the phase I send next. Do not add unrelated improvements.</pre>
+      </section>
+
+      <section id="workspace-targets">
+        <h2>Role Workspace Targets</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Workspace</th>
+              <th>Should See</th>
+              <th>Should Not See By Default</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Owner / Main Admin</td>
+              <td>Full command centre</td>
+              <td>Everything: users, bookings, profiles, reports, revenue, role controls, password requests, audit, privacy, settings.</td>
+              <td>Nothing hidden by default.</td>
+            </tr>
+            <tr>
+              <td>Admin / Practice Manager</td>
+              <td>Operational management</td>
+              <td>Bookings, assignment, staff profiles, services, settings, reports, operations, password requests if granted.</td>
+              <td>Role-template and permission-override controls unless Owner grants them.</td>
+            </tr>
+            <tr>
+              <td>Client Care / Booking Coordinator</td>
+              <td>Booking and communication workspace</td>
+              <td>Bookings, clients, enquiries, email status, therapist availability, assignment suitability, operational reports.</td>
+              <td>Revenue, role controls, privacy queues, audit, sensitive staff/admin details, unnecessary clinical notes.</td>
+            </tr>
+            <tr>
+              <td>Therapist</td>
+              <td>My work workspace</td>
+              <td>Assigned bookings, claimable gender-matching work, own availability, own reports, assigned client/session context, session notes, limited team visibility.</td>
+              <td>Unrelated clients, business-wide revenue, role controls, all staff management, audit, privacy, settings.</td>
+            </tr>
+            <tr>
+              <td>Inactive / Suspended</td>
+              <td>No workspace</td>
+              <td>Inactive/access denied state only.</td>
+              <td>All admin pages and data.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="phase-1">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 1</span>
+            <h2>Central Admin Access And Scope System</h2>
+          </div>
+        </div>
+        <p>
+          Create one central capability map that every admin page can use for
+          page access, data scope, and visible actions. This is the foundation
+          for consistent role-specific behavior across the CRM.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li><code>src/lib/auth/rbac.ts</code></li>
+          <li><code>src/app/admin/layout.tsx</code></li>
+          <li><code>src/app/admin/components/AdminTopNav.tsx</code></li>
+          <li><code>src/app/admin/**/page.tsx</code></li>
+          <li>Existing tests under <code>src</code>, <code>tests</code>, or <code>__tests__</code>; find with <code>rg --files -g '*test*' -g '*spec*'</code>.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Create a focused server-only admin access module if none exists, for example <code>src/lib/auth/admin-access.ts</code>.</li>
+          <li>Define page keys for dashboard, bookings, booking detail, calendar, reports, clients, client detail, enquiries, team/staff, roles, role detail, services, availability, emails, operations, audit, privacy, settings, profile, and account requests.</li>
+          <li>Define scope values for <code>all</code>, <code>assigned</code>, <code>own</code>, <code>operational</code>, <code>team_visible</code>, <code>same_gender_team</code>, <code>sensitive_hidden</code>, and <code>none</code>.</li>
+          <li>Define action flags for view, create, edit, assign, claim, export, manage settings, manage roles, manage profiles, approve requests, and view sensitive fields.</li>
+          <li>Use current <code>StaffProfile</code> and permission helpers. Do not duplicate permission resolution.</li>
+          <li>If earlier helpers are missing, implement the minimal helper needed in this phase and cover it with tests.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>No legacy permission aliases.</li>
+          <li>No role-name checks for permission behavior except stable identity/display where unavoidable.</li>
+          <li>No page should be left without an explicit access rule.</li>
+          <li>Inactive or missing staff profile must resolve to no admin page access.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Unit tests prove access/scope/action output for all five roles.</li>
+          <li><code>pnpm test</code>, <code>pnpm lint</code>, and <code>pnpm build</code> pass or any failure is documented as pre-existing with evidence.</li>
+          <li>Run <code>rg "view_reports|manage_clients|manage_users|manage_staff|manage_roles|manage_permissions|claim_bookings|reassign_bookings|view_all_bookings|view_own_bookings|manage_bookings_own|manage_payments" src scripts</code> and confirm no current code references legacy permission slugs.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>This phase should not redesign pages. It creates the rule layer that later phases consume.</li>
+          <li>Do not solve every page's UI in this phase; only wire enough access guard usage to prove the model works.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 1 only for the Rahma Therapy Next.js/Supabase CRM. Goal: create a central server-only admin access and scope system that every admin page can use for page access, data scope, and actions.
+
+Context:
+- Project root is rahmatherapy-next-refactor.
+- Canonical roles are Owner, Admin, Booking Coordinator, Therapist, Inactive.
+- Canonical permissions are already defined in src/lib/auth/rbac.ts. Do not add legacy permission aliases.
+- Relevant files to inspect first: src/lib/auth/rbac.ts, src/app/admin/layout.tsx, src/app/admin/components/AdminTopNav.tsx, src/app/admin/**/page.tsx, and existing tests.
+
+Requirements:
+1. State assumptions, inspect the files above, and run git status --short.
+2. Add a focused server-only access module if one does not exist, preferably src/lib/auth/admin-access.ts.
+3. Define explicit access rules for dashboard, bookings, booking detail, calendar, reports, clients, client detail, enquiries, team/staff, roles, role detail, services, availability, emails, operations, audit, privacy, settings, profile, and account requests.
+4. Return page access, data scope, and action flags from one helper per page or one typed matrix helper.
+5. Use current StaffProfile and canonical permission helpers. Do not duplicate permission resolution.
+6. Inactive or missing staff profile must have no admin page access.
+7. Add unit tests for Owner, Admin, Booking Coordinator, Therapist, and Inactive.
+
+Verification:
+- Run the new focused tests.
+- Run pnpm test, pnpm lint, pnpm build.
+- Run an exact rg check for deprecated permission names in src and scripts.
+- Final response must list changed files, tests run, access matrix summary, and caveats.</pre>
+        </div>
+      </section>
+
+      <section id="phase-2">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 2</span>
+            <h2>Admin Navigation And Page Shells</h2>
+          </div>
+        </div>
+        <p>
+          Make desktop and mobile admin navigation clearly reflect the current
+          role, permissions, and account state.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li><code>src/app/admin/layout.tsx</code></li>
+          <li><code>src/app/admin/components/AdminTopNav.tsx</code></li>
+          <li><code>src/app/admin/login/page.tsx</code> and <code>src/app/admin/login/LoginForm.tsx</code> if present</li>
+          <li><code>src/app/admin/signout</code></li>
+          <li>The Phase 1 access module, or create the minimal missing access helper before touching navigation.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Desktop and mobile nav must use the same access/scope source.</li>
+          <li>Show current user name, role label, active state, and booking-capacity state where useful.</li>
+          <li>Add or preserve obvious account switching/sign-out for role testing.</li>
+          <li>Add clear access-denied and inactive states rather than rendering an owner-like shell.</li>
+          <li>Do not expose nav items for pages the user cannot open.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>Navigation hiding is not authorization. Protected pages must still guard access server-side.</li>
+          <li>Do not leak Owner-only role-template or permission-override controls to Admin unless permission granted.</li>
+          <li>Inactive users must not receive the admin shell.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Browser check as all five role accounts, or document why browser login is unavailable.</li>
+          <li>Record visible nav items for each role.</li>
+          <li><code>pnpm lint</code> and <code>pnpm build</code> pass.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>Do not put test passwords into the repo or this file. Use existing local test credentials supplied by the user for browser verification.</li>
+          <li>If the login page redirects because an existing session is active, sign out before testing a different role.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 2 only for the Rahma Therapy admin CRM. Goal: update the admin navigation and shell so desktop and mobile accurately reflect the current user's role, permissions, and active/booking state.
+
+Context:
+- Use the central access/scope system from Phase 1 if present. If it is missing, create the minimal server-only helper needed for navigation before editing UI.
+- Relevant files: src/app/admin/layout.tsx, src/app/admin/components/AdminTopNav.tsx, src/app/admin/login/page.tsx, src/app/admin/login/LoginForm.tsx if present, src/app/admin/signout, and src/lib/auth/rbac.ts.
+- Do not change page data behavior yet except for access-denied/inactive shell handling.
+
+Requirements:
+1. Inspect files and run git status --short.
+2. Make desktop and mobile nav use the same permission/access source.
+3. Show only pages/actions the role can access.
+4. Show current user name, role display label, active state, and booking capacity where appropriate.
+5. Ensure sign-out/account switching is obvious for testing.
+6. Inactive users must not see the admin shell.
+
+Verification:
+- Browser check all five roles through http://localhost:3000 if the app is already running. Do not start another server unless the user asks.
+- Document visible nav items per role.
+- Run pnpm lint and pnpm build.
+- Final response must list changed files, visible nav matrix, commands run, and caveats.</pre>
+        </div>
+      </section>
+
+      <section id="phase-3">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 3</span>
+            <h2>Role-Specific Dashboard</h2>
+          </div>
+        </div>
+        <p>
+          Replace the one-size-fits-all dashboard with role-specific dashboard
+          experiences and role-scoped data loading.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li><code>src/app/admin/dashboard/page.tsx</code></li>
+          <li><code>src/app/admin/reports/reporting.ts</code></li>
+          <li><code>src/lib/auth/rbac.ts</code> and the Phase 1 access module</li>
+          <li>Any dashboard components imported by <code>dashboard/page.tsx</code></li>
+          <li>Supabase tables used by dashboard queries: bookings, booking assignments, clients, enquiries, staff profiles, services, reports-related events.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Owner/Admin dashboard: business-wide command centre with operations, bookings, staff, reports, and revenue only where permitted.</li>
+          <li>Coordinator dashboard: booking queue, enquiries, communication, assignment gaps, and operational metrics with no revenue.</li>
+          <li>Therapist dashboard: assigned bookings, claimable matching work, own availability, own weekly workload, own reports, assigned client/session context.</li>
+          <li>Inactive: blocked access.</li>
+          <li>Dashboard queries must scope data before rendering. Do not fetch all sensitive rows and hide later.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>Therapist must not receive unrelated bookings, unrelated clients, all-staff operational data, or revenue values.</li>
+          <li>Coordinator must not receive revenue, role controls, staff admin controls, audit data, or privacy queues.</li>
+          <li>Any CSV/export/dashboard API route used by the page must enforce the same scope.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Unit/integration tests for role-specific dashboard data builders where practical.</li>
+          <li>Browser screenshots or notes for Owner/Admin, Coordinator, Therapist, and Inactive.</li>
+          <li>Supabase MCP or direct query review confirming dashboard queries cannot over-read by role.</li>
+          <li><code>pnpm test</code>, <code>pnpm lint</code>, and <code>pnpm build</code>.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>This phase is a high-leverage fix because the dashboard was one of the visible places where all roles felt the same.</li>
+          <li>A visibly different dashboard is not enough; data must be scoped at the query/helper layer.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 3 only for the Rahma Therapy admin CRM. Goal: make /admin/dashboard role-specific and data-scoped.
+
+Context:
+- Canonical roles: Owner, Admin, Booking Coordinator, Therapist, Inactive.
+- Use canonical permissions and the central access/scope helper if present.
+- Relevant files: src/app/admin/dashboard/page.tsx, src/app/admin/reports/reporting.ts, src/lib/auth/rbac.ts, the Phase 1 access module, and any dashboard components.
+
+Requirements:
+1. Inspect files, identify every dashboard data source, and run git status --short.
+2. Owner/Admin get business-wide operational dashboard. Revenue only appears if permitted.
+3. Booking Coordinator gets booking/enquiry/client communication operations and operational metrics only. No revenue, audit, privacy, role, or staff-admin controls.
+4. Therapist gets assigned bookings, gender-matching claimable work, own availability, own workload, own reports, and assigned client/session context only.
+5. Inactive is blocked.
+6. Scope data before rendering. Avoid fetching owner-level data for lower roles.
+7. Add focused tests for dashboard data scope where practical.
+
+Verification:
+- Browser check the dashboard for Owner/Admin, Coordinator, Therapist, and Inactive.
+- Run pnpm test, pnpm lint, pnpm build.
+- Use Supabase MCP or explicit query review for backend scope.
+- Final response must include changed files, role dashboard summary, tests, browser evidence, and caveats.</pre>
+        </div>
+      </section>
+
+      <section id="phase-4">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 4</span>
+            <h2>Bookings, Assignment, And Claimable Work</h2>
+          </div>
+        </div>
+        <p>
+          Make booking workflows role-specific: admins assign, eligible staff
+          claim, and therapists manage their own assigned work.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li><code>src/app/admin/bookings/page.tsx</code></li>
+          <li><code>src/app/admin/bookings/[bookingId]/page.tsx</code></li>
+          <li><code>src/app/admin/bookings/actions.ts</code></li>
+          <li><code>src/app/admin/bookings/assignment-eligibility.ts</code></li>
+          <li><code>src/features/booking/actions.ts</code></li>
+          <li>RLS policies for bookings, booking_items, booking_participants, booking_assignments, clients, and staff_profiles.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Add or refine role-specific booking views: All, Assigned to me, Claimable, Unassigned, Needs action.</li>
+          <li>Owner/Admin/Coordinator can assign eligible staff only with <code>assign_bookings</code>.</li>
+          <li>Owner/Admin/Therapist can claim matching work only when active, correct gender, <code>can_take_bookings</code>, available, no schedule conflict, and has <code>claim_assignments</code>.</li>
+          <li>Therapists can update only their own assignment workflow and session notes.</li>
+          <li>Booking details hide irrelevant or sensitive sections by scope.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>Assignment controls must be enforced in server actions, not only UI.</li>
+          <li>Claiming must use <code>claim_assignments</code> only.</li>
+          <li>Coordinator can assign but cannot claim unless explicitly bookable and permissioned later.</li>
+          <li>Therapist cannot open or mutate unrelated booking details.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Tests for assignment eligibility: gender, active, booking capacity, availability, conflict, and permission.</li>
+          <li>Tests or browser checks for assigned-only booking detail access.</li>
+          <li>Supabase MCP verification that RLS/function policies use canonical permission names.</li>
+          <li>Temporary booking data created for tests must be cleaned up.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>Admin and Owner may be bookable by capacity flag, but that must not imply they get extra permissions.</li>
+          <li>Do not change public booking behavior unless needed for assignment consistency.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 4 only for the Rahma Therapy admin CRM. Goal: update bookings, booking detail, assignment, and claimable-work flows so they are role-specific and backend-enforced.
+
+Context:
+- Claiming uses claim_assignments only.
+- Assignment uses assign_bookings.
+- Staff can claim only if active, can_take_bookings, correct gender, available, no conflict, and permissioned.
+- Relevant files: src/app/admin/bookings/page.tsx, src/app/admin/bookings/[bookingId]/page.tsx, src/app/admin/bookings/actions.ts, src/app/admin/bookings/assignment-eligibility.ts, src/features/booking/actions.ts, src/lib/auth/rbac.ts, and related Supabase RLS policies.
+
+Requirements:
+1. Inspect files and RLS policies with Supabase MCP; run git status --short.
+2. Add/refine views for All, Assigned to me, Claimable, Unassigned, and Needs action.
+3. Owner/Admin/Coordinator can assign eligible staff when they have assign_bookings.
+4. Owner/Admin/Therapist can claim matching work only when all eligibility checks pass.
+5. Therapists see and manage assigned bookings only, plus claimable matching work.
+6. Enforce all mutations in server actions and RLS/policies where relevant.
+7. Add tests for assignment and claim rules.
+
+Verification:
+- Test gender-matching claimability, active state, can_take_bookings, availability/conflict, and permission.
+- Browser check booking list/detail for Admin, Coordinator, Therapist.
+- Supabase MCP verify no legacy permission names in functions/policies/views.
+- Clean temporary booking rows after smoke checks.
+- Run pnpm test, pnpm lint, pnpm build.</pre>
+        </div>
+      </section>
+
+      <section id="phase-5">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 5</span>
+            <h2>Clients, Session Notes, And Sensitive Data</h2>
+          </div>
+        </div>
+        <p>
+          Ensure client data, health notes, contact details, privacy fields,
+          and session notes are only visible where relevant.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li><code>src/app/admin/clients/page.tsx</code></li>
+          <li><code>src/app/admin/clients/[clientId]/page.tsx</code></li>
+          <li><code>src/app/admin/clients/actions.ts</code></li>
+          <li><code>src/app/admin/privacy/page.tsx</code> and <code>src/app/admin/privacy/actions.ts</code></li>
+          <li>Client, note, privacy, booking assignment, and booking participant RLS policies.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Owner/Admin/Coordinator can view or manage clients according to canonical permissions.</li>
+          <li>Therapist can view only clients connected to assigned bookings.</li>
+          <li>Contact details require <code>view_client_contact_details</code>.</li>
+          <li>Assigned health notes require <code>view_client_health_notes_assigned</code> or higher sensitive permission.</li>
+          <li>Session notes require <code>create_client_session_notes</code> and assignment relevance.</li>
+          <li>Sensitive notes/privacy queues require <code>manage_sensitive_client_notes</code> or <code>manage_privacy_operations</code>.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>Therapists must not list or open unrelated clients.</li>
+          <li>Coordinator must not receive sensitive clinical/privacy controls by default.</li>
+          <li>Server actions must repeat permission/scope checks.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Tests for assigned-client access and unrelated-client denial.</li>
+          <li>Tests for contact, health note, session note, and sensitive note permissions.</li>
+          <li>Browser checks for client list/detail as Owner/Admin, Coordinator, Therapist.</li>
+          <li>Supabase MCP checks for client/note/privacy RLS.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>This phase touches sensitive client data. Treat “hidden in UI” as insufficient unless the server query is scoped.</li>
+          <li>Do not delete existing client fields or notes; only change access and display behavior.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 5 only for the Rahma Therapy admin CRM. Goal: make clients, client details, contact fields, health notes, privacy fields, and session notes role-scoped.
+
+Context:
+- Canonical permissions: view_clients_assigned, view_clients_all, view_client_contact_details, view_client_health_notes_assigned, create_client_session_notes, manage_clients_all, manage_sensitive_client_notes, manage_privacy_operations.
+- Relevant files: src/app/admin/clients/page.tsx, src/app/admin/clients/[clientId]/page.tsx, src/app/admin/clients/actions.ts, src/app/admin/privacy/page.tsx, src/app/admin/privacy/actions.ts, src/lib/auth/rbac.ts, access/scope helper, and related Supabase RLS policies.
+
+Requirements:
+1. Inspect files and RLS with Supabase MCP; run git status --short.
+2. Owner/Admin/Coordinator use all-client permissions according to their bundles.
+3. Therapist can view only clients connected to assigned bookings.
+4. Contact details require view_client_contact_details.
+5. Health notes require assigned health-note permission or sensitive-note permission.
+6. Session note creation requires create_client_session_notes and assigned relevance.
+7. Sensitive/privacy operations require manage_sensitive_client_notes or manage_privacy_operations.
+8. Enforce the same checks in server actions and data queries.
+
+Verification:
+- Add tests for assigned-client access, unrelated-client denial, contact visibility, health/session note access, and sensitive controls.
+- Browser check client list/detail for Owner/Admin, Coordinator, Therapist.
+- Supabase MCP verify policies/functions/views use canonical permissions only.
+- Run pnpm test, pnpm lint, pnpm build.</pre>
+        </div>
+      </section>
+
+      <section id="phase-6">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 6</span>
+            <h2>Staff Profiles Data Model</h2>
+          </div>
+        </div>
+        <p>
+          Add richer staff profile data while preserving the existing staff
+          management model and role permission system.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li><code>src/lib/auth/rbac.ts</code> for current <code>StaffProfile</code> shape.</li>
+          <li><code>src/app/admin/staff/page.tsx</code>, <code>src/app/admin/staff/[staffId]/page.tsx</code>, and <code>src/app/admin/staff/actions.ts</code>.</li>
+          <li><code>src/app/admin/settings/page.tsx</code> only if staff profile settings are currently placed there.</li>
+          <li>Current <code>staff_profiles</code> table schema, RLS, indexes, and triggers via Supabase MCP.</li>
+        </ul>
+        <h3>Profile Fields To Add Or Confirm</h3>
+        <ul>
+          <li>Profile photo path placeholder field, but no upload yet.</li>
+          <li>Phone/contact visibility.</li>
+          <li>Short bio.</li>
+          <li>Specialties/services.</li>
+          <li>Languages.</li>
+          <li>Service areas.</li>
+          <li>Profile completion status or computed helper.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Add a migration for new profile fields. Keep existing staff rows valid.</li>
+          <li>Users can edit their own safe profile fields.</li>
+          <li>Owner/Admin can edit operational staff fields where permitted.</li>
+          <li>Therapists cannot edit role, active state, booking capacity unless explicitly permitted, or permissions.</li>
+          <li>Update TypeScript types and forms to match the database.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>No staff data deletion.</li>
+          <li>No permission bundle changes.</li>
+          <li>No avatar upload in this phase; only the data field needed for Phase 8.</li>
+          <li>Migration must be backward compatible for the existing owner and test staff.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Supabase MCP verify schema, RLS, and existing staff row compatibility after migration.</li>
+          <li>Tests for own-profile editing and restricted admin fields.</li>
+          <li><code>pnpm test</code>, <code>pnpm lint</code>, and <code>pnpm build</code>.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>Profile fields should not become a second permission system. Visibility still comes from the access/scope layer.</li>
+          <li>Avoid overbuilding profile metadata; keep only fields useful for massage/cupping operations.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 6 only for the Rahma Therapy admin CRM. Goal: extend staff profiles with business-useful profile fields while preserving existing staff management and permissions.
+
+Context:
+- Existing staff_profiles already include name, email, role, gender, active, can_take_bookings, and availability mode.
+- Add richer profile fields needed for team/profile pages. Do not add avatar upload yet.
+- Relevant files: src/lib/auth/rbac.ts, src/app/admin/staff/page.tsx, src/app/admin/staff/[staffId]/page.tsx, src/app/admin/staff/actions.ts, Supabase migrations, and staff_profiles RLS.
+
+Requirements:
+1. Inspect current staff_profiles schema and RLS using Supabase MCP; run git status --short.
+2. Add a backward-compatible migration for profile_photo_path placeholder, phone/contact visibility, short bio, specialties/services, languages, service areas, and profile completion support.
+3. Update TypeScript types and forms.
+4. Users can edit their own safe profile fields.
+5. Owner/Admin can edit operational staff fields where permitted.
+6. Therapists cannot edit role, active state, booking capacity unless permissioned, or permissions.
+7. Do not change role bundles or add overrides.
+
+Verification:
+- Supabase MCP verify schema and RLS.
+- Add tests for own-profile editing and restricted fields.
+- Run pnpm test, pnpm lint, pnpm build.
+- Final response must include migration name, changed files, tests, MCP verification, and caveats.</pre>
+        </div>
+      </section>
+
+      <section id="phase-7">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 7</span>
+            <h2>Team Page And Profile Visibility</h2>
+          </div>
+        </div>
+        <p>
+          Reshape <code>/admin/staff</code> into a role-aware Team/Profile
+          area with visibility based on role, gender, operational need, and
+          permissions.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li><code>src/app/admin/staff/page.tsx</code></li>
+          <li><code>src/app/admin/staff/[staffId]/page.tsx</code></li>
+          <li><code>src/app/admin/staff/actions.ts</code></li>
+          <li>Phase 1 access/scope helper and Phase 6 profile field types.</li>
+          <li>Staff profile RLS and any staff availability/workload queries.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Owner/Admin see everyone, all genders, all roles, active/inactive state, booking capacity, availability, workload, role, and profile status.</li>
+          <li>Coordinator sees active bookable staff and assignment-relevant details: gender, availability, specialties, weekly workload, contact if needed.</li>
+          <li>Therapist sees limited active team directory, same-gender therapists by default unless permission allows more.</li>
+          <li>Hide email, phone, admin fields, inactive users, role controls, and permission controls unless scope allows them.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>Staff/team page must not become a broad staff admin page for Coordinator or Therapist.</li>
+          <li>Therapist same-gender default is a product rule; if changed, document the reason and permission that allows wider viewing.</li>
+          <li>Workload summary must not expose client details to lower roles.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Tests for team visibility by role.</li>
+          <li>Browser checks for Owner/Admin, Coordinator, Therapist, and Inactive.</li>
+          <li>Supabase MCP or query review proving staff queries are scoped before render.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>Team visibility is partly business policy. Keep it simple and document any assumption about gender-based visibility.</li>
+          <li>Do not expose private contact details by default to Therapist.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 7 only for the Rahma Therapy admin CRM. Goal: reshape /admin/staff into a role-aware Team/Profile page.
+
+Context:
+- This phase assumes or creates the minimal profile fields from Phase 6.
+- Owner/Admin see and manage all staff.
+- Coordinator sees active bookable staff and assignment-relevant details.
+- Therapist sees limited active team directory, same-gender therapists by default unless a permission explicitly allows more.
+- Relevant files: src/app/admin/staff/page.tsx, src/app/admin/staff/[staffId]/page.tsx, src/app/admin/staff/actions.ts, src/lib/auth/rbac.ts, access/scope helper, staff profile RLS.
+
+Requirements:
+1. Inspect files and staff RLS via Supabase MCP; run git status --short.
+2. Implement role-specific team query scopes before rendering.
+3. Owner/Admin can view/manage all staff fields allowed by permissions.
+4. Coordinator gets assignment-focused staff visibility without role/permission controls.
+5. Therapist gets limited team directory without private contact/admin data.
+6. Workload summaries must not expose client identity to unauthorized roles.
+
+Verification:
+- Add tests for role-specific team visibility.
+- Browser check /admin/staff and staff detail as Owner/Admin, Coordinator, Therapist, Inactive.
+- Run pnpm test, pnpm lint, pnpm build.
+- Final response must include visibility matrix and caveats.</pre>
+        </div>
+      </section>
+
+      <section id="phase-8">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 8</span>
+            <h2>Profile Pictures</h2>
+          </div>
+        </div>
+        <p>
+          Add profile picture upload and display using Supabase Storage,
+          without storing image binaries in the database.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li>Profile forms from Phase 6/7.</li>
+          <li><code>src/app/admin/staff/[staffId]/page.tsx</code> and <code>src/app/admin/staff/actions.ts</code>.</li>
+          <li><code>src/app/admin/components/AdminTopNav.tsx</code>.</li>
+          <li>Supabase Storage bucket/policy state via Supabase MCP.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Create a <code>staff-avatars</code> Supabase Storage bucket if missing.</li>
+          <li>Staff can upload or change their own avatar.</li>
+          <li>Owner/Admin can manage avatars where permitted.</li>
+          <li>Store only avatar path or URL reference in <code>staff_profiles</code>.</li>
+          <li>Validate image MIME type, file size, and path ownership.</li>
+          <li>Display avatar in nav, profile, and team cards.</li>
+          <li>Fallback to initials or neutral icon when missing.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>Do not make the bucket public unless that is explicitly chosen and documented. Prefer signed URLs or constrained public-read policy for avatar paths only.</li>
+          <li>Unauthorized users cannot overwrite another user's avatar.</li>
+          <li>Do not store raw image data in Postgres.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Supabase MCP verify bucket and policies.</li>
+          <li>Manual or automated upload check for own avatar.</li>
+          <li>Negative check: Therapist cannot overwrite another staff member's avatar.</li>
+          <li><code>pnpm lint</code> and <code>pnpm build</code>.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>Storage policy mistakes can either break avatars or expose broader files. Keep policy narrow.</li>
+          <li>If browser tests upload files, clean up temporary storage objects after verification.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 8 only for the Rahma Therapy admin CRM. Goal: add Supabase Storage-backed staff profile pictures.
+
+Context:
+- Use staff_profiles profile_photo_path/avatar path field from Phase 6, or add the minimal field if missing.
+- Relevant files: staff profile forms/actions, src/app/admin/components/AdminTopNav.tsx, team/profile cards, Supabase Storage bucket/policies.
+
+Requirements:
+1. Inspect current staff profile fields and Supabase Storage state with MCP; run git status --short.
+2. Create staff-avatars bucket and narrow policies if missing.
+3. Staff can upload/change their own avatar.
+4. Owner/Admin can manage avatars where permitted.
+5. Validate MIME type, size, and path ownership.
+6. Store only the storage path/reference in staff_profiles.
+7. Display avatars in nav, profile, and team cards with initials fallback.
+
+Verification:
+- Upload own avatar successfully.
+- Verify unauthorized overwrite of another user avatar fails.
+- Supabase MCP verify bucket and policies.
+- Clean test storage objects if created.
+- Run pnpm lint and pnpm build.
+- Final response must include bucket/policy summary, changed files, checks, and caveats.</pre>
+        </div>
+      </section>
+
+      <section id="phase-9">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 9</span>
+            <h2>Password Change Request Workflow</h2>
+          </div>
+        </div>
+        <p>
+          Allow staff to request password changes and Owner/Admin to approve or
+          reject them through an auditable account request workflow.
+        </p>
+        <p class="note danger">
+          Do not store requested passwords in plain text. If users type the
+          exact desired password, store it temporarily encrypted, then clear it
+          immediately after approval, rejection, or expiry.
+        </p>
+        <h3>Files To Inspect First</h3>
+        <ul>
+          <li><code>src/app/admin/staff/[staffId]/page.tsx</code> or profile/account page location.</li>
+          <li><code>src/app/admin/staff/actions.ts</code> and any account/user actions.</li>
+          <li><code>src/app/admin/roles</code> and <code>src/app/admin/audit</code> patterns for admin review and audit logging.</li>
+          <li>Supabase Auth Admin integration scripts/actions currently present in the repo.</li>
+          <li>Audit log and operational event schema.</li>
+        </ul>
+        <h3>Implementation Requirements</h3>
+        <ol>
+          <li>Staff submits password change request from their profile/account page.</li>
+          <li>User types the exact new password they want only if this remains the chosen product flow.</li>
+          <li>The password payload is encrypted with a server-only key before storage.</li>
+          <li>Owner/Admin with the approved account-request permission sees pending requests.</li>
+          <li>On approval, a server-only action uses Supabase Auth Admin API to update the password.</li>
+          <li>Request is marked approved or rejected and audited.</li>
+          <li>Encrypted password payload is cleared immediately after approval, rejection, or expiry.</li>
+        </ol>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>No plain-text password storage in database, logs, errors, client state, or audit logs.</li>
+          <li>Only server-side code may call Auth Admin APIs.</li>
+          <li>Inactive users cannot submit requests from admin.</li>
+          <li>Staff cannot directly change password through this admin UI without approval.</li>
+          <li>Do not expose the requested password to approving admins after submission.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li>Tests for request creation, approval, rejection, inactive denial, and payload clearing.</li>
+          <li>Manual/Auth verification that approved password actually changes for a test user.</li>
+          <li>Audit row created without storing password value.</li>
+          <li>Supabase MCP verify schema, RLS, and no readable password payload remains after completion.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>The safest product flow is admin approval followed by a reset link. If exact desired password is mandatory, encryption and clearing are required.</li>
+          <li>This phase mutates Auth users. Use test users first and ask explicit approval before affecting live non-test accounts.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 9 only for the Rahma Therapy admin CRM. Goal: add an auditable staff password change request workflow.
+
+Context:
+- User requirement: staff can request the exact desired password, then Owner/Admin approves or rejects.
+- Safer implementation requirement: never store requested passwords in plain text; encrypt temporarily server-side and clear immediately after approval/rejection/expiry.
+- Relevant areas: staff/profile/account page, staff/account server actions, audit logs, Supabase Auth Admin usage, new account requests page if needed, RLS.
+
+Requirements:
+1. Inspect existing account/staff/audit/Auth-admin patterns and run git status --short.
+2. Add database migration for password/account requests with encrypted payload, status, requester, reviewer, timestamps, and audit linkage.
+3. Add RLS so users can create/read their own requests and authorized Owner/Admin can review pending requests.
+4. Add staff request UI from profile/account page.
+5. Add Account Requests admin page for approval/rejection.
+6. Approval updates Supabase Auth via server-only Admin API, then clears encrypted payload.
+7. Rejection clears encrypted payload.
+8. Audit all actions without logging password values.
+
+Hard gates:
+- No plain-text passwords in database, logs, client components, errors, or audit rows.
+- Ask explicit approval before mutating live non-test Auth accounts.
+- Inactive users cannot submit requests.
+
+Verification:
+- Tests for create/approve/reject/inactive denial/payload clearing.
+- Manual test with a test user password change and login.
+- Supabase MCP verify schema/RLS and no completed request retains readable payload.
+- Run pnpm test, pnpm lint, pnpm build.
+- Final response must include changed files, Auth/admin caveats, tests, and verification evidence.</pre>
+        </div>
+      </section>
+
+      <section id="phase-10">
+        <div class="phase-heading-row">
+          <div>
+            <span class="phase-label">Phase 10</span>
+            <h2>Full QA And Role Matrix Testing</h2>
+          </div>
+        </div>
+        <p>
+          Run a full role-based QA pass across the whole CRM after the feature
+          phases are complete.
+        </p>
+        <h3>Files And Systems To Inspect First</h3>
+        <ul>
+          <li>All admin pages under <code>src/app/admin</code>.</li>
+          <li><code>src/lib/auth/rbac.ts</code> and the access/scope module.</li>
+          <li>Supabase RLS policies, functions, views, role/permission tables, storage buckets, and verification SQL.</li>
+          <li>Existing test setup and browser test tooling.</li>
+        </ul>
+        <h3>Role Matrix To Verify</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Area</th>
+              <th>Owner/Admin</th>
+              <th>Coordinator</th>
+              <th>Therapist</th>
+              <th>Inactive</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Dashboard</td>
+              <td>Business-wide operations and permitted revenue.</td>
+              <td>Booking/enquiry operations without revenue.</td>
+              <td>Assigned/claimable work and own reports.</td>
+              <td>Blocked.</td>
+            </tr>
+            <tr>
+              <td>Bookings</td>
+              <td>All bookings and assignment controls.</td>
+              <td>All booking coordination and assignment controls.</td>
+              <td>Assigned bookings plus eligible claimable work.</td>
+              <td>Blocked.</td>
+            </tr>
+            <tr>
+              <td>Clients</td>
+              <td>All permitted client context.</td>
+              <td>Operational client context, no sensitive controls.</td>
+              <td>Assigned clients only.</td>
+              <td>Blocked.</td>
+            </tr>
+            <tr>
+              <td>Team</td>
+              <td>Full staff management.</td>
+              <td>Assignment-relevant staff details.</td>
+              <td>Limited team directory.</td>
+              <td>Blocked.</td>
+            </tr>
+            <tr>
+              <td>Roles/Settings/Audit/Privacy</td>
+              <td>Permission-based access.</td>
+              <td>Hidden by default except explicitly granted areas.</td>
+              <td>Hidden.</td>
+              <td>Blocked.</td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>Implementation Requirements</h3>
+        <ul>
+          <li>Create or update a role matrix document/test fixture if useful.</li>
+          <li>Run unit tests for capability helpers and page scopes.</li>
+          <li>Run integration tests for bookings, clients, staff profiles, password requests, reports, and storage.</li>
+          <li>Run browser tests for all five role accounts.</li>
+          <li>Run Supabase MCP verification for RLS, permissions, policies, functions, storage, and test data cleanup.</li>
+        </ul>
+        <h3>Hard Gates</h3>
+        <ul>
+          <li>No lower role can access owner-only pages, data, or actions by URL, server action, API, RLS, or UI.</li>
+          <li>No deprecated permission names in current <code>src</code>, <code>scripts</code>, live policies, views, functions, permissions, grants, or overrides.</li>
+          <li>All temporary browser/API test data must be cleaned up.</li>
+          <li>Do not fix unrelated defects unless they were introduced by this role-specific CRM work; report unrelated defects separately.</li>
+        </ul>
+        <h3>Verification</h3>
+        <ul>
+          <li><code>pnpm test</code></li>
+          <li><code>pnpm lint</code></li>
+          <li><code>pnpm build</code></li>
+          <li><code>pnpm test:security:secrets</code> if available.</li>
+          <li><code>pnpm audit --prod</code> if dependency changes occurred.</li>
+          <li>Exact deprecated-permission <code>rg</code> scan in current app/scripts.</li>
+          <li>Supabase MCP canonical RBAC/RLS/storage verification.</li>
+        </ul>
+        <h3>Risks And Caveats</h3>
+        <ul>
+          <li>This phase is QA and remediation, not a new feature phase.</li>
+          <li>Failures should be categorized as introduced by Phases 1-9, pre-existing, or environment/tooling.</li>
+        </ul>
+        <div class="phase-pack">
+          <h3>Standalone Prompt</h3>
+          <pre>Implement Phase 10 only for the Rahma Therapy admin CRM. Goal: perform full QA and role matrix testing after role-specific admin phases.
+
+Context:
+- Test all admin-facing behavior for Owner, Admin, Booking Coordinator, Therapist, and Inactive.
+- Use Playwright/Chrome DevTools for browser checks and Supabase MCP for backend verification.
+- Do not start a dev server if http://localhost:3000 is already running.
+
+Requirements:
+1. Inspect src/app/admin, src/lib/auth/rbac.ts, access/scope helpers, Supabase verification SQL, tests, and RLS/policies with MCP.
+2. Build a role matrix covering dashboard, bookings, clients, reports, team/staff, roles, settings, audit, privacy, emails, enquiries, profile, account requests, and storage avatars.
+3. Run unit/integration tests for access helpers, bookings, clients, staff profiles, password requests, reports, and storage.
+4. Browser-test all five role accounts.
+5. Confirm no lower role can access owner-only pages/data/actions by nav, direct URL, server action, API, or RLS.
+6. Clean up all temporary data and storage objects.
+7. Fix only defects introduced by the role-specific CRM phases. Report unrelated issues separately.
+
+Verification commands:
+- pnpm test
+- pnpm lint
+- pnpm build
+- pnpm test:security:secrets if available
+- pnpm audit --prod if package changes occurred
+- rg exact deprecated permission names in src and scripts
+- Supabase MCP canonical RBAC/RLS/storage verification
+
+Final response:
+- Provide a concise findings-and-fixes report with files changed, tests run, browser role matrix, Supabase verification results, cleanup evidence, and residual risks.</pre>
+        </div>
+      </section>
+
+      <section id="recommended-edits">
+        <h2>Recommended Edits Already Applied</h2>
+        <ul>
+          <li>Added an explicit audit section explaining what was missing from the previous HTML plan.</li>
+          <li>Added real repo paths so future models know where to start.</li>
+          <li>Added canonical role and permission context.</li>
+          <li>Added global gates for preflight, implementation, and completion.</li>
+          <li>Expanded every phase with files to inspect, implementation requirements, hard gates, verification, risks, and a stronger standalone prompt.</li>
+          <li>Strengthened password request caveats around encryption, Auth Admin usage, and payload clearing.</li>
+          <li>Added concrete QA role matrix expectations.</li>
+        </ul>
+      </section>
+
+      <section id="success">
+        <h2>Final Success Criteria</h2>
+        <ul>
+          <li>Every admin page has role-aware access, data scope, and actions.</li>
+          <li>Owner/Admin, Coordinator, and Therapist experiences are visibly and functionally different.</li>
+          <li>Assignment and claimable work behave by gender, availability, booking capacity, and permissions.</li>
+          <li>Staff profiles and team page expose only role-relevant user data.</li>
+          <li>Password requests are auditable and do not leave plain-text passwords stored.</li>
+          <li>Inactive users are blocked everywhere.</li>
+          <li>Every standalone phase prompt contains enough context for a model to execute without reading prior chat.</li>
+        </ul>
+      </section>
+    </main>
+    <script>
+      const phaseSections = document.querySelectorAll('section[id^="phase-"]');
+
+      function buildPhaseText(section) {
+        const clone = section.cloneNode(true);
+        clone.querySelectorAll(".copy-phase-button").forEach((button) => button.remove());
+        return clone.innerText.trim().replace(/\n{3,}/g, "\n\n");
+      }
+
+      phaseSections.forEach((section) => {
+        const row = section.querySelector(".phase-heading-row");
+        if (!row) return;
+
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "copy-phase-button";
+        button.textContent = "Copy Phase";
+        button.setAttribute("aria-label", `Copy ${section.querySelector(".phase-label")?.textContent || "phase"}`);
+
+        button.addEventListener("click", async () => {
+          const originalText = button.textContent;
+          try {
+            await navigator.clipboard.writeText(buildPhaseText(section));
+            button.textContent = "Copied";
+            setTimeout(() => {
+              button.textContent = originalText;
+            }, 1400);
+          } catch {
+            button.textContent = "Copy failed";
+            setTimeout(() => {
+              button.textContent = originalText;
+            }, 1800);
+          }
+        });
+
+        row.appendChild(button);
+      });
+    </script>
+  </body>
+</html>

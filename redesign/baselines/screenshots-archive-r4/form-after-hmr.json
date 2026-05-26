@@ -1,0 +1,22 @@
+[
+  {
+    "decision": "approved",
+    "allHidden": [
+      "$ACTION_ID_40ab715a0f10ed344de4c6931d6c5d5ad20bf48a58=null",
+      "booking_id=09a39848-857e-48f7-b637-cf0adf0d4756",
+      "decision=approved"
+    ],
+    "formAction": "",
+    "formMethod": "post"
+  },
+  {
+    "decision": "declined",
+    "allHidden": [
+      "$ACTION_ID_40ab715a0f10ed344de4c6931d6c5d5ad20bf48a58=null",
+      "booking_id=09a39848-857e-48f7-b637-cf0adf0d4756",
+      "decision=declined"
+    ],
+    "formAction": "",
+    "formMethod": "post"
+  }
+]

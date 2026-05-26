@@ -1,0 +1,713 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Engineering Pause — step-by-step in plain English</title>
+<style>
+  :root{
+    --bg:#0e1116;
+    --panel:#161a22;
+    --panel2:#1c2230;
+    --line:#2a3142;
+    --text:#e7ecf3;
+    --muted:#9aa6b8;
+    --accent:#7cc5ff;
+    --accent2:#a78bfa;
+    --ok:#34d399;
+    --warn:#fbbf24;
+    --bad:#f87171;
+    --pill:#222a3a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;line-height:1.55;font-size:15px}
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 22px 80px}
+  header{padding:24px 0 8px;border-bottom:1px solid var(--line);margin-bottom:28px}
+  h1{font-size:28px;margin:0 0 6px;letter-spacing:-0.01em}
+  h1 .sub{color:var(--muted);font-weight:500;font-size:17px;display:block;margin-top:4px}
+  h2{font-size:22px;margin:36px 0 10px;letter-spacing:-0.01em}
+  h3{font-size:17px;margin:18px 0 8px}
+  h4{font-size:14px;margin:14px 0 6px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
+  p{margin:8px 0}
+  ul,ol{margin:6px 0 8px 18px;padding:0}
+  li{margin:4px 0}
+  code{background:#0b0e14;border:1px solid var(--line);padding:1px 6px;border-radius:4px;font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:13px;color:#cfe6ff}
+  .lede{color:var(--muted);font-size:16px;max-width:760px}
+
+  /* TL;DR */
+  .tldr{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:18px 0 10px}
+  .tldr h2{margin-top:0;font-size:16px;color:var(--accent)}
+
+  /* Mental model */
+  .mental{background:linear-gradient(180deg,#1a2030,#151a25);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:22px 0}
+  .mental h3{margin-top:0;color:var(--accent2)}
+  .mental .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+  .mental .grid div{background:#0e1320;border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .mental .grid b{display:block;color:var(--accent);margin-bottom:4px;font-size:13px}
+
+  /* Flow strip */
+  .flow{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
+  .flow .node{flex:1 1 110px;min-width:110px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 10px;text-align:center;font-size:12px;color:var(--text)}
+  .flow .node .n{display:block;font-weight:700;color:var(--accent);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+  .flow .node.exit{border-style:dashed;color:var(--muted)}
+  .flow .node.exit .n{color:var(--ok)}
+
+  /* Step cards */
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin:18px 0;overflow:hidden}
+  .step.zone2{border-color:#4a3a1a}
+  .shead{display:flex;align-items:center;gap:14px;padding:16px 20px;background:linear-gradient(180deg,#1a2030,#161b27);border-bottom:1px solid var(--line)}
+  .shead .num{width:38px;height:38px;border-radius:50%;background:var(--accent);color:#0a1322;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px}
+  .step.zone2 .shead .num{background:var(--warn);color:#3a2a08}
+  .step.docs .shead .num{background:var(--accent2);color:#1a1230}
+  .step.closeout .shead .num{background:var(--ok);color:#062018}
+  .shead .title{font-weight:700;font-size:17px}
+  .shead .title .sub{display:block;font-weight:500;color:var(--muted);font-size:13px;margin-top:2px}
+  .shead .meta{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--pill);color:var(--muted);font-size:11px;border:1px solid var(--line);white-space:nowrap}
+  .pill.ok{color:var(--ok);border-color:#1d4738}
+  .pill.warn{color:var(--warn);border-color:#4a3a1a}
+  .pill.bad{color:var(--bad);border-color:#4a1a1a}
+  .pill.opt{color:var(--accent2);border-color:#3a2f4a}
+  .pill.cost{background:#332810;color:var(--warn);border-color:#4a3a1a;font-weight:600}
+  .sbody{padding:16px 20px 20px}
+
+  .sect{margin:14px 0 0;padding:12px 14px;background:#0e1320;border:1px solid var(--line);border-radius:8px}
+  .sect h4{margin-top:0}
+  .sect.you{border-left:3px solid var(--accent)}
+  .sect.claude{border-left:3px solid var(--accent2)}
+  .sect.expect{border-left:3px solid var(--ok)}
+  .sect.confuse{border-left:3px solid var(--warn);background:#1c1810}
+  .sect.go{border-left:3px solid var(--ok);background:#0f1c16}
+
+  .timeline{margin:6px 0;padding:0;list-style:none;border-left:2px dotted var(--line);margin-left:6px;padding-left:14px}
+  .timeline li{margin:8px 0;position:relative}
+  .timeline li::before{content:"";position:absolute;left:-19px;top:7px;width:8px;height:8px;border-radius:50%;background:var(--accent2)}
+  .timeline li.stop::before{background:var(--warn)}
+  .timeline li.you-do::before{background:var(--accent)}
+  .timeline li.stop strong{color:var(--warn)}
+  .timeline li.you-do strong{color:var(--accent)}
+
+  .check{margin:8px 0 0;padding:0;list-style:none}
+  .check li{padding-left:24px;position:relative;margin:6px 0}
+  .check li::before{content:"☐";position:absolute;left:0;color:var(--muted);font-size:14px;top:0}
+  .check li.done::before{content:"✓";color:var(--ok);font-weight:700}
+
+  .files{margin:6px 0;display:flex;flex-direction:column;gap:4px}
+  .files .f{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#cfe6ff;background:#0b0f17;border:1px solid #1f3554;padding:5px 10px;border-radius:6px;display:inline-block}
+  .files .f .label{color:var(--muted);margin-right:8px}
+
+  .callout{background:#13202e;border:1px solid #1f3554;border-radius:8px;padding:12px 14px;margin:12px 0;font-size:13.5px;color:#d4eaff}
+  .callout.warn{background:#2a1f12;border-color:#4a3a1a;color:#fce4b8}
+  .callout.bad{background:#2a1414;border-color:#4a1a1a;color:#fcc8c8}
+  .callout b{color:inherit}
+
+  footer{margin-top:36px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:-12px 0 22px;flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend .sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .legend .sw-blue{background:var(--accent)}
+  .legend .sw-purple{background:var(--accent2)}
+  .legend .sw-green{background:var(--ok)}
+  .legend .sw-warn{background:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Engineering Pause — what each step actually means
+    <span class="sub">Plain-English walkthrough of the 6 prompts that resolve your Phase 7 Gate 0 gaps</span>
+  </h1>
+  <p class="lede">You're stepping out of the recipe to fix the backend gaps Phase 7 Gate 0 flagged as FAIL. This guide shows — for each of the 6 prompts I gave you — what you actually do, what Claude actually does, what files appear at the end, and when you know it's safe to move on.</p>
+</header>
+
+<!-- TL;DR -->
+<div class="tldr">
+  <h2>The whole thing in 30 seconds</h2>
+  <ol>
+    <li><b>You paste 6 prompts, one at a time</b>, into a fresh Claude Code session. Each prompt does one job and ends with a STOP.</li>
+    <li><b>3 of the 6 are real building work</b> (cron + Edge Function + email-templates table). 1 is doc-only. 2 are verification drills (Sentry + backup).</li>
+    <li><b>Several will pause and ask you to confirm</b> things that cost money or touch the production database. Always answer with what you actually want — never "yes" reflexively.</li>
+    <li><b>Each step writes one or more files</b> as evidence. You check the files exist before pasting the next prompt.</li>
+    <li><b>Total time:</b> ~2-4 hours of your active attention, mostly Steps 2, 3, and 5b. Cheap-budget total: ~$0-$10. Full-Branching budget: ~$25-100.</li>
+    <li><b>When Step 6 finishes</b>, Phase 7 can resume cleanly.</li>
+  </ol>
+</div>
+
+<!-- Mental model -->
+<div class="mental">
+  <h3>What this is and what it isn't</h3>
+  <div class="grid">
+    <div><b>This IS</b>Regular dev work — building features, running migrations, exercising monitoring. No different from any other engineering session.</div>
+    <div><b>This IS NOT</b>Part of the Phase 7 recipe. The recipe explicitly says it doesn't build backend; that's why you're stepping out.</div>
+    <div><b>Why "pause"?</b>You can't resume Phase 7 until Gate 0 reads PASS. Gate 0 only reads PASS when every BLOCKS-REDESIGN item is HANDLED with evidence.</div>
+    <div><b>What "evidence" means</b>A real smoke-test transcript file in <code>backend-smoke-tests/</code>. A grep count. A Sentry issue ID. Not a paragraph saying "should work."</div>
+    <div><b>Why so many STOPs?</b>Each STOP is a chance for you to redirect if Claude misread something. Don't paste the next prompt without reviewing.</div>
+    <div><b>What's a "Zone-2 stop"?</b>Claude pauses before anything that costs money, enables Supabase features, or modifies production. You decide each time.</div>
+  </div>
+</div>
+
+<!-- Flow strip -->
+<h2>The flow</h2>
+<div class="flow">
+  <div class="node"><span class="n">Step 1</span>Pre-flight<br><span style="color:var(--muted);font-size:11px">read-only</span></div>
+  <div class="node"><span class="n">Step 2</span>Reminders<br>+ cron</div>
+  <div class="node"><span class="n">Step 3</span>Template<br>overrides</div>
+  <div class="node"><span class="n">Step 4</span>Doc<br>flips</div>
+  <div class="node"><span class="n">Step 5a</span>Sentry</div>
+  <div class="node"><span class="n">Step 5b</span>Backup<br>restore</div>
+  <div class="node"><span class="n">Step 6</span>Close<br>out</div>
+  <div class="node exit"><span class="n">Then</span>Resume<br>Phase 7</div>
+</div>
+<div class="legend">
+  <span><span class="sw sw-blue"></span> read-only / doc work</span>
+  <span><span class="sw sw-purple"></span> code build</span>
+  <span><span class="sw sw-warn"></span> Zone-2 stops likely</span>
+  <span><span class="sw sw-green"></span> wrap-up</span>
+</div>
+
+<!-- ============== STEP 1 ============== -->
+<div class="step">
+  <div class="shead">
+    <div class="num">1</div>
+    <div class="title">Pre-flight
+      <span class="sub">Claude reads the plan files, sets up the branch, creates the log. No coding yet.</span>
+    </div>
+    <div class="meta">
+      <span class="pill ok">~10–15 min</span>
+      <span class="pill">read-only</span>
+    </div>
+  </div>
+  <div class="sbody">
+
+    <div class="sect you">
+      <h4>What YOU do</h4>
+      <ol>
+        <li>Open a <b>fresh Claude Code session</b> (close the recipe session you were in).</li>
+        <li>Paste the <b>Step 1 prompt</b> from the playbook.</li>
+        <li>Wait. Don't paste anything else.</li>
+      </ol>
+    </div>
+
+    <div class="sect claude">
+      <h4>What Claude does</h4>
+      <ul class="timeline">
+        <li>Reads <code>FINAL-REPORT.md</code>, <code>BUSINESS-COMPLETENESS.md</code>, and the 3 plan files.</li>
+        <li>Summarises each plan file in one paragraph: what gets built, the Safety confirmations, the test scenarios.</li>
+        <li>Checks <code>git status</code> — flags if anything is uncommitted.</li>
+        <li class="stop"><strong>STOPS</strong> and proposes a branch name (e.g. <code>engineering/track-a-backend-gap-fill</code>) — waits for you to say "yes, that branch is fine" before creating it.</li>
+        <li>Creates <code>redesign/backend-smoke-tests/</code> folder.</li>
+        <li>Creates <code>redesign/ENGINEERING-LOG.md</code> as the running log.</li>
+        <li>Lists the implementation order for Steps 2–6.</li>
+        <li class="stop"><strong>STOPS</strong> for you to review.</li>
+      </ul>
+    </div>
+
+    <div class="sect expect">
+      <h4>What to expect when Step 1 finishes</h4>
+      <p>You should see:</p>
+      <ul class="check">
+        <li class="done">3 plan-file summaries in chat (one paragraph each)</li>
+        <li class="done">A branch name proposal — you said yes or proposed a different name</li>
+        <li class="done">Implementation order for the next 5 sessions</li>
+      </ul>
+      <p>And on disk:</p>
+      <div class="files">
+        <div class="f"><span class="label">new folder</span>redesign/backend-smoke-tests/</div>
+        <div class="f"><span class="label">new file</span>redesign/ENGINEERING-LOG.md</div>
+        <div class="f"><span class="label">new branch</span>engineering/track-a-backend-gap-fill (or similar)</div>
+      </div>
+    </div>
+
+    <div class="sect confuse">
+      <h4>Things that might confuse you</h4>
+      <ul>
+        <li><b>"Did Claude start coding?"</b> No — Step 1 is read-only. Code work begins in Step 2.</li>
+        <li><b>"Why am I being asked about a branch name?"</b> The recipe says no edits to production until Phase 7 sign-off. A separate branch keeps this engineering work isolated.</li>
+        <li><b>"What if Claude proposes a branch that already exists?"</b> Tell it to pick a new name with a date suffix.</li>
+      </ul>
+    </div>
+
+    <div class="sect go">
+      <h4>Move to Step 2 when</h4>
+      <p>✓ The 3 plan-file summaries match what you expect &nbsp;·&nbsp; ✓ Branch + folder + log file all exist &nbsp;·&nbsp; ✓ You're comfortable with Claude's proposed order</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============== STEP 2 ============== -->
+<div class="step zone2">
+  <div class="shead">
+    <div class="num">2</div>
+    <div class="title">Build automated booking reminders + cron
+      <span class="sub">The biggest step. New Supabase Edge Function + scheduled cron job + idempotent dedupe.</span>
+    </div>
+    <div class="meta">
+      <span class="pill warn">~30–60 min</span>
+      <span class="pill cost">$ tier-dependent</span>
+      <span class="pill bad">2–4 Zone-2 stops</span>
+    </div>
+  </div>
+  <div class="sbody">
+
+    <div class="sect you">
+      <h4>What YOU do</h4>
+      <ol>
+        <li>Paste the <b>Step 2 prompt</b>.</li>
+        <li>Watch the chat. Claude will pause multiple times asking for permission.</li>
+        <li>Each pause, decide and reply — never just "yes" without reading what it's about to do.</li>
+        <li>When Claude says it sent a test reminder email, <b>check your test inbox</b> and tell Claude whether it arrived.</li>
+      </ol>
+    </div>
+
+    <div class="sect claude">
+      <h4>What Claude does (typical flow with stops)</h4>
+      <ul class="timeline">
+        <li>Re-reads <code>BUILD-automated-booking-reminders.md</code> and states the spec back.</li>
+        <li>Drafts the migration SQL (enables <code>pg_cron</code> + <code>pg_net</code>, adds the schedule row).</li>
+        <li>Writes the Edge Function code in <code>supabase/functions/[name]/index.ts</code>.</li>
+        <li class="stop"><strong>STOP 1</strong> — "About to enable <code>pg_cron</code> extension on your Supabase project. Confirm?" You reply: yes or no.</li>
+        <li class="stop"><strong>STOP 2</strong> — "About to enable <code>pg_net</code>. Confirm?" Same answer.</li>
+        <li>Applies the migration (or asks first if your tier requires it).</li>
+        <li class="stop"><strong>STOP 3</strong> — "About to deploy the Edge Function. Confirm?" Yes.</li>
+        <li>Force-triggers the function with a test booking.</li>
+        <li>Captures: HTTP 200 response, Edge Function logs, new <code>email_delivery_events</code> row.</li>
+        <li class="you-do"><strong>YOU CHECK</strong> — Claude asks: "Did the email arrive in your test inbox?" You check, reply yes/no.</li>
+        <li>If yes: re-triggers same booking. Confirms NO duplicate row written (idempotent).</li>
+        <li>Saves transcript to <code>redesign/backend-smoke-tests/automated-booking-reminders-2026-05-19.txt</code>.</li>
+        <li>Proposes doc flips (2A-16 + 2C-9 → HANDLED).</li>
+        <li class="stop"><strong>STOPS</strong> for you to review before committing.</li>
+      </ul>
+    </div>
+
+    <div class="sect expect">
+      <h4>What to expect at the end</h4>
+      <p>Real outputs you can verify:</p>
+      <div class="files">
+        <div class="f"><span class="label">new code</span>supabase/functions/[name]/index.ts</div>
+        <div class="f"><span class="label">new migration</span>supabase/migrations/[timestamp]_*.sql</div>
+        <div class="f"><span class="label">new evidence</span>redesign/backend-smoke-tests/automated-booking-reminders-2026-05-19.txt</div>
+        <div class="f"><span class="label">in your inbox</span>1 reminder email arrived</div>
+        <div class="f"><span class="label">in supabase</span>1 new row in email_delivery_events, status='accepted'</div>
+      </div>
+      <p>Doc state proposed (not yet committed):</p>
+      <ul class="check">
+        <li>BUSINESS-COMPLETENESS.md: 2A-16 NOT-STARTED → HANDLED</li>
+        <li>BUSINESS-COMPLETENESS.md: 2C-9 NOT-STARTED → HANDLED</li>
+      </ul>
+    </div>
+
+    <div class="sect confuse">
+      <h4>Things that might confuse you</h4>
+      <ul>
+        <li><b>"What's a test inbox?"</b> An email address you can check. Your real email works if you don't mind a test message in it. Mailtrap or similar throwaway-inbox services are cleaner.</li>
+        <li><b>"What if no email arrives?"</b> The smoke test fails. Tell Claude — it should debug (check function logs, Resend API key, etc.), NOT flip the status to HANDLED.</li>
+        <li><b>"Why so many stops?"</b> Each Zone-2 action (extension enable, function deploy) is irreversible-ish and possibly billable. The recipe's own discipline.</li>
+        <li><b>"What if pg_cron is already enabled?"</b> Claude skips that stop and reports "already enabled — no change."</li>
+        <li><b>"My session times out mid-step."</b> The work survives — the branch + migration + function are still there. Open a fresh session, point Claude at <code>redesign/ENGINEERING-LOG.md</code> and the transcript file, ask it to resume.</li>
+      </ul>
+    </div>
+
+    <div class="callout warn">
+      <b>If your Supabase project doesn't have pg_cron available on its current tier:</b> Claude will surface this and stop. Your options are (a) upgrade the tier (billable), (b) use an external scheduler (Cloudflare Cron Triggers, GitHub Actions cron, etc.) — Claude can adapt the plan, or (c) waive 2A-16 to Track B instead (different path; tell me and I'll give you the waiver prompt).
+    </div>
+
+    <div class="sect go">
+      <h4>Move to Step 3 when</h4>
+      <p>✓ Test email actually arrived &nbsp;·&nbsp; ✓ Transcript file exists with all 4 evidence pieces &nbsp;·&nbsp; ✓ Second trigger produced no duplicate &nbsp;·&nbsp; ✓ Both doc flips committed</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============== STEP 3 ============== -->
+<div class="step zone2">
+  <div class="shead">
+    <div class="num">3</div>
+    <div class="title">Build email_template_overrides table + wire actions
+      <span class="sub">New DB table, real Save action, audit logging, RBAC permission, FAKE shim retirement.</span>
+    </div>
+    <div class="meta">
+      <span class="pill warn">~30–45 min</span>
+      <span class="pill cost">$ minor</span>
+      <span class="pill bad">1–2 Zone-2 stops</span>
+    </div>
+  </div>
+  <div class="sbody">
+
+    <div class="sect you">
+      <h4>What YOU do</h4>
+      <ol>
+        <li>Paste the <b>Step 3 prompt</b>.</li>
+        <li>When asked which roles should have the <code>manage_email_templates</code> permission, decide (probably Owner-only, or Owner + Practice Manager).</li>
+        <li>When asked to confirm the migration application, decide.</li>
+        <li>When Claude tests the Save flow, watch for the transactional email to actually render with your edited text.</li>
+      </ol>
+    </div>
+
+    <div class="sect claude">
+      <h4>What Claude does</h4>
+      <ul class="timeline">
+        <li>Reads both plan files (<code>BUILD-email-template-overrides-table.md</code> + <code>BUILD-email-templates-actions.md</code>).</li>
+        <li>Drafts the migration (new table, columns, FKs, indexes, RLS policies).</li>
+        <li>Writes/rewrites <code>src/app/admin/email-templates/actions.ts</code> replacing the FAKE shim.</li>
+        <li>Wires <code>audit_logs</code> write for <code>email_template_override_saved</code>.</li>
+        <li>Adds <code>manage_email_templates</code> to the permission registry.</li>
+        <li class="stop"><strong>STOP</strong> — "Which roles get <code>manage_email_templates</code>?" You decide.</li>
+        <li class="stop"><strong>STOP</strong> — "About to apply the migration. Confirm?" You decide.</li>
+        <li>Writes the read-path overlay in <code>src/lib/email/templates.ts</code> (resolves stored override or falls back to hardcoded copy).</li>
+        <li>Removes <code>data-backend-fake</code>/<code>data-redesign-fake</code> markers from the Save button.</li>
+        <li>Runs the smoke test: signs in as Owner, edits a template, clicks Save. Verifies row appears + audit log written + rendered email uses override copy.</li>
+        <li>Runs the negative test: confirms a role without <code>manage_email_templates</code> is denied.</li>
+        <li>Saves transcript.</li>
+        <li class="stop"><strong>STOPS</strong> for your review.</li>
+      </ul>
+    </div>
+
+    <div class="sect expect">
+      <h4>What to expect at the end</h4>
+      <div class="files">
+        <div class="f"><span class="label">new migration</span>supabase/migrations/[timestamp]_email_template_overrides.sql</div>
+        <div class="f"><span class="label">edited</span>src/app/admin/email-templates/actions.ts (FAKE shim gone)</div>
+        <div class="f"><span class="label">edited</span>src/lib/email/templates.ts (overlay added)</div>
+        <div class="f"><span class="label">new evidence</span>redesign/backend-smoke-tests/email-template-overrides-2026-05-19.txt</div>
+        <div class="f"><span class="label">in supabase</span>email_template_overrides table exists with 1+ test row</div>
+      </div>
+      <p>Doc state proposed:</p>
+      <ul class="check">
+        <li>BUSINESS-COMPLETENESS.md: 2C-10 NOT-STARTED → HANDLED</li>
+        <li>PER-PAGE-SCORES.md: email-templates Backend status updates</li>
+      </ul>
+    </div>
+
+    <div class="sect confuse">
+      <h4>Things that might confuse you</h4>
+      <ul>
+        <li><b>"Which role should get manage_email_templates?"</b> Look at who owns email copy in your team. Usually Owner-only is the safest default; you can grant more later. Avoid handing it to Therapist or Coordinator without a reason.</li>
+        <li><b>"The Save button used to be greyed out — now what?"</b> Real now. Click it, the row writes, the audit log fires.</li>
+        <li><b>"What if my template tests render BOTH the override AND the fallback?"</b> Means the overlay function has a bug — Claude should debug, not call it HANDLED.</li>
+      </ul>
+    </div>
+
+    <div class="sect go">
+      <h4>Move to Step 4 when</h4>
+      <p>✓ Template edit + Save flow works end-to-end &nbsp;·&nbsp; ✓ Transactional email actually renders the override copy &nbsp;·&nbsp; ✓ Negative test (role without permission) is denied &nbsp;·&nbsp; ✓ Transcript file exists &nbsp;·&nbsp; ✓ 2C-10 doc flip committed</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============== STEP 4 ============== -->
+<div class="step docs">
+  <div class="shead">
+    <div class="num">4</div>
+    <div class="title">Flip 2A-6 + 2A-9 from PARTIAL to HANDLED
+      <span class="sub">Pure documentation. No code changes. Catches up two items where Phase 7 Gate 1 already produced the evidence.</span>
+    </div>
+    <div class="meta">
+      <span class="pill ok">~5–10 min</span>
+      <span class="pill opt">doc-only</span>
+    </div>
+  </div>
+  <div class="sbody">
+
+    <div class="sect you">
+      <h4>What YOU do</h4>
+      <ol>
+        <li>Paste the <b>Step 4 prompt</b>.</li>
+        <li>Read the resulting doc diffs. Make sure the evidence pointers cite the right FINAL-AUDIT.md rows.</li>
+        <li>Approve.</li>
+      </ol>
+    </div>
+
+    <div class="sect claude">
+      <h4>What Claude does</h4>
+      <ul class="timeline">
+        <li>Reads <code>FINAL-AUDIT.md</code> (the Phase 7 Gate 1 output).</li>
+        <li>Runs 2 fresh greps to add supplementary evidence: <code>role="alert"</code> count, <code>FieldLabel</code> usage.</li>
+        <li>Edits <code>BUSINESS-COMPLETENESS.md</code>: 2A-6 and 2A-9 from PARTIAL → HANDLED with evidence pointers.</li>
+        <li>Edits <code>FINAL-REPORT.md</code>: moves both rows from "NOT HANDLED" table to "HANDLED" table.</li>
+        <li>Appends section to <code>ENGINEERING-LOG.md</code>.</li>
+        <li class="stop"><strong>STOPS</strong> for you to review.</li>
+      </ul>
+    </div>
+
+    <div class="sect expect">
+      <h4>What to expect at the end</h4>
+      <p><b>No code changes.</b> Only documentation edits, with each edit citing a specific line in <code>FINAL-AUDIT.md</code> as the evidence anchor.</p>
+      <ul class="check">
+        <li>2A-6 in BUSINESS-COMPLETENESS.md reads HANDLED with FINAL-AUDIT.md P0-A1 cite + fresh grep count</li>
+        <li>2A-9 in BUSINESS-COMPLETENESS.md reads HANDLED with FINAL-AUDIT.md P1-A4 cite + live-probe counts</li>
+        <li>FINAL-REPORT.md Gate 0 section reflects 2 fewer items in the NOT HANDLED column</li>
+      </ul>
+    </div>
+
+    <div class="sect confuse">
+      <h4>Things that might confuse you</h4>
+      <ul>
+        <li><b>"Why no code? Aren't these BLOCKS-REDESIGN items?"</b> They are — but they were ALREADY done during Phase 6. The documentation just deferred the verification to Phase 7. Phase 7 Gate 1 ran the verification (counted callsites, probed pages live) and produced the evidence. This step is just the doc catching up.</li>
+        <li><b>"How do I know the evidence is real and not made up?"</b> Open <code>FINAL-AUDIT.md</code> and find the cited rows. The counts (74 <code>role="alert"</code> regions, 5/5 required markers on settings) should be there verbatim.</li>
+      </ul>
+    </div>
+
+    <div class="sect go">
+      <h4>Move to Step 5a when</h4>
+      <p>✓ Both doc flips reviewed and accurate &nbsp;·&nbsp; ✓ FINAL-REPORT.md Gate 0 reflects the flips &nbsp;·&nbsp; ✓ Engineering log entry added</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============== STEP 5a ============== -->
+<div class="step zone2">
+  <div class="shead">
+    <div class="num">5a</div>
+    <div class="title">Sentry roundtrip (Layer 1 L1-a + L1-b)
+      <span class="sub">Prove monitoring + error tracking work end-to-end. Add a test route → trigger → confirm in Sentry → delete the route.</span>
+    </div>
+    <div class="meta">
+      <span class="pill ok">~15 min</span>
+      <span class="pill">free</span>
+      <span class="pill warn">needs your eyes on Sentry</span>
+    </div>
+  </div>
+  <div class="sbody">
+
+    <div class="sect you">
+      <h4>What YOU do</h4>
+      <ol>
+        <li>Paste the <b>Step 5a prompt</b>.</li>
+        <li>When Claude says it triggered the error, <b>open your Sentry dashboard</b> at lanternvale/rahmatherapy-next-refactor.</li>
+        <li>Find the brand-new issue. <b>Copy the issue ID + title + first-seen timestamp</b> and paste into chat.</li>
+        <li>Approve the test-route deletion.</li>
+      </ol>
+    </div>
+
+    <div class="sect claude">
+      <h4>What Claude does</h4>
+      <ul class="timeline">
+        <li>Creates a single test-only route file at <code>src/app/admin/__sentry-test__/route.ts</code> that throws on GET, gated behind <code>SENTRY_TEST_ROUTE=1</code>.</li>
+        <li class="stop"><strong>STOP</strong> — "About to add a test route. Confirm?" You say yes.</li>
+        <li>Adds <code>SENTRY_TEST_ROUTE=1</code> to your local <code>.env</code> and restarts the dev server.</li>
+        <li>Triggers via <code>curl http://localhost:3000/admin/__sentry-test__</code> — expects 500.</li>
+        <li class="you-do"><strong>YOU CHECK</strong> — Claude asks you to look in Sentry. You paste back the issue ID.</li>
+        <li>Captures evidence: curl request, 500 response, server console (Sentry.captureException firing), your pasted issue ID.</li>
+        <li>Saves transcript to <code>redesign/backend-smoke-tests/sentry-roundtrip-2026-05-19.txt</code>.</li>
+        <li class="stop"><strong>STOP</strong> — "Ready to delete the test route. Confirm?" Yes.</li>
+        <li>Deletes the test route file. Removes <code>SENTRY_TEST_ROUTE</code> from <code>.env</code>. Commits the deletion as a separate commit.</li>
+        <li>Updates <code>FINAL-REPORT.md</code>: L1-a + L1-b verdicts DEFER → PASS.</li>
+      </ul>
+    </div>
+
+    <div class="sect expect">
+      <h4>What to expect at the end</h4>
+      <div class="files">
+        <div class="f"><span class="label">temporary</span>src/app/admin/__sentry-test__/route.ts (added then deleted)</div>
+        <div class="f"><span class="label">in sentry</span>1 new issue with timestamp and stack trace</div>
+        <div class="f"><span class="label">new evidence</span>redesign/backend-smoke-tests/sentry-roundtrip-2026-05-19.txt</div>
+        <div class="f"><span class="label">in git log</span>2 commits: "add sentry test route" + "remove sentry test route"</div>
+      </div>
+    </div>
+
+    <div class="sect confuse">
+      <h4>Things that might confuse you</h4>
+      <ul>
+        <li><b>"What if I can't find the issue in Sentry?"</b> Either Sentry isn't actually receiving events (a real failure — surface this), the DSN is wrong (config issue), or the issue is grouped under an existing similar one (search for the message text).</li>
+        <li><b>"Why delete the test route?"</b> Production safety. A route that throws on GET could be hit accidentally or maliciously. The env-flag gate helps but deletion is cleaner.</li>
+        <li><b>"I don't have access to Sentry."</b> Then you can't pass this gate without someone who does. Flag it now — either get access, or this step doesn't close.</li>
+      </ul>
+    </div>
+
+    <div class="sect go">
+      <h4>Move to Step 5b when</h4>
+      <p>✓ Sentry issue ID captured in transcript &nbsp;·&nbsp; ✓ Test route file deleted &nbsp;·&nbsp; ✓ L1-a + L1-b both read PASS in FINAL-REPORT.md</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============== STEP 5b ============== -->
+<div class="step zone2">
+  <div class="shead">
+    <div class="num">5b</div>
+    <div class="title">Backup restore drill (Layer 1 L1-c)
+      <span class="sub">Prove your database backups actually restore. The most expensive item — three cost tiers to pick from.</span>
+    </div>
+    <div class="meta">
+      <span class="pill warn">~30–60 min</span>
+      <span class="pill cost">$0 to $100+</span>
+      <span class="pill bad">picks a cost tier</span>
+    </div>
+  </div>
+  <div class="sbody">
+
+    <div class="sect you">
+      <h4>What YOU do</h4>
+      <ol>
+        <li>Paste the <b>Step 5b prompt</b>.</li>
+        <li>Claude surfaces 3 cost options. <b>Pick one based on your budget</b> and tier:
+          <ul>
+            <li><b>Option 1 — Supabase Branching</b> (cheap if available on your tier — usually Pro+)</li>
+            <li><b>Option 2 — Throwaway separate Supabase project</b> (clean isolation, billable)</li>
+            <li><b>Option 3 — Local <code>supabase db dump | psql</code></b> (free; weakest evidence)</li>
+          </ul>
+        </li>
+        <li>Confirm the spend before Claude provisions anything.</li>
+        <li>Wait 10–30 minutes for the restore to complete.</li>
+      </ol>
+    </div>
+
+    <div class="sect claude">
+      <h4>What Claude does (Option 1 path shown)</h4>
+      <ul class="timeline">
+        <li>Calls <code>mcp__supabase__list_branches</code> to check if branching is available on your tier.</li>
+        <li>If yes: gets cost confirmation via <code>mcp__supabase__get_cost</code>.</li>
+        <li class="stop"><strong>STOP</strong> — surfaces all 3 options with costs. Waits for your pick.</li>
+        <li>You reply with your choice.</li>
+        <li class="stop"><strong>STOP</strong> — "About to create a branch / project. Confirm spend?" You confirm.</li>
+        <li>Creates the throwaway target.</li>
+        <li>Restores the latest backup into it.</li>
+        <li>Counts rows on 5 tables: bookings, clients, staff_profiles, email_delivery_events, audit_logs.</li>
+        <li>Compares against production row counts. They should match.</li>
+        <li>Measures restore time start→finish.</li>
+        <li>Tears down the throwaway target (deletes branch / pauses + deletes project).</li>
+        <li>Saves transcript.</li>
+        <li>Updates <code>FINAL-REPORT.md</code> L1-c FAIL → PASS.</li>
+      </ul>
+    </div>
+
+    <div class="sect expect">
+      <h4>What to expect at the end</h4>
+      <div class="files">
+        <div class="f"><span class="label">measurement</span>Restore time in minutes (e.g. "18 min")</div>
+        <div class="f"><span class="label">verification</span>5 table row counts: production = restored (or explained delta)</div>
+        <div class="f"><span class="label">cleanup</span>Throwaway target torn down — no lingering spend</div>
+        <div class="f"><span class="label">new evidence</span>redesign/backend-smoke-tests/backup-restore-drill-2026-05-19.txt</div>
+      </div>
+    </div>
+
+    <div class="sect confuse">
+      <h4>Things that might confuse you</h4>
+      <ul>
+        <li><b>"Why is this expensive?"</b> Supabase Branching and separate-project both cost money per hour. Option 3 (local dump) is free but only proves you can restore <em>to local</em>, not to a real Supabase environment.</li>
+        <li><b>"Do row counts have to match exactly?"</b> They should, within a small delta for rows written between backup-time and restore-time. Big mismatches mean the backup is incomplete.</li>
+        <li><b>"What if the restore fails?"</b> That's the whole point of the drill — you'd discover it now, not during an actual incident. Capture the failure mode and surface to me.</li>
+        <li><b>"Is Option 3 really 'fail-equivalent'?"</b> It's the cheapest valid PASS — proves the backup file is good and restorable. It just doesn't prove Supabase-side restore works end-to-end. Acceptable for small teams; weaker for compliance-heavy contexts.</li>
+      </ul>
+    </div>
+
+    <div class="callout warn">
+      <b>Critical:</b> the tear-down step is non-negotiable. A leftover Branching preview or unpaused throwaway project will keep billing. Verify the target is gone before you sign off.
+    </div>
+
+    <div class="sect go">
+      <h4>Move to Step 6 when</h4>
+      <p>✓ Restore completed in a reasonable time &nbsp;·&nbsp; ✓ Row counts match (or delta is explained) &nbsp;·&nbsp; ✓ Throwaway target destroyed &nbsp;·&nbsp; ✓ L1-c reads PASS in FINAL-REPORT.md</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============== STEP 6 ============== -->
+<div class="step closeout">
+  <div class="shead">
+    <div class="num">6</div>
+    <div class="title">Close out + signal Phase 7 resume
+      <span class="sub">Final paperwork. Flip Gate 0 from FAIL to PASS. No new code.</span>
+    </div>
+    <div class="meta">
+      <span class="pill ok">~10–15 min</span>
+      <span class="pill opt">doc-only</span>
+    </div>
+  </div>
+  <div class="sbody">
+
+    <div class="sect you">
+      <h4>What YOU do</h4>
+      <ol>
+        <li>Paste the <b>Step 6 prompt</b>.</li>
+        <li>Read the "resume readiness report" Claude produces.</li>
+        <li>If every line shows ✓, you're done. If any line shows ✗, fix that before resuming Phase 7.</li>
+      </ol>
+    </div>
+
+    <div class="sect claude">
+      <h4>What Claude does</h4>
+      <ul class="timeline">
+        <li>Pre-checks: confirms all 4 smoke-test transcripts exist, working tree is clean, BUSINESS-COMPLETENESS.md is consistent.</li>
+        <li>Edits <code>FINAL-REPORT.md</code> Gate 0 section: result FAIL → PASS; moves all 5 items to HANDLED table; Layer 1 table 4/4 PASS.</li>
+        <li>Edits <code>RECIPE-PROGRESS.md</code>: adds the engineering track section, lists commits.</li>
+        <li>Edits <code>ENGINEERING-LOG.md</code>: closing summary with per-item status.</li>
+        <li>Edits <code>PER-PAGE-SCORES.md</code>: updates pages whose Backend status was FAKE.</li>
+        <li>Runs final sweep: greps BUSINESS-COMPLETENESS.md for any remaining NOT-STARTED / PARTIAL BLOCKS-REDESIGN. Must return zero.</li>
+        <li>Produces the resume-readiness report.</li>
+        <li class="stop"><strong>STOPS</strong>.</li>
+      </ul>
+    </div>
+
+    <div class="sect expect">
+      <h4>What the resume-readiness report should look like</h4>
+      <ul class="check">
+        <li class="done">5/5 BLOCKS-REDESIGN HANDLED</li>
+        <li class="done">4/4 Layer 1 PASS</li>
+        <li class="done">backend-smoke-tests/ folder populated (4 transcripts)</li>
+        <li class="done">FINAL-REPORT.md Gate 0 now reads PASS</li>
+        <li class="done">Recipe resume target: Gate 5 (adapt) → Gate 6 (skip doc) → Gate 7 (polish)</li>
+      </ul>
+    </div>
+
+    <div class="sect confuse">
+      <h4>Things that might confuse you</h4>
+      <ul>
+        <li><b>"Do I need to merge the engineering branch into the redesign branch now?"</b> Yes — Step 6 should handle that, or surface that it needs your decision. The redesign branch needs to incorporate this work before Phase 7 can verify against it.</li>
+        <li><b>"What if the sweep finds a NOT-STARTED I forgot?"</b> Don't proceed to Phase 7. Either circle back and resolve it, or formally waive it. Hidden gaps will fail Gate 0 again at recipe resume.</li>
+      </ul>
+    </div>
+
+    <div class="sect go">
+      <h4>You're done with the engineering pause when</h4>
+      <p>Every line in the resume-readiness report shows ✓. Close this session. Open a fresh one for the recipe.</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============== RE-ENTERING ============== -->
+<h2>After Step 6 — re-entering the Phase 7 recipe</h2>
+
+<div class="callout">
+  Open a brand-new Claude Code session. Paste the recipe's 6→7 handoff re-prime card (already in the recipe HTML). Then resume by re-running Phase 7 Gate 0 in that fresh session — it should now read PASS. From there, work through the playbook I gave you earlier:
+  <ol style="margin-top:8px">
+    <li>Re-run Phase 7 Gate 0 (confirm PASS in the fresh session)</li>
+    <li>Resolve Gate 5 (adapt) — write or verify <code>ADAPT-PASS.md</code></li>
+    <li>Formally skip Gate 6 — write <code>ONBOARD-PASS.md</code></li>
+    <li>Update <code>RECIPE-PROGRESS.md</code></li>
+    <li>Enter Gate 7 (polish) — the last code-mutating gate</li>
+    <li>Gate 8 critique → Gate 9 cross-checks → Completion</li>
+  </ol>
+</div>
+
+<!-- ============== QUICK REFERENCE ============== -->
+<h2>Quick reference card</h2>
+<div class="mental">
+  <div class="grid">
+    <div><b>Each step has one prompt</b>Paste it. Wait. Don't pre-load multiple prompts; each STOP is your checkpoint.</div>
+    <div><b>Zone-2 = ask, never assume</b>Whenever Claude pauses to ask about pg_cron, deploys, migrations, billable resources — read what it's about to do before replying.</div>
+    <div><b>Evidence = real files</b>Every PASS must have a transcript in <code>backend-smoke-tests/</code>. No transcript = no HANDLED.</div>
+    <div><b>Session timeout? OK</b>The branch + log file survive. Open a fresh session, point Claude at the log, ask it to resume from where you stopped.</div>
+    <div><b>You can stop after any step</b>The engineering pause doesn't have to be one sitting. Steps 1–6 can span days. Just don't resume Phase 7 until Step 6 is done.</div>
+    <div><b>If a step fails, don't fake it</b>A failed smoke test means the build isn't done. Either fix it, waive it explicitly to Track B, or stop and ask for help.</div>
+  </div>
+</div>
+
+<footer>
+  Source: <code>redesign/impeccable-v5-latest-stable.html</code> (admin recipe Phase 7) + your <code>FINAL-AUDIT.md</code> and <code>FINAL-REPORT.md</code> Gate 0 state.
+  <br>This guide is a plain-English distillation of the 6 prompts in the engineering pause playbook. The prompts themselves are canonical — when in doubt, the prompt's wording wins.
+</footer>
+
+</div>
+</body>
+</html>

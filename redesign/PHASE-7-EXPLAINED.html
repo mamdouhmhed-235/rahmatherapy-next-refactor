@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Phase 7 (Admin) — explained in plain English</title>
+<style>
+  :root{
+    --bg:#0e1116;
+    --panel:#161a22;
+    --panel2:#1c2230;
+    --line:#2a3142;
+    --text:#e7ecf3;
+    --muted:#9aa6b8;
+    --accent:#7cc5ff;
+    --accent2:#a78bfa;
+    --ok:#34d399;
+    --warn:#fbbf24;
+    --bad:#f87171;
+    --pill:#222a3a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;line-height:1.55;font-size:15px}
+  a{color:var(--accent);text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 22px 80px}
+  header{padding:24px 0 8px;border-bottom:1px solid var(--line);margin-bottom:28px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-0.01em}
+  h1 .sub{color:var(--muted);font-weight:500;font-size:18px;display:block;margin-top:4px}
+  h2{font-size:22px;margin:36px 0 10px;letter-spacing:-0.01em}
+  h3{font-size:17px;margin:18px 0 8px}
+  p{margin:8px 0}
+  ul{margin:6px 0 8px 18px;padding:0}
+  li{margin:3px 0}
+  code{background:#0b0e14;border:1px solid var(--line);padding:1px 6px;border-radius:4px;font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:13px;color:#cfe6ff}
+  .lede{color:var(--muted);font-size:16px;max-width:760px}
+
+  /* TL;DR card */
+  .tldr{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:18px 0 10px}
+  .tldr h2{margin-top:0;font-size:16px;color:var(--accent)}
+
+  /* Big flow strip */
+  .flow{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
+  .flow .node{flex:1 1 110px;min-width:110px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 10px;text-align:center;font-size:12px;color:var(--text);position:relative}
+  .flow .node .n{display:block;font-weight:700;color:var(--accent);font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:4px}
+  .flow .node.opt{border-style:dashed;color:var(--muted)}
+  .flow .node.opt .n{color:var(--accent2)}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--muted);margin:-12px 0 28px;flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend .sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+  .sw-solid{background:var(--accent)}
+  .sw-dash{background:transparent;border:1px dashed var(--accent2)}
+
+  /* Gate cards */
+  .gate{background:var(--panel);border:1px solid var(--line);border-radius:12px;margin:14px 0;overflow:hidden}
+  .gate.optional{border-color:#3a2f4a}
+  .ghead{display:flex;align-items:center;gap:14px;padding:14px 18px;background:linear-gradient(180deg,#1a2030,#161b27);border-bottom:1px solid var(--line)}
+  .ghead .num{width:34px;height:34px;border-radius:50%;background:var(--accent);color:#0a1322;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px}
+  .gate.optional .num{background:var(--accent2);color:#1a1230}
+  .ghead .title{font-weight:700;font-size:16px}
+  .ghead .meta{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:var(--pill);color:var(--muted);font-size:11px;border:1px solid var(--line);white-space:nowrap}
+  .pill.ok{color:var(--ok);border-color:#1d4738}
+  .pill.warn{color:var(--warn);border-color:#4a3a1a}
+  .pill.opt{color:var(--accent2);border-color:#3a2f4a}
+  .pill.cmd{color:#cfe6ff;background:#0d1623;border-color:#1f3554;font-family:ui-monospace,Consolas,monospace}
+  .gbody{padding:14px 18px 18px}
+  .row{display:grid;grid-template-columns:130px 1fr;gap:10px;padding:9px 0;border-top:1px dashed var(--line)}
+  .row:first-child{border-top:0}
+  .row .lbl{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em;padding-top:2px}
+  .row .val{font-size:14px}
+  .cmd-line{background:#0b0f17;border:1px solid #1f3554;color:#aee0ff;padding:8px 12px;border-radius:6px;font-family:ui-monospace,Consolas,monospace;font-size:13px;display:inline-block;margin:2px 0}
+
+  /* The two-step pattern callout */
+  .twostep{background:#13202e;border:1px solid #1f3554;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:13.5px;color:#d4eaff}
+  .twostep b{color:#aee0ff}
+
+  /* Mental model card */
+  .mental{background:linear-gradient(180deg,#1a2030,#151a25);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:22px 0}
+  .mental h3{margin-top:0;color:var(--accent2)}
+  .mental .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px}
+  .mental .grid div{background:#0e1320;border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+  .mental .grid b{display:block;color:var(--accent);margin-bottom:4px;font-size:13px}
+
+  /* tiny dots row */
+  .dots{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+  .dots span{font-size:11px;color:var(--muted);background:#0e1320;border:1px solid var(--line);padding:2px 8px;border-radius:999px}
+
+  /* end nav */
+  footer{margin-top:36px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+
+  /* simple table for outputs */
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500;font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+  td code{font-size:12px}
+
+  /* status banner */
+  .status{display:flex;gap:14px;background:#13202e;border:1px solid #1f3554;border-radius:10px;padding:12px 14px;margin:16px 0;font-size:13px}
+  .status .ic{font-size:20px;line-height:1}
+  .status.warn{background:#2a1f12;border-color:#4a3a1a}
+  .status.bad{background:#2a1414;border-color:#4a1a1a}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Phase 7 — The Pre-Ship Gauntlet
+    <span class="sub">Plain-English walkthrough of the admin recipe's final QA phase</span>
+  </h1>
+  <p class="lede">Phase 7 is the final quality check before the redesigned admin can ship. You don't redesign anything new here — you stress-test what Phase 6 already built and prove that <b>every page is equal-or-better</b> than the baseline you captured back in Phase 2.</p>
+</header>
+
+<!-- ================= TL;DR ================= -->
+<div class="tldr">
+  <h2>The 30-second version</h2>
+  <ol>
+    <li><b>You're not building anymore.</b> Phase 6 finished the pages. Phase 7 only audits, fixes leftover issues, and proves nothing got worse.</li>
+    <li><b>It's a series of "gates" (10 of them).</b> Each gate is one Claude Code command + one prompt to capture the result.</li>
+    <li><b>7 gates always run.</b> 3 gates (optimize / adapt / onboard) only run if Gate 1's audit flagged that kind of problem.</li>
+    <li><b>Each gate writes one file</b> into <code>/redesign/</code> as evidence. By the end you have <code>FINAL-AUDIT.md</code>, <code>FINAL-CRITIQUE.md</code>, and <code>FINAL-REPORT.md</code>.</li>
+    <li><b>You hit STOP between gates.</b> Review what the AI just did, approve, then run the next gate.</li>
+    <li><b>Time budget:</b> ~30-60 minutes of your time + AI runtime.</li>
+  </ol>
+</div>
+
+<!-- ================= Mental model ================= -->
+<div class="mental">
+  <h3>The mental model — why this phase exists</h3>
+  <p>In Phase 6 you redesigned pages one at a time. Each page got its own focused review. But "every page is good on its own" isn't the same as "the whole admin is shippable." Phase 7 zooms out:</p>
+  <div class="grid">
+    <div><b>Compare to baseline</b>The scores you captured in Phase 2 are the floor. Every dimension (a11y, performance, responsiveness, theming, anti-patterns) must equal or improve.</div>
+    <div><b>Find what slipped through</b>Site-wide audits catch things per-page reviews miss: inconsistent spacing, copy drift, broken nav, missing focus rings.</div>
+    <div><b>Run the named gauntlet</b>The Impeccable docs prescribe a fixed sequence: <code>audit → clarify → harden</code>, then <code>polish</code> last. The recipe follows that order exactly.</div>
+    <div><b>Generate paper trail</b>Each gate produces a markdown file. That's your evidence the redesign improved things — needed for stakeholder sign-off.</div>
+  </div>
+</div>
+
+<!-- ================= The flow strip ================= -->
+<h2>The flow at a glance</h2>
+<div class="flow">
+  <div class="node"><span class="n">Handoff</span>6 → 7<br><span style="color:var(--muted);font-size:11px">fresh session</span></div>
+  <div class="node"><span class="n">Gate 0</span>Production<br>readiness</div>
+  <div class="node"><span class="n">Gate 1</span>Audit</div>
+  <div class="node"><span class="n">Gate 2</span>Clarify<br>(copy)</div>
+  <div class="node"><span class="n">Gate 3</span>Harden<br>(edge cases)</div>
+  <div class="node opt"><span class="n">Gate 4*</span>Optimize<br>(perf)</div>
+  <div class="node opt"><span class="n">Gate 5*</span>Adapt<br>(responsive)</div>
+  <div class="node opt"><span class="n">Gate 6*</span>Onboard<br>(empty)</div>
+  <div class="node"><span class="n">Gate 7</span>Polish<br>(last code change)</div>
+  <div class="node"><span class="n">Gate 8</span>Critique</div>
+  <div class="node"><span class="n">Gate 9</span>Cross-<br>checks</div>
+  <div class="node"><span class="n">Done</span>Final<br>report</div>
+</div>
+<div class="legend">
+  <span><span class="sw sw-solid"></span> Always runs</span>
+  <span><span class="sw sw-dash"></span> Conditional — only runs if Gate 1 flagged the issue</span>
+</div>
+
+<!-- ================= The pattern callout ================= -->
+<div class="twostep">
+  <b>The repeating pattern.</b> Almost every gate works the same way:
+  <ol style="margin:6px 0 0 18px">
+    <li><b>Type</b> the green <code>/impeccable …</code> command into Claude Code. Wait for it to finish.</li>
+    <li><b>Paste</b> the yellow "framing prompt" from the recipe. This tells Claude to save the output to the right file, compare against baseline, and stop for your review.</li>
+    <li><b>Review.</b> Read the diff or report. Approve or reject before moving on.</li>
+  </ol>
+  Once you see this pattern once, every gate is the same shape — just different commands and different output files.
+</div>
+
+<!-- ================= Detailed gates ================= -->
+<h2>Step-by-step — every gate explained</h2>
+
+<!-- HANDOFF -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num" style="background:var(--accent2);color:#1a1230">↻</div>
+    <div class="title">Handoff: Phase 6 → Phase 7</div>
+    <div class="meta"><span class="pill">~5 min</span><span class="pill warn">required</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What it is</div><div class="val">Close your current Claude Code session and open a brand-new one. Then paste the "re-prime" block from the recipe as your first message.</div></div>
+    <div class="row"><div class="lbl">Why</div><div class="val">Phase 7 judges the WHOLE site equally. A fresh session resets the AI from "still thinking about the last page I built" to "judging everything against the baseline."</div></div>
+    <div class="row"><div class="lbl">What you do</div><div class="val">
+      <ol>
+        <li>Confirm every Phase 6 checkbox is ticked (all pages approved, scores logged, etc.)</li>
+        <li>Open a fresh Claude Code session.</li>
+        <li>Paste the re-prime prompt. Claude reads 7 baseline files and summarises them back to you.</li>
+        <li>You reply <code>primed — go</code> only after the summary looks right.</li>
+      </ol>
+    </div></div>
+    <div class="row"><div class="lbl">Expected outcome</div><div class="val">AI confirms the baseline scores it must beat and the page count. You're ready to open Gate 0.</div></div>
+  </div>
+</div>
+
+<!-- GATE 0 -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num">0</div>
+    <div class="title">Gate 0 — Production Readiness Re-check</div>
+    <div class="meta"><span class="pill ok">always runs</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What it does</div><div class="val">Re-verifies the backend foundations that couldn't be tested in Phase 0 (because the redesigned site wasn't running yet).</div></div>
+    <div class="row"><div class="lbl">Checks</div><div class="val">
+      <ul>
+        <li>Every BLOCKS-REDESIGN item is in HANDLED state (not just planned).</li>
+        <li>Error tracking actually fires (trigger a test error → confirm Sentry receives it).</li>
+        <li>Backups actually restore (test-restore in the last 24h).</li>
+        <li>Transactional email actually sends (trigger a password reset → check inbox).</li>
+      </ul>
+    </div></div>
+    <div class="row"><div class="lbl">Expected outcome</div><div class="val">A "## Production Readiness Re-check" section appended to <code>FINAL-REPORT.md</code> with pass/fail per item. If anything fails — <b>STOP</b>, don't proceed.</div></div>
+  </div>
+</div>
+
+<!-- GATE 1 -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num">1</div>
+    <div class="title">Gate 1 — Audit (the canonical first step)</div>
+    <div class="meta"><span class="pill cmd">/impeccable audit admin</span><span class="pill ok">always</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What it does</div><div class="val">Re-scores implementation quality across every redesigned admin page on 5 dimensions: Accessibility, Performance, Theming, Responsive, Anti-patterns.</div></div>
+    <div class="row"><div class="lbl">Why it's first</div><div class="val">Its output decides which of the conditional gates (4, 5, 6) need to run. Everything else routes off this report.</div></div>
+    <div class="row"><div class="lbl">Output file</div><div class="val"><code>/redesign/FINAL-AUDIT.md</code></div></div>
+    <div class="row"><div class="lbl">Expected outcome</div><div class="val">Every dimension score is ≥ baseline. Findings get routed by severity:
+      <table>
+        <tr><th>Finding</th><th>Goes to</th></tr>
+        <tr><td>P0 a11y</td><td>fix NOW, before Gate 2</td></tr>
+        <tr><td>Copy issues</td><td>Gate 2 (clarify)</td></tr>
+        <tr><td>Empty / error / loading gaps</td><td>Gate 3 (harden)</td></tr>
+        <tr><td>Performance</td><td>Gate 4 (optimize)</td></tr>
+        <tr><td>Responsive</td><td>Gate 5 (adapt)</td></tr>
+        <tr><td>Weak empty states</td><td>Gate 6 (onboard)</td></tr>
+        <tr><td>Visual / token drift</td><td>Gate 7 (polish)</td></tr>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+<!-- GATE 2 -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num">2</div>
+    <div class="title">Gate 2 — Clarify (rewrite copy where it failed)</div>
+    <div class="meta"><span class="pill cmd">/impeccable clarify [page]</span><span class="pill ok">always (per-page)</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What it does</div><div class="val">Improves copy on the six writing surfaces — labels, buttons, errors, empty states, tooltips, confirmations — but ONLY on pages Gate 1 flagged.</div></div>
+    <div class="row"><div class="lbl">Why per-page</div><div class="val">Phase 6 already approved per-page copy. A site-wide re-clarify could silently regress voice. So Gate 2 reads the audit, builds a list of just the flagged pages, and you process them one at a time.</div></div>
+    <div class="row"><div class="lbl">What you do</div><div class="val">
+      <ol>
+        <li>Paste <b>Gate 2a</b> — Claude reads the audit and gives you a list of <code>/impeccable clarify [slug]</code> commands.</li>
+        <li>For each command: type it, wait for the diff, paste <b>Gate 2b</b> framing, review the diff, approve or reject.</li>
+        <li>If NO pages were flagged, skip the whole gate.</li>
+      </ol>
+    </div></div>
+    <div class="row"><div class="lbl">Output file</div><div class="val"><code>/redesign/CLARIFY-PASS.md</code> — every approved before/after diff</div></div>
+    <div class="row"><div class="lbl">Expected outcome</div><div class="val">Voice now matches <code>PRODUCT.md</code>'s Brand Personality on every flagged page. No generic "Submit" buttons. Errors don't blame the user.</div></div>
+  </div>
+</div>
+
+<!-- GATE 3 -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num">3</div>
+    <div class="title">Gate 3 — Harden (stress-test reality)</div>
+    <div class="meta"><span class="pill cmd">/impeccable harden admin</span><span class="pill ok">always</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What it does</div><div class="val">Looks at the messy edges: empty lists, error states, loading skeletons, overflow on long names, what happens when a server call fails, what 60-character user names do to your table layout.</div></div>
+    <div class="row"><div class="lbl">Two parts</div><div class="val">
+      <b>Part A —</b> Run the command. Harden returns a recommendations report (and sometimes code).<br>
+      <b>Part B —</b> You (or Ralph) walk through <code>HARDEN-PASS.md</code> page-by-page and actually write the empty / error / loading state code.
+    </div></div>
+    <div class="row"><div class="lbl">Output file</div><div class="val"><code>/redesign/HARDEN-PASS.md</code> — recommendations + which got implemented</div></div>
+    <div class="row"><div class="lbl">Verification</div><div class="val">Spot-check 3 pages with extreme test data (empty lists, huge names, server errors). Every state must render cleanly.</div></div>
+    <div class="row"><div class="lbl">Expected outcome</div><div class="val">The empty/error/loading gaps Gate 1 flagged are closed. Pages don't blow up on weird data.</div></div>
+  </div>
+</div>
+
+<!-- GATE 4 -->
+<div class="gate optional">
+  <div class="ghead">
+    <div class="num">4</div>
+    <div class="title">Gate 4 — Optimize (performance)</div>
+    <div class="meta"><span class="pill cmd">/impeccable optimize admin</span><span class="pill opt">conditional</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">SKIP IF</div><div class="val">Gate 1's Performance score is ≥ 3 AND no page's LCP exceeded 2.5s.</div></div>
+    <div class="row"><div class="lbl">What it does</div><div class="val">Fixes UI performance issues: LCP, INP, CLS, render efficiency, animation jank, image weight, bundle size.</div></div>
+    <div class="row"><div class="lbl">Output file</div><div class="val"><code>/redesign/PERF-REPORT.md</code> — before/after metrics per page</div></div>
+    <div class="row"><div class="lbl">Expected outcome</div><div class="val">Every metric improved or held. No regressions. A list of what changed (lazy-loaded images / removed bloat / etc).</div></div>
+  </div>
+</div>
+
+<!-- GATE 5 -->
+<div class="gate optional">
+  <div class="ghead">
+    <div class="num">5</div>
+    <div class="title">Gate 5 — Adapt (responsive)</div>
+    <div class="meta"><span class="pill cmd">/impeccable adapt admin for mobile and tablet</span><span class="pill opt">conditional</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">SKIP IF</div><div class="val">Gate 1's Responsive score is ≥ 3 AND no mobile QA issues were found.</div></div>
+    <div class="row"><div class="lbl">What it does</div><div class="val">Fixes responsive breakage across mobile / tablet / desktop without removing features for "convenience."</div></div>
+    <div class="row"><div class="lbl">Verification</div><div class="val">Playwright screenshots at 375×812 (phone) and 768×1024 (tablet). No horizontal scroll, no clipped UI, every primary action still reachable.</div></div>
+    <div class="row"><div class="lbl">Output file</div><div class="val"><code>/redesign/ADAPT-PASS.md</code> — change log by page and breakpoint</div></div>
+    <div class="row"><div class="lbl">Catch</div><div class="val">If pages changed significantly, re-run Gate 3 (harden) on those specific pages — responsive changes can reveal new edge cases.</div></div>
+  </div>
+</div>
+
+<!-- GATE 6 -->
+<div class="gate optional">
+  <div class="ghead">
+    <div class="num">6</div>
+    <div class="title">Gate 6 — Onboard (first-run / empty states)</div>
+    <div class="meta"><span class="pill cmd">/impeccable onboard admin for new staff members</span><span class="pill opt">conditional</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">SKIP IF</div><div class="val">Gate 1 didn't flag weak empty states AND PRODUCT.md doesn't mention new-staff onboarding.</div></div>
+    <div class="row"><div class="lbl">What it does</div><div class="val">Improves the first-time-user experience: useful empty-state CTAs (not just "No data"), orienting first-run screens, helpful next-steps.</div></div>
+    <div class="row"><div class="lbl">Two parts</div><div class="val">
+      <b>Part A —</b> Run the command. Onboard returns design recommendations (and sometimes code).<br>
+      <b>Part B —</b> Walk through <code>ONBOARD-PASS.md</code> page-by-page and write the actual empty-state code per recommendation.
+    </div></div>
+    <div class="row"><div class="lbl">Output file</div><div class="val"><code>/redesign/ONBOARD-PASS.md</code></div></div>
+    <div class="row"><div class="lbl">Don't do</div><div class="val">Don't add a tour overlay unless PRODUCT.md explicitly asked for one.</div></div>
+  </div>
+</div>
+
+<!-- GATE 7 -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num">7</div>
+    <div class="title">Gate 7 — Polish (the final detail pass — ALWAYS LAST)</div>
+    <div class="meta"><span class="pill cmd">/impeccable polish admin</span><span class="pill ok">always</span><span class="pill warn">last code change</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What it does</div><div class="val">Catches the small stuff: alignment drift, spacing inconsistencies, missing hover/focus states, copy-tone misalignment. <b>Polish refines what exists — it does not redesign.</b></div></div>
+    <div class="row"><div class="lbl">Why last</div><div class="val">If optimize / adapt / onboard changed the layout, polish has to clean up after them. Running polish earlier would mean re-doing it.</div></div>
+    <div class="row"><div class="lbl">Output file</div><div class="val"><code>/redesign/POLISH-PASS.md</code> — alignment fixes, interaction states added, copy tightening</div></div>
+    <div class="row"><div class="lbl">Spot-check</div><div class="val">3 pages — focus rings on every interactive element, hover states feel intentional, spacing rhythm is consistent.</div></div>
+    <div class="row"><div class="lbl">Regression rule</div><div class="val">Polish must NOT restructure layouts. If it did, that's a bug — revert and re-run with the constraint "alignment and consistency only."</div></div>
+    <div class="row"><div class="lbl">Important</div><div class="val">This is the <b>last</b> command that mutates admin code. Gates 8 and 9 are verification only.</div></div>
+  </div>
+</div>
+
+<!-- GATE 8 -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num">8</div>
+    <div class="title">Gate 8 — Critique (design quality re-score)</div>
+    <div class="meta"><span class="pill cmd">/impeccable critique admin</span><span class="pill ok">always</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What it does</div><div class="val">Re-scores design quality on the 10 Nielsen heuristics + the "AI-slop" verdict. Compares to <code>BASELINE-CRITIQUE.md</code>.</div></div>
+    <div class="row"><div class="lbl">Output file</div><div class="val"><code>/redesign/FINAL-CRITIQUE.md</code></div></div>
+    <div class="row"><div class="lbl">Expected outcome</div><div class="val">Every heuristic score ≥ baseline. AI-slop verdict is "pass" (or at minimum, not regressed). If anything regressed, fix it before sign-off.</div></div>
+    <div class="row"><div class="lbl">Re-cycle rule</div><div class="val">
+      <b>If critique flags STRUCTURAL issues</b> (broken hierarchy, anti-patterns) → re-run harden (or the relevant conditional gate), then re-run polish.<br>
+      <b>If critique flags only AESTHETIC issues</b> (alignment, spacing) → polish handles them in place.<br>
+      <b>Limit:</b> don't re-run polish more than once per page.
+    </div></div>
+  </div>
+</div>
+
+<!-- GATE 9 -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num">9</div>
+    <div class="title">Gate 9 — Cross-checks (Playwright + DevTools)</div>
+    <div class="meta"><span class="pill ok">always</span><span class="pill">manual + automated</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What it does</div><div class="val">The hands-on verification pass — no AI commands here, you and Claude execute scripted checks together.</div></div>
+    <div class="row"><div class="lbl">Playwright checks</div><div class="val">
+      <ul>
+        <li>Click through every admin page using only nav links — no dead links, active state highlights correctly.</li>
+        <li>Screenshot every page at 1440×900 and 375×812 — compare visually to baseline.</li>
+        <li>Test the 3 most-used forms end-to-end (happy path, empty submit, invalid data).</li>
+        <li>Mobile drawer/hamburger works at 375px.</li>
+      </ul>
+    </div></div>
+    <div class="row"><div class="lbl">Real-device tests<br><span style="color:var(--bad)">(required)</span></div><div class="val">Real iPhone Safari + real Android Chrome. Mac WebKit ≠ iOS Safari. Document device + OS in the final report.</div></div>
+    <div class="row"><div class="lbl">Assistive tech<br><span style="color:var(--bad)">(required)</span></div><div class="val">VoiceOver / NVDA pass on the 3 most-used pages. Keyboard-only test on every form (Tab order, Enter submits, Esc closes, no traps). Admin users live on the keyboard — failure here is a P0.</div></div>
+    <div class="row"><div class="lbl">Network-flaky tests<br><span style="color:var(--bad)">(required)</span></div><div class="val">Throttle to Slow 4G, kill Wi-Fi mid-submit, force a 502 response — UI must surface a recoverable error, not silent failure.</div></div>
+    <div class="row"><div class="lbl">DevTools console</div><div class="val">Zero NEW console errors vs <code>BASELINE-ISSUES.md</code> on every page.</div></div>
+    <div class="row"><div class="lbl">A11y stats</div><div class="val">Alt-text coverage ≥ baseline, form-label coverage ≥ baseline, no new heading-hierarchy regressions, no new keyboard traps.</div></div>
+  </div>
+</div>
+
+<!-- COMPLETION -->
+<div class="gate">
+  <div class="ghead">
+    <div class="num" style="background:var(--ok);color:#062018">✓</div>
+    <div class="title">Completion — Final Report &amp; Deploy Checklist</div>
+    <div class="meta"><span class="pill ok">always</span></div>
+  </div>
+  <div class="gbody">
+    <div class="row"><div class="lbl">What you do</div><div class="val">Paste the "Phase 7 — Final report" prompt. Claude builds <code>/redesign/FINAL-REPORT.md</code> with:
+      <ul>
+        <li>Audit scores table (5 rows, before vs after)</li>
+        <li>Critique scores table (10 Nielsen rows + AI-slop verdict)</li>
+        <li>Which gauntlet commands ran (including which conditional ones fired)</li>
+        <li>List of pages redesigned</li>
+        <li>Features preserved (every item from Phase 0's Feature Preservation Manifest)</li>
+        <li>Known remaining issues (carried over from baseline)</li>
+        <li><b>Deploy Readiness checklist</b> — rollout strategy, revert triggers, monitoring, backups, compliance, written stakeholder approval</li>
+      </ul>
+    </div></div>
+    <div class="row"><div class="lbl">Then run</div><div class="val"><code>/deploy-checklist</code> — a complementary technical pre-flight. Different from /impeccable audit (design) and Gate 0 (business). All three required because they catch different things.</div></div>
+    <div class="row"><div class="lbl">Final check before declaring done</div><div class="val">
+      <ol>
+        <li>Gauntlet ran in order: audit → clarify → harden, then polish last. ✓</li>
+        <li>Conditional gates only fired when triggered. ✓</li>
+        <li><code>FINAL-AUDIT.md</code> and <code>FINAL-CRITIQUE.md</code> both equal-or-better than baseline. ✓</li>
+        <li>Accessibility specifically improved vs <code>A11Y-BASELINE.md</code>. ✓</li>
+        <li>Codebase search for <code>data-redesign-needs-photo</code> returns zero matches. ✓</li>
+      </ol>
+    </div></div>
+  </div>
+</div>
+
+<!-- ================= How to actually run it ================= -->
+<h2>How to actually run Phase 7, step by step</h2>
+<div class="status">
+  <div class="ic">ℹ</div>
+  <div>The recipe is designed for one person sitting in front of Claude Code with a copy of the recipe HTML open. Here's the practical loop you'll repeat for every gate:</div>
+</div>
+
+<ol style="font-size:14.5px;line-height:1.7">
+  <li><b>Open the gate's card</b> in the recipe HTML.</li>
+  <li><b>Read the "What this command does" note</b> — 2 sentences, sets your expectation.</li>
+  <li><b>Type the green command</b> (e.g. <code>/impeccable audit admin</code>) into Claude Code. Wait for it to finish.</li>
+  <li><b>Copy the yellow framing prompt</b> from the recipe and paste it into Claude Code.</li>
+  <li><b>Wait for Claude to report back</b> — it will save the output file, summarise the findings, and stop.</li>
+  <li><b>Open the output file</b> in <code>/redesign/</code> and skim it. Spot-check Claude's claims.</li>
+  <li><b>If something looks wrong</b> — push back. Don't approve a regression just to move on.</li>
+  <li><b>If everything checks out</b> — move to the next gate.</li>
+  <li><b>For conditional gates (4, 5, 6)</b> — check the SKIP IF rule first. If it applies, skip and note "skipped" in the report.</li>
+</ol>
+
+<!-- ================= Outputs cheat sheet ================= -->
+<h2>Every file Phase 7 produces</h2>
+<table>
+  <tr><th>File</th><th>From gate</th><th>What's in it</th></tr>
+  <tr><td><code>FINAL-AUDIT.md</code></td><td>Gate 1</td><td>Implementation re-scores (5 dimensions) per page</td></tr>
+  <tr><td><code>CLARIFY-PASS.md</code></td><td>Gate 2</td><td>Approved copy diffs per flagged page</td></tr>
+  <tr><td><code>HARDEN-PASS.md</code></td><td>Gate 3</td><td>Edge-case recommendations + what got implemented</td></tr>
+  <tr><td><code>PERF-REPORT.md</code></td><td>Gate 4*</td><td>Before/after LCP, INP, CLS per page</td></tr>
+  <tr><td><code>ADAPT-PASS.md</code></td><td>Gate 5*</td><td>Responsive change log by page &amp; breakpoint</td></tr>
+  <tr><td><code>ONBOARD-PASS.md</code></td><td>Gate 6*</td><td>Empty-state &amp; first-run recommendations</td></tr>
+  <tr><td><code>POLISH-PASS.md</code></td><td>Gate 7</td><td>Alignment / spacing / interaction-state diff</td></tr>
+  <tr><td><code>FINAL-CRITIQUE.md</code></td><td>Gate 8</td><td>Design quality re-scores (10 Nielsen heuristics + AI-slop)</td></tr>
+  <tr><td><code>FINAL-REPORT.md</code></td><td>Completion</td><td>Everything tied together + Deploy Readiness checklist</td></tr>
+</table>
+<p style="color:var(--muted);font-size:12px;margin-top:4px">* Conditional — only exists if the gate fired.</p>
+
+<!-- ================= Common gotchas ================= -->
+<h2>Common gotchas — read before you start</h2>
+<div class="mental">
+  <div class="grid">
+    <div><b>Don't skip the fresh session</b>Pasting the re-prime into your old Phase 6 session is a known trap. The AI will be biased toward "the last page I built" instead of judging the whole site.</div>
+    <div><b>Polish doesn't redesign</b>If polish restructures a layout, that's a bug. Revert and re-run with "alignment only" constraint.</div>
+    <div><b>Conditional means conditional</b>If Gate 1's performance score is fine, don't run optimize "just in case." Every gate that fires writes to admin code — fewer gates = less risk.</div>
+    <div><b>"Equal-or-better" is the bar</b>If even one dimension regressed vs baseline, you don't ship. You go back and fix it.</div>
+    <div><b>STOP between gates</b>The pause icons in the recipe are there for a reason. Skipping the review step is how regressions sneak through.</div>
+    <div><b>Real devices, not just emulation</b>Gate 9's iPhone + Android requirement is non-negotiable. Mac WebKit renders differently from iOS Safari.</div>
+  </div>
+</div>
+
+<footer>
+  Source: <code>redesign/impeccable-v5-latest-stable.html</code>, admin recipe Phase 7 (lines 5293–5669).
+  <br>This guide is a plain-English distillation — when in doubt, the source HTML is canonical.
+</footer>
+
+</div>
+</body>
+</html>

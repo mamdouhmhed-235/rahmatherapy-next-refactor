@@ -1,0 +1,1 @@
+export { AdminConfirmationDialog as ConfirmActionModal } from './admin-ui-interactions';

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import {
+  canExportOwnReports,
+  canExportRevenueReports,
+  canOpenReports,
+  getStaffProfile,
+} from "@/lib/auth/rbac";
 import {
   canViewRevenueReports,
   formatMoney,
@@ -19,11 +24,7 @@ export async function GET(request: NextRequest) {
   if (!profile || !profile.active) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
-  if (
-    !profile.permissions.has(PERMISSIONS.VIEW_REPORTS) &&
-    !profile.permissions.has(PERMISSIONS.VIEW_OWN_BOOKINGS) &&
-    !profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_OWN)
-  ) {
+  if (!canOpenReports(profile) || (!canExportOwnReports(profile) && !canExportRevenueReports(profile))) {
     return new NextResponse("Forbidden", { status: 403 });
   }
 
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
   const filters = parseReportFilters(Object.fromEntries(url.searchParams));
   const adminClient = createSupabaseAdminClient();
   const data = await getReportData(adminClient, profile, filters);
-  const revenueAllowed = canViewRevenueReports(profile);
+  const revenueAllowed = canExportRevenueReports(profile) || canViewRevenueReports(profile);
   const rows = getRows(report, data, revenueAllowed);
 
   await adminClient.from("audit_logs").insert({

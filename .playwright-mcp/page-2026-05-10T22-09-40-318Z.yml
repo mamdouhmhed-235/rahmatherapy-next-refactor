@@ -1,0 +1,271 @@
+- generic [ref=e1]:
+  - alert [ref=e22]: Dashboard - Rahma Therapy Admin
+  - generic [ref=e23]:
+    - link "Skip to admin content" [ref=e24] [cursor=pointer]:
+      - /url: "#admin-main"
+    - banner [ref=e25]:
+      - generic [ref=e26]:
+        - link "Rahma Therapy admin dashboard" [ref=e27] [cursor=pointer]:
+          - /url: /admin/dashboard/
+          - generic [ref=e29]: Rahma Therapy
+        - button "Search" [ref=e31]:
+          - img [ref=e32]
+          - generic [ref=e35]: Search
+        - generic [ref=e36]:
+          - link "Reports" [ref=e37] [cursor=pointer]:
+            - /url: /admin/reports/
+            - img [ref=e38]
+            - text: Reports
+          - link "Calendar" [ref=e41] [cursor=pointer]:
+            - /url: /admin/calendar/
+            - img [ref=e42]
+            - text: Calendar
+          - button "Test Booking Coordinator" [ref=e45]:
+            - img [ref=e47]
+            - generic [ref=e50]: Test Booking Coordinator
+            - img [ref=e51]
+    - main [ref=e53]:
+      - generic [ref=e55]:
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - heading "Coordinator dashboard" [level=1] [ref=e58]
+            - paragraph [ref=e59]: Booking queue, enquiries, email status and assignment gaps.
+          - generic [ref=e60]:
+            - generic [ref=e61]:
+              - img [ref=e62]
+              - generic [ref=e65]: "Last synced: 23:09"
+            - link "Reports" [ref=e66] [cursor=pointer]:
+              - /url: /admin/reports/
+              - img [ref=e67]
+              - text: Reports
+            - link "Calendar" [ref=e70] [cursor=pointer]:
+              - /url: /admin/calendar/
+              - img [ref=e71]
+              - text: Calendar
+            - button "Open notifications, 1 unread" [ref=e74]:
+              - generic [ref=e75]:
+                - img [ref=e76]
+                - generic [ref=e79]: "1"
+        - generic [ref=e82]:
+          - group [ref=e83]:
+            - link "Today" [ref=e84] [cursor=pointer]:
+              - /url: /admin/dashboard/?range=today&from=2026-05-10&to=2026-05-10
+            - link "7 days" [ref=e85] [cursor=pointer]:
+              - /url: /admin/dashboard/?range=custom&from=2026-05-10&to=2026-05-16
+            - link "30 days" [ref=e86] [cursor=pointer]:
+              - /url: /admin/dashboard/?range=custom&from=2026-05-10&to=2026-06-08
+          - generic [ref=e87]:
+            - text: From
+            - textbox "From" [ref=e88]: 2026-05-10
+          - generic [ref=e89]:
+            - text: To
+            - textbox "To" [ref=e90]: 2026-05-10
+          - generic [ref=e91]:
+            - text: City
+            - generic [ref=e92]:
+              - img
+              - combobox "City" [ref=e93]
+          - generic [ref=e94]:
+            - text: Service
+            - combobox "Service" [ref=e95]:
+              - option "All services" [selected]
+          - button "Apply" [ref=e96]
+          - link "Reset" [ref=e97] [cursor=pointer]:
+            - /url: /admin/dashboard/
+          - group [ref=e98]:
+            - generic "More" [ref=e99] [cursor=pointer]:
+              - img [ref=e100]
+              - text: More
+            - option "All sources" [selected]
+            - option "Website"
+            - option "Phone"
+            - option "Whatsapp"
+            - option "Instagram"
+            - option "Referral"
+            - option "Admin"
+            - option "Manual"
+            - option "Other"
+            - option "All statuses" [selected]
+            - option "Pending"
+            - option "Confirmed"
+            - option "Completed"
+            - option "Cancelled"
+            - option "No Show"
+            - option "All payments" [selected]
+            - option "Paid"
+            - option "Unpaid"
+        - generic [ref=e101]:
+          - generic [ref=e102]:
+            - generic [ref=e103]:
+              - generic [ref=e105]:
+                - img [ref=e107]
+                - heading "Today at a glance" [level=2] [ref=e110]
+              - generic [ref=e111]:
+                - generic [ref=e112]:
+                  - generic [ref=e113]:
+                    - paragraph [ref=e114]: "0"
+                    - paragraph [ref=e115]: today
+                  - generic [ref=e116]:
+                    - paragraph [ref=e117]: "0"
+                    - paragraph [ref=e118]: this week
+                - generic [ref=e119]:
+                  - link "View calendar" [ref=e120] [cursor=pointer]:
+                    - /url: /admin/calendar/
+                  - link "View bookings" [ref=e121] [cursor=pointer]:
+                    - /url: /admin/bookings/
+            - generic [ref=e123]:
+              - generic [ref=e124]:
+                - generic [ref=e125]: 08:00
+                - generic [ref=e126]: 10:00
+                - generic [ref=e127]: 12:00
+                - generic [ref=e128]: 14:00
+                - generic [ref=e129]: 16:00
+                - generic [ref=e130]: 18:00
+                - generic [ref=e131]: 20:00
+              - generic [ref=e135]:
+                - img [ref=e138]
+                - heading "No appointments today" [level=2] [ref=e140]
+                - paragraph [ref=e141]: Enjoy a quiet day. Great time for admin and planning.
+            - generic [ref=e142]:
+              - paragraph [ref=e143]: Day readiness
+              - generic [ref=e144]:
+                - generic [ref=e145]:
+                  - img [ref=e147]
+                  - generic [ref=e150]:
+                    - paragraph [ref=e151]: Client confirmations
+                    - paragraph [ref=e152]: All clear
+                - generic [ref=e153]:
+                  - img [ref=e155]
+                  - generic [ref=e160]:
+                    - paragraph [ref=e161]: Staff coverage
+                    - paragraph [ref=e162]: Well covered
+                - generic [ref=e163]:
+                  - img [ref=e165]
+                  - generic [ref=e167]:
+                    - paragraph [ref=e168]: Payment collection
+                    - paragraph [ref=e169]: No activity yet
+          - generic [ref=e170]:
+            - generic [ref=e172]:
+              - img [ref=e174]
+              - generic [ref=e176]:
+                - heading "Urgent attention" [level=2] [ref=e177]
+                - paragraph [ref=e178]: High priority signals that may need your action.
+            - generic [ref=e179]:
+              - 'link "Client confirmation emails No failed delivery signals 0 All clear Client confirmation emails: All clear" [ref=e180] [cursor=pointer]':
+                - /url: /admin/emails/
+                - generic [ref=e181]:
+                  - img [ref=e183]
+                  - generic [ref=e185]:
+                    - paragraph [ref=e186]: Client confirmation emails
+                    - paragraph [ref=e187]: No failed delivery signals
+                  - generic [ref=e188]:
+                    - paragraph [ref=e189]: "0"
+                    - generic [ref=e190]: All clear
+                    - 'img "Client confirmation emails: All clear" [ref=e191]'
+              - generic [ref=e198]:
+                - img [ref=e200]
+                - generic [ref=e202]:
+                  - paragraph [ref=e203]: Open operations
+                  - paragraph [ref=e204]: No open operational errors
+                - generic [ref=e205]:
+                  - paragraph [ref=e206]: "0"
+                  - generic [ref=e207]: All clear
+                  - 'img "Open operations: All clear" [ref=e208]'
+              - generic [ref=e215]:
+                - img [ref=e217]
+                - generic [ref=e220]:
+                  - paragraph [ref=e221]: Staff gaps
+                  - paragraph [ref=e222]: Well covered
+                - generic [ref=e223]:
+                  - paragraph [ref=e224]: "0"
+                  - generic [ref=e225]: All clear
+                  - 'img "Staff gaps: All clear" [ref=e226]'
+            - button "Review signals" [active] [ref=e233]:
+              - text: Review signals
+              - img [ref=e234]
+        - generic [ref=e238]:
+          - generic [ref=e240]:
+            - img [ref=e242]
+            - heading "Operational health" [level=2] [ref=e246]
+          - generic [ref=e247]:
+            - link "Emails 0 All clear" [ref=e248] [cursor=pointer]:
+              - /url: /admin/emails
+              - generic [ref=e249]:
+                - img [ref=e251]
+                - generic [ref=e254]:
+                  - paragraph [ref=e255]: Emails
+                  - generic [ref=e256]:
+                    - generic [ref=e257]: "0"
+                    - generic [ref=e258]: All clear
+            - generic [ref=e260]:
+              - img [ref=e262]
+              - generic [ref=e264]:
+                - paragraph [ref=e265]: Operations
+                - generic [ref=e266]:
+                  - generic [ref=e267]: "0"
+                  - generic [ref=e268]: All clear
+            - link "Enquiries 1 Open" [ref=e269] [cursor=pointer]:
+              - /url: /admin/enquiries
+              - generic [ref=e270]:
+                - img [ref=e272]
+                - generic [ref=e275]:
+                  - paragraph [ref=e276]: Enquiries
+                  - generic [ref=e277]:
+                    - generic [ref=e278]: "1"
+                    - generic [ref=e279]: Open
+            - generic [ref=e281]:
+              - img [ref=e283]
+              - generic [ref=e288]:
+                - paragraph [ref=e289]: Staff gaps
+                - generic [ref=e290]:
+                  - generic [ref=e291]: "0"
+                  - generic [ref=e292]: All clear
+          - paragraph [ref=e299]: "Overall status: All clear"
+        - generic [ref=e300]:
+          - generic [ref=e301]:
+            - generic [ref=e302]:
+              - img [ref=e304]
+              - generic [ref=e307]:
+                - heading "Business pulse" [level=2] [ref=e308]
+                - paragraph [ref=e309]: Understand demand, client mix and trends.
+            - link "View full reports" [ref=e311] [cursor=pointer]:
+              - /url: /admin/reports/
+          - generic [ref=e312]:
+            - generic [ref=e313]:
+              - paragraph [ref=e314]: Service mix
+              - generic [ref=e315]:
+                - img [ref=e318]
+                - heading "No services booked yet" [level=2] [ref=e320]
+                - paragraph [ref=e321]: Once bookings come in, you will see which services are most popular.
+            - generic [ref=e322]:
+              - paragraph [ref=e323]: Client mix
+              - 'img "Client mix: Repeat 0, New 1, Enquiries 1, No-show / Cancelled 0" [ref=e324]':
+                - 'generic "Repeat: 0" [ref=e325]'
+                - 'generic "New: 1" [ref=e326]'
+                - 'generic "Enquiries: 1" [ref=e327]'
+                - 'generic "No-show / Cancelled: 0"'
+              - generic [ref=e328]:
+                - generic [ref=e329]:
+                  - paragraph [ref=e330]: Repeat
+                  - paragraph [ref=e332]: 0 (0%)
+                - generic [ref=e333]:
+                  - paragraph [ref=e334]: New
+                  - paragraph [ref=e336]: 1 (50%)
+                - generic [ref=e337]:
+                  - paragraph [ref=e338]: Enquiries
+                  - paragraph [ref=e340]: 1 (50%)
+                - generic [ref=e341]:
+                  - paragraph [ref=e342]: No-show / Cancelled
+                  - paragraph [ref=e344]: 0 (0%)
+            - generic [ref=e345]:
+              - generic [ref=e346]:
+                - paragraph [ref=e347]: Demand trend
+                - generic [ref=e348]:
+                  - link "7 days" [ref=e349] [cursor=pointer]:
+                    - /url: /admin/dashboard/?range=custom&from=2026-05-10&to=2026-05-16
+                  - link "30 days" [ref=e350] [cursor=pointer]:
+                    - /url: /admin/dashboard/?range=custom&from=2026-05-10&to=2026-06-08
+              - generic [ref=e351]:
+                - img [ref=e354]
+                - heading "No bookings in this range" [level=2] [ref=e356]
+                - paragraph [ref=e357]: Adjust the date filter to see demand patterns.

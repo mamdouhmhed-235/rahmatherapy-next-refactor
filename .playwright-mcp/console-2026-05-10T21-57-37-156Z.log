@@ -1,0 +1,30 @@
+[     375ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    2814ms] [LOG] [Fast Refresh] done in 2547ms @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6113ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6186ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6631ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6644ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(288) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6645ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(288) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6648ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(288) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6650ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(288) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6663ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(288) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    6664ms] [WARNING] The width(-1) and height(-1) of chart should be greater than 0,
+       please check the style of container, or the props width(100%) and height(100%),
+       or add a minWidth(0) or minHeight(288) or use aspect(undefined) to control the
+       height and width. @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432
+[    7311ms] [LOG] [Fast Refresh] done in 788ms @ http://localhost:3000/_next/static/chunks/0nw9_next_dist_03tt.1w._.js:2432

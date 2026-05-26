@@ -2,18 +2,22 @@
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { requirePermission, PERMISSIONS } from "@/lib/auth/rbac";
-import { revalidatePath } from "next/cache";
+import {
+  canAssignStaffRoles,
+  getStaffProfile,
+  requirePermission,
+  PERMISSIONS,
+} from "@/lib/auth/rbac";
+import { revalidatePath, updateTag } from "next/cache";
+import {
+  getStaffProfileCompletion,
+  sanitizeStaffProfileUpdate,
+  type StaffProfileUpdate,
+} from "./profile-access";
+import { getStaffTeamAccess, getStaffTeamSelect, staffProfilesFrom } from "./team-access";
 
 type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
 type StaffGender = "male" | "female";
-
-interface StaffProfileUpdate {
-  active?: boolean;
-  can_take_bookings?: boolean;
-  role_id?: string;
-  gender?: StaffGender;
-}
 
 interface StaffAvailabilityRuleInput {
   day_of_week: number;
@@ -23,6 +27,10 @@ interface StaffAvailabilityRuleInput {
 }
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const CRITICAL_ROLE_PERMISSIONS = new Set<string>([
+  PERMISSIONS.MANAGE_STAFF_PROFILES,
+  PERMISSIONS.ASSIGN_STAFF_ROLES,
+]);
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -65,8 +73,8 @@ async function roleHasCriticalAdminPermissions(
   );
 
   return (
-    permissions.has(PERMISSIONS.MANAGE_USERS) &&
-    permissions.has(PERMISSIONS.MANAGE_ROLES)
+    permissions.has(PERMISSIONS.MANAGE_STAFF_PROFILES) &&
+    permissions.has(PERMISSIONS.ASSIGN_STAFF_ROLES)
   );
 }
 
@@ -118,25 +126,61 @@ async function getAvailabilityActor(
 export async function getStaffProfiles() {
   const supabase = await createSupabaseServerClient();
   
-  try {
-    await requirePermission(PERMISSIONS.MANAGE_USERS, supabase);
-  } catch {
+  const profile = await getStaffProfile(supabase);
+  const teamAccess = getStaffTeamAccess(profile);
+  if (!teamAccess.access) {
     return { error: "Insufficient permissions." };
   }
 
-  const { data, error } = await supabase
-    .from("staff_profiles")
-    .select(`
-      *,
-      roles (
-        id,
-        name
-      )
-    `)
-    .order("name");
+  const adminClient = createSupabaseAdminClient();
+  const staffProfiles = staffProfilesFrom(adminClient);
+  const staffSelect = getStaffTeamSelect(teamAccess);
 
-  if (error) return { error: error.message };
-  return { data };
+  if (teamAccess.scope === "admin") {
+    const { data, error } = await staffProfiles
+      .select<unknown[]>(staffSelect)
+      .order("name");
+
+    if (error) return { error: error.message };
+    return { data };
+  }
+
+  if (teamAccess.scope === "assignment") {
+    const { data, error } = await staffProfiles
+      .select<unknown[]>(staffSelect)
+      .eq("active", true)
+      .eq("can_take_bookings", true)
+      .order("name");
+
+    if (error) return { error: error.message };
+    return { data };
+  }
+
+  if (teamAccess.scope === "same_gender_team") {
+    const [{ data: sameGenderStaff, error }, { data: ownProfile }] = await Promise.all([
+      staffProfiles
+        .select<unknown[]>(staffSelect)
+        .eq("active", true)
+        .eq("can_take_bookings", true)
+        .eq("gender", profile?.gender)
+        .order("name"),
+      staffProfiles
+        .select<unknown>(staffSelect)
+        .eq("id", profile?.id)
+        .maybeSingle(),
+    ]);
+
+    if (error) return { error: error.message };
+    const data = Array.from(
+      new Map(
+        ([...((sameGenderStaff ?? []) as unknown[]), ownProfile].filter(Boolean) as { id: string }[])
+          .map((member) => [member.id, member])
+      ).values()
+    );
+    return { data };
+  }
+
+  return { data: [] };
 }
 
 /**
@@ -152,10 +196,11 @@ export async function createStaffProfile(input: {
 
   let actor;
   try {
-    actor = await requirePermission(PERMISSIONS.MANAGE_USERS, supabase);
+    actor = await requirePermission(PERMISSIONS.MANAGE_STAFF_PROFILES, supabase);
   } catch {
     return { error: "Insufficient permissions." };
   }
+  if (!canAssignStaffRoles(actor)) return { error: "Insufficient permissions." };
 
   const name = input.name.trim();
   const email = normalizeEmail(input.email);
@@ -172,6 +217,7 @@ export async function createStaffProfile(input: {
     .from("roles")
     .select("id")
     .eq("id", input.role_id)
+    .eq("active", true)
     .single();
 
   if (!role) return { error: "Choose a valid role." };
@@ -202,6 +248,8 @@ export async function createStaffProfile(input: {
     after_state: { name, email, role_id: input.role_id, gender: input.gender },
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/staff");
 
   return { data };
@@ -215,11 +263,18 @@ export async function updateStaffProfile(
   updates: StaffProfileUpdate
 ) {
   const supabase = await createSupabaseServerClient();
-  
-  let actor;
-  try {
-    actor = await requirePermission(PERMISSIONS.MANAGE_USERS, supabase);
-  } catch {
+
+  const actor = await getStaffProfile(supabase);
+  const sanitizedResult = sanitizeStaffProfileUpdate({ actor, staffId, updates });
+  if ("error" in sanitizedResult) {
+    return { error: sanitizedResult.error };
+  }
+  const sanitizedUpdates = sanitizedResult.updates;
+  if (Object.keys(sanitizedUpdates).length === 0) {
+    return { error: "No profile changes submitted." };
+  }
+
+  if (!actor) {
     return { error: "Insufficient permissions." };
   }
 
@@ -234,31 +289,39 @@ export async function updateStaffProfile(
 
   if (!beforeState) return { error: "Staff profile not found." };
 
-  if (staffId === actor.id && updates.active === false) {
+  if (staffId === actor.id && sanitizedUpdates.active === false) {
     return { error: "You cannot deactivate your own account." };
   }
 
-  if (staffId === actor.id && updates.role_id && updates.role_id !== beforeState.role_id) {
+  if (
+    staffId === actor.id &&
+    sanitizedUpdates.role_id &&
+    sanitizedUpdates.role_id !== beforeState.role_id
+  ) {
     return { error: "You cannot change your own role." };
   }
 
-  if (updates.role_id) {
+  if (sanitizedUpdates.role_id) {
     const { data: role } = await adminClient
       .from("roles")
       .select("id")
-      .eq("id", updates.role_id)
+      .eq("id", sanitizedUpdates.role_id)
+      .eq("active", true)
       .single();
 
     if (!role) return { error: "Choose a valid role." };
   }
 
-  if (updates.gender && !["male", "female"].includes(updates.gender)) {
+  if (
+    sanitizedUpdates.gender &&
+    !["male", "female"].includes(sanitizedUpdates.gender)
+  ) {
     return { error: "Choose a valid gender." };
   }
 
   if (
-    updates.can_take_bookings === true &&
-    updates.active !== true &&
+    sanitizedUpdates.can_take_bookings === true &&
+    sanitizedUpdates.active !== true &&
     !beforeState.active
   ) {
     return { error: "Inactive staff cannot accept bookings." };
@@ -268,9 +331,9 @@ export async function updateStaffProfile(
     beforeState.active &&
     (await roleHasCriticalAdminPermissions(adminClient, beforeState.role_id));
   const nextKeepsCriticalAdmin =
-    updates.active !== false &&
-    (!updates.role_id ||
-      (await roleHasCriticalAdminPermissions(adminClient, updates.role_id)));
+    sanitizedUpdates.active !== false &&
+    (!sanitizedUpdates.role_id ||
+      (await roleHasCriticalAdminPermissions(adminClient, sanitizedUpdates.role_id)));
 
   if (wasCriticalAdmin && !nextKeepsCriticalAdmin) {
     const remainingCriticalAdmins = await countOtherActiveCriticalAdmins(
@@ -283,15 +346,22 @@ export async function updateStaffProfile(
     }
   }
 
-  const sanitizedUpdates = {
-    ...updates,
-    ...(updates.active === false ? { can_take_bookings: false } : {}),
+  const profileCompletion = getStaffProfileCompletion({
+    ...beforeState,
+    ...sanitizedUpdates,
+  });
+  const updatePayload = {
+    ...sanitizedUpdates,
+    ...(sanitizedUpdates.active === false ? { can_take_bookings: false } : {}),
+    profile_completed_at: profileCompletion.isComplete
+      ? beforeState.profile_completed_at ?? new Date().toISOString()
+      : null,
   };
 
   const { data, error } = await adminClient
     .from("staff_profiles")
     .update({
-      ...sanitizedUpdates,
+      ...updatePayload,
       updated_at: new Date().toISOString(),
       updated_by: actor.id
     })
@@ -311,6 +381,8 @@ export async function updateStaffProfile(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/staff");
   revalidatePath(`/admin/staff/${staffId}`);
   
@@ -363,6 +435,8 @@ export async function updateStaffAvailabilityMode(
     after_state: { availability_mode: mode },
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
   revalidatePath(`/admin/staff/${staffId}`);
   
@@ -415,6 +489,8 @@ export async function createStaffAvailabilityRule(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
 
   return { data };
@@ -458,7 +534,112 @@ export async function deleteStaffAvailabilityRule(
     before_state: beforeState,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath(`/admin/staff/${staffId}/availability`);
+
+  return { success: true };
+}
+
+export async function updateStaffPermissionOverride(
+  staffId: string,
+  permissionId: string,
+  mode: "inherit" | "grant" | "revoke"
+): Promise<{ error?: string; success?: boolean }> {
+  const supabase = await createSupabaseServerClient();
+
+  let actor;
+  try {
+    actor = await requirePermission(PERMISSIONS.MANAGE_PERMISSION_OVERRIDES, supabase);
+  } catch {
+    return { error: "Insufficient permissions." };
+  }
+
+  if (!["inherit", "grant", "revoke"].includes(mode)) {
+    return { error: "Choose a valid override mode." };
+  }
+
+  if (actor.id === staffId) {
+    return { error: "You cannot change your own permission overrides." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const [{ data: staff }, { data: permission }] = await Promise.all([
+    adminClient
+      .from("staff_profiles")
+      .select("id, role_id, active")
+      .eq("id", staffId)
+      .single(),
+    adminClient
+      .from("permissions")
+      .select("id, name, active")
+      .eq("id", permissionId)
+      .single(),
+  ]);
+
+  if (!staff || !permission || !permission.active) {
+    return { error: "Staff profile or permission not found." };
+  }
+
+  if (
+    mode === "revoke" &&
+    staff.active &&
+    CRITICAL_ROLE_PERMISSIONS.has(permission.name) &&
+    (await roleHasCriticalAdminPermissions(adminClient, staff.role_id)) &&
+    (await countOtherActiveCriticalAdmins(adminClient, staffId)) === 0
+  ) {
+    return { error: "Cannot remove the last active staff admin." };
+  }
+
+  const { data: beforeState } = await adminClient
+    .from("staff_permission_overrides")
+    .select("*")
+    .eq("staff_id", staffId)
+    .eq("permission_id", permissionId)
+    .maybeSingle();
+
+  if (mode === "inherit") {
+    const { error } = await adminClient
+      .from("staff_permission_overrides")
+      .delete()
+      .eq("staff_id", staffId)
+      .eq("permission_id", permissionId);
+
+    if (error) return { error: "Failed to remove permission override." };
+  } else {
+    const { error } = await adminClient
+      .from("staff_permission_overrides")
+      .upsert(
+        {
+          staff_id: staffId,
+          permission_id: permissionId,
+          is_granted: mode === "grant",
+        },
+        { onConflict: "staff_id,permission_id" }
+      );
+
+    if (error) return { error: "Failed to save permission override." };
+  }
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "staff_permission_override_updated",
+    target_type: "staff_permission_overrides",
+    target_id: staffId,
+    before_state: beforeState,
+    after_state: {
+      staff_id: staffId,
+      permission_id: permissionId,
+      permission_name: permission.name,
+      mode,
+    },
+  });
+
+  updateTag("report-data");
+  updateTag("dashboard-data");
+  revalidatePath("/admin/staff");
+  revalidatePath(`/admin/staff/${staffId}`);
 
   return { success: true };
 }

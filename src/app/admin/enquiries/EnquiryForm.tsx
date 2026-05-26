@@ -1,10 +1,10 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { Loader2, Minus, Plus, XCircle } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { createEnquiry, type EnquiryActionState } from "./actions";
 
 interface StaffOption {
@@ -12,89 +12,316 @@ interface StaffOption {
   name: string;
 }
 
+export function EnquiryIntakePanel({ staff }: { staff: StaffOption[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <div className="lg:hidden">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="enquiry-intake-panel"
+          onClick={() => setOpen((current) => !current)}
+          className="inline-flex w-full min-h-11 items-center justify-between gap-2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          <span>Record new enquiry</span>
+          <span
+            aria-hidden="true"
+            className="inline-flex size-7 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]"
+          >
+            {open ? <Minus className="size-4" /> : <Plus className="size-4" />}
+          </span>
+        </button>
+      </div>
+
+      <section
+        id="enquiry-intake-panel"
+        className={cn(
+          "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 sm:p-5",
+          open ? "block" : "hidden lg:block"
+        )}
+      >
+        <div className="mb-4">
+          <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
+            Record enquiry
+          </h2>
+          <p className="mt-0.5 text-sm text-[var(--admin-text-muted)]">
+            Capture a lead before it gets lost in your inbox.
+          </p>
+        </div>
+        <EnquiryForm staff={staff} />
+      </section>
+    </>
+  );
+}
+
 const initialState: EnquiryActionState = {};
-const inputClass =
-  "h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20";
+
+const fieldClass =
+  "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50";
+
+const fieldOk = "border-[var(--admin-border-form)]";
+const fieldErr = "border-[oklch(26%_0.14_25)]";
 
 export function EnquiryForm({ staff }: { staff: StaffOption[] }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(createEnquiry, initialState);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
-    if (state.success) router.refresh();
+    if (state.success) {
+      formRef.current?.reset();
+      toast.success("Enquiry recorded.");
+      router.refresh();
+    }
   }, [router, state.success]);
 
+  const fullNameId = useId();
+  const sourceId = useId();
+  const phoneId = useId();
+  const emailId = useId();
+  const serviceId = useId();
+  const staffId = useId();
+  const notesId = useId();
+  const formErrorId = useId();
+
   return (
-    <form action={action} className="grid gap-4 rounded-lg border border-[var(--rahma-border)] bg-white p-5">
-      <h2 className="font-display text-lg font-semibold text-[var(--rahma-charcoal)]">
-        Record enquiry
-      </h2>
+    <form
+      ref={formRef}
+      action={action}
+      noValidate
+      aria-describedby={state.error ? formErrorId : undefined}
+      className="grid gap-4"
+    >
       {state.error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-          {state.error}
-        </p>
+        <div
+          id={formErrorId}
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-3 py-2.5 text-sm text-[oklch(26%_0.14_25)]"
+        >
+          <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <span>{state.error}</span>
+        </div>
       ) : null}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Field label="Name" error={state.fieldErrors?.full_name}>
-          <input name="full_name" className={inputClass} required />
-        </Field>
-        <Field label="Source" error={state.fieldErrors?.source}>
-          <select name="source" defaultValue="whatsapp" className={inputClass}>
-            <option value="website">Website</option>
-            <option value="phone">Phone</option>
-            <option value="whatsapp">WhatsApp</option>
-            <option value="instagram">Instagram</option>
-            <option value="referral">Referral</option>
-            <option value="other">Other</option>
-          </select>
-        </Field>
-        <Field label="Phone">
-          <input name="phone" className={inputClass} />
-        </Field>
-        <Field label="Email" error={state.fieldErrors?.email}>
-          <input name="email" type="email" className={inputClass} />
-        </Field>
-        <Field label="Service interest">
-          <input name="service_interest" className={inputClass} />
-        </Field>
-        <Field label="Owner">
-          <select name="assigned_staff_id" defaultValue="" className={inputClass}>
-            <option value="">Unassigned</option>
-            {staff.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-        </Field>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+        <Field
+          id={fullNameId}
+          name="full_name"
+          label="Full name"
+          required
+          placeholder="Their name as they gave it"
+          error={state.fieldErrors?.full_name}
+        />
+        <SelectField
+          id={sourceId}
+          name="source"
+          label="Source"
+          required
+          defaultValue="whatsapp"
+          error={state.fieldErrors?.source}
+        >
+          <option value="website">Website</option>
+          <option value="phone">Phone</option>
+          <option value="whatsapp">WhatsApp</option>
+          <option value="instagram">Instagram</option>
+          <option value="referral">Referral</option>
+          <option value="other">Other</option>
+        </SelectField>
+        <Field
+          id={phoneId}
+          name="phone"
+          label="Phone"
+          type="tel"
+          placeholder="07…"
+          hint="Either phone or email helps you reply."
+        />
+        <Field
+          id={emailId}
+          name="email"
+          label="Email"
+          type="email"
+          required
+          placeholder="name@example.com"
+          error={state.fieldErrors?.email}
+        />
+        <Field
+          id={serviceId}
+          name="service_interest"
+          label="Service interest"
+          placeholder="e.g. Hijama, group booking, postnatal massage"
+        />
+        <SelectField
+          id={staffId}
+          name="assigned_staff_id"
+          label="Assign to"
+          defaultValue=""
+          aria-label="Assign to staff member"
+        >
+          <option value="">Unassigned</option>
+          {staff.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.name}
+            </option>
+          ))}
+        </SelectField>
       </div>
-      <Field label="Enquiry notes">
-        <Textarea name="notes" rows={4} />
-      </Field>
-      <Button type="submit" size="sm" disabled={pending}>
-        {pending ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
-        Save enquiry
-      </Button>
+
+      <div className="grid gap-1.5">
+        <label
+          htmlFor={notesId}
+          className="text-sm font-medium text-[var(--admin-heading)]"
+        >
+          Notes
+        </label>
+        <textarea
+          id={notesId}
+          name="notes"
+          rows={4}
+          placeholder="What did they say? Anything useful for follow-up."
+          className={cn(
+            "block w-full resize-y rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm leading-6 text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30",
+            fieldOk
+          )}
+        />
+      </div>
+
+      <button
+        type="submit"
+        aria-busy={pending || undefined}
+        disabled={pending}
+        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-5 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-70 disabled:cursor-not-allowed"
+      >
+        {pending ? (
+          <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+        ) : null}
+        Record enquiry
+      </button>
     </form>
   );
 }
 
+interface FieldBaseProps {
+  id: string;
+  name: string;
+  label: string;
+  required?: boolean;
+  error?: string;
+  hint?: string;
+}
+
 function Field({
+  id,
+  name,
   label,
+  required,
   error,
+  hint,
+  type = "text",
+  placeholder,
+}: FieldBaseProps & {
+  type?: "text" | "email" | "tel";
+  placeholder?: string;
+}) {
+  const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
+  return (
+    <div className="grid gap-1.5">
+      <FieldLabel htmlFor={id} required={required}>
+        {label}
+      </FieldLabel>
+      <input
+        id={id}
+        name={name}
+        type={type}
+        placeholder={placeholder}
+        required={required}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={cn(error ? errorId : undefined, hint ? hintId : undefined) || undefined}
+        className={cn(fieldClass, error ? fieldErr : fieldOk)}
+      />
+      {hint && !error ? (
+        <p id={hintId} className="text-xs text-[var(--admin-text-muted)]">
+          {hint}
+        </p>
+      ) : null}
+      <FieldError id={errorId}>{error}</FieldError>
+    </div>
+  );
+}
+
+function SelectField({
+  id,
+  name,
+  label,
+  required,
+  error,
+  defaultValue,
+  children,
+  ...rest
+}: FieldBaseProps & {
+  defaultValue?: string;
+  children: React.ReactNode;
+} & React.AriaAttributes) {
+  const errorId = `${id}-error`;
+  return (
+    <div className="grid gap-1.5">
+      <FieldLabel htmlFor={id} required={required}>
+        {label}
+      </FieldLabel>
+      <select
+        id={id}
+        name={name}
+        required={required}
+        defaultValue={defaultValue}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? errorId : undefined}
+        className={cn(fieldClass, "appearance-none pr-8", error ? fieldErr : fieldOk)}
+        {...rest}
+      >
+        {children}
+      </select>
+      <FieldError id={errorId}>{error}</FieldError>
+    </div>
+  );
+}
+
+function FieldLabel({
+  htmlFor,
+  required,
   children,
 }: {
-  label: string;
-  error?: string;
+  htmlFor: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <label className="grid gap-1.5">
-      <span className="text-sm font-medium text-[var(--rahma-charcoal)]">
-        {label}
-      </span>
+    <label htmlFor={htmlFor} className="text-sm font-medium text-[var(--admin-heading)]">
       {children}
-      {error ? <span className="text-xs text-red-600">{error}</span> : null}
+      {required ? (
+        <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+          *
+        </span>
+      ) : null}
     </label>
+  );
+}
+
+function FieldError({ id, children }: { id: string; children?: React.ReactNode }) {
+  if (!children) return null;
+  return (
+    <div
+      id={id}
+      role="alert"
+      aria-live="polite"
+      aria-atomic="true"
+      className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)]"
+    >
+      <XCircle className="size-3.5 shrink-0" aria-hidden="true" />
+      <span>{children}</span>
+    </div>
   );
 }

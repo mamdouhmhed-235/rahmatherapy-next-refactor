@@ -1,25 +1,18 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
+import {
+  canClaimAssignments as hasClaimAssignmentPermission,
+  canManageAllBookings,
+  canManageBookings,
+  canViewAllBookings,
+  canViewAssignedBookings,
+  type StaffProfile,
+} from "@/lib/auth/rbac";
 import type { BookingRecord } from "./types";
 
-export function canManageBookings(profile: StaffProfile) {
-  return (
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL) ||
-    profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_OWN)
-  );
-}
+export { canManageAllBookings, canManageBookings };
 
 export function canClaimAssignments(profile: StaffProfile) {
-  return (
-    profile.active &&
-    profile.can_take_bookings &&
-    (profile.permissions.has(PERMISSIONS.CLAIM_ASSIGNMENTS) ||
-      profile.permissions.has(PERMISSIONS.CLAIM_BOOKINGS))
-  );
-}
-
-export function canManageAllBookings(profile: StaffProfile) {
-  return profile.permissions.has(PERMISSIONS.MANAGE_BOOKINGS_ALL);
+  return hasClaimAssignmentPermission(profile);
 }
 
 export function isOwnBooking(booking: BookingRecord, profile: StaffProfile) {
@@ -39,8 +32,18 @@ export function hasClaimableAssignment(booking: BookingRecord, profile: StaffPro
   );
 }
 
+export function canOpenBookingRecord(booking: BookingRecord, profile: StaffProfile) {
+  return (
+    canManageAllBookings(profile) ||
+    canViewAllBookings(profile) ||
+    isOwnBooking(booking, profile) ||
+    hasClaimableAssignment(booking, profile)
+  );
+}
+
 export async function canAccessBooking(bookingId: string, profile: StaffProfile) {
-  if (canManageAllBookings(profile)) return true;
+  if (canManageAllBookings(profile) || canViewAllBookings(profile)) return true;
+  if (!canManageBookings(profile) && !canViewAssignedBookings(profile)) return false;
 
   const adminClient = createSupabaseAdminClient();
   const { count, error } = await adminClient

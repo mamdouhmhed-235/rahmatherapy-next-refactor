@@ -1,0 +1,159 @@
+- generic [ref=e2]:
+  - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+    - /url: "#admin-main"
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+        - /url: /admin/dashboard/
+      - generic [ref=e8]:
+        - button "Search" [ref=e9]:
+          - img [ref=e10]
+        - button "Open admin navigation" [ref=e13]:
+          - img [ref=e14]
+  - main [ref=e15]:
+    - generic [ref=e17]:
+      - generic [ref=e18]:
+        - generic [ref=e19]:
+          - heading "Bookings" [level=1] [ref=e20]
+          - paragraph [ref=e21]: View booking requests, participant breakdowns, assignment status, and payment lifecycle.
+        - link "Create booking" [ref=e23] [cursor=pointer]:
+          - /url: /admin/bookings/new/
+          - img
+          - text: Create booking
+      - generic [ref=e24]:
+        - navigation "Booking views" [ref=e25]:
+          - link "Needs attention" [ref=e26] [cursor=pointer]:
+            - /url: /admin/bookings/?view=attention
+          - link "Assigned to me" [ref=e27] [cursor=pointer]:
+            - /url: /admin/bookings/?view=assigned
+          - link "Claimable" [ref=e28] [cursor=pointer]:
+            - /url: /admin/bookings/?view=claimable
+          - link "Today" [ref=e29] [cursor=pointer]:
+            - /url: /admin/bookings/?view=today
+          - link "Upcoming" [ref=e30] [cursor=pointer]:
+            - /url: /admin/bookings/?view=upcoming
+          - link "Unassigned" [ref=e31] [cursor=pointer]:
+            - /url: /admin/bookings/?view=unassigned
+          - link "Partially assigned" [ref=e32] [cursor=pointer]:
+            - /url: /admin/bookings/?view=partially_assigned
+          - link "Completed" [ref=e33] [cursor=pointer]:
+            - /url: /admin/bookings/?view=completed
+          - link "Cancelled/no-show" [ref=e34] [cursor=pointer]:
+            - /url: /admin/bookings/?view=cancelled
+          - link "All" [ref=e35] [cursor=pointer]:
+            - /url: /admin/bookings/?view=all
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - generic [ref=e38]:
+              - generic [ref=e39]: Search
+              - textbox "Search" [ref=e40]
+            - generic [ref=e41]:
+              - generic [ref=e42]: From
+              - textbox "From" [ref=e43]
+            - generic [ref=e44]:
+              - generic [ref=e45]: To
+              - textbox "To" [ref=e46]
+            - generic [ref=e47]:
+              - generic [ref=e48]: Status
+              - combobox "Status" [ref=e49]:
+                - option "Any" [selected]
+                - option "Pending"
+                - option "Confirmed"
+                - option "Completed"
+                - option "Cancelled"
+                - option "No show"
+            - generic [ref=e50]:
+              - generic [ref=e51]: Assignment
+              - combobox "Assignment" [ref=e52]:
+                - option "Any" [selected]
+                - option "Unassigned"
+                - option "Partially assigned"
+                - option "Fully assigned"
+            - generic [ref=e53]:
+              - generic [ref=e54]: Payment
+              - combobox "Payment" [ref=e55]:
+                - option "Any" [selected]
+                - option "Unpaid"
+                - option "Paid"
+            - generic [ref=e56]:
+              - generic [ref=e57]: Gender
+              - combobox "Gender" [ref=e58]:
+                - option "Any" [selected]
+                - option "Male therapist"
+                - option "Female therapist"
+            - generic [ref=e59]:
+              - generic [ref=e60]: City/postcode
+              - textbox "City/postcode" [ref=e61]
+            - generic [ref=e62]:
+              - generic [ref=e63]: Service
+              - combobox "Service" [ref=e64]:
+                - option "Any" [selected]
+                - option "1-Hour Massage Therapy"
+                - option "30-Min Massage Therapy"
+                - option "Fire Package"
+                - option "Hijama Package"
+                - option "Supreme Combo Package"
+            - generic [ref=e65]:
+              - generic [ref=e66]: Assigned staff
+              - combobox "Assigned staff" [ref=e67]:
+                - option "Any" [selected]
+                - option "Phase10 ADMIN"
+                - option "Phase10 COORDINATOR"
+                - option "Phase10 OWNER"
+                - option "Phase10 THERAPIST A"
+                - option "Phase10 THERAPIST B"
+                - option "Rahma Therapy"
+                - option "Test Admin"
+                - option "Test Booking Coordinator"
+                - option "Test Therapist"
+          - generic [ref=e68]:
+            - button "Apply filters" [ref=e69]
+            - link "Reset" [ref=e70] [cursor=pointer]:
+              - /url: /admin/bookings/
+      - article [ref=e72]:
+        - link "Phase10 E2E Claim Client pending unassigned 24 May 2026 at 10:00 - Hijama Package" [ref=e74] [cursor=pointer]:
+          - /url: /admin/bookings/1d503d3b-b1dc-455c-8007-43c5ed1358b8/
+          - generic [ref=e75]:
+            - generic [ref=e76]:
+              - generic [ref=e77]:
+                - heading "Phase10 E2E Claim Client" [level=2] [ref=e78]
+                - generic [ref=e79]: pending
+                - generic [ref=e80]: unassigned
+              - paragraph [ref=e81]: 24 May 2026 at 10:00 - Hijama Package
+            - img [ref=e82]
+        - generic [ref=e84]:
+          - generic [ref=e85]:
+            - paragraph [ref=e86]:
+              - img [ref=e87]
+              - text: Participants
+            - paragraph [ref=e92]: 1 person
+          - generic [ref=e93]:
+            - paragraph [ref=e94]:
+              - img [ref=e95]
+              - text: Time
+            - paragraph [ref=e98]: 10:00-11:00
+          - generic [ref=e99]:
+            - paragraph [ref=e100]:
+              - img [ref=e101]
+              - text: Payment
+            - paragraph [ref=e103]: unpaid
+          - generic [ref=e104]:
+            - paragraph [ref=e105]: Source
+            - paragraph [ref=e106]: manual
+          - generic [ref=e107]:
+            - paragraph [ref=e108]: Due
+            - paragraph [ref=e109]: £45.00
+        - generic [ref=e110]:
+          - link "Map" [ref=e111] [cursor=pointer]:
+            - /url: https://www.google.com/maps/search/?api=1&query=10%20Phase%20Street%20Luton%20LU1%201AA
+            - img
+            - text: Map
+          - button "Phone" [ref=e112]:
+            - img
+            - text: Phone
+          - button "Email" [ref=e113]:
+            - img
+            - text: Email
+          - button "Confirm" [ref=e114]
+          - button "Mark paid" [ref=e115]
+          - button "Cancel" [ref=e116]

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requirePermission, PERMISSIONS } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -96,6 +96,8 @@ export async function saveAvailabilityRule(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/availability");
   return { success: true };
 }
@@ -132,6 +134,8 @@ export async function deleteAvailabilityRule(ruleId: string) {
     before_state: beforeState,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/availability");
   return {};
 }
@@ -171,6 +175,8 @@ export async function createBlockedDate(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/availability");
   return { success: true };
 }
@@ -207,6 +213,8 @@ export async function deleteBlockedDate(blockedDateId: string) {
     before_state: beforeState,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/availability");
   return {};
 }
@@ -261,6 +269,8 @@ export async function createAvailabilityOverride(
     after_state: data,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/availability");
   return { success: true };
 }
@@ -297,6 +307,8 @@ export async function deleteAvailabilityOverride(overrideId: string) {
     before_state: beforeState,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/availability");
   return {};
 }

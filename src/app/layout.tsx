@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Urbanist, Work_Sans } from "next/font/google";
+import { Cormorant_Garamond, Urbanist, Work_Sans } from "next/font/google";
 import "react-day-picker/style.css";
 import "@/styles/site-parity.css";
 import "./globals.css";
@@ -10,6 +10,15 @@ export const metadata: Metadata = {
   title: "Mobile Hijama, Cupping & Massage Therapy in Luton | Rahma Therapy",
   description:
     "Mobile hijama, cupping, massage and soft-tissue therapy in Luton and surrounding areas.",
+  icons: {
+    icon: [
+      { url: "/images/brand/rahma/favicon.svg", type: "image/svg+xml" },
+      { url: "/images/brand/rahma/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/images/brand/rahma/favicon-16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/images/brand/rahma/apple-touch-icon.png",
+    shortcut: "/images/brand/rahma/favicon.ico",
+  },
   openGraph: {
     siteName: "Rahma Therapy",
     title: "Mobile Hijama, Cupping & Massage Therapy in Luton | Rahma Therapy",
@@ -35,8 +44,15 @@ const urbanist = Urbanist({
 
 const workSans = Work_Sans({
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-work-sans",
+  display: "swap",
+});
+
+const adminSerif = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-admin-serif",
   display: "swap",
 });
 
@@ -46,7 +62,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${urbanist.variable} ${workSans.variable}`}>
+    <html lang="en" className={`${urbanist.variable} ${workSans.variable} ${adminSerif.variable}`}>
       <body>
         <SentryProvider />
         {children}

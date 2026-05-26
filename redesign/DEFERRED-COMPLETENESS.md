@@ -1,0 +1,8 @@
+# Deferred Completeness Items
+
+Items from BUSINESS-COMPLETENESS.md or Phase 5 Layer 3 review that the user marked DEFER or that no Phase 5 brief required. Not built, not planned. Recorded so the same gap doesn't get re-proposed next sprint.
+
+| # | Source | Page (if Layer 3) | Gap description | Reason for DEFER | Re-evaluate when |
+|---|---|---|---|---|---|
+| 1 | 2C-2 · BUSINESS-COMPLETENESS.md | Cross-cutting | Framer Motion — installed, zero admin usage. Could power entrance/exit animations beyond the CSS-token motion already specified in DESIGN.md. | No Phase 5 brief required Framer Motion. All motion in the redesign is specified as CSS transitions (`--motion-duration-*`, `ease-gentle`, `ease-snappy`) already honoured by Tailwind utilities. Adding FM would add bundle weight with no design requirement to justify it. | When a Phase 6 brief explicitly needs a physics-based or gesture-driven animation (e.g. drag-to-reorder, spring list) that CSS transitions can't deliver. |
+| 2 | 2C-8 · BUSINESS-COMPLETENESS.md | Cross-cutting | Plain HTML form pattern in admin vs RHF+Zod in customer flow. Admin uses native `<form action={serverAction}>`; customer booking uses RHF + Zod. Patterns work; no inconsistency visible to operators. | No Phase 5 brief proposed a switch. All briefs explicitly preserve the existing server-action + named-field contract (RECON §6.4). Migrating 24 pages to RHF in Phase 6 would be a large blast-radius refactor with no user-visible benefit. | After Phase 7 QA confirms a specific validation or DX problem that the current pattern can't solve; or when a net-new admin form (post-redesign) is written that has enough interactive validation to justify client-side RHF. |

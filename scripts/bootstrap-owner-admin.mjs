@@ -3,7 +3,7 @@
 import process from "node:process";
 import { createClient } from "@supabase/supabase-js";
 
-const CRITICAL_PERMISSIONS = new Set(["manage_users", "manage_roles"]);
+const CRITICAL_PERMISSIONS = new Set(["manage_staff_profiles", "assign_staff_roles"]);
 const VALID_GENDERS = new Set(["male", "female"]);
 
 function readArgs(argv) {
@@ -181,7 +181,7 @@ async function assertRoleIsCritical(supabase, role) {
 
   if (!criticalRoleIds.has(role.id)) {
     throw new Error(
-      `Role "${role.name}" does not include manage_users and manage_roles.`
+      `Role "${role.name}" does not include manage_staff_profiles and assign_staff_roles.`
     );
   }
 }

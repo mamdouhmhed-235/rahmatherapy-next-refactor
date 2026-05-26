@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -34,7 +34,7 @@ const enquirySchema = z.object({
 
 async function requireEnquiryManager() {
   const supabase = await createSupabaseServerClient();
-  return requirePermission(PERMISSIONS.MANAGE_CLIENTS, supabase);
+  return requirePermission(PERMISSIONS.MANAGE_ENQUIRIES, supabase);
 }
 
 function toFieldErrors(error: z.ZodError) {
@@ -106,6 +106,8 @@ export async function createEnquiry(
     },
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/enquiries");
   revalidatePath("/admin/dashboard");
   return { success: true };
@@ -135,9 +137,18 @@ export async function updateEnquiryStatus(formData: FormData) {
 
   if (!beforeState) return { error: "Enquiry not found." };
 
+  // B-2 idempotent guard (per AUDIT-2026-05-22 H4): stamp first_contacted_at only on
+  // the first transition to 'contacted'. Later transitions (contacted→booked etc.) leave
+  // the timestamp unchanged so the time-to-first-contact metric measures the original
+  // contact event, not the most recent status edit.
+  const updatePayload: Record<string, unknown> = { status };
+  if (status === "contacted" && beforeState.first_contacted_at == null) {
+    updatePayload.first_contacted_at = new Date().toISOString();
+  }
+
   const { data, error } = await adminClient
     .from("enquiries")
-    .update({ status })
+    .update(updatePayload)
     .eq("id", enquiryId)
     .select()
     .single();
@@ -153,7 +164,12 @@ export async function updateEnquiryStatus(formData: FormData) {
     after_state: { status: data.status },
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/enquiries");
   revalidatePath("/admin/dashboard");
-  return { success: true };
+  // Return previous status so client can offer Undo (DESIGN.md Status Communication
+  // — recovery-toast pattern). Counter-call is `updateEnquiryStatus` with
+  // status = previousStatus.
+  return { success: true, previousStatus: beforeState.status as string };
 }

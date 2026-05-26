@@ -1,22 +1,31 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  AlertCircle,
   CalendarCheck,
-  ChevronRight,
-  CreditCard,
-  MapPin,
+  CalendarClock,
+  CalendarPlus,
+  CalendarX,
+  Inbox,
   Plus,
-  Users,
+  SearchX,
+  UserPlus,
+  UserX,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
-import { AdminAccessDenied } from "../components/admin-ui";
-import { BookingActionButton } from "./BookingActionButton";
-import { CopyButton } from "./CopyButton";
+import {
+  AdminAccessDenied,
+  AdminPageHeader,
+  AdminStatusBadge,
+} from "../components/admin-ui";
+import { EmptyState } from "../components/EmptyState";
+import { BookingCardSkeletonList } from "../components/admin-scalable-lists";
+import { BookingsChrome, type BookingViewKey } from "./BookingsChrome";
+import { BookingRowActions } from "./BookingRowActions";
 import {
   canClaimAssignments,
   canManageAllBookings,
@@ -30,27 +39,6 @@ import type { BookingRecord } from "./types";
 export const metadata = {
   title: "Bookings - Rahma Therapy Admin",
 };
-
-type BookingView =
-  | "attention"
-  | "today"
-  | "upcoming"
-  | "unassigned"
-  | "partially_assigned"
-  | "completed"
-  | "cancelled"
-  | "all";
-
-const BOOKING_VIEWS: Array<{ key: BookingView; label: string }> = [
-  { key: "attention", label: "Needs attention" },
-  { key: "today", label: "Today" },
-  { key: "upcoming", label: "Upcoming" },
-  { key: "unassigned", label: "Unassigned" },
-  { key: "partially_assigned", label: "Partially assigned" },
-  { key: "completed", label: "Completed" },
-  { key: "cancelled", label: "Cancelled/no-show" },
-  { key: "all", label: "All" },
-];
 
 const BOOKING_SELECT = `
   id,
@@ -98,7 +86,25 @@ const BOOKING_SELECT = `
   booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
 `;
 
-async function getManageableBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
+const CLAIMABLE_BOOKING_SELECT = `
+  id,
+  booking_date,
+  start_time,
+  end_time,
+  total_duration_mins,
+  status,
+  assignment_status,
+  group_booking,
+  booking_source,
+  reschedule_status,
+  customer_cancelled_at,
+  created_at,
+  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, consent_acknowledged),
+  booking_items(id, booking_participant_id, service_name_snapshot, service_duration_snapshot),
+  booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
+`;
+
+async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
   const adminClient = createSupabaseAdminClient();
   const { data: assignedRows } = await adminClient
     .from("booking_assignments")
@@ -116,13 +122,14 @@ async function getManageableBookingIds(profile: NonNullable<Awaited<ReturnType<t
       ).data ?? []
     : [];
 
-  return Array.from(
-    new Set(
-      [...(assignedRows ?? []), ...claimableRows].map(
-        (assignment) => assignment.booking_id as string
-      )
-    )
-  );
+  return {
+    assignedIds: Array.from(
+      new Set((assignedRows ?? []).map((assignment) => assignment.booking_id as string))
+    ),
+    claimableIds: Array.from(
+      new Set((claimableRows ?? []).map((assignment) => assignment.booking_id as string))
+    ),
+  };
 }
 
 function getQueryValue(value: string | string[] | undefined) {
@@ -140,9 +147,10 @@ function getTodayIsoDate() {
 
 function filterBookings(
   bookings: BookingRecord[],
-  query: Record<string, string | string[] | undefined>
+  query: Record<string, string | string[] | undefined>,
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
 ) {
-  const view = (getQueryValue(query.view) || "attention") as BookingView;
+  const view = (getQueryValue(query.view) || "attention") as BookingViewKey;
   const search = getQueryValue(query.search)?.trim().toLowerCase() ?? "";
   const status = getQueryValue(query.status) ?? "";
   const assignmentStatus = getQueryValue(query.assignment_status) ?? "";
@@ -163,12 +171,21 @@ function filterBookings(
           booking.assignment_status !== "fully_assigned" ||
           booking.reschedule_status === "requested" ||
           Boolean(booking.customer_cancelled_at))) ||
-      (view === "today" && booking.booking_date === today) ||
+      (view === "assigned" && isOwnBooking(booking, profile)) ||
+      (view === "claimable" &&
+        !["cancelled", "no_show"].includes(booking.status) &&
+        hasClaimableAssignment(booking, profile)) ||
+      (view === "today" &&
+        booking.booking_date === today &&
+        !["cancelled", "no_show"].includes(booking.status)) ||
       (view === "upcoming" &&
         booking.booking_date >= today &&
         !["completed", "cancelled", "no_show"].includes(booking.status)) ||
-      (view === "unassigned" && booking.assignment_status === "unassigned") ||
+      (view === "unassigned" &&
+        !["cancelled", "no_show"].includes(booking.status) &&
+        booking.assignment_status === "unassigned") ||
       (view === "partially_assigned" &&
+        !["cancelled", "no_show"].includes(booking.status) &&
         booking.assignment_status === "partially_assigned") ||
       (view === "completed" && booking.status === "completed") ||
       (view === "cancelled" &&
@@ -240,8 +257,67 @@ function filterBookings(
   });
 }
 
-function queryWithView(view: BookingView) {
-  return `/admin/bookings?view=${view}`;
+function normalizeClaimableBooking(booking: Partial<BookingRecord>): BookingRecord {
+  return {
+    id: booking.id ?? "",
+    booking_date: booking.booking_date ?? "",
+    start_time: booking.start_time ?? "",
+    end_time: booking.end_time ?? "",
+    total_duration_mins: booking.total_duration_mins ?? null,
+    total_price: null,
+    contact_full_name: "Claimable booking",
+    contact_email: "",
+    contact_phone: "",
+    booking_source: booking.booking_source ?? "",
+    amount_due: null,
+    amount_paid: null,
+    paid_at: null,
+    payment_note: null,
+    status: booking.status ?? "pending",
+    payment_status: "unpaid",
+    payment_method: null,
+    assignment_status: booking.assignment_status ?? "unassigned",
+    group_booking: booking.group_booking ?? false,
+    service_address_line1: null,
+    service_address_line2: null,
+    service_city: null,
+    service_postcode: null,
+    access_notes: null,
+    consent_acknowledged: false,
+    customer_notes: null,
+    health_notes: null,
+    customer_manage_notes: null,
+    customer_cancelled_at: booking.customer_cancelled_at ?? null,
+    customer_cancellation_note: null,
+    last_customer_manage_action_at: null,
+    reschedule_requested_at: null,
+    reschedule_preferred_date: null,
+    reschedule_preferred_time: null,
+    reschedule_note: null,
+    reschedule_status: booking.reschedule_status ?? "none",
+    admin_notes: null,
+    treatment_notes: null,
+    created_at: booking.created_at ?? "",
+    clients: null,
+    booking_participants: (booking.booking_participants ?? []).map((participant) => ({
+      id: participant.id,
+      participant_gender: participant.participant_gender,
+      required_therapist_gender: participant.required_therapist_gender,
+      is_main_contact: participant.is_main_contact,
+      display_name: null,
+      participant_notes: null,
+      health_notes: null,
+      consent_acknowledged: participant.consent_acknowledged,
+    })),
+    booking_items: (booking.booking_items ?? []).map((item) => ({
+      id: item.id,
+      booking_participant_id: item.booking_participant_id,
+      service_name_snapshot: item.service_name_snapshot,
+      service_price_snapshot: 0,
+      service_duration_snapshot: item.service_duration_snapshot,
+    })),
+    booking_assignments: booking.booking_assignments ?? [],
+  };
 }
 
 export default async function BookingsPage({
@@ -258,34 +334,21 @@ export default async function BookingsPage({
   }
 
   if (!canManageBookings(profile)) {
-    return <InsufficientPermissions />;
+    return (
+      <AdminAccessDenied
+        title="You don't have access to this section"
+        message="Contact the owner if you think this is a mistake."
+        permission="manage_bookings_all or manage_bookings_assigned"
+      />
+    );
   }
 
   const adminClient = createSupabaseAdminClient();
   const canViewAll = canManageAllBookings(profile);
-  const manageableIds = canViewAll
-    ? null
-    : await getManageableBookingIds(profile);
+  const defaultView: BookingViewKey = canViewAll ? "attention" : "today";
+  const currentView = (getQueryValue(query.view) ?? defaultView) as BookingViewKey;
 
-  const bookings =
-    manageableIds?.length === 0
-      ? []
-      : (
-          await (manageableIds
-            ? adminClient
-                .from("bookings")
-                .select(BOOKING_SELECT)
-                .in("id", manageableIds)
-                .order("booking_date", { ascending: false })
-                .order("start_time", { ascending: false })
-                .returns<BookingRecord[]>()
-            : adminClient
-                .from("bookings")
-                .select(BOOKING_SELECT)
-                .order("booking_date", { ascending: false })
-                .order("start_time", { ascending: false })
-                .returns<BookingRecord[]>())
-        ).data ?? [];
+  // Lightweight chrome data — filter dropdown options only.
   const [{ data: services }, { data: staff }] = canViewAll
     ? await Promise.all([
         adminClient
@@ -300,402 +363,605 @@ export default async function BookingsPage({
           .order("name"),
       ])
     : [{ data: [] }, { data: [] }];
-  const filteredBookings = filterBookings(bookings, query);
-  const currentView = getQueryValue(query.view) || "attention";
 
   return (
     <div>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-semibold text-[var(--rahma-charcoal)]">
-            Bookings
-          </h1>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            View booking requests, participant breakdowns, assignment status,
-            and payment lifecycle.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge
-            variant="secondary"
-            className="border-none bg-[var(--rahma-green)]/10 text-[var(--rahma-green)]"
-          >
-            {canViewAll ? "All bookings" : "Assigned bookings"}
-          </Badge>
-          {canViewAll ? (
+      <AdminPageHeader
+        title={canViewAll ? "Bookings" : "My bookings"}
+        description={
+          canViewAll
+            ? "Triage today's queue, confirm pending bookings, and keep the schedule clear."
+            : "Sessions assigned to you, plus open bookings you can claim."
+        }
+        actions={
+          canViewAll ? (
             <Link
               href="/admin/bookings/new"
-              className={cn(buttonVariants({ size: "md" }))}
+              className="inline-flex h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
-              <Plus className="size-4" />
-              Create booking
+              <Plus className="size-4" aria-hidden="true" />
+              New booking
             </Link>
-          ) : null}
-        </div>
-      </div>
+          ) : null
+        }
+      />
 
-      <BookingOperationsBar
-        currentView={currentView as BookingView}
+      <BookingsChrome
+        currentView={currentView}
         query={query}
         services={services ?? []}
         staff={staff ?? []}
         canViewAll={canViewAll}
       />
 
-      {filteredBookings.length === 0 ? (
-        <div
-          className="rounded-2xl border-2 border-dashed bg-white/50 px-6 py-20 text-center"
-          style={{ borderColor: "var(--rahma-border)" }}
-        >
-          <CalendarCheck className="mx-auto mb-4 size-12 text-[var(--rahma-muted)]/30" />
-          <h2 className="text-lg font-semibold text-[var(--rahma-charcoal)]">
-            No bookings found
-          </h2>
-          <p className="mt-1 text-sm text-[var(--rahma-muted)]">
-            Adjust filters or create a new manual booking if this request came
-            in by phone, WhatsApp, referral, or walk-in.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4">
-          {filteredBookings.map((booking) => (
-            <BookingListCard
-              key={booking.id}
-              booking={booking}
-              ownBooking={isOwnBooking(booking, profile)}
-              claimableBooking={hasClaimableAssignment(booking, profile)}
-              canQuickAct={canViewAll}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BookingOperationsBar({
-  currentView,
-  query,
-  services,
-  staff,
-  canViewAll,
-}: {
-  currentView: BookingView;
-  query: Record<string, string | string[] | undefined>;
-  services: Array<{ slug: string; name: string }>;
-  staff: Array<{ id: string; name: string }>;
-  canViewAll: boolean;
-}) {
-  return (
-    <div className="mb-5 grid gap-4">
-      <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Booking views">
-        {BOOKING_VIEWS.map((view) => (
-          <Link
-            key={view.key}
-            href={queryWithView(view.key)}
-            className={
-              currentView === view.key
-                ? "shrink-0 rounded-lg bg-[var(--rahma-green)] px-3 py-2 text-sm font-medium text-white"
-                : "shrink-0 rounded-lg border border-[var(--rahma-border)] bg-white px-3 py-2 text-sm font-medium text-[var(--rahma-muted)] hover:text-[var(--rahma-charcoal)]"
-            }
-          >
-            {view.label}
-          </Link>
-        ))}
-      </nav>
-
-      <form
-        action="/admin/bookings"
-        className="rounded-2xl border bg-white p-4"
-        style={{ borderColor: "var(--rahma-border)" }}
-      >
-        <input type="hidden" name="view" value={currentView} />
-        <div className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
-          <FilterInput label="Search" name="search" defaultValue={getQueryValue(query.search)} />
-          <FilterInput label="From" name="from" type="date" defaultValue={getQueryValue(query.from)} />
-          <FilterInput label="To" name="to" type="date" defaultValue={getQueryValue(query.to)} />
-          <FilterSelect label="Status" name="status" defaultValue={getQueryValue(query.status)}>
-            <option value="">Any</option>
-            <option value="pending">Pending</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="no_show">No show</option>
-          </FilterSelect>
-          <FilterSelect
-            label="Assignment"
-            name="assignment_status"
-            defaultValue={getQueryValue(query.assignment_status)}
-          >
-            <option value="">Any</option>
-            <option value="unassigned">Unassigned</option>
-            <option value="partially_assigned">Partially assigned</option>
-            <option value="fully_assigned">Fully assigned</option>
-          </FilterSelect>
-          <FilterSelect
-            label="Payment"
-            name="payment_status"
-            defaultValue={getQueryValue(query.payment_status)}
-          >
-            <option value="">Any</option>
-            <option value="unpaid">Unpaid</option>
-            <option value="paid">Paid</option>
-          </FilterSelect>
-          <FilterSelect
-            label="Gender"
-            name="required_gender"
-            defaultValue={getQueryValue(query.required_gender)}
-          >
-            <option value="">Any</option>
-            <option value="male">Male therapist</option>
-            <option value="female">Female therapist</option>
-          </FilterSelect>
-          <FilterInput
-            label="City/postcode"
-            name="location"
-            defaultValue={getQueryValue(query.location)}
+      {/* Suspense boundary: chrome stays rendered while the list data streams in. */}
+      <div className="mt-5">
+        <Suspense fallback={<BookingCardSkeletonList rows={5} />}>
+          <BookingListSection
+            query={query}
+            profile={profile}
+            canViewAll={canViewAll}
+            currentView={currentView}
           />
-          <FilterSelect label="Service" name="service" defaultValue={getQueryValue(query.service)}>
-            <option value="">Any</option>
-            {services.map((service) => (
-              <option key={service.slug} value={service.name}>
-                {service.name}
-              </option>
-            ))}
-          </FilterSelect>
-          {canViewAll ? (
-            <FilterSelect
-              label="Assigned staff"
-              name="assigned_staff"
-              defaultValue={getQueryValue(query.assigned_staff)}
-            >
-              <option value="">Any</option>
-              {staff.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name}
-                </option>
-              ))}
-            </FilterSelect>
-          ) : null}
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <Button type="submit" size="sm">Apply filters</Button>
-          <Link
-            href="/admin/bookings"
-            className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
-          >
-            Reset
-          </Link>
-        </div>
-      </form>
+        </Suspense>
+      </div>
     </div>
   );
 }
 
-function FilterInput({
-  label,
-  name,
-  type = "text",
-  defaultValue,
+async function BookingListSection({
+  query,
+  profile,
+  canViewAll,
+  currentView,
 }: {
-  label: string;
-  name: string;
-  type?: string;
-  defaultValue?: string;
+  query: Record<string, string | string[] | undefined>;
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
+  canViewAll: boolean;
+  currentView: BookingViewKey;
 }) {
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-xs font-medium text-[var(--rahma-muted)]">{label}</span>
-      <input
-        name={name}
-        type={type}
-        defaultValue={defaultValue ?? ""}
-        className="h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20"
+  // Reconstruct the "try again" URL from the current query params.
+  const retryParams = new URLSearchParams();
+  for (const [key, raw] of Object.entries(query)) {
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value === "string" && value.length > 0) retryParams.set(key, value);
+  }
+  const retryHref = `/admin/bookings?${retryParams.toString()}`;
+
+  let bookings: BookingRecord[];
+  try {
+    const adminClient = createSupabaseAdminClient();
+    const scopedIds = canViewAll ? null : await getScopedBookingIds(profile);
+    const claimableOnlyIds =
+      scopedIds?.claimableIds.filter((id) => !scopedIds.assignedIds.includes(id)) ?? [];
+
+    bookings = canViewAll
+      ? (
+          await adminClient
+            .from("bookings")
+            .select(BOOKING_SELECT)
+            .order("booking_date", { ascending: false })
+            .order("start_time", { ascending: false })
+            .returns<BookingRecord[]>()
+        ).data ?? []
+      : [
+          ...(
+            scopedIds?.assignedIds.length
+              ? (
+                  await adminClient
+                    .from("bookings")
+                    .select(BOOKING_SELECT)
+                    .in("id", scopedIds.assignedIds)
+                    .order("booking_date", { ascending: false })
+                    .order("start_time", { ascending: false })
+                    .returns<BookingRecord[]>()
+                ).data ?? []
+              : []
+          ),
+          ...(
+            claimableOnlyIds.length
+              ? (
+                  await adminClient
+                    .from("bookings")
+                    .select(CLAIMABLE_BOOKING_SELECT)
+                    .in("id", claimableOnlyIds)
+                    .order("booking_date", { ascending: false })
+                    .order("start_time", { ascending: false })
+                    .returns<Partial<BookingRecord>[]>()
+                ).data?.map(normalizeClaimableBooking) ?? []
+              : []
+          ),
+        ].sort((a, b) => (
+          b.booking_date.localeCompare(a.booking_date) ||
+          b.start_time.localeCompare(a.start_time)
+        ));
+  } catch (loadError) {
+    // Surface to Sentry / dev console; swallowing the error leaves the
+    // crash invisible in production telemetry.
+    console.error("[bookings] failed to load list", loadError);
+    return (
+      <div
+        role="alert"
+        className="flex flex-col items-center gap-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-6 py-10 text-center"
+      >
+        <AlertCircle className="size-8 text-[oklch(26%_0.14_25)]" aria-hidden="true" />
+        <p className="text-sm font-medium text-[oklch(26%_0.14_25)]">
+          Couldn&apos;t load bookings.
+        </p>
+        <Link
+          href={retryHref}
+          className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          Try again
+        </Link>
+      </div>
+    );
+  }
+
+  const filteredBookings = filterBookings(bookings, query, profile);
+
+  const searchValue = getQueryValue(query.search);
+  const nonSearchFilterNames = [
+    "status",
+    "assignment_status",
+    "payment_status",
+    "required_gender",
+    "service",
+    "location",
+    "assigned_staff",
+    "from",
+    "to",
+  ];
+  const hasNonSearchFilter = nonSearchFilterNames.some((name) =>
+    Boolean(getQueryValue(query[name]))
+  );
+  // "Search to empty" wins only when search is the ONLY narrowing param.
+  // If the user has both a search term and other filters, the broader
+  // "Filtered to empty" message is more accurate.
+  const emptyMode: "search" | "filtered" | "view" =
+    searchValue && !hasNonSearchFilter
+      ? "search"
+      : searchValue || hasNonSearchFilter
+      ? "filtered"
+      : "view";
+
+  if (filteredBookings.length === 0) {
+    return (
+      <BookingsEmptyState
+        view={currentView}
+        canViewAll={canViewAll}
+        emptyMode={emptyMode}
+        query={query}
       />
-    </label>
+    );
+  }
+
+  const showGrouping =
+    new Set(filteredBookings.map((b) => b.booking_date)).size > 1;
+
+  const groupedBookings = showGrouping
+    ? Object.entries(
+        filteredBookings.reduce<Record<string, BookingRecord[]>>((acc, booking) => {
+          (acc[booking.booking_date] ??= []).push(booking);
+          return acc;
+        }, {})
+      ).sort(([a], [b]) => b.localeCompare(a))
+    : [["", filteredBookings] as const];
+
+  // Pre-compute a flat row index so the entrance stagger plays in visual order
+  // across grouped sections, not per-group. Cap at 12 rows so long lists don't
+  // delay the bottom-most cards.
+  const flatIndexById = new Map<string, number>();
+  let cursor = 0;
+  for (const [, list] of groupedBookings) {
+    for (const booking of list) {
+      flatIndexById.set(booking.id, cursor++);
+    }
+  }
+  const ROW_STAGGER_MAX = 12;
+  const ROW_STAGGER_MS = 35;
+
+  return (
+    <div className="grid gap-5">
+      {groupedBookings.map(([date, list]) => (
+        <section key={date || "all"} className="grid gap-3">
+          {date ? (
+            <h2 className="rahma-fade-up sticky top-0 z-10 -mx-1 px-1 py-1 bg-[var(--admin-canvas,var(--admin-panel-muted))] font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)]">
+              {formatDate(date)}
+            </h2>
+          ) : null}
+          <div className="grid gap-3">
+            {list.map((booking) => {
+              const flatIndex = flatIndexById.get(booking.id) ?? 0;
+              const delay =
+                flatIndex < ROW_STAGGER_MAX ? flatIndex * ROW_STAGGER_MS : 0;
+              return (
+                <BookingListCard
+                  key={booking.id}
+                  booking={booking}
+                  profile={profile}
+                  canViewAll={canViewAll}
+                  animationDelay={delay}
+                />
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 
-function FilterSelect({
-  label,
-  name,
-  defaultValue,
-  children,
-}: {
-  label: string;
-  name: string;
-  defaultValue?: string;
-  children: React.ReactNode;
+function BookingsEmptyState(props: {
+  view: BookingViewKey;
+  canViewAll: boolean;
+  emptyMode: "search" | "filtered" | "view";
+  query: Record<string, string | string[] | undefined>;
 }) {
   return (
-    <label className="grid gap-1.5">
-      <span className="text-xs font-medium text-[var(--rahma-muted)]">{label}</span>
-      <select
-        name={name}
-        defaultValue={defaultValue ?? ""}
-        className="h-10 rounded-md border border-[var(--rahma-border)] bg-white px-3 text-sm text-[var(--rahma-charcoal)] outline-none focus:ring-2 focus:ring-[var(--rahma-green)]/20"
-      >
-        {children}
-      </select>
-    </label>
+    <div className="rahma-fade-up">
+      <BookingsEmptyStateInner {...props} />
+    </div>
   );
+}
+
+function buildClearSearchHref(
+  view: BookingViewKey,
+  query: Record<string, string | string[] | undefined>
+) {
+  // Preserve every active filter except `search` itself, so "Clear search"
+  // doesn't wipe a Location or Status the operator also dialled in.
+  const params = new URLSearchParams();
+  params.set("view", view);
+  for (const [key, raw] of Object.entries(query)) {
+    if (key === "view" || key === "search") continue;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value === "string" && value.length > 0) {
+      params.set(key, value);
+    }
+  }
+  return `/admin/bookings?${params.toString()}`;
+}
+
+function BookingsEmptyStateInner({
+  view,
+  canViewAll,
+  emptyMode,
+  query,
+}: {
+  view: BookingViewKey;
+  canViewAll: boolean;
+  emptyMode: "search" | "filtered" | "view";
+  query: Record<string, string | string[] | undefined>;
+}) {
+  if (emptyMode === "search") {
+    return (
+      <EmptyState
+        icon={SearchX}
+        title="No bookings match that search"
+        message="Check the name, phone, or ID and try again."
+        action={{ label: "Clear search", href: buildClearSearchHref(view, query) }}
+      />
+    );
+  }
+
+  if (emptyMode === "filtered") {
+    return (
+      <EmptyState
+        icon={SearchX}
+        title="No bookings match"
+        message="Try adjusting or clearing your filters."
+        action={{ label: "Clear filters", href: `/admin/bookings?view=${view}` }}
+      />
+    );
+  }
+
+  switch (view) {
+    case "attention":
+      return (
+        <EmptyState
+          icon={CalendarCheck}
+          illustrationSrc="/images/admin/empty-states/all-caught-up.svg"
+          title="All caught up"
+          message="No bookings need your attention right now."
+        />
+      );
+    case "today":
+      return (
+        <EmptyState
+          icon={CalendarCheck}
+          illustrationSrc="/images/admin/empty-states/all-caught-up.svg"
+          title="All caught up"
+          message="Nothing scheduled for today. Quiet days are healthy days."
+        />
+      );
+    case "upcoming":
+      return (
+        <EmptyState
+          icon={CalendarPlus}
+          illustrationSrc="/images/admin/empty-states/no-bookings.svg"
+          title="Nothing upcoming"
+          message="No bookings scheduled beyond today."
+          action={
+            canViewAll
+              ? { label: "New booking", href: "/admin/bookings/new" }
+              : undefined
+          }
+        />
+      );
+    case "claimable":
+      return (
+        <EmptyState
+          icon={UserPlus}
+          title="Nothing to claim"
+          message={
+            canViewAll
+              ? "No unassigned bookings right now."
+              : "No unassigned bookings match your profile right now."
+          }
+        />
+      );
+    case "completed":
+      return (
+        <EmptyState
+          icon={CalendarCheck}
+          title="Nothing completed yet"
+          message="Completed bookings will appear here once sessions are marked done."
+        />
+      );
+    case "cancelled":
+      return (
+        <EmptyState
+          icon={CalendarX}
+          title="Nothing cancelled"
+          message="Cancelled bookings and no-shows will appear here."
+        />
+      );
+    default:
+      return (
+        <EmptyState
+          icon={Inbox}
+          title="No bookings here"
+          message="Switch tabs or adjust filters to find what you're looking for."
+        />
+      );
+  }
+}
+
+function statusTone(value: string) {
+  switch (value) {
+    case "pending":
+      return "info" as const;
+    case "confirmed":
+      return "success" as const;
+    case "completed":
+      return "success" as const;
+    case "cancelled":
+    case "no_show":
+      return "danger" as const;
+    default:
+      return "muted" as const;
+  }
 }
 
 function BookingListCard({
   booking,
-  ownBooking,
-  claimableBooking,
-  canQuickAct,
+  profile,
+  canViewAll,
+  animationDelay = 0,
 }: {
   booking: BookingRecord;
-  ownBooking: boolean;
-  claimableBooking: boolean;
-  canQuickAct: boolean;
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
+  canViewAll: boolean;
+  animationDelay?: number;
 }) {
-  const participantCount = booking.booking_participants.length;
+  const ownBooking = isOwnBooking(booking, profile);
+  const claimableBooking = hasClaimableAssignment(booking, profile);
+  const showSensitiveDetails = canViewAll || ownBooking;
+  const role = canViewAll ? "full" : "therapist";
+
+  const clientName =
+    booking.contact_full_name || booking.clients?.full_name || "Unknown client";
   const serviceNames = Array.from(
-    new Set(
-      booking.booking_items.map((item) => item.service_name_snapshot)
-    )
+    new Set(booking.booking_items.map((item) => item.service_name_snapshot))
   );
 
-  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    [
-      booking.service_address_line1,
-      booking.service_city,
-      booking.service_postcode,
-    ]
-      .filter(Boolean)
-      .join(" ")
-  )}`;
+  const assignedTherapists = booking.booking_assignments
+    .map((assignment) => assignment.staff_profiles?.name ?? null)
+    .filter((name): name is string => Boolean(name));
+  const distinctTherapists = Array.from(new Set(assignedTherapists));
+
+  const requiresGenderMatch = booking.booking_participants.some(
+    (participant) => Boolean(participant.required_therapist_gender)
+  );
+  const participantCount = booking.booking_participants.length;
+  // Only surface the Group chip when there are genuinely multiple participants.
+  // `group_booking` can be true with a single participant during draft states,
+  // and "Group · 0" / "Group · 1" reads as a data bug.
+  const isGroup = participantCount > 1;
+
+  const addressParts = [
+    booking.service_address_line1,
+    booking.service_city,
+    booking.service_postcode,
+  ].filter(Boolean);
+  const mapUrl =
+    addressParts.length > 0
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          addressParts.join(" ")
+        )}`
+      : null;
+
+  const claimableAssignment = claimableBooking
+    ? booking.booking_assignments.find(
+        (assignment) =>
+          assignment.status === "unassigned" &&
+          !assignment.assigned_staff_id &&
+          assignment.required_therapist_gender === profile.gender
+      ) ?? null
+    : null;
 
   return (
     <article
-      className="rounded-2xl border bg-white p-5 transition-shadow duration-150 hover:shadow-card"
-      style={{
-        borderColor: "var(--rahma-border)",
-        boxShadow: "var(--shadow-soft-token)",
-      }}
+      style={{ animationDelay: `${animationDelay}ms` }}
+      className="rahma-row-enter grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] hover:shadow-[var(--admin-shadow-subtle)] sm:p-5"
     >
-      <div className="group">
-        <Link href={`/admin/bookings/${booking.id}`}>
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <h2 className="font-semibold text-[var(--rahma-charcoal)]">
-                  {booking.contact_full_name || booking.clients?.full_name || "Unknown client"}
-                </h2>
-                <StatusBadge value={booking.status} />
-                <StatusBadge value={booking.assignment_status} muted />
-                {ownBooking ? <StatusBadge value="assigned to you" muted /> : null}
-                {claimableBooking ? <StatusBadge value="claimable" muted /> : null}
-                {booking.reschedule_status === "requested" ? (
-                  <StatusBadge value="reschedule requested" muted />
-                ) : null}
-                {booking.customer_cancelled_at ? (
-                  <StatusBadge value="customer cancelled" muted />
-                ) : null}
-              </div>
-              <p className="text-sm text-[var(--rahma-muted)]">
-                {formatDate(booking.booking_date)} at {formatTime(booking.start_time)}
-                {" - "}
-                {serviceNames.join(", ") || "No service snapshots"}
-              </p>
-            </div>
-            <ChevronRight className="mt-1 size-5 text-[var(--rahma-muted)] transition-transform group-hover:translate-x-1" />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <Link
+            href={`/admin/bookings/${booking.id}`}
+            className="block min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            <p className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] break-words sm:text-lg">
+              {clientName}
+            </p>
+            <p className="mt-1 text-sm text-[var(--admin-text-muted)] break-words">
+              {formatDate(booking.booking_date)} · {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
+              {serviceNames.length > 0 ? ` · ${serviceNames.join(", ")}` : ""}
+            </p>
+          </Link>
+          {/* Status hierarchy: one prominent badge anchors the row; everything
+              else demotes to compact text or icon-only so the eye lands on
+              status first. Brief mandates visible text on the same-gender +
+              group chips, so those stay text-labelled but compact. */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <AdminStatusBadge
+              value={formatLabel(booking.status)}
+              tone={statusTone(booking.status)}
+            />
+            {booking.assignment_status === "unassigned" ? (
+              <AdminStatusBadge value="Unassigned" tone="warning" compact />
+            ) : booking.assignment_status === "partially_assigned" ? (
+              <AdminStatusBadge value="Partially assigned" tone="warning" compact />
+            ) : null}
+            {requiresGenderMatch ? (
+              <span
+                title="Client asked for a same-gender therapist"
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-restricted)]"
+              >
+                Same-gender required
+              </span>
+            ) : null}
+            {isGroup ? (
+              <span
+                title={`Group booking with ${participantCount} participants`}
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-restricted)]"
+              >
+                Group · {participantCount}
+              </span>
+            ) : null}
+            {booking.reschedule_status === "requested" ? (
+              <span
+                title="Reschedule requested by the client"
+                className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]"
+              >
+                <CalendarClock className="size-3.5" aria-hidden="true" />
+                <span className="sr-only">Reschedule requested</span>
+              </span>
+            ) : null}
+            {booking.customer_cancelled_at ? (
+              <span
+                title="The client cancelled this booking"
+                className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
+              >
+                <UserX className="size-3.5" aria-hidden="true" />
+                <span className="sr-only">Client cancelled</span>
+              </span>
+            ) : null}
+            {/* "Claimable" chip removed: redundant with the Claim button,
+                which always renders on the same row for the same condition. */}
           </div>
-        </Link>
+        </div>
       </div>
 
-      <div className="mt-4 grid gap-3 border-t border-[var(--rahma-border)] pt-4 sm:grid-cols-4">
-        <Meta icon={<Users className="size-4" />} label="Participants">
-          {participantCount} {participantCount === 1 ? "person" : "people"}
-          {booking.group_booking ? " - group" : ""}
-        </Meta>
-        <Meta icon={<CalendarCheck className="size-4" />} label="Time">
-          {formatTime(booking.start_time)}-{formatTime(booking.end_time)}
-        </Meta>
-        <Meta icon={<CreditCard className="size-4" />} label="Payment">
-          {formatLabel(booking.payment_status)}
-          {booking.payment_method ? ` / ${booking.payment_method}` : ""}
-        </Meta>
-        <Meta label="Source">{formatLabel(booking.booking_source)}</Meta>
-        <Meta label="Due">{formatMoney(booking.amount_due ?? booking.total_price)}</Meta>
-      </div>
+      <div className="flex flex-col gap-2 border-t border-[var(--admin-border)] pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {distinctTherapists.length > 0 ? (
+            <div className="flex min-w-0 items-center gap-2">
+              <AvatarStack names={distinctTherapists} />
+              <span className="min-w-0 break-words text-sm text-[var(--admin-body)]">
+                {distinctTherapists.join(", ")}
+              </span>
+            </div>
+          ) : (
+            <span className="inline-flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
+              <span
+                aria-hidden="true"
+                className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--admin-panel-muted)] text-xs text-[var(--admin-text-muted)]"
+              >
+                ?
+              </span>
+              No therapist yet
+            </span>
+          )}
+          {showSensitiveDetails && booking.payment_status ? (
+            <AdminStatusBadge
+              value={`${formatLabel(booking.payment_status)}${
+                showSensitiveDetails && booking.amount_due
+                  ? ` · ${formatMoney(booking.amount_due)}`
+                  : ""
+              }`}
+              tone={
+                booking.payment_status === "paid"
+                  ? "success"
+                  : booking.payment_status === "unpaid"
+                  ? "warning"
+                  : "muted"
+              }
+              compact
+            />
+          ) : null}
+        </div>
 
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--rahma-border)] pt-4">
-        <a
-          href={mapUrl}
-          target="_blank"
-          rel="noreferrer"
-          className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
-        >
-          <MapPin className="size-4" />
-          Map
-        </a>
-        <CopyButton value={booking.contact_phone} label="Phone" />
-        <CopyButton value={booking.contact_email} label="Email" />
-        {canQuickAct && booking.status === "pending" ? (
-          <BookingActionButton bookingId={booking.id} action="confirm">
-            Confirm
-          </BookingActionButton>
-        ) : null}
-        {canQuickAct && booking.payment_status !== "paid" ? (
-          <BookingActionButton bookingId={booking.id} action="mark_paid">
-            Mark paid
-          </BookingActionButton>
-        ) : null}
-        {canQuickAct && !["cancelled", "completed", "no_show"].includes(booking.status) ? (
-          <BookingActionButton bookingId={booking.id} action="cancel" variant="outline">
-            Cancel
-          </BookingActionButton>
-        ) : null}
+        <BookingRowActions
+          bookingId={booking.id}
+          clientName={clientName}
+          role={role}
+          status={booking.status}
+          paymentStatus={booking.payment_status}
+          assignmentStatus={booking.assignment_status}
+          mapUrl={showSensitiveDetails ? mapUrl : null}
+          claimableAssignmentId={claimableAssignment?.id ?? null}
+        />
       </div>
     </article>
   );
 }
 
-function Meta({
-  icon,
-  label,
-  children,
-}: {
-  icon?: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}) {
+function AvatarStack({ names }: { names: string[] }) {
+  const visible = names.slice(0, 3);
+  const extra = names.length - visible.length;
   return (
-    <div className="text-sm">
-      <p className="mb-1 flex items-center gap-1.5 font-medium text-[var(--rahma-charcoal)]">
-        {icon}
-        {label}
-      </p>
-      <p className="capitalize text-[var(--rahma-muted)]">{children}</p>
+    <div className="flex -space-x-2">
+      {visible.map((name) => (
+        <span
+          key={name}
+          title={name}
+          aria-hidden="true"
+          className={cn(
+            "inline-flex size-8 items-center justify-center rounded-full border-2 border-[var(--admin-panel)]",
+            "bg-[var(--admin-hover-mist)] text-[0.75rem] font-semibold text-[var(--admin-heading)]"
+          )}
+        >
+          {initials(name)}
+        </span>
+      ))}
+      {extra > 0 ? (
+        <span
+          aria-hidden="true"
+          className="inline-flex size-8 items-center justify-center rounded-full border-2 border-[var(--admin-panel)] bg-[var(--admin-panel-muted)] text-[0.6875rem] font-semibold text-[var(--admin-text-muted)]"
+        >
+          +{extra}
+        </span>
+      ) : null}
+      <span className="sr-only">{names.join(", ")}</span>
     </div>
   );
 }
 
-function StatusBadge({ value, muted }: { value: string; muted?: boolean }) {
-  return (
-    <Badge
-      variant="secondary"
-      className={
-        muted
-          ? "border-none bg-gray-100 text-gray-600 capitalize"
-          : "border-none bg-[var(--rahma-green)]/10 text-[var(--rahma-green)] capitalize"
-      }
-    >
-      {formatLabel(value)}
-    </Badge>
-  );
-}
-
-function InsufficientPermissions() {
-  return (
-    <AdminAccessDenied
-      title="Bookings access limited"
-      message="You need booking management permission to access this page."
-      permission="manage_bookings_all or manage_bookings_own"
-    />
-  );
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }

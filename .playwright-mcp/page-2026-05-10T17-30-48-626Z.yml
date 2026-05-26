@@ -1,0 +1,163 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - link "Skip to admin content" [ref=e3] [cursor=pointer]:
+      - /url: "#admin-main"
+    - banner [ref=e4]:
+      - generic [ref=e5]:
+        - link "Rahma Therapy admin dashboard" [ref=e6] [cursor=pointer]:
+          - /url: /admin/dashboard/
+          - generic [ref=e8]: Rahma Therapy
+        - button "Search" [ref=e10]:
+          - img [ref=e11]
+          - generic [ref=e14]: Search
+        - generic [ref=e15]:
+          - link "Reports" [ref=e16] [cursor=pointer]:
+            - /url: /admin/reports/
+            - img [ref=e17]
+            - text: Reports
+          - link "Calendar" [ref=e20] [cursor=pointer]:
+            - /url: /admin/calendar/
+            - img [ref=e21]
+            - text: Calendar
+          - link "Settings" [ref=e23] [cursor=pointer]:
+            - /url: /admin/settings/
+            - img [ref=e24]
+          - button "Rahma Therapy" [ref=e28]:
+            - img [ref=e30]
+            - generic [ref=e33]: Rahma Therapy
+            - img [ref=e34]
+    - main [ref=e36]:
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - link "Back to bookings" [ref=e40] [cursor=pointer]:
+            - /url: /admin/bookings/
+            - img [ref=e41]
+            - text: Back to bookings
+          - heading "Create admin booking" [level=1] [ref=e43]
+          - paragraph [ref=e44]: Create phone, WhatsApp, referral, repeat-customer, or walk-in bookings through the same transactional availability checks as public bookings.
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - heading "Contact and source" [level=2] [ref=e47]
+            - generic [ref=e48]:
+              - generic [ref=e49]:
+                - generic [ref=e50]: Existing client
+                - combobox "Existing client" [ref=e51]:
+                  - option "Create or enter manually" [selected]
+              - generic [ref=e52]:
+                - generic [ref=e53]: Booking source
+                - combobox "Booking source" [ref=e54]:
+                  - option "Phone" [selected]
+                  - option "WhatsApp"
+                  - option "Instagram"
+                  - option "Referral"
+                  - option "Repeat customer"
+                  - option "Walk-in/manual admin entry"
+                  - option "Other"
+            - generic [ref=e55]:
+              - generic [ref=e56]:
+                - generic [ref=e57]: Contact full name
+                - textbox "Contact full name" [ref=e58]
+              - generic [ref=e59]:
+                - generic [ref=e60]: Email
+                - textbox "Email" [ref=e61]
+              - generic [ref=e62]:
+                - generic [ref=e63]: Phone
+                - textbox "Phone" [ref=e64]
+              - generic [ref=e65]:
+                - generic [ref=e66]: Booking for
+                - combobox "Booking for" [ref=e67]:
+                  - option "The contact" [selected]
+                  - option "Someone else"
+          - generic [ref=e68]:
+            - heading "Services and participants" [level=2] [ref=e69]
+            - generic [ref=e70]:
+              - generic [ref=e71]:
+                - checkbox "Supreme Combo Package 90 mins - £55.00 - any" [ref=e72]
+                - generic [ref=e73]:
+                  - generic [ref=e74]: Supreme Combo Package
+                  - generic [ref=e75]: 90 mins - £55.00 - any
+              - generic [ref=e76]:
+                - checkbox "Hijama Package 60 mins - £45.00 - any" [ref=e77]
+                - generic [ref=e78]:
+                  - generic [ref=e79]: Hijama Package
+                  - generic [ref=e80]: 60 mins - £45.00 - any
+              - generic [ref=e81]:
+                - checkbox "Fire Package 45 mins - £40.00 - any" [ref=e82]
+                - generic [ref=e83]:
+                  - generic [ref=e84]: Fire Package
+                  - generic [ref=e85]: 45 mins - £40.00 - any
+              - generic [ref=e86]:
+                - checkbox "30-Min Massage Therapy 30 mins - £40.00 - any" [ref=e87]
+                - generic [ref=e88]:
+                  - generic [ref=e89]: 30-Min Massage Therapy
+                  - generic [ref=e90]: 30 mins - £40.00 - any
+              - generic [ref=e91]:
+                - checkbox "1-Hour Massage Therapy 60 mins - £60.00 - any" [ref=e92]
+                - generic [ref=e93]:
+                  - generic [ref=e94]: 1-Hour Massage Therapy
+                  - generic [ref=e95]: 60 mins - £60.00 - any
+            - generic [ref=e97]:
+              - generic [ref=e98]: Participant count
+              - spinbutton "Participant count" [ref=e99]: "1"
+            - generic [ref=e101]:
+              - heading "Participant 1" [level=3] [ref=e102]
+              - generic [ref=e103]:
+                - generic [ref=e104]:
+                  - generic [ref=e105]: Name or label
+                  - textbox "Name or label" [ref=e106]
+                - generic [ref=e107]:
+                  - generic [ref=e108]: Gender
+                  - combobox "Gender" [ref=e109]:
+                    - option "Choose gender" [selected]
+                    - option "Male"
+                    - option "Female"
+                - generic [ref=e110]:
+                  - generic [ref=e111]: Participant notes
+                  - textbox "Participant notes" [ref=e112]
+          - generic [ref=e113]:
+            - heading "Location and time" [level=2] [ref=e114]
+            - generic [ref=e115]:
+              - generic [ref=e116]:
+                - generic [ref=e117]: Date
+                - textbox "Date" [ref=e118]
+              - generic [ref=e119]:
+                - generic [ref=e120]: Start time
+                - textbox "Start time" [ref=e121]
+              - generic [ref=e122]:
+                - generic [ref=e123]: Address
+                - textbox "Address" [ref=e124]
+              - generic [ref=e125]:
+                - generic [ref=e126]: Postcode
+                - textbox "Postcode" [ref=e127]
+              - generic [ref=e128]:
+                - generic [ref=e129]: City
+                - textbox "City" [ref=e130]
+              - generic [ref=e131]:
+                - generic [ref=e132]: Area
+                - textbox "Area" [ref=e133]
+              - generic [ref=e134]:
+                - generic [ref=e135]: Access notes
+                - textbox "Access notes" [ref=e136]
+              - generic [ref=e137]:
+                - generic [ref=e138]: Parking notes
+                - textbox "Parking notes" [ref=e139]
+          - generic [ref=e140]:
+            - heading "Notes and confirmation" [level=2] [ref=e141]
+            - generic [ref=e142]:
+              - generic [ref=e143]:
+                - generic [ref=e144]: Customer notes
+                - textbox "Customer notes" [ref=e145]
+              - generic [ref=e146]:
+                - generic [ref=e147]: Health notes
+                - textbox "Health notes" [ref=e148]
+            - generic [ref=e149]:
+              - generic [ref=e150]:
+                - checkbox "Consent/payment expectations have been discussed and recorded by admin." [ref=e151]
+                - text: Consent/payment expectations have been discussed and recorded by admin.
+              - generic [ref=e152]:
+                - checkbox "Send confirmation email after creating this booking." [ref=e153]
+                - text: Send confirmation email after creating this booking.
+          - button "Create booking" [ref=e155]:
+            - img
+            - text: Create booking
+  - alert [ref=e156]

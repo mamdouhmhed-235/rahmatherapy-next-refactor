@@ -1,11 +1,17 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { PERMISSIONS, requirePermission } from "@/lib/auth/rbac";
+import {
+  canManageAllClients,
+  getStaffProfile,
+  PERMISSIONS,
+  requirePermission,
+} from "@/lib/auth/rbac";
+import { getClientDataAccess } from "./access";
 
 const CLIENT_SOURCES = [
   "website",
@@ -37,6 +43,8 @@ const clientSchema = z.object({
   email: z.union([z.email("Enter a valid email."), z.literal("")]).optional(),
   address: z.string().trim().optional(),
   postcode: z.string().trim().optional(),
+  city: z.string().trim().optional(),
+  area: z.string().trim().optional(),
   client_source: z.enum(CLIENT_SOURCES),
   source_detail: z.string().trim().optional(),
   notes: z.string().trim().optional(),
@@ -44,7 +52,20 @@ const clientSchema = z.object({
 
 async function requireClientManager() {
   const supabase = await createSupabaseServerClient();
-  return requirePermission(PERMISSIONS.MANAGE_CLIENTS, supabase);
+  const profile = await getStaffProfile(supabase);
+  if (!profile || !profile.active || !canManageAllClients(profile)) {
+    throw new Error("Insufficient permissions.");
+  }
+  return profile;
+}
+
+async function requireClientNoteActor() {
+  const supabase = await createSupabaseServerClient();
+  const profile = await getStaffProfile(supabase);
+  if (!profile?.active) {
+    throw new Error("Insufficient permissions.");
+  }
+  return profile;
 }
 
 async function requirePrivacyManager() {
@@ -59,6 +80,29 @@ function normalizeEmail(value: string | undefined) {
 
 function normalizePhone(value: string | undefined) {
   return value?.replace(/\s+/g, " ").trim() || null;
+}
+
+async function hasAssignedClientBooking(
+  clientId: string,
+  staffId: string,
+  adminClient: ReturnType<typeof createSupabaseAdminClient>
+) {
+  const { data: bookings, error: bookingsError } = await adminClient
+    .from("bookings")
+    .select("id")
+    .eq("client_id", clientId);
+  if (bookingsError || !bookings || bookings.length === 0) return false;
+
+  const { count, error } = await adminClient
+    .from("booking_assignments")
+    .select("id", { count: "exact", head: true })
+    .in(
+      "booking_id",
+      bookings.map((booking) => booking.id)
+    )
+    .eq("assigned_staff_id", staffId);
+
+  return !error && (count ?? 0) > 0;
 }
 
 function toFieldErrors(error: z.ZodError) {
@@ -76,7 +120,7 @@ export async function createClient(
 ): Promise<ClientActionState> {
   let actor;
   try {
-    actor = await requirePrivacyManager();
+    actor = await requireClientManager();
   } catch {
     return { error: "Insufficient permissions." };
   }
@@ -87,6 +131,8 @@ export async function createClient(
     email: formData.get("email"),
     address: formData.get("address"),
     postcode: formData.get("postcode"),
+    city: formData.get("city"),
+    area: formData.get("area"),
     client_source: formData.get("client_source"),
     source_detail: formData.get("source_detail"),
     notes: formData.get("notes"),
@@ -146,6 +192,8 @@ export async function createClient(
     email,
     address: parsed.data.address || null,
     postcode: parsed.data.postcode || null,
+    city: parsed.data.city || null,
+    area: parsed.data.area || null,
     client_source: parsed.data.client_source,
     source_detail: parsed.data.source_detail || null,
     notes: parsed.data.notes || null,
@@ -167,7 +215,10 @@ export async function createClient(
     after_state: payload,
   });
 
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/clients");
+  revalidatePath("/admin/dashboard");
   redirect(`/admin/clients/${data.id}`);
 }
 
@@ -177,7 +228,7 @@ export async function addClientNote(
 ): Promise<ClientActionState> {
   let actor;
   try {
-    actor = await requireClientManager();
+    actor = await requireClientNoteActor();
   } catch {
     return { error: "Insufficient permissions." };
   }
@@ -188,13 +239,23 @@ export async function addClientNote(
   if (!note) return { fieldErrors: { note: "Note is required." } };
 
   const adminClient = createSupabaseAdminClient();
+  const hasAssignedBooking = await hasAssignedClientBooking(
+    clientId,
+    actor.id,
+    adminClient
+  );
+  const access = getClientDataAccess(actor, { hasAssignedBooking });
+  if (!access.canViewClient || !access.canCreateClientNote) {
+    return { error: "Insufficient permissions." };
+  }
+
   const { data, error } = await adminClient
     .from("client_notes")
     .insert({
       client_id: clientId,
       author_staff_id: actor.id,
       note,
-      is_sensitive: true,
+      is_sensitive: access.canCreateSensitiveNote,
     })
     .select()
     .single();
@@ -203,7 +264,7 @@ export async function addClientNote(
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
-    action_type: "client_note_created",
+    action_type: "client_note_added",
     target_type: "client_notes",
     target_id: data.id,
     after_state: { client_id: clientId, is_sensitive: true },
@@ -219,7 +280,7 @@ export async function createClientPrivacyRequest(
 ): Promise<ClientActionState> {
   let actor;
   try {
-    actor = await requireClientManager();
+    actor = await requirePrivacyManager();
   } catch {
     return { error: "Insufficient permissions." };
   }
@@ -233,6 +294,11 @@ export async function createClientPrivacyRequest(
   }
 
   const adminClient = createSupabaseAdminClient();
+  const access = getClientDataAccess(actor, { hasAssignedBooking: false });
+  if (!access.canViewClient || !access.canManagePrivacyOperations) {
+    return { error: "Insufficient permissions." };
+  }
+
   const { data, error } = await adminClient
     .from("client_privacy_requests")
     .insert({

@@ -1,0 +1,8 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e5]:
+      - img [ref=e6]
+      - heading "Account inactive" [level=1] [ref=e9]
+      - paragraph [ref=e10]: This staff account is inactive. Contact an owner or manager to restore access.
+      - button "Sign out / switch account" [ref=e13]
+  - alert [ref=e14]
