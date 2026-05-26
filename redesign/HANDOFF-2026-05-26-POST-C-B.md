@@ -59,21 +59,21 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Migration:** Zone-2 — `clients.deleted_at` + `bookings.deleted_at` columns + 2 new permissions + RPC change + role_permissions seed for Owner+Admin.
 - **Cross-plan update needed:** C-02 flagged that `deleteClient` cascade must ALSO cancel active recurring templates for the client (since `recurring_booking_templates.client_id` has `ON DELETE RESTRICT`). Add this to the cascade.
 
-### C-04a — Cancellation restore + auto-promote + hygiene tail
+### C-04a — Cancellation restore + delayed-email infra + row-level affordances + auto-promote + hygiene tail
 
-- **Brief:** `redesign/briefs/C-04a-cancellation-restore-brief.md` (604 lines)
-- **Plan:** `redesign/plans/C-phase/C-04a-cancellation-restore-plan.md` (~895 lines)
-- **Scope:** 9 changes. Restore button + `restoreBooking` action + `sendBookingRestoredClientEmail` + state-machine guard (`completed → *` requires confirm modal + reason) + `no_show` quick action + assigned-practitioner auto-promote (capability-keyed) + 3 new audit/email types + hygiene tail (remove dead `refunded`/`waived` filter UI + `reporting.ts:438` `||→??` 1-char fix — RECON §5 exception per C-B-DECISIONS Q8).
-- **Migration:** None expected — verify `email_delivery_events.event_type` is unconstrained (it is, per C-08 plan-writing finding).
-- **Sequencing:** **MUST ship before or with C-05.** Restore button is load-bearing for C-05's lockdown.
+- **Brief:** `redesign/briefs/C-04a-cancellation-restore-brief.md` (~860 lines after 2026-05-26 amendment)
+- **Plan:** `redesign/plans/C-phase/C-04a-cancellation-restore-plan.md` (~1300 lines after 2026-05-26 amendment)
+- **Scope (AMENDED 2026-05-26):** **14 changes** across **8 phases (A–H)**. Original 9: Restore button + `restoreBooking` action + `sendBookingRestoredClientEmail` + state-machine guard + `no_show` quick action + auto-promote + 3 new audit/email types + hygiene tail. Amendment adds: row-level Restore (Change 10) + `quickUpdateBooking` restore case (Change 11) + status-aware row menu — cancelled rows show ONLY Restore (Change 12) + delayed-email infrastructure: new `email_delivery_events.scheduled_for` + 4 payload columns + new cron route `/api/cron/scheduled-emails` at `* * * * *` (Change 13) + Cancel-with-Undo toast 10s window (Change 14). Plus refinements: past-datetime restore disallow (S6 — stricter than C-05's date-only lockdown) + Restore modal shows prior cancellation reason (S3) + queued-email cancellation on undo path.
+- **Migration:** **Zone-2 required (amendment)** — `email_delivery_events.scheduled_for timestamptz` + `html_payload text` + `text_payload text` + `to_email text` + `subject text` + `idx_email_delivery_events_scheduled_pending` partial index. Plus verify `email_delivery_events.event_type` is unconstrained (it is, per C-08 finding).
+- **Sequencing:** **MUST ship before or with C-05.** Restore button is load-bearing for C-05's lockdown. Change 13's cron route is **independent** from C-01's review-emails cron (different mechanism — scheduled-time vs status-trigger). Both crons live alongside in `wrangler.jsonc`. Row-level Restore (Change 10) becomes user-discoverable once C-05's N1 (filter fix) lands — soft co-ship preferred.
 
-### C-05 — Lock cancelled / no_show / past-dated bookings inert
+### C-05 — Lock cancelled / no_show / past-dated bookings inert + status-aware filter + strikethrough
 
-- **Brief:** `redesign/briefs/C-05-cancelled-bookings-inert-brief.md` (468 lines)
-- **Plan:** `redesign/plans/C-phase/C-05-cancelled-bookings-inert-plan.md` (~645 lines)
-- **Scope:** 7 edit points (6 from W05 §10 + B-171 past-dated). New `ensureBookingActive(bookingId, supabase)` helper returns discriminated union (active true / not_found / cancelled / no_show / past_dated / client_deleted). Server-action defense at `claimBookingAssignment` + `updateBookingAssignment`. UI defense-in-depth at 4 detail-page predicates. SQL `!inner` JOIN at the claimableRows fetch + in-memory past-date filter. `updateOwnAssignmentStatus` is **explicitly NOT gated** (forensic edge case — see plan §1 Step 6).
+- **Brief:** `redesign/briefs/C-05-cancelled-bookings-inert-brief.md` (~750 lines after 2026-05-26 amendment)
+- **Plan:** `redesign/plans/C-phase/C-05-cancelled-bookings-inert-plan.md` (~860 lines after 2026-05-26 amendment)
+- **Scope (AMENDED 2026-05-26):** **9 edit points** across **4 phases (A–D)**. Original 7: `ensureBookingActive` helper + server-action defense + 4 UI predicates + SQL `!inner` JOIN + past-date guard. Amendment adds: **Edit Point 8** — `filterBookings` becomes status-aware so the user-facing "Cancelled" status dropdown actually returns rows (per S1b: "Any status" stays active-only; explicit `status=cancelled` surfaces them; claimable stays unconditionally strict regardless). **Edit Point 9** — cancelled-row strikethrough rendering (`line-through decoration-[var(--admin-text-muted)] decoration-1` + `opacity-75`) on `/admin/bookings` row cards AND `/admin/clients/[id]` `BookingHistoryCard` (cross-surface consistency). New shared helper `src/app/admin/bookings/_helpers.ts` lifts `getTodayIsoDate` + `isBookingMomentPastLondon` (consumed by C-04a's S6 guard). Cross-page sweep (S9) documents: client history already correct, reports + calendar intentionally exclude cancelled. Tab-promotion DECLINED per audit (Q9.8). `updateOwnAssignmentStatus` still **explicitly NOT gated** (forensic edge case).
 - **Migration:** None (pure code).
-- **Sequencing:** Lands AFTER C-04a (Restore is the survival path).
+- **Sequencing:** Lands AFTER C-04a (Restore is the survival path). Edit Point 8 makes C-04a's Change 10 row-level Restore user-discoverable — soft co-ship preferred. 5-commit cadence (one extra commit for Phase D vs original 4).
 
 ### C-01 — Google review email 2h after completion
 
@@ -216,6 +216,33 @@ Brief Q9.2 originally said "exclude completed"; plan §1 Step 1 revised to **inc
 
 Decisions doc was silent on Coord delete. Brief locked **Owner + Admin only** for delete via new `manage_client_destructive_ops` permission. Coord can edit operational fields (per Q6) but not delete.
 
+### 5.11 C-04a + C-05 amendment bundle (2026-05-26 post-handoff edit)
+
+Following user direction on a cancelled-booking ease+restore bundle, both C-04a and C-05 briefs + plans were amended on the same day this handoff was written. Net changes:
+
+**C-04a (9 → 14 changes):**
+- **N2 → Change 10:** Row-level Restore action on bookings list (extends `BookingRowAction` union).
+- **N3 → Change 11:** `quickUpdateBooking` gains `restore` case (delegates to `restoreBooking`).
+- **N4 → Change 12:** Status-aware row menu — cancelled rows show only Restore.
+- **S5 → Change 13:** Delayed-email infrastructure — `email_delivery_events.scheduled_for` column (Zone-2 migration) + 4 payload columns + new `* * * * *` cron route `/api/cron/scheduled-emails`. **Independent from C-01's review-emails cron** — different mechanism (scheduled-time vs status-trigger).
+- **S5 → Change 14:** Cancel-with-Undo toast with 10s window; cancellation email is queued via Change 13 infra, undo cancels the queued row.
+- **S3 (refinement to Change 2):** Restore confirm modal surfaces prior `customer_cancellation_note` or audit-log cancel actor/date for context.
+- **S6 (refinement to Change 1 + Change 2):** Past-datetime cancelled bookings unrestorable. Restore button hidden in detail page + row menu; server action returns structured error. **Stricter than C-05's date-only lockdown** — cutoff is `now() > booking_date + start_time` (Europe/London). Coexists with C-05's `booking_date < today` cutoff for different purposes.
+
+**C-05 (7 → 9 edit points):**
+- **N1 → Edit Point 8:** `filterBookings` refactored to be status-aware. The user-reported bug — "Cancelled" status dropdown returns no rows — is fixed. Per S1b: "Any status" stays active-only; explicit `status=cancelled` surfaces cancelled rows on attention/today/upcoming/etc.; claimable stays unconditionally strict (C-05 invariant preserved).
+- **S2 → Edit Point 9:** Cancelled-row strikethrough rendering on bookings list + client-detail BookingHistoryCard. `line-through decoration-1 decoration-[var(--admin-text-muted)]` + `opacity-75`. Status badge + action button stay normal.
+- **S9 (doc-only):** Cross-page sweep verified — client booking history already shows cancelled rows correctly; reports + calendar intentionally exclude (audit-confirmed W04-PE-2 + #09).
+- **Q9.8 (declined):** Cancelled/No-show tab stays under "More" overflow rather than being promoted to top-level — verified via audit of `BookingsChrome.tsx:40-50` chrome structure. Top tier is forward-looking action surfaces; cancelled fits archive grouping with Completed.
+
+**Shared helper:** new `src/app/admin/bookings/_helpers.ts` exports `getTodayIsoDate` + `isBookingMomentPastLondon` + `computeBookingMomentLondon` (+ optional `inertRowClassNames`). Consumed by both plans — single source.
+
+**Coordination:** C-04a's Change 10 row-level Restore is only user-discoverable once C-05's Edit Point 8 makes cancelled rows visible on the list. Soft co-ship preferred. Hard sequencing (C-04a before/with C-05) unchanged.
+
+**Cron coordination:** C-04a's Change 13 introduces a second Cloudflare Workers cron (`* * * * *`) alongside C-01's `*/15 * * * *` review-emails cron. Both register in `wrangler.jsonc` + `worker-entrypoint.ts`. Independent mechanisms; no shared state. C-12+ could unify into a single scheduled-send abstraction if a pattern emerges.
+
+**Bundle impact:** C-04a ceiling raised +5 kB → +7 kB. C-05 ceiling raised +2 kB → +3 kB.
+
 ---
 
 ## 6 — Cross-plan coordination + dependencies + sequencing
@@ -228,6 +255,8 @@ Decisions doc was silent on Coord delete. Brief locked **Owner + Admin only** fo
 | C-FIELDWORK | Before or with **C-11** | C-11 imports PractitionerTodaySection + shared-helpers |
 | **C-06 amendment** (deleteClient cascade) | Before **C-02 ships** | FK is `ON DELETE RESTRICT`; cascade must cancel templates |
 | C-01 | Before **C-02** ships | Cron infrastructure pattern is the lift target |
+| **C-04a Phase G (row-level Restore)** | Co-ship with **C-05 Phase D (Edit Point 8)** | Row-level Restore is only user-discoverable once cancelled rows appear in the filter; soft-couple (technically independent but UX-coupled) |
+| **C-04a Phase F (scheduled-emails cron)** | Independent from **C-01** | Different mechanism (`* * * * *` vs `*/15`); same Cloudflare Workers infrastructure; both register in `wrangler.jsonc` separately |
 
 ### 6.2 Soft sequencing (recommended order)
 
@@ -507,6 +536,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 ### Open cross-plan amendments to apply before C-C ships specific plans
 
 - **C-06 plan §1 Step 9 (`deleteClient` cascade):** extend to cancel active recurring templates before deleting the client. Required before C-02 ships. See §5.8.
+- **(2026-05-26 amendment)** C-04a + C-05 amended for the cancelled-booking ease+restore bundle. C-04a now 14 changes / 8 phases with a Zone-2 migration (`scheduled_for` + payload columns); C-05 now 9 edit points / 4 phases. See §5.11. Both briefs + plans updated; no further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -563,10 +593,10 @@ To be ticked once C-C ships all 12 plans:
 ## 14 — End-of-handoff state
 
 - **Branch:** `master`
-- **HEAD:** `8b9ad1c`
-- **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10.
+- **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
+- **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (12/12 plans).
+- **C-B status:** ✅ COMPLETE (12/12 plans). C-04a + C-05 amended 2026-05-26 — see §5.11.
 - **C-C status:** ⏳ UNBLOCKED. Recommended order in `C-B-DECISIONS.md` §5.
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
