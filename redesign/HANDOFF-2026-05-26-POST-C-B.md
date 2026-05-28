@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 13/13 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ as of 2026-05-26 (original 12 + C-13 added same day via user-direction amendment). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + 2026-05-26 amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**. C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11 respectively). C-13 ships after C-08 (extends templates) + before C-11 (provides BookingCard for shared blocks). Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 14/14 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ as of 2026-05-26 (original 12 + C-13 + C-14 added same day via user-direction amendments). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + 2026-05-26 amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**, with **C-14 independent** (its Phase D customer date-picker fix can ship first as a quick win; breaks phases anytime). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-13 ships after C-08 + before C-11. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -157,6 +157,17 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Migration:** None. Zero new permissions, zero new server actions. Pure UI render work.
 - **Sequencing:** Soft-coupled to **C-FIELDWORK** (consume its card pattern), **C-08** (templates exist before extending), **C-11** (shared blocks adopt BookingCard), **C-05** (cancelled-row strikethrough class-composition preserved). Hard dependency: none.
 
+### C-14 — Granular working hours (breaks) + customer booking-window date guard
+
+- **Brief:** `redesign/briefs/C-14-granular-working-hours-breaks-brief.md` (~560 lines — NEW 2026-05-26 post-handoff)
+- **Plan:** `redesign/plans/C-phase/C-14-granular-working-hours-breaks-plan.md` (~430 lines — NEW 2026-05-26 post-handoff)
+- **Scope:** 4 phases. Working hours gain breaks (opens / break(s) / closes) across **global recurring** (`availability_rules`), **per-staff recurring** (`staff_availability_rules` — rides the existing use_global/custom toggle), and **per-date overrides** (`availability_overrides` + `staff_availability_overrides`). Plus a **customer booking-window date-picker guard** (Phase D): `DatePickerField` disables dates beyond `booking_window_days` + before the `minimum_notice_hours` floor, sharing window math with the server via a new `getBookingDateBounds` helper.
+- **Storage model:** **segments — no new tables.** A break is the gap between bookable segment rows. Verified: recurring tables have no day-uniqueness + the slot engine already handles multiple windows per day → **zero schema + zero engine change for the recurring phases (A/B)**.
+- **Migration:** Phase C only — drop `availability_overrides_override_date_key` unique (+ verify/drop staff-override equivalent). Phases A/B/D: none.
+- **Engine touch:** `availability.ts` (RECON-sensitive) only in Phase C (widen global override fetch `.maybeSingle()` → array) + Phase D (refactor `isDateInBusinessWindow` to the shared helper). Recurring phases don't touch it.
+- **Customer rule:** breaks hidden (no slots across a break). Admin picker stays unbounded.
+- **Sequencing:** independent of the other 13 plans. Phase D ships first (customer win); A→B→C in order (C is highest-risk — schema + engine).
+
 ---
 
 ## 4 — Architecture deliverables embedded in briefs + plans (lift directly into C-C)
@@ -178,6 +189,7 @@ Each plan's body is largely self-contained execution detail. Pre-flight checks +
 | C-07 | DashboardScopeToggle + SavedFiltersBar component sketches in plan §1. |
 | C-10 | Verification snippet for Playwright catalogue (plan §1 Step 1). |
 | C-13 | `composeGenderRequirementChip` + `composeBookingIdentity` helpers (plan §1 Phase A Step 1 + Phase C Step 8). `GroupBookingCard` nested-layout JSX (plan §1 Phase B Step 6). `renderGroupContextBlockHtml` template fragment (plan §1 Phase G Step 16). |
+| C-14 | `working-hours-segments.ts` (`rowsToSchedule`/`scheduleToRows`/`validateSchedule`) + `date-bounds.ts` (`getBookingDateBounds`) + `WorkingHoursDayEditor.tsx` (plan §2). Segments model means recurring phases need zero engine change (verified `availability.ts:144-222`). |
 
 ---
 
@@ -304,6 +316,28 @@ User direction: email shouldn't be mandatory on the admin create-booking flow (`
 **Re-enablement:** adding an email later via C-06's own client edit route (Step 5) re-enables emails for future bookings. Coherent within the one plan.
 
 **Numbering note:** the C-06 plan's migration is "Step 12"; the email-optional code is "Step 13" (Phase F), landing after the migration so the DB is ready first. Two pre-existing "Step 11 migration" references in the plan (steps 2-3) were corrected to "Step 12" while amending.
+
+### 5.14 C-14 added — granular working hours (breaks) + customer booking-window guard (2026-05-26 post-handoff)
+
+User direction: working hours should support breaks (opens / break(s) / closes) for all days going forward — and the customer date picker should disable dates beyond the advance-booking window. Audit findings drove the design:
+
+- **All four availability tables mapped:** `availability_rules` + `staff_availability_rules` (recurring, **PK-only — no day-uniqueness**, so multiple rows per day already allowed); `availability_overrides` (global, **UNIQUE on override_date**) + `staff_availability_overrides` (staff, has `override_type`); `blocked_dates` + `staff_blocked_dates` (full-day closures).
+- **Slot engine already multi-window:** `getRuleWindowsForDay` returns an array; `containsWindow` books only slots fitting one window. A break = the gap between segment rows → falls out for free.
+- **Booking-window picker bug:** `DatePickerField.tsx:26` disables `before: today` only — no upper bound. The server already rejects out-of-window dates (`isDateInBusinessWindow`), so it's purely a client UX gap.
+
+**Created C-14** (14th plan; master plan now 14/14). Design recommendation **flipped from the earlier breaks-table idea to a segments model** because the scope expanded to 4 surfaces — segments reuse the existing tables + the multi-window engine uniformly, with zero new tables and zero recurring-engine change. Briefs/plans at `redesign/briefs/C-14-granular-working-hours-breaks-brief.md` + `redesign/plans/C-phase/C-14-granular-working-hours-breaks-plan.md`.
+
+**4 phases:**
+- **A — global recurring breaks** (`availability_rules`): segments; zero schema/engine change. New `WorkingHoursDayEditor` + `working-hours-segments.ts` conversion helper; save action → delete-day + insert-segments (atomic, prefer RPC).
+- **B — per-staff recurring breaks** (`staff_availability_rules`): same; rides the existing `use_global`/`custom` mode toggle.
+- **C — override breaks** (global + staff): **only schema + engine change.** Drop `availability_overrides_override_date_key` unique (+ verify staff equivalent); widen the global override fetch (`availability.ts:488` `.maybeSingle()` → array); verify staff-override multi-row handling in `resolveStaffWindows`.
+- **D — customer date-picker guard** (independent, ship first): `DatePickerField` gains `after: latest` + notice-aware `before: earliest`; new `getBookingDateBounds` helper shared with the server's `isDateInBusinessWindow` so the clickable range and accepted range can't drift. Admin picker stays unbounded.
+
+**Decisions locked (user):** (1) breaks global-primary but per-staff custom-capable — satisfied by the existing mode toggle; (2) breaks on overrides too; (3) breaks hidden from customers (no slots across a break) + the picker window guard; phone-side N/A. Minimum-notice floor added to the picker as the symmetric lower-bound fix.
+
+**Migration:** Phase C only (unique-index drops). **Engine touch:** `availability.ts` only in Phases C + D (contained, behaviour-preserving — flag the RECON exception). **No new permissions, no new tables.**
+
+**Sequencing:** independent of all other plans. Phase D is the most visible customer fix and can ship standalone first.
 
 ---
 
@@ -464,7 +498,7 @@ d2a3f26 docs(redesign): C-B decisions — lock answers to 11 open questions
 
 ## 9 — File inventory (relevant to C-C)
 
-### C-B plan-writing outputs (13 briefs + 13 plans)
+### C-B plan-writing outputs (14 briefs + 14 plans)
 
 ```
 redesign/briefs/
@@ -480,10 +514,11 @@ redesign/briefs/
 ├── C-10-bottom-spacing-footer-overlap-brief.md
 ├── C-11-dashboard-variants-design-system-brief.md
 ├── C-13-group-bookings-and-gender-clarity-brief.md           # NEW 2026-05-26 post-handoff
+├── C-14-granular-working-hours-breaks-brief.md               # NEW 2026-05-26 post-handoff
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
-├── BAND-C-MASTER-PLAN.md                                     # master checklist (13/13 ✅ as of 2026-05-26)
+├── BAND-C-MASTER-PLAN.md                                     # master checklist (14/14 ✅ as of 2026-05-26)
 ├── C-B-DECISIONS.md                                          # 11 locked decisions
 ├── C-01-review-request-email-plan.md
 ├── C-02-recurring-bookings-plan.md
@@ -497,6 +532,7 @@ redesign/plans/C-phase/
 ├── C-10-bottom-spacing-footer-overlap-plan.md
 ├── C-11-dashboard-variants-design-system-plan.md
 ├── C-13-group-bookings-and-gender-clarity-plan.md            # NEW 2026-05-26 post-handoff
+├── C-14-granular-working-hours-breaks-plan.md                # NEW 2026-05-26 post-handoff
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -605,6 +641,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **(2026-05-26 amendment)** C-04a + C-05 amended for the cancelled-booking ease+restore bundle. C-04a now 14 changes / 8 phases with a Zone-2 migration (`scheduled_for` + payload columns); C-05 now 9 edit points / 4 phases. See §5.11. Both briefs + plans updated; no further amendments needed before C-C.
 - **(2026-05-26 amendment)** C-13 added as a 13th plan for group-booking surface + gender-clarity. 7 changes / 8 phases / zero migrations / pure UI render. See §5.12. Brief + plan written; master plan checklist updated to 13/13. No further amendments needed before C-C.
 - **(2026-05-26 amendment)** C-06 amended with Step 13 — optional email on the admin booking flow. Migration drops `bookings.contact_email NOT NULL`; RPC gains phone-fallback matching; admin form + Zod relaxed; public flow untouched + regression-tested. See §5.13. Brief + plan amended; no further amendments needed before C-C.
+- **(2026-05-26 amendment)** C-14 added as a 14th plan — granular working hours (breaks) across global/staff/override + customer booking-window date-picker guard. Segments storage model (no new tables); Phase C migration drops the override-date unique. See §5.14. Brief + plan written; master plan checklist updated to 14/14. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -662,9 +699,9 @@ To be ticked once C-C ships all 12 plans:
 
 - **Branch:** `master`
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
-- **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13 — brief + plan + bookkeeping).
+- **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (13/13 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) 2026-05-26 — see §5.11 + §5.12 + §5.13.
+- **C-B status:** ✅ COMPLETE (14/14 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 — see §5.11–§5.14.
 - **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
