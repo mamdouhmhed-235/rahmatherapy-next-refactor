@@ -55,8 +55,8 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 
 - **Brief:** `redesign/briefs/C-06-client-crud-hardening-brief.md` (464 lines)
 - **Plan:** `redesign/plans/C-phase/C-06-client-crud-hardening-plan.md` (~690 lines)
-- **Scope:** 11 steps. Kill destructive `on conflict (email) do update` in `create_booking_request` RPC + lift DuplicateWarningBanner into ManualBookingForm + new `/admin/clients/[clientId]/edit` route + `updateClient` action with email-collision check + Coord field-level gating via new `manage_client_identity_fields` permission + `deleteClient` shared primitive (soft-delete client, cascade open bookings, hard-delete sensitive notes) + Delete button + bulk-delete + privacy `deletion_review` Completed handler calls `deleteClient(gdpr_erasure)` + `data_export` Completed generates minimal JSON export.
-- **Migration:** Zone-2 — `clients.deleted_at` + `bookings.deleted_at` columns + 2 new permissions + RPC change + role_permissions seed for Owner+Admin.
+- **Scope (AMENDED 2026-05-26):** **13 steps.** Original 11: kill destructive `on conflict (email) do update` in `create_booking_request` RPC + lift DuplicateWarningBanner into ManualBookingForm + new `/admin/clients/[clientId]/edit` route + `updateClient` action with email-collision check + Coord field-level gating via new `manage_client_identity_fields` permission + `deleteClient` shared primitive (soft-delete client, cascade open bookings, hard-delete sensitive notes) + Delete button + bulk-delete + privacy `deletion_review` Completed handler calls `deleteClient(gdpr_erasure)` + `data_export` Completed generates minimal JSON export. **+ Step 13 (amendment): optional email on the admin manual-booking flow** — migration drops `bookings.contact_email NOT NULL`; the RPC gains a null-email/phone-fallback client-match branch (email-first, phone-fallback); ManualBookingForm email made optional (admin-only); `sendConfirmationEmail` hidden when no email; reminder/review crons gain `contact_email IS NOT NULL` guard; booking detail shows "No email — reminders off" indicator. **Public flow unchanged + regression-tested.**
+- **Migration:** Zone-2 — `clients.deleted_at` + `bookings.deleted_at` columns + **`bookings.contact_email DROP NOT NULL` (Step 13)** + 2 new permissions + RPC change (now with null-email branch) + role_permissions seed for Owner+Admin.
 - **Cross-plan update needed:** C-02 flagged that `deleteClient` cascade must ALSO cancel active recurring templates for the client (since `recurring_booking_templates.client_id` has `ON DELETE RESTRICT`). Add this to the cascade.
 
 ### C-04a — Cancellation restore + delayed-email infra + row-level affordances + auto-promote + hygiene tail
@@ -283,6 +283,27 @@ Following user direction on the cancelled-booking amendment bundle (§5.11), a s
 - **C-11:** shared blocks library at `dashboard/blocks/` adopts `BookingCard` as its booking-row primitive. C-13 ships first so C-11 imports rather than reinvents.
 - **C-05:** `isInertRow` class composition (Edit Point 9) applies on the outer `BookingCard` wrapper; sub-rows inherit naturally via CSS cascade.
 - **C-02:** future recurring-group bookings render with the same group card (data model supports recurring + group composition).
+
+### 5.13 C-06 amended — optional email on the admin booking flow (2026-05-26 post-handoff, Step 13)
+
+User direction: email shouldn't be mandatory on the admin create-booking flow (`/admin/bookings/new`) — the next step should be reachable and the booking creatable with phone only. Audit verified the entanglement:
+
+- **`bookings.contact_email` is `NOT NULL`** (verified) → requires a migration to drop the constraint.
+- **`clients.email` has a `UNIQUE` constraint** (`clients_email_key`) → a missing email must be stored as `NULL` (multiple NULLs allowed), never `''` (would collide).
+- **The admin flow shares the `create_booking_request` RPC** (via `createBookingTransaction.ts:113`) with the **public** booking flow (`POST /api/bookings`) — the same RPC C-06 already rewrites in Step 1.
+
+**Routed into C-06** (avoids a second plan touching the same RPC + migration — the duplication the user explicitly wanted avoided). Added as **Step 13**:
+- Migration: `ALTER TABLE bookings ALTER COLUMN contact_email DROP NOT NULL` (folded into C-06's existing Step 12 migration).
+- RPC: third client-resolution branch — when email is absent, **phone is the dedup key** (email-first, phone-fallback per user decision). Phone match raises the same `duplicate_client_exists` warning (anti-silent-merge); no match → insert client with `email = NULL`.
+- `ManualBookingForm` (admin-only): email field loses `required`; format-only validation; relaxed Step-1 gate; `sendConfirmationEmail` checkbox hidden when no email. Phone stays required (user-locked).
+- `createManualBooking` Zod: email optional.
+- Downstream: `sendBookingCreatedEmails` + reminder cron + (future) C-01 review cron gain `contact_email IS NOT NULL` guards. Booking detail shows a "No email — reminders off" indicator linking to the client edit route (re-enablement path).
+
+**Isolation (critical user requirement):** the **public booking flow is NOT touched.** `route.ts` keeps its own `email: z.email()` Zod; email stays required on the public site. The RPC change is purely permissive (allows null; the email-present path is unchanged), and the public flow always sends a validated email so it never exercises the new branch. A regression test (verification gate mutation-test `o`) asserts a missing-email `POST /api/bookings` returns 400 — proving isolation.
+
+**Re-enablement:** adding an email later via C-06's own client edit route (Step 5) re-enables emails for future bookings. Coherent within the one plan.
+
+**Numbering note:** the C-06 plan's migration is "Step 12"; the email-optional code is "Step 13" (Phase F), landing after the migration so the DB is ready first. Two pre-existing "Step 11 migration" references in the plan (steps 2-3) were corrected to "Step 12" while amending.
 
 ---
 
@@ -583,6 +604,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **C-06 plan §1 Step 9 (`deleteClient` cascade):** extend to cancel active recurring templates before deleting the client. Required before C-02 ships. See §5.8.
 - **(2026-05-26 amendment)** C-04a + C-05 amended for the cancelled-booking ease+restore bundle. C-04a now 14 changes / 8 phases with a Zone-2 migration (`scheduled_for` + payload columns); C-05 now 9 edit points / 4 phases. See §5.11. Both briefs + plans updated; no further amendments needed before C-C.
 - **(2026-05-26 amendment)** C-13 added as a 13th plan for group-booking surface + gender-clarity. 7 changes / 8 phases / zero migrations / pure UI render. See §5.12. Brief + plan written; master plan checklist updated to 13/13. No further amendments needed before C-C.
+- **(2026-05-26 amendment)** C-06 amended with Step 13 — optional email on the admin booking flow. Migration drops `bookings.contact_email NOT NULL`; RPC gains phone-fallback matching; admin form + Zod relaxed; public flow untouched + regression-tested. See §5.13. Brief + plan amended; no further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -640,9 +662,9 @@ To be ticked once C-C ships all 12 plans:
 
 - **Branch:** `master`
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
-- **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12 — brief + plan + bookkeeping).
+- **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13 — brief + plan + bookkeeping).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (13/13 plans). C-04a + C-05 amended + C-13 added 2026-05-26 — see §5.11 + §5.12.
+- **C-B status:** ✅ COMPLETE (13/13 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) 2026-05-26 — see §5.11 + §5.12 + §5.13.
 - **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
