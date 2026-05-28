@@ -1,4 +1,4 @@
-# C-06 — Client CRUD hardening + destructive-overwrite fix + privacy honesty fold-in — **PLAN**
+# C-06 — Client CRUD hardening + destructive-overwrite fix + privacy honesty fold-in + optional admin-booking email — **PLAN**
 
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
@@ -22,6 +22,7 @@ Every C-C session for this plan opens with these checks. If any fails, fix or pa
    - `SELECT column_name FROM information_schema.columns WHERE table_name='clients' AND column_name='deleted_at'` → returns 0 rows (column not yet added).
    - `SELECT name FROM public.permissions WHERE name IN ('manage_client_identity_fields','manage_client_destructive_ops')` → returns 0 rows.
    - `SELECT pg_get_functiondef('public.create_booking_request'::regproc)` ends with the destructive `on conflict (email) do update` block.
+   - **(Step 13 amendment)** `SELECT is_nullable FROM information_schema.columns WHERE table_name='bookings' AND column_name='contact_email'` → returns `NO` (currently NOT NULL; the migration drops it). Confirm `clients.email` is `YES` (nullable) + carries `clients_email_key UNIQUE` (verified 2026-05-26 — tolerates multiple NULLs).
 6. **Test fixture inventory.** Confirm the following test rows exist on `/admin/clients` for end-to-end testing (do **not** use Badar's row `9d55ce2a` / `avonrk@hotmail.co.uk` — real data):
    - `Audit Test Client 1..5` (5 rows) — safe to bulk-delete in E2E.
    - `Phase10 E2E Claim Client` — safe to delete via privacy workflow.
@@ -33,7 +34,9 @@ If any pre-flight step fails, **stop** and surface to the user before touching c
 
 ---
 
-## 1 — Safe implementation order (11 steps, with verify checkpoints)
+## 1 — Safe implementation order (13 steps, with verify checkpoints)
+
+Steps 1-11 + the Step 12 migration are the original C-06 body. Step 13 (Phase F — optional admin-booking email) was added in the 2026-05-26 amendment; its DB pieces (the `contact_email DROP NOT NULL` + the RPC's null-email branch) are folded into the Step 12 migration below.
 
 Each step is a self-contained working slice. After each step, the listed verify-checkpoint runs; if it fails, fix before proceeding. Commits are grouped at the bottom (§9) — implementation can land in fewer commits than steps.
 
@@ -44,14 +47,14 @@ Each step is a self-contained working slice. After each step, the listed verify-
 - Edit `ClientCreateForm.tsx`: remove the inline component, import from new path.
 - Verify: `npx tsc --noEmit` green; `pnpm vitest run` `clients` package green; visit `/admin/clients/new` and trigger a duplicate match → banner still renders identically.
 
-**Step 2 — RBAC + permissions migration draft.** Code-only at this step; migration applies in Step 11.
+**Step 2 — RBAC + permissions migration draft.** Code-only at this step; migration applies in Step 12.
 - Edit `src/lib/auth/rbac.ts`:
   - Add to `PERMISSIONS` const: `MANAGE_CLIENT_IDENTITY_FIELDS: "manage_client_identity_fields"`, `MANAGE_CLIENT_DESTRUCTIVE_OPS: "manage_client_destructive_ops"`.
   - Add helpers: `canManageClientIdentityFields(profile)`, `canManageClientDestructiveOps(profile)`. Both follow the existing `hasPermission` pattern (rbac.ts:393).
 - Add a unit test ensuring both helpers return `false` for null + inactive + missing-permission cases, and `true` for granted-permission case. (Pattern from existing rbac tests if present; otherwise mint.)
 - Verify: `npx tsc --noEmit` green; new helper tests pass; existing rbac tests still pass.
 
-**Step 3 — Update `clients/types.ts` for `deleted_at`.** Code-only (DB column lands in Step 11 migration).
+**Step 3 — Update `clients/types.ts` for `deleted_at`.** Code-only (DB column lands in Step 12 migration).
 - Edit `src/app/admin/clients/types.ts`: add `deleted_at: string | null` to `ClientRecord` (or whatever the interface is called) and to any colocated `Booking*` types if bookings get the column too.
 - Verify: `npx tsc --noEmit` green. Existing readers of `ClientRecord` (notably `/admin/clients/page.tsx`, `/admin/clients/[clientId]/page.tsx`) compile fine because all reads ignore the new field.
 
@@ -252,7 +255,7 @@ if (parsed.data.status === "completed") {
 - Edit `src/app/admin/privacy/page.tsx` (around line 630-631 where `request.request_type` is rendered):
   - Pass `request_type` into the `<PrivacyStatusForm>` instances.
 
-**Step 12 — Migration.** Single SQL file applied via `mcp__supabase__apply_migration` (Zone-2 — confirm with user before invoking):
+**Step 12 — Migration.** Single SQL file applied via `mcp__supabase__apply_migration` (Zone-2 — confirm with user before invoking). **Includes the Step 13 amendment DDL** (`contact_email DROP NOT NULL` + the RPC's null-email/phone-fallback branch):
 
 ```sql
 -- C-06 client CRUD hardening — single migration
@@ -263,6 +266,11 @@ BEGIN;
 -- 1. Soft-delete columns
 ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+
+-- 1b. (Step 13 amendment) Optional email on the admin booking flow.
+--     Permissive: the public flow always supplies a validated email via its own
+--     Zod (route.ts), so this only enables the admin no-email path.
+ALTER TABLE public.bookings ALTER COLUMN contact_email DROP NOT NULL;
 
 -- 2. New permissions
 INSERT INTO public.permissions (name, description)
@@ -331,8 +339,8 @@ BEGIN
       RAISE EXCEPTION 'Specified client does not exist or has been deleted'
         USING errcode = 'P0002';
     END IF;
-  ELSE
-    -- No explicit client_id — check for email collision
+  ELSIF v_normalized_email IS NOT NULL AND v_normalized_email <> '' THEN
+    -- No explicit client_id, email PRESENT — email is the dedup key.
     SELECT id INTO v_existing_client_id
       FROM public.clients
       WHERE email = v_normalized_email
@@ -366,9 +374,40 @@ BEGIN
           AND deleted_at IS NULL
         LIMIT 1;
     END IF;
+
+  ELSE
+    -- (Step 13 amendment) No explicit client_id, email ABSENT — phone is the dedup key.
+    -- Admin flow only; the public flow can never reach here (its Zod requires email).
+    SELECT id INTO v_existing_client_id
+      FROM public.clients
+      WHERE phone = v_clean_phone
+        AND deleted_at IS NULL
+      LIMIT 1;
+
+    IF v_existing_client_id IS NOT NULL AND NOT p_confirm_duplicate THEN
+      -- Same anti-silent-merge exception; matching priority is email-first,
+      -- phone-fallback (per user direction 2026-05-26). Admin links or confirms.
+      RAISE EXCEPTION 'duplicate_client_exists: %', v_existing_client_id
+        USING errcode = 'P0001',
+              hint = (SELECT full_name FROM public.clients WHERE id = v_existing_client_id);
+    END IF;
+
+    -- Insert a client with NULL email. ON CONFLICT (email) never fires on NULL,
+    -- so the insert always proceeds; capture the id directly (re-fetch by email
+    -- would not work — NULL never equals NULL).
+    INSERT INTO public.clients (full_name, phone, email, address, postcode, city, area, notes)
+    VALUES (
+      v_clean_name, v_clean_phone, NULL,
+      trim(p_service_address_line1), trim(p_service_postcode), v_clean_city,
+      nullif(trim(coalesce(p_area, '')), ''),
+      nullif(trim(coalesce(p_customer_notes, '')), '')
+    )
+    RETURNING id INTO v_client_id;
   END IF;
 
-  -- existing INSERT INTO bookings (...) UNCHANGED — uses v_client_id
+  -- existing INSERT INTO bookings (...) — uses v_client_id.
+  -- (Step 13 amendment) bookings.contact_email is now nullable; insert
+  -- NULLIF(v_normalized_email, '') so an empty admin email persists as NULL.
   -- existing participant + items + assignments loop UNCHANGED
   -- existing return jsonb UNCHANGED
 END;
@@ -377,11 +416,83 @@ $function$;
 COMMIT;
 ```
 
+**RPC client-resolution summary (combined Step 1 + Step 13):**
+
+| Branch | Condition | Behaviour |
+|---|---|---|
+| 1 | `p_client_id` provided | Use that client directly. Email irrelevant. |
+| 2 | No client_id, email present | Email is dedup key — collision → `duplicate_client_exists` unless confirm; else insert-or-resolve. |
+| 3 | No client_id, email absent | **Phone is dedup key** — phone match → `duplicate_client_exists` unless confirm; else insert client with `email = NULL`. |
+
+`bookings.contact_email` receives `NULLIF(v_normalized_email, '')` so an empty admin email lands as NULL (never `''` — which would matter if a future constraint were added).
+
 - After migration: run `mcp__supabase__generate_typescript_types` to refresh types if any consumer relies on generated types for the new columns.
 - Verify post-migration:
   - `SELECT pg_get_functiondef('public.create_booking_request'::regproc)` shows the new body.
+  - `SELECT is_nullable FROM information_schema.columns WHERE table_name='bookings' AND column_name='contact_email'` → now `YES`.
   - Re-run `pnpm vitest run api/bookings/createBookingTransaction` — should pass now.
   - Manual Playwright test: visit `/admin/clients/[test-client]` → "Book again" → submit form → confirm RPC honoured `client_id` (existing client's name is NOT overwritten — verify via `mcp__supabase__execute_sql` SELECT pre + post).
+
+### Phase F — Optional admin-booking email (Step 13 — amendment 2026-05-26)
+
+Implements brief §2.5. The DB pieces (12a `DROP NOT NULL` + 12b RPC null-branch) are folded into the Step 12 migration above. Step 13 is the **code** layer: ManualBookingForm UI + Zod + downstream guards + the "No email — reminders off" indicator. Lands after the migration so the DB is ready first (the UI relaxation is harmless without the migration, but submission only succeeds once `contact_email` is nullable).
+
+**Step 13a — `ManualBookingForm` email-optional UI.** Edit `src/app/admin/bookings/new/ManualBookingForm.tsx`:
+- `:1037` — drop `required` from the Email `FieldLabel` (remove `*`). Helper text → `"Optional. Used for confirmations and reminders when provided."`
+- `:196-198` — relax the contact validator: validate **format only when present**:
+  ```ts
+  if (vals.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vals.email.trim()))
+    errs.email = "Email needs an @. For example, sara@example.com.";
+  // (no "required" branch)
+  ```
+- `:914` — relax the Step-1 gate:
+  ```ts
+  if (step === 1)
+    return !!(fullName.trim() && phone.trim() &&
+      (!email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())));
+  ```
+  Phone stays required; email is allowed empty, format-checked only when non-empty.
+- `:613` + `:1855` — gate the `sendConfirmationEmail` checkbox on email presence. When `!email.trim()`, hide the checkbox block entirely and force `sendConfirmationEmail = false` (e.g., a derived value or a `useEffect` that resets it when email clears).
+
+**Step 13b — `createManualBooking` Zod relaxation.** Edit `bookings/actions.ts:706`:
+```ts
+// Before: email: z.email("A valid email is required."),
+// After:
+email: z.union([z.email("Email needs an @. For example, sara@example.com."), z.literal("")]).default(""),
+```
+And guard the confirmation-send branch (`:928`): `if (parsed.data.sendConfirmationEmail && parsed.data.details.email.trim())`.
+
+**Step 13c — Downstream null-email guards.**
+- `src/lib/email/notifications.ts` — `sendBookingCreatedEmails` (and any per-booking customer send) early-returns when the booking's `contact_email` is null/empty. (Belt-and-braces; the manual-booking call site already gates on the checkbox.)
+- `src/app/api/cron/booking-reminders/route.ts` — add `.not("contact_email", "is", null)` (or `AND contact_email IS NOT NULL` in the underlying query) to the reminder-candidate fetch so null-email bookings are never targeted.
+- (When C-01 ships) its `review-emails` cron query gains the same `contact_email IS NOT NULL` guard. Flag for the C-01 impl session via a comment; C-01 hasn't shipped yet.
+
+**Step 13d — "No email — reminders off" indicator.** Edit `src/app/admin/bookings/[bookingId]/page.tsx`:
+- Where contact details render (near the email/phone block), conditionally render a muted info chip when `booking.contact_email` is null/empty:
+  ```tsx
+  {!booking.contact_email ? (
+    <Link href={booking.client_id ? `/admin/clients/${booking.client_id}/edit` : "#"}
+      className="inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-panel-muted)] px-2.5 py-1 text-xs text-[var(--admin-text-muted)]">
+      <Info className="size-3.5" aria-hidden="true" />
+      No email — reminders off
+    </Link>
+  ) : null}
+  ```
+- Links to the client edit route (Step 7) when the booking is client-linked, so the admin can add an email in one hop.
+
+**Step 13e — Public-flow isolation (verification only, no code).** `src/app/api/bookings/route.ts` keeps `email: z.email()`. No edit. The verification gate (§3) adds a regression assertion.
+
+**Step 13f — Tests.**
+- Update `bookings/new/ManualBookingForm.test.tsx`: Step-1 gate passes with empty email; format error still fires on malformed non-empty; `sendConfirmationEmail` checkbox absent when no email.
+- Update `api/bookings/createBookingTransaction.test.ts`: assert RPC called with `p_contact_email: ""` when admin omits email.
+- New/updated `createManualBooking` spec: empty email accepted; phone still required; confirmation-send branch skipped when email empty.
+- New `api/bookings/route.test.ts` (or extend): missing-email payload → 400 (public-flow isolation).
+
+**Phase F verify checkpoint:**
+- Lint + tsc green.
+- New + updated tests pass.
+- Playwright manual: `/admin/bookings/new` → leave email empty → reach Step 2 → complete flow → booking created with `contact_email IS NULL` (verify via SQL) → no confirmation email row in `email_delivery_events`.
+- Public flow: `POST /api/bookings` without email → 400.
 
 ---
 
@@ -410,15 +521,23 @@ COMMIT;
 | `src/app/admin/clients/page.tsx` | Checkbox column + selection state + `BulkDeleteToolbar` + "Show deleted (N)" toggle + `?deleted=1` toast |
 | `src/app/admin/clients/ClientRowMenu.tsx` | "Delete client" menu item (gated) |
 | `src/app/admin/clients/types.ts` | `deleted_at: string \| null` on `ClientRecord` (+ `Booking*` if applicable) |
-| `src/app/admin/bookings/new/ManualBookingForm.tsx` | Hidden `client_id`, `DuplicateWarningBanner` integration, `confirm_duplicate` checkbox |
-| `src/app/admin/bookings/actions.ts` | Thread `client_id` + `confirm_duplicate` through `createManualBooking`; handle `duplicate_client_exists` error |
-| `src/app/api/bookings/createBookingTransaction.ts` | Pass new RPC args; surface `DuplicateClientError` |
-| `src/app/api/bookings/createBookingTransaction.test.ts` | Update mock args |
+| `src/app/admin/bookings/new/ManualBookingForm.tsx` | Hidden `client_id`, `DuplicateWarningBanner` integration, `confirm_duplicate` checkbox. **(Step 13)** Email optional: drop `required`, format-only validation, relaxed Step-1 gate, `sendConfirmationEmail` checkbox hidden when no email |
+| `src/app/admin/bookings/actions.ts` | Thread `client_id` + `confirm_duplicate` through `createManualBooking`; handle `duplicate_client_exists` error. **(Step 13)** `manualBookingSchema.email` → optional; guard confirmation-send branch on non-empty email |
+| `src/app/api/bookings/createBookingTransaction.ts` | Pass new RPC args; surface `DuplicateClientError`. **(Step 13)** accept `""` email (passed through to RPC → NULL) |
+| `src/app/api/bookings/createBookingTransaction.test.ts` | Update mock args. **(Step 13)** assert empty-email passthrough |
+| **(Step 13)** `src/app/admin/bookings/[bookingId]/page.tsx` | "No email — reminders off" muted info chip when `contact_email` is null; links to client edit |
+| **(Step 13)** `src/lib/email/notifications.ts` | `sendBookingCreatedEmails` (+ per-booking customer send-fns) early-return on null/empty `contact_email` |
+| **(Step 13)** `src/app/api/cron/booking-reminders/route.ts` | Add `contact_email IS NOT NULL` to reminder-candidate query (C-01 review cron gets the same guard when it ships) |
 | `src/app/admin/privacy/actions.ts` | Branch `updatePrivacyRequestStatus` on `(status, request_type)`; call `deleteClient` for `deletion_review` |
 | `src/app/admin/privacy/PrivacyStatusForm.tsx` | Accept `requestType` prop; branch modal copy; add Download Export button for `data_export` |
 | `src/app/admin/privacy/page.tsx` | Pass `request_type` into `<PrivacyStatusForm>` instances |
 | `src/lib/auth/rbac.ts` | New PERMISSIONS constants + helpers |
-| `src/app/admin/bookings/new/ManualBookingForm.test.tsx` | New specs for duplicate flow + hidden `client_id` plumbing |
+| `src/app/admin/bookings/new/ManualBookingForm.test.tsx` | New specs for duplicate flow + hidden `client_id` plumbing. **(Step 13)** email-optional gate + checkbox-hidden specs |
+| **(Step 13)** `src/app/api/bookings/route.test.ts` (new or extend) | Public-flow regression: missing-email payload → 400 (proves isolation) |
+
+### UNCHANGED (Step 13 — explicit non-touch)
+- **`src/app/api/bookings/route.ts`** — the public booking flow. Its `bookingRequestSchema.email = z.email()` stays. Email remains required on the public flow. **Verified by the §3 regression test.**
+- The public booking form component(s) — separate from `ManualBookingForm`; untouched.
 
 ### UNCHANGED (do NOT touch)
 - `reporting.ts`, `dashboard-helpers.ts`, RBAC matrix migration files, middleware, build configs (RECON §5 untouchables).
@@ -481,6 +600,18 @@ i. **Coord blocked from destructive ops:** As Coord, attempt `/admin/clients/[id
 
 j. **Therapist blocked:** As Therapist, attempt `/admin/clients/[id]/edit` → AdminAccessDenied. Attempt direct route `/admin/clients` → list visible but limited to assigned clients (existing behaviour); no checkbox column.
 
+**Step 13 mutation tests (Owner + Admin, against test fixtures):**
+
+k. **Admin booking without email — happy path:** `/admin/bookings/new` (no prefill). Fill name + phone + services + location; **leave Email empty**. Confirm Step 1 → Step 2 navigation succeeds. Complete the flow. **Expected:** booking created; `SELECT contact_email FROM bookings WHERE id='<new>'` → `NULL`; no row in `email_delivery_events` for this booking (confirmation checkbox was hidden); booking detail shows "No email — reminders off" chip.
+
+l. **Phone-fallback matching:** `/admin/bookings/new` (no prefill, no email) using a phone that matches an existing test client. Submit. **Expected:** duplicate-warning banner (phone match); tick confirm-duplicate → new NULL-email client created; OR with a fresh phone → new NULL-email client created directly.
+
+m. **Repeat-client (no email) — screenshot scenario:** `/admin/clients/[a client with NULL email]` → "Book again" → email field empty + not required → complete → booking created with `contact_email IS NULL` via the `client_id` path (existing client NOT overwritten).
+
+n. **Email present still works (regression):** `/admin/bookings/new` with a valid email → confirmation checkbox visible + checked by default → booking created with `contact_email` set → confirmation email row appears.
+
+o. **PUBLIC FLOW ISOLATION (critical):** `POST /api/bookings` with a payload **omitting `email`** (via `browser_evaluate` fetch). **Expected:** HTTP 400 with `fieldErrors.email`. Confirms the public flow still requires email and never reaches the RPC's null-email branch. The public booking form UI still marks email required.
+
 ### 3.3 Screenshot evidence
 
 Capture PNGs into `redesign/audits/C-A/screenshots-06-clients-new/c-06-after/` (or new directory per C-C convention):
@@ -523,6 +654,10 @@ GROUP BY action_type;
 | Optimistic-concurrency token mismatch creates UX confusion | low | low | Error message is explicit: "This client was updated by someone else. Reload to see the latest." Reload restores the form to current server state. |
 | `DuplicateWarningBanner` extraction breaks `ClientCreateForm` styling | low | low | Step 1 is a pure refactor — same JSX, just imported from a new file. Verify with the existing happy-path Playwright case before proceeding. |
 | Coord without `manage_client_destructive_ops` can still call `bulkDeleteClients` by crafting a request | low | medium | Server action gates with `canManageClientDestructiveOps(profile)` before any DB write. Belt + braces with the UI hiding. |
+| **(Step 13) `DROP NOT NULL` lets the public flow create no-email bookings** | low | HIGH | The constraint relaxation is table-wide, but the public flow's own `route.ts` Zod (`email: z.email()`) is the gate — it rejects missing email at 400 before the RPC. Regression test (o) proves it. The DB constraint was never the public flow's only guard; the Zod is. |
+| **(Step 13) Empty-string email stored instead of NULL** → collides on `clients_email_key UNIQUE` second time | medium | medium | RPC inserts `NULL` (not `''`) into `clients.email`; `bookings.contact_email` receives `NULLIF(v_normalized_email,'')`. Vitest + a manual two-no-email-bookings test confirm no unique violation. |
+| **(Step 13) Reminder / review cron emails a null address** | low | low | `contact_email IS NOT NULL` guard added to the reminder-candidate query (Step 13c). `sendBookingCreatedEmails` early-returns on null. |
+| **(Step 13) Admin confused why no confirmation was offered** | low | low | "No email — reminders off" indicator on the booking detail explains the state + links to the client edit route to add an email. |
 
 ### 4.1 Real open risk surfaced in this plan
 
@@ -579,22 +714,31 @@ WHERE name IN ('manage_client_identity_fields', 'manage_client_destructive_ops')
 ALTER TABLE public.clients DROP COLUMN IF EXISTS deleted_at;
 ALTER TABLE public.bookings DROP COLUMN IF EXISTS deleted_at;
 
+-- (Step 13) Restore the NOT NULL on bookings.contact_email.
+-- PRE-REQUISITE: no null-email bookings may exist, or the constraint re-add fails.
+-- Backfill them first if any were created during the email-optional window:
+--   UPDATE public.bookings SET contact_email = '' WHERE contact_email IS NULL;  -- or a sentinel
+ALTER TABLE public.bookings ALTER COLUMN contact_email SET NOT NULL;
+
 COMMIT;
 ```
 
 Caveat: if any rows were soft-deleted before rollback, dropping the column re-exposes them in the UI. **Hard-undeleting first is safer** — run a `UPDATE clients SET deleted_at = NULL` and equivalent for bookings before dropping the column. Data is preserved; rollback is clean.
+
+**(Step 13) Re-adding `contact_email SET NOT NULL` is the one rollback that can FAIL** — if admin no-email bookings were created during the window, the constraint re-add errors until they're backfilled. Backfill to `''` or a sentinel first, OR leave the column nullable (the relaxation is harmless if the UI/Zod revert restores the email-required behaviour for new bookings). **Recommended: leave `contact_email` nullable on rollback** — reverting the UI + Zod is sufficient to restore email-required behaviour; the relaxed column constraint has no downside.
 
 ### 5.2 Undo code (Steps 1-11)
 
 Single `git revert <commit-sha>` per implementation commit, in reverse order. Because changes are layered (RPC change in migration is the last to land), the code revert order ideally precedes the DB undo so the codebase doesn't briefly call args that the DB function doesn't accept.
 
 Recommended sequence for full rollback:
-1. `git revert <privacy-wiring-commit>` (Step 11)
-2. `git revert <delete-primitive-commit>` (Steps 9-10)
-3. `git revert <edit-surface-commit>` (Steps 6-8)
-4. `git revert <headline-fix-code-commit>` (Steps 4-5)
-5. **Apply DB rollback migration** (§5.1)
-6. `git revert <foundation-commit>` (Steps 1-3)
+1. `git revert <email-optional-code-commit>` (Step 13 — restores email-required UI + Zod; safe to do first, independent of others)
+2. `git revert <privacy-wiring-commit>` (Step 11)
+3. `git revert <delete-primitive-commit>` (Steps 9-10)
+4. `git revert <edit-surface-commit>` (Steps 6-8)
+5. `git revert <headline-fix-code-commit>` (Steps 4-5)
+6. **Apply DB rollback migration** (§5.1 — leaving `contact_email` nullable per the recommendation)
+7. `git revert <foundation-commit>` (Steps 1-3)
 
 If any commits are squashed, the order shifts; the key invariant is: **DB rollback happens after the code that uses the new RPC args is reverted.**
 
@@ -647,9 +791,10 @@ Implementation can land in fewer commits than steps. Recommended cadence:
 | 3 | Phase C (steps 6-8) — `updateClient` + edit route + form + detail page Edit button |
 | 4 | Phase D (steps 9-10) — `deleteClient` + bulk-delete UI + detail page Delete button |
 | 5 | Phase E code (step 11) — Privacy wiring + JSON export action |
-| 6 | Step 12 — migration applied (Zone-2 — explicit confirmation) + ts types regenerated + tsc/lint/build green |
-| 7 | (if needed) Soft-delete read-filter sweep per §4.1 |
-| 8 | Verification gate — Playwright screenshots + progress file finalised + master plan checklist row → ✅ |
+| 6 | Step 12 — migration applied (Zone-2 — explicit confirmation; includes the Step 13 `DROP NOT NULL` + RPC null-branch) + ts types regenerated + tsc/lint/build green |
+| 7 | Step 13 (Phase F) — email-optional code: ManualBookingForm UI + Zod + downstream cron/notification guards + "No email — reminders off" indicator + tests (incl. public-flow regression) |
+| 8 | (if needed) Soft-delete read-filter sweep per §4.1 |
+| 9 | Verification gate — Playwright screenshots + progress file finalised + master plan checklist row → ✅ |
 
 Each commit ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` and stages files explicitly (`git add <path>` — never `git add .`).
 
@@ -665,8 +810,8 @@ When this plan is picked up for implementation:
 2. Read this plan end-to-end.
 3. Re-read W06 §10 (the architecture is lifted here but the audit's framing is useful context).
 4. Run all of §0 (Pre-flight) before any code change.
-5. Execute Phase A → Phase B → Phase C → Phase D → Phase E in order. Don't skip ahead.
-6. Migration (Step 12) is Zone-2 — explicit user confirmation before invoking `mcp__supabase__apply_migration`. Show the user the migration SQL first.
+5. Execute Phase A → Phase B → Phase C → Phase D → Phase E → Phase F (Step 13 email-optional) in order. Don't skip ahead.
+6. Migration (Step 12) is Zone-2 — explicit user confirmation before invoking `mcp__supabase__apply_migration`. Show the user the migration SQL first. **It now includes the Step 13 `contact_email DROP NOT NULL` + the RPC's null-email/phone-fallback branch — both land in the single migration.**
 7. Verification gate (§3) is non-negotiable.
 8. Update `redesign/per-page-progress/C-06-client-crud-hardening-progress.md` as each phase lands.
 9. Final commit also updates `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` C-06 row state from `⏳` to `✅` with shipped date + commit SHA.
@@ -684,6 +829,14 @@ These are decisions that surfaced during plan-writing and are flagged here rathe
 3. **JSON export delivery mechanism** — current plan: server action returns a `Response` with `Content-Disposition: attachment`. Whether this works through Next 16 server actions cleanly needs verification. Fallback: write the JSON to a temporary blob in storage, return a signed download URL. Decided during implementation if the direct approach fails.
 
 4. **Test fixture diversity for Coord-edit verification** — Coord needs at least one client whose operational fields they can change without identity-field interference. The Audit Test Client 1..5 set is generic; create one if needed during the verification sweep.
+
+5. **(Step 13) Phone-fallback matching: link silently or raise duplicate warning?** Locked as **raise the warning** (anti-silent-merge, consistent with the email path). If the repeat-phone case proves too noisy in practice, flip the RPC's phone branch to silent-link — a one-line change. Surface to user if observed.
+
+6. **(Step 13) Booking-level email edit for existing no-email bookings** — out of scope (brief Q9.10). Re-enablement works for FUTURE bookings via the client edit route. Retroactive per-booking email-add is a C-12+ item. Flag if the user wants it.
+
+7. **(Step 13) `NULLIF(v_normalized_email,'')` in the bookings INSERT** — verify the existing RPC body's bookings INSERT references `v_normalized_email` (vs `p_contact_email` directly). If it inserts `p_contact_email` raw, change that site to `NULLIF(p_contact_email,'')` so an empty admin email persists as NULL, not `''`. Confirm during impl by reading the captured original RPC body.
+
+8. **(Step 13) Confirm no other reader assumes `bookings.contact_email` is non-null** — grep `git grep -n "contact_email" src/` and verify each consumer null-safes (notifications, reminders, booking detail, emails delivery log). The "No email — reminders off" indicator + the cron guard cover the known ones; the grep catches strays.
 
 ---
 
