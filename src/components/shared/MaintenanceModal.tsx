@@ -19,6 +19,11 @@ export function MaintenanceModal() {
   useEffect(() => {
     if (!sessionStorage.getItem(SESSION_KEY)) {
       sessionStorage.setItem(SESSION_KEY, "1");
+      // Open once per session, after mount. Deferring to the effect (rather than a
+      // lazy initial state derived from sessionStorage) keeps the server + first
+      // client render closed, avoiding a hydration mismatch. The one-time set has
+      // no cascading-render cost, so the rule is a false positive here.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setOpen(true);
     }
   }, []);
@@ -28,11 +33,10 @@ export function MaintenanceModal() {
       <DialogContent showCloseButton={false} className="bg-rahma-ivory">
         <DialogHeader>
           <DialogTitle className="text-rahma-green">
-            We're adding the finishing touches
+            {"We're adding the finishing touches"}
           </DialogTitle>
           <DialogDescription className="text-rahma-charcoal">
-            Our website isn't quite ready yet — we're putting the last details in place.
-            Please check back soon. In the meantime, we'd love to hear from you directly.
+            {"Our website isn't quite ready yet — we're putting the last details in place. Please check back soon. In the meantime, we'd love to hear from you directly."}
           </DialogDescription>
         </DialogHeader>
 
@@ -60,7 +64,7 @@ export function MaintenanceModal() {
         </div>
 
         <DialogClose className="w-full cursor-pointer rounded-lg bg-rahma-gold px-6 py-3 text-sm font-semibold text-rahma-charcoal transition-opacity duration-[var(--motion-duration-fast)] hover:opacity-85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/35">
-          Got it — I'll check back soon
+          {"Got it — I'll check back soon"}
         </DialogClose>
       </DialogContent>
     </Dialog>
