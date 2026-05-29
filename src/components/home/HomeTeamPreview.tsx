@@ -9,8 +9,8 @@ export function HomeTeamPreview() {
     <SectionContainer tone="ivory" width="wide">
       <SectionHeading
         align="center"
-        title="Qualified therapists you can feel comfortable with"
-        description="Rahma Therapy is led by Nadimur Rahman, Minhaj Rahman and a qualified female therapist, with private same-gender care available for female clients."
+        title="The team coming to your home"
+        description="Nadimur, Minhaj and our female therapist. CMA and IPHM qualified — same-gender care for female clients."
         className="mx-auto"
       />
       <div className="mt-12 grid gap-5 md:grid-cols-3">

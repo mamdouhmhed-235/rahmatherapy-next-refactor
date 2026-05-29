@@ -82,18 +82,17 @@ export function MilestoneTimeline() {
   }, []);
 
   return (
-    <SectionContainer tone="green" width="wide">
+    <SectionContainer tone="ivory" width="wide">
       <SectionHeading
         title="Our journey so far"
-        description="From a mobile therapy service in Luton to a trusted local team, Rahma Therapy has always been built around one idea: professional care that comes to you."
+        description="From a small Luton mobile service to a trusted local team."
         align="center"
         className="mx-auto"
-        inverse
       />
       <ol className="relative mx-auto mt-14 max-w-5xl list-none pl-0 pr-4 md:pr-0">
         <span
           aria-hidden="true"
-          className="absolute bottom-8 left-2 top-8 w-px bg-white/18 md:left-1/2 md:-translate-x-1/2"
+          className="absolute bottom-8 left-2 top-8 w-px bg-rahma-border md:left-1/2 md:-translate-x-1/2"
         />
         {milestones.map((milestone, index) => {
           const isActive = activeIndex === index;
@@ -114,7 +113,7 @@ export function MilestoneTimeline() {
                   "absolute left-0 top-8 z-10 size-4 rounded-full border-2 transition duration-500 md:left-1/2 md:-translate-x-1/2",
                   isActive
                     ? "border-rahma-gold bg-rahma-gold shadow-[0_0_28px_rgba(245,176,0,0.62)]"
-                    : "border-white/40 bg-rahma-green"
+                    : "border-rahma-border bg-white"
                 )}
               />
               <span
@@ -125,7 +124,7 @@ export function MilestoneTimeline() {
                     : "md:col-start-1 md:justify-self-end",
                   isActive
                     ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal shadow-[0_0_24px_rgba(245,176,0,0.42)]"
-                    : "border-white/20 bg-rahma-green text-white/78"
+                    : "border-rahma-border bg-white text-rahma-muted"
                 )}
               >
                 {formatTimelineDate(milestone.date)}
@@ -141,11 +140,11 @@ export function MilestoneTimeline() {
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 className={cn(
-                  "ml-12 rounded-3xl border p-5 text-left text-white shadow-sm transition duration-500 sm:p-6 md:row-start-1 md:ml-0",
+                  "ml-12 rounded-3xl border p-5 text-left text-rahma-charcoal shadow-sm transition duration-500 sm:p-6 md:row-start-1 md:ml-0",
                   isLeft ? "md:col-start-1" : "md:col-start-3",
                   isActive
-                    ? "border-rahma-gold bg-white/[0.16] shadow-[0_24px_80px_rgba(0,0,0,0.28)] ring-1 ring-rahma-gold/55"
-                    : "border-white/15 bg-white/10 hover:border-white/35"
+                    ? "border-rahma-gold bg-white shadow-[0_24px_80px_rgba(20,74,120,0.16)] ring-1 ring-rahma-gold/55"
+                    : "border-rahma-border bg-white hover:border-rahma-green/35"
                 )}
               >
                 <div className="flex flex-wrap items-center gap-3">
@@ -154,7 +153,7 @@ export function MilestoneTimeline() {
                   </span>
                 </div>
                 <h3 className="mt-4 text-xl font-semibold">{milestone.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-white/76">
+                <p className="mt-3 text-sm leading-7 text-rahma-muted">
                   {milestone.description}
                 </p>
               </motion.article>

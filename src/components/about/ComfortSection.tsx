@@ -6,18 +6,18 @@ import { AboutImage } from "./AboutImage";
 
 export function ComfortSection() {
   return (
-    <SectionContainer tone="ivory" width="wide">
+    <SectionContainer tone="sand" width="wide">
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
-            Why clients feel comfortable
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-charcoal">
+            Why people feel comfortable
           </p>
           <h2 className="mt-4 max-w-2xl font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">
-            Respect, privacy and clear communication.
+            Respect first. Always.
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
-            Booking treatment at home can feel personal. We make it simple: respectful
-            communication, clear boundaries, a clean setup and a therapist option you
+            Booking treatment at home can feel personal. We keep it simple: respectful
+            communication, clear boundaries, a clean setup — and a therapist option you
             feel comfortable with.
           </p>
           <figure className="mt-8 rounded-3xl border border-rahma-border bg-white p-6 shadow-sm">

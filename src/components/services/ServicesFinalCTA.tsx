@@ -4,7 +4,7 @@ import { ServicesImage } from "./ServicesImage";
 
 export function ServicesFinalCTA() {
   return (
-    <section className="bg-white px-5 pb-16 sm:px-6 sm:pb-20 lg:px-8 lg:pb-24">
+    <section className="bg-white px-5 pt-16 pb-16 sm:px-6 sm:pt-20 sm:pb-20 lg:px-8 lg:pt-24 lg:pb-24">
       <div className="mx-auto max-w-7xl">
         <div className="relative min-h-[440px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <ServicesImage
@@ -12,15 +12,14 @@ export function ServicesFinalCTA() {
             alt="Private mobile therapy session with Rahma Therapy"
             imageType="Relaxed treatment or wellness image with space for dark overlay."
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#1F2F2B]/94 via-[#1F2F2B]/78 to-[#1F2F2B]/46" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#144a78]/94 via-[#144a78]/78 to-[#144a78]/46" />
           <div className="relative z-10 flex min-h-[440px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <h2 className="font-display text-4xl font-medium leading-tight sm:text-5xl">
-              Ready to choose your package?
+              Pick yours.
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
-              Book a private home session with Rahma Therapy in Luton. Choose hijama,
-              cupping, massage or a combination package — and tell us what you need
-              before your appointment.
+              Book a private home session in Luton — hijama, cupping, massage or a
+              combination package.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -39,10 +38,6 @@ export function ServicesFinalCTA() {
                 Ask on WhatsApp
               </Link>
             </div>
-            <p className="mt-7 text-sm font-semibold text-white/72">
-              Packages from £40 • Male and female therapists available • Mobile across
-              Luton
-            </p>
           </div>
         </div>
       </div>

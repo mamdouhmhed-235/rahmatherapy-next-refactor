@@ -5,9 +5,6 @@ import { PackageFAQ } from "@/components/package-pages/PackageFAQ";
 import { PackageFinalCTA } from "@/components/package-pages/PackageFinalCTA";
 import { PackageHero } from "@/components/package-pages/PackageHero";
 import { PackageIncludes } from "@/components/package-pages/PackageIncludes";
-import { PackageSafety } from "@/components/package-pages/PackageSafety";
-import { PackageSessionSteps } from "@/components/package-pages/PackageSessionSteps";
-import { PackageSummaryCard } from "@/components/package-pages/PackageSummaryCard";
 import { PackageWhoItsFor } from "@/components/package-pages/PackageWhoItsFor";
 import { RelatedPackages } from "@/components/package-pages/RelatedPackages";
 import { TreatmentBreakdown } from "@/components/package-pages/TreatmentBreakdown";
@@ -72,13 +69,10 @@ export default async function PackagePage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <PackageHero page={page} />
-      <PackageSummaryCard page={page} />
       <PackageWhoItsFor page={page} />
       <PackageIncludes page={page} />
       <TreatmentBreakdown page={page} />
-      <PackageSessionSteps />
       <PackageBenefits page={page} />
-      <PackageSafety />
       <PackageFAQ page={page} />
       <RelatedPackages page={page} />
       <PackageFinalCTA page={page} />

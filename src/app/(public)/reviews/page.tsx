@@ -4,7 +4,6 @@ import { LeaveReviewCTA } from "@/components/reviews/LeaveReviewCTA";
 import { ReviewsExplorer } from "@/components/reviews/ReviewsExplorer";
 import { ReviewsFinalCTA } from "@/components/reviews/ReviewsFinalCTA";
 import { ReviewsHero } from "@/components/reviews/ReviewsHero";
-import { ReviewsStatsStrip } from "@/components/reviews/ReviewsStatsStrip";
 import { ReviewThemeHighlights } from "@/components/reviews/ReviewThemeHighlights";
 
 export const metadata: Metadata = {
@@ -40,7 +39,6 @@ export default function ReviewsPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <ReviewsHero />
-      <ReviewsStatsStrip />
       <FeaturedReviewsMosaic />
       <ReviewsExplorer />
       <ReviewThemeHighlights />

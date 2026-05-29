@@ -65,13 +65,9 @@ export function ReviewsExplorer() {
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <SectionHeading
-            title="Every client story, in their own words."
-            description="Filter by service, concern or experience — or keep scrolling through the full wall of Rahma Therapy reviews."
+            title="Every story, in their words."
+            description="Filter or scroll. Every word is real."
           />
-          <p className="max-w-md rounded-3xl border border-rahma-border bg-rahma-ivory p-5 text-sm leading-6 text-rahma-muted">
-            Reviews reflect individual client experiences. Rahma Therapy provides
-            complementary wellness treatments and does not diagnose or replace medical care.
-          </p>
         </div>
 
         <div className="mt-10">

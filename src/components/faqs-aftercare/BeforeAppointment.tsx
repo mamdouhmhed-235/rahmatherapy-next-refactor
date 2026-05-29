@@ -10,7 +10,7 @@ export function BeforeAppointment() {
         <div>
           <SectionHeading
             title="Before your appointment"
-            description="A little preparation helps your session feel smoother, calmer and more comfortable."
+            description="A bit of prep makes everything feel smoother."
           />
           <div className="mt-8 grid gap-4 sm:grid-cols-2">
             {beforeAppointmentItems.map((item) => (
@@ -35,7 +35,7 @@ export function BeforeAppointment() {
             alt="Rahma Therapy therapist preparing for a private home appointment"
             imageType="Therapist preparing treatment setup or a calm checklist-style preparation image."
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-black/10 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
           <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-sm">
             Before your session
           </span>

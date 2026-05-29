@@ -27,19 +27,18 @@ export function BrandStory() {
           </h2>
           <div className="mt-6 space-y-5 text-base leading-8 text-rahma-muted sm:text-lg">
             <p>
-              Rahma Therapy started in Luton in 2020 with a simple purpose: make
-              professional cupping and massage easier to access for people who value
-              privacy, convenience and clear care.
+              Rahma Therapy started in Luton in 2020 with one purpose: make
+              professional cupping and massage easier to access — at home, with
+              privacy, with care.
             </p>
             <p>
-              Today, Nadimur Rahman, Minhaj Rahman and our female therapist provide
-              mobile sessions across Luton, combining hijama, dry cupping, fire cupping,
-              massage and IASTM-style soft-tissue work.
+              Today the team is Nadimur, Minhaj and our female therapist, working
+              across hijama, dry cupping, fire cupping, massage and IASTM.
             </p>
             <p>
-              Clients usually come to us because their back feels tight, their shoulders
-              carry stress, training has left them stiff, or they want a private wellness
-              session at home.
+              Most people find us when their back is tight, their shoulders are
+              carrying stress, training has left them stiff — or they simply want
+              hijama done well, at home.
             </p>
           </div>
           <Link

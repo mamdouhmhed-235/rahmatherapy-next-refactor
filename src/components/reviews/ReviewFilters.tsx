@@ -61,7 +61,7 @@ export function ReviewFilters({
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-xs",
-                    active ? "bg-white/18 text-white" : "bg-rahma-ivory text-rahma-muted"
+                    active ? "bg-white/20 text-white" : "bg-rahma-ivory text-rahma-muted"
                   )}
                 >
                   {filter.countHint}

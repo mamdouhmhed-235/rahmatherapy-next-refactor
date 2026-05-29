@@ -36,11 +36,10 @@ export function PackageFinder() {
             Package finder
           </p>
           <h2 className="mt-4 font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">
-            Not sure which package to choose?
+            Not sure which one?
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-7 text-rahma-muted sm:text-lg">
-            Pick what sounds closest to you and we’ll point you towards the best
-            starting option.
+            Tell us what you need. We&rsquo;ll point you to the right one.
           </p>
           <div className="mt-7 flex flex-wrap gap-3" role="group" aria-label="Package needs">
             {packageFinderOptions.map((option) => {
@@ -55,7 +54,7 @@ export function PackageFinder() {
                   className={cn(
                     "min-h-11 rounded-full border px-4 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue",
                     isSelected
-                      ? "border-rahma-gold bg-rahma-gold text-rahma-green"
+                      ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal"
                       : "border-rahma-border bg-white text-rahma-charcoal hover:border-rahma-green"
                   )}
                 >

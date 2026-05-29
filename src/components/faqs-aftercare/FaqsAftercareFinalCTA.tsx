@@ -4,7 +4,7 @@ import { FaqsAftercareImage } from "./FaqsAftercareImage";
 
 export function FaqsAftercareFinalCTA() {
   return (
-    <section className="bg-white px-5 pb-16 sm:px-6 sm:pb-20 lg:px-8 lg:pb-24">
+    <section className="bg-white px-5 pt-16 pb-16 sm:px-6 sm:pt-20 sm:pb-20 lg:px-8 lg:pt-24 lg:pb-24">
       <div className="mx-auto max-w-7xl">
         <div className="relative min-h-[440px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <FaqsAftercareImage
@@ -12,15 +12,13 @@ export function FaqsAftercareFinalCTA() {
             alt="Private home therapy session with Rahma Therapy"
             imageType="Calm home treatment or wellness image with space for dark overlay."
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#1F2F2B]/94 via-[#1F2F2B]/78 to-[#1F2F2B]/46" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#144a78]/94 via-[#144a78]/78 to-[#144a78]/46" />
           <div className="relative z-10 flex min-h-[440px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <h2 className="font-display text-4xl font-medium leading-tight sm:text-5xl">
               Still have a question before booking?
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
-              Tell us what you are considering, your preferred therapist option and
-              anything we should know about your health or comfort. We’ll help you choose
-              the right package.
+              {"Tell us what you're considering. We'll help you pick the right package."}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -39,9 +37,6 @@ export function FaqsAftercareFinalCTA() {
                 Ask on WhatsApp
               </Link>
             </div>
-            <p className="mt-7 text-sm font-semibold text-white/72">
-              Mobile across Luton • Male and female therapists • Aftercare included
-            </p>
           </div>
         </div>
       </div>

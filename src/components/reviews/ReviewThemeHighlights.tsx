@@ -4,28 +4,27 @@ import { SectionContainer, SectionHeading } from "@/components/shared";
 const themes = [
   {
     title: "Explained clearly",
-    description: "Many first-time clients mention that the therapist explained each step before starting.",
+    description: "First-timers mention the therapist walking them through every step.",
   },
   {
     title: "Professional and prepared",
-    description: "Reviews repeatedly mention punctuality, equipment, knowledge and a calm approach.",
+    description: "Punctual, well-equipped, calm. Said again and again.",
   },
   {
     title: "Comfortable at home",
-    description: "Clients value being treated privately in the comfort of their own home.",
+    description: "Private treatment, in your own space, on your own terms.",
   },
   {
     title: "Female therapist option",
-    description: "Female clients mention feeling comfortable with female therapist appointments.",
+    description: "Female clients comfortable, modest care confirmed.",
   },
   {
     title: "Hijama and cupping trust",
-    description: "Many reviews specifically mention hijama, wet cupping, dry cupping and clear guidance.",
+    description: "Wet cupping, dry cupping, fire cupping — done cleanly.",
   },
   {
-    title: "Repeat clients",
-    description:
-      "Many reviewers say they would book again, have booked again or recommend Rahma Therapy to family and friends.",
+    title: "They book again",
+    description: "Repeat clients. Recommendations to family and friends.",
   },
 ] as const;
 
@@ -33,8 +32,8 @@ export function ReviewThemeHighlights() {
   return (
     <SectionContainer tone="ivory">
       <SectionHeading
-        title="What clients keep saying"
-        description="Across the reviews, a few trust themes repeat again and again."
+        title="What people keep saying"
+        description="Trust themes that repeat across every review."
       />
       <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {themes.map((theme) => (

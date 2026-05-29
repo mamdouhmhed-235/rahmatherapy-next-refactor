@@ -7,8 +7,10 @@ export function PackageFAQ({ page }: { page: PackagePage }) {
     <SectionContainer tone="surface" width="narrow">
       <SectionHeading
         align="center"
-        title={`${page.title} FAQs`}
-        description="Quick answers before you book this package."
+        title={`Common questions about ${page.title
+          .replace(/ Package$/, "")
+          .replace(/ Therapy.*$/, " therapy")}`}
+        description="Quick answers before you book."
         className="mx-auto"
       />
       <Accordion items={page.faqs} className="mt-10" />

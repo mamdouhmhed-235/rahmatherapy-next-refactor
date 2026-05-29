@@ -47,7 +47,7 @@ export function Accordion({ items, className, defaultOpenIndex = 0 }: AccordionP
                 className={cn(
                   "flex size-9 shrink-0 items-center justify-center rounded-full border transition",
                   isOpen
-                    ? "border-rahma-gold bg-rahma-gold text-rahma-green"
+                    ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal"
                     : "border-rahma-border bg-rahma-ivory text-rahma-green group-hover:border-rahma-green/35 group-hover:bg-white"
                 )}
               >

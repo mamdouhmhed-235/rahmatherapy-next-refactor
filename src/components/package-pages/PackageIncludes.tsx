@@ -7,7 +7,7 @@ export function PackageIncludes({ page }: { page: PackagePage }) {
   return (
     <SectionContainer tone="ivory">
       <SectionHeading
-        title="What’s included"
+        title="What's included"
         description="Each included part has a clear purpose, so you know what you are booking before the session starts."
       />
       <div className="mt-10 grid gap-4 md:grid-cols-4">

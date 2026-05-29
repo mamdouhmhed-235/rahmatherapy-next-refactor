@@ -35,11 +35,11 @@ export function FeaturedReviewsMosaic() {
     .filter((card) => card.review);
 
   return (
-    <SectionContainer tone="ivory">
+    <SectionContainer tone="sand">
       <SectionHeading
         align="center"
-        title="The same themes come up again and again."
-        description="Clients talk about feeling comfortable, having everything explained clearly, being seen at home, and trusting both male and female therapists."
+        title="The same words, again and again."
+        description="Comfortable. Clear. Private. Trusted."
         className="mx-auto"
       />
       <div className="mt-12 grid gap-5 lg:grid-cols-[1.15fr_1fr]">
@@ -60,7 +60,7 @@ export function FeaturedReviewsMosaic() {
               }
             >
               <div className="flex items-start justify-between gap-4">
-                <span className="rounded-full bg-rahma-gold/16 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-rahma-green">
+                <span className="rounded-full bg-rahma-gold/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-rahma-charcoal">
                   {card.badge}
                 </span>
                 <StarRating rating={review.rating} />

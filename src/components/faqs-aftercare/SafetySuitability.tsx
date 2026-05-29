@@ -9,21 +9,20 @@ import { FaqsAftercareImage } from "./FaqsAftercareImage";
 
 export function SafetySuitability() {
   return (
-    <SectionContainer tone="green" width="wide">
+    <SectionContainer tone="sand" width="wide">
       <div className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:gap-14">
         <div className="grid max-w-3xl gap-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-gold">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-charcoal">
             Safety & suitability
           </p>
-          <h2 className="max-w-2xl font-display text-3xl font-medium leading-tight text-white sm:text-4xl lg:text-5xl">
+          <h2 className="max-w-2xl font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">
             Safety and suitability come first.
           </h2>
-          <p className="max-w-2xl text-base leading-8 text-white/76 sm:text-lg">
-            Not every treatment is right for every client. Before your session, we ask
-            questions to understand whether hijama, cupping, massage or IASTM-style work
-            is suitable for you.
+          <p className="max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
+            Not every treatment suits every person. Before your session, we check whether
+            hijama, cupping, massage or IASTM is right for you.
           </p>
-          <p className="rounded-3xl border border-white/15 bg-white/10 p-5 text-sm leading-7 text-white/76 sm:p-6">
+          <p className="rounded-3xl border border-rahma-border bg-white p-5 text-sm leading-7 text-rahma-muted sm:p-6">
             {faqsAftercareDisclaimer}
           </p>
         </div>
@@ -34,13 +33,13 @@ export function SafetySuitability() {
               alt="Clean cupping and massage equipment prepared for safe treatment"
               imageType="Clean equipment, gloves, towels, cups and professional treatment setup."
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-black/10 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
             <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-sm">
               Suitability first
             </span>
           </div>
           <div className="grid gap-4">
-            <p className="text-sm font-semibold text-rahma-gold">
+            <p className="text-sm font-semibold text-rahma-charcoal">
               Tell us before booking if you:
             </p>
             <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
@@ -53,7 +52,7 @@ export function SafetySuitability() {
                   <div
                     key={item}
                     className={cn(
-                      "flex h-full items-start gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3",
+                      "flex h-full items-start gap-3 rounded-2xl border border-rahma-border bg-white px-4 py-3",
                       isCenteredFinalCard &&
                         "sm:col-span-2 sm:mx-auto sm:w-[calc((100%-1rem)/2)]"
                     )}
@@ -61,9 +60,9 @@ export function SafetySuitability() {
                     <CheckCircle2
                       aria-hidden="true"
                       size={18}
-                      className="mt-0.5 shrink-0 text-rahma-gold"
+                      className="mt-0.5 shrink-0 text-rahma-green"
                     />
-                    <span className="text-sm font-medium leading-6 text-white/84">
+                    <span className="text-sm font-medium leading-6 text-rahma-charcoal">
                       {item}
                     </span>
                   </div>

@@ -19,10 +19,10 @@ export function TreatmentBreakdown({ page }: { page: PackagePage }) {
             alt={page.breakdownAlt}
             imageType={page.breakdownImageType}
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/14 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
           <div className="absolute bottom-6 left-6 max-w-sm text-white">
             <p className="text-lg font-semibold">{page.title}</p>
-            <p className="mt-2 text-sm leading-6 text-white/78">
+            <p className="mt-2 text-sm leading-6 text-white/80">
               Clean setup, clear explanation and private home treatment.
             </p>
           </div>
@@ -57,9 +57,6 @@ export function TreatmentBreakdown({ page }: { page: PackagePage }) {
                       <dd>{method.clientUse}</dd>
                     </div>
                   </dl>
-                  <p className="mt-4 rounded-2xl bg-rahma-ivory px-4 py-3 text-sm font-semibold leading-6 text-rahma-green">
-                    {method.persuasivePhrase}
-                  </p>
                 </div>
               </div>
             </article>
