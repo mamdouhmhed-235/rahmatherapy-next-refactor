@@ -3,12 +3,14 @@ import { StarsRating } from "@/components/shared";
 
 export function HomeTrustStrip() {
   return (
-    <section className="border-y border-rahma-border bg-white px-5 py-8 sm:py-10 lg:px-8">
+    <section className="border-y border-rahma-border bg-white px-5 py-9 sm:py-11 lg:px-8">
       <div className="mx-auto max-w-5xl">
-        <p className="mb-5 text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-rahma-muted">
+        <p className="text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-rahma-muted">
           Qualified · Trusted · Rated
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-5 sm:gap-x-12 lg:gap-x-16">
+        {/* Gap lives on this div (not the <p>'s margin): site-parity.css resets
+            p/h margins to 0, which would zero any mb-* on the eyebrow. */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-8 gap-y-5 sm:mt-10 sm:gap-x-12 lg:gap-x-16">
           <span className="inline-flex h-11 items-center">
             <Image
               src="/logos/cma-logo.jpg"
