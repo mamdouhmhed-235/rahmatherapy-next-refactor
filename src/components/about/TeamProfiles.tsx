@@ -5,7 +5,7 @@ import { AboutImage } from "./AboutImage";
 
 export function TeamProfiles() {
   return (
-    <SectionContainer tone="ivory" width="wide">
+    <SectionContainer tone="sand" width="wide">
       <SectionHeading
         align="center"
         title="Meet the team"

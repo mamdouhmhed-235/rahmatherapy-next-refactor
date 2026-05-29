@@ -1,11 +1,12 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-type SectionTone = "ivory" | "surface" | "green" | "charcoal";
+type SectionTone = "ivory" | "surface" | "green" | "charcoal" | "sand";
 type SectionWidth = "default" | "wide" | "narrow" | "full";
 
 const toneClasses: Record<SectionTone, string> = {
   ivory: "bg-rahma-ivory text-rahma-charcoal",
+  sand: "bg-rahma-sand text-rahma-charcoal",
   surface: "bg-rahma-surface text-rahma-charcoal",
   green: "bg-rahma-green text-white",
   charcoal: "bg-rahma-charcoal text-white",

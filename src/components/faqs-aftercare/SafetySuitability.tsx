@@ -9,10 +9,10 @@ import { FaqsAftercareImage } from "./FaqsAftercareImage";
 
 export function SafetySuitability() {
   return (
-    <SectionContainer tone="ivory" width="wide">
+    <SectionContainer tone="sand" width="wide">
       <div className="grid gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-start lg:gap-14">
         <div className="grid max-w-3xl gap-6">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-charcoal">
             Safety & suitability
           </p>
           <h2 className="max-w-2xl font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">

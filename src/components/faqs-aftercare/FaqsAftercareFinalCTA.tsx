@@ -18,7 +18,7 @@ export function FaqsAftercareFinalCTA() {
               Still have a question before booking?
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
-              Tell us what you're considering. We'll help you pick the right package.
+              {"Tell us what you're considering. We'll help you pick the right package."}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link

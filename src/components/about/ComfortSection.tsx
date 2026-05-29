@@ -6,10 +6,10 @@ import { AboutImage } from "./AboutImage";
 
 export function ComfortSection() {
   return (
-    <SectionContainer tone="ivory" width="wide">
+    <SectionContainer tone="sand" width="wide">
       <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-charcoal">
             Why people feel comfortable
           </p>
           <h2 className="mt-4 max-w-2xl font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">

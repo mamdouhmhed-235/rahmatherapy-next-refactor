@@ -6,7 +6,7 @@ import { HomeImage } from "./HomeImage";
 
 export function HomeAppointmentProcess() {
   return (
-    <SectionContainer tone="ivory" width="wide">
+    <SectionContainer tone="sand" width="wide">
       <div className="grid gap-10 lg:grid-cols-[1fr_0.95fr] lg:items-center">
         <div>
           <SectionHeading

@@ -10,6 +10,12 @@
   --rahma-gold: #f5a623;
   --rahma-blue: #1b82b8;
   --rahma-border: #e8ded1;
+  /* Subtle warm sand — one step deeper than --rahma-ivory. Used as an alternating
+   * SectionContainer tone to break up runs of adjacent ivory sections that otherwise
+   * blend into one block. Keep it light: charcoal headings + muted body stay well above
+   * AA on it, but green eyebrows/labels would drop under AA, so sand sections use
+   * charcoal (not green) for eyebrows. */
+  --rahma-sand: #f0e8d8;
   --rahma-orange: var(--rahma-gold);
   --background: var(--rahma-ivory);
   --foreground: var(--rahma-charcoal);
@@ -277,6 +283,7 @@
   --color-rahma-gold: var(--rahma-gold);
   --color-rahma-blue: var(--rahma-blue);
   --color-rahma-border: var(--rahma-border);
+  --color-rahma-sand: var(--rahma-sand);
   --color-admin-canvas: var(--admin-canvas);
   --color-admin-shell: var(--admin-shell);
   --color-admin-surface: var(--admin-surface);
