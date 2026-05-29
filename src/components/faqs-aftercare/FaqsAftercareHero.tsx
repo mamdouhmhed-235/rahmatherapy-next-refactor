@@ -2,13 +2,6 @@ import Link from "next/link";
 import { MessageCircle } from "lucide-react";
 import { FaqsAftercareImage } from "./FaqsAftercareImage";
 
-const trustPills = [
-  "Mobile across Luton",
-  "CMA & IPHM qualified",
-  "Male & female therapists",
-  "Aftercare included",
-] as const;
-
 export function FaqsAftercareHero() {
   return (
     <section className="overflow-hidden bg-gradient-to-b from-rahma-ivory to-white px-5 py-12 sm:px-6 md:py-14 lg:px-8 lg:py-20">
@@ -21,14 +14,14 @@ export function FaqsAftercareHero() {
             Clear answers before and after your home session.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
-            Find out how Rahma Therapy appointments work, what each package includes,
-            how to prepare, and what to do after hijama, cupping or massage.
+            How appointments work, what to expect, and what to do after hijama, cupping or
+            massage.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href="?booking=1"
               data-booking-trigger="true"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+              className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
               Book a home session
             </Link>
@@ -40,16 +33,6 @@ export function FaqsAftercareHero() {
               Ask on WhatsApp
             </Link>
           </div>
-          <div className="mt-8 flex max-w-full flex-wrap gap-3">
-            {trustPills.map((pill) => (
-              <span
-                key={pill}
-                className="max-w-full rounded-full border border-rahma-border bg-white px-4 py-2 text-sm font-medium text-rahma-charcoal shadow-sm"
-              >
-                {pill}
-              </span>
-            ))}
-          </div>
         </div>
         <div className="relative min-h-[320px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[360px] lg:min-h-[560px]">
           <FaqsAftercareImage
@@ -58,13 +41,7 @@ export function FaqsAftercareHero() {
             imageType="Clean mobile treatment setup with massage couch, cups, towels, oils and neatly prepared equipment. No blood."
             priority
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/12 to-transparent" />
-          <div className="absolute inset-x-5 bottom-5 rounded-3xl border border-white/15 bg-rahma-charcoal/78 p-5 text-white backdrop-blur-sm sm:inset-x-6 sm:bottom-6">
-            <p className="text-sm font-semibold text-rahma-gold">Practical guidance</p>
-            <p className="mt-2 text-sm leading-6 text-white/78">
-              Before booking • During treatment • Aftercare
-            </p>
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
         </div>
       </div>
     </section>

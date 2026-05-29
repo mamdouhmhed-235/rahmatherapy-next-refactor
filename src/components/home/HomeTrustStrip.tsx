@@ -1,37 +1,49 @@
-import { ClipboardCheck, Home, ShieldCheck, Users } from "lucide-react";
-import { CredentialLogos } from "@/components/shared";
-import { homeTrustItems } from "@/content/pages/home";
-
-const icons = {
-  ShieldCheck,
-  Home,
-  Users,
-  ClipboardCheck,
-} as const;
+import Image from "next/image";
+import { StarsRating } from "@/components/shared";
 
 export function HomeTrustStrip() {
   return (
-    <section className="bg-white px-4 py-12 sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {homeTrustItems.map((item) => {
-          const Icon = icons[item.icon];
-          return (
-            <article
-              key={item.title}
-              className="rounded-3xl border border-rahma-border bg-white p-6 shadow-soft"
-            >
-              {item.title === "CMA & IPHM qualified" ? (
-                <CredentialLogos decorative />
-              ) : (
-                <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-rahma-ivory text-rahma-green">
-                  <Icon aria-hidden="true" size={22} />
-                </div>
-              )}
-              <p className="text-lg font-semibold text-rahma-charcoal">{item.title}</p>
-              <p className="mt-2 text-sm leading-6 text-rahma-muted">{item.body}</p>
-            </article>
-          );
-        })}
+    <section className="border-y border-rahma-border bg-white px-5 py-8 sm:py-10 lg:px-8">
+      <div className="mx-auto max-w-5xl">
+        <p className="mb-5 text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-rahma-muted">
+          Qualified · Trusted · Rated
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-5 sm:gap-x-12 lg:gap-x-16">
+          <span className="inline-flex h-11 items-center">
+            <Image
+              src="/logos/cma-logo.jpg"
+              alt="The Complementary Medical Association logo"
+              width={150}
+              height={60}
+              unoptimized
+              className="h-auto max-h-10 w-auto object-contain"
+            />
+          </span>
+          <span
+            aria-hidden="true"
+            className="hidden h-9 w-px bg-rahma-border sm:inline-block"
+          />
+          <span className="inline-flex h-11 items-center rounded-lg bg-rahma-green px-3">
+            <Image
+              src="/logos/iphm-logo.svg"
+              alt="International Practitioners of Holistic Medicine logo"
+              width={134}
+              height={32}
+              unoptimized
+              className="h-auto max-h-7 w-auto object-contain"
+            />
+          </span>
+          <span
+            aria-hidden="true"
+            className="hidden h-9 w-px bg-rahma-border sm:inline-block"
+          />
+          <div className="inline-flex items-center gap-2.5">
+            <StarsRating rating={5} label="Rated 5.0 out of 5 on Google" />
+            <span className="text-sm font-semibold text-rahma-charcoal">
+              5.0 on Google
+            </span>
+          </div>
+        </div>
       </div>
     </section>
   );

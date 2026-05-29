@@ -8,8 +8,8 @@ export function TreatmentMethods() {
     <SectionContainer tone="surface" width="wide">
       <SectionHeading
         align="center"
-        title="What the treatments mean"
-        description="Each package combines different treatment methods. Here’s the simple version before you choose."
+        title="The treatments, explained"
+        description="What each method is and why we include it."
         className="mx-auto"
       />
       <div className="mt-12 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
@@ -42,9 +42,6 @@ export function TreatmentMethods() {
                     {method.title}
                   </h3>
                   <p className="mt-2 text-sm leading-7 text-rahma-muted">{method.body}</p>
-                  <p className="mt-3 text-sm font-semibold text-rahma-green">
-                    {method.includedIn}
-                  </p>
                 </div>
               </div>
             </article>

@@ -4,7 +4,7 @@ import { AboutImage } from "./AboutImage";
 
 export function AboutFinalCTA() {
   return (
-    <section className="bg-rahma-ivory px-5 pb-16 sm:px-6 sm:pb-20 lg:px-8 lg:pb-24">
+    <section className="bg-rahma-ivory px-5 pt-16 pb-16 sm:px-6 sm:pt-20 sm:pb-20 lg:px-8 lg:pt-24 lg:pb-24">
       <div className="mx-auto max-w-7xl">
         <div className="relative min-h-[440px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <AboutImage
@@ -12,15 +12,14 @@ export function AboutFinalCTA() {
             alt="Relaxing private therapy session with Rahma Therapy"
             imageType="Relaxed wellness image, massage/cupping setup or calm treatment room image with space for overlay."
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#081f1c]/94 via-[#081f1c]/78 to-[#081f1c]/42" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#144a78]/94 via-[#144a78]/78 to-[#144a78]/42" />
           <div className="relative z-10 flex min-h-[440px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <h2 className="font-display text-4xl font-medium leading-tight sm:text-5xl">
-              Ready to book with a team you can trust?
+              Ready to meet the team?
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
               Choose a private home session for hijama, cupping, massage or a
-              combination package. Tell us what you need, and we’ll guide you to the
-              right option.
+              combination package.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -39,9 +38,6 @@ export function AboutFinalCTA() {
                 Ask on WhatsApp
               </Link>
             </div>
-            <p className="mt-7 text-sm font-semibold text-white/72">
-              Male and female therapists available.
-            </p>
           </div>
         </div>
       </div>

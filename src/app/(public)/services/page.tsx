@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
-import { HomeAppointmentProcess } from "@/components/services/HomeAppointmentProcess";
 import { PackageCards } from "@/components/services/PackageCards";
 import { PackageComparison } from "@/components/services/PackageComparison";
 import { PackageFinder } from "@/components/services/PackageFinder";
-import { SafetyAftercareBand } from "@/components/services/SafetyAftercareBand";
 import { ServicesFinalCTA } from "@/components/services/ServicesFinalCTA";
 import { ServicesHero } from "@/components/services/ServicesHero";
-import { ServicesMiniFAQ } from "@/components/services/ServicesMiniFAQ";
-import { ServicesTrustStrip } from "@/components/services/ServicesTrustStrip";
 import { TreatmentMethods } from "@/components/services/TreatmentMethods";
 
 export const metadata: Metadata = {
@@ -67,14 +63,10 @@ export default function ServicesPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <ServicesHero />
-      <ServicesTrustStrip />
       <PackageCards />
       <PackageFinder />
       <PackageComparison />
       <TreatmentMethods />
-      <HomeAppointmentProcess />
-      <SafetyAftercareBand />
-      <ServicesMiniFAQ />
       <ServicesFinalCTA />
     </>
   );

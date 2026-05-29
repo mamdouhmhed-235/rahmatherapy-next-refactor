@@ -60,8 +60,8 @@ export function AftercareTabs() {
     <SectionContainer tone="surface" width="wide">
       <SectionHeading
         align="center"
-        title="Aftercare by treatment type"
-        description="Your therapist will give personalised aftercare, but these are the simple basics most clients want to know."
+        title="Aftercare by treatment"
+        description="Your therapist gives personalised aftercare — these are the basics."
         className="mx-auto"
       />
       <div
@@ -90,7 +90,7 @@ export function AftercareTabs() {
               className={cn(
                 "min-h-11 rounded-full border px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:shrink-0",
                 isActive
-                  ? "border-rahma-gold bg-rahma-gold text-rahma-green"
+                  ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal"
                   : "border-rahma-border bg-white text-rahma-green hover:border-rahma-green"
               )}
             >
@@ -116,7 +116,7 @@ export function AftercareTabs() {
             imageType={activeTab.imageType}
             className="h-full min-h-full rounded-none border-0"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/58 via-black/6 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
           <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-sm">
             {activeTab.imageOverlay}
           </span>

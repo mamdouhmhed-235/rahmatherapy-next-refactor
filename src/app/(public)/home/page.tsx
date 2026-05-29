@@ -5,7 +5,6 @@ import { HomeFinalCTA } from "@/components/home/HomeFinalCTA";
 import { HomeHero } from "@/components/home/HomeHero";
 import { HomePackageCards } from "@/components/home/HomePackageCards";
 import { HomeReviewCarousel } from "@/components/home/HomeReviewCarousel";
-import { HomeSafetyAftercare } from "@/components/home/HomeSafetyAftercare";
 import { HomeTeamPreview } from "@/components/home/HomeTeamPreview";
 import { HomeTrustStrip } from "@/components/home/HomeTrustStrip";
 import { PainPointCards } from "@/components/home/PainPointCards";
@@ -44,7 +43,6 @@ export default function HomePage() {
       <HomeAppointmentProcess />
       <HomeReviewCarousel />
       <HomeTeamPreview />
-      <HomeSafetyAftercare />
       <HomeFAQPreview />
       <HomeFinalCTA />
     </>

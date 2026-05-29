@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageCircle } from "lucide-react";
+import { Check, MessageCircle } from "lucide-react";
 import { SectionContainer, SectionHeading } from "@/components/shared";
 import { comparisonRows, servicePackages } from "@/content/pages/services";
 
@@ -11,22 +11,57 @@ const packageColumns = [
   { key: "massage60", label: "Massage 1 hour" },
 ] as const;
 
+function ComparisonCell({ value }: { value: string }) {
+  if (value === "yes") {
+    return (
+      <>
+        <span className="sr-only">Included</span>
+        <span
+          aria-hidden="true"
+          className="inline-flex size-7 items-center justify-center rounded-full bg-rahma-green text-white"
+        >
+          <Check size={16} strokeWidth={2.5} />
+        </span>
+      </>
+    );
+  }
+  if (value === "no") {
+    return (
+      <>
+        <span className="sr-only">Not included</span>
+        <span aria-hidden="true" className="text-rahma-muted">
+          —
+        </span>
+      </>
+    );
+  }
+  if (value === "optional") {
+    return <span className="font-medium text-rahma-charcoal">Optional</span>;
+  }
+  return <span className="font-medium text-rahma-charcoal">{value}</span>;
+}
+
 export function PackageComparison() {
   return (
     <SectionContainer id="compare-packages" tone="ivory" width="wide">
       <SectionHeading
         align="center"
         title="Compare what’s included"
-        description="A simple side-by-side view of Rahma Therapy’s packages, so you can choose based on what you want from the session."
+        description="A side-by-side view of every package."
         className="mx-auto"
       />
       <div className="mt-12 hidden overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-sm lg:block">
         <table className="w-full table-fixed border-collapse text-left">
-          <thead className="bg-rahma-green text-white">
-            <tr>
-              <th className="w-[17%] px-4 py-5 text-sm font-semibold">Feature</th>
+          <thead>
+            <tr className="border-b border-rahma-border">
+              <th className="w-[20%] px-4 py-5 text-sm font-semibold text-rahma-charcoal">
+                Feature
+              </th>
               {packageColumns.map((column) => (
-                <th key={column.key} className="px-4 py-5 text-sm font-semibold">
+                <th
+                  key={column.key}
+                  className="px-4 py-5 text-sm font-semibold text-rahma-charcoal"
+                >
                   {column.label}
                 </th>
               ))}
@@ -35,15 +70,15 @@ export function PackageComparison() {
           <tbody>
             {comparisonRows.map((row) => (
               <tr key={row.feature} className="border-t border-rahma-border">
-                <th className="bg-rahma-ivory/70 px-4 py-4 text-sm font-semibold text-rahma-charcoal">
+                <th
+                  scope="row"
+                  className="px-4 py-4 text-left text-sm font-semibold text-rahma-charcoal"
+                >
                   {row.feature}
                 </th>
                 {packageColumns.map((column) => (
-                  <td
-                    key={column.key}
-                    className="px-4 py-4 text-sm leading-6 text-rahma-muted"
-                  >
-                    {row[column.key]}
+                  <td key={column.key} className="px-4 py-4 text-sm leading-6">
+                    <ComparisonCell value={row[column.key]} />
                   </td>
                 ))}
               </tr>

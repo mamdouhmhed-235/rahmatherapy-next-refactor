@@ -134,7 +134,7 @@ export function HomeReviewCarousel() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <SectionHeading
             title="Trusted by clients across Luton"
-            description="The same words come up again and again: professional, comfortable, on time, explained clearly and easy to book at home."
+            description="Five words our clients use most: professional, comfortable, on-time, explained, private."
           />
           <div className="flex flex-wrap items-center gap-3">
             <button

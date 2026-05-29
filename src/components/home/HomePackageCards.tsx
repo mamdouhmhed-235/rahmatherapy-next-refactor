@@ -10,8 +10,8 @@ export function HomePackageCards() {
     <SectionContainer tone="surface">
       <SectionHeading
         align="center"
-        title="Choose your home treatment package"
-        description="Clear packages, simple pricing and private appointments across Luton."
+        title="Pick your package"
+        description="Clear packages. Simple pricing. We come to you."
         className="mx-auto"
       />
       <div className="mt-12 grid gap-5 lg:grid-cols-12">
@@ -94,7 +94,7 @@ export function HomePackageCards() {
       </div>
       <div className="mt-10 flex flex-col items-center gap-4 text-center">
         <p className="text-lg font-semibold text-rahma-charcoal">
-          Not sure which package is right for you?
+          Not sure which one's right for you?
         </p>
         <Link
           href="/services#compare-packages"

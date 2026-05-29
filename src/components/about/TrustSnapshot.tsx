@@ -7,8 +7,8 @@ export function TrustSnapshot() {
     <SectionContainer tone="surface">
       <SectionHeading
         align="center"
-        title="The questions clients ask before booking — answered clearly."
-        description="When someone comes to your home for hijama, cupping or massage, trust matters. Here is how Rahma Therapy keeps the experience professional, respectful and comfortable."
+        title="The questions you ask before booking."
+        description="How we keep treatment at home professional, respectful and comfortable."
         className="mx-auto"
       />
       <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">

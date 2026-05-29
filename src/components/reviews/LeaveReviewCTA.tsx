@@ -14,11 +14,10 @@ export function LeaveReviewCTA() {
               ))}
             </div>
             <h2 className="font-display text-3xl font-medium leading-tight sm:text-4xl">
-              Already had a session with Rahma Therapy?
+              Already had a session with us?
             </h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-white/78 sm:text-lg">
-              Your review helps other people in Luton feel confident before booking hijama,
-              cupping or massage at home.
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
+              Your review helps the next person decide.
             </p>
           </div>
           <Link

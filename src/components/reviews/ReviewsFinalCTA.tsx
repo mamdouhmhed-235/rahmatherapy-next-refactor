@@ -4,7 +4,7 @@ import { ReviewsImage } from "./ReviewsImage";
 
 export function ReviewsFinalCTA() {
   return (
-    <section className="bg-rahma-ivory px-5 pb-16 pt-10 sm:px-6 sm:pb-20 lg:px-8 lg:pb-24">
+    <section className="bg-rahma-ivory px-5 pt-10 pb-16 sm:px-6 sm:pt-12 sm:pb-20 lg:px-8 lg:pt-16 lg:pb-24">
       <div className="mx-auto max-w-[88rem]">
         <div className="relative min-h-[460px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <ReviewsImage
@@ -12,18 +12,17 @@ export function ReviewsFinalCTA() {
             alt="Private mobile therapy session with Rahma Therapy in Luton"
             imageType="Calm private treatment/wellness image with space for overlay"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#081f1c]/94 via-[#081f1c]/80 to-[#081f1c]/46" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#144a78]/94 via-[#144a78]/80 to-[#144a78]/46" />
           <div className="relative z-10 flex min-h-[460px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-gold">
               Book with confidence
             </p>
             <h2 className="mt-4 font-display text-4xl font-medium leading-tight sm:text-5xl lg:text-6xl">
-              Ready to book after reading the reviews?
+              Ready to add yours?
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
-              Choose a private home session for hijama, cupping, massage or a package
-              tailored around your needs. Male and female therapists are available across
-              Luton.
+              Choose a private home session for hijama, cupping, massage or a combination
+              package.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -42,9 +41,6 @@ export function ReviewsFinalCTA() {
                 Ask on WhatsApp
               </Link>
             </div>
-            <p className="mt-7 text-sm font-semibold text-white/72">
-              Mobile across Luton • Packages from £40 • Aftercare included
-            </p>
           </div>
         </div>
       </div>

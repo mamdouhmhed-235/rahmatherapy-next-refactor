@@ -12,11 +12,11 @@ export function WhenToGetAdvice() {
             When to get advice
           </p>
           <h2 className="mt-4 max-w-2xl font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">
-            If something feels wrong, do not ignore it.
+            If something feels wrong, don't ignore it.
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
-            Most clients feel fine after treatment, but you should contact Rahma Therapy
-            or seek medical advice if something feels unusual, severe or does not settle.
+            Most people feel fine after treatment. If something doesn't, don't wait —
+            message us or speak to a doctor.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link

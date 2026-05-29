@@ -3,13 +3,6 @@ import { ArrowRight, MessageCircle } from "lucide-react";
 import type { PackagePage } from "@/content/pages/packagePages";
 import { PackageImage } from "./PackageImage";
 
-const trustPills = [
-  "Mobile across Luton",
-  "CMA & IPHM qualified",
-  "Male & female therapists",
-  "Aftercare included",
-] as const;
-
 export function PackageHero({ page }: { page: PackagePage }) {
   return (
     <section className="overflow-hidden bg-gradient-to-b from-rahma-ivory to-white px-5 py-10 sm:px-6 md:py-14 lg:px-8 lg:py-20">
@@ -23,9 +16,6 @@ export function PackageHero({ page }: { page: PackagePage }) {
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-rahma-muted sm:text-lg sm:leading-8">
             {page.subheading}
-          </p>
-          <p className="mt-4 max-w-2xl text-base leading-7 text-rahma-muted sm:leading-8">
-            {page.openingCopy}
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-3 sm:mt-7">
             <span className="rounded-full bg-rahma-gold px-5 py-2 text-lg font-semibold text-rahma-charcoal">
@@ -41,7 +31,7 @@ export function PackageHero({ page }: { page: PackagePage }) {
             <Link
               href={page.bookingHref}
               data-booking-trigger="true"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
               {page.bookingCta}
               <ArrowRight aria-hidden="true" size={16} />
@@ -62,25 +52,7 @@ export function PackageHero({ page }: { page: PackagePage }) {
             imageType={page.heroImageType}
             priority
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/12 to-transparent" />
-          <div className="absolute inset-x-5 bottom-5 rounded-3xl border border-white/15 bg-rahma-charcoal/78 p-5 text-white backdrop-blur-sm sm:inset-x-6 sm:bottom-6">
-            <p className="text-sm font-semibold text-rahma-gold">
-              {page.heroOverlayTitle}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-white/78">
-              {page.heroOverlayText}
-            </p>
-          </div>
-        </div>
-        <div className="flex max-w-full flex-wrap gap-3 md:col-span-2 lg:-mt-4">
-          {trustPills.map((pill) => (
-            <span
-              key={pill}
-              className="max-w-full rounded-full border border-rahma-border bg-white px-4 py-2 text-sm font-medium text-rahma-charcoal shadow-sm"
-            >
-              {pill}
-            </span>
-          ))}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
         </div>
       </div>
     </section>

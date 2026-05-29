@@ -59,7 +59,7 @@ export function ReviewWall({
           </button>
         ) : (
           <p className="rounded-full border border-rahma-border bg-rahma-ivory px-5 py-3 text-sm font-semibold text-rahma-green">
-            You’ve reached the end of the review wall.
+            You've reached the end of the review wall.
           </p>
         )}
       </div>

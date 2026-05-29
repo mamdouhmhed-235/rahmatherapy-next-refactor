@@ -1,67 +1,44 @@
 import type { BookingPackageId } from "@/features/booking/data/booking-packages";
 
-export const homeTrustItems = [
-  {
-    title: "CMA & IPHM qualified",
-    body: "Professional complementary therapy standards.",
-    icon: "ShieldCheck",
-  },
-  {
-    title: "Fully mobile in Luton",
-    body: "We bring the treatment setup to your home.",
-    icon: "Home",
-  },
-  {
-    title: "Male & female therapists",
-    body: "Female clients are treated by a female therapist.",
-    icon: "Users",
-  },
-  {
-    title: "Aftercare included",
-    body: "Clear guidance before and after your session.",
-    icon: "ClipboardCheck",
-  },
-] as const;
-
 export const homePainPoints = [
   {
     title: "Back pain & stiffness",
-    body: "For clients who feel tight, sore or restricted after work, driving or daily life.",
+    body: "After a long shift, hours behind the wheel, or just life — when your back feels locked up.",
     image: "/images/home/pain-back-tension.webp",
     imageType: "Person with back or shoulder stiffness, or a calm therapeutic image.",
     alt: "Client with back and shoulder tension",
   },
   {
     title: "Neck & shoulder tension",
-    body: "For stress that sits in the upper back, traps and shoulders.",
+    body: "When stress settles in your traps and refuses to leave.",
     image: "/images/home/pain-neck-shoulder-tension.webp",
     imageType: "Person with back or shoulder stiffness, or a calm therapeutic image.",
     alt: "Client with neck and shoulder tension",
   },
   {
     title: "Muscle tightness",
-    body: "For stubborn areas that feel hard to loosen.",
+    body: "The knots that stretching, foam-rolling and hot showers can't reach.",
     image: "/images/home/pain-muscle-tightness.webp",
     imageType: "Gym or sports recovery style image.",
     alt: "Muscle tightness and recovery support",
   },
   {
     title: "Stress & body heaviness",
-    body: "For clients who want to feel calmer, lighter and more at ease.",
+    body: "When everything feels heavy and you can't switch off.",
     image: "/images/home/pain-stress.webp",
     imageType: "Relaxed wellness or stress-relief image.",
     alt: "Relaxed client receiving private therapy support",
   },
   {
     title: "Gym & sports recovery",
-    body: "For training soreness, tight legs, shoulders or recovery support.",
+    body: "Tight hamstrings, sore shoulders, the leg-day hangover.",
     image: "/images/home/pain-gym-recovery.webp",
     imageType: "Gym or sports recovery style image.",
     alt: "Gym recovery and muscle tightness support",
   },
   {
     title: "Private hijama at home",
-    body: "For clients who value clean, respectful wet cupping with male or female therapist options.",
+    body: "Clean, respectful wet cupping — with the male or female therapist you choose.",
     image: "/images/home/package-hijama.webp",
     imageType: "Clean hijama or cupping setup with no blood or incisions.",
     alt: "Clean hijama package setup",
@@ -74,7 +51,7 @@ export const homePackages = [
     badge: "Most complete",
     title: "Supreme Combo Package",
     price: "£55",
-    body: "Massage, IASTM, dry cupping, fire cupping and hijama in one full reset.",
+    body: "Massage, IASTM, dry cupping, fire cupping and hijama. One full reset, one session.",
     cta: "View Supreme Combo",
     href: "/services/supreme-combo-package",
     bookingHref: "?booking=1&services=supreme-combo",
@@ -88,7 +65,7 @@ export const homePackages = [
     badge: "Classic hijama",
     title: "Hijama Package",
     price: "£45",
-    body: "Pre-cupping massage, dry cupping and wet cupping at home.",
+    body: "Wet cupping with pre-cupping massage. The traditional hijama experience, at home.",
     cta: "View Hijama Package",
     href: "/services/hijama-package",
     bookingHref: "?booking=1&services=hijama-package",
@@ -102,7 +79,7 @@ export const homePackages = [
     badge: "No wet cupping",
     title: "Fire Package",
     price: "£40",
-    body: "A warming dry/fire cupping session with essential oils.",
+    body: "Cupping without hijama. Warming, traditional, no incisions.",
     cta: "View Fire Package",
     href: "/services/fire-cupping-package",
     bookingHref: "?booking=1&services=fire-package",
@@ -116,7 +93,7 @@ export const homePackages = [
     badge: "Targeted session",
     title: "Massage Therapy — 30 mins",
     price: "£40",
-    body: "Focused support for one main area, such as back, neck or shoulders.",
+    body: "One area, 30 minutes. Back, neck, shoulders or legs.",
     cta: "View 30-Min Massage",
     href: "/services/massage-therapy-30-mins",
     bookingHref: "?booking=1&services=massage-30",
@@ -130,7 +107,7 @@ export const homePackages = [
     badge: "Longer reset",
     title: "Massage Therapy — 1 hour",
     price: "£60",
-    body: "More time for multiple areas, deeper work or a calmer full-body session.",
+    body: "One full hour. Multiple areas. Deeper work.",
     cta: "View 1-Hour Massage",
     href: "/services/massage-therapy-1-hour",
     bookingHref: "?booking=1&services=massage-60",
@@ -157,32 +134,32 @@ export const homePackages = [
 export const whyRahmaItems = [
   {
     title: "We come to you",
-    body: "No travelling with back pain, no waiting room, no clinic stress.",
+    body: "No drive with a tight back. No waiting room. No clinic stress.",
     icon: "Home",
   },
   {
     title: "Male & female therapists",
-    body: "Choose the therapist option you feel comfortable with. Female clients are treated by a female therapist.",
+    body: "Pick the therapist you're comfortable with. Female clients are treated by a female therapist.",
     icon: "Users",
   },
   {
     title: "Qualified care",
-    body: "CMA and IPHM qualified therapists with experience across hijama, cupping and massage.",
+    body: "CMA and IPHM qualified across hijama, cupping and massage.",
     icon: "Award",
   },
   {
     title: "Everything explained",
-    body: "Your therapist talks you through the process before treatment begins.",
+    body: "Your therapist walks you through it before anything begins.",
     icon: "MessageCircle",
   },
   {
     title: "Clean setup",
-    body: "Hygiene-led home treatment with single-use items where required.",
+    body: "Hygiene-led, single-use items where it matters.",
     icon: "ShieldCheck",
   },
   {
     title: "Aftercare included",
-    body: "You leave knowing what to do after your session.",
+    body: "You leave knowing exactly what to do next.",
     icon: "ClipboardCheck",
   },
 ] as const;
@@ -190,23 +167,23 @@ export const whyRahmaItems = [
 export const homeProcessSteps = [
   {
     number: "01",
-    title: "Choose your package",
-    body: "Pick hijama, cupping, massage or a combination package.",
+    title: "Pick your package",
+    body: "Hijama, cupping, massage or a combo — you choose.",
   },
   {
     number: "02",
     title: "Tell us what you need",
-    body: "Share your main concern, therapist preference and any health details we should know.",
+    body: "Where you're tight, who you'd prefer to see, and anything we should know about your health.",
   },
   {
     number: "03",
     title: "We come to your home",
-    body: "Your therapist brings the treatment setup and explains everything clearly before starting.",
+    body: "Your therapist arrives with everything needed and walks you through it before anything begins.",
   },
   {
     number: "04",
     title: "Aftercare included",
-    body: "You receive simple guidance on what to do after your session.",
+    body: "Simple guidance for what to do after — based on the treatment you had.",
   },
 ] as const;
 
@@ -281,7 +258,7 @@ export const homeTeamMembers = [
   {
     name: "Nadimur Rahman",
     role: "CMA & IPHM qualified therapist",
-    body: "Mobile hijama, cupping and massage support with a calm, professional approach.",
+    body: "Hijama, cupping and massage delivered with a calm, methodical style.",
     image: "/images/home/team-nadimur.webp",
     imageType: "Professional portrait of Nadimur Rahman.",
     alt: "Nadimur Rahman from Rahma Therapy",
@@ -289,7 +266,7 @@ export const homeTeamMembers = [
   {
     name: "Minhaj Rahman",
     role: "Founder & CMA/IPHM qualified therapist",
-    body: "Helping build Rahma Therapy around private, accessible care for the Luton community.",
+    body: "Founded Rahma Therapy to make traditional cupping and massage easier to access at home.",
     image: "/images/home/team-minhaj.webp",
     imageType: "Professional portrait of Minhaj Rahman.",
     alt: "Minhaj Rahman from Rahma Therapy",
@@ -297,7 +274,7 @@ export const homeTeamMembers = [
   {
     name: "Female Therapist",
     role: "CMA & IPHM qualified female therapist",
-    body: "Private same-gender care for female clients who want comfort, modesty and clear explanation.",
+    body: "Private same-gender care, built around modesty, comfort and clear communication.",
     image: "/images/home/team-female.webp",
     imageType: "Female therapist image or non-identifying professional setup image.",
     alt: "Female Rahma Therapy therapist preparing a private treatment session",
@@ -315,28 +292,28 @@ export const homeSafetyItems = [
 
 export const homeFaqs = [
   {
-    question: "Do you come to my home?",
+    question: "Does hijama hurt?",
     answer:
-      "Yes. Rahma Therapy is fully mobile across Luton and surrounding areas. Your therapist brings the treatment setup to your home.",
+      "Less than most people expect. Suction first, then a quick scratch-like sensation during the incisions. Your therapist talks you through each step and checks your comfort.",
   },
   {
-    question: "Do you offer female therapists?",
+    question: "Will you bring everything you need?",
     answer:
-      "Yes. Male and female therapists are available. Female clients are treated by a female therapist.",
+      "Yes — treatment couch, cups, oils, towels, single-use items. You just clear a private space.",
   },
   {
-    question: "Which package should I choose?",
+    question: "How soon can I book?",
     answer:
-      "Choose Supreme Combo for the full reset, Hijama Package for wet cupping, Fire Package for cupping without hijama, or Massage Therapy for hands-on treatment.",
+      "Often same week, sometimes same day. WhatsApp us for the soonest slot.",
   },
   {
-    question: "Is hijama suitable for everyone?",
+    question: "I'm not sure which package suits me.",
     answer:
-      "No. Suitability is checked before treatment. If you have a medical condition, take medication, are pregnant or are unsure, please seek medical advice before booking.",
+      "Tell us where you're tight and we'll point you to the right one. The Services page also has a package finder.",
   },
   {
-    question: "How do I book?",
+    question: "What if treatment isn't suitable for me?",
     answer:
-      "Use the booking request flow or message Rahma Therapy on WhatsApp with your preferred package, location and therapist preference.",
+      "We ask about your health before booking. If anything rules treatment out, your therapist explains why and what's safer.",
   },
 ] as const;

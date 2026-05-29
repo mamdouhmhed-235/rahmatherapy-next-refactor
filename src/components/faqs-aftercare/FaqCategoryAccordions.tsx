@@ -60,8 +60,8 @@ export function FaqCategoryAccordions() {
     <SectionContainer tone="ivory" width="narrow">
       <SectionHeading
         align="center"
-        title="Frequently asked questions"
-        description="Choose a topic and open the questions that matter to you."
+        title="Every question, answered"
+        description="Pick a topic and open the questions that matter to you."
         className="mx-auto"
       />
       <div
@@ -90,7 +90,7 @@ export function FaqCategoryAccordions() {
               className={cn(
                 "min-h-11 rounded-full border px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:shrink-0",
                 isActive
-                  ? "border-rahma-gold bg-rahma-gold text-rahma-green"
+                  ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal"
                   : "border-rahma-border bg-white text-rahma-green hover:border-rahma-green"
               )}
             >
