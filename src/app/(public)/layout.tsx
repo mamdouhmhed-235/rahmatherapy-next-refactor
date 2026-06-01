@@ -1,4 +1,5 @@
 import { BookingExperienceLoader } from "@/features/booking/BookingExperienceLoader";
+import { PublicScrollbar } from "@/components/layout/PublicScrollbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 
@@ -21,6 +22,7 @@ export default function PublicLayout({
       </main>
       <SiteFooter />
       <BookingExperienceLoader />
+      <PublicScrollbar />
     </>
   );
 }

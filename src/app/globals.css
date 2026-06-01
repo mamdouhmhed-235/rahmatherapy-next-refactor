@@ -138,6 +138,57 @@ html:has(.public-main)::-webkit-scrollbar {
   display: none; /* Chromium, Safari */
 }
 
+/* Custom overlay scrollbar (see PublicScrollbar.tsx). Floats over the content
+   on the right and reserves no layout width, so full-bleed sections (the hero
+   video) stay edge-to-edge while a usable scrollbar is still visible. */
+.public-scrollbar {
+  position: fixed;
+  top: var(--site-header-height);
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  z-index: 45;
+  opacity: 0;
+  /* The track never blocks input (so swipe-scrolling works everywhere); only
+     the thumb is interactive, and only while the bar is active. */
+  pointer-events: none;
+  transition: opacity 200ms ease;
+}
+
+.public-scrollbar[data-active] {
+  opacity: 1;
+}
+
+.public-scrollbar[data-active] .public-scrollbar__thumb {
+  pointer-events: auto;
+}
+
+.public-scrollbar__thumb {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 6px;
+  height: 40px;
+  border-radius: 999px;
+  pointer-events: none;
+  /* Light fill + dark hairline so it stays visible over BOTH the dark hero
+     video and the light content sections below. */
+  background: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.25);
+  cursor: grab;
+  touch-action: none;
+  transition: width 140ms ease, background-color 140ms ease;
+}
+
+.public-scrollbar__thumb:hover,
+.public-scrollbar__thumb:active {
+  width: 9px;
+  background: rgba(255, 255, 255, 0.82);
+  cursor: grabbing;
+}
+
 a[class*="bg-rahma-green"],
 a[class*="border-white/35"]:not([class*="bg-rahma-gold"]) {
   color: #ffffff !important;

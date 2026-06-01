@@ -10,7 +10,7 @@ const trustPills = [
 
 export function HomeHero() {
   return (
-    <section className="relative min-h-[calc(100svh_-_var(--site-header-height))] overflow-hidden bg-rahma-charcoal">
+    <section className="relative mt-[calc(var(--site-header-height)_*_-1)] min-h-[100svh] overflow-hidden bg-rahma-charcoal">
       <video
         className="absolute inset-0 h-full w-full object-cover"
         autoPlay
@@ -18,9 +18,9 @@ export function HomeHero() {
         muted
         playsInline
         preload="auto"
-        poster="/images/home/homepage-hero-poster-v2.jpg"
+        poster="/images/home/homepage-hero-poster-v3.jpg"
       >
-        <source src="/videos/homepage-hero-v2.mp4" type="video/mp4" />
+        <source src="/videos/homepage-hero-v3.mp4" type="video/mp4" />
       </video>
       {/* Neutral (non-blue) scrim for white-text legibility. Two soft gradients —
           a left lean (text is left-aligned) plus a bottom anchor — kept smooth so
@@ -28,7 +28,7 @@ export function HomeHero() {
           daylight on the right stays visible. */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.42)_30%,rgba(0,0,0,0.12)_60%,transparent_88%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.6)_0%,rgba(0,0,0,0.22)_32%,transparent_62%)]" />
-      <div className="relative z-10 flex min-h-[calc(100svh_-_var(--site-header-height))] flex-col justify-end px-5 pb-16 pt-28 text-white sm:px-6 sm:pb-20 lg:px-8">
+      <div className="relative z-10 flex min-h-[100svh] flex-col justify-end px-5 pb-16 pt-28 text-white sm:px-6 sm:pb-20 lg:px-8">
         <div className="mx-auto w-full max-w-[88rem]">
           <div className="max-w-3xl min-w-0">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-gold">
