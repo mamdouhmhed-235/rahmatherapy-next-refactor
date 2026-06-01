@@ -107,20 +107,6 @@ const sharedSessionSteps = [
 
 export const packageSessionSteps = sharedSessionSteps;
 
-export const packageSafetyItems = [
-  "CMA and IPHM qualified therapists",
-  "Pre-treatment suitability questions",
-  "Clean mobile setup",
-  "Single-use items where required",
-  "Treatment explained before starting",
-  "Male and female therapists available",
-  "Female clients treated by female therapist",
-  "Aftercare guidance included",
-] as const;
-
-export const packageSafetyDisclaimer =
-  "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please speak to a healthcare professional before booking.";
-
 export const packagePages = [
   {
     slug: "supreme-combo-package",

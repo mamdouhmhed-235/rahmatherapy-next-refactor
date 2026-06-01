@@ -17,17 +17,17 @@ export function HomeTeamPreview() {
         {homeTeamMembers.map((member) => (
           <article
             key={member.name}
-            className="overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-sm"
+            className="flex flex-col overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-sm"
           >
-            <div className="relative h-72 overflow-hidden bg-rahma-green">
+            <div className="relative h-[340px] overflow-hidden bg-rahma-green">
               <HomeImage
                 src={member.image}
                 alt={member.alt}
                 imageType={member.imageType}
-                className="transition-transform duration-700 hover:scale-105"
               />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
             </div>
-            <div className="p-6">
+            <div className="flex flex-1 flex-col p-6">
               <h3 className="text-xl font-semibold text-rahma-charcoal">{member.name}</h3>
               <p className="mt-1 text-sm font-semibold text-rahma-green">{member.role}</p>
               <p className="mt-4 text-sm leading-6 text-rahma-muted">{member.body}</p>

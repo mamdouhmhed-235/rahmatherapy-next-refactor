@@ -8,7 +8,7 @@ export function HomeFinalCTA() {
       <div className="mx-auto max-w-[88rem]">
         <div className="relative min-h-[460px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <HomeImage
-            src="/images/home/home-final-cta.webp"
+            src="/images/home/home-final-cta.jpg"
             alt="Private mobile therapy session with Rahma Therapy"
             imageType="Calm premium treatment/wellness image with space for dark overlay."
           />

@@ -125,6 +125,19 @@ body {
   scroll-margin-top: calc(var(--site-header-height) + 1rem);
 }
 
+/* Public site is edge-to-edge: hide the root scrollbar so full-bleed sections
+   (e.g. the homepage hero video) reach the true window edge instead of leaving
+   the OS scrollbar's reserved column as a grey gap on the right. Scrolling
+   still works via wheel, trackpad, touch and keyboard. Admin pages (no
+   .public-main) keep their scrollbar. */
+html:has(.public-main) {
+  scrollbar-width: none; /* Firefox */
+}
+
+html:has(.public-main)::-webkit-scrollbar {
+  display: none; /* Chromium, Safari */
+}
+
 a[class*="bg-rahma-green"],
 a[class*="border-white/35"]:not([class*="bg-rahma-gold"]) {
   color: #ffffff !important;

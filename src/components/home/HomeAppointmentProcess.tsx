@@ -40,7 +40,7 @@ export function HomeAppointmentProcess() {
         </div>
         <div className="relative min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <HomeImage
-            src="/images/home/home-session-process.webp"
+            src="/images/home/home-session-process.jpg"
             alt="Rahma Therapy home appointment setup"
             imageType="Therapist setting up couch/equipment in home."
           />
