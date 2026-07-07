@@ -15,11 +15,10 @@ export function AboutFinalCTA() {
           <div className="absolute inset-0 bg-gradient-to-r from-[#144a78]/94 via-[#144a78]/78 to-[#144a78]/42" />
           <div className="relative z-10 flex min-h-[440px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <h2 className="font-display text-4xl font-medium leading-tight sm:text-5xl">
-              Ready to meet the team?
+              Ready to start your wellness journey?
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
-              Choose a private home session for hijama, cupping, massage or a
-              combination package.
+              Book a private appointment at the comfort of your home
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
