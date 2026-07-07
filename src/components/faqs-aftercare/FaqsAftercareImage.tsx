@@ -11,7 +11,15 @@ interface FaqsAftercareImageProps {
   sizes?: string;
 }
 
-const approvedFaqsAftercareImagePaths = new Set<string>();
+const approvedFaqsAftercareImagePaths = new Set<string>([
+  "/images/faqs-aftercare/faqs-hero-v1.jpg",
+  "/images/faqs-aftercare/before-appointment-v1.jpg",
+  "/images/faqs-aftercare/hijama-aftercare-v1.jpg",
+  "/images/faqs-aftercare/cupping-aftercare-v1.jpg",
+  "/images/faqs-aftercare/massage-aftercare-v1.jpg",
+  "/images/faqs-aftercare/safety-suitability-v1.jpg",
+  "/images/faqs-aftercare/final-cta-v1.jpg",
+]);
 
 export function FaqsAftercareImage({
   src,

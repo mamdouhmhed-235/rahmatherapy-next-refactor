@@ -31,7 +31,7 @@ export function BeforeAppointment() {
         </div>
         <div className="relative min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <FaqsAftercareImage
-            src="/images/faqs-aftercare/before-appointment.webp"
+            src="/images/faqs-aftercare/before-appointment-v1.jpg"
             alt="Rahma Therapy therapist preparing for a private home appointment"
             imageType="Therapist preparing treatment setup or a calm checklist-style preparation image."
           />

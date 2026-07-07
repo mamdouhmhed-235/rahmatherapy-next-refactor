@@ -29,7 +29,7 @@ export function SafetySuitability() {
         <div className="grid gap-7">
           <div className="relative min-h-[360px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
             <FaqsAftercareImage
-              src="/images/faqs-aftercare/safety-suitability.webp"
+              src="/images/faqs-aftercare/safety-suitability-v1.jpg"
               alt="Clean cupping and massage equipment prepared for safe treatment"
               imageType="Clean equipment, gloves, towels, cups and professional treatment setup."
             />

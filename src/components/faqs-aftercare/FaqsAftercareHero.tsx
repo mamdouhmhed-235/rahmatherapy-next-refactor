@@ -34,9 +34,9 @@ export function FaqsAftercareHero() {
             </Link>
           </div>
         </div>
-        <div className="relative min-h-[320px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[360px] lg:min-h-[560px]">
+        <div className="relative aspect-[3/2] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <FaqsAftercareImage
-            src="/images/faqs-aftercare/faqs-hero.webp"
+            src="/images/faqs-aftercare/faqs-hero-v1.jpg"
             alt="Clean Rahma Therapy mobile hijama cupping and massage setup in Luton"
             imageType="Clean mobile treatment setup with massage couch, cups, towels, oils and neatly prepared equipment. No blood."
             priority
