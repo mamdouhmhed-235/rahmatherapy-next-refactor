@@ -7,12 +7,7 @@ import { HomeImage } from "./HomeImage";
 export function HomeTeamPreview() {
   return (
     <SectionContainer tone="ivory" width="wide">
-      <SectionHeading
-        align="center"
-        title="The team coming to your home"
-        description="Nadimur, Minhaj and our female therapist. CMA and IPHM qualified — same-gender care for female clients."
-        className="mx-auto"
-      />
+      <SectionHeading align="center" title="Meet the team" className="mx-auto" />
       <div className="mt-12 grid gap-5 md:grid-cols-3">
         {homeTeamMembers.map((member) => (
           <article
@@ -30,7 +25,6 @@ export function HomeTeamPreview() {
             <div className="flex flex-1 flex-col p-6">
               <h3 className="text-xl font-semibold text-rahma-charcoal">{member.name}</h3>
               <p className="mt-1 text-sm font-semibold text-rahma-green">{member.role}</p>
-              <p className="mt-4 text-sm leading-6 text-rahma-muted">{member.body}</p>
             </div>
           </article>
         ))}

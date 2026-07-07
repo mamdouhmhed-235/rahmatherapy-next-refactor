@@ -2,43 +2,37 @@ import type { BookingPackageId } from "@/features/booking/data/booking-packages"
 
 export const homePainPoints = [
   {
-    title: "Back pain & stiffness",
-    body: "After a long shift, hours behind the wheel, or just life — when your back feels locked up.",
+    body: "Reduce chronic musculoskeletal pain.",
     image: "/images/home/pain-back-tension.webp",
     imageType: "Person with back or shoulder stiffness, or a calm therapeutic image.",
     alt: "Client with back and shoulder tension",
   },
   {
-    title: "Neck & shoulder tension",
-    body: "When stress settles in your traps and refuses to leave.",
+    body: "Improve your sleep quality.",
     image: "/images/home/pain-neck-shoulder-tension.webp",
     imageType: "Person with back or shoulder stiffness, or a calm therapeutic image.",
     alt: "Client with neck and shoulder tension",
   },
   {
-    title: "Muscle tightness",
-    body: "The knots that stretching, foam-rolling and hot showers can't reach.",
+    body: "Enhance your physical function.",
     image: "/images/home/pain-muscle-tightness.webp",
     imageType: "Gym or sports recovery style image.",
     alt: "Muscle tightness and recovery support",
   },
   {
-    title: "Stress & body heaviness",
-    body: "When everything feels heavy and you can't switch off.",
+    body: "Reduce stress and anxiety.",
     image: "/images/home/pain-stress.webp",
     imageType: "Relaxed wellness or stress-relief image.",
     alt: "Relaxed client receiving private therapy support",
   },
   {
-    title: "Gym & sports recovery",
-    body: "Tight hamstrings, sore shoulders, the leg-day hangover.",
+    body: "Rehabilitate trauma from sports and injury.",
     image: "/images/home/pain-gym-recovery.webp",
     imageType: "Gym or sports recovery style image.",
     alt: "Gym recovery and muscle tightness support",
   },
   {
-    title: "Private hijama at home",
-    body: "Clean, respectful wet cupping — with the male or female therapist you choose.",
+    body: "Improve your general health and wellbeing.",
     image: "/images/home/package-hijama.webp",
     imageType: "Clean hijama or cupping setup with no blood or incisions.",
     alt: "Clean hijama package setup",
@@ -51,7 +45,7 @@ export const homePackages = [
     badge: "Most complete",
     title: "Supreme Combo Package",
     price: "£55",
-    body: "Massage, IASTM, dry cupping, fire cupping and hijama. One full reset, one session.",
+    body: "Get the full treatment experience of cupping with Graston therapy — helps to alleviate muscle tension.",
     cta: "View Supreme Combo",
     href: "/services/supreme-combo-package",
     bookingHref: "?booking=1&services=supreme-combo",
@@ -65,7 +59,7 @@ export const homePackages = [
     badge: "Classic hijama",
     title: "Hijama Package",
     price: "£45",
-    body: "Wet cupping with pre-cupping massage. The traditional hijama experience, at home.",
+    body: "Traditional wet cupping with a brief pre-cupping massage.",
     cta: "View Hijama Package",
     href: "/services/hijama-package",
     bookingHref: "?booking=1&services=hijama-package",
@@ -79,7 +73,7 @@ export const homePackages = [
     badge: "No wet cupping",
     title: "Fire Package",
     price: "£40",
-    body: "Cupping without hijama. Warming, traditional, no incisions.",
+    body: "Traditional dry cupping therapy with no incisions or blood loss.",
     cta: "View Fire Package",
     href: "/services/fire-cupping-package",
     bookingHref: "?booking=1&services=fire-package",
@@ -93,7 +87,7 @@ export const homePackages = [
     badge: "Targeted session",
     title: "Massage Therapy — 30 mins",
     price: "£40",
-    body: "One area, 30 minutes. Back, neck, shoulders or legs.",
+    body: "Unwind with a relaxing, deep tissue, cupping massage or graston therapy — a focused 30 minutes on one area.",
     cta: "View 30-Min Massage",
     href: "/services/massage-therapy-30-mins",
     bookingHref: "?booking=1&services=massage-30",
@@ -107,7 +101,7 @@ export const homePackages = [
     badge: "Longer reset",
     title: "Massage Therapy — 1 hour",
     price: "£60",
-    body: "One full hour. Multiple areas. Deeper work.",
+    body: "Unwind with a relaxing, deep tissue, cupping massage or graston therapy — a full hour for deeper, multi-area work.",
     cta: "View 1-Hour Massage",
     href: "/services/massage-therapy-1-hour",
     bookingHref: "?booking=1&services=massage-60",
@@ -167,23 +161,23 @@ export const whyRahmaItems = [
 export const homeProcessSteps = [
   {
     number: "01",
-    title: "Pick your package",
-    body: "Hijama, cupping, massage or a combo — you choose.",
+    title: "Choose an appointment which suits you",
+    body: "Pick a date and time that works around your schedule.",
   },
   {
     number: "02",
-    title: "Tell us what you need",
-    body: "Where you're tight, who you'd prefer to see, and anything we should know about your health.",
+    title: "Pick a package",
+    body: "Choose hijama, cupping, massage or a combination package.",
   },
   {
     number: "03",
-    title: "We come to your home",
-    body: "Your therapist arrives with everything needed and walks you through it before anything begins.",
+    title: "Give us your details",
+    body: "Share your contact details and anything we should know.",
   },
   {
     number: "04",
-    title: "Aftercare included",
-    body: "Simple guidance for what to do after — based on the treatment you had.",
+    title: "We will be in touch to confirm your booking",
+    body: "We'll confirm your appointment and answer any questions.",
   },
 ] as const;
 
@@ -256,25 +250,22 @@ export const homeReviews = [
 
 export const homeTeamMembers = [
   {
-    name: "Nadimur Rahman",
+    name: "Nadim",
     role: "CMA & IPHM qualified therapist",
-    body: "Hijama, cupping and massage delivered with a calm, methodical style.",
     image: "/images/about/nadimur-rahman.png",
     imageType: "Professional portrait of Nadimur Rahman.",
     alt: "Nadimur Rahman from Rahma Therapy",
   },
   {
-    name: "Minhaj Rahman",
-    role: "Founder & CMA/IPHM qualified therapist",
-    body: "Founded Rahma Therapy to make traditional cupping and massage easier to access at home.",
+    name: "Minhaj",
+    role: "CMA & IPHM qualified therapist",
     image: "/images/about/minhaj-rahman-v2.jpg",
     imageType: "Professional portrait of Minhaj Rahman.",
     alt: "Minhaj Rahman from Rahma Therapy",
   },
   {
-    name: "Female Therapist",
+    name: "Faheemah",
     role: "CMA & IPHM qualified female therapist",
-    body: "Private same-gender care, built around modesty, comfort and clear communication.",
     image: "/images/about/female-therapist.jpg",
     imageType: "Female therapist image or non-identifying professional setup image.",
     alt: "Female Rahma Therapy therapist preparing a private treatment session",
@@ -292,28 +283,112 @@ export const homeSafetyItems = [
 
 export const homeFaqs = [
   {
-    question: "Does hijama hurt?",
-    answer:
-      "Less than most people expect. Suction first, then a quick scratch-like sensation during the incisions. Your therapist talks you through each step and checks your comfort.",
+    question: "Does cupping hurt?",
+    answer: [
+      {
+        type: "p",
+        text: "Although some may find the process uneasy, most find it therapeutic and painless. Expect to feel tightness from the cups applied in order to create decompression.",
+      },
+      {
+        type: "p",
+        text: "During wet cupping (Hijama), superficial incisions are made on the surface of the skin which can feel like a scratch or tickle.",
+      },
+    ],
   },
   {
-    question: "Will you bring everything you need?",
-    answer:
-      "Yes — treatment couch, cups, oils, towels, single-use items. You just clear a private space.",
+    question: "What is Hijama?",
+    answer: [
+      {
+        type: "p",
+        text: "“Hijama” or known as wet cupping, is a traditional form of treatment where cups are placed across reflex points and muscle tissue to pump stagnant blood to the surface of the skin.",
+      },
+      {
+        type: "p",
+        text: "Superficial incisions are made on the cupped area where stagnant blood can exit.",
+      },
+      {
+        type: "p",
+        text: "This enhances a healthy blood circulation and aims to bring the body to a state of homeostasis (balance).",
+      },
+    ],
   },
   {
-    question: "How soon can I book?",
-    answer:
-      "Often same week, sometimes same day. WhatsApp us for the soonest slot.",
+    question: "What are the benefits of cupping therapy?",
+    answer: [
+      { type: "p", text: "Many clients seek cupping therapy for:" },
+      {
+        type: "list",
+        items: [
+          "Muscle tension and stiffness",
+          "Back, neck, and shoulder discomfort",
+          "Sports recovery",
+          "Relaxation and stress relief",
+          "Improved mobility and flexibility",
+        ],
+      },
+      {
+        type: "p",
+        text: "Individual results can vary, and cupping should not be considered a replacement for medical care.",
+      },
+    ],
   },
   {
-    question: "I'm not sure which package suits me.",
-    answer:
-      "Tell us where you're tight and we'll point you to the right one. The Services page also has a package finder.",
+    question: "Why do cupping marks appear?",
+    answer: [
+      {
+        type: "p",
+        text: "The circular marks are caused by the suction drawing blood to the surface of the skin. They are not usually bruises from impact and typically fade within a few days to two weeks, depending on the individual.",
+      },
+    ],
   },
   {
-    question: "What if treatment isn't suitable for me?",
-    answer:
-      "We ask about your health before booking. If anything rules treatment out, your therapist explains why and what's safer.",
+    question: "How long is a treatment session?",
+    answer: [
+      {
+        type: "p",
+        text: "Session lengths typically range from 45 to 60 minutes, depending on the package selected and your individual needs.",
+      },
+    ],
+  },
+  {
+    question: "How many sessions will I need?",
+    answer: [
+      {
+        type: "p",
+        text: "This varies from person to person. Some clients feel benefits after one session, while others with ongoing issues may benefit from a series of treatments.",
+      },
+    ],
+  },
+  {
+    question: "Are there any side effects?",
+    answer: [
+      { type: "p", text: "Common temporary effects may include:" },
+      {
+        type: "list",
+        items: [
+          "Mild soreness",
+          "Redness of the skin",
+          "Temporary cupping marks",
+          "Feeling relaxed or tired after treatment",
+        ],
+      },
+      { type: "p", text: "Most effects resolve within a few days." },
+    ],
+  },
+  {
+    question: "Who should avoid cupping therapy?",
+    answer: [
+      { type: "p", text: "Cupping may not be suitable for individuals with:" },
+      {
+        type: "list",
+        items: [
+          "Open wounds or skin infections",
+          "Certain bleeding disorders",
+          "Severe skin conditions",
+          "Certain medical conditions or medications affecting clotting",
+        ],
+      },
+      { type: "p", text: "Please discuss your medical history before treatment." },
+    ],
   },
 ] as const;

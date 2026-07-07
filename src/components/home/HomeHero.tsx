@@ -32,19 +32,19 @@ export function HomeHero() {
         <div className="mx-auto w-full max-w-[88rem]">
           <div className="max-w-3xl min-w-0">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-gold">
-              Mobile hijama, cupping & massage
+              Mobile | Massage | Cupping
             </p>
             {/* Margins on a wrapper <div>, not the h1/<p>: site-parity.css's
                 unlayered reset zeroes margin utilities placed on p/h elements. */}
             <div className="mt-6">
               <h1 className="max-w-4xl font-display text-4xl font-medium leading-[1.02] tracking-normal sm:text-6xl lg:text-7xl">
-                Back, neck and shoulder pain — sorted at home in Luton.
+                Optimise your recovery and well being by booking a home visit with
+                us today!
               </h1>
             </div>
             <div className="mt-5 max-w-2xl">
               <p className="text-base leading-8 text-white/82 sm:text-lg">
-                Hijama, cupping and massage in your own home — with a male or
-                female therapist of your choice. From £40.
+                Hijama, Cupping and massage therapy packages from just £40.
               </p>
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -53,7 +53,7 @@ export function HomeHero() {
                 data-booking-trigger="true"
                 className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
-                Book a home session
+                Book an appointment
               </Link>
               <Link
                 href="/services"

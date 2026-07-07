@@ -4,10 +4,14 @@ import * as React from "react";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+export type AccordionAnswerBlock =
+  | { type: "p"; text: string }
+  | { type: "list"; items: readonly string[] };
+
 interface AccordionProps {
   items: readonly {
     question: string;
-    answer: string;
+    answer: string | readonly AccordionAnswerBlock[];
   }[];
   className?: string;
   defaultOpenIndex?: number | null;
@@ -66,9 +70,26 @@ export function Accordion({ items, className, defaultOpenIndex = 0 }: AccordionP
               hidden={!isOpen}
               className="px-5 pb-5 pt-0 text-sm leading-7 text-rahma-muted sm:px-6 sm:pb-6 sm:text-base"
             >
-              <p className="max-w-3xl border-t border-rahma-border/70 pt-4">
-                {item.answer}
-              </p>
+              <div className="grid max-w-3xl gap-3 border-t border-rahma-border/70 pt-4">
+                {typeof item.answer === "string" ? (
+                  <p>{item.answer}</p>
+                ) : (
+                  item.answer.map((block) =>
+                    block.type === "list" ? (
+                      <ul
+                        key={block.items.join("|")}
+                        className="grid list-disc gap-2 pl-5 marker:text-rahma-green"
+                      >
+                        {block.items.map((entry) => (
+                          <li key={entry}>{entry}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p key={block.text}>{block.text}</p>
+                    )
+                  )
+                )}
+              </div>
             </div>
           </div>
         );

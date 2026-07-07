@@ -11,7 +11,7 @@ export function WhyRahmaTherapy() {
         <div>
           <SectionHeading
             eyebrow="Why us"
-            title="Why people choose us"
+            title="Why choose us?"
             description="Private, qualified care — explained clearly, delivered respectfully."
           />
           <p className="mt-6 max-w-xl text-base leading-7 text-rahma-muted">

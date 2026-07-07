@@ -10,7 +10,7 @@ export function HomeAppointmentProcess() {
       <div className="grid gap-10 lg:grid-cols-[1fr_0.95fr] lg:items-center">
         <div>
           <SectionHeading
-            title="How your home session works"
+            title="How it works"
             description="Simple, private and explained from start to finish."
           />
           <div className="mt-8 grid gap-4">
