@@ -19,6 +19,7 @@ export function PackageFinder() {
   const selectedOption =
     packageFinderOptions.find((option) => option.id === selectedId) ??
     packageFinderOptions[0];
+  const isMultiRecommendation = selectedOption.recommendations.length > 1;
 
   return (
     <SectionContainer tone="surface" width="wide">
@@ -36,10 +37,10 @@ export function PackageFinder() {
             Package finder
           </p>
           <h2 className="mt-4 font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">
-            Not sure which one?
+            Unsure?
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-7 text-rahma-muted sm:text-lg">
-            Tell us what you need. We&rsquo;ll point you to the right one.
+            Tell us what you need and we&rsquo;ll guide you to the right package.
           </p>
           <div className="mt-7 flex flex-wrap gap-3" role="group" aria-label="Package needs">
             {packageFinderOptions.map((option) => {
@@ -71,23 +72,39 @@ export function PackageFinder() {
             className="mt-8 rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-sm"
           >
             <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-              Recommended package: {selectedOption.packageTitle}
+              {isMultiRecommendation
+                ? "Recommended packages: "
+                : "Recommended package: "}
+              {selectedOption.recommendations
+                .map((rec) => rec.packageTitle)
+                .join(" or ")}
             </p>
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-rahma-green">
-              Recommended package
+              {isMultiRecommendation ? "Recommended packages" : "Recommended package"}
             </p>
-            <h3 className="mt-3 text-2xl font-semibold text-rahma-charcoal">
-              {selectedOption.packageTitle}
-            </h3>
-            <p className="mt-3 text-sm leading-7 text-rahma-muted">{selectedOption.body}</p>
-            <Link
-              href={selectedOption.href}
-              data-booking-trigger="true"
-              className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:w-auto"
-            >
-              {selectedOption.cta}
-              <ArrowRight aria-hidden="true" size={16} />
-            </Link>
+            <div className="mt-3 grid gap-6">
+              {selectedOption.recommendations.map((rec, index) => (
+                <div
+                  key={rec.packageTitle}
+                  className={cn(
+                    index > 0 && "border-t border-rahma-border pt-6"
+                  )}
+                >
+                  <h3 className="text-2xl font-semibold text-rahma-charcoal">
+                    {rec.packageTitle}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-rahma-muted">{rec.body}</p>
+                  <Link
+                    href={rec.href}
+                    data-booking-trigger="true"
+                    className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:w-auto"
+                  >
+                    {rec.cta}
+                    <ArrowRight aria-hidden="true" size={16} />
+                  </Link>
+                </div>
+              ))}
+            </div>
           </motion.article>
         </div>
       </div>

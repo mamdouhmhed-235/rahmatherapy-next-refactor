@@ -10,8 +10,8 @@ export function PackageCards() {
     <SectionContainer tone="ivory" width="wide">
       <SectionHeading
         align="center"
-        title="Five packages. Pick yours."
-        description="Different needs, different packages. The therapist comes to you."
+        title="Choose from one of our packages below"
+        description="Mobile service with no extra cost (T&C's apply)."
         className="mx-auto"
       />
       <div className="mt-12 grid gap-5 lg:grid-cols-12">

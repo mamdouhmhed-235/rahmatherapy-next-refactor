@@ -11,13 +11,12 @@ export const servicePackages = [
       "Cupping cups, IASTM tool, clean towels, massage oil, premium treatment setup.",
     alt: "Supreme Combo Package with cupping and IASTM tools",
     shortDescription:
-      "Massage, IASTM, dry cupping, fire cupping and hijama. One full reset, one session.",
+      "Get the full treatment experience of cupping with Graston therapy — helps to alleviate muscle tension.",
     includes: [
-      "Pre-cupping massage",
-      "IASTM / Graston-style therapy",
-      "Dry cupping",
-      "Fire cupping",
-      "Wet cupping / hijama",
+      "Pre-cupping massage / Graston Therapy (IASTM)",
+      "Dry Cupping",
+      "Fire Cupping",
+      "Wet Cupping (Hijama)",
     ],
     bestFor:
       "Clients who want the most complete package for stiffness, tight muscles, recovery support or a full-body reset.",
@@ -36,12 +35,11 @@ export const servicePackages = [
       "Clean hijama/cupping setup with cups and hygienic equipment, no blood.",
     alt: "Hijama package equipment for private home treatment",
     shortDescription:
-      "Wet cupping with pre-cupping massage. The traditional hijama experience, at home.",
+      "Traditional wet cupping with a brief pre-cupping massage.",
     includes: [
       "Pre-cupping massage",
-      "Dry cupping",
-      "Wet cupping / hijama",
-      "Aftercare guidance",
+      "Dry Cupping",
+      "Wet Cupping (Hijama)",
     ],
     bestFor:
       "Clients who already value hijama, want a traditional wellness session, or prefer a clear first-time hijama experience at home.",
@@ -60,12 +58,11 @@ export const servicePackages = [
       "Glass cups or controlled fire cupping setup, safe and calm visual, not dramatic.",
     alt: "Fire cupping package setup with glass cups",
     shortDescription:
-      "Cupping without hijama. Warming, traditional, no incisions.",
+      "Traditional dry cupping therapy with no incisions or blood loss.",
     includes: [
-      "Pre-cupping massage with essential oils",
-      "Dry / fire cupping",
-      "Non-wet cupping session",
-      "Aftercare guidance",
+      "Pre-cupping massage",
+      "Dry Cupping",
+      "Fire Cupping",
     ],
     bestFor:
       "Clients who want cupping for muscle tension, stiffness or relaxation support without wet cupping.",
@@ -84,7 +81,7 @@ export const servicePackages = [
       "Therapist giving back, shoulder or neck massage in calm private setting.",
     alt: "Mobile massage therapy session in Luton",
     shortDescription:
-      "One area, 30 minutes. Back, neck, shoulders or legs.",
+      "Unwind with a relaxing, deep tissue, cupping massage or graston therapy — a focused 30 minutes on one area.",
     includes: [
       "Relaxing massage",
       "Deep tissue option",
@@ -109,7 +106,7 @@ export const servicePackages = [
       "Therapist giving back, shoulder or neck massage in calm private setting.",
     alt: "Mobile massage therapy session in Luton",
     shortDescription:
-      "One full hour. Multiple areas. Deeper work.",
+      "Unwind with a relaxing, deep tissue, cupping massage or graston therapy — a full hour for deeper, multi-area work.",
     includes: [
       "Relaxing massage",
       "Deep tissue option",
@@ -166,52 +163,94 @@ export const serviceTrustItems = [
 
 export const packageFinderOptions = [
   {
-    id: "full-reset",
-    label: "I want the full reset",
-    packageTitle: "Supreme Combo Package",
-    body: "The most complete option: massage, IASTM, dry cupping, fire cupping and hijama in one session.",
-    href: "?booking=1&services=supreme-combo",
-    cta: "Book Supreme Combo",
+    id: "general-detox",
+    label: "I want a general detox",
+    recommendations: [
+      {
+        packageTitle: "Supreme Combo Package",
+        body: "The most complete option: massage, IASTM, dry cupping, fire cupping and hijama in one full-body reset.",
+        href: "?booking=1&services=supreme-combo",
+        cta: "Book Supreme Combo",
+      },
+      {
+        packageTitle: "Hijama Package",
+        body: "Traditional wet cupping with a brief pre-cupping massage — the classic hijama detox.",
+        href: "?booking=1&services=hijama-package",
+        cta: "Book Hijama Package",
+      },
+    ],
   },
   {
-    id: "classic-hijama",
-    label: "I want classic hijama",
-    packageTitle: "Hijama Package",
-    body: "Wet cupping with pre-cupping massage and dry cupping. The traditional experience.",
-    href: "?booking=1&services=hijama-package",
-    cta: "Book Hijama Package",
+    id: "muscle-aches",
+    label: "I have muscle aches",
+    recommendations: [
+      {
+        packageTitle: "Supreme Combo Package",
+        body: "Massage, IASTM and cupping combined to release tight, aching muscles in one session.",
+        href: "?booking=1&services=supreme-combo",
+        cta: "Book Supreme Combo",
+      },
+      {
+        packageTitle: "Massage Therapy — 30 mins",
+        body: "Targeted hands-on massage — relaxing, deep tissue or cupping massage — for one aching area.",
+        href: "?booking=1&services=massage-30",
+        cta: "Book 30 mins",
+      },
+      {
+        packageTitle: "Massage Therapy — 1 hour",
+        body: "A full hour of relaxing, deep tissue or cupping massage for deeper, multi-area muscle relief.",
+        href: "?booking=1&services=massage-60",
+        cta: "Book 1 hour",
+      },
+    ],
   },
   {
-    id: "no-wet-cupping",
-    label: "Cupping without wet cupping",
-    packageTitle: "Fire Package",
-    body: "Dry/fire cupping with pre-cupping massage. No incisions.",
-    href: "?booking=1&services=fire-package",
-    cta: "Book Fire Package",
+    id: "just-hijama",
+    label: "I want to book just hijama",
+    recommendations: [
+      {
+        packageTitle: "Hijama Package",
+        body: "Wet cupping with pre-cupping massage and dry cupping. The traditional hijama experience.",
+        href: "?booking=1&services=hijama-package",
+        cta: "Book Hijama Package",
+      },
+    ],
   },
   {
-    id: "quick-targeted",
-    label: "A quick, targeted session",
-    packageTitle: "Massage Therapy — 30 mins",
-    body: "Focused work on one area — back, neck, shoulders or legs.",
-    href: "?booking=1&services=massage-30",
-    cta: "Book 30 mins",
+    id: "cupping-no-hijama",
+    label: "I want cupping without hijama",
+    recommendations: [
+      {
+        packageTitle: "Fire Package",
+        body: "Dry and fire cupping with a pre-cupping massage. No incisions, no wet cupping.",
+        href: "?booking=1&services=fire-package",
+        cta: "Book Fire Package",
+      },
+    ],
   },
   {
-    id: "longer-massage",
-    label: "A longer massage",
-    packageTitle: "Massage Therapy — 1 hour",
-    body: "More time for multiple areas, deeper work, or a calmer full-body session.",
-    href: "?booking=1&services=massage-60",
-    cta: "Book 1 hour",
+    id: "short-massage",
+    label: "I want a short massage",
+    recommendations: [
+      {
+        packageTitle: "Massage Therapy — 30 mins",
+        body: "A focused 30-minute massage for one area — back, neck, shoulders or legs.",
+        href: "?booking=1&services=massage-30",
+        cta: "Book 30 mins",
+      },
+    ],
   },
   {
-    id: "female-client",
-    label: "Booking for a female client",
-    packageTitle: "Any package, with a female therapist",
-    body: "Female clients are treated by a female therapist. Pick the package, then select the female therapist option at booking.",
-    href: "?booking=1",
-    cta: "Book female therapist",
+    id: "injury-recovery",
+    label: "I'm recovering from an injury",
+    recommendations: [
+      {
+        packageTitle: "Supreme Combo Package",
+        body: "The most complete option for recovery: massage, IASTM, dry cupping, fire cupping and hijama in one session.",
+        href: "?booking=1&services=supreme-combo",
+        cta: "Book Supreme Combo",
+      },
+    ],
   },
 ] as const;
 

@@ -339,8 +339,7 @@ export const packagePages = [
       includes: [
         "Pre-cupping massage",
         "Dry cupping",
-        "Wet cupping / hijama",
-        "Aftercare guidance"
+        "Wet cupping / hijama"
       ]
     },
     fitCards: [
@@ -377,10 +376,6 @@ export const packagePages = [
       {
         title: "Wet cupping / hijama",
         body: "Traditional wet cupping using suction and small superficial incisions, subject to suitability."
-      },
-      {
-        title: "Aftercare guidance",
-        body: "Simple advice after your session so you know what to do next."
       }
     ],
     treatmentBreakdown: [
@@ -513,10 +508,9 @@ export const packagePages = [
       bestFor: "Cupping without hijama, or a warming session for muscle tension and stiffness.",
       therapistOption: "Male or female therapist of your choice. Female clients are treated by a female therapist.",
       includes: [
-        "Pre-cupping massage with essential oils",
-        "Dry / fire cupping",
-        "No wet cupping",
-        "Aftercare guidance"
+        "Pre-cupping massage",
+        "Dry cupping",
+        "Fire cupping"
       ]
     },
     fitCards: [
@@ -543,16 +537,16 @@ export const packagePages = [
     ],
     includesDetailed: [
       {
-        title: "Pre-cupping massage with essential oils",
-        body: "A massage stage using essential oils to prepare the treatment area and create a calmer experience."
+        title: "Pre-cupping massage",
+        body: "A massage stage using an essential oil blend to prepare the treatment area and create a calmer experience."
       },
       {
-        title: "Dry / fire cupping",
-        body: "Cupping suction without wet cupping or incisions."
+        title: "Dry cupping",
+        body: "Cupping suction without incisions, used to target selected areas of tension."
       },
       {
-        title: "Aftercare guidance",
-        body: "Simple advice after your session so you know what to expect."
+        title: "Fire cupping",
+        body: "A traditional heat-assisted cupping method carried out with care and control. No wet cupping."
       }
     ],
     treatmentBreakdown: [

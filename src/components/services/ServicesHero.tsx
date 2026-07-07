@@ -11,11 +11,15 @@ export function ServicesHero() {
             Packages & pricing
           </p>
           <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl md:text-4xl lg:text-6xl">
-            Mobile hijama, cupping and massage in Luton.
+            A mobile service where you are most comfortable
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
-            Five packages for muscle tension, recovery, stress and general wellness
-            — from £40. We come to you.
+            Choose from one of our packages to suit your needs. Each appointment
+            comes with a pre-assessment and a consultation free of charge at start
+            of the session.
+          </p>
+          <p className="mt-4 text-base font-semibold text-rahma-green sm:text-lg">
+            Packages starting from just £40!
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
@@ -23,7 +27,7 @@ export function ServicesHero() {
               data-booking-trigger="true"
               className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
-              Book a home session
+              Book an appointment
             </Link>
             <Link
               href="#compare-packages"
