@@ -6,7 +6,7 @@ export const servicePackages = [
     title: "Supreme Combo Package",
     price: "£55",
     badge: "Most complete",
-    image: "/images/services/supreme-combo.webp",
+    image: "/images/home/package-supreme.jpg",
     imageType:
       "Cupping cups, IASTM tool, clean towels, massage oil, premium treatment setup.",
     alt: "Supreme Combo Package with cupping and IASTM tools",
@@ -31,7 +31,7 @@ export const servicePackages = [
     title: "Hijama Package",
     price: "£45",
     badge: "Classic hijama",
-    image: "/images/services/hijama-package.webp",
+    image: "/images/home/package-hijama-card.jpg",
     imageType:
       "Clean hijama/cupping setup with cups and hygienic equipment, no blood.",
     alt: "Hijama package equipment for private home treatment",
@@ -55,7 +55,7 @@ export const servicePackages = [
     title: "Fire Package",
     price: "£40",
     badge: "No wet cupping",
-    image: "/images/services/fire-package.webp",
+    image: "/images/home/package-fire.jpg",
     imageType:
       "Glass cups or controlled fire cupping setup, safe and calm visual, not dramatic.",
     alt: "Fire cupping package setup with glass cups",
@@ -79,7 +79,7 @@ export const servicePackages = [
     title: "Massage Therapy — 30 mins",
     price: "£40",
     badge: "Targeted session",
-    image: "/images/services/massage-therapy.webp",
+    image: "/images/home/package-massage.jpg",
     imageType:
       "Therapist giving back, shoulder or neck massage in calm private setting.",
     alt: "Mobile massage therapy session in Luton",
@@ -104,7 +104,7 @@ export const servicePackages = [
     title: "Massage Therapy — 1 hour",
     price: "£60",
     badge: "Longer session",
-    image: "/images/services/massage-therapy.webp",
+    image: "/images/home/package-massage-60.jpg",
     imageType:
       "Therapist giving back, shoulder or neck massage in calm private setting.",
     alt: "Mobile massage therapy session in Luton",

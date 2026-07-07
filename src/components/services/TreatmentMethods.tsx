@@ -15,7 +15,7 @@ export function TreatmentMethods() {
       <div className="mt-12 grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
         <div className="relative min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <ServicesImage
-            src="/images/services/treatment-methods.webp"
+            src="/images/services/treatment-methods-v1.jpg"
             alt="Hijama cupping massage and IASTM treatment methods"
             imageType="Collage of cups, oils, towels and IASTM tool."
           />

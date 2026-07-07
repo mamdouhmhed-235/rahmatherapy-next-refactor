@@ -11,7 +11,17 @@ interface ServicesImageProps {
   sizes?: string;
 }
 
-const approvedServiceImagePaths = new Set<string>();
+const approvedServiceImagePaths = new Set<string>([
+  "/images/home/package-supreme.jpg",
+  "/images/home/package-hijama-card.jpg",
+  "/images/home/package-fire.jpg",
+  "/images/home/package-massage.jpg",
+  "/images/home/package-massage-60.jpg",
+  "/images/services/services-hero-v1.jpg",
+  "/images/services/services-final-cta-v1.jpg",
+  "/images/services/package-finder-v1.jpg",
+  "/images/services/treatment-methods-v1.jpg",
+]);
 
 export function ServicesImage({
   src,

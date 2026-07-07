@@ -36,7 +36,7 @@ export function ServicesHero() {
         </div>
         <div className="relative min-h-[320px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[360px] lg:min-h-[560px]">
           <ServicesImage
-            src="/images/services/services-hero.webp"
+            src="/images/services/services-hero-v1.jpg"
             alt="Rahma Therapy mobile hijama cupping and massage setup in Luton"
             imageType="Premium mobile therapy setup: massage bed, cups, oils, towels, therapist preparing equipment."
             priority
