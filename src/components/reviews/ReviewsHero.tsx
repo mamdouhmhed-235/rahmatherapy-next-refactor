@@ -34,9 +34,9 @@ export function ReviewsHero() {
           </div>
         </div>
 
-        <div className="relative min-h-[420px] overflow-hidden rounded-3xl border border-white/70 shadow-card">
+        <div className="relative aspect-square overflow-hidden rounded-3xl border border-white/70 shadow-card">
           <ReviewsImage
-            src="/images/reviews/reviews-hero.webp"
+            src="/images/reviews/reviews-hero-v1.jpg"
             alt="Rahma Therapy mobile treatment setup for client reviews"
             imageType="Clean premium mobile therapy setup, massage couch, cups, towels, calm home environment"
             priority

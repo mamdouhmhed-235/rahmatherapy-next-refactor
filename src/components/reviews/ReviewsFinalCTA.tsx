@@ -8,7 +8,7 @@ export function ReviewsFinalCTA() {
       <div className="mx-auto max-w-[88rem]">
         <div className="relative min-h-[460px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <ReviewsImage
-            src="/images/reviews/reviews-final-cta.webp"
+            src="/images/reviews/reviews-final-cta-v1.jpg"
             alt="Private mobile therapy session with Rahma Therapy in Luton"
             imageType="Calm private treatment/wellness image with space for overlay"
           />

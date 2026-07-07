@@ -33,13 +33,14 @@ export const googleReviewsUrl = "https://www.google.com/maps/place/Rahma+Therapy
 
 export const reviewsPageStats = {
   googleReviewCountAtExtraction: "177",
+  googleAverageRating: "5.0",
   extractedReviewRecords: "89",
   visibleTextReviews: "88",
   fiveStarReviewsInExtractedSet: "87",
   fourStarReviewsInExtractedSet: "2",
   clientsSupported: "500+",
   servingSince: "2020",
-  note: "Confirm the live Google review count before publishing exact public numbers.",
+  note: "Live Google rating (5.0) and review count (177) confirmed from the Rahma Therapy Google Business listing.",
 } as const;
 
 export const reviewCategoryFilters = [
