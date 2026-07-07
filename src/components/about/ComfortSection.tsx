@@ -39,7 +39,7 @@ export function ComfortSection() {
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="relative min-h-[360px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:col-span-2">
             <AboutImage
-              src="/images/about/client-comfort.webp"
+              src="/images/areas/services/p-img4171.jpg"
               alt="Private at-home massage and cupping session for client comfort"
               imageType="Calm client receiving massage/cupping in a private relaxed setting."
             />

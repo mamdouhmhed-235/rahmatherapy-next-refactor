@@ -42,7 +42,7 @@ export const teamMembers = [
   {
     name: "Nadimur Rahman",
     role: "CMA & IPHM qualified therapist",
-    image: "/images/about/nadimur-rahman.webp",
+    image: "/images/about/nadimur-rahman.png",
     imageType: "Professional portrait of Nadimur Rahman.",
     alt: "Nadimur Rahman from Rahma Therapy",
     body: "Hijama, cupping and massage delivered with a calm, methodical style. Most often booked for tension, stiffness and recovery.",
@@ -56,7 +56,7 @@ export const teamMembers = [
   {
     name: "Minhaj Rahman",
     role: "Founder & CMA/IPHM qualified therapist",
-    image: "/images/about/minhaj-rahman.webp",
+    image: "/images/about/minhaj-rahman-v2.jpg",
     imageType: "Professional portrait of Minhaj Rahman.",
     alt: "Minhaj Rahman from Rahma Therapy",
     body: "Founded Rahma Therapy to make traditional cupping and massage easier to access at home in Luton. Combines hijama and cupping with practical soft-tissue work.",
@@ -70,7 +70,7 @@ export const teamMembers = [
   {
     name: "Female Therapist",
     role: "CMA & IPHM qualified female therapist",
-    image: "/images/about/female-therapist.webp",
+    image: "/images/about/female-therapist.jpg",
     imageType:
       "Modest professional image of female therapist, non-identifying if needed.",
     alt: "Female Rahma Therapy therapist preparing a private treatment session",

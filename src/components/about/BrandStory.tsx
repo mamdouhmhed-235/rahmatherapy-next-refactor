@@ -9,7 +9,7 @@ export function BrandStory() {
       <div className="grid gap-10 lg:grid-cols-[0.95fr_1fr] lg:items-center">
         <div className="relative min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <AboutImage
-            src="/images/about/home-treatment-setup.webp"
+            src="/images/about/brand-story-v1.webp"
             alt="Private mobile therapy setup for hijama and massage at home"
             imageType="Home treatment setup with massage bed, cups, towels, oils or tools. Calm and professional. No graphic imagery."
           />

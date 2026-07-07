@@ -34,10 +34,10 @@ export function AboutHero() {
             </Link>
           </div>
         </div>
-        <div className="relative min-h-[430px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[560px] lg:min-h-[600px]">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <AboutImage
-            src="/images/about/about-hero-team.webp"
-            alt="Rahma Therapy mobile hijama and massage therapists in Luton"
+            src="/images/about/about-hero-v3.jpg"
+            alt="Rahma Therapy mobile therapy team arriving at a home in Luton with treatment kit"
             imageType="Rahma Therapy therapists in clean professional clothing. Ideally Nadimur, Minhaj and female therapist."
             priority
           />
