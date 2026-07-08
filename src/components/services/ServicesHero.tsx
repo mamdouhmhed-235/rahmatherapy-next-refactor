@@ -44,6 +44,7 @@ export function ServicesHero() {
             alt="Rahma Therapy mobile hijama cupping and massage setup in Luton"
             imageType="Premium mobile therapy setup: massage bed, cups, oils, towels, therapist preparing equipment."
             priority
+            fetchPriority="high"
           />
         </div>
       </div>

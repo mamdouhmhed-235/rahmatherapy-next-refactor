@@ -10,6 +10,7 @@ interface AboutImageProps {
   imageType: string;
   className?: string;
   priority?: boolean;
+  fetchPriority?: "high";
   sizes?: string;
 }
 
@@ -23,6 +24,7 @@ export function AboutImage({
   imageType,
   className,
   priority = false,
+  fetchPriority,
   sizes = "(max-width: 768px) 100vw, 50vw",
 }: AboutImageProps) {
   if (!publicAssetExists(src)) {
@@ -44,6 +46,7 @@ export function AboutImage({
       alt={alt}
       fill
       priority={priority}
+      fetchPriority={fetchPriority}
       sizes={sizes}
       className={cn("object-cover", className)}
     />

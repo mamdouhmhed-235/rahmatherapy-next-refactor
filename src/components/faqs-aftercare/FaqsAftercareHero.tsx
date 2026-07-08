@@ -40,6 +40,7 @@ export function FaqsAftercareHero() {
             alt="Clean Rahma Therapy mobile hijama cupping and massage setup in Luton"
             imageType="Clean mobile treatment setup with massage couch, cups, towels, oils and neatly prepared equipment. No blood."
             priority
+            fetchPriority="high"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
         </div>

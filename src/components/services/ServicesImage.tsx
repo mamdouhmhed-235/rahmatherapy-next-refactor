@@ -8,6 +8,7 @@ interface ServicesImageProps {
   imageType: string;
   className?: string;
   priority?: boolean;
+  fetchPriority?: "high";
   sizes?: string;
 }
 
@@ -29,6 +30,7 @@ export function ServicesImage({
   imageType,
   className,
   priority = false,
+  fetchPriority,
   sizes = "(max-width: 768px) 100vw, 50vw",
 }: ServicesImageProps) {
   if (!approvedServiceImagePaths.has(src)) {
@@ -50,6 +52,7 @@ export function ServicesImage({
       alt={alt}
       fill
       priority={priority}
+      fetchPriority={fetchPriority}
       sizes={sizes}
       className={cn("object-cover", className)}
     />

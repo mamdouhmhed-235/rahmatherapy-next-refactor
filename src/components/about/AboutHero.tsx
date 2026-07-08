@@ -40,6 +40,7 @@ export function AboutHero() {
             alt="Rahma Therapy mobile therapy team arriving at a home in Luton with treatment kit"
             imageType="Rahma Therapy therapists in clean professional clothing. Ideally Nadimur, Minhaj and female therapist."
             priority
+            fetchPriority="high"
           />
         </div>
       </div>

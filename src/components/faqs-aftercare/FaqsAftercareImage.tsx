@@ -8,6 +8,7 @@ interface FaqsAftercareImageProps {
   imageType: string;
   className?: string;
   priority?: boolean;
+  fetchPriority?: "high";
   sizes?: string;
 }
 
@@ -27,6 +28,7 @@ export function FaqsAftercareImage({
   imageType,
   className,
   priority = false,
+  fetchPriority,
   sizes = "(max-width: 768px) 100vw, 50vw",
 }: FaqsAftercareImageProps) {
   if (!approvedFaqsAftercareImagePaths.has(src)) {
@@ -48,6 +50,7 @@ export function FaqsAftercareImage({
       alt={alt}
       fill
       priority={priority}
+      fetchPriority={fetchPriority}
       sizes={sizes}
       className={cn("object-cover", className)}
     />
