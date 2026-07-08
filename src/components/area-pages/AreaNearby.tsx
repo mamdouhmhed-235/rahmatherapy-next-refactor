@@ -30,10 +30,10 @@ export function AreaNearby({ area }: { area: AreaPage }) {
           <Link
             key={place.slug}
             href={`/areas/${place.slug}`}
-            className="group flex items-center justify-between gap-4 rounded-2xl border border-rahma-border bg-rahma-ivory px-6 py-5 transition duration-300 hover:-translate-y-0.5 hover:border-rahma-green/40 hover:shadow-card"
+            className="group flex items-center justify-between gap-4 rounded-2xl border border-rahma-border bg-rahma-ivory px-6 py-5 transition duration-300 hover:-translate-y-0.5 hover:border-rahma-green/40 hover:shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
           >
             <span className="flex items-center gap-4">
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-rahma-green shadow-sm">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-rahma-green shadow-soft">
                 <MapPin aria-hidden="true" size={20} />
               </span>
               <span>
@@ -52,7 +52,7 @@ export function AreaNearby({ area }: { area: AreaPage }) {
       <div className="mt-8 text-center">
         <Link
           href="/areas"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-rahma-green transition hover:text-rahma-charcoal"
+          className="inline-flex items-center gap-2 rounded-full text-sm font-semibold text-rahma-green transition hover:text-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
         >
           See all areas we serve across Luton
           <ArrowRight aria-hidden="true" size={16} />

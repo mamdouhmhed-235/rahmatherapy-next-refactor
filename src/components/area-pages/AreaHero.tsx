@@ -14,7 +14,7 @@ export function AreaHero({ area }: { area: AreaPage }) {
           </p>
           {/* Margins live on wrapper divs: the global site-parity reset zeroes <h1>/<p> margins. */}
           <div className="mt-6 lg:mt-7">
-            <h1 className="max-w-3xl font-display text-3xl font-medium leading-[1.06] text-rahma-charcoal sm:text-5xl md:text-4xl lg:text-6xl">
+            <h1 className="max-w-3xl font-display text-3xl font-medium leading-[1.06] text-rahma-charcoal sm:text-5xl lg:text-6xl">
               {area.h1}
             </h1>
           </div>
@@ -24,7 +24,7 @@ export function AreaHero({ area }: { area: AreaPage }) {
             </p>
           </div>
           <div className="mt-6 flex flex-wrap items-center gap-3 sm:mt-7">
-            <span className="rounded-full bg-rahma-gold px-5 py-2 text-lg font-semibold text-rahma-charcoal">
+            <span className="rounded-full bg-rahma-gold px-5 py-2 text-lg font-semibold text-rahma-charcoal-strong">
               {area.priceFrom}
             </span>
             <span className="inline-flex items-center gap-2 rounded-full border border-rahma-border bg-white px-5 py-2 text-sm font-semibold text-rahma-green">
@@ -36,14 +36,14 @@ export function AreaHero({ area }: { area: AreaPage }) {
             <Link
               href={area.bookingHref}
               data-booking-trigger="true"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252]"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
               {area.bookingCta}
               <ArrowRight aria-hidden="true" size={16} />
             </Link>
             <a
               href={area.whatsappHref}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-rahma-green/30 bg-white px-6 text-sm font-semibold text-rahma-green transition hover:border-rahma-green"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-rahma-green/30 bg-white px-6 text-sm font-semibold text-rahma-green transition hover:border-rahma-green focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
               <MessageCircle aria-hidden="true" size={17} />
               {area.whatsappCta}

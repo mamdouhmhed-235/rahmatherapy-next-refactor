@@ -16,7 +16,7 @@ export function LeaveReviewCTA() {
             <h2 className="font-display text-3xl font-medium leading-tight sm:text-4xl">
               Already had a session with us?
             </h2>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
+            <p className="mt-4 max-w-2xl text-base leading-7 text-white sm:text-lg">
               Your review helps the next person decide.
             </p>
           </div>

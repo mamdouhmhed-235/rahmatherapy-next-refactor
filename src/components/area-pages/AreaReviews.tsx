@@ -9,7 +9,7 @@ export function AreaReviews({ area }: { area: AreaPage }) {
         {area.reviews.map((review) => (
           <figure
             key={review.reviewer}
-            className="flex h-full flex-col rounded-3xl border border-rahma-border bg-white p-6 shadow-sm"
+            className="flex h-full flex-col rounded-3xl border border-rahma-border bg-white p-6 shadow-card"
           >
             <StarsRating rating={review.rating} />
             <blockquote className="mt-4 flex-1 text-sm leading-7 text-rahma-muted">“{review.text}”</blockquote>

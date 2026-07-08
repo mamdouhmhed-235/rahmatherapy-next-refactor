@@ -14,9 +14,9 @@ export function QuickAnswersStrip() {
         {quickAnswers.map((item) => (
           <article
             key={item.title}
-            className="rounded-3xl border border-rahma-border bg-white p-6 shadow-sm"
+            className="rounded-3xl border border-rahma-border bg-white p-6 shadow-card"
           >
-            <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-rahma-ivory text-rahma-green">
+            <div className="mb-5 flex size-12 items-center justify-center rounded-full bg-rahma-ivory text-rahma-green">
               <FaqsAftercareIcon name={item.icon} />
             </div>
             <h3 className="text-lg font-semibold text-rahma-charcoal">{item.title}</h3>

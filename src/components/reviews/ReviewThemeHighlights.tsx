@@ -39,10 +39,10 @@ export function ReviewThemeHighlights() {
         {themes.map((theme) => (
           <article
             key={theme.title}
-            className="rounded-3xl border border-rahma-border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
+            className="rounded-3xl border border-rahma-border bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-card motion-reduce:transform-none motion-reduce:transition-none"
           >
             <CheckCircle2 aria-hidden="true" className="text-rahma-gold" size={26} />
-            <h3 className="mt-5 text-xl font-semibold text-rahma-charcoal">{theme.title}</h3>
+            <h3 className="mt-5 font-display text-xl font-semibold text-rahma-charcoal">{theme.title}</h3>
             <p className="mt-3 text-base leading-7 text-rahma-muted">{theme.description}</p>
           </article>
         ))}

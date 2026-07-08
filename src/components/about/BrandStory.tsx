@@ -14,7 +14,7 @@ export function BrandStory() {
             imageType="Home treatment setup with massage bed, cups, towels, oils or tools. Calm and professional. No graphic imagery."
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-black/10 to-transparent" />
-          <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-sm">
+          <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-soft">
             Mobile care across Luton
           </span>
         </div>

@@ -25,7 +25,7 @@ export function AreaMap({ area }: { area: AreaPage }) {
           <Link
             href={area.bookingHref}
             data-booking-trigger="true"
-            className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal"
+            className="mt-8 inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
           >
             {area.bookingCta}
             <ArrowRight aria-hidden="true" size={16} />

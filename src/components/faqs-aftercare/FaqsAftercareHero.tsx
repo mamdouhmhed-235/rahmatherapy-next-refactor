@@ -10,7 +10,7 @@ export function FaqsAftercareHero() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
             FAQs & Aftercare
           </p>
-          <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl md:text-4xl lg:text-6xl">
+          <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl lg:text-6xl">
             Clear answers before and after your home session.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
@@ -21,7 +21,7 @@ export function FaqsAftercareHero() {
             <Link
               href="?booking=1"
               data-booking-trigger="true"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+              className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
               Book a home session
             </Link>

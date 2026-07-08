@@ -6,6 +6,13 @@
    * blue button fills and blue panels meet AA. Hover→--rahma-charcoal still reads. */
   --rahma-green: #1c72ac;
   --rahma-charcoal: #144a78;
+  /* Text-on-gold variant. --rahma-charcoal on --rahma-gold measures only 4.543:1 —
+   * just above the 4.5 WCAG AA minimum for normal text, with almost no margin for
+   * rendering variance. This darkens charcoal (delta -2/-6/-8, imperceptible as a
+   * different color) to 4.966:1 on gold. Use for text/icons rendered on
+   * --rahma-gold fills only (primary "Book" CTAs, active tab/pill selectors);
+   * --rahma-charcoal itself is unchanged everywhere else. */
+  --rahma-charcoal-strong: #124470;
   --rahma-muted: #4a5a6a;
   --rahma-gold: #f5a623;
   --rahma-blue: #1b82b8;
@@ -279,6 +286,7 @@
   --color-rahma-surface: var(--rahma-surface);
   --color-rahma-green: var(--rahma-green);
   --color-rahma-charcoal: var(--rahma-charcoal);
+  --color-rahma-charcoal-strong: var(--rahma-charcoal-strong);
   --color-rahma-muted: var(--rahma-muted);
   --color-rahma-gold: var(--rahma-gold);
   --color-rahma-blue: var(--rahma-blue);

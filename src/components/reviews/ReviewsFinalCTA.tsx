@@ -12,7 +12,7 @@ export function ReviewsFinalCTA() {
             alt="Private mobile therapy session with Rahma Therapy in Luton"
             imageType="Calm private treatment/wellness image with space for overlay"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#144a78]/94 via-[#144a78]/80 to-[#144a78]/46" />
+          <div className="absolute inset-0 bg-gradient-to-r from-rahma-charcoal/94 via-rahma-charcoal/80 to-rahma-charcoal/46" />
           <div className="relative z-10 flex min-h-[460px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-gold">
               Book with confidence
@@ -28,7 +28,7 @@ export function ReviewsFinalCTA() {
               <Link
                 href="?booking=1"
                 data-booking-trigger="true"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 Book now
                 <ArrowRight aria-hidden="true" size={16} />

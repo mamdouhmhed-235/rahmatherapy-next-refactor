@@ -71,10 +71,10 @@ export function AreaPackages({ area }: { area: AreaPage }) {
                 className="transition-transform duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-black/10" />
-              <span className="absolute left-6 top-6 z-30 max-w-[60%] rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold uppercase leading-tight tracking-[0.14em] text-rahma-charcoal sm:left-7 sm:top-7">
+              <span className="absolute left-6 top-6 z-30 max-w-[60%] rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold uppercase leading-tight tracking-[0.14em] text-rahma-charcoal-strong sm:left-7 sm:top-7">
                 {badge}
               </span>
-              <strong className="absolute right-6 top-6 z-30 shrink-0 rounded-full bg-white px-4 py-2 text-lg font-semibold text-rahma-green shadow-sm sm:right-7 sm:top-7">
+              <strong className="absolute right-6 top-6 z-30 shrink-0 rounded-full bg-white px-4 py-2 text-lg font-semibold text-rahma-green shadow-soft sm:right-7 sm:top-7">
                 {pkg.price}
               </strong>
               <div className="absolute inset-0 z-20 flex flex-col justify-end p-6 text-white sm:p-7">
@@ -98,14 +98,14 @@ export function AreaPackages({ area }: { area: AreaPage }) {
                   <Link
                     href={pkg.bookingHref}
                     data-booking-trigger="true"
-                    className="inline-flex min-h-12 items-center gap-2 rounded-full bg-rahma-gold px-5 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252]"
+                    className="inline-flex min-h-12 items-center gap-2 rounded-full bg-rahma-gold px-5 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                   >
                     Book this package
                     <ArrowRight aria-hidden="true" size={16} />
                   </Link>
                   <Link
                     href={pkg.href}
-                    className="inline-flex min-h-12 items-center gap-2 rounded-full bg-white/15 px-5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/25"
+                    className="inline-flex min-h-12 items-center gap-2 rounded-full bg-white/15 px-5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-gold"
                   >
                     Details
                   </Link>

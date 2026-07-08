@@ -56,7 +56,7 @@ export function FeaturedReviewsMosaic() {
               className={
                 index === 0
                   ? "rounded-3xl border border-rahma-border bg-white p-7 shadow-card lg:row-span-2 lg:p-9"
-                  : "rounded-3xl border border-rahma-border bg-white p-6 shadow-sm"
+                  : "rounded-3xl border border-rahma-border bg-white p-6 shadow-card"
               }
             >
               <div className="flex items-start justify-between gap-4">

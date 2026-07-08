@@ -12,7 +12,7 @@ export function AboutFinalCTA() {
             alt="Relaxing private therapy session with Rahma Therapy"
             imageType="Relaxed wellness image, massage/cupping setup or calm treatment room image with space for overlay."
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#144a78]/94 via-[#144a78]/78 to-[#144a78]/42" />
+          <div className="absolute inset-0 bg-gradient-to-r from-rahma-charcoal/94 via-rahma-charcoal/78 to-rahma-charcoal/42" />
           <div className="relative z-10 flex min-h-[440px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <h2 className="font-display text-4xl font-medium leading-tight sm:text-5xl">
               Ready to start your wellness journey?
@@ -24,7 +24,7 @@ export function AboutFinalCTA() {
               <Link
                 href="?booking=1"
                 data-booking-trigger="true"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 Book now
                 <ArrowRight aria-hidden="true" size={16} />

@@ -13,13 +13,7 @@ export function AreaFinalCTA({ area }: { area: AreaPage }) {
             alt={`Private mobile therapy in ${area.name}, Luton`}
             imageType="Relaxed wellness/treatment image suitable for dark overlay."
           />
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                "linear-gradient(to right, rgba(20,74,120,0.94), rgba(20,74,120,0.78), rgba(20,74,120,0.42))",
-            }}
-          />
+          <div className="absolute inset-0 bg-gradient-to-r from-rahma-charcoal/94 via-rahma-charcoal/78 to-rahma-charcoal/42" />
           <div className="relative z-10 flex min-h-[440px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <h2 className="font-display text-4xl font-medium leading-tight sm:text-5xl">{area.finalCta.heading}</h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">{area.finalCta.body}</p>
@@ -27,14 +21,14 @@ export function AreaFinalCTA({ area }: { area: AreaPage }) {
               <Link
                 href={area.bookingHref}
                 data-booking-trigger="true"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 {area.bookingCta}
                 <ArrowRight aria-hidden="true" size={16} />
               </Link>
               <a
                 href={area.whatsappHref}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/35 px-6 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-white/35 px-6 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 <MessageCircle aria-hidden="true" size={17} />
                 {area.whatsappCta}

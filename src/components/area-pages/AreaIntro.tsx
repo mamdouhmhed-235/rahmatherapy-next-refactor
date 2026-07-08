@@ -23,9 +23,9 @@ export function AreaIntro({ area }: { area: AreaPage }) {
           {intro.facts.map((fact) => (
             <li
               key={fact.label}
-              className="flex items-start gap-4 rounded-2xl border border-rahma-border bg-rahma-ivory px-5 py-4 shadow-sm"
+              className="flex items-start gap-4 rounded-2xl border border-rahma-border bg-rahma-ivory px-5 py-4 shadow-soft"
             >
-              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-rahma-green shadow-sm">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-white text-rahma-green shadow-soft">
                 <AreaIcon name={fact.icon} size={20} />
               </span>
               <span className="self-center text-sm font-medium leading-6 text-rahma-charcoal sm:text-base">

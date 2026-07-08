@@ -16,7 +16,7 @@ export function BeforeAppointment() {
             {beforeAppointmentItems.map((item) => (
               <article
                 key={item.title}
-                className="rounded-3xl border border-rahma-border bg-white p-5 shadow-sm"
+                className="rounded-3xl border border-rahma-border bg-white p-5 shadow-card"
               >
                 <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-rahma-ivory text-rahma-green">
                   <FaqsAftercareIcon name={item.icon} />
@@ -36,7 +36,7 @@ export function BeforeAppointment() {
             imageType="Therapist preparing treatment setup or a calm checklist-style preparation image."
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-          <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-sm">
+          <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-soft">
             Before your session
           </span>
         </div>

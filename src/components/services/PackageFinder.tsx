@@ -55,7 +55,7 @@ export function PackageFinder() {
                   className={cn(
                     "min-h-11 rounded-full border px-4 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue",
                     isSelected
-                      ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal"
+                      ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal-strong"
                       : "border-rahma-border bg-white text-rahma-charcoal hover:border-rahma-green"
                   )}
                 >
@@ -69,7 +69,7 @@ export function PackageFinder() {
             initial={reduceMotion ? false : { opacity: 0, y: 10 }}
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="mt-8 rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-sm"
+            className="mt-8 rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-card"
           >
             <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
               {isMultiRecommendation

@@ -12,7 +12,7 @@ export function AreaWhy({ area }: { area: AreaPage }) {
             key={card.title}
             className="group rounded-3xl bg-rahma-ivory p-7 transition duration-300 hover:-translate-y-1 hover:shadow-card"
           >
-            <span className="flex size-14 items-center justify-center rounded-2xl bg-rahma-gold/20 text-rahma-charcoal transition group-hover:bg-rahma-gold">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-rahma-gold/20 text-rahma-charcoal-strong transition group-hover:bg-rahma-gold">
               <AreaIcon name={card.icon} size={26} />
             </span>
             <h3 className="mt-6 text-lg font-semibold text-rahma-charcoal">{card.title}</h3>

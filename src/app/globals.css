@@ -195,7 +195,11 @@ a[class*="border-white/35"]:not([class*="bg-rahma-gold"]) {
 }
 
 a[class*="bg-rahma-gold"] {
-  color: var(--rahma-charcoal) !important;
+  /* --rahma-charcoal-strong: darkened text-on-gold variant (4.966:1 vs 4.543:1) —
+   * see tokens.css for the WCAG rationale. This !important hook is what actually
+   * controls anchor-tag gold-button text color (wins over any Tailwind text-*
+   * utility regardless of layer/specificity), so the token swap belongs here. */
+  color: var(--rahma-charcoal-strong) !important;
 }
 
 a[class*="bg-white"][class*="text-rahma-green"],

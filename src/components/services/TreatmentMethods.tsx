@@ -27,13 +27,10 @@ export function TreatmentMethods() {
             </p>
           </div>
         </div>
-        <div className="grid gap-4">
-          {treatmentMethods.map((method) => (
-            <article
-              key={method.title}
-              className="rounded-3xl border border-rahma-border bg-white p-5 shadow-sm"
-            >
-              <div className="flex items-start gap-4">
+        <div>
+          <div className="divide-y divide-rahma-border">
+            {treatmentMethods.map((method) => (
+              <div key={method.title} className="flex items-start gap-4 py-5 first:pt-0">
                 <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-rahma-ivory text-rahma-green">
                   <ServicesIcon name={method.icon} />
                 </div>
@@ -44,9 +41,9 @@ export function TreatmentMethods() {
                   <p className="mt-2 text-sm leading-7 text-rahma-muted">{method.body}</p>
                 </div>
               </div>
-            </article>
-          ))}
-          <p className="rounded-3xl border border-rahma-border bg-rahma-ivory p-5 text-sm leading-7 text-rahma-muted">
+            ))}
+          </div>
+          <p className="mt-5 rounded-3xl border border-rahma-border bg-rahma-ivory p-5 text-sm leading-7 text-rahma-muted">
             All treatments are subject to suitability. If a treatment is not appropriate
             for you, your therapist will explain why and guide you to a safer option.
           </p>

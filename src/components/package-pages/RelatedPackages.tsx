@@ -16,7 +16,7 @@ export function RelatedPackages({ page }: { page: PackagePage }) {
         {page.relatedPackages.map((related) => (
           <article
             key={related.href}
-            className="rounded-3xl border border-rahma-border bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-card"
+            className="rounded-3xl border border-rahma-border bg-white p-6 shadow-soft transition duration-300 hover:-translate-y-1 hover:shadow-card"
           >
             <div className="flex items-start justify-between gap-4">
               <h3 className="text-xl font-semibold text-rahma-charcoal">

@@ -21,7 +21,7 @@ export function WhyRahmaTherapy() {
           </p>
           <Link
             href="/about"
-            className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:w-auto"
+            className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:w-auto"
           >
             About the team
             <ArrowRight aria-hidden="true" size={16} />
@@ -31,7 +31,7 @@ export function WhyRahmaTherapy() {
           {whyRahmaItems.map((item) => (
             <article
               key={item.title}
-              className="rounded-3xl border border-rahma-border bg-white p-5 shadow-sm"
+              className="rounded-3xl border border-rahma-border bg-white p-5 shadow-card"
             >
               <div className="mb-5 flex size-11 items-center justify-center rounded-full bg-rahma-gold text-rahma-charcoal">
                 <HomeIcon name={item.icon} />

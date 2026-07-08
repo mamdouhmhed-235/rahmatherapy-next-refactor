@@ -9,7 +9,7 @@ export function AreaSafetyBand({ area }: { area: AreaPage }) {
     <SectionContainer tone="green" width="wide">
       <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-gold">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-white">
             Safety, hygiene &amp; suitability
           </p>
           <h2 className="mt-4 max-w-2xl font-display text-3xl font-medium leading-tight text-white sm:text-4xl lg:text-5xl">
@@ -38,7 +38,7 @@ export function AreaSafetyBand({ area }: { area: AreaPage }) {
       </div>
       {/* Spacing lives on a div wrapper: the global site-parity reset zeroes <p> margins. */}
       <div className="mt-10">
-        <p className="rounded-3xl border border-white/15 bg-white/10 p-5 text-sm leading-7 text-white/80">
+        <p className="mx-auto max-w-2xl rounded-3xl border border-white/15 bg-white/10 p-5 text-center text-sm leading-7 text-white/80">
           Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you
           have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please
           speak to a healthcare professional before booking.

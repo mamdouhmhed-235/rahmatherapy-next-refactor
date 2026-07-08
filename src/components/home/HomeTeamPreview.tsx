@@ -6,13 +6,13 @@ import { HomeImage } from "./HomeImage";
 
 export function HomeTeamPreview() {
   return (
-    <SectionContainer tone="ivory" width="wide">
-      <SectionHeading align="center" title="Meet the team" className="mx-auto" />
+    <SectionContainer tone="charcoal" width="wide">
+      <SectionHeading align="center" title="Meet the team" inverse className="mx-auto" />
       <div className="mt-12 grid gap-5 md:grid-cols-3">
         {homeTeamMembers.map((member) => (
           <article
             key={member.name}
-            className="flex flex-col overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-sm"
+            className="flex flex-col overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-card"
           >
             <div className="relative h-[340px] overflow-hidden bg-rahma-green">
               <HomeImage
@@ -32,7 +32,7 @@ export function HomeTeamPreview() {
       <div className="mt-10 flex justify-center">
         <Link
           href="/about"
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           Meet the team
           <ArrowRight aria-hidden="true" size={16} />

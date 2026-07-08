@@ -25,19 +25,20 @@ const TEAM_OBJECT_POSITION: Record<string, string> = {};
 
 export function AreaTherapists({ area }: { area: AreaPage }) {
   return (
-    <SectionContainer tone="surface" width="wide">
+    <SectionContainer tone="charcoal" width="wide">
       <SectionHeading
         align="center"
         className="mx-auto"
         eyebrow="Who treats you"
         title={`Qualified therapists serving ${area.name}`}
         description="Every visit is carried out by a CMA & IPHM qualified therapist who explains the treatment, checks suitability and works to professional hygiene standards. Female clients are always treated by our female therapist."
+        inverse
       />
       <div className="mt-12 grid gap-5 md:grid-cols-3">
         {teamMembers.map((member) => (
           <article
             key={member.name}
-            className="flex flex-col overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-sm"
+            className="flex flex-col overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-card"
           >
             <div className="relative h-[340px] overflow-hidden bg-rahma-green">
               <AreaImage
@@ -68,7 +69,7 @@ export function AreaTherapists({ area }: { area: AreaPage }) {
         </p>
         <Link
           href="/about"
-          className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal"
+          className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
         >
           Meet the team
           <ArrowRight aria-hidden="true" size={16} />

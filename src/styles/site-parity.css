@@ -734,6 +734,15 @@ h3 {
   gap: 1rem;
 }
 
+.navbar31_social-link {
+  transition: color 200ms ease, transform 200ms ease;
+}
+
+.navbar31_social-link:hover {
+  color: var(--primary);
+  transform: translateY(-1px);
+}
+
 .home_hero_card {
   min-height: clamp(42rem, 88svh, 58rem);
   border-radius: var(--radius-section);
@@ -2861,6 +2870,7 @@ h3 {
   .button:hover,
   .navbar31_link:hover,
   .navbar31_menu-button:hover,
+  .navbar31_social-link:hover,
   .service_item-link:hover,
   .service_item-link:hover .service_image,
   .result_tab-link:hover,

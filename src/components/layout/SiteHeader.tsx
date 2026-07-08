@@ -216,7 +216,7 @@ export function SiteHeader() {
                 <div className="text-size-medium text-weight-semibold">
                   Get in touch
                 </div>
-                <div className="spacer-xxsmall" />
+                <div className="spacer-tiny" />
                 <Link href={contactLinks.phone.href} className="text-size-small">
                   {contactLinks.phone.value}
                 </Link>

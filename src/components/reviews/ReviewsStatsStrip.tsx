@@ -30,14 +30,14 @@ const stats = [
 
 export function ReviewsStatsStrip() {
   return (
-    <section className="bg-white px-5 py-12 sm:px-6 lg:px-8">
+    <section className="bg-white px-5 py-10 sm:px-6 sm:py-12 lg:px-8">
       <div className="mx-auto grid max-w-7xl gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <article
             key={stat.label}
-            className="rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-sm"
+            className="rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-card"
           >
-            <p className="font-display text-4xl font-medium leading-none text-rahma-green">
+            <p className="font-display text-4xl font-semibold leading-none text-rahma-green">
               {stat.value}
             </p>
             {stat.stars ? <StarRating rating={5} className="mt-3" /> : null}

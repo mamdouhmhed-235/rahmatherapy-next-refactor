@@ -24,7 +24,7 @@ export function SiteFooter() {
 
                 <div className="footer_nav-column">
                   <div>
-                    <h2 className="footer_heading">Explore</h2>
+                    <h3 className="footer_heading">Explore</h3>
                     <nav
                       className="w-layout-grid footer_link-list"
                       aria-label="Footer service navigation"
@@ -38,7 +38,7 @@ export function SiteFooter() {
                   </div>
 
                   <div>
-                    <h2 className="footer_heading">Contact</h2>
+                    <h3 className="footer_heading">Contact</h3>
                     <div className="footer_contact-list">
                       <Link href={contactLinks.phone.href} className="footer_link">
                         {contactLinks.phone.value}

@@ -11,10 +11,10 @@ export function WhenToGetAdvice() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
             When to get advice
           </p>
-          <h2 className="mt-4 max-w-2xl font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">
+          <h2 className="mt-4 max-w-2xl font-display text-3xl font-medium leading-[1.04] text-rahma-charcoal sm:text-4xl lg:text-5xl">
             {"If something feels wrong, don't ignore it."}
           </h2>
-          <p className="mt-5 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
+          <p className="mt-5 max-w-2xl text-base leading-7 text-rahma-muted sm:text-lg">
             {"Most people feel fine after treatment. If something doesn't, don't wait — message us or speak to a doctor."}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -35,18 +35,18 @@ export function WhenToGetAdvice() {
             </Link>
           </div>
         </div>
-        <article className="rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-sm">
+        <article className="rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-card">
           <div className="flex items-center gap-3">
-            <span className="flex size-12 items-center justify-center rounded-full bg-rahma-gold text-rahma-charcoal">
+            <span className="flex size-12 items-center justify-center rounded-full bg-rahma-gold text-rahma-charcoal-strong">
               <AlertTriangle aria-hidden="true" size={22} />
             </span>
             <h3 className="text-xl font-semibold text-rahma-charcoal">
               Get advice if you notice:
             </h3>
           </div>
-          <ul className="mt-6 grid gap-3">
+          <ul className="mt-6 divide-y divide-rahma-border">
             {adviceItems.map((item) => (
-              <li key={item} className="text-sm leading-7 text-rahma-muted">
+              <li key={item} className="py-3 text-sm leading-7 text-rahma-muted first:pt-0 last:pb-0">
                 {item}
               </li>
             ))}

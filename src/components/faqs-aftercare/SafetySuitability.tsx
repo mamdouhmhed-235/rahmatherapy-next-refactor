@@ -15,10 +15,10 @@ export function SafetySuitability() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-charcoal">
             Safety & suitability
           </p>
-          <h2 className="max-w-2xl font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">
+          <h2 className="max-w-2xl font-display text-3xl font-medium leading-[1.04] text-rahma-charcoal sm:text-4xl lg:text-5xl">
             Safety and suitability come first.
           </h2>
-          <p className="max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
+          <p className="max-w-2xl text-base leading-7 text-rahma-muted sm:text-lg">
             Not every treatment suits every person. Before your session, we check whether
             hijama, cupping, massage or IASTM is right for you.
           </p>
@@ -34,7 +34,7 @@ export function SafetySuitability() {
               imageType="Clean equipment, gloves, towels, cups and professional treatment setup."
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-            <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-sm">
+            <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-soft">
               Suitability first
             </span>
           </div>
