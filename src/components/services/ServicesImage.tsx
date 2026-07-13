@@ -13,11 +13,11 @@ interface ServicesImageProps {
 }
 
 const approvedServiceImagePaths = new Set<string>([
-  "/images/home/package-supreme.jpg",
-  "/images/home/package-hijama-card.jpg",
-  "/images/home/package-fire.jpg",
-  "/images/home/package-massage.jpg",
-  "/images/home/package-massage-60.jpg",
+  "/images/services/package-supreme.jpg",
+  "/images/services/package-hijama-card.jpg",
+  "/images/services/package-fire.jpg",
+  "/images/services/package-massage.jpg",
+  "/images/services/package-massage-60.jpg",
   "/images/services/services-hero-v1.jpg",
   "/images/services/services-final-cta-v1.jpg",
   "/images/services/package-finder-v1.jpg",

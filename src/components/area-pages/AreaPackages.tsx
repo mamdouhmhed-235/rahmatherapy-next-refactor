@@ -9,17 +9,17 @@ import { AreaImage } from "./AreaImage";
 // Real Rahma Therapy service photos, mapped per package type then varied per
 // area so no two pages show the same set (avoids doorway-page image cloning).
 const PHOTO = {
-  dry1: "/images/areas/services/p-img4167.jpg",
-  dry2: "/images/areas/services/p-img4169-v2.jpg",
-  dry3: "/images/areas/services/p-img4171.jpg",
-  dry4: "/images/areas/services/p-img4150.jpg",
-  wet1: "/images/areas/services/p-img4174.jpg",
-  wet2: "/images/areas/services/p-img4173.jpg",
-  wet3: "/images/areas/services/p-dji205048.jpg",
-  fire: "/images/areas/services/p-img4120.jpg",
-  massageA: "/images/areas/services/p-img4155.jpg",
-  massageB: "/images/areas/services/p-img4156.jpg",
-  massageC: "/images/areas/services/p-dji203046.jpg",
+  dry1: "/images/areas/package-photos/dry-cupping-supreme.jpg",
+  dry2: "/images/areas/package-photos/dry-cupping-variant-b.jpg",
+  dry3: "/images/areas/package-photos/dry-cupping-variant-c.jpg",
+  dry4: "/images/areas/package-photos/dry-cupping-fire.jpg",
+  wet1: "/images/areas/package-photos/wet-cupping-hijama.jpg",
+  wet2: "/images/areas/package-photos/wet-cupping-variant-b.jpg",
+  wet3: "/images/areas/package-photos/wet-cupping-variant-c.jpg",
+  fire: "/images/areas/package-photos/fire-cupping-setup.jpg",
+  massageA: "/images/areas/package-photos/massage-session-a.jpg",
+  massageB: "/images/areas/package-photos/massage-session-b.jpg",
+  massageC: "/images/areas/package-photos/massage-session-c.jpg",
 } as const;
 
 const AREA_PKG_IMAGE: Record<string, Record<string, string>> = {

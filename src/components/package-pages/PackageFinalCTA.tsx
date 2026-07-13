@@ -9,7 +9,7 @@ export function PackageFinalCTA({ page }: { page: PackagePage }) {
       <div className="mx-auto max-w-7xl">
         <div className="relative min-h-[440px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <PackageImage
-            src="/images/areas/services/p-img4174.jpg"
+            src="/images/packages/final-cta.jpg"
             alt="Private mobile therapy session with Rahma Therapy"
             imageType="Relaxed wellness/treatment image suitable for dark overlay."
           />
