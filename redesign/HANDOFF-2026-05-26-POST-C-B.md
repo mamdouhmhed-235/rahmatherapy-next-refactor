@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 18/18 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair independent** (C-14's Phase D customer date-picker fix and the GA+consent pair can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Flagged open compliance item: the public site has NO privacy policy page (UK GDPR Art 13) — recommended next. Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 19/19 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, and C-19's privacy page can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -200,7 +200,14 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Scope:** in-house consent layer meeting the user's 9 requirements against the verified July-2026 legal state (DUAA statistics exception in force but GA4 fails it → opt-in still required; ICO final guidance Apr 2026). Registry-driven single source (`cookie-registry.ts` → banner toggles + panel table + new `/cookies` page); **basic Consent Mode v2** (default-denied all four params; gtag not injected until granted — the regulator test: zero pre-consent Google requests); banner in the `--rahma-*` public design language (Accept/Reject parity by construction, no pre-ticks, no cookie wall, responsive, reduced-motion, focus-trapped panel); **consent proof** via new `consent_events` table (timestamped pseudonymous log — version/options/choice/withdrawals, no PII); footer "Cookie settings" withdrawal (deletes `_ga*`, logs `withdrawn`, reloads); 6-month + version-bump re-prompts.
 - **Migration:** one additive Zone-2 — `consent_events` + RLS deny-all (service-role route writes only).
 - **Standing rule added to master plan Part 0:** cookie/tag registry discipline — every future tag gets a registry entry + version bump + loads through the consent gate.
-- **Sequencing:** hard pair with C-17 (rewrites its component; co-ship). 7 phases / 7 commits. **Flagged, not scoped:** no privacy policy page exists (UK GDPR Art 13) — recommended next compliance item.
+- **Sequencing:** hard pair with C-17 (rewrites its component; co-ship). 7 phases / 7 commits. **Flagged, not scoped:** no privacy policy page exists (UK GDPR Art 13) — covered by C-19 (added later the same day).
+
+### C-19 — Privacy policy page (NEW 2026-07-16, plan-refinement phase)
+
+- **Brief:** `redesign/briefs/C-19-privacy-policy-page-brief.md` (NEW 2026-07-16)
+- **Plan:** `redesign/plans/C-phase/C-19-privacy-policy-page-plan.md` (NEW 2026-07-16)
+- **Scope (deliberately minimal — user-locked):** ONE new file, `src/app/(public)/privacy/page.tsx`, public design language, plain English, custom to the audited data flows (booking fields incl. health notes, named processors, concrete retention, rights, ICO contact, last-updated). **No edits to any other page** — booking-form/footer linking left for later. No migrations, no packages. Backed by the 2026-07-16 legal research (Art 13 checklist; explicit-consent route for health notes; ICO Tier-1 fee flagged as a business action, not code).
+- **Sequencing:** fully independent; ships anytime; 1 commit.
 
 ---
 
@@ -425,7 +432,13 @@ User direction 2026-07-16: set up the existing GA4 tag (`G-WM8BCYG060`) on the c
 
 User direction 2026-07-16 with nine explicit requirements (block-before-consent, accept/reject parity, no pre-ticks, granular purposes, easy withdrawal, no cookie wall, consent PROOF not preference flags, Consent Mode ordering, accurate future-proofed disclosure) + a mandated research pass. **Verified legal state (web research, sources in the brief §1):** the DUAA 2025 statistics-cookie exception is IN FORCE (5 Feb 2026, SI 2026/82) but stock GA4 almost certainly fails its conditions (Google's own data use; per-user `_ga` IDs) → **opt-in consent remains required**; ICO final storage-and-access guidance (29 Apr 2026) mandates reject-parity + granularity + easy withdrawal and recommends ~6-month consent lifetime; consent-proof standard = timestamped who(pseudonymous)/when/what-shown(versioned)/what-chosen records; only **basic** Consent Mode v2 (no gtag load pre-consent) passes a strict no-pre-consent-requests test; PECR penalties now £17.5m/4%.
 
-**C-18 created** (master plan now 18/18): in-house layer (no CMP dependency), registry-driven disclosure (single source for banner + panel + new `/cookies` page), `--rahma-*` design language, parity by construction (same component renders both first-layer buttons), `consent_events` proof table (the one Zone-2 migration, RLS deny-all, no PII), footer withdrawal that actually stops scripts (denied update + `_ga*` deletion + reload + logged), 6-month/version-bump re-prompts. **Rewrites C-17's `GoogleAnalytics` into the consent-gated loader — hard co-ship pair.** Standing cookie/tag-registry rule added to Part 0. Audit note: **no privacy policy page exists on the public site** — flagged as the recommended next compliance item (kept out of C-18 scope; noted on the C-PRIVACY master-plan row).
+**C-18 created** (master plan now 18/18): in-house layer (no CMP dependency), registry-driven disclosure (single source for banner + panel + new `/cookies` page), `--rahma-*` design language, parity by construction (same component renders both first-layer buttons), `consent_events` proof table (the one Zone-2 migration, RLS deny-all, no PII), footer withdrawal that actually stops scripts (denied update + `_ga*` deletion + reload + logged), 6-month/version-bump re-prompts. **Rewrites C-17's `GoogleAnalytics` into the consent-gated loader — hard co-ship pair.** Standing cookie/tag-registry rule added to Part 0. Audit note: **no privacy policy page exists on the public site** — flagged as the recommended next compliance item (kept out of C-18 scope; covered by C-19, §5.21).
+
+### 5.21 C-19 added as a 19th plan — privacy policy page (2026-07-16, plan-refinement phase)
+
+User direction 2026-07-16, with an explicit simplicity correction: a generic-but-custom privacy policy page, **one new file, no changes to any other page** — the fuller apparatus initially proposed (booking-form just-in-time links, footer wiring, complaint intake) was cut at the user's direction; linking the page up is left for later. Research (same session) still informs the copy: Art 13 checklist; explicit consent (Art 9(2)(a)) as the route for the booking form's `healthNotes` (therapists aren't DPA s.204 health professionals); DUAA s.164A complain-to-us right mentioned in copy; concrete retention numbers (7-year insurance default, user confirms at impl); named processors (Supabase/Resend/Cloudflare/Sentry/Google); swap-ready transfers wording (UK Extension under CJEU appeal). Business actions recorded once in the brief, not code: ICO Tier-1 fee (£52), retention confirmation, contact details to publish.
+
+**C-19 created** (master plan now 19/19; C-PRIVACY row note updated — B-89/B-90 + operational complaint handling remain there). Fully independent; 1 commit at impl.
 
 ---
 
@@ -611,6 +624,7 @@ redesign/briefs/
 ├── C-16-data-growth-pagination-brief.md                      # NEW 2026-07-16 plan-refinement
 ├── C-17-google-analytics-brief.md                            # NEW 2026-07-16 plan-refinement
 ├── C-18-cookie-consent-brief.md                              # NEW 2026-07-16 plan-refinement
+├── C-19-privacy-policy-page-brief.md                         # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
@@ -633,6 +647,7 @@ redesign/plans/C-phase/
 ├── C-16-data-growth-pagination-plan.md                       # NEW 2026-07-16 plan-refinement
 ├── C-17-google-analytics-plan.md                             # NEW 2026-07-16 plan-refinement
 ├── C-18-cookie-consent-plan.md                               # NEW 2026-07-16 plan-refinement
+├── C-19-privacy-policy-page-plan.md                          # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -747,7 +762,8 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **(2026-07-16 amendment)** C-04a amended — S7 28-day restore window: `bookings.cancelled_at` column + backfill folded into the Step 10 migration; guard + shared `isRestoreWindowExpired` helper + UI/copy variants; stamping notes rippled to C-02 (series cascade), C-06 (delete cascade), C-05 (expired notice copy). See §5.17. Brief + plan amended; no further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-16 added as a 16th plan — data growth: pagination standard + bounded lists everywhere (bookings/clients/enquiries to server-side pagination; cap→pager conversions; roles-page restructure; standing no-unbounded-queries rule in Part 0). Zero migrations. See §5.18. Brief + plan written; master plan checklist updated to 16/16; C-09 helper-signature + C-02 series-page-caps + C-10 hard pre-flight notes rippled. Order inserts C-16 between C-07 and C-10. No further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-17 added as a 17th plan — Google Analytics (GA4) on customer pages: env-gated production-only tag on `(public)` + `/booking/manage`, admin never tracked, one `booking_request_submitted` conversion event, zero PII, no packages, zero migrations. See §5.19. Brief + plan written (amended same day for the C-18 pairing). Fully independent; ships anytime — co-ship with C-18.
-- **(2026-07-16 amendment)** C-18 added as an 18th plan — cookie consent & PECR compliance: registry-driven banner + panel + /cookies page in the public design language, basic Consent Mode v2 (zero pre-consent Google requests), `consent_events` proof table (one Zone-2 migration), footer withdrawal, 6-month/version-bump re-prompts, standing cookie/tag-registry rule in Part 0. Rewrites C-17's component into the consent-gated loader (hard co-ship pair). See §5.20. Brief + plan written; master plan checklist updated to 18/18. Flagged (not scoped): no privacy policy page exists — recommended next compliance item. No further amendments needed before C-C.
+- **(2026-07-16 amendment)** C-18 added as an 18th plan — cookie consent & PECR compliance: registry-driven banner + panel + /cookies page in the public design language, basic Consent Mode v2 (zero pre-consent Google requests), `consent_events` proof table (one Zone-2 migration), footer withdrawal, 6-month/version-bump re-prompts, standing cookie/tag-registry rule in Part 0. Rewrites C-17's component into the consent-gated loader (hard co-ship pair). See §5.20. Brief + plan written; master plan checklist updated to 18/18. No further amendments needed before C-C.
+- **(2026-07-16 amendment)** C-19 added as a 19th plan — privacy policy page: ONE new file (`(public)/privacy/page.tsx`), custom to the audited data flows, user-locked minimal scope (no other page touched; linking left for later). See §5.21. Brief + plan written; master plan checklist updated to 19/19. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -807,8 +823,8 @@ To be ticked once C-C ships all 12 plans:
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
 - **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (18/18 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added 2026-07-16 (§5.15–§5.20).
-- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + the C-17/C-18 co-ship pair independent). Flagged open compliance item: no public privacy policy page (UK GDPR Art 13) — recommended next.
+- **C-B status:** ✅ COMPLETE (19/19 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added 2026-07-16 (§5.15–§5.21).
+- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + the C-17/C-18 co-ship pair + C-19 independent).
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
 
