@@ -2,6 +2,7 @@
 
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
+**Amended:** 2026-07-16 — business-notifications bundle (user direction): new Phase D (steps 13–18) — `staff_profiles.notification_email` + per-type prefs migration, `resolveBusinessNotificationRecipients` resolver with skip-self, `enquiry_logged` template, `/admin/me` Notifications section. Migration is now definite Zone-2 (was conditional). See brief §2.7–§2.9.
 **Brief:** `redesign/briefs/C-08-email-automation-expansion-brief.md` (companion — read first)
 **Progress (filled in C-C):** `redesign/per-page-progress/C-08-email-automation-expansion-progress.md`
 **Operating discipline:** per `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md#part-0-operating-discipline`
@@ -72,13 +73,33 @@
 
 10. **DO-NOT-TOUCH list:** Badar's `9d55ce2a`, any real customer booking.
 
-If pre-flight fails (especially #5b — metadata column absence), surface to user before proceeding.
+11. **(2026-07-16) Notification-infrastructure verification:**
+
+    ```sql
+    -- (a) staff_profiles columns must NOT pre-exist (migration adds them)
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'staff_profiles'
+      AND column_name IN ('notification_email', 'business_notification_prefs');
+    -- Expected: 0 rows. If present, reconcile with C-11's theme_preference migration ordering.
+
+    -- (b) email_delivery_events.booking_id nullability (enquiry_logged has no booking)
+    SELECT is_nullable FROM information_schema.columns
+    WHERE table_name = 'email_delivery_events' AND column_name = 'booking_id';
+    -- If 'NO': log enquiry_logged with metadata.enquiry_id instead and flag to user (brief §2.7).
+
+    -- (c) Owner + Admin role ids for the seed + resolver role filter
+    SELECT id, name FROM roles WHERE name IN ('Owner', 'Admin');
+    ```
+
+12. **(2026-07-16) Enquiry action inventory:** `grep -n "createEnquiry" src/app/admin/enquiries/actions.ts` — confirm the insert + audit shape before wiring the `enquiry_logged` hook; confirm no existing email send in the action.
+
+If pre-flight fails (especially #5b — metadata column absence — or #11b), surface to user before proceeding.
 
 ---
 
-## 1 — Safe implementation order (5 phases — pattern repeats across templates)
+## 1 — Safe implementation order (4 phases — pattern repeats across templates)
 
-Each template ships through the same 7-step pattern (per decisions doc §3 C-08). Phase A handles all 4 net-new templates as separate commits; Phase B handles the existing-template verification; Phase C ships the Resend tooling.
+Each template ships through the same 7-step pattern (per decisions doc §3 C-08). Phase A handles all 4 net-new booking-lifecycle templates as separate commits; Phase B handles the existing-template verification; Phase C ships the Resend tooling; **Phase D (2026-07-16 amendment) ships the business-notification bundle** — migration, resolver, rerouting, `enquiry_logged`, and the `/admin/me` Notifications section. Phase D lands last because the resolver rerouting touches the same send functions Phases A–C stabilise.
 
 ### Phase A — Net-new templates (per template, one commit each — 4 commits)
 
@@ -261,6 +282,9 @@ export async function sendClaimNotificationEmail(
     .eq("id", claimingStaffId)
     .maybeSingle();
 
+  // NOTE (2026-07-16): getAdminRecipient here is Phase-A-interim only.
+  // Phase D Step 15 reroutes this send through resolveBusinessNotificationRecipients
+  // (multi-recipient, per-type prefs, skip-self via the claiming staff id).
   const adminRecipient = getAdminRecipient(settings);
   if (!adminRecipient) return;  // no admin email configured
 
@@ -428,9 +452,9 @@ If it queries `staff_profiles` by `id = assigned_staff_id`, it's already capabil
 
 ### Phase C — Per-row Resend tooling (work area 3)
 
-**Step 7 — `email_delivery_events.metadata` column (Zone-2 if needed).**
+**Step 7 — `email_delivery_events.metadata` column (Zone-2 if needed). — ABSORBED INTO STEP 13 (2026-07-16)**
 
-Per pre-flight Step 5b. If column missing, migration:
+The conditional metadata column now ships inside Phase D Step 13's single migration; no separate Phase C migration. If Phase C is implemented before Phase D in the same C-C window (expected), either apply Step 13's migration early at this point or defer Resend-linkage writes until Step 13 lands — implementer's call, surfaced to the user. Original conditional migration (reference):
 
 ```sql
 -- supabase/migrations/<ts>_c08_email_delivery_metadata.sql
@@ -677,32 +701,109 @@ email_resent: "Email resent",
 - As Coord (without RESEND_BOOKING_EMAILS), buttons hidden.
 - Rate-limit verified: re-click within 60s → toast with rate-limit error.
 
+### Phase D — Business-notification bundle (2026-07-16 amendment; brief §2.7–§2.9)
+
+**Step 13 — Migration (Zone-2 — explicit user confirmation).**
+
+```sql
+-- supabase/migrations/<ts>_c08_notification_email_and_metadata.sql
+BEGIN;
+
+ALTER TABLE public.staff_profiles
+  ADD COLUMN IF NOT EXISTS notification_email text,
+  ADD COLUMN IF NOT EXISTS business_notification_prefs jsonb;
+
+-- Seed: Owner opted in from day one (all alert types default on).
+UPDATE public.staff_profiles sp
+SET business_notification_prefs = '{"enabled": true}'::jsonb
+FROM public.roles r
+WHERE sp.role_id = r.id AND r.name = 'Owner' AND sp.active = true
+  AND sp.business_notification_prefs IS NULL;
+
+-- Conditional (pre-flight #5b): resend linkage storage.
+ALTER TABLE public.email_delivery_events
+  ADD COLUMN IF NOT EXISTS metadata jsonb DEFAULT '{}'::jsonb;
+
+COMMIT;
+```
+
+Apply via `mcp__supabase__apply_migration`; then `mcp__supabase__generate_typescript_types`. Post-migration verification: columns exist; exactly the Owner row(s) seeded; no other rows touched.
+
+*(This step absorbs the old Phase C Step 7 conditional migration — one migration, not two.)*
+
+**Step 14 — `resolveBusinessNotificationRecipients` in `notifications.ts`.**
+
+Implement per brief §2.9 (contract reproduced there): active Owner/Admin profiles with `business_notification_prefs->>'enabled' = 'true'` → filter per-type opt-outs (`prefs.types[type] === false`) → filter `excludeStaffId` (skip-self) → map to `notification_email ?? email` → **zero-opted-in-anywhere fallback** to `getAdminRecipient(settings)` (fallback does NOT apply when prefs/skip-self emptied a non-empty opt-in list — write `skipped` delivery rows with reasons `all_recipients_opted_out` / `actor_excluded` instead).
+
+Alert-type keys (locked): `new_booking_request`, `booking_cancelled`, `reschedule_request`, `enquiry_logged`, `slot_claimed`.
+
+**Step 15 — Reroute all admin_internal sends through the resolver.**
+
+One edit per send-fn — each loops the resolved recipients and writes one tracked email per recipient:
+- `sendBookingCreatedEmails` admin leg (`notifications.ts:366-379`) — type `new_booking_request`, no exclusion (customer-initiated).
+- `sendBookingCancellationEmails` admin leg (`notifications.ts:409-422`) — type `booking_cancelled`; pass the cancelling staff id when `initiatedBy: "admin"` (thread an optional `actorStaffId` through the options param); customer-initiated passes none.
+- `sendBookingRescheduleRequestEmails` admin leg — type `reschedule_request`, no exclusion.
+- `sendClaimNotificationEmail` (Phase A Step 4) — type `slot_claimed`, `excludeStaffId: claimingStaffId`. Removes the Phase-A-interim `getAdminRecipient` call.
+
+**Step 16 — `enquiry_logged` template + hook.**
+
+Follows the standard 7-sub-step template pattern (renderer + plain-text + SUBJECTS entry `"New enquiry: {clientName}"` + templates-data registration under admin_internal + send fn + trigger + tests). Trigger: `createEnquiry` (`src/app/admin/enquiries/actions.ts:49`) after the insert + audit row, catch-and-continue. Send fn resolves recipients with `type: 'enquiry_logged'`, `excludeStaffId: actor.id`. Delivery rows: `event_type='enquiry_logged'`, `recipient_role='admin'`, `booking_id` null (or `metadata.enquiry_id` per pre-flight #11b).
+
+**Step 17 — `/admin/me` Notifications section.**
+
+- New `src/app/admin/me/NotificationSettingsCard.tsx` (client component): notification-email input with the locked hint copy — *"Business alerts (new bookings, enquiries, cancellations) are sent to this address. Leave empty to use your login email ({login email})."* — master toggle "Receive business alerts", five per-type checkboxes (disabled while master off), save button with pending state + success/error toast. Mobile-first at 375; `min-h-11` controls; CSS variables only (C-11 dark-mode-safe).
+- New `src/app/admin/me/actions.ts` — `saveNotificationSettings` server action: role gate (Owner/Admin), **writes the actor's own row only**, email format validation (empty allowed), audit row `notification_settings_updated` with before/after state.
+- Edit `src/app/admin/me/page.tsx`: mount the card below `PerformanceSurface` for Owner/Admin roles only. Coordination: C-07's Quick-links panel mounts on the same page — whichever ships second slots below the other.
+- Extend `StaffProfile` type + profile fetch in `rbac.ts` with the two new fields.
+- `AUDIT_PHRASING`: + `notification_settings_updated: "Notification settings updated"`.
+
+**Step 18 — Phase D tests.**
+
+- `resolveBusinessNotificationRecipients.test.ts`: opted-in resolution, per-type opt-out, skip-self, notification_email fallback to login email, zero-opt-in fallback to `getAdminRecipient`, excluded-actor ≠ fallback.
+- `saveNotificationSettings` spec: role gate, self-only write, email validation, audit row.
+- `sendEnquiryLoggedEmail` spec: happy path, skip-self exclusion, no-recipients skip row.
+- Extend the 3 rerouted send-fn specs for multi-recipient loops.
+
+**Phase D verify checkpoint:**
+- Migration applied + types regenerated; Owner seed verified by SQL.
+- As Owner: set a notification email on `/admin/me`, log an enquiry as Admin → Owner receives `enquiry_logged` at the notification address; the Admin who logged it does not.
+- As Owner: log an enquiry yourself → no email to yourself; `skipped` row written with `actor_excluded`.
+- Public booking request (test fixture) → every opted-in Owner/Admin gets `admin_booking_notification`; one delivery row per recipient.
+- Untick "Slot claimed" as Owner → claim fires no email to Owner; delivery row reason `all_recipients_opted_out` when no one else is opted in.
+- Coord/Therapist: Notifications card absent from `/admin/me`.
+
 ---
 
 ## 2 — Files touched (final list)
 
-### NEW (~7 files)
+### NEW (~11 files)
 | File | Purpose |
 |---|---|
 | `src/app/admin/emails/components/ResendButton.tsx` | Per-row resend UI |
+| `src/app/admin/me/NotificationSettingsCard.tsx` | (2026-07-16) Notifications section UI |
+| `src/app/admin/me/actions.ts` | (2026-07-16) `saveNotificationSettings` action |
 | `src/lib/email/__tests__/sendBookingConfirmedClientEmail.test.ts` | Send-fn coverage |
 | `src/lib/email/__tests__/sendStaffUnassignmentEmail.test.ts` | Send-fn coverage |
 | `src/lib/email/__tests__/sendClaimNotificationEmail.test.ts` | Send-fn coverage |
 | `src/lib/email/__tests__/sendClientAssignedTherapistEmail.test.ts` | Send-fn coverage |
+| `src/lib/email/__tests__/resolveBusinessNotificationRecipients.test.ts` | (2026-07-16) Resolver coverage |
 | `src/app/admin/emails/__tests__/resendEmail.test.ts` | Resend action coverage |
-| (conditional) `supabase/migrations/<ts>_c08_email_delivery_metadata.sql` | If metadata column absent |
+| `supabase/migrations/<ts>_c08_notification_email_and_metadata.sql` | (2026-07-16) Step 13 migration — now definite |
 
-### EDITED (~8 files)
+### EDITED (~11 files)
 | File | Change |
 |---|---|
-| `src/lib/email/templates.ts` | + 4 new render fns (`render{Name}Email` + plain-text variants); audit `renderStaffAssignmentEmail` |
-| `src/lib/email/notifications.ts` | + 4 new send fns |
-| `src/app/admin/email-templates/actions.ts` | + 4 entries in SUBJECTS |
-| `src/app/admin/emails/components/templates-data.ts` | + 4 new TemplateMeta entries; audit existing staff_assignment entry |
+| `src/lib/email/templates.ts` | + 5 new render fns (`render{Name}Email` + plain-text variants, incl. `renderEnquiryLoggedEmail`); audit `renderStaffAssignmentEmail` |
+| `src/lib/email/notifications.ts` | + 5 new send fns + `resolveBusinessNotificationRecipients`; reroute 3 existing admin-leg sends (Step 15) |
+| `src/app/admin/email-templates/actions.ts` | + 5 entries in SUBJECTS |
+| `src/app/admin/emails/components/templates-data.ts` | + 5 new TemplateMeta entries; audit existing staff_assignment entry |
 | `src/app/admin/emails/actions.ts` | + `resendEmail` server action + `dispatchResend` helper |
 | `src/app/admin/emails/page.tsx` | Render `<ResendButton>` per delivery row (RBAC-gated) |
-| `src/app/admin/bookings/actions.ts` | Wire hooks in `quickUpdateBooking` + `updateBookingManagement` + `claimBookingAssignment` + `updateBookingAssignment` |
-| `src/app/admin/clients/[clientId]/page.tsx` | + `email_resent` in AUDIT_PHRASING |
+| `src/app/admin/bookings/actions.ts` | Wire hooks in `quickUpdateBooking` + `updateBookingManagement` + `claimBookingAssignment` + `updateBookingAssignment`; thread `actorStaffId` into the admin-cancel email options (Step 15) |
+| `src/app/admin/enquiries/actions.ts` | (2026-07-16) Wire `enquiry_logged` hook into `createEnquiry` |
+| `src/app/admin/me/page.tsx` | (2026-07-16) Mount `<NotificationSettingsCard>` for Owner/Admin |
+| `src/lib/auth/rbac.ts` | (2026-07-16) + `notification_email` + `business_notification_prefs` on `StaffProfile` + profile fetch |
+| `src/app/admin/clients/[clientId]/page.tsx` | + `email_resent` + `notification_settings_updated` in AUDIT_PHRASING |
 
 ### UNCHANGED (do NOT touch)
 - `reporting.ts`, `dashboard-helpers.ts`, RBAC matrix, middleware, B-1 primitives.
@@ -723,7 +824,7 @@ pnpm build                      # clean
 node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ```
 
-**Bundle budget:** new ResendButton (~1 kB client), new send-fns + renderers (~5 kB server module — no client impact). **Plan ceiling: +2 kB on `/admin/emails` client bundle. 0 on other pages.**
+**Bundle budget:** new ResendButton (~1 kB client), new send-fns + renderers (~5 kB server module — no client impact). NotificationSettingsCard (~2-3 kB client on `/admin/me`, 2026-07-16). **Plan ceiling: +2 kB on `/admin/emails` client bundle, +3 kB on `/admin/me`. 0 on other pages.**
 
 ### 3.2 Production event_type histogram (post-deploy delta)
 
@@ -734,7 +835,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 
 -- Post-deploy + a week of activity:
 SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
--- Expected: 11 active types (7 + 4 new).
+-- Expected: 12 active types (7 + 5 new, incl. enquiry_logged — 2026-07-16).
 ```
 
 Document the new event_type rows appearing as bookings flow through the system.
@@ -759,6 +860,7 @@ For each of the 4 new templates, exercise the trigger:
 2. `staff_unassignment`: as Owner, reassign an assignment A → B on a test booking → verify A's `staff_unassignment` row + B's `staff_assignment` row.
 3. `claim`: as Therapist (with active assignment slot), claim an unassigned booking → verify admin's `claim` row + own `staff_assignment` row + client's `client_assigned_therapist` row.
 4. `client_assigned_therapist`: as Owner, assign a previously-unassigned booking → verify client's row.
+5. (2026-07-16) `enquiry_logged`: as Admin, log an enquiry → verify opted-in Owner's row at the notification email; verify the logging Admin has NO row (skip-self). Plus the full Phase D verify checkpoint (§1 Phase D).
 
 ### 3.5 Screenshot evidence
 
@@ -768,6 +870,8 @@ For each of the 4 new templates, exercise the trigger:
 - 1280 × ConfirmActionModal for resend
 - 375 × Delivery tab on mobile with icon-only Resend button
 - 1280 × edited template content reflected in resend
+- 1280 + 375 × (2026-07-16) `/admin/me` Notifications card — email field with hint, master toggle, 5 per-type checkboxes
+- 1280 × (2026-07-16) received `enquiry_logged` email (Resend dashboard)
 
 Store in `redesign/audits/C-A/screenshots-19-emails/c-08-after/`.
 
@@ -788,6 +892,10 @@ Store in `redesign/audits/C-A/screenshots-19-emails/c-08-after/`.
 | `templates-data.ts` audit for staff_assignment reveals missing fields | low | low | Add the missing fields; backward-compatible (existing overrides for known fields still work). |
 | Capability-keyed recipient resolution mismatch | low | medium | Verify in Phase B Step 6 — existing `sendStaffAssignmentEmail` already capability-keyed. Document in progress file. |
 | `getAdminRecipient(settings)` returns null when settings has no admin email | low | low | `sendClaimNotificationEmail` returns early with no error. Acceptable — admin opted into no notifications. |
+| (2026-07-16) Resolver bug silently drops ALL internal alerts | low | high | Zero-opt-in fallback to `getAdminRecipient` + `skipped` delivery rows with reasons for every intentional non-send — absence is always visible in the delivery log. Dedicated resolver test file. |
+| (2026-07-16) Multi-recipient loop double-sends on partial failure | low | medium | One tracked send per recipient, each with its own delivery row + try/catch; no retry loop inside the resolver path. |
+| (2026-07-16) Owner mistypes notification_email → alerts vanish to a bad address | medium | low | Format validation on save; delivery failures land as failed rows in `/admin/emails`; login-email fallback only applies when the field is empty, so a typo'd address fails visibly rather than silently rerouting. |
+| (2026-07-16) `notification_settings_updated` audit reveals personal email in logs | low | low | Notification email is business data entered by the staff member themselves; audit access is already permission-gated. |
 
 ### 4.1 Real risk: Resend complexity for context-needing templates
 
@@ -810,13 +918,16 @@ Per-template phase A reverts cleanly:
 
 If only one template needs unshipping, revert just its commit.
 
-### 5.2 Undo migration (if `metadata` column added)
+### 5.2 Undo migration
 
 ```sql
 ALTER TABLE public.email_delivery_events DROP COLUMN IF EXISTS metadata;
+ALTER TABLE public.staff_profiles
+  DROP COLUMN IF EXISTS notification_email,
+  DROP COLUMN IF EXISTS business_notification_prefs;
 ```
 
-Loses any `resent_from_event_id` linkage stored. Acceptable.
+Loses any `resent_from_event_id` linkage plus every staff member's notification email + preferences (they'd re-enter after a re-ship). Acceptable. Internal alerts revert to `getAdminRecipient(settings)` once the code revert lands (revert code FIRST, then columns, or the resolver reads missing columns).
 
 ### 5.3 Undo DB state
 
@@ -862,11 +973,14 @@ Confirm `.example.test` recipient before exercising any send hook.
 | 3 | Phase A template 3 — `claim` |
 | 4 | Phase A template 4 — `client_assigned_therapist` |
 | 5 | Phase B verification — `staff_assignment` templates-data.ts audit (small or no-op) |
-| 6 | Phase C Step 7 — Migration applied (if `metadata` column needed) |
-| 7 | Phase C Steps 8-12 — `resendEmail` action + `ResendButton` + page wiring + tests + AUDIT_PHRASING |
-| 8 | Verification — Playwright screenshots + progress file + master plan checklist → ✅ |
+| 6 | Phase C Steps 8-12 — `resendEmail` action + `ResendButton` + page wiring + tests + AUDIT_PHRASING |
+| 7 | (2026-07-16) Phase D Step 13 — migration applied (staff_profiles columns + Owner seed + conditional metadata) |
+| 8 | (2026-07-16) Phase D Steps 14-15 — resolver + reroute the 4 admin_internal sends + tests |
+| 9 | (2026-07-16) Phase D Step 16 — `enquiry_logged` template + hook + tests |
+| 10 | (2026-07-16) Phase D Steps 17-18 — `/admin/me` Notifications section + action + tests |
+| 11 | Verification — Playwright screenshots + progress file + master plan checklist → ✅ |
 
-Each commit `feat(redesign): C-08 {phase/template}` prefix during C-C. Migration commit uses `chore(supabase): C-08 email_delivery_events metadata migration applied {migration_name}`.
+Each commit `feat(redesign): C-08 {phase/template}` prefix during C-C. Migration commit uses `chore(supabase): C-08 migration applied {migration_name}`.
 
 ---
 
@@ -891,7 +1005,9 @@ Each commit `feat(redesign): C-08 {phase/template}` prefix during C-C. Migration
 5. **`metadata` column type if already exists** — pre-flight catches; conditional migration.
 6. **AUDIT_PHRASING location** — currently `clients/[clientId]/page.tsx`. Could move to a shared lib (§9.4 of C-04a plan). Defer.
 7. **Resend UI for skipped events** — hidden per design. Could show "Why was this skipped?" disclosure. C-12+.
-8. **Admin recipient configuration changes since original send** — `dispatchResend` uses current `getAdminRecipient(settings)`. Document.
+8. **Admin recipient configuration changes since original send** — `dispatchResend` uses the current recipient resolution (post-Phase-D: the resolver). Document.
+9. **(2026-07-16) Resend of multi-recipient internal alerts** — a resent `admin_booking_notification` re-resolves recipients at resend time (current opt-ins, not historical). Consistent with Q9.8's "current state" posture.
+10. **(2026-07-16) Should Coordinators ever receive business alerts?** — Locked out for now (Owner/Admin only, user decision). If needed later: extend the resolver's role filter; the prefs column already supports any profile.
 
 ---
 

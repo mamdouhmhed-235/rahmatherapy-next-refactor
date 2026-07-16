@@ -1,7 +1,8 @@
-# C-08 — Email automation expansion (4 NEW templates + 1 existing-template verification + per-row Resend tooling)
+# C-08 — Email automation expansion (5 NEW templates + 1 existing-template verification + per-row Resend tooling + business-notification routing)
 
 **Type:** Band C plan-writing brief (C-B phase)
 **Date written:** 2026-05-26
+**Amended:** 2026-07-16 — business-notifications bundle (user direction): personal notification email + per-type alert preferences on staff profiles, a business-notification recipient resolver replacing `getAdminRecipient` for internal alerts, and a new `enquiry_logged` template. See §2.7–§2.9. Supersedes the §5.6 and Q9.3 locks (noted inline).
 **Predecessors:**
 - `redesign/plans/C-phase/C-B-DECISIONS.md` §2 Q7 + §3 C-08 (5-template scope locked + Resend tooling + capability-keyed audience)
 - `redesign/audits/C-A/19-emails-audit.md` (B-83 missing event types + B-84 no per-row Resend + PE-51 existing template editor is exemplary)
@@ -17,20 +18,24 @@
 
 C-08 fills the email-automation gaps surfaced by W03 + W05 + audit #19. **Discovery during plan-writing reframed the scope:** the decisions doc Q7 listed "5 new templates", but inspection shows `staff_assignment` already exists in `templates.ts` + `templates-data.ts` + the SUBJECTS map + the production `email_delivery_events` (4 rows). Net scope:
 
-- **4 NEW templates** ship in C-08:
+- **5 NEW templates** ship in C-08:
   1. `client_assigned_therapist` — customer audience. Fires every time a booking's assignment changes. Client always knows who's coming.
   2. `booking_confirmed_client` — customer audience. Fires on `pending → confirmed`. Closes B-115 gap.
   3. `staff_unassignment` — staff audience. Fires when a practitioner is removed (reassign or unassign). Closes B-127 gap.
   4. `claim` — admin_internal audience. Fires when a practitioner claims an unassigned slot. Gives admin operational awareness.
+  5. `enquiry_logged` — admin_internal audience (2026-07-16 amendment). Fires when an enquiry is created, skipping the staff member who logged it. Closes the "owner never hears about queries" gap.
 
 - **1 existing template verified for override coverage**:
-  5. `staff_assignment` already exists (audit confirmed; `templates-data.ts` line 115 registered). C-08 verifies it's fully `resolveTemplateOverrides`-integrated and the fields list is current. Likely no code change beyond a templates-data.ts field-list audit.
+  6. `staff_assignment` already exists (audit confirmed; `templates-data.ts` line 115 registered). C-08 verifies it's fully `resolveTemplateOverrides`-integrated and the fields list is current. Likely no code change beyond a templates-data.ts field-list audit.
 
 - **Plus per-row Resend tooling** on `/admin/emails` delivery log (B-84). New server action `resendEmail(deliveryEventId)` looks up the original event, re-renders with current overrides, sends, logs a new event with `resent_from_event_id` linkage.
 
-**Two cross-cutting changes:**
+- **Plus business-notification routing (2026-07-16 amendment, §2.7–§2.9):** internal alerts stop going to the public clinic contact email. A new resolver sends them to every **active Owner/Admin who has opted in**, at a personal notification email they set themselves in a new "Notifications" section on `/admin/me` — with per-alert-type preferences ("only the most important things") and a generalised **skip-self rule** (you're never emailed about an action you performed yourself).
+
+**Cross-cutting changes:**
 - All assignment-related emails fire to **any practitioner with `can_take_bookings=true`**, not just role=therapist. Aligns with C-B-DECISIONS Q10 capability-keyed model.
-- **No migration needed** — `email_delivery_events.event_type` is free-text (verified — CHECK constraint is only on `delivery_status`). New event_type values are code constants.
+- All admin_internal emails (3 existing + `claim` + `enquiry_logged`) route through the new `resolveBusinessNotificationRecipients` resolver (§2.9). `getAdminRecipient(settings)` survives only as the zero-opt-in fallback.
+- **Migration now required (2026-07-16 amendment)** — two new `staff_profiles` columns (`notification_email`, `business_notification_prefs`), plus the pre-existing conditional `email_delivery_events.metadata` addition, in one Zone-2 migration. `email_delivery_events.event_type` remains free-text (verified) — new event_type values are still code constants.
 
 ---
 
@@ -184,7 +189,10 @@ Includes a `ConfirmActionModal` for the click (lift the existing pattern from C-
 | Receive `client_assigned_therapist` (recipient) | n/a — client only | — | — | — |
 | Receive `booking_confirmed_client` | n/a — client only | — | — | — |
 | Receive `staff_unassignment` | ✅ if practitioner-mode + previously assigned | ✅ same | ✅ same | ✅ if previously assigned |
-| Receive `claim` notification | ✅ via `getAdminRecipient(settings)` | ✅ same | ❌ Coord not in admin recipient | ❌ |
+| Receive `claim` notification | ✅ if opted in via business-notification prefs (§2.9; skip-self applies) | ✅ same | ❌ | ❌ |
+| Receive `enquiry_logged` notification | ✅ if opted in (skip-self applies) | ✅ same | ❌ | ❌ |
+| See + edit own "Notifications" section on `/admin/me` | ✅ (own row only) | ✅ (own row only) | ❌ section hidden | ❌ section hidden |
+| Invoke `saveNotificationSettings` | ✅ self-only | ✅ self-only | ❌ | ❌ |
 | Edit any new template via `/admin/emails` Templates tab | ✅ via `MANAGE_EMAIL_TEMPLATES` | ✅ same | ❌ | ❌ |
 | See Resend button on `/admin/emails` Delivery rows | ✅ via `RESEND_BOOKING_EMAILS` | ✅ same | ❌ (unless granted) | ❌ |
 | Invoke `resendEmail` server action | same as button visibility | same | ❌ | ❌ |
@@ -241,6 +249,79 @@ Button renders compact at desktop (icon + label inline), icon-only at mobile (37
 
 **Skipped events** (`delivery_status = 'skipped'`) — Resend button NOT rendered. Skipped means no payload was generated (e.g., booking has no client email). Resending makes no sense.
 
+### 2.7 New template `enquiry_logged` (audience: admin_internal) — 2026-07-16 amendment
+
+**Why:** verified 2026-07-16 — enquiries are created only via the admin `createEnquiry` action (`src/app/admin/enquiries/actions.ts:49`; there is **no public enquiry endpoint**), and that action sends **no email of any kind**. The owner has no signal that a query came in unless they happen to open `/admin/enquiries`.
+
+**Trigger:** `createEnquiry` succeeds. Hook fires `sendEnquiryLoggedEmail(enquiryId, actorStaffId, adminClient)` after the insert + audit row, wrapped in the standard catch-and-continue pattern (enquiry creation never rolls back on email failure).
+
+**Recipients:** via `resolveBusinessNotificationRecipients` (§2.9) with `type: 'enquiry_logged'` and `excludeStaffId: actor.id` — **the staff member who logged the enquiry is never emailed about it** (user decision 2026-07-16). If the actor is the only opted-in recipient, no email fires and a `skipped` delivery row records why.
+
+**Default copy** (override-able via admin UI):
+- Subject: "New enquiry: {clientName}"
+- Body: "{staffName} logged a new enquiry from {clientName} ({contactDetail}) interested in {serviceInterest}. View it here: {enquiryUrl}."
+
+**Delivery logging:** `email_delivery_events.event_type = 'enquiry_logged'`, `recipient_role = 'admin'`, one row per recipient. `booking_id` stays null (enquiries aren't bookings) — pre-flight verifies the column is nullable; if NOT NULL, log with `metadata.enquiry_id` linkage instead and flag to the user.
+
+### 2.8 Personal notification email + per-type preferences on `/admin/me` — 2026-07-16 amendment
+
+**Why:** today every internal alert goes to `business_settings.contact_email` — the clinic's **public** contact address (`getAdminRecipient`, `notifications.ts:209`). The owner asked for a personal, per-profile notification email, self-managed, with a clear hint of what it's for — and control over which alerts arrive ("not literally everything, only most important things").
+
+**Schema (Zone-2, folded into the C-08 migration):**
+- `staff_profiles.notification_email text NULL` — empty = fall back to the login email.
+- `staff_profiles.business_notification_prefs jsonb NULL` — `NULL` = not opted in. When set: `{ "enabled": true, "types": { "<type>": false, ... } }` — a type absent from `types` defaults to **on**; the map only stores explicit opt-outs.
+- Seed: the Owner profile gets `{"enabled": true}` (all types on) so alerts flow from day one. Admin profiles start `NULL` (opted out until they toggle on).
+
+**Alert types (the per-type preference list, locked 2026-07-16):**
+| Key | Fires when |
+|---|---|
+| `new_booking_request` | public booking request arrives (`admin_booking_notification`) |
+| `booking_cancelled` | booking is cancelled (`admin_booking_cancellation`) |
+| `reschedule_request` | client requests a reschedule (`admin_reschedule_request`) |
+| `enquiry_logged` | an enquiry is logged (§2.7) |
+| `slot_claimed` | a practitioner claims a slot (`claim`, §2.4) |
+
+**UI — "Notifications" section on `/admin/me`:** a settings card visible to **Owner + Admin roles only** (each edits their own row; no cross-editing). Contents:
+- Notification email input with hint: *"Business alerts (new bookings, enquiries, cancellations) are sent to this address. Leave empty to use your login email ({login email})."* Format-validated; empty allowed.
+- Master toggle: "Receive business alerts".
+- Five per-type checkboxes (labels above), disabled while the master toggle is off.
+- Save via new server action `saveNotificationSettings` (self-only: writes the actor's own row; role-gated Owner/Admin; audit row `notification_settings_updated`).
+
+**Coordination:** C-07 mounts its Quick-links panel on the same `/admin/me` page — whichever ships second slots below the other; both are self-contained cards (noted in C-07 plan §Phase A1 Step 3).
+
+### 2.9 `resolveBusinessNotificationRecipients` — recipient resolver — 2026-07-16 amendment
+
+New function in `notifications.ts` replacing `getAdminRecipient` for all admin_internal sends:
+
+```ts
+interface BusinessNotificationQuery {
+  type: "new_booking_request" | "booking_cancelled" | "reschedule_request" | "enquiry_logged" | "slot_claimed";
+  excludeStaffId?: string | null;  // skip-self: the actor who caused the event
+}
+
+async function resolveBusinessNotificationRecipients(
+  supabase: SupabaseClient,
+  query: BusinessNotificationQuery
+): Promise<{ staffId: string; email: string }[]> {
+  // 1. Fetch active staff_profiles whose role is Owner or Admin
+  //    AND business_notification_prefs->>'enabled' = 'true'.
+  // 2. Filter out rows where prefs.types[query.type] === false.
+  // 3. Filter out query.excludeStaffId (skip-self).
+  // 4. Map to notification_email ?? email.
+  // 5. Fallback: if step 1 found ZERO opted-in profiles at all,
+  //    return [{ staffId: null, email: getAdminRecipient(settings) }]
+  //    so alerts can never silently vanish. NOTE: the fallback does NOT
+  //    apply when opted-in profiles exist but skip-self / per-type prefs
+  //    emptied the list — that emptiness is intentional.
+}
+```
+
+**Rerouting (one edit per send-fn):** `sendBookingCreatedEmails` (admin leg), `sendBookingCancellationEmails` (admin leg), `sendBookingRescheduleRequestEmails` (admin leg), `sendClaimNotificationEmail` (§2.4), `sendEnquiryLoggedEmail` (§2.7). Each sends **one tracked email per resolved recipient** (one delivery row each). Public-initiated events (customer books / cancels / reschedules) have no staff actor → no exclusion → all opted-in recipients get them. Staff-initiated events pass the actor's id → skip-self.
+
+**Supersession notes:**
+- §5.6's "admin claiming themselves still gets the claim email — harmless" lock is **superseded**: skip-self now excludes the claiming admin. (A different opted-in admin still gets it.)
+- Q9.3's "claim → `getAdminRecipient(settings)`" lock is **superseded** by the resolver (fallback aside).
+
 ### 4.3 Mobile (375) considerations
 
 Delivery rows already mobile-responsive per audit. Resend button gets `min-h-11` tap target. Confirm modal fills viewport.
@@ -277,13 +358,20 @@ C-04a's restore (`restoreBooking`) doesn't transition through pending. A booking
 
 If the user wants restored bookings to also get the confirmation, that's a future enhancement — not in C-08 scope.
 
-### 5.6 `claim` notification when admin claims (vs therapist claims)
+### 5.6 `claim` notification when admin claims (vs therapist claims) — SUPERSEDED 2026-07-16
 
-`claimBookingAssignment` can technically be called by Owner / Admin / Coord with `can_take_bookings=true` claiming a slot themselves. Should the `claim` admin-notification fire when the admin themselves claimed (notifying themselves)?
+~~**Locked decision:** yes, fire it.~~ **Superseded by the skip-self rule (§2.9, user direction 2026-07-16):** the claiming staff member is excluded from the `claim` alert via `excludeStaffId`. Other opted-in Owner/Admin recipients still receive it. If the claimer was the only opted-in recipient, no email fires (intentional — no fallback in the excluded-actor case).
 
-**Locked decision:** yes, fire it. Admins may have multiple admin emails configured (per `getAdminRecipient(settings)`). The notification goes to the configured admin email regardless of who claimed. If admin = claimer = recipient, they get an audit-style notification of their own action. Harmless.
+### 5.6b Skip-self semantics across all internal alerts — 2026-07-16 amendment
 
-Alternative considered: suppress if `claimingStaffId.email === adminRecipientEmail`. Rejected — adds complexity for a low-frequency case.
+The skip-self rule is general: any internal alert whose triggering action has a known staff actor passes `excludeStaffId: actor.id` to the resolver. Applies to: `enquiry_logged` (staff logged it), `slot_claimed` (staff claimed), `booking_cancelled` **when cancelled by staff** (admin cancel path), `reschedule/new-booking` never (customer-initiated, no actor). The customer-initiated legs pass no exclusion — every opted-in recipient hears about them.
+
+### 5.6c Zero-recipient outcomes — 2026-07-16 amendment
+
+Three distinct cases, handled differently:
+1. **No profile has ever opted in** → resolver falls back to `getAdminRecipient(settings)` (today's behaviour). Alerts never silently vanish during rollout.
+2. **Opted-in profiles exist but per-type prefs turned this type off everywhere** → no email; `skipped` delivery row with reason `all_recipients_opted_out`.
+3. **Skip-self emptied the list** → no email; `skipped` delivery row with reason `actor_excluded`. Intentional.
 
 ### 5.7 Resend rate-limit
 
@@ -307,38 +395,48 @@ The Delivery tab shows nothing. The Templates tab still shows the entry editable
 
 ## 6 — Migration footprint
 
-**No new tables. No CHECK constraint changes for `email_delivery_events.event_type`** — verified during plan-writing that the only CHECK on the table is for `delivery_status`. New event_type values (`client_assigned_therapist`, `booking_confirmed_client`, `staff_unassignment`, `claim`) are pure code constants.
+**No new tables. No CHECK constraint changes for `email_delivery_events.event_type`** — verified during plan-writing that the only CHECK on the table is for `delivery_status`. New event_type values (`client_assigned_therapist`, `booking_confirmed_client`, `staff_unassignment`, `claim`, `enquiry_logged`) are pure code constants.
 
-**One small column addition if missing:** `email_delivery_events.metadata jsonb DEFAULT '{}'::jsonb` — to store `resent_from_event_id` linkage. Pre-flight verifies whether this column already exists; if yes, no migration; if no, one-line ALTER TABLE.
+**One Zone-2 migration (2026-07-16 amendment — now definite, not conditional):**
+- `staff_profiles.notification_email text NULL` (§2.8)
+- `staff_profiles.business_notification_prefs jsonb NULL` (§2.8)
+- Seed: Owner profile → `business_notification_prefs = '{"enabled": true}'`
+- `email_delivery_events.metadata jsonb DEFAULT '{}'::jsonb` — **still conditional**: included only if pre-flight finds it missing (stores `resent_from_event_id` linkage).
 
-**Audit log:** new action_type `email_resent` — code constant only; no schema change.
+**Audit log:** new action_types `email_resent` + `notification_settings_updated` — code constants only; no schema change.
 
-**No new permissions.** `MANAGE_EMAIL_TEMPLATES` covers editing the new templates. `RESEND_BOOKING_EMAILS` covers the Resend button (already exists per `rbac.ts:33`).
+**No new permissions.** `MANAGE_EMAIL_TEMPLATES` covers editing the new templates. `RESEND_BOOKING_EMAILS` covers the Resend button (already exists per `rbac.ts:33`). The `/admin/me` Notifications section is gated by role (Owner/Admin) + self-only writes — no permission row needed.
 
 ---
 
 ## 7 — Files touched (preview — full list in plan)
 
-### NEW (6 files)
+### NEW (~10 files)
 - `src/app/admin/emails/components/ResendButton.tsx` — per-row Resend UI
+- `src/app/admin/me/NotificationSettingsCard.tsx` — Notifications section UI (§2.8)
+- `src/app/admin/me/actions.ts` — `saveNotificationSettings` server action (§2.8)
 - `src/lib/email/__tests__/sendClientAssignedTherapistEmail.test.ts`
 - `src/lib/email/__tests__/sendBookingConfirmedClientEmail.test.ts`
 - `src/lib/email/__tests__/sendStaffUnassignmentEmail.test.ts`
 - `src/lib/email/__tests__/sendClaimNotificationEmail.test.ts`
+- `src/lib/email/__tests__/resolveBusinessNotificationRecipients.test.ts` — resolver + skip-self + fallback coverage (§2.9)
 - `src/app/admin/emails/__tests__/resendEmail.test.ts`
-- (conditional) `supabase/migrations/<ts>_c08_email_delivery_metadata.sql` — if `email_delivery_events.metadata` doesn't already exist
+- `supabase/migrations/<ts>_c08_notification_email_and_metadata.sql` — §6 migration (now definite)
 
-### EDITED (~8 files)
+### EDITED (~11 files)
 | File | Change |
 |---|---|
-| `src/lib/email/templates.ts` | + 4 new render functions (`renderClientAssignedTherapistEmail`, `renderBookingConfirmedClientEmail`, `renderStaffUnassignmentEmail`, `renderClaimNotificationEmail`) with `resolveTemplateOverrides` integration. Verify `renderStaffAssignmentEmail` field coverage. |
-| `src/lib/email/notifications.ts` | + 4 new send functions matching the renderers |
-| `src/app/admin/email-templates/actions.ts` | + 4 entries in SUBJECTS map |
-| `src/app/admin/emails/components/templates-data.ts` | + 4 new TemplateMeta entries with field lists |
+| `src/lib/email/templates.ts` | + 5 new render functions (`renderClientAssignedTherapistEmail`, `renderBookingConfirmedClientEmail`, `renderStaffUnassignmentEmail`, `renderClaimNotificationEmail`, `renderEnquiryLoggedEmail`) with `resolveTemplateOverrides` integration. Verify `renderStaffAssignmentEmail` field coverage. |
+| `src/lib/email/notifications.ts` | + 5 new send functions + `resolveBusinessNotificationRecipients` resolver; reroute the 3 existing admin-leg sends through it (§2.9) |
+| `src/app/admin/email-templates/actions.ts` | + 5 entries in SUBJECTS map |
+| `src/app/admin/emails/components/templates-data.ts` | + 5 new TemplateMeta entries with field lists |
 | `src/app/admin/emails/actions.ts` | + `resendEmail(deliveryEventId)` server action |
 | `src/app/admin/emails/page.tsx` | Render `<ResendButton>` on each delivery row |
 | `src/app/admin/bookings/actions.ts` | Wire `client_assigned_therapist` + `booking_confirmed_client` + `staff_unassignment` + `claim` hooks into the appropriate paths |
-| `src/app/admin/clients/[clientId]/page.tsx` | + new entries in `AUDIT_PHRASING` (`email_resent`) |
+| `src/app/admin/enquiries/actions.ts` | Wire `enquiry_logged` hook into `createEnquiry` (§2.7) |
+| `src/app/admin/me/page.tsx` | Mount `<NotificationSettingsCard>` for Owner/Admin (§2.8) |
+| `src/lib/auth/rbac.ts` | + `notification_email` + `business_notification_prefs` on the `StaffProfile` type + profile fetch |
+| `src/app/admin/clients/[clientId]/page.tsx` | + new entries in `AUDIT_PHRASING` (`email_resent`, `notification_settings_updated`) |
 
 ### UNCHANGED (do NOT touch)
 - `reporting.ts`, `dashboard-helpers.ts`, RBAC matrix, middleware, B-1 primitives.
@@ -361,6 +459,10 @@ The Delivery tab shows nothing. The Templates tab still shows the entry editable
 
 **No coordination with C-11:** the new templates inherit theme styling from existing email templates (which are HTML-only, not theme-aware — emails render in the recipient's email client, not the admin tree). Email templates and admin-tree dark mode are independent.
 
+**Coordination with C-15 (2026-07-16):** C-15 (email template studio) ships immediately after C-08 and overhauls the Templates tab UX — gallery, live preview, chip variables, reset-to-default, test send. C-08 registers its 5 new templates the current way (`templates-data.ts` entries); C-15's registry stays backward-compatible, so C-08's templates inherit the studio automatically. C-15's test-send button uses C-08's `notification_email` column as its recipient. Do not gold-plate C-08's template registration — C-15 owns the editor UX.
+
+**Coordination with C-07 (2026-07-16):** both plans add a card to `/admin/me` (C-07: Quick links; C-08: Notifications). Whichever ships second mounts below the other; both are self-contained.
+
 ---
 
 ## 9 — Open questions
@@ -375,9 +477,9 @@ Locked: **fire on every assignment change**. Includes reassignment (A → B), cl
 
 For unassign with no replacement: don't fire `client_assigned_therapist` (no new therapist to name). Client gets `client_assigned_therapist` again when the next practitioner is assigned/claims.
 
-**Q9.3 — `claim` notification — to which admin email?**
+**Q9.3 — `claim` notification — to which admin email? — SUPERSEDED 2026-07-16**
 
-Locked: `getAdminRecipient(settings)` — same destination as `admin_booking_notification`. If a clinic has multiple admin emails (settings allows comma-separated), all get notified.
+~~Locked: `getAdminRecipient(settings)`.~~ Superseded by §2.9: all opted-in Owner/Admin recipients via `resolveBusinessNotificationRecipients` (skip-self applies; `getAdminRecipient` survives only as the zero-opt-in fallback).
 
 **Q9.4 — Resend button rate-limit — 60 seconds appropriate?**
 
@@ -431,6 +533,11 @@ A C-08 implementation is complete when:
 16. **All static gates pass** — lint, tsc, vitest, build, bundle delta within budget.
 17. **Playwright role × event sweep** — Owner + Admin can edit + resend; Coord/Therapist blocked per RBAC.
 18. **No regressions** on existing 9 templates + existing 7 delivery event types.
+19. **(2026-07-16) `enquiry_logged` fires** on `createEnquiry`, and the logging staff member is never among the recipients (skip-self verified).
+20. **(2026-07-16) Notifications section works** — Owner/Admin sees it on `/admin/me`, saves a notification email + per-type prefs, hint text present; Coord/Therapist never sees it.
+21. **(2026-07-16) Resolver verified** — alerts go to opted-in Owner/Admin at `notification_email ?? email`; per-type opt-outs respected; zero-opt-in falls back to `getAdminRecipient`; one delivery row per recipient.
+22. **(2026-07-16) Skip-self verified** — staff-initiated cancel / claim / enquiry never emails the actor.
+23. **(2026-07-16) Migration applied + verified** — 2 staff_profiles columns + Owner seed (+ conditional metadata column); `generate_typescript_types` re-run.
 
 ---
 

@@ -103,6 +103,8 @@ Pass `canViewStaff` boolean from `page.tsx` body (derived from `canViewStaff(pro
 
 **Step 3 — B-140: Quick links on `/admin/me`.**
 
+> **Coordination (2026-07-16):** C-08's Phase D also mounts a card on `/admin/me` (`NotificationSettingsCard`, Owner/Admin only). Both are self-contained cards; whichever plan ships second mounts below the other. If C-08 landed first, insert QuickLinks above the Notifications card. Also note C-08 adds `src/app/admin/me/actions.ts` — if this plan needs a me-scoped action file, extend that one rather than creating a duplicate.
+
 New file `src/app/admin/me/QuickLinks.tsx`:
 
 ```tsx
