@@ -5,6 +5,7 @@
 **Predecessors:**
 - User direction 2026-07-16: set up Google Analytics on the customer-facing pages; the GA4 tag exists (`G-WM8BCYG060`). **Consent decision (user, 2026-07-16): NO consent setup in C-17** — the user will run Google's own consent-setup process; a consent/cookie-banner change is planned as the NEXT amendment. C-17 must not block or pre-empt it.
 - Code audit 2026-07-16: no analytics of any kind in `src/`; no CSP headers exist (nothing blocks googletagmanager.com); customer surfaces = the `(public)` route group (marketing pages + the embedded booking flow via `(public)/layout.tsx`) **plus** `/booking/manage` (outside the group, root-layout only); the booking success screen is `PreparedStep.tsx` ("Booking request submitted"), mounted by `BookingExperience.tsx`.
+**Amended:** 2026-07-16 (same day) — **C-18 (cookie consent & PECR compliance) is now written** and consumes this brief's consent insertion point: the `GoogleAnalytics` component becomes C-18's consent-gated loader (basic Consent Mode v2 — gtag not injected until analytics consent). **Co-ship C-17 + C-18 recommended**; if C-17 is implemented first standalone, implement it directly in the gated form per C-18 plan Step 8 (skip the plain-GA intermediate).
 **Companion files:**
 - Plan: `redesign/plans/C-phase/C-17-google-analytics-plan.md`
 - Progress: `redesign/per-page-progress/C-17-google-analytics-progress.md` (filled during C-C)
@@ -154,7 +155,7 @@ useEffect(() => {
 
 - **Independent of all 16 other plans** (like C-14) — ships anytime.
 - **Branch note (2026-07-16):** `(public)/layout.tsx` differs by ~9 lines between master and the frontend line (`redesign/start-state`); implementing on master risks only a trivial conflict at the next routine frontend merge. Confirm the target branch with the user at impl time (master is the deploy trunk; the mount is a one-line addition either way).
-- **Successor (planned):** the consent change (Google Consent Mode + banner) is the user's declared NEXT plan-refinement item — C-17's init block carries its insertion point.
+- **Successor (WRITTEN 2026-07-16):** C-18 — cookie consent & PECR compliance (`redesign/briefs/C-18-cookie-consent-brief.md`). Hard pairing: co-ship recommended; C-18 Phase D rewrites this plan's component into the consent-gated loader. Deploying C-17 alone collects without consent — a recorded user-accepted interim gap, superseded by C-18's availability.
 - Bundle: gtag.js loads `afterInteractive` from Google's CDN (not part of the app bundle); the component itself is ~0.3 kB. Ceiling: +1 kB on public bundles.
 
 ---

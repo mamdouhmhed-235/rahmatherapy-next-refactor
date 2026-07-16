@@ -2,6 +2,7 @@
 
 **Type:** Band C plan-writing output (C-B phase — post-handoff addition)
 **Date written:** 2026-07-16 (user direction: plan-refinement phase)
+**Amended:** 2026-07-16 (same day) — C-18 (cookie consent) is written and pairs with this plan. **Co-ship recommended:** implement the `GoogleAnalytics` component directly in C-18's consent-gated form (C-18 plan Step 8) rather than the plain form below, then the rest of this plan applies unchanged.
 **Brief:** `redesign/briefs/C-17-google-analytics-brief.md` (companion — read first)
 **Progress (filled in C-C):** `redesign/per-page-progress/C-17-google-analytics-progress.md`
 **Operating discipline:** per `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md#part-0-operating-discipline`
@@ -138,7 +139,7 @@ Phase B live verification uses one `.example.test` booking through the public fl
 2. Phase A → verify → Phase B → verify; live GA checks need the user's GA Realtime access.
 3. No migrations; one production env var (confirm-first).
 4. Final commit flips the master-plan C-17 row → ✅.
-5. **Successor reminder:** the consent change (Google Consent Mode + banner) is the user's declared next refinement — do not gold-plate consent here.
+5. **Successor reminder (updated 2026-07-16):** C-18 (cookie consent & PECR compliance) is written — co-ship it; do not deploy plain GA alone without surfacing the consent gap to the user first.
 
 ---
 
