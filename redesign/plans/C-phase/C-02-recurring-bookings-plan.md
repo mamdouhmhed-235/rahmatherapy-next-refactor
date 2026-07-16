@@ -429,10 +429,12 @@ export async function cancelRecurringSeries(
   if (tmplErr || !template) return { ok: false, error: tmplErr?.message ?? "Template not found or already cancelled." };
 
   // 2. Cascade-cancel future occurrences (today onwards)
+  // S7 coordination (2026-07-16, C-04a amendment): stamp cancelled_at so the
+  // cascaded visits honour the 28-day restore window like any other cancellation.
   const today = getLondonTodayISO();
   const { data: cancelledRows, error: cancelErr } = await adminClient
     .from("bookings")
-    .update({ status: "cancelled" })
+    .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
     .eq("recurring_template_id", templateId)
     .in("status", ["pending", "confirmed"])
     .gte("booking_date", today)

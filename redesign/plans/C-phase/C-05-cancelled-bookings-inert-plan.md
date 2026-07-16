@@ -367,7 +367,13 @@ Above the assignments `<ul>` rendering, conditionally render:
           {inactivityReason === "past_dated" && "This booking is in the past."}
         </p>
         <p className="mt-1 leading-6 text-[var(--admin-text-muted)]">
-          {inactivityReason === "cancelled" && "Restore it before claiming, reassigning, or marking work complete."}
+          {/* S7 coordination (2026-07-16, C-04a amendment): when the 28-day restore
+              window has passed (isRestoreWindowExpired from _helpers.ts), the
+              cancelled variant reads the expired copy instead — restore is gone. */}
+          {inactivityReason === "cancelled" &&
+            (restoreWindowExpired
+              ? "The 28-day restore window has passed — this cancellation is permanent."
+              : "Restore it before claiming, reassigning, or marking work complete.")}
           {inactivityReason === "no_show" && "Restore it if the client did attend."}
           {inactivityReason === "past_dated" && "Editing past bookings should go through support."}
         </p>

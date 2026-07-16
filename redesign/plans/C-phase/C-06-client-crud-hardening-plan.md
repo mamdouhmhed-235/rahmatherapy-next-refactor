@@ -162,9 +162,13 @@ export async function deleteClient(
   // 2. SELECT client; if deleted_at IS NOT NULL → return { success: true, alreadyDeleted: true }
   //    after writing an idempotent audit row.
   // 3. UPDATE clients SET deleted_at = now() WHERE id = $1
-  // 4. UPDATE bookings SET deleted_at = now(), status = 'cancelled', cancellation_reason = 'client_deleted'
+  // 4. UPDATE bookings SET deleted_at = now(), status = 'cancelled', cancelled_at = now(),
+  //    cancellation_reason = 'client_deleted'
   //    WHERE client_id = $1 AND status NOT IN ('cancelled', 'completed')
   //    RETURNING id  -- capture cascadedBookingIds[]
+  //    (cancelled_at stamping: S7 coordination 2026-07-16, C-04a amendment — cascaded
+  //    cancellations honour the 28-day restore window; moot in practice since the
+  //    deleted-client check blocks restore anyway, but keeps the data uniform)
   // 5. DELETE FROM client_notes WHERE client_id = $1 AND is_sensitive = true
   // 6. UPDATE audit_logs SET target_label = '[deleted client]' WHERE target_type = 'clients' AND target_id = $1
   //    (note: target_label may not exist — verify; if absent, skip this step)

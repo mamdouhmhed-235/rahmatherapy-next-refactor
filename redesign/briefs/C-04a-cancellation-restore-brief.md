@@ -2,6 +2,7 @@
 
 **Type:** Band C plan-writing brief (C-B phase)
 **Date written:** 2026-05-26
+**Amended:** 2026-07-16 — S7 refinement (user direction): 28-day restore window. Cancelled bookings are restorable only within 28 days of cancellation; new `bookings.cancelled_at` column (admin paths stamp it; customer path already has `customer_cancelled_at` — guard reads the coalesce). See §1.11, §2.1 S7, §5.12, §6.
 **Predecessors:**
 - `redesign/plans/C-phase/C-B-DECISIONS.md` §2 Q8 + Q10 + §3 C-04a (locked scope)
 - `redesign/audits/C-A/W04-cancellation-and-restore-flow.md` §1+§2+§3 (B-120, B-121, B-122 — restore-path gaps)
@@ -38,8 +39,9 @@ C-04a fixes the booking lifecycle's restore path and is **load-bearing for C-05*
 
 - **(S3) Change 2 modal copy:** the Restore confirm modal surfaces the prior `customer_cancellation_note` (or admin cancel reason from audit log) so the admin sees what they're undoing.
 - **(S6) Change 1 + Change 2 past-datetime guard:** restore is disallowed when `now() > booking.booking_date + booking.start_time`. UI hides the Restore button (detail strip + row menu); server action returns structured error `"This booking's appointment time has already passed and cannot be restored."` if invoked anyway. **Stricter than C-05's lockdown** (which uses date-only `booking_date < today`) — intentional: a booking whose moment has truly passed shouldn't be resurrected. See §5.8.
+- **(S7 — amendment 2026-07-16) 28-day restore window:** a cancelled booking is restorable only within **28 days of the cancellation moment** (`RESTORE_WINDOW_DAYS = 28`, tunable code constant). Second cutoff alongside S6 — S6 bounds by the *appointment* moment, S7 by the *cancellation* moment; both must pass. Bites the case S6 misses: booked far ahead, cancelled early, sitting restorable for weeks. New `bookings.cancelled_at` column (Zone-2 migration addition); guard reads `cancelled_at ?? customer_cancelled_at`; unknown cancellation time counts as **expired** (fail-closed). UI hides Restore; server rejects with `"This booking was cancelled more than 28 days ago and can no longer be restored."`. Completed-reopen is deliberately NOT windowed (mistake-correction path with its own force + reason friction). See §1.11, §2.1 S7, §5.12.
 
-Net effect: an admin can restore a mistakenly cancelled booking with one click from either the detail page or directly from the list row; cancelled-by-mistake errors carry a 10s undo window during which no email is sent at all; the client is informed cleanly when the restore lands legitimately; the audit log is honest; the booking's lifecycle reaches `completed` automatically when practitioners do their job; bookings whose appointment time has passed are inert at the restore layer; and the codebase no longer carries dead payment-status references.
+Net effect: an admin can restore a mistakenly cancelled booking with one click from either the detail page or directly from the list row; cancelled-by-mistake errors carry a 10s undo window during which no email is sent at all; the client is informed cleanly when the restore lands legitimately; the audit log is honest; the booking's lifecycle reaches `completed` automatically when practitioners do their job; bookings whose appointment time has passed — or whose cancellation is older than 28 days — are inert at the restore layer; and the codebase no longer carries dead payment-status references.
 
 **Sequencing constraint:** C-04a MUST ship before or with C-05 (Restore is what makes the lockdown survivable). The Change 13 cron infrastructure is independent from C-01's review-emails cron — both can ship in any order.
 
@@ -123,6 +125,10 @@ Per user direction (S6): if `now() > booking.booking_date + booking.start_time` 
 
 ---
 
+### 1.11 Unbounded restore window (amendment 2026-07-16)
+
+As specced pre-amendment, a cancelled booking with a future appointment stayed restorable indefinitely up to its appointment moment (S6). User direction 2026-07-16: restoring a cancellation after weeks makes no operational sense — the slot has moved on, the client's intent is stale. A **28-day window from the cancellation moment** closes it. Audit fact motivating the schema addition: admin-initiated cancels stamp NO timestamp on the booking row (`customer_cancelled_at` is customer-flow-only; the audit log alone records admin cancels) — so the window requires a unified `bookings.cancelled_at`.
+
 ## 2 — Scope (lifted from C-B-DECISIONS §3 C-04a + amendment 2026-05-26)
 
 C-04a ships 14 changes. The plan groups them into 8 phases (A–H).
@@ -143,12 +149,21 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
   //     cannot be restored." }. Stricter than C-05's date-only lockdown — see §5.8.
   //     Comparison uses Europe/London zoning. UI is expected to hide the Restore button
   //     in this case (Change 2 + Change 10) but the server enforces independently.
+  // 3.6 Restore-window guard (S7 amendment 2026-07-16): applies to cancelled sources only.
+  //     const cancelledAt = booking.cancelled_at ?? booking.customer_cancelled_at;
+  //     if (!cancelledAt || now() - cancelledAt > RESTORE_WINDOW_DAYS * 86_400_000)
+  //     reject with { error: "This booking was cancelled more than 28 days ago and can
+  //     no longer be restored." }. RESTORE_WINDOW_DAYS = 28 (tunable code constant).
+  //     Unknown cancellation time (both fields null — legacy admin cancels) = expired,
+  //     fail-closed. no_show sources skip 3.6 (already dead via 3.5 — see §5.12).
   // 4. State-machine guard: if before.status === 'completed' AND !force_completed,
   //    return { error: 'Reopening a completed booking requires confirmation.' }
   //    The UI surfaces a confirm modal that re-submits with force_completed=true.
+  //    Deliberately NOT S7-windowed — see §5.12.
   // 5. UPDATE bookings SET status = target_status, customer_cancelled_at = NULL,
-  //    customer_cancellation_note = NULL (clear stale customer-cancellation fields
-  //    on transition out of cancelled — addresses W04 B-125 as a bonus)
+  //    customer_cancellation_note = NULL, cancelled_at = NULL (clear stale
+  //    cancellation fields on transition out of cancelled — addresses W04 B-125
+  //    as a bonus; cancelled_at clearing added by S7)
   // 6. Cancel any queued cancellation email for this booking (Change 13 integration):
   //    UPDATE email_delivery_events SET delivery_status = 'cancelled_by_restore'
   //    WHERE booking_id = $1 AND event_type = 'booking_cancellation_client'
@@ -196,6 +211,18 @@ Apply the same pattern for `no_show` cancelled-state at line 1174-1180 — also 
 ```
 
 Server-side enforcement in Change 1 step 3.5 is the authority; this UI condition is for affordance hygiene.
+
+**S7 refinement (28-day restore window — amendment 2026-07-16):** the `action` field is additionally only emitted when the cancellation is within the window: `(cancelled_at ?? customer_cancelled_at)` non-null AND ≤ 28 days old. Expired-window cancelled bookings render headline + a distinct hint, no button:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 🛡  This booking is cancelled.                          │
+│    Cancelled on {date} — the 28-day restore window      │
+│    has passed. The audit log preserves the record.      │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Stamping (S7):** the two admin cancel paths (`quickUpdateBooking` action=`cancel` + `updateBookingManagement` status→cancelled) gain `cancelled_at = now()` in their UPDATE payloads. The customer cancel path (`manage/actions.ts`) is NOT touched — it already stamps `customer_cancelled_at`, which the guard's coalesce covers. Cross-plan: C-02's cancel-series cascade and C-06's delete-client cascade also set cancelled and must stamp `cancelled_at` (one-line notes added to both plans).
 
 **S3 refinement (prior-cancellation reason on the confirm modal):** the Restore confirm modal (`ConfirmActionModal` invocation in the Restore button click handler) is augmented to surface the booking's prior cancellation context. Two sources, in order of priority:
 
@@ -621,6 +648,7 @@ if (afterStatus === "cancelled" && beforeStatus !== "cancelled") {
 | Restore booking — detail-page button (Change 2) | ✅ | ✅ | ✅ (via `canManageAllBookings`) | ❌ |
 | Restore booking — row-level menu (Change 10–12) | ✅ | ✅ | ✅ | ❌ |
 | Restore on **past-datetime** cancelled booking (S6) | ❌ blocked (button hidden + server reject) | ❌ | ❌ | ❌ |
+| Restore on booking **cancelled >28 days ago** (S7 — 2026-07-16) | ❌ blocked (button hidden + server reject) | ❌ | ❌ | ❌ |
 | Undo cancel — 10s toast affordance (Change 14) | ✅ if actor cancelled | ✅ | ✅ | n/a (no cancel rights) |
 | `no_show` quick action | ✅ | ✅ | ✅ | ❌ |
 | Force-reopen completed booking | ✅ | ✅ | ✅ | ❌ |
@@ -860,6 +888,17 @@ User cancels a booking at 10:00, doesn't click Undo. Email fires at 10:01. At 14
 
 This is the **canonical happy path for non-undo restore** — preserved from the pre-amendment design. Change 14's Undo path is a parallel codepath, not a replacement.
 
+### 5.12 28-day restore window semantics (S7 — amendment 2026-07-16)
+
+- **Composition with S6:** both guards must pass — appointment moment in the future (S6) AND cancellation ≤ 28 days old (S7). Either failing hides the button and rejects server-side with its own distinct message.
+- **Boundary:** strictly more than `28 × 24h` after the cancellation moment = expired. UTC-millisecond arithmetic (no London-zoning subtleties — the window is a duration, not a calendar date).
+- **Unknown cancellation time** (`cancelled_at` AND `customer_cancelled_at` both null — possible for legacy admin cancels the backfill can't resolve): treated as **expired**. Fail-closed: if stamping ever regresses, old cancellations lock rather than staying restorable forever.
+- **no_show:** S7 is moot — no_show is only markable on past bookings (§5.7), so S6 already blocks all no_show restores. Documented, not guarded twice.
+- **Completed-reopen: exempt.** Reopening a completed booking is mistake-correction with its own friction (force flag + typed reason ≥5 chars). Windowing it would block legitimate forensic fixes. User-confirmed 2026-07-16.
+- **Undo path (Change 14):** unaffected — undo operates seconds after cancel, always inside the window.
+- **Cancel-then-re-cancel:** each new cancellation re-stamps `cancelled_at`, restarting the window. Correct: the latest cancellation is the operative one.
+- **Configurability:** fixed code constant for now; exposing it as a business-settings field is a C-12+ option if the owner ever wants to tune it without a developer.
+
 ---
 
 ## 6 — Migration footprint
@@ -887,7 +926,27 @@ This is the **canonical happy path for non-undo restore** — preserved from the
      WHERE scheduled_for IS NOT NULL AND delivery_status = 'queued';
    ```
    Additive, nullable columns. Existing rows unaffected (immediate-send semantics preserved). Pre-flight should verify none of these column names already exist (cheap query: `SELECT column_name FROM information_schema.columns WHERE table_name='email_delivery_events'`).
-4. Soft-delete `deleted_at` on bookings comes from C-06 (already in flight). C-04a's restore doesn't depend on it pre-C-06.
+4. **`bookings.cancelled_at timestamptz` — new column + backfill** (S7 amendment 2026-07-16, same migration):
+   ```sql
+   ALTER TABLE bookings ADD COLUMN cancelled_at timestamptz;
+
+   -- Backfill 1: customer-cancelled rows carry their own timestamp already.
+   UPDATE bookings SET cancelled_at = customer_cancelled_at
+   WHERE status = 'cancelled' AND customer_cancelled_at IS NOT NULL;
+
+   -- Backfill 2 (best-effort): admin-cancelled rows from the latest cancel audit row.
+   UPDATE bookings b SET cancelled_at = a.latest
+   FROM (
+     SELECT target_id::uuid AS booking_id, MAX(created_at) AS latest
+     FROM audit_logs
+     WHERE action_type = 'booking_management_updated'
+       AND after_state->>'status' = 'cancelled'
+     GROUP BY target_id
+   ) a
+   WHERE b.id = a.booking_id AND b.status = 'cancelled' AND b.cancelled_at IS NULL;
+   ```
+   Rows neither backfill reaches stay NULL → S7 treats them as expired (fail-closed, §5.12). Pre-flight verifies the audit-log `after_state` shape before trusting Backfill 2 (adjust the JSON path if the cancel path stores a different key).
+5. Soft-delete `deleted_at` on bookings comes from C-06 (already in flight). C-04a's restore doesn't depend on it pre-C-06.
 
 **No new permissions** — existing `manage_bookings_all` covers restore + reopen + no_show + row-level restore + undo. Capability gate for auto-promote is `can_take_bookings` (already in `staff_profiles`).
 
@@ -905,7 +964,7 @@ This is the **canonical happy path for non-undo restore** — preserved from the
 - **`supabase/migrations/<ts>_c04a_scheduled_emails.sql`** — Zone-2 migration (Change 13a)
 
 ### EDITED (~12 files)
-- `src/app/admin/bookings/actions.ts` — `restoreBooking` (with S6 datetime guard + queued-email cancellation), `autoPromoteBookingFromAssignments`, `quickUpdateBooking` extension for `no_show` + `restore` (Change 11), `updateBookingManagement` state-machine guard + delayed-email queueing in cancellation branch
+- `src/app/admin/bookings/actions.ts` — `restoreBooking` (with S6 datetime guard + S7 window guard + queued-email cancellation), `autoPromoteBookingFromAssignments`, `quickUpdateBooking` extension for `no_show` + `restore` (Change 11) + `cancelled_at` stamping in the `cancel` case (S7), `updateBookingManagement` state-machine guard + delayed-email queueing + `cancelled_at` stamping in cancellation branch (S7)
 - `src/app/admin/bookings/[bookingId]/page.tsx` — `NextAction` type extension, replace "restore from audit log" hint, render Restore button + Mark no-show button (S6-conditional), render confirm modal for reopen-completed with S3 reason display, wire Undo toast on Status-form cancel
 - **`src/app/admin/bookings/BookingRowActions.tsx`** — extend `BookingRowAction` union with `"restore"`, add `runQuickAction` case, status-aware menu rendering (Change 12), Undo toast on cancel (Change 14)
 - `src/lib/email/notifications.ts` — `sendBookingRestoredClientEmail` send function; `sendTrackedEmail` gains optional `delaySeconds`; `sendBookingCancellationEmails` threads `options.delaySeconds`
@@ -924,7 +983,7 @@ This is the **canonical happy path for non-undo restore** — preserved from the
 - `reporting.ts` core exports (`summarizeReports` is touched only at line 438 — the explicit one-char exception per C-B-DECISIONS Q8). All other exports stay.
 - `dashboard-helpers.ts`, RBAC matrix, middleware, B-1 primitives.
 - `quickUpdateBooking` action flow for `confirm`/`cancel`/`mark_paid`/`complete` (unchanged — only `no_show` is added).
-- `manage/actions.ts` (customer-facing cancel path) — out of scope.
+- `manage/actions.ts` (customer-facing cancel path) — out of scope. **(S7 note 2026-07-16: stays out of scope — it already stamps `customer_cancelled_at`, which the S7 guard's coalesce covers; no unified-column write needed there.)**
 
 ---
 
@@ -1016,6 +1075,7 @@ A C-04a implementation is complete when:
 12. **Cancel-with-Undo toast (Change 14)** — clicking Cancel on a row surfaces a success toast with Undo button for 10 seconds. Clicking Undo within 10s reverts the status, kills the queued email (`email_delivery_events.delivery_status='cancelled_by_restore'`), and shows "Cancellation undone." No client email sent. Letting the toast expire results in the cron firing the email within 60s.
 13. **Delayed-email infrastructure (Change 13)** — `email_delivery_events` table has the new columns (`scheduled_for`, `html_payload`, `text_payload`, `to_email`, `subject`). Cron route `/api/cron/scheduled-emails` returns `{ sent: N }` when invoked with `verifyCronSecret`. Registered in `wrangler.jsonc` + `worker-entrypoint.ts`.
 14. **Past-datetime restore disallowed (S6)** — restoring a cancelled booking with `now() > booking_date + start_time` is impossible from the UI (button hidden in detail strip + row menu disabled). Direct server invocation returns structured error. Verified with a back-dated test booking.
+14b. **(2026-07-16) Expired-window restore disallowed (S7)** — restoring a booking cancelled >28 days ago is impossible from the UI (button hidden, distinct "window has passed" hint); direct server invocation returns the S7 structured error. Admin cancel paths stamp `cancelled_at`; restore clears it; a booking with unknown cancellation time is unrestorable. Verified with an SQL-backdated `cancelled_at` on a test booking (within-window sibling restores normally).
 15. **Prior cancellation reason on confirm modal (S3)** — modal renders the prior `customer_cancellation_note` if present, otherwise "Cancelled by {actor} on {date}" from audit log.
 16. **All static gates pass:** lint, tsc, vitest, build, bundle delta within budget.
 17. **Playwright role sweep at 375 / 768 / 1280 / 1440 passes** for all 4 roles.

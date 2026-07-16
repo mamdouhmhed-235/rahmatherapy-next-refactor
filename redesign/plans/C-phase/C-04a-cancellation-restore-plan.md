@@ -2,6 +2,7 @@
 
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
+**Amended:** 2026-07-16 — S7 refinement (user direction): 28-day restore window keyed to the cancellation moment. New `bookings.cancelled_at` column + backfill in the Step 10 migration; guard in `restoreBooking` (step 3.6); stamping in both admin cancel paths; UI hides Restore + distinct copy when expired. Brief §1.11 / §2.1 S7 / §5.12 / §6 are the spec source.
 **Brief:** `redesign/briefs/C-04a-cancellation-restore-brief.md` (companion — read first)
 **Progress (filled in C-C):** `redesign/per-page-progress/C-04a-cancellation-restore-progress.md`
 **Operating discipline:** per `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md#part-0-operating-discipline`
@@ -130,6 +131,18 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
     }
   }
 
+  // S7 amendment 2026-07-16: 28-day restore window (cancelled sources only).
+  // Keyed to the CANCELLATION moment (S6 is keyed to the appointment moment; both
+  // must pass). Unknown cancellation time = expired (fail-closed). no_show sources
+  // skip this — they're already dead via S6. Brief §5.12.
+  // isRestoreWindowExpired + RESTORE_WINDOW_DAYS live in _helpers.ts (Step 2
+  // amendments) — single source shared with the detail-page + row-menu predicates.
+  if (beforeState.status === "cancelled" && isRestoreWindowExpired(beforeState)) {
+    return {
+      error: "This booking was cancelled more than 28 days ago and can no longer be restored.",
+    };
+  }
+
   if (isCompletedReopen) {
     if (!forceCompleted || reason.length < 5) {
       return {
@@ -151,10 +164,12 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
   const updatePayload: Record<string, unknown> = {
     status: targetStatus,
   };
-  // Clear stale customer-cancellation fields on transition out of cancelled (W04 B-125)
+  // Clear stale cancellation fields on transition out of cancelled (W04 B-125;
+  // cancelled_at clearing added by S7 2026-07-16)
   if (beforeState.status === "cancelled") {
     updatePayload.customer_cancelled_at = null;
     updatePayload.customer_cancellation_note = null;
+    updatePayload.cancelled_at = null;
   }
 
   const { data: updatedBooking, error } = await adminClient
@@ -239,6 +254,12 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
 - **S6 — Past-datetime cancelled booking** (`booking_date+start_time` < now): returns `"This booking's appointment time has already passed and cannot be restored."`. No DB write. No emails.
 - **S6 — Same-day morning cancelled, viewed in the afternoon** (`booking_date=today AND start_time < now()`): same rejection. C-05 considers this active for date-only checks; restore is stricter.
 - **S6 — Today's afternoon cancelled, viewed in the morning** (`booking_date=today AND start_time > now()`): restore succeeds (datetime in future).
+- **S7 (2026-07-16) — Cancelled 27 days ago, appointment next month:** restore succeeds (inside window, future appointment).
+- **S7 — Cancelled 29 days ago, appointment next month:** returns `"This booking was cancelled more than 28 days ago and can no longer be restored."`. No DB write. No emails.
+- **S7 — Boundary: cancelled exactly 28×24h ago:** restore succeeds; one millisecond past → rejected (strict `>` comparison).
+- **S7 — Unknown cancellation time** (`cancelled_at` AND `customer_cancelled_at` both null): rejected with the S7 error (fail-closed).
+- **S7 — Customer-cancelled booking (only `customer_cancelled_at` set):** coalesce covers it — window computed from `customer_cancelled_at`.
+- **S7 — Completed-reopen 40 days after completion:** NOT windowed — proceeds through the force+reason path (deliberate exemption, brief §5.12).
 - **Change 13/14 — Queued cancellation email exists** (`scheduled_for > now() AND delivery_status='queued'`): `cancelled_queued_email=true` in audit; `sendBookingRestoredClientEmail` NOT called; queued row updated to `delivery_status='cancelled_by_restore'`.
 - **Change 13/14 — Queued cancellation email already sent** (race: cron fired in the gap): `scheduled_for <= now()` so the UPDATE matches 0 rows; `cancelled_queued_email=false` in audit; `sendBookingRestoredClientEmail` called normally (client gets cancel-then-restore round trip).
 - **Change 13/14 — No queued email at all** (natural late restore — hours after cancel): `cancelled_queued_email=false`; restore email sent.
@@ -323,28 +344,48 @@ If the button is in a server component (the page is server-rendered), lift the a
 
 - Verify: lint + tsc green. Manual visual check at `http://localhost:3000/admin/bookings/<a-cancelled-test-booking>` after Phase A commit.
 
-**Step 2 amendments (S3 + S6 — 2026-05-26):**
+**Step 2 amendments (S3 + S6 — 2026-05-26; S7 — 2026-07-16):**
 
-**S6 — hide the `action` field on past-datetime cancelled/no_show bookings.** In the same branches above, wrap the `action` property with a datetime check:
+**S6 + S7 — hide the `action` field on past-datetime OR expired-window cancelled/no_show bookings.** In the same branches above, wrap the `action` property with both checks (S7 added 2026-07-16):
 
 ```ts
 if (booking.status === "cancelled") {
   const bookingMomentPassed = isBookingMomentPastLondon(booking);  // see Phase A helper
+  const restoreWindowExpired = isRestoreWindowExpired(booking);    // S7 — see helper below
   return {
     tone: "danger",
     icon: ShieldX,
     headline: "This booking is cancelled.",
     hint: bookingMomentPassed
       ? "The appointment time has already passed — restore is no longer available. The audit log preserves the record."
-      : "Restore it if it was cancelled by mistake — the client will be notified.",
-    action: bookingMomentPassed
+      : restoreWindowExpired
+        ? `Cancelled on ${formatDate(booking.cancelled_at ?? booking.customer_cancelled_at)} — the 28-day restore window has passed. The audit log preserves the record.`
+        : "Restore it if it was cancelled by mistake — the client will be notified.",
+    action: bookingMomentPassed || restoreWindowExpired
       ? undefined
       : { kind: "restore_booking", targetStatus: "confirmed", label: "Restore booking" },
   };
 }
 ```
 
-Same pattern for `no_show` branch — hide action when past-datetime.
+Same pattern for `no_show` branch — hide action when past-datetime (S7 check moot there; S6 always fires first).
+
+**S7 helper** — alongside `isBookingMomentPastLondon` in `src/app/admin/bookings/_helpers.ts`:
+
+```ts
+export const RESTORE_WINDOW_DAYS = 28; // S7 2026-07-16 — tunable
+
+export function isRestoreWindowExpired(booking: {
+  cancelled_at: string | null;
+  customer_cancelled_at: string | null;
+}): boolean {
+  const raw = booking.cancelled_at ?? booking.customer_cancelled_at;
+  if (!raw) return true; // unknown cancellation time = expired (fail-closed)
+  return Date.now() - new Date(raw).getTime() > RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+}
+```
+
+Single source: the server action (Step 1 guard 3.6), this UI predicate, and the row-menu condition (Change 12) all use `isRestoreWindowExpired`. For unknown-time rendering, the hint falls back to the generic "the 28-day restore window has passed" copy without a date.
 
 Helper `isBookingMomentPastLondon(booking)` lives in `src/app/admin/bookings/_helpers.ts` (the same shared util C-05 introduces — see C-05 plan Step 8). Implementation:
 
@@ -781,6 +822,29 @@ COMMENT ON COLUMN email_delivery_events.scheduled_for IS
   'When set, this row is queued for a scheduled-emails cron tick. NULL = immediate send (legacy semantics).';
 COMMENT ON COLUMN email_delivery_events.html_payload IS
   'Rendered HTML body stored alongside scheduled_for so the cron can dispatch without re-rendering.';
+
+-- S7 amendment 2026-07-16: 28-day restore window needs a unified cancellation timestamp.
+ALTER TABLE bookings ADD COLUMN cancelled_at timestamptz;
+COMMENT ON COLUMN bookings.cancelled_at IS
+  'When the booking was last cancelled (any path). Cleared on restore. S7 restore-window key; customer_cancelled_at remains the customer-flow-specific record.';
+
+-- S7 Backfill 1: customer-cancelled rows carry their own timestamp already.
+UPDATE bookings SET cancelled_at = customer_cancelled_at
+WHERE status = 'cancelled' AND customer_cancelled_at IS NOT NULL;
+
+-- S7 Backfill 2 (best-effort): admin-cancelled rows from the latest cancel audit row.
+-- Pre-flight MUST verify the after_state JSON shape before trusting this (adjust the
+-- path if the cancel flow stores a different key). Rows neither backfill reaches stay
+-- NULL → treated as window-expired (fail-closed, brief §5.12).
+UPDATE bookings b SET cancelled_at = a.latest
+FROM (
+  SELECT target_id::uuid AS booking_id, MAX(created_at) AS latest
+  FROM audit_logs
+  WHERE action_type = 'booking_management_updated'
+    AND after_state->>'status' = 'cancelled'
+  GROUP BY target_id
+) a
+WHERE b.id = a.booking_id AND b.status = 'cancelled' AND b.cancelled_at IS NULL;
 ```
 
 File path: `supabase/migrations/<ts>_c04a_scheduled_emails.sql`. Generate timestamp via `date +%Y%m%d%H%M%S`.
@@ -792,6 +856,12 @@ SELECT column_name FROM information_schema.columns
 WHERE table_name = 'email_delivery_events'
   AND column_name IN ('scheduled_for', 'html_payload', 'text_payload', 'to_email', 'subject');
 -- expect 5 rows
+
+-- S7: column present + backfill coverage snapshot
+SELECT COUNT(*) FILTER (WHERE cancelled_at IS NOT NULL) AS stamped,
+       COUNT(*) FILTER (WHERE cancelled_at IS NULL) AS unstamped_will_be_unrestorable
+FROM bookings WHERE status = 'cancelled';
+-- Report both numbers to the user post-migration.
 ```
 
 Run `mcp__supabase__generate_typescript_types` after, save to `src/types/supabase.ts`.
@@ -1033,6 +1103,16 @@ In the JSX where the menu items are rendered (find the popover content area), wr
     >
       No actions available (appointment time has passed)
     </button>
+  ) : isRestoreWindowExpired({ cancelled_at: cancelledAt, customer_cancelled_at: customerCancelledAt }) ? (
+    /* S7 amendment 2026-07-16 — distinct expired-window reason */
+    <button
+      type="button"
+      role="menuitem"
+      disabled
+      className="..."
+    >
+      No actions available (28-day restore window has passed)
+    </button>
   ) : (
     <button
       type="button"
@@ -1051,13 +1131,14 @@ In the JSX where the menu items are rendered (find the popover content area), wr
 )}
 ```
 
-Pass `booking_date` + `start_time` through Props (extend the `Props` type at lines 24-33 with `bookingDate: string; startTime: string;`). The list-page component at `page.tsx:916` passes them through.
+Pass `booking_date` + `start_time` + (S7) `cancelled_at` + `customer_cancelled_at` through Props (extend the `Props` type at lines 24-33 with `bookingDate: string; startTime: string; cancelledAt: string | null; customerCancelledAt: string | null;`). The list-page component at `page.tsx:916` passes them through.
 
 **Step 13d — Vitest spec for `quickUpdateBooking` action=restore.**
 
 New file `src/app/admin/bookings/__tests__/quickUpdateBookingRestore.test.ts`:
 - action=restore on cancelled booking: delegates to `restoreBooking`, returns success.
 - action=restore on past-datetime cancelled booking: returns S6 error.
+- action=restore on booking cancelled >28 days ago: returns S7 error (2026-07-16).
 - action=restore on confirmed booking: returns "Only cancelled, no-show, or completed bookings can be restored."
 - action=restore without booking_id: error.
 
@@ -1068,7 +1149,7 @@ New file `src/app/admin/bookings/__tests__/quickUpdateBookingRestore.test.ts`:
 
 ### Phase H — Cancel-with-Undo toast (Change 14 — amendment 2026-05-26)
 
-**Step 14 — Wire delaySeconds=10 into cancellation paths.**
+**Step 14 — Wire delaySeconds=10 into cancellation paths (+ S7 `cancelled_at` stamping).**
 
 Edit `src/app/admin/bookings/actions.ts`. In `updateBookingManagement` (~line 213-227 — the existing cancellation email broadcast):
 
@@ -1089,6 +1170,8 @@ if (action === "cancel" && beforeState.status !== "cancelled") {
   });
 }
 ```
+
+**S7 stamping (2026-07-16):** in BOTH branches above, the UPDATE payload that sets `status = 'cancelled'` additionally sets `cancelled_at: new Date().toISOString()`. (The customer cancel path in `manage/actions.ts` stays untouched — it already stamps `customer_cancelled_at`, covered by the guard's coalesce.) Re-cancelling after a restore re-stamps, restarting the window (brief §5.12). If Phase H is implemented after Phase A in the same window (expected), the stamping can land with Phase A's action edits instead — implementer's call; either way both admin cancel paths stamp before C-05 ships.
 
 **Step 14b — Toast Undo affordance on list-row cancel.**
 
@@ -1165,7 +1248,7 @@ In `bookings/__tests__/quickUpdateBookingCancel.test.ts` (extend existing or cre
 ### NEW (6 files)
 | File | Purpose |
 |---|---|
-| `src/app/admin/bookings/__tests__/restoreBooking.test.ts` | Vitest coverage for restore action (incl. S6 datetime guard + queued-email cancellation paths) |
+| `src/app/admin/bookings/__tests__/restoreBooking.test.ts` | Vitest coverage for restore action (incl. S6 datetime guard + S7 window guard + queued-email cancellation paths) |
 | `src/app/admin/bookings/__tests__/autoPromoteBookingFromAssignments.test.ts` | Vitest coverage for auto-promote helper |
 | `src/app/admin/bookings/__tests__/quickUpdateBookingRestore.test.ts` | Vitest for Change 11 (action=restore delegation) |
 | `src/app/admin/bookings/[bookingId]/NextActionButton.tsx` | (conditional — if Next.js server-component constraints force a client wrapper for the form) |
@@ -1177,10 +1260,10 @@ In `bookings/__tests__/quickUpdateBookingCancel.test.ts` (extend existing or cre
 ### EDITED (~14 files)
 | File | Change summary |
 |---|---|
-| `src/app/admin/bookings/actions.ts` | + `restoreBooking` (with S6 datetime guard + queued-email cancellation), + `autoPromoteBookingFromAssignments` helper, + `no_show` + `restore` in `quickUpdateBooking`, + state-machine guard in `updateBookingManagement`, + `delaySeconds: 10` wiring in cancellation branches, + hook in `updateOwnAssignmentStatus` (+ `updateBookingAssignment` if needed) |
+| `src/app/admin/bookings/actions.ts` | + `restoreBooking` (with S6 datetime guard + S7 28-day window guard + queued-email cancellation), + `autoPromoteBookingFromAssignments` helper, + `no_show` + `restore` in `quickUpdateBooking`, + state-machine guard in `updateBookingManagement`, + `delaySeconds: 10` wiring + S7 `cancelled_at` stamping in both cancellation branches, + hook in `updateOwnAssignmentStatus` (+ `updateBookingAssignment` if needed) |
 | `src/app/admin/bookings/[bookingId]/page.tsx` | `NextAction` type extension, replace misleading hint, render Restore/no-show action buttons (S6-conditional), render Auto-completed banner, modal for reopen-completed via Status form with S3 reason display, wire Undo toast on Status-form cancel |
 | `src/app/admin/bookings/BookingRowActions.tsx` | + `restore` in `BookingRowAction` union, + `runQuickAction` restore case, + status-aware menu rendering (Change 12), + Undo toast on cancel (Change 14) |
-| `src/app/admin/bookings/_helpers.ts` | + `isBookingMomentPastLondon` + `computeBookingMomentLondon` (shared with C-05 — see C-05 plan Step 8) |
+| `src/app/admin/bookings/_helpers.ts` | + `isBookingMomentPastLondon` + `computeBookingMomentLondon` (shared with C-05 — see C-05 plan Step 8) + `isRestoreWindowExpired` + `RESTORE_WINDOW_DAYS` (S7 2026-07-16) |
 | `src/lib/email/notifications.ts` | + `sendBookingRestoredClientEmail`; + `delaySeconds` on `sendTrackedEmail` + `sendBookingCancellationEmails` |
 | `src/lib/email/templates.ts` | + `renderBookingRestoredEmail` template |
 | `src/app/admin/clients/[clientId]/page.tsx` | + `AUDIT_PHRASING` entries for `booking_restored`, `booking_auto_promoted_completed`, `booking_quick_no_show`; − `case "refunded":` branch |
@@ -1257,6 +1340,7 @@ Recipe per role:
     -- Expected: delivery_status='sent', scheduled_for in the past
     ```
 12. **(Owner) Past-datetime restore disallowed (S6)** — Back-date a test booking via SQL to yesterday with a morning start_time. Cancel it. Attempt restore via row-level menu — verify menu shows "No actions available (appointment time has passed)" (disabled). Attempt restore via detail-page next-action card — verify card has no Restore button. Direct POST to `restoreBooking` with the booking_id returns structured error. No DB change.
+12b. **(Owner, S7 2026-07-16) Expired-window restore disallowed** — On a FUTURE-dated cancelled test booking, back-date `cancelled_at` via SQL to 29 days ago. Verify: row menu shows "No actions available (28-day restore window has passed)" (disabled); detail card shows the "Cancelled on {date} — the 28-day restore window has passed" hint with no button; direct POST returns the S7 structured error; no DB change. Reset `cancelled_at` to 5 days ago → Restore button reappears and restore succeeds (proves the boundary is the window, not the fixture).
 13. **(Owner) Scheduled-emails cron route** — Manually invoke via `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/scheduled-emails`. With no queued rows: `{ sent: 0, total: 0 }`. With one queued row past scheduled_for: `{ sent: 1, total: 1 }` + row's `delivery_status` flips to 'sent'.
 14. Sign out via `fetch('/admin/signout', ...)`.
 
@@ -1268,7 +1352,7 @@ SELECT id, status, customer_cancelled_at FROM bookings WHERE id = '<test-cancell
 
 -- After Restore action
 SELECT id, status, customer_cancelled_at FROM bookings WHERE id = '<same>';
--- Expected: status='confirmed', customer_cancelled_at IS NULL
+-- Expected: status='confirmed', customer_cancelled_at IS NULL, cancelled_at IS NULL (S7)
 
 -- Audit log
 SELECT action_type, before_state->>'status' AS from_status,
@@ -1331,6 +1415,8 @@ Store in `redesign/audits/C-A/screenshots-04-bookings-detail/c-04a-after/` (or n
 | **Migration adds columns to a table touched by C-08** | medium | low | C-08 plan §6 documents that `email_delivery_events.metadata` may need an ALTER if absent. C-04a's migration is independent (5 new columns, none colliding). Migrations stack cleanly. Pre-flight Step 5(d) verifies. |
 | **`scheduled_for` set in the past at insert time** (clock skew) | low | low | Cron handler's `WHERE scheduled_for <= now()` picks up any past-due row on its next tick. Send-fn doesn't reject negative delays; floored to 0 (immediate-equivalent) via Math.max in `Date.now() + Math.max(0, delaySeconds) * 1000`. |
 | **Cancel email payload size** (storing rendered HTML in `html_payload`) | very low | low | Cancellation email HTML is ~5-10 kB rendered. 5/day × 365 = ~1.8 MB/year row storage. Negligible. Optional GC: post-send `UPDATE ... SET html_payload=NULL` to reclaim. Out of C-04a scope. |
+| **(S7 2026-07-16) Backfill 2's audit-log JSON path doesn't match reality** — legacy admin-cancelled rows stay NULL and become unrestorable | medium | low | Pre-flight verifies the `after_state` shape before the migration; the post-migration coverage query reports stamped/unstamped counts to the user. NULL→expired is fail-closed by design — worst case is an old cancellation that can't be restored, which matches the window's intent. |
+| **(S7 2026-07-16) A cancel path misses the `cancelled_at` stamp** (future code adds a new cancel route) | low | medium | Guard's coalesce falls back to `customer_cancelled_at`; if both absent the booking locks (fail-closed — visible, not silent). C-02 (series cascade) + C-06 (delete cascade) carry explicit stamping notes. |
 | **`computeBookingMomentLondon` BST/GMT switching edge case** | low | low | Plan Step 2 amendments calls out date-fns-tz if available; otherwise a manual offset table. Vitest spec covers both seasons explicitly. Same helper used by C-05 — shared bug-class. |
 | **Row-level Restore renders for Therapists** (RBAC leak) | low | medium | `BookingRowActions` Props already includes `role` (`"full" | "therapist"`). The status-aware menu branch must check `role === "full"` before rendering the Restore item. Add explicit check + unit test. |
 
@@ -1369,6 +1455,12 @@ ALTER TABLE email_delivery_events
   DROP COLUMN IF EXISTS text_payload,
   DROP COLUMN IF EXISTS to_email,
   DROP COLUMN IF EXISTS subject;
+
+-- S7 (2026-07-16): drops the unified cancellation timestamp. Loses admin-cancel
+-- timestamps recorded since the migration (customer_cancelled_at is untouched —
+-- customer timestamps survive). Revert the S7 code first or the guard reads a
+-- missing column.
+ALTER TABLE bookings DROP COLUMN IF EXISTS cancelled_at;
 ```
 
 **Pre-revert step:** ensure no queued rows exist that depend on the columns. Run:
@@ -1402,7 +1494,8 @@ Restored test bookings can be reset:
 UPDATE bookings
 SET status = 'cancelled',
     customer_cancelled_at = '<original timestamp>',  -- from pre-flight capture
-    customer_cancellation_note = '<original>'
+    customer_cancellation_note = '<original>',
+    cancelled_at = '<original timestamp>'            -- S7 (2026-07-16)
 WHERE id IN ('<test-restored-booking-ids>');
 ```
 
@@ -1433,7 +1526,7 @@ Verify against the safe-fixture list before clicking.
 
 | Commit | Coverage |
 |---|---|
-| 1 | Phase A — `restoreBooking` action (with S6 + queued-email cancellation) + Next-action button (S6-conditional) + email send-fn + template + S3 confirm modal reason display |
+| 1 | Phase A — `restoreBooking` action (with S6 + S7 window guard + queued-email cancellation) + Next-action button (S6/S7-conditional) + email send-fn + template + S3 confirm modal reason display + S7 helper in `_helpers.ts` (S7 stamping + migration land with Phase F's migration commit) |
 | 2 | Phase B — State-machine guard + Status form confirm modal |
 | 3 | Phase C — `no_show` quick action + Mark no-show button |
 | 4 | Phase D — Auto-promote helper + hooks + banner |
@@ -1481,6 +1574,7 @@ Surfaced during plan-writing — not blocking, but worth noting:
 5. **C-04a progress file pre-creation** — convention from C-06: progress file is filled during C-C, not now. Empty placeholder file is optional during C-B plan-writing.
 
 6. **(amendment 2026-05-26) `computeBookingMomentLondon` shared helper ownership** — both C-04a (S6 guard) and C-05 (datetime-aware UI) want this util. Plan §1 Step 2 amendments has C-04a create it in `src/app/admin/bookings/_helpers.ts`. If C-05 ships first (against recommended order), C-05 creates it and C-04a imports. Either way, the helper is single-source.
+7. **(S7 2026-07-16) Window configurability** — `RESTORE_WINDOW_DAYS = 28` ships as a code constant. Exposing it as a business-settings field (like `customer_cancellation_cutoff_hours`) is a C-12+ option if the owner wants to tune it without a developer. Sequencing note: S7's guard ordering (after S6, cancelled-only) and the fail-closed NULL rule are user-locked 2026-07-16 — don't soften at impl time.
 
 7. **(amendment 2026-05-26) Scheduled-emails cron generalisation** — Change 13's infrastructure could replace C-01's status-trigger model entirely (uniform `scheduled_for` semantics). Out of C-04a scope; flagged in handoff §5 as a C-12+ refactor candidate.
 
