@@ -265,6 +265,8 @@ const cachedFetcher = unstable_cache(fetcher, [key], {
 
 **Step 5 — Introduce new wraps for currently-inline-fetching surfaces.**
 
+> **C-16 coordination (2026-07-16):** pagination itself stays OUT of C-09 (Q9.5 posture unchanged), but write every extracted helper **pagination-ready**: the filters/params object each helper accepts must include optional `limit` + `offset` (or `cursor`) fields that flow into the query and into the `unstable_cache` key (they're part of the serialized params, so distinct pages cache separately for free). C-16 (data-growth: pagination + bounded lists) then wires pagers through these helpers without rewriting them. Where a helper serves a to-be-paginated surface (clients, bookings, enquiries, emails, operations, privacy — per C-16 Phase A inventory), also expose a cheap companion `count` path (head-count query) for the "Showing X–Y of Z" readout.
+
 For each `page.tsx` that does inline supabase queries, extract the fetch into a colocated `*-data.ts` file (or add to existing `*-data.ts` if present) + wrap in `unstable_cache`.
 
 **Pattern (e.g., `/admin/clients/page.tsx`):**

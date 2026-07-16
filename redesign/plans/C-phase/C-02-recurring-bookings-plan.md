@@ -553,7 +553,7 @@ Edit `src/app/admin/bookings/new/page.tsx` to fetch `services.slug, name, price,
 Layout per brief §4.2. Fetches:
 - Template row.
 - Linked client (RBAC-narrowed per `getClientDataAccess`).
-- All bookings with this `recurring_template_id` — split into upcoming (date >= today) + past (< today).
+- Bookings with this `recurring_template_id` — **bounded (C-16 coordination, 2026-07-16):** an `until_cancelled` series accrues ~52 visits/year (~260 after 5 years), so DO NOT fetch/render all. Fetch the next **10 upcoming** (`date >= today`, ascending, `.limit(10)`) + the last **5 past** (`date < today`, descending, `.limit(5)`) + a total count, and render a "View all {N} visits" link into `/admin/bookings` filtered by the series chip (Phase H Step 23's filter). If C-16's shared `PaginationBar` has shipped, the upcoming section may use it instead — implementer's call; the caps are the floor.
 - Linked bound_therapist staff_profile (if set).
 
 Renders the series view.

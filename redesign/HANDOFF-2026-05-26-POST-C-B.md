@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 15/15 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**, with **C-14 independent** (its Phase D customer date-picker fix can ship first as a quick win; breaks phases anytime). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 16/16 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 independent** (its Phase D customer date-picker fix can ship first as a quick win; breaks phases anytime). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -176,6 +176,14 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Migration:** None (subject + new fields are new `field_key` values in the existing `email_template_overrides` table).
 - **Load-bearing gate:** render-parity spec — zero-override output byte-identical before/after the copy-lift; pre-flight SQL capture of override rows diffed post-ship.
 - **Sequencing:** after C-08 (its 5 templates + notification_email column land first); before C-13 + C-02 (their template work lands inside the studio; both plans carry compatibility notes). 6 phases / 7 commits.
+
+### C-16 — Data growth: pagination standard + bounded lists (NEW 2026-07-16, plan-refinement phase)
+
+- **Brief:** `redesign/briefs/C-16-data-growth-pagination-brief.md` (NEW 2026-07-16)
+- **Plan:** `redesign/plans/C-phase/C-16-data-growth-pagination-plan.md` (NEW 2026-07-16)
+- **Scope:** every admin list survives 5 years of data. Audit facts: bookings list fetches EVERY row with no limit then filters in memory (perf cliff + endless scroll); clients/enquiries unbounded; emails/privacy/operations silently hard-capped with no pager; audit log is the house reference (cursor, 100/page). Phases: inventory (every surface classified, user checkpoint) → shared `PaginationBar` + helpers (URL-driven, 25/page lists, 100/page logs, cursor mode for log-scale) → bookings/clients/enquiries to server-side pagination (bookings view-predicates→SQL gated by a parity spec against `filterBookings`) → cap→pager conversions → structure (not pagination) for static-long lists incl. the roles page (user's named example). **Standing Part 0 rule added: no unbounded list queries.** Verification via temporary page-size-3 override — no production seeding.
+- **Migration:** None (index suggestions flag-only).
+- **Sequencing:** after C-09 (pagination-ready helpers) + C-05 (final `filterBookings` shape) + C-07; **hard-before C-10** (page heights change; C-10 pre-flight now stops if C-16 absent). 5 phases / 8 commits.
 
 ---
 
@@ -376,6 +384,18 @@ Audit fact that shaped it: admin cancels stamp NO timestamp on the booking row (
 
 Shared predicate `isRestoreWindowExpired` + the constant live in `_helpers.ts` (single source for server action + detail card + row menu). Ripples: C-05 inline-notice gains the expired-copy variant; C-02's cancel-series cascade + C-06's delete-client cascade stamp `cancelled_at` (one-line notes in both plans). Brief §1.11/§2.1 S7/§5.12/§6 + plan step 3.6 are the spec.
 
+### 5.18 C-16 added as a 16th plan — data growth: pagination + bounded lists (2026-07-16, plan-refinement phase)
+
+User direction 2026-07-16: proper pagination and accounting for data build-up on every admin list — nothing may sprawl past the page frame, on desktop or phone, 5 years into the business. Named example: the roles page. Code audit findings driving the plan: **bookings list fetches every booking ever with no limit** (`bookings/page.tsx:438`) then filters in memory — both an endless-scroll and a silent performance cliff at ~10-15k rows; clients + enquiries unbounded; emails (100) / privacy (25) / operations (300) hard-capped with **no pager** — old rows unreachable; **audit log is the one surface already done right** (cursor, 100/page) and becomes the house reference.
+
+**C-16 created** (master plan now 16/16). Three treatment classes: paginate the growers (shared URL-driven `PaginationBar` + helpers; bookings view-predicates move into SQL, gated by a parity spec against `filterBookings` as the semantic oracle); convert silent caps to pagers; restructure static-long lists (roles) with density/disclosure — never pagination for static data. Verification proves multi-page behaviour via a temporary page-size-3 override — no production data seeding. Zero migrations.
+
+**Future-proofing beyond Band C:** a standing rule now in BAND-C-MASTER-PLAN Part 0 — *no unbounded list queries; every list surface ships with a pager or a conscious cap + view-all; every plan's verification gate checks it.*
+
+**Ripples:** C-09 Step 5 helpers written pagination-ready (limit/offset in signatures + count paths); C-02 Step 16 series page bounds its visit lists (10 upcoming + 5 past + view-all — an until-cancelled series reaches ~260 visits in 5 years); C-10 pre-flight now HARD-stops if C-16 hasn't merged (pagination changes the page heights its overlap audit measures).
+
+**Recommended order updated:** … → C-09 → C-03 → C-07 → **C-16** → C-10.
+
 ---
 
 ## 6 — Cross-plan coordination + dependencies + sequencing
@@ -390,10 +410,11 @@ Shared predicate `isRestoreWindowExpired` + the constant live in `_helpers.ts` (
 | C-01 | Before **C-02** ships | Cron infrastructure pattern is the lift target |
 | **C-04a Phase G (row-level Restore)** | Co-ship with **C-05 Phase D (Edit Point 8)** | Row-level Restore is only user-discoverable once cancelled rows appear in the filter; soft-couple (technically independent but UX-coupled) |
 | **C-04a Phase F (scheduled-emails cron)** | Independent from **C-01** | Different mechanism (`* * * * *` vs `*/15`); same Cloudflare Workers infrastructure; both register in `wrangler.jsonc` separately |
+| **C-16** (2026-07-16) | After **C-09** + **C-05**, hard-before **C-10** | Plugs into C-09's pagination-ready helpers; derives bookings SQL from C-05's final `filterBookings`; changes page heights C-10 measures (C-10 pre-flight stops if C-16 absent) |
 
 ### 6.2 Soft sequencing (recommended order)
 
-Per C-B-DECISIONS §5 + amendments (2026-05-26 + 2026-07-16): **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
+Per C-B-DECISIONS §5 + amendments (2026-05-26 + 2026-07-16): **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**.
 
 Order rationale:
 - C-06 first — biggest data-integrity fix.
@@ -402,6 +423,8 @@ Order rationale:
 - C-FIELDWORK → C-11 — drop-in component first.
 - C-08 → **C-15** — templates + notification_email column exist before the studio reworks the editor around them (2026-07-16).
 - C-15 → **C-13** — C-13's email group-context block plugs into the post-copy-lift renderers; C-13's `BookingCard` available before C-11's shared-blocks adoption sweep (in practice C-11 ships ahead; coordinate at impl).
+- C-07 → **C-16** — saved filters + default tabs settle before pagination composes with them; C-16 needs C-09's helpers + C-05's predicates already merged (2026-07-16).
+- **C-16 → C-10** — pagination changes list-page heights; the bottom-spacing catalogue measures post-C-16 reality (hard constraint; C-10 pre-flight enforces).
 - C-09 (now positioned mid-pack after C-13) — tag sweep catches all prior plans' new actions.
 - C-03 / C-07 — UX polish on top of stable surfaces.
 - C-10 last — catalogues new routes alongside existing.
@@ -554,6 +577,7 @@ redesign/briefs/
 ├── C-13-group-bookings-and-gender-clarity-brief.md           # NEW 2026-05-26 post-handoff
 ├── C-14-granular-working-hours-breaks-brief.md               # NEW 2026-05-26 post-handoff
 ├── C-15-email-template-studio-brief.md                       # NEW 2026-07-16 plan-refinement
+├── C-16-data-growth-pagination-brief.md                      # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
@@ -573,6 +597,7 @@ redesign/plans/C-phase/
 ├── C-13-group-bookings-and-gender-clarity-plan.md            # NEW 2026-05-26 post-handoff
 ├── C-14-granular-working-hours-breaks-plan.md                # NEW 2026-05-26 post-handoff
 ├── C-15-email-template-studio-plan.md                        # NEW 2026-07-16 plan-refinement
+├── C-16-data-growth-pagination-plan.md                       # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -685,6 +710,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **(2026-07-16 amendment)** C-08 amended — business notifications + personal notification email (Phase D, steps 13–18): staff_profiles notification columns migration (now definite Zone-2), recipient resolver with skip-self + per-type prefs, `enquiry_logged` template, `/admin/me` Notifications section. See §5.15. Brief + plan amended; C-07 coordination note added. No further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-15 added as a 15th plan — email template studio (gallery + live draft preview + chip variables + reset-to-default + test send; retires ManualSendSheet). Zero migrations; render-parity gate. See §5.16. Brief + plan written; master plan checklist updated to 15/15; compatibility notes added to C-01/C-02/C-13. Recommended order now inserts C-15 between C-08 and C-13. No further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-04a amended — S7 28-day restore window: `bookings.cancelled_at` column + backfill folded into the Step 10 migration; guard + shared `isRestoreWindowExpired` helper + UI/copy variants; stamping notes rippled to C-02 (series cascade), C-06 (delete cascade), C-05 (expired notice copy). See §5.17. Brief + plan amended; no further amendments needed before C-C.
+- **(2026-07-16 amendment)** C-16 added as a 16th plan — data growth: pagination standard + bounded lists everywhere (bookings/clients/enquiries to server-side pagination; cap→pager conversions; roles-page restructure; standing no-unbounded-queries rule in Part 0). Zero migrations. See §5.18. Brief + plan written; master plan checklist updated to 16/16; C-09 helper-signature + C-02 series-page-caps + C-10 hard pre-flight notes rippled. Order inserts C-16 between C-07 and C-10. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -744,8 +770,8 @@ To be ticked once C-C ships all 12 plans:
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
 - **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (15/15 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added 2026-07-16 (§5.15–§5.16).
-- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
+- **C-B status:** ✅ COMPLETE (16/16 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added 2026-07-16 (§5.15–§5.18).
+- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**.
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
 

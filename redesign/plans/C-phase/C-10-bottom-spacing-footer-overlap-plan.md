@@ -13,7 +13,7 @@
 1. **Branch + clean tree.** `git status --short` empty.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → 200.
 3. **Baseline tests + static gates.** `pnpm vitest run` 485/491; `pnpm lint` + `tsc` green.
-4. **Cross-plan dependency check** — ideally all prior C-B plans merged so the new routes from C-06 (clients edit) + C-02 (series view) are catalogued alongside existing surfaces. Pre-flight tolerates missing prior plans; catalogue what exists.
+4. **Cross-plan dependency check** — ideally all prior C-B plans merged so the new routes from C-06 (clients edit) + C-02 (series view) are catalogued alongside existing surfaces. Pre-flight tolerates missing prior plans; catalogue what exists. **(2026-07-16) HARD exception: C-16 (pagination + bounded lists) must be merged first** — it changes list-page heights and adds `PaginationBar` above the bottom padding on ~8 surfaces; measuring spacing before it lands would catalogue stale geometry. If C-16 is absent, STOP and confirm with the user.
 5. **Locate `AdminPageScaffold`:**
 
    ```bash
