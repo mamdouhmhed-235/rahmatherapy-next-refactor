@@ -595,6 +595,8 @@ const participantChip = composeGenderRequirementChip(
 
 ### Phase G — Email templates (Change 7)
 
+> **Coordination (2026-07-16):** C-15 (email template studio) now ships before C-13 in the recommended order and reworks `templates.ts` renderers to read default copy from the registry. Phase G is unaffected structurally — the group-context block is a fixed (auto-generated) fragment, so it registers as a `FixedPart` legend entry ("Group participants list — built from the booking's participants") rather than an editable field. Wire the block into the post-C-15 renderer bodies; the steps below otherwise apply as written.
+
 **Step 16 — Implement `renderGroupContextBlock` in `templates.ts`.**
 
 In `src/lib/email/templates.ts`, add a new function:

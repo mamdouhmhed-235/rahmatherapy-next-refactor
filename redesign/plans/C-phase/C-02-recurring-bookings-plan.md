@@ -496,8 +496,8 @@ Per C-08 pattern. Default copy:
 
 **Step 11 — Registration.**
 
-- SUBJECTS map entry.
-- templates-data.ts TemplateMeta entry with audience='customer' + fields list.
+- SUBJECTS map entry. *(2026-07-16: if C-15 has shipped, SUBJECTS is retired — set `subjectDefault` in the registry instead.)*
+- templates-data.ts TemplateMeta entry with audience='customer' + fields list. *(2026-07-16: C-15 ships before C-02 in the recommended order — register in the expanded registry shape: `defaultValue` per field, `subjectDefault`, `tokens`, `fixedParts`. The template then appears in the studio gallery/editor automatically.)*
 
 **Step 12 — Vitest spec** following C-08's `sendBookingConfirmedClientEmail` test scaffold.
 

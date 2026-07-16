@@ -301,6 +301,8 @@ const SUBJECTS: Record<string, string> = {
 
 **Step 12 — Register in `templates-data.ts`.**
 
+> **Coordination (2026-07-16):** C-15 (email template studio) expands this registry with `defaultValue`/`tokens`/`subjectDefault`/`fixedParts`. If C-15 has already shipped when C-01 lands, register this template in the expanded shape (defaults in the registry, not inline in the renderer); if not, register as below and C-15's sweep picks it up. Either way this step's intent is unchanged.
+
 Edit `src/app/admin/emails/components/templates-data.ts`. Add a new entry to the `TEMPLATES` array (after the existing 9):
 
 ```ts

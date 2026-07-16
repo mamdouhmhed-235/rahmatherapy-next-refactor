@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 14/14 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ as of 2026-05-26 (original 12 + C-13 + C-14 added same day via user-direction amendments). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + 2026-05-26 amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**, with **C-14 independent** (its Phase D customer date-picker fix can ship first as a quick win; breaks phases anytime). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-13 ships after C-08 + before C-11. Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 15/15 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**, with **C-14 independent** (its Phase D customer date-picker fix can ship first as a quick win; breaks phases anytime). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -103,11 +103,11 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 
 ### C-08 — Email automation expansion
 
-- **Brief:** `redesign/briefs/C-08-email-automation-expansion-brief.md` (476 lines)
-- **Plan:** `redesign/plans/C-phase/C-08-email-automation-expansion-plan.md` (~895 lines)
-- **Scope:** 4 NEW templates (booking_confirmed_client, staff_unassignment, claim, client_assigned_therapist) + 1 existing verification (staff_assignment templates-data.ts field-list audit). Per-row Resend tooling on `/admin/emails` delivery log with `resendEmail` server action + `dispatchResend` switch + 60s rate-limit + `metadata.resent_from_event_id` linkage. Capability-keyed recipient resolution (any `can_take_bookings=true` practitioner).
-- **Migration:** Conditional 1-line ALTER TABLE if `email_delivery_events.metadata jsonb` doesn't exist. **No CHECK constraint extension needed** — verified `event_type` is free-text.
-- **Reframe note:** Decisions doc Q7 said "5 new templates"; actual is 4 new + 1 existing-verify because `staff_assignment` already exists (verified in code).
+- **Brief:** `redesign/briefs/C-08-email-automation-expansion-brief.md` (amended 2026-07-16)
+- **Plan:** `redesign/plans/C-phase/C-08-email-automation-expansion-plan.md` (amended 2026-07-16)
+- **Scope (AMENDED 2026-07-16):** **5 NEW templates** (booking_confirmed_client, staff_unassignment, claim, client_assigned_therapist, **enquiry_logged**) + 1 existing verification (staff_assignment templates-data.ts field-list audit) + per-row Resend tooling (`resendEmail` action + `dispatchResend` switch + 60s rate-limit + `metadata.resent_from_event_id` linkage) + **business-notification routing (new Phase D)**: `staff_profiles.notification_email` + `business_notification_prefs` (per-type alert toggles), `resolveBusinessNotificationRecipients` resolver replacing `getAdminRecipient` for all internal alerts (opted-in Owner/Admin, skip-self, zero-opt-in fallback), `/admin/me` Notifications section. Capability-keyed recipient resolution (any `can_take_bookings=true` practitioner). See §5.15.
+- **Migration:** **Zone-2 now definite (was conditional)** — 2 staff_profiles columns + Owner opt-in seed + conditional `email_delivery_events.metadata jsonb`. **No CHECK constraint extension needed** — verified `event_type` is free-text.
+- **Reframe note:** Decisions doc Q7 said "5 new templates"; the 2026-05-26 write reframed to 4 new + 1 existing-verify (`staff_assignment` already exists); the 2026-07-16 `enquiry_logged` addition restores the count to 5.
 
 ### C-02 — Recurring / standing bookings
 
@@ -167,6 +167,15 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Engine touch:** `availability.ts` (RECON-sensitive) only in Phase C (widen global override fetch `.maybeSingle()` → array) + Phase D (refactor `isDateInBusinessWindow` to the shared helper). Recurring phases don't touch it.
 - **Customer rule:** breaks hidden (no slots across a break). Admin picker stays unbounded.
 - **Sequencing:** independent of the other 13 plans. Phase D ships first (customer win); A→B→C in order (C is highest-risk — schema + engine).
+
+### C-15 — Email template studio (NEW 2026-07-16, plan-refinement phase)
+
+- **Brief:** `redesign/briefs/C-15-email-template-studio-brief.md` (NEW 2026-07-16)
+- **Plan:** `redesign/plans/C-phase/C-15-email-template-studio-plan.md` (NEW 2026-07-16)
+- **Scope:** replaces the Templates-tab editing experience end-to-end (user verdict 2026-07-16 supersedes audit PE-51's "exemplary"): registry expansion (per-field `defaultValue` + editable subjects + renderer copy-lift + token catalogue + fixed-part legend), template gallery with Default/Customised badges, full-page editor at `/admin/emails/templates/[id]` with **chip-token variable insertion** (no hand-typed `{codes}`), **live draft preview** (POST draft → real render fns + sample data, debounced, pre-save), one-click per-template **Reset to default** + per-field Use-default, **"Send me a test"** to the actor's notification email. Retires ManualSendSheet + 4 old editor components; removes 3 non-filter FAKE markers.
+- **Migration:** None (subject + new fields are new `field_key` values in the existing `email_template_overrides` table).
+- **Load-bearing gate:** render-parity spec — zero-override output byte-identical before/after the copy-lift; pre-flight SQL capture of override rows diffed post-ship.
+- **Sequencing:** after C-08 (its 5 templates + notification_email column land first); before C-13 + C-02 (their template work lands inside the studio; both plans carry compatibility notes). 6 phases / 7 commits.
 
 ---
 
@@ -339,6 +348,26 @@ User direction: working hours should support breaks (opens / break(s) / closes) 
 
 **Sequencing:** independent of all other plans. Phase D is the most visible customer fix and can ship standalone first.
 
+### 5.15 C-08 amended — business notifications + personal notification email (2026-07-16, plan-refinement phase)
+
+User direction 2026-07-16 (collaborative plan-refinement session). Audit verified: internal alerts (new booking / cancellation / reschedule) go to `business_settings.contact_email` — the clinic's PUBLIC contact address (`getAdminRecipient`, `notifications.ts:209`); enquiries fire no email anywhere (`createEnquiry` sends nothing; **no public enquiry endpoint exists** — enquiries are staff-logged only); `staff_profiles` has no notification email; `/admin/me` is a performance page with no settings surface.
+
+**C-08 gains Phase D (steps 13–18):**
+- Migration (Zone-2, now definite): `staff_profiles.notification_email text` + `business_notification_prefs jsonb` (+ conditional `email_delivery_events.metadata`); Owner seeded opted-in.
+- `resolveBusinessNotificationRecipients`: active opted-in Owner/Admin → `notification_email ?? email`; per-type prefs (5 keys: new_booking_request, booking_cancelled, reschedule_request, enquiry_logged, slot_claimed — all default on once enabled); **skip-self** (never emailed about your own action — supersedes brief §5.6 + Q9.3 locks); zero-opt-in fallback to `getAdminRecipient` so alerts never vanish; intentional non-sends write `skipped` delivery rows with reasons.
+- All admin_internal sends rerouted (3 existing + claim + new); one delivery row per recipient.
+- New 5th template `enquiry_logged` (hook in `createEnquiry`, skip-self).
+- `/admin/me` "Notifications" section (Owner/Admin, self-only writes; hint copy locked in brief §2.8). Coordination note added to C-07 plan Step 3 (both plans mount cards on `/admin/me`).
+- Commit cadence 8 → 11. New audit types `email_resent` (existing) + `notification_settings_updated`.
+
+### 5.16 C-15 added as a 15th plan — email template studio (2026-07-16, plan-refinement phase)
+
+User direction 2026-07-16: the Templates tab is "terrible… incomplete and not easy to use at all" — wants completeness, clarity on editable vs fixed, no hand-typed variable codes, one-click reset-to-default, and a **live** preview. Code audit confirmed every complaint (thin field surface, hardcoded subjects, saved-state-only FAKE-marked preview, reset only via clear-field-and-save). PE-51's "exemplary" verdict is relative to other admin surfaces and is superseded by the owner's.
+
+**C-15 created** (master plan now 15/15). Scope summary in §3; key facts: zero migrations; render-parity gate protects live emails through the copy-lift; retires ManualSendSheet + 4 old editor components; removes 3 non-filter FAKE markers (C-09's C-12+ inventory should mark them owned by C-15). Compatibility notes added to C-01 (Step 12), C-02 (Step 11), C-13 (Phase G) plans — their template registrations inherit the studio; registry API stays backward-compatible.
+
+**Recommended order updated:** … → C-08 → **C-15** → C-13 → C-02 → … (C-15 before C-13/C-02 so their template work lands inside the finished studio).
+
 ---
 
 ## 6 — Cross-plan coordination + dependencies + sequencing
@@ -356,14 +385,15 @@ User direction: working hours should support breaks (opens / break(s) / closes) 
 
 ### 6.2 Soft sequencing (recommended order)
 
-Per C-B-DECISIONS §5 + 2026-05-26 amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
+Per C-B-DECISIONS §5 + amendments (2026-05-26 + 2026-07-16): **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
 
 Order rationale:
 - C-06 first — biggest data-integrity fix.
 - C-04a → C-05 — locked sequence.
 - C-01 → C-02 — cron infrastructure first.
 - C-FIELDWORK → C-11 — drop-in component first.
-- C-08 → **C-13** — email templates exist before C-13 extends them with group-context block. C-13's `BookingCard` available before C-11's shared-blocks adoption sweep (in practice C-11 ships ahead; coordinate at impl).
+- C-08 → **C-15** — templates + notification_email column exist before the studio reworks the editor around them (2026-07-16).
+- C-15 → **C-13** — C-13's email group-context block plugs into the post-copy-lift renderers; C-13's `BookingCard` available before C-11's shared-blocks adoption sweep (in practice C-11 ships ahead; coordinate at impl).
 - C-09 (now positioned mid-pack after C-13) — tag sweep catches all prior plans' new actions.
 - C-03 / C-07 — UX polish on top of stable surfaces.
 - C-10 last — catalogues new routes alongside existing.
@@ -515,6 +545,7 @@ redesign/briefs/
 ├── C-11-dashboard-variants-design-system-brief.md
 ├── C-13-group-bookings-and-gender-clarity-brief.md           # NEW 2026-05-26 post-handoff
 ├── C-14-granular-working-hours-breaks-brief.md               # NEW 2026-05-26 post-handoff
+├── C-15-email-template-studio-brief.md                       # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
@@ -533,6 +564,7 @@ redesign/plans/C-phase/
 ├── C-11-dashboard-variants-design-system-plan.md
 ├── C-13-group-bookings-and-gender-clarity-plan.md            # NEW 2026-05-26 post-handoff
 ├── C-14-granular-working-hours-breaks-plan.md                # NEW 2026-05-26 post-handoff
+├── C-15-email-template-studio-plan.md                        # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -642,6 +674,8 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **(2026-05-26 amendment)** C-13 added as a 13th plan for group-booking surface + gender-clarity. 7 changes / 8 phases / zero migrations / pure UI render. See §5.12. Brief + plan written; master plan checklist updated to 13/13. No further amendments needed before C-C.
 - **(2026-05-26 amendment)** C-06 amended with Step 13 — optional email on the admin booking flow. Migration drops `bookings.contact_email NOT NULL`; RPC gains phone-fallback matching; admin form + Zod relaxed; public flow untouched + regression-tested. See §5.13. Brief + plan amended; no further amendments needed before C-C.
 - **(2026-05-26 amendment)** C-14 added as a 14th plan — granular working hours (breaks) across global/staff/override + customer booking-window date-picker guard. Segments storage model (no new tables); Phase C migration drops the override-date unique. See §5.14. Brief + plan written; master plan checklist updated to 14/14. No further amendments needed before C-C.
+- **(2026-07-16 amendment)** C-08 amended — business notifications + personal notification email (Phase D, steps 13–18): staff_profiles notification columns migration (now definite Zone-2), recipient resolver with skip-self + per-type prefs, `enquiry_logged` template, `/admin/me` Notifications section. See §5.15. Brief + plan amended; C-07 coordination note added. No further amendments needed before C-C.
+- **(2026-07-16 amendment)** C-15 added as a 15th plan — email template studio (gallery + live draft preview + chip variables + reset-to-default + test send; retires ManualSendSheet). Zero migrations; render-parity gate. See §5.16. Brief + plan written; master plan checklist updated to 15/15; compatibility notes added to C-01/C-02/C-13. Recommended order now inserts C-15 between C-08 and C-13. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -701,8 +735,8 @@ To be ticked once C-C ships all 12 plans:
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
 - **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (14/14 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 — see §5.11–§5.14.
-- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
+- **C-B status:** ✅ COMPLETE (15/15 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added 2026-07-16 (§5.15–§5.16).
+- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-10**.
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
 
