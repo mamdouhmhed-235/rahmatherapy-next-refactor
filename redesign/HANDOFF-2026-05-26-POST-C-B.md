@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 16/16 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 independent** (its Phase D customer date-picker fix can ship first as a quick win; breaks phases anytime). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 17/17 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + C-17 independent** (C-14's Phase D customer date-picker fix and C-17's GA tag can each ship first as quick wins; break phases anytime). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. A consent/cookie-banner change (Google Consent Mode) is the user's declared next refinement, not yet written. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -184,6 +184,14 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Scope:** every admin list survives 5 years of data. Audit facts: bookings list fetches EVERY row with no limit then filters in memory (perf cliff + endless scroll); clients/enquiries unbounded; emails/privacy/operations silently hard-capped with no pager; audit log is the house reference (cursor, 100/page). Phases: inventory (every surface classified, user checkpoint) → shared `PaginationBar` + helpers (URL-driven, 25/page lists, 100/page logs, cursor mode for log-scale) → bookings/clients/enquiries to server-side pagination (bookings view-predicates→SQL gated by a parity spec against `filterBookings`) → cap→pager conversions → structure (not pagination) for static-long lists incl. the roles page (user's named example). **Standing Part 0 rule added: no unbounded list queries.** Verification via temporary page-size-3 override — no production seeding.
 - **Migration:** None (index suggestions flag-only).
 - **Sequencing:** after C-09 (pagination-ready helpers) + C-05 (final `filterBookings` shape) + C-07; **hard-before C-10** (page heights change; C-10 pre-flight now stops if C-16 absent). 5 phases / 8 commits.
+
+### C-17 — Google Analytics (GA4) on customer pages (NEW 2026-07-16, plan-refinement phase)
+
+- **Brief:** `redesign/briefs/C-17-google-analytics-brief.md` (NEW 2026-07-16)
+- **Plan:** `redesign/plans/C-phase/C-17-google-analytics-plan.md` (NEW 2026-07-16)
+- **Scope:** GA4 tag `G-WM8BCYG060` on customer surfaces only — env-gated `GoogleAnalytics` component (`next/script` `afterInteractive`; renders nothing outside production, so dev + Playwright never pollute analytics) mounted in `(public)/layout.tsx` + a thin new `booking/layout.tsx`; **admin never tracked** (gate asserts script absent from admin HTML). Phase B: one fire-once `booking_request_submitted` conversion event on the booking success screen (`PreparedStep`), zero PII. No new packages; zero migrations; one Cloudflare env var (build-time inlining verified).
+- **Consent:** deliberately out of scope (user decision 2026-07-16) — Google Consent Mode + cookie banner is the user's declared NEXT refinement; the init block carries a marked insertion point.
+- **Sequencing:** fully independent (like C-14); ships anytime. Branch confirmed with user at impl (public layouts diverge ~9 lines from the frontend line). 2 phases / 3 commits.
 
 ---
 
@@ -396,6 +404,14 @@ User direction 2026-07-16: proper pagination and accounting for data build-up on
 
 **Recommended order updated:** … → C-09 → C-03 → C-07 → **C-16** → C-10.
 
+### 5.19 C-17 added as a 17th plan — Google Analytics on customer pages (2026-07-16, plan-refinement phase)
+
+User direction 2026-07-16: set up the existing GA4 tag (`G-WM8BCYG060`) on the customer-facing pages. Audit facts: zero analytics in `src/`; no CSP to block googletagmanager.com; customer surfaces = `(public)` route group (incl. the embedded booking flow) + `/booking/manage` (outside the group) → two mount points; root-layout mounting rejected (would track `/admin`).
+
+**C-17 created** (master plan now 17/17; smallest plan of the band). Env-gated production-only component (`next/script` — no new package, no Zone-2 dependency), fire-once `booking_request_submitted` conversion event on `PreparedStep`, zero PII, admin-absence asserted in the gate. **Consent explicitly deferred (user decision):** the user will run Google's own consent setup — Consent Mode + banner is the declared NEXT plan-refinement item; C-17's init block carries a marked insertion point so that change lands additively.
+
+**Ripples:** none to other plans (fully independent, like C-14). One production env var (`NEXT_PUBLIC_GA_MEASUREMENT_ID`, build-time-inlined — pipeline injection is a named verification item).
+
 ---
 
 ## 6 — Cross-plan coordination + dependencies + sequencing
@@ -578,6 +594,7 @@ redesign/briefs/
 ├── C-14-granular-working-hours-breaks-brief.md               # NEW 2026-05-26 post-handoff
 ├── C-15-email-template-studio-brief.md                       # NEW 2026-07-16 plan-refinement
 ├── C-16-data-growth-pagination-brief.md                      # NEW 2026-07-16 plan-refinement
+├── C-17-google-analytics-brief.md                            # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
@@ -598,6 +615,7 @@ redesign/plans/C-phase/
 ├── C-14-granular-working-hours-breaks-plan.md                # NEW 2026-05-26 post-handoff
 ├── C-15-email-template-studio-plan.md                        # NEW 2026-07-16 plan-refinement
 ├── C-16-data-growth-pagination-plan.md                       # NEW 2026-07-16 plan-refinement
+├── C-17-google-analytics-plan.md                             # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -711,6 +729,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **(2026-07-16 amendment)** C-15 added as a 15th plan — email template studio (gallery + live draft preview + chip variables + reset-to-default + test send; retires ManualSendSheet). Zero migrations; render-parity gate. See §5.16. Brief + plan written; master plan checklist updated to 15/15; compatibility notes added to C-01/C-02/C-13. Recommended order now inserts C-15 between C-08 and C-13. No further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-04a amended — S7 28-day restore window: `bookings.cancelled_at` column + backfill folded into the Step 10 migration; guard + shared `isRestoreWindowExpired` helper + UI/copy variants; stamping notes rippled to C-02 (series cascade), C-06 (delete cascade), C-05 (expired notice copy). See §5.17. Brief + plan amended; no further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-16 added as a 16th plan — data growth: pagination standard + bounded lists everywhere (bookings/clients/enquiries to server-side pagination; cap→pager conversions; roles-page restructure; standing no-unbounded-queries rule in Part 0). Zero migrations. See §5.18. Brief + plan written; master plan checklist updated to 16/16; C-09 helper-signature + C-02 series-page-caps + C-10 hard pre-flight notes rippled. Order inserts C-16 between C-07 and C-10. No further amendments needed before C-C.
+- **(2026-07-16 amendment)** C-17 added as a 17th plan — Google Analytics (GA4) on customer pages: env-gated production-only tag on `(public)` + `/booking/manage`, admin never tracked, one `booking_request_submitted` conversion event, zero PII, no packages, zero migrations. Consent deliberately deferred — Consent Mode + banner is the user's declared NEXT refinement (not yet written). See §5.19. Brief + plan written; master plan checklist updated to 17/17. Fully independent; ships anytime. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -770,8 +789,8 @@ To be ticked once C-C ships all 12 plans:
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
 - **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (16/16 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added 2026-07-16 (§5.15–§5.18).
-- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**.
+- **C-B status:** ✅ COMPLETE (17/17 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added 2026-07-16 (§5.15–§5.19).
+- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + C-17 independent). Declared-next refinement: consent/cookie banner (Google Consent Mode) — not yet written.
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
 
