@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 21/21 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 + C-20 + C-21 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 + C-20 + C-21 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, C-19's privacy page, C-20's address autocomplete, and C-21's canonical-domain fix can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**; **C-21 is a 1-commit defect fix worth shipping early**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 22/22 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 + C-20 + C-21 + C-22 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 + C-20 + C-21 + C-22 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, C-19's privacy page, C-20's address autocomplete, C-21's canonical-domain fix, and C-22's booking-form abuse protection can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**; **C-21 + C-22 are small and worth shipping early**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -228,6 +228,15 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Fix:** `SITE_URL` constant in `src/content/site/`, every absolute URL derived from it, value corrected, **clinic contact address replaced with the live one** (contact.ts display + mailto, and the email-preview fixture) while per-person staff-email placeholders become neutral examples (`you@example.com`) rather than the owner's address, cosmetic sweep, and an **anti-drift test** asserting zero wrong-domain literals in `src/` plus a live-contact-address assertion. Verification is rendered-output-based (curl canonical/OG/JSON-LD on all 6 public pages, plus a mailto check).
 - **Migration:** none. No visual change. 1 commit. **Ship early** — wrong canonicals compound while indexed.
 - **Flagged, not scoped:** no `sitemap.ts` / `robots.ts` exists.
+
+### C-22 — Public booking form abuse protection (NEW 2026-07-16, plan-refinement phase)
+
+- **Brief:** `redesign/briefs/C-22-booking-form-abuse-protection-brief.md` (NEW 2026-07-16)
+- **Plan:** `redesign/plans/C-phase/C-22-booking-form-abuse-protection-plan.md` (NEW 2026-07-16)
+- **Gap:** verified **zero** rate limiting / CAPTCHA / honeypot anywhere in `src/`. `POST /api/bookings` is public and each call writes DB rows **and sends two emails** — a trivial script can fill the bookings table, burn Resend quota, and damage sender reputation (which then lands real confirmations in spam).
+- **Scope (user-locked):** public customer booking form ONLY; honeypot + per-IP rate limiting ONLY. No CAPTCHA/Turnstile (documented escalation step), no admin/enquiries changes.
+- **Design:** honeypot hidden from humans AND assistive tech (`aria-hidden` + `tabIndex={-1}` + off-screen + `autoComplete="off"` — the classic a11y trap is an explicit gate item), server **silently drops with a success-shaped 200**. Rate limit keyed on `CF-Connecting-IP` (never X-Forwarded-For), burst 3/10min + sustained 10/day (deliberately generous — shared/NAT IPs are normal), rejects **before** any DB or email work, 429 copy always offers the clinic phone, **fails open** when the header is absent. Mechanism matrix: Cloudflare rate-limit binding preferred → dashboard WAF rule → Durable Object; Supabase-table counter rejected (a DB write in the path of the traffic being blocked).
+- **Migration:** none; no package. Independent; 3 commits; small — worth shipping early.
 
 ---
 
@@ -480,6 +489,17 @@ User direction 2026-07-16 with a Google Maps/Places key + the "Address Selection
 
 **Follow-up the same day — the dead contact email.** Chasing the domain question surfaced a second, more immediately damaging defect: the site publishes **`hello@rahmatherapy.co.uk`**, which the user confirmed **does not exist**. Anyone emailing the clinic through the website reaches nobody. Real address: **`rahmatherapy@outlook.com`** (also the Owner's admin login — harmless overlap). C-21 now fixes both in one commit, with the deliberate distinction that the live address replaces only *clinic contact* strings; per-person "type your email" placeholders become neutral examples instead, so no form suggests the owner's address to a staff member. The anti-drift test asserts the live contact address too, so a dead mailbox can't silently return.
 
+### 5.24 C-22 added + open gaps the user has NOT yet actioned (2026-07-16)
+
+A gap analysis at the end of the plan-refinement session surfaced four things no plan covered. The user actioned one (C-22) and left the rest open — **recorded here so a future session doesn't rediscover them as surprises**:
+
+1. **C-22 — public booking form abuse protection** ✅ planned (see §3). The user scoped it tightly: honeypot + per-IP rate limiting, public form only.
+2. **Database backup / disaster recovery — STILL OPEN, highest severity.** Zero mentions of backups, restores or DR across all 22 plans. The client database *is* the business; C-19 publicly promises 7-year retention; C-06 introduces delete + **bulk delete** with no tested restore path; Supabase free-tier backup retention is limited (~7 days; PITR is paid). Recommended next: verify actual tier retention, add a scheduled export of key tables to owner-controlled storage, document AND **test** a restore once.
+3. **Email deliverability (SPF/DKIM/DMARC) — STILL OPEN, unverifiable from code.** `RESEND_FROM_EMAIL` exists but domain authentication is DNS config. Given the codebase carried three different domains (C-21), there is a real chance it was set up against the wrong one or not at all. Symptom if wrong: booking confirmations silently land in spam and customers assume they were ignored. Check the Resend dashboard's domain-verification status — no plan needed, just a look.
+4. **No `sitemap.ts` / `robots.ts` — STILL OPEN, minor.** Flagged in C-21; pairs naturally with the canonical-domain fix.
+
+**Verified as already fine (not a gap):** the public pages already carry `HealthAndBeautyBusiness` structured data (5 instances) — the highest-value local-SEO signal; C-21's domain fix corrects the URLs inside it.
+
 **Google Maps billing posture settled (user, 2026-07-16):** key restrictions saved (`rahmatherapy.uk` apex + wildcard + localhost; 3 APIs), billing account enabled, £1 budget alert set. No editable per-API quota rows exist on the free tier — expected; the referrer restriction is the load-bearing control per the verified research, so no further action.
 
 ---
@@ -669,6 +689,7 @@ redesign/briefs/
 ├── C-19-privacy-policy-page-brief.md                         # NEW 2026-07-16 plan-refinement
 ├── C-20-address-autocomplete-brief.md                        # NEW 2026-07-16 plan-refinement
 ├── C-21-canonical-domain-fix-brief.md                        # NEW 2026-07-16 plan-refinement
+├── C-22-booking-form-abuse-protection-brief.md               # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
@@ -694,6 +715,7 @@ redesign/plans/C-phase/
 ├── C-19-privacy-policy-page-plan.md                          # NEW 2026-07-16 plan-refinement
 ├── C-20-address-autocomplete-plan.md                         # NEW 2026-07-16 plan-refinement
 ├── C-21-canonical-domain-fix-plan.md                         # NEW 2026-07-16 plan-refinement
+├── C-22-booking-form-abuse-protection-plan.md                # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -810,6 +832,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **(2026-07-16 amendment)** C-17 added as a 17th plan — Google Analytics (GA4) on customer pages: env-gated production-only tag on `(public)` + `/booking/manage`, admin never tracked, one `booking_request_submitted` conversion event, zero PII, no packages, zero migrations. See §5.19. Brief + plan written (amended same day for the C-18 pairing). Fully independent; ships anytime — co-ship with C-18.
 - **(2026-07-16 amendment)** C-18 added as an 18th plan — cookie consent & PECR compliance: registry-driven banner + panel + /cookies page in the public design language, basic Consent Mode v2 (zero pre-consent Google requests), `consent_events` proof table (one Zone-2 migration), footer withdrawal, 6-month/version-bump re-prompts, standing cookie/tag-registry rule in Part 0. Rewrites C-17's component into the consent-gated loader (hard co-ship pair). See §5.20. Brief + plan written; master plan checklist updated to 18/18. No further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-19 added as a 19th plan — privacy policy page: ONE new file (`(public)/privacy/page.tsx`), custom to the audited data flows, user-locked minimal scope (no other page touched; linking left for later). See §5.21. Brief + plan written; master plan checklist updated to 19/19. No further amendments needed before C-C.
+- **(2026-07-16 amendment)** C-22 added as a 22nd plan — public booking form abuse protection (honeypot + per-IP rate limiting, public form only). Plus **three open gaps recorded, not yet actioned by the user: database backup/DR (highest severity — no plan covers it), email deliverability SPF/DKIM/DMARC verification, and missing sitemap/robots.** See §5.24. Brief + plan written; master plan checklist updated to 22/22.
 - **(2026-07-16 amendment)** C-20 added as a 20th plan — address autocomplete (Google Places) on both booking forms: one shared form-library-agnostic component, UK component mapping, lazy load on focus, session tokens, plain-input fallback; blocking sign-off on Cloud Console key restriction + rotation and the C-18 consent classification. See §5.22. Brief + plan written; master plan checklist updated to 20/20. Independent; ships anytime. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
@@ -870,7 +893,7 @@ To be ticked once C-C ships all 12 plans:
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
 - **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (21/21 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added + C-20 added + C-20 cost-amended + C-21 added 2026-07-16 (§5.15–§5.23).
+- **C-B status:** ✅ COMPLETE (22/22 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added + C-20 added + C-20 cost-amended + C-21 added 2026-07-16 (§5.15–§5.23).
 - **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + the C-17/C-18 co-ship pair + C-19 + C-20 + C-21 independent; C-21 recommended early).
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
