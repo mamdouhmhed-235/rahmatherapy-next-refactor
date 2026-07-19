@@ -1,368 +1,949 @@
+/* ============================================================
+   Booking experience — full-screen 4-step flow
+   Canvas: rahma ivory. Cards: white + hairline + shadow tokens.
+   Type: Urbanist (display) / Work Sans (body). Gold = primary CTA.
+   ============================================================ */
+
+/* ---------- Shell ---------- */
+
 .backdrop {
   position: fixed;
   inset: 0;
   z-index: 9998;
-  background:
-    radial-gradient(circle at 18% 12%, color-mix(in oklab, var(--accent) 16%, transparent), transparent 28rem),
-    rgba(8, 24, 30, 0.68);
-  backdrop-filter: blur(12px);
-  animation: bookingBackdropIn 180ms ease both;
+  background: var(--rahma-ivory);
+  animation: bookingBackdropIn 180ms var(--ease-gentle) both;
 }
 
 .popup {
   position: fixed;
-  inset: 16px;
+  inset: 0;
   z-index: 9999;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
-  pointer-events: none;
+  flex-direction: column;
 }
 
 .shell {
-  display: flex;
-  flex-direction: column;
-  width: min(1180px, calc(100vw - 32px));
-  height: min(900px, calc(100vh - 32px));
-  max-height: calc(100vh - 32px);
-  overflow: hidden;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 82%, transparent);
-  border-radius: 22px;
+  width: 100%;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   background:
-    linear-gradient(135deg, color-mix(in oklab, var(--brand-warm-surface) 50%, #ffffff) 0%, #ffffff 44%, color-mix(in oklab, var(--brand-calm-surface) 70%, #ffffff) 100%);
-  box-shadow: 0 34px 100px rgba(8, 24, 30, 0.36);
-  color: var(--foreground);
-  font-family: var(--font-work-sans), Arial, sans-serif;
+    radial-gradient(120% 90% at 50% -10%, #fdfbf6 0%, var(--rahma-ivory) 58%);
+  color: var(--rahma-charcoal);
+  font-family: var(--font-work-sans), sans-serif;
   animation: bookingShellIn 220ms var(--ease-gentle) both;
-  pointer-events: auto;
+}
+
+.formRows {
+  display: contents;
 }
 
 @keyframes bookingBackdropIn {
   from {
     opacity: 0;
   }
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes bookingShellIn {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.985);
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-.header {
+/* ---------- Top bar ---------- */
+
+.topBar {
+  background: var(--rahma-surface);
+  border-bottom: 1px solid var(--rahma-border);
+}
+
+.topBarRow {
   display: grid;
-  grid-template-columns: minmax(44px, 1fr) minmax(0, 660px) minmax(44px, 1fr);
-  grid-template-areas: "brand content close";
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
   gap: 16px;
-  padding: 20px 30px 16px;
-  border-bottom: 1px solid color-mix(in oklab, var(--brand-card-border) 70%, transparent);
-  background: color-mix(in oklab, #ffffff 74%, transparent);
+  height: 64px;
+  padding: 0 clamp(16px, 3vw, 32px);
 }
 
-.headerContent {
-  grid-area: content;
-  display: grid;
-  min-width: 0;
-  justify-items: center;
-  gap: 7px;
-  text-align: center;
-}
-
-.brandLine {
-  grid-area: brand;
+.brandBox {
   display: flex;
   align-items: center;
+  height: 30px;
   justify-self: start;
-  width: clamp(7.25rem, 32vw, 10.5rem);
-  height: 3.875rem;
 }
 
 .bookingLogo {
   display: block;
-  width: 100%;
-  height: auto;
-  max-height: 100%;
-  object-fit: contain;
-  object-position: left center;
-}
-
-.eyebrow,
-.sectionKicker {
-  margin: 0;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0;
-  text-transform: uppercase;
 }
 
 .title {
   margin: 0;
-  color: var(--brand-deep);
-  font-size: clamp(1.65rem, 1.4rem + 0.8vw, 2rem);
-  font-weight: 800;
-  line-height: 1.1;
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--rahma-charcoal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
 }
 
-.description {
-  margin: 0;
-  max-width: 660px;
-  color: #5b6670;
-  font-size: 15px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .closeButton {
-  display: inline-flex;
-  grid-area: close;
   justify-self: end;
-  width: 44px;
-  height: 44px;
-  flex: 0 0 auto;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 90%, transparent);
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
-  background: #ffffff;
-  color: #172026;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  color: var(--rahma-charcoal);
   cursor: pointer;
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background 160ms ease;
+    background-color var(--motion-duration-fast) var(--ease-gentle),
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    transform var(--motion-duration-fast) var(--ease-gentle);
 }
 
 .closeButton:hover {
-  border-color: color-mix(in oklab, var(--primary) 35%, transparent);
-  background: #f7fbff;
-  transform: translateY(-1px);
+  background: var(--rahma-sand);
+  transform: scale(1.04);
 }
 
-.closeButton:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 16%, transparent);
+.sentBadge {
+  margin: 0;
+  padding: 10px 0 14px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--rahma-green);
 }
 
-.packageCard:focus-visible,
-.packageCardSelected:focus-visible,
-.segmentButton:focus-visible,
-.segmentButtonActive:focus-visible,
-.slot:focus-visible,
-.slotActive:focus-visible,
-.primaryButton:focus-visible,
-.secondaryButton:focus-visible,
-.textButton:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
-  box-shadow: var(--focus-ring-token);
+/* ---------- Progress rail ---------- */
+
+.progress {
+  padding: 0 clamp(16px, 3vw, 32px);
 }
 
 .steps {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 10px;
-  margin: 0;
-  padding: 14px 30px 16px;
   list-style: none;
-  border-bottom: 1px solid color-mix(in oklab, var(--brand-card-border) 70%, transparent);
-  background: color-mix(in oklab, #ffffff 58%, var(--brand-calm-surface));
-  counter-reset: booking-step;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 10px 0 16px;
 }
 
 .step,
-.stepActive {
-  position: relative;
+.stepDone,
+.stepCurrent {
   display: flex;
+  align-items: center;
   min-width: 0;
+}
+
+.step:not(:first-child)::before,
+.stepDone:not(:first-child)::before,
+.stepCurrent:not(:first-child)::before {
+  content: "";
+  flex: 1 1 28px;
+  min-width: 20px;
+  height: 1px;
+  margin: 0 10px;
+  background: var(--rahma-border);
+}
+
+.stepDone:not(:first-child)::before,
+.stepCurrent:not(:first-child)::before {
+  background: color-mix(in oklab, var(--rahma-green) 45%, var(--rahma-border));
+}
+
+.stepStatic,
+.stepButton {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: #7a858f;
-  font-size: 13px;
-  font-weight: 700;
+  white-space: nowrap;
 }
 
-.step::before,
-.stepActive::before {
-  content: "";
-  position: absolute;
-  left: 13px;
-  right: calc(100% - 13px);
-  bottom: -10px;
-  height: 3px;
-  border-radius: 999px;
+.stepButton {
+  border: 0;
+  padding: 4px;
+  margin: -4px;
+  border-radius: 10px;
   background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
 }
 
-.step span,
-.stepActive span {
+.stepButton:hover .stepLabel {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.stepDot {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 26px;
   height: 26px;
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
   border-radius: 999px;
-  background: #eef3f6;
-  color: #63707a;
-  font-size: 12px;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+  font-size: 12.5px;
+  font-weight: 700;
+  background: var(--rahma-sand);
+  color: var(--rahma-muted);
+  transition:
+    background-color var(--motion-duration-normal) var(--ease-gentle),
+    color var(--motion-duration-normal) var(--ease-gentle),
+    box-shadow var(--motion-duration-normal) var(--ease-gentle);
 }
 
-.stepActive {
-  color: var(--brand-deep);
+.stepDone .stepDot {
+  background: var(--rahma-green);
+  color: #fff;
 }
 
-.stepActive::before {
-  right: 0;
-  background: linear-gradient(90deg, var(--primary), color-mix(in oklab, var(--accent) 62%, var(--primary)));
+.stepCurrent .stepDot {
+  background: var(--rahma-surface);
+  color: var(--rahma-charcoal);
+  box-shadow:
+    inset 0 0 0 2px var(--rahma-gold),
+    0 4px 12px -6px rgba(20, 74, 120, 0.35);
 }
 
-.stepActive span {
-  background: var(--primary);
-  color: #ffffff;
-  box-shadow: 0 8px 18px color-mix(in oklab, var(--primary) 20%, transparent);
+.stepLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rahma-muted);
 }
+
+.stepDone .stepLabel {
+  color: var(--rahma-charcoal);
+  font-weight: 500;
+}
+
+.stepCurrent .stepLabel {
+  color: var(--rahma-charcoal);
+  font-weight: 700;
+}
+
+.progressCompact {
+  display: none;
+  margin: 0;
+  padding: 8px 0 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rahma-charcoal);
+}
+
+.progressTrack {
+  display: none;
+  height: 3px;
+  background: var(--rahma-sand);
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--rahma-gold);
+  border-radius: 0 999px 999px 0;
+  transition: width var(--motion-duration-slow) var(--ease-gentle);
+}
+
+/* ---------- Content area ---------- */
 
 .contentGrid {
-  display: grid;
-  flex: 1;
-  min-height: 0;
-  grid-template-columns: minmax(0, 58rem);
-  justify-content: center;
-  gap: 20px;
-  overflow: auto;
+  overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 24px 30px;
-  background: color-mix(in oklab, var(--brand-calm-surface) 54%, #ffffff);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(20, 74, 120, 0.25) transparent;
+  padding: clamp(24px, 4vh, 40px) clamp(16px, 4vw, 48px) 56px;
+}
+
+.contentInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+  width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+.contentInnerSingle {
+  max-width: 620px;
 }
 
 .mainPanel {
+  min-width: 0;
+  max-width: 46rem;
+}
+
+@media (min-width: 1024px) {
+  .contentInner {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 40px;
+  }
+
+  .contentInnerSingle {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 620px;
+  }
+}
+
+/* ---------- Summary rail ---------- */
+
+.summary {
+  display: none;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  box-shadow: var(--shadow-card-token);
+}
+
+@media (min-width: 1024px) {
+  .summary {
+    display: block;
+  }
+}
+
+.summaryAccent {
+  height: 4px;
+  background: linear-gradient(
+    90deg,
+    var(--rahma-gold) 0%,
+    #ffc252 60%,
+    color-mix(in oklab, var(--rahma-gold) 40%, #fff) 100%
+  );
+}
+
+.summaryBody {
+  padding: 22px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.summaryHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--rahma-charcoal);
+}
+
+.summaryHeader svg {
+  color: var(--rahma-green);
+}
+
+.summaryHeader h3 {
+  margin: 0;
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.summaryList {
+  display: flex;
+  flex-direction: column;
+}
+
+.summaryItem {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid color-mix(in oklab, var(--rahma-border) 65%, transparent);
+  font-size: 14px;
+}
+
+.summaryItem:first-child {
+  padding-top: 0;
+}
+
+.summaryItem span {
+  color: var(--rahma-charcoal);
+}
+
+.summaryItem strong {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.emptySummary {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--rahma-border);
+  border-radius: 12px;
+  font-size: 13.5px;
+  color: var(--rahma-muted);
+  text-align: center;
+}
+
+.summaryTotal {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.summaryTotal span {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rahma-muted);
+}
+
+.summaryTotal strong {
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--rahma-charcoal);
+}
+
+.summaryMeta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin: 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--rahma-border);
+}
+
+.summaryMeta dt {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rahma-muted);
+}
+
+.summaryMeta dd {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--rahma-charcoal);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Action bar ---------- */
+
+.actionBar {
+  background: var(--rahma-surface);
+  border-top: 1px solid var(--rahma-border);
+  padding: 12px clamp(16px, 4vw, 48px);
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+
+.actionBarInner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
   width: 100%;
+  max-width: 1160px;
+  margin: 0 auto;
+}
+
+.actionBarSpacer {
+  width: 0;
+}
+
+.totalStack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   min-width: 0;
 }
 
-.stepSection {
-  display: grid;
-  gap: 22px;
+.totalLabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--rahma-muted);
 }
 
-.sectionHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+.totalValue {
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--rahma-charcoal);
+  white-space: nowrap;
 }
 
-.sectionHeader h3,
-.preparedStep h3 {
-  margin: 0;
-  color: var(--brand-deep);
-  font-size: 26px;
-  font-weight: 800;
-  line-height: 1.2;
+.totalValue small {
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rahma-muted);
 }
 
-.sectionHeader p,
-.preparedStep p {
-  margin: 6px 0 0;
-  color: #5b6670;
+/* ---------- Buttons ---------- */
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--rahma-gold);
+  color: var(--rahma-charcoal-strong);
+  font-family: var(--font-work-sans), sans-serif;
   font-size: 15px;
-  line-height: 1.55;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 24px -12px rgba(245, 166, 35, 0.65);
+  transition:
+    background-color var(--motion-duration-fast) var(--ease-gentle),
+    transform var(--motion-duration-fast) var(--ease-gentle),
+    box-shadow var(--motion-duration-fast) var(--ease-gentle);
+}
+
+.primaryButton:hover {
+  background: #ffc252;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -12px rgba(245, 166, 35, 0.7);
+}
+
+.primaryButton:active {
+  transform: translateY(0);
+}
+
+.primaryButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+  transform: none;
+}
+
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid color-mix(in oklab, var(--rahma-charcoal) 25%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--rahma-charcoal);
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-duration-fast) var(--ease-gentle),
+    border-color var(--motion-duration-fast) var(--ease-gentle);
+}
+
+.secondaryButton:hover {
+  background: color-mix(in oklab, var(--rahma-green) 6%, transparent);
+  border-color: color-mix(in oklab, var(--rahma-charcoal) 40%, transparent);
 }
 
 .textButton {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
   border: 0;
+  padding: 4px 2px;
   background: transparent;
-  color: var(--primary);
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--rahma-green);
   cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 800;
+  border-radius: 6px;
+}
+
+.textButton:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.buttonSpinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  border: 2px solid rgba(18, 68, 112, 0.25);
+  border-top-color: var(--rahma-charcoal-strong);
+  animation: bookingSpin 700ms linear infinite;
+}
+
+@keyframes bookingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Step scaffolding ---------- */
+
+.stepSection {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.stepHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stepKicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--rahma-green);
+}
+
+.stepTitle {
+  margin: 0;
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: clamp(1.6rem, 1.25rem + 1.4vw, 2.1rem);
+  font-weight: 600;
+  line-height: 1.08;
+  color: var(--rahma-charcoal);
+}
+
+.stepTitle:focus,
+.stepTitle:focus-visible,
+.successTitle:focus,
+.successTitle:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.stepSubtitle {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--rahma-muted);
+}
+
+.stepHeaderRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.stepBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.blockTitle {
+  margin: 0;
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--rahma-charcoal);
+}
+
+.blockHint {
+  margin: -6px 0 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--rahma-muted);
+}
+
+/* ---------- Form fields ---------- */
+
+.formGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+@media (min-width: 640px) {
+  .fieldRow2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fieldRow3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rahma-charcoal);
+}
+
+.field > span svg {
+  color: var(--rahma-green);
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border: 1px solid #dcd1bf;
+  border-radius: 12px;
+  background: var(--rahma-surface);
+  color: var(--rahma-charcoal);
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 15px;
+  transition:
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    box-shadow var(--motion-duration-fast) var(--ease-gentle);
+}
+
+.field input,
+.field select {
+  height: 48px;
+  padding: 0 14px;
+}
+
+.field select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23144a78' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 38px;
+}
+
+.field textarea {
+  min-height: 96px;
+  padding: 12px 14px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: color-mix(in oklab, var(--rahma-muted) 65%, transparent);
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 13%, transparent);
+}
+
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  border-color: #b3261e;
+}
+
+.field input[aria-invalid="true"]:focus-visible,
+.field textarea[aria-invalid="true"]:focus-visible {
+  box-shadow: 0 0 0 4px rgba(179, 38, 30, 0.14);
+}
+
+.fieldError {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: #b3261e;
+}
+
+/* ---------- Notices ---------- */
+
+.notice,
+.noticeError,
+.reassurance {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.notice {
+  background: color-mix(in oklab, var(--rahma-green) 7%, transparent);
+  color: var(--rahma-charcoal);
+}
+
+.notice svg {
+  flex: 0 0 auto;
+  color: var(--rahma-green);
+  margin-top: 1px;
+}
+
+.noticeError {
+  background: #fdecea;
+  border: 1px solid #f2c4be;
+  color: #8a1c12;
+}
+
+.noticeError svg {
+  flex: 0 0 auto;
+  color: #b3261e;
+  margin-top: 1px;
+}
+
+.reassurance {
+  background: color-mix(in oklab, var(--rahma-gold) 11%, transparent);
+  color: #4c3a18;
+}
+
+.reassurance svg {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--rahma-gold) 75%, #8a5a00);
+  margin-top: 1px;
+}
+
+.notice p,
+.noticeError p,
+.reassurance p {
+  margin: 0;
+}
+
+/* ---------- Step 1: package cards ---------- */
+
+.groupHeading {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--rahma-muted);
 }
 
 .packageGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+@media (min-width: 1100px) {
+  .packageGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .packageCard,
 .packageCardSelected {
   position: relative;
-  display: grid;
-  min-width: 0;
-  gap: 11px;
-  min-height: 232px;
-  overflow: hidden;
-  padding: 18px;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 90%, transparent);
-  border-radius: 16px;
-  background:
-    linear-gradient(180deg, #ffffff, color-mix(in oklab, var(--brand-calm-surface) 34%, #ffffff));
-  color: inherit;
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
   text-align: left;
+  border-radius: 18px;
+  background: var(--rahma-surface);
+  border: 1px solid var(--rahma-border);
+  color: var(--rahma-charcoal);
+  font-family: var(--font-work-sans), sans-serif;
+  cursor: pointer;
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease,
-    background 160ms ease;
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    box-shadow var(--motion-duration-fast) var(--ease-gentle),
+    transform var(--motion-duration-fast) var(--ease-gentle),
+    background-color var(--motion-duration-fast) var(--ease-gentle);
 }
 
-.packageCard:hover,
-.packageCardSelected {
-  border-color: color-mix(in oklab, var(--primary) 48%, transparent);
-  box-shadow: 0 20px 52px -34px color-mix(in oklab, var(--primary) 34%, transparent);
+.packageCard:hover {
   transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary) 35%, var(--rahma-border));
+  box-shadow: var(--shadow-soft-token);
 }
 
 .packageCardSelected {
-  background:
-    linear-gradient(180deg, #ffffff 0%, color-mix(in oklab, var(--brand-calm-surface) 72%, #ffffff) 100%);
+  border: 1px solid var(--primary);
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--primary) 34%, transparent),
-    0 20px 54px -32px color-mix(in oklab, var(--primary) 42%, transparent);
+    inset 0 0 0 1px var(--primary),
+    var(--shadow-card-token);
+  background: linear-gradient(
+      0deg,
+      color-mix(in oklab, var(--primary) 4%, transparent),
+      color-mix(in oklab, var(--primary) 4%, transparent)
+    ),
+    var(--rahma-surface);
 }
 
 .selectMark,
 .selectMarkActive {
   position: absolute;
-  top: 14px;
-  right: 14px;
+  top: 18px;
+  right: 18px;
   display: inline-flex;
-  width: 26px;
-  height: 26px;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(15, 23, 42, 0.16);
+  width: 26px;
+  height: 26px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #ffffff;
-  transform: scale(0.92);
+  border: 1.5px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  color: transparent;
   transition:
-    background 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease,
-    transform 180ms var(--ease-gentle);
+    background-color var(--motion-duration-fast) var(--ease-gentle),
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    transform var(--motion-duration-fast) var(--ease-gentle);
 }
 
 .selectMarkActive {
   border-color: var(--primary);
   background: var(--primary);
-  transform: scale(1);
+  color: #fff;
+  transform: scale(1.05);
 }
 
 .packageTopline {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   padding-right: 36px;
 }
@@ -371,1008 +952,900 @@
 .packageDuration,
 .badge {
   display: inline-flex;
-  width: fit-content;
   align-items: center;
+  padding: 4px 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 800;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .packageGroup {
-  padding: 5px 9px;
   background: color-mix(in oklab, var(--primary) 9%, transparent);
-  color: var(--primary);
+  color: var(--rahma-green);
 }
 
 .packageDuration {
-  padding: 5px 9px;
-  background: rgba(15, 23, 42, 0.06);
-  color: #40515d;
+  background: var(--rahma-sand);
+  color: var(--rahma-muted);
 }
 
 .badge {
-  padding: 5px 9px;
-  background: color-mix(in oklab, var(--accent) 14%, transparent);
-  color: #a05d00;
+  background: color-mix(in oklab, var(--rahma-gold) 18%, transparent);
+  color: #7a5200;
 }
 
 .packageTitle {
-  color: var(--brand-deep);
+  font-family: var(--font-urbanist), sans-serif;
   font-size: 19px;
-  font-weight: 850;
+  font-weight: 600;
   line-height: 1.2;
-  overflow-wrap: anywhere;
 }
 
 .packageSummary {
-  color: #5b6670;
-  font-size: 14px;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--rahma-charcoal) 88%, var(--rahma-muted));
 }
 
-.packageSuitability,
-.packageRestriction {
-  color: #40515d;
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
+.packageSuitability {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--rahma-muted);
 }
 
 .packageRestriction {
-  width: fit-content;
-  padding: 6px 9px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--primary) 8%, #ffffff);
-  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--rahma-muted);
 }
 
 .packageIncludes {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
-  color: #35424d;
-  font-size: 13px;
 }
 
-.packageIncludes span {
+.packageIncludes > span {
   display: flex;
-  min-width: 0;
   align-items: flex-start;
-  gap: 7px;
-  overflow-wrap: anywhere;
+  gap: 8px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--rahma-charcoal);
 }
 
 .packageIncludes svg {
-  margin-top: 2px;
   flex: 0 0 auto;
-  color: var(--primary);
+  margin-top: 3px;
+  color: var(--rahma-green);
 }
 
 .packageFooter {
   display: flex;
-  min-width: 0;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
   margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid color-mix(in oklab, var(--brand-card-border) 72%, transparent);
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in oklab, var(--rahma-border) 70%, transparent);
 }
 
 .packageFooter strong {
-  color: var(--accent);
-  font-size: 26px;
-  line-height: 1;
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--rahma-charcoal);
 }
 
 .packageFooter span {
-  color: var(--primary);
   font-size: 13px;
-  font-weight: 850;
-  overflow-wrap: anywhere;
-}
-
-.formNotice,
-.formNoticeError {
-  display: flex;
-  grid-column: 1 / -1;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 11px 12px;
-  border: 1px solid color-mix(in oklab, var(--primary) 12%, transparent);
-  border-left: 3px solid var(--primary);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.78);
-  color: #40515d;
-}
-
-.formNoticeError {
-  border-color: rgba(180, 35, 24, 0.18);
-  border-left-color: #b42318;
-  background: #fff8f6;
-  color: #7a271a;
-}
-
-.formNotice svg,
-.formNoticeError svg {
-  flex: 0 0 auto;
-  color: var(--primary);
-}
-
-.formNoticeError svg {
-  color: #b42318;
-}
-
-.formNotice p,
-.formNoticeError p {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 550;
-  line-height: 1.45;
-}
-
-.formGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.fullWidth {
-  grid-column: 1 / -1;
-}
-
-.field {
-  display: grid;
-  gap: 8px;
-  color: #172026;
-  font-size: 14px;
-  font-weight: 750;
-}
-
-.field > span {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.field svg {
-  color: var(--primary);
-}
-
-.field input,
-.field textarea,
-.field select {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 92%, transparent);
-  border-radius: 12px;
-  background: #ffffff;
-  color: #172026;
-  font: inherit;
-  font-size: 15px;
   font-weight: 500;
-  line-height: 1.45;
-  outline: none;
-  padding: 12px 13px;
+  color: var(--rahma-muted);
+}
+
+.packageCardSelected .packageFooter span {
+  color: var(--rahma-green);
+  font-weight: 600;
+}
+
+/* ---------- Choice cards & pills (About you) ---------- */
+
+.choiceGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .choiceGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.choiceCard,
+.choiceCardActive {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  text-align: left;
+  border-radius: 14px;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  color: var(--rahma-charcoal);
+  font-family: var(--font-work-sans), sans-serif;
+  cursor: pointer;
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    box-shadow var(--motion-duration-fast) var(--ease-gentle),
+    background-color var(--motion-duration-fast) var(--ease-gentle);
 }
 
-.field textarea {
-  resize: vertical;
+.choiceCard:hover {
+  border-color: color-mix(in oklab, var(--primary) 35%, var(--rahma-border));
 }
 
-.field input:focus,
-.field textarea:focus,
-.field select:focus {
+.choiceCardActive {
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 12%, transparent);
+  box-shadow: inset 0 0 0 1px var(--primary);
+  background: linear-gradient(
+      0deg,
+      color-mix(in oklab, var(--primary) 5%, transparent),
+      color-mix(in oklab, var(--primary) 5%, transparent)
+    ),
+    var(--rahma-surface);
 }
 
-.field input[aria-invalid="true"],
-.field textarea[aria-invalid="true"],
-.field select[aria-invalid="true"] {
-  border-color: #b42318;
-  box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.1);
+.choiceCard > span,
+.choiceCardActive > span {
+  font-size: 14.5px;
+  font-weight: 600;
 }
 
-.fieldError {
-  margin: 2px 0 0;
-  color: #b42318;
-  font-size: 13px;
-  font-weight: 700;
+.choiceCard > small,
+.choiceCardActive > small {
+  font-size: 12.5px;
   line-height: 1.4;
+  color: var(--rahma-muted);
 }
 
 .segmentField {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  min-width: 0;
   margin: 0;
   padding: 0;
   border: 0;
 }
 
 .segmentField legend {
-  color: #172026;
-  font-size: 14px;
-  font-weight: 750;
-}
-
-.segmentGroup {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.bookingTypeGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.bookingTypeGrid button {
-  display: grid;
-  align-content: start;
-  gap: 4px;
-  min-height: 86px;
-  text-align: left;
-}
-
-.bookingTypeGrid small {
-  color: inherit;
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1.35;
-  opacity: 0.76;
-}
-
-.groupParticipants {
-  display: grid;
-  grid-column: 1 / -1;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 82%, transparent);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.68);
-}
-
-.groupParticipants > div:first-child {
-  display: grid;
-  gap: 3px;
-}
-
-.groupParticipants strong {
-  color: #172026;
-  font-size: 14px;
-}
-
-.groupParticipants span {
-  color: #6a747c;
+  padding: 0;
+  margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
+  color: var(--rahma-charcoal);
 }
+
+.pillGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pillButton,
+.pillButtonActive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  color: var(--rahma-charcoal);
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    background-color var(--motion-duration-fast) var(--ease-gentle),
+    color var(--motion-duration-fast) var(--ease-gentle);
+}
+
+.pillButton:hover {
+  border-color: color-mix(in oklab, var(--primary) 40%, var(--rahma-border));
+}
+
+.pillButtonActive {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+/* ---------- Group participants ---------- */
 
 .participantGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
+}
+
+@media (min-width: 760px) {
+  .participantGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .participantCard {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 82%, transparent);
+  padding: 16px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
 }
 
-.segmentButton,
-.segmentButtonActive,
-.slot,
-.slotActive {
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 92%, transparent);
-  border-radius: 12px;
-  background: #ffffff;
-  color: #172026;
-  cursor: pointer;
-  font: inherit;
+.participantCard .blockTitle {
   font-size: 14px;
-  font-weight: 800;
-  min-height: 44px;
-  padding: 10px 12px;
+}
+
+/* ---------- Coverage chips ---------- */
+
+.chipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  color: var(--rahma-charcoal);
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    background-color var(--motion-duration-fast) var(--ease-gentle);
 }
 
-.segmentButton:hover,
-.slot:hover {
-  border-color: color-mix(in oklab, var(--primary) 48%, transparent);
-  transform: translateY(-1px);
+.chip:hover {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--rahma-border));
+  background: color-mix(in oklab, var(--primary) 5%, var(--rahma-surface));
 }
 
-.segmentButtonActive,
-.slotActive {
+.chipActive {
   border-color: var(--primary);
-  background: var(--primary);
-  color: #ffffff;
-  box-shadow: 0 10px 24px -18px color-mix(in oklab, var(--primary) 42%, transparent);
-  transform: translateY(-1px);
+  background: color-mix(in oklab, var(--primary) 9%, var(--rahma-surface));
+  color: var(--rahma-green);
 }
+
+/* ---------- Step 3: schedule ---------- */
 
 .schedulerGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(260px, 0.95fr);
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
 }
 
-.calendarCard,
-.slotCard,
-.reviewBlock,
-.notesReview,
-.summary {
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 88%, transparent);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+@media (min-width: 900px) {
+  .schedulerGrid {
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  }
 }
 
 .calendarCard,
 .slotCard {
-  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  box-shadow: var(--shadow-soft-token);
 }
 
 .cardHeaderLine {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-  color: #172026;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 600;
+  color: var(--rahma-charcoal);
 }
 
 .cardHeaderLine svg {
-  color: var(--primary);
+  color: var(--rahma-green);
 }
 
 .dayPicker {
   --rdp-accent-color: var(--primary);
   --rdp-day_button-border-radius: 10px;
   --rdp-selected-border: 0;
+  --rdp-day-width: 40px;
+  --rdp-day-height: 40px;
+  --rdp-day_button-width: 38px;
+  --rdp-day_button-height: 38px;
   margin: 0;
   max-width: 100%;
+  font-size: 14px;
+}
+
+.slotGroups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.slotGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slotGroupLabel {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--rahma-muted);
 }
 
 .slotGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
   gap: 8px;
+}
+
+.slot,
+.slotActive {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  border-radius: 12px;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  color: var(--rahma-charcoal);
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    background-color var(--motion-duration-fast) var(--ease-gentle),
+    color var(--motion-duration-fast) var(--ease-gentle),
+    box-shadow var(--motion-duration-fast) var(--ease-gentle);
+}
+
+.slot:hover {
+  border-color: color-mix(in oklab, var(--primary) 50%, var(--rahma-border));
+}
+
+.slotActive {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 8px 18px -10px color-mix(in oklab, var(--primary) 70%, transparent);
 }
 
 .slotEmpty {
   margin: 0;
   padding: 18px;
-  border: 1px dashed color-mix(in oklab, var(--brand-card-border) 85%, transparent);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.56);
-  color: #68737c;
-  font-size: 14px;
-  font-weight: 650;
+  border: 1px dashed var(--rahma-border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--rahma-sand) 45%, transparent);
+  color: var(--rahma-muted);
+  font-size: 13.5px;
+  font-weight: 500;
   text-align: center;
 }
 
-.reassurance {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
-  padding: 12px;
-  border-radius: 14px;
-  background: color-mix(in oklab, var(--accent) 11%, transparent);
-  color: #4c3a18;
-}
-
-.reassurance svg {
-  flex: 0 0 auto;
-  color: var(--accent);
-}
-
-.reassurance p {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.reviewGrid {
+.skeletonRow {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
 }
 
-.reviewBlock,
-.notesReview {
-  padding: 16px;
+.skeletonPill {
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(
+    100deg,
+    var(--rahma-sand) 40%,
+    color-mix(in oklab, var(--rahma-sand) 40%, #fff) 50%,
+    var(--rahma-sand) 60%
+  );
+  background-size: 200% 100%;
+  animation: bookingShimmer 1.2s ease-in-out infinite;
 }
 
-.reviewBlock h4,
-.summary h3 {
-  margin: 0 0 10px;
-  color: #111827;
-  font-size: 15px;
-  font-weight: 850;
+@keyframes bookingShimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
 }
 
-.reviewBlock p,
-.notesReview p {
-  margin: 0 0 6px;
-  color: #4b5563;
-  font-size: 14px;
-  line-height: 1.45;
+/* ---------- Step 4: confirm ---------- */
+
+.recapCard {
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+  box-shadow: var(--shadow-soft-token);
 }
 
-.reviewLine,
-.reviewTotal,
-.summaryItem,
-.summaryTotal {
+.recapRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  padding: 16px 20px;
+}
+
+.recapRow + .recapRow {
+  border-top: 1px solid color-mix(in oklab, var(--rahma-border) 70%, transparent);
+}
+
+.recapLabel {
+  grid-column: 1;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--rahma-muted);
+}
+
+.recapValue {
+  grid-column: 1;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--rahma-charcoal);
+  overflow-wrap: anywhere;
+}
+
+.recapValue p {
+  margin: 0;
+}
+
+.recapEdit {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+
+.recapTotalRow {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--rahma-border);
+  background: color-mix(in oklab, var(--rahma-gold) 8%, transparent);
 }
 
-.reviewLine,
-.summaryItem {
-  color: #4b5563;
-  font-size: 14px;
-  padding: 6px 0;
-}
-
-.reviewTotal,
-.summaryTotal {
-  margin-top: 10px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(15, 23, 42, 0.1);
-  color: #111827;
-  font-weight: 850;
-}
-
-.notesReview strong {
-  display: block;
-  margin-bottom: 8px;
-  color: #111827;
-}
-
-.participantReviewLine {
-  display: grid;
-  gap: 4px;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-}
-
-.participantReviewLine:last-child {
-  border-bottom: 0;
-}
-
-.participantReviewLine strong {
-  color: #111827;
-  font-size: 14px;
-}
-
-.participantReviewLine span,
-.participantReviewLine p {
-  margin: 0;
-  color: #4b5563;
+.recapTotalRow span {
   font-size: 13px;
-  line-height: 1.4;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--rahma-muted);
+}
+
+.recapTotalRow strong {
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--rahma-charcoal);
+}
+
+/* ---------- Consent ---------- */
+
+.ackCard {
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
+}
+
+.ackIntro {
+  margin: 0;
+  padding: 14px 18px 0;
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--rahma-charcoal);
+}
+
+.ackRow {
+  padding: 6px 18px 14px;
+}
+
+.ackRow + .ackRow {
+  border-top: 1px solid color-mix(in oklab, var(--rahma-border) 65%, transparent);
+  padding-top: 14px;
 }
 
 .acknowledgement {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 14px;
-  border: 1px solid color-mix(in oklab, var(--primary) 20%, transparent);
-  border-radius: 16px;
-  background: color-mix(in oklab, var(--primary) 8%, #ffffff);
-  color: #172026;
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1.45;
+  gap: 12px;
+  cursor: pointer;
 }
 
 .acknowledgement input {
-  width: 18px;
-  height: 18px;
+  appearance: none;
   flex: 0 0 auto;
-  margin-top: 1px;
-  accent-color: var(--primary);
+  width: 22px;
+  height: 22px;
+  margin: 1px 0 0;
+  border-radius: 7px;
+  border: 1.5px solid #cabfa9;
+  background: var(--rahma-surface);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color var(--motion-duration-fast) var(--ease-gentle),
+    border-color var(--motion-duration-fast) var(--ease-gentle);
 }
 
-.preparedStep {
-  display: grid;
-  place-items: center;
-  min-height: 440px;
-  padding: 30px;
+.acknowledgement input:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+}
+
+.acknowledgement input:checked::after {
+  content: "";
+  width: 11px;
+  height: 6px;
+  margin-top: -2px;
+  border-left: 2px solid #fff;
+  border-bottom: 2px solid #fff;
+  transform: rotate(-45deg);
+}
+
+.acknowledgement input[aria-invalid="true"] {
+  border-color: #b3261e;
+}
+
+.acknowledgement input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 14%, transparent);
+}
+
+.acknowledgement span {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--rahma-charcoal);
+}
+
+/* ---------- Disclosure ---------- */
+
+.disclosure {
+  border: 1px dashed color-mix(in oklab, var(--rahma-border) 80%, #c9bda9);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--rahma-surface) 55%, transparent);
+}
+
+.disclosureButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 13px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--rahma-green);
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 14px;
+}
+
+.disclosureButton svg {
+  flex: 0 0 auto;
+  transition: transform var(--motion-duration-fast) var(--ease-gentle);
+}
+
+.disclosureButtonOpen svg {
+  transform: rotate(45deg);
+}
+
+.disclosurePanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 2px 16px 16px;
+}
+
+/* ---------- Success ---------- */
+
+.successWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  max-width: 32rem;
+  margin: clamp(16px, 6vh, 56px) auto 0;
   text-align: center;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 82%, transparent);
-  border-radius: var(--radius-section);
-  background:
-    linear-gradient(180deg, #ffffff, color-mix(in oklab, var(--brand-calm-surface) 58%, #ffffff));
-}
-
-.preparedStep p {
-  max-width: 560px;
 }
 
 .successIcon {
   display: inline-flex;
-  width: 76px;
-  height: 76px;
   align-items: center;
   justify-content: center;
-  margin-bottom: 12px;
+  width: 72px;
+  height: 72px;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--primary) 10%, #ffffff);
-  color: var(--primary);
+  background: color-mix(in oklab, var(--rahma-green) 10%, transparent);
+  color: var(--rahma-green);
+  animation: bookingPopIn 320ms var(--ease-snappy) both;
+}
+
+@keyframes bookingPopIn {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  60% {
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.successTitle {
+  margin: 0;
+  font-family: var(--font-urbanist), sans-serif;
+  font-size: clamp(1.5rem, 1.2rem + 1.2vw, 1.9rem);
+  font-weight: 600;
+  color: var(--rahma-charcoal);
 }
 
 .bookingReference {
-  margin-top: 0;
-  padding: 8px 12px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--primary) 8%, #ffffff);
-  color: var(--brand-deep);
-  font-size: 13px;
-  font-weight: 750;
-}
-
-.preparedNextSteps {
-  display: grid;
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  width: min(100%, 560px);
-  margin: 4px 0 12px;
+  margin: 0;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--rahma-sand);
+  font-size: 13.5px;
+  color: var(--rahma-charcoal);
 }
 
-.preparedNextSteps p {
+.bookingReference strong {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  overflow-wrap: anywhere;
+}
+
+.successBody {
   margin: 0;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 82%, transparent);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--rahma-muted);
+}
+
+.successNotes {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.successNotes > p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--rahma-charcoal);
 }
 
 .manageLinkPanel {
-  display: grid;
-  justify-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
-  padding: 14px;
-  border: 1px solid color-mix(in oklab, var(--primary) 22%, transparent);
+  width: 100%;
+  margin-top: 8px;
+  padding: 18px;
   border-radius: 16px;
-  background: #ffffff;
+  border: 1px solid var(--rahma-border);
+  background: var(--rahma-surface);
 }
 
 .manageLinkPanel p {
-  padding: 0;
-  border: 0;
-  background: transparent;
+  margin: 0;
+  font-size: 13px;
+  color: var(--rahma-muted);
 }
 
 .manageLinkPanel code {
-  width: 100%;
   max-width: 100%;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 10px;
-  background: color-mix(in oklab, var(--brand-calm-surface) 70%, #ffffff);
-  color: #172026;
+  background: var(--rahma-sand);
   font-size: 12px;
+  color: var(--rahma-charcoal);
   overflow-wrap: anywhere;
 }
 
-.summary {
-  position: relative;
-  width: 100%;
-  overflow: visible;
-  padding: 20px;
-  background:
-    radial-gradient(circle at 92% 8%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 18rem),
-    linear-gradient(180deg, #ffffff, color-mix(in oklab, var(--brand-warm-surface) 28%, #ffffff));
-  box-shadow: var(--shadow-card-token);
-}
-
-.summaryAccent {
-  position: absolute;
-  inset: 0 0 auto;
-  height: 4px;
-  border-radius: 16px 16px 0 0;
-  background: linear-gradient(90deg, var(--accent), var(--primary));
-}
-
-.summaryTopRow {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(18rem, 1.1fr);
-  gap: 16px;
-  align-items: start;
-}
-
-.summaryHeader {
+.successActions {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.summaryHeader svg {
-  color: var(--primary);
-}
-
-.summaryIntro {
-  max-width: 42rem;
-  margin: 0;
-  color: #5b6670;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.summaryList {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-  gap: 8px;
-}
-
-.emptySummary {
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px dashed color-mix(in oklab, var(--brand-card-border) 90%, transparent);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  color: #7a858f;
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-.summaryItem {
-  padding: 10px 12px;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 80%, transparent);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.summaryItem span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.summaryActionRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(15, 23, 42, 0.1);
-}
-
-.summaryActions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.summaryActionRow .summaryTotal {
-  flex: 1 1 auto;
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-}
-
-.summaryTotal strong {
-  color: var(--accent);
-  font-size: clamp(1.85rem, 1.55rem + 1vw, 2.5rem);
-  line-height: 1;
-}
-
-.summaryMeta {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 16px 0 0;
-}
-
-.summaryMeta div {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in oklab, var(--brand-card-border) 80%, transparent);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.62);
-}
-
-.summaryMeta dt {
-  color: #7a858f;
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.summaryMeta dd {
-  margin: 0;
-  color: #172026;
-  font-size: 14px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.primaryButton,
-.secondaryButton {
-  display: inline-flex;
-  min-height: 44px;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  border-radius: 999px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 850;
-  padding: 11px 18px;
-  text-decoration: none;
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    background 160ms ease,
-    border-color 160ms ease;
+  gap: 12px;
+  margin-top: 4px;
 }
 
-.primaryButton {
-  border: 1px solid var(--primary);
-  background: var(--primary);
-  color: #ffffff;
-  box-shadow: 0 14px 30px color-mix(in oklab, var(--primary) 22%, transparent);
+/* ---------- Focus-visible (carried over) ---------- */
+
+.closeButton:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 16%, transparent);
 }
 
-.primaryButton:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 18px 36px color-mix(in oklab, var(--primary) 28%, transparent);
+.packageCard:focus-visible,
+.packageCardSelected:focus-visible,
+.choiceCard:focus-visible,
+.choiceCardActive:focus-visible,
+.pillButton:focus-visible,
+.pillButtonActive:focus-visible,
+.chip:focus-visible,
+.slot:focus-visible,
+.slotActive:focus-visible,
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.textButton:focus-visible,
+.stepButton:focus-visible,
+.disclosureButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  box-shadow: var(--focus-ring-token);
 }
 
-.primaryButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-  transform: none;
+/* ---------- Mobile ---------- */
+
+@media (max-width: 900px) {
+  .topBarRow {
+    height: 56px;
+  }
+
+  .brandBox {
+    height: 26px;
+  }
+
+  .title {
+    font-size: 13.5px;
+  }
+
+  .steps {
+    display: none;
+  }
+
+  .progressCompact {
+    display: block;
+  }
+
+  .progressTrack {
+    display: block;
+  }
+
+  .progress {
+    padding: 0;
+  }
+
+  .contentGrid {
+    padding: 20px 16px 48px;
+  }
+
+  .actionBar {
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .actionBarInner {
+    gap: 10px;
+  }
+
+  .totalStack {
+    align-items: flex-start;
+  }
+
+  .totalValue {
+    font-size: 16px;
+  }
+
+  .primaryButton {
+    padding: 0 20px;
+    font-size: 14.5px;
+  }
+
+  .secondaryButton {
+    padding: 0 16px;
+  }
+
+  .recapRow {
+    padding: 14px 16px;
+  }
+
+  .recapTotalRow {
+    padding: 14px 16px;
+  }
 }
 
-.secondaryButton {
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  background: #ffffff;
-  color: #172026;
+@media (max-width: 420px) {
+  .totalLabel {
+    display: none;
+  }
 }
 
-.secondaryButton:hover {
-  border-color: color-mix(in oklab, var(--primary) 42%, transparent);
-  background: #f7fbff;
-}
+/* ---------- Reduced motion (carried over & extended) ---------- */
 
 @media (prefers-reduced-motion: reduce) {
   .backdrop,
-  .shell {
+  .shell,
+  .successIcon {
     animation-duration: 1ms;
   }
 
+  .skeletonPill {
+    animation: none;
+  }
+
+  .progressFill,
   .closeButton,
+  .stepDot,
   .packageCard,
   .packageCardSelected,
   .selectMark,
   .selectMarkActive,
-  .segmentButton,
-  .segmentButtonActive,
+  .choiceCard,
+  .choiceCardActive,
+  .pillButton,
+  .pillButtonActive,
+  .chip,
   .slot,
   .slotActive,
   .primaryButton,
-  .secondaryButton {
+  .secondaryButton,
+  .disclosureButton svg {
     transition-duration: 1ms;
   }
 
   .packageCard:hover,
   .packageCardSelected,
-  .segmentButton:hover,
-  .segmentButtonActive,
-  .slot:hover,
-  .slotActive,
+  .selectMarkActive,
+  .closeButton:hover,
   .primaryButton:hover {
     transform: none;
-  }
-}
-
-@media (max-width: 900px) {
-  .popup {
-    inset: 0;
-    align-items: stretch;
-    justify-content: stretch;
-  }
-
-  .shell {
-    width: 100%;
-    height: 100dvh;
-    max-height: none;
-    border-radius: 0;
-  }
-
-  .header {
-    flex: 0 0 auto;
-    padding: 16px 16px 12px;
-  }
-
-  .headerContent {
-    gap: 6px;
-  }
-
-  .title {
-    font-size: 1.45rem;
-  }
-
-  .steps {
-    flex: 0 0 auto;
-    grid-template-columns: repeat(7, minmax(max-content, 1fr));
-    overflow-x: auto;
-    padding: 10px 16px 13px;
-    scrollbar-width: none;
-  }
-
-  .steps::-webkit-scrollbar {
-    display: none;
-  }
-
-  .step,
-  .stepActive {
-    white-space: nowrap;
-  }
-
-  .contentGrid {
-    display: grid;
-    flex: 1 1 auto;
-    min-height: 0;
-    gap: 16px;
-    padding: 16px;
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
-    background:
-      linear-gradient(180deg, #ffffff 0%, color-mix(in oklab, var(--brand-calm-surface) 62%, #ffffff) 100%);
-  }
-
-  .packageGrid,
-  .formGrid,
-  .bookingTypeGrid,
-  .participantGrid,
-  .schedulerGrid,
-  .reviewGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .primaryButton,
-  .secondaryButton {
-    padding-inline: 14px;
-  }
-}
-
-@media (max-width: 520px) {
-  .shell {
-    background:
-      linear-gradient(180deg, #ffffff 0%, color-mix(in oklab, var(--brand-calm-surface) 58%, #ffffff) 100%);
-  }
-
-  .header {
-    gap: 8px;
-    grid-template-columns: minmax(0, 1fr) 44px;
-    grid-template-areas:
-      "brand close"
-      "content content";
-  }
-
-  .description {
-    font-size: 13.5px;
-  }
-
-  .title {
-    font-size: 1.28rem;
-  }
-
-  .brandLine {
-    width: clamp(8rem, 48vw, 11rem);
-    height: 3.75rem;
-  }
-
-  .steps {
-    gap: 12px;
-  }
-
-  .step,
-  .stepActive {
-    font-size: 0;
-    gap: 0;
-  }
-
-  .step span,
-  .stepActive span {
-    font-size: 12px;
-  }
-
-  .packageCard,
-  .packageCardSelected {
-    min-height: 0;
-    padding: 15px;
-  }
-
-  .packageGrid,
-  .stepSection {
-    gap: 14px;
-  }
-
-  .sectionHeader {
-    display: block;
-  }
-
-  .sectionHeader h3,
-  .preparedStep h3 {
-    font-size: 1.35rem;
-  }
-
-  .packageTitle {
-    font-size: 1.05rem;
-  }
-
-  .packageFooter strong,
-  .summaryTotal strong {
-    font-size: 1.45rem;
-  }
-
-  .summary {
-    padding: 16px;
-  }
-
-  .summaryTopRow {
-    grid-template-columns: 1fr;
-  }
-
-  .summaryList,
-  .summaryMeta {
-    grid-template-columns: 1fr;
-  }
-
-  .summaryActionRow {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .summaryActions {
-    width: 100%;
-    flex-direction: column;
-  }
-
-  .summaryActions .primaryButton,
-  .summaryActions .secondaryButton {
-    width: 100%;
-  }
-
-  .summaryTotal {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .formGrid,
-  .schedulerGrid,
-  .reviewGrid {
-    gap: 12px;
-  }
-
-  .slotGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

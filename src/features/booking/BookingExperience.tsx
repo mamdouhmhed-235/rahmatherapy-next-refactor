@@ -1,23 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Dialog } from "@base-ui/react/dialog";
 import { AnimatePresence } from "framer-motion";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft } from "lucide-react";
 import { useForm, useWatch, type FieldPath } from "react-hook-form";
 import { submitBookingRequest } from "./actions";
+import { AboutYouStep } from "./components/AboutYouStep";
+import { BookingActionBar } from "./components/BookingActionBar";
 import { BookingDialog } from "./components/BookingDialog";
 import { getStepIndex } from "./components/BookingProgress";
 import { BookingSummary } from "./components/BookingSummary";
-import { DetailsConsentStep } from "./components/DetailsConsentStep";
-import { LocationDetailsStep } from "./components/LocationDetailsStep";
+import { ConfirmStep } from "./components/ConfirmStep";
 import { MotionStep } from "./components/MotionStep";
 import { PackageSelectionStep } from "./components/PackageSelectionStep";
-import { ParticipantDetailsStep } from "./components/ParticipantDetailsStep";
-import { PreparedStep } from "./components/PreparedStep";
-import { ReviewStep } from "./components/ReviewStep";
 import { ScheduleStep } from "./components/ScheduleStep";
+import { SuccessScreen } from "./components/SuccessScreen";
 import {
   getPackageSelectionError,
   getPackageTotal,
@@ -28,15 +25,18 @@ import { useBookingUrlState } from "./hooks/useBookingUrlState";
 import {
   bookingAcknowledgementSchema,
   bookingDetailsSchema,
-  bookingLocationSchema,
-  bookingParticipantSchema,
   bookingVisitSchema,
   type BookingDetailsFormValues,
 } from "./schemas/booking-schema";
 import { useBookingDraftStore } from "./store/booking-store";
-import { BOOKING_STEPS, emptyBookingDetails, type BookingDetails } from "./types";
+import {
+  BOOKING_STEPS,
+  emptyBookingDetails,
+  type BookingDetails,
+  type BookingStep,
+} from "./types";
 
-import styles from "./BookingExperience.module.css";
+const SCHEDULE_FIELDS = ["preferredDate", "preferredTime"];
 
 export function BookingExperience() {
   const [open, setOpen] = useState(false);
@@ -46,6 +46,8 @@ export function BookingExperience() {
   const [submittedBookingId, setSubmittedBookingId] = useState<string | null>(null);
   const [submittedManageUrl, setSubmittedManageUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [navDirection, setNavDirection] = useState(1);
+  const [attemptedStep, setAttemptedStep] = useState<BookingStep | null>(null);
   const lastTriggerRef = useRef<HTMLElement | null>(null);
   const contentGridRef = useRef<HTMLDivElement | null>(null);
 
@@ -140,6 +142,79 @@ export function BookingExperience() {
     }
   }, [open, currentStep]);
 
+  // Move focus to the step heading (or the first field on About) once the
+  // step transition has settled, so keyboard and screen-reader users land in
+  // the right place instead of on the dialog chrome.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const popup = contentGridRef.current;
+      if (!popup) {
+        return;
+      }
+
+      const invalidField = popup.querySelector<HTMLElement>(
+        '[aria-invalid="true"]'
+      );
+      if (invalidField) {
+        invalidField.focus();
+        return;
+      }
+
+      if (currentStep === "about") {
+        const nameInput = popup.querySelector<HTMLInputElement>(
+          'input[name="fullName"]'
+        );
+        if (nameInput && !nameInput.value) {
+          nameInput.focus();
+          return;
+        }
+      }
+
+      popup.querySelector<HTMLElement>("h2[tabindex]")?.focus();
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [open, currentStep]);
+
+  // After a failed Continue, keep re-checking just that step's rules as the
+  // customer types so errors clear the moment they are fixed. Untouched steps
+  // are never validated early.
+  useEffect(() => {
+    if (!attemptedStep || attemptedStep !== currentStep) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      if (attemptedStep === "about") {
+        const result = bookingDetailsSchema.safeParse(form.getValues());
+        applyFormIssues(result.success ? [] : result.error.issues);
+      } else if (attemptedStep === "confirm") {
+        const values = form.getValues();
+        const ackResult = bookingAcknowledgementSchema.safeParse(values);
+        const visitResult = bookingVisitSchema.safeParse({
+          ...values,
+          preferredDate: preferredDate ?? "",
+          preferredTime: preferredTime ?? "",
+        });
+        applyFormIssues([
+          ...(ackResult.success ? [] : ackResult.error.issues),
+          ...(visitResult.success
+            ? []
+            : visitResult.error.issues.filter(
+                (issue) => !SCHEDULE_FIELDS.includes(String(issue.path[0]))
+              )),
+        ]);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedDetails, attemptedStep, currentStep, preferredDate, preferredTime]);
+
   useEffect(() => {
     if (previousAvailabilityInputsRef.current === null) {
       previousAvailabilityInputsRef.current = availabilityInputsKey;
@@ -165,8 +240,16 @@ export function BookingExperience() {
       }
     });
 
+    // The takeover covers the full viewport; lock both root scrollers (html
+    // AND body — the site has a dual scroll root) so no page scrollbar shows
+    // behind it and the background cannot scroll.
+    document.documentElement.style.overflow = open ? "hidden" : "";
+    document.body.style.overflow = open ? "hidden" : "";
+
     return () => {
       shellElements.forEach((element) => element.removeAttribute("inert"));
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
     };
   }, [open]);
 
@@ -192,18 +275,6 @@ export function BookingExperience() {
     clearStepErrors();
   };
 
-  const goToParticipants = () => {
-    const selectionError = getPackageSelectionError(selectedPackageIds);
-
-    if (selectionError) {
-      setPackageError(selectionError);
-      return;
-    }
-
-    clearStepErrors();
-    setCurrentStep("participants");
-  };
-
   const applyFormIssues = (issues: { path: PropertyKey[]; message: string }[]) => {
     form.clearErrors();
     issues.forEach((issue) => {
@@ -220,76 +291,89 @@ export function BookingExperience() {
     });
   };
 
-  const validateParticipantsForm = () => {
-    const participantResult = bookingParticipantSchema.safeParse(form.getValues());
-
-    if (participantResult.success) {
-      form.clearErrors();
-      return true;
-    }
-
-    applyFormIssues(participantResult.error.issues);
-    return false;
+  const focusFirstInvalid = () => {
+    window.setTimeout(() => {
+      const element = contentGridRef.current?.querySelector<HTMLElement>(
+        '[aria-invalid="true"]'
+      );
+      if (element) {
+        element.focus();
+        element.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    }, 80);
   };
 
-  const validateLocationForm = () => {
-    const locationResult = bookingLocationSchema.safeParse(form.getValues());
+  const goToAbout = () => {
+    const selectionError = getPackageSelectionError(selectedPackageIds);
 
-    if (locationResult.success) {
-      form.clearErrors();
-      return true;
+    if (selectionError) {
+      setPackageError(selectionError);
+      return;
     }
 
-    applyFormIssues(locationResult.error.issues);
-    return false;
+    clearStepErrors();
+    setAttemptedStep(null);
+    setNavDirection(1);
+    setCurrentStep("about");
   };
 
-  const validateDetailsForm = () => {
+  const goToTime = () => {
     const detailsResult = bookingDetailsSchema.safeParse(form.getValues());
 
-    if (detailsResult.success) {
-      form.clearErrors();
-      return true;
+    if (!detailsResult.success) {
+      applyFormIssues(detailsResult.error.issues);
+      setAttemptedStep("about");
+      focusFirstInvalid();
+      return;
     }
 
-    applyFormIssues(detailsResult.error.issues);
-    return false;
+    form.clearErrors();
+    clearStepErrors();
+    setAttemptedStep(null);
+    setNavDirection(1);
+    setCurrentStep("time");
   };
 
-  const validateAcknowledgementsForm = () => {
-    const acknowledgementResult = bookingAcknowledgementSchema.safeParse(
-      form.getValues()
+  const goToConfirm = () => {
+    const visitResult = bookingVisitSchema.safeParse({
+      ...form.getValues(),
+      preferredDate: preferredDate ?? "",
+      preferredTime: preferredTime ?? "",
+    });
+
+    if (visitResult.success) {
+      form.clearErrors();
+      clearStepErrors();
+      setAttemptedStep(null);
+      setNavDirection(1);
+      setCurrentStep("confirm");
+      return;
+    }
+
+    const scheduleIssue = visitResult.error.issues.find((issue) =>
+      SCHEDULE_FIELDS.includes(String(issue.path[0]))
+    );
+    const fieldIssues = visitResult.error.issues.filter(
+      (issue) => !SCHEDULE_FIELDS.includes(String(issue.path[0]))
     );
 
-    if (acknowledgementResult.success) {
-      return true;
-    }
+    setScheduleError(scheduleIssue?.message);
+    applyFormIssues(fieldIssues);
 
-    applyFormIssues(acknowledgementResult.error.issues);
-    return false;
+    if (!scheduleIssue && fieldIssues.length > 0) {
+      // Something from the About step became invalid after going back and
+      // editing — return the customer to the step that owns those fields.
+      setAttemptedStep("about");
+      setNavDirection(-1);
+      setCurrentStep("about");
+    }
   };
 
-  const goToLocation = () => {
-    if (!validateParticipantsForm()) {
-      return;
-    }
-
-    clearStepErrors();
-    setCurrentStep("location");
-  };
-
-  const goToSchedule = () => {
-    if (!validateLocationForm()) {
-      return;
-    }
-
-    clearStepErrors();
-    setCurrentStep("schedule");
-  };
-
-  const goToDetails = () => {
+  const handleConfirmSubmit = async () => {
+    const values = form.getValues();
+    const acknowledgementResult = bookingAcknowledgementSchema.safeParse(values);
     const visitResult = bookingVisitSchema.safeParse({
-      ...form.getValues(),
+      ...values,
       preferredDate: preferredDate ?? "",
       preferredTime: preferredTime ?? "",
     });
@@ -297,59 +381,31 @@ export function BookingExperience() {
     const scheduleIssue = visitResult.success
       ? undefined
       : visitResult.error.issues.find((issue) =>
-          ["preferredDate", "preferredTime"].includes(String(issue.path[0]))
+          SCHEDULE_FIELDS.includes(String(issue.path[0]))
         );
+    const fieldIssues = [
+      ...(acknowledgementResult.success
+        ? []
+        : acknowledgementResult.error.issues),
+      ...(visitResult.success
+        ? []
+        : visitResult.error.issues.filter(
+            (issue) => !SCHEDULE_FIELDS.includes(String(issue.path[0]))
+          )),
+    ];
 
     setScheduleError(scheduleIssue?.message);
+    applyFormIssues(fieldIssues);
 
-    if (!visitResult.success) {
-      const formIssues = visitResult.error.issues.filter(
-        (issue) =>
-          !["preferredDate", "preferredTime"].includes(String(issue.path[0]))
-      );
-      applyFormIssues(formIssues);
+    if (scheduleIssue) {
+      setNavDirection(-1);
+      setCurrentStep("time");
       return;
     }
 
-    clearStepErrors();
-    setCurrentStep("details");
-  };
-
-  const goToReview = () => {
-    const detailsValid = validateDetailsForm();
-    const acknowledgementsValid = validateAcknowledgementsForm();
-    const visitResult = bookingVisitSchema.safeParse({
-      ...form.getValues(),
-      preferredDate: preferredDate ?? "",
-      preferredTime: preferredTime ?? "",
-    });
-
-    const scheduleIssue = visitResult.success
-      ? undefined
-      : visitResult.error.issues.find((issue) =>
-          ["preferredDate", "preferredTime"].includes(String(issue.path[0]))
-        );
-
-    setScheduleError(scheduleIssue?.message);
-
-    if (!detailsValid || !acknowledgementsValid || !visitResult.success) {
-      return;
-    }
-
-    clearStepErrors();
-    setCurrentStep("review");
-  };
-
-  const prepareRequest = async () => {
-    const visitResult = bookingVisitSchema.safeParse({
-      ...form.getValues(),
-      preferredDate: preferredDate ?? "",
-      preferredTime: preferredTime ?? "",
-    });
-
-    if (!visitResult.success) {
-      setCurrentStep("schedule");
-      setScheduleError(visitResult.error.issues[0]?.message);
+    if (fieldIssues.length > 0) {
+      setAttemptedStep("confirm");
+      focusFirstInvalid();
       return;
     }
 
@@ -359,15 +415,17 @@ export function BookingExperience() {
       const result = await submitBookingRequest({
         selectedPackageIds,
         selectedPackages,
-        details: form.getValues() as BookingDetailsFormValues,
-        preferredDate: visitResult.data.preferredDate,
-        preferredTime: visitResult.data.preferredTime,
+        details: values as BookingDetailsFormValues,
+        preferredDate: visitResult.success ? visitResult.data.preferredDate : "",
+        preferredTime: visitResult.success ? visitResult.data.preferredTime : "",
         estimatedTotal,
       });
       setSubmittedBookingId(result.bookingId);
       setSubmittedManageUrl(result.manageUrl);
       clearStepErrors();
-      setCurrentStep("prepared");
+      setAttemptedStep(null);
+      setNavDirection(1);
+      setCurrentStep("success");
     } catch (error) {
       setSubmissionError(
         error instanceof Error
@@ -379,6 +437,18 @@ export function BookingExperience() {
     }
   };
 
+  const goBack = () => {
+    setNavDirection(-1);
+    setCurrentStep(BOOKING_STEPS[Math.max(0, stepIndex - 1)]);
+  };
+
+  const goBackToStep = (step: BookingStep) => {
+    if (BOOKING_STEPS.indexOf(step) < stepIndex) {
+      setNavDirection(-1);
+      setCurrentStep(step);
+    }
+  };
+
   const startOver = () => {
     resetDraft();
     form.reset(emptyBookingDetails);
@@ -387,15 +457,33 @@ export function BookingExperience() {
     clearStepErrors();
   };
 
+  const handleStepSubmit = () => {
+    if (submitting) {
+      return;
+    }
+
+    if (currentStep === "service") {
+      goToAbout();
+    } else if (currentStep === "about") {
+      goToTime();
+    } else if (currentStep === "time") {
+      goToConfirm();
+    } else if (currentStep === "confirm") {
+      void handleConfirmSubmit();
+    }
+  };
+
   return (
-    <>
-      <BookingDialog
-        open={open}
-        currentStep={currentStep}
-        lastTriggerRef={lastTriggerRef}
-        contentGridRef={contentGridRef}
-        onOpenChange={handleOpenChange}
-        summary={
+    <BookingDialog
+      open={open}
+      currentStep={currentStep}
+      lastTriggerRef={lastTriggerRef}
+      contentGridRef={contentGridRef}
+      onOpenChange={handleOpenChange}
+      onStepBack={goBackToStep}
+      onSubmit={handleStepSubmit}
+      summary={
+        currentStep === "success" ? null : (
           <BookingSummary
             selectedPackages={selectedPackages}
             perPersonTotal={packageTotal}
@@ -403,185 +491,90 @@ export function BookingExperience() {
             details={detailsPreview}
             preferredDate={preferredDate}
             preferredTime={preferredTime}
-            actions={
-              <BookingSummaryActions
-                currentStep={currentStep}
-                submitting={submitting}
-                onBack={() =>
-                  setCurrentStep(BOOKING_STEPS[Math.max(0, stepIndex - 1)])
-                }
-                onGoToParticipants={goToParticipants}
-                onGoToLocation={goToLocation}
-                onGoToSchedule={goToSchedule}
-                onGoToReview={goToReview}
-                onGoToDetails={goToDetails}
-                onPrepareRequest={prepareRequest}
-              />
-            }
           />
-        }
-      >
-        <AnimatePresence mode="wait">
-          {currentStep === "packages" && (
-            <MotionStep key="packages">
-              <PackageSelectionStep
-                selectedPackageIds={selectedPackageIds}
-                error={packageError}
-                onToggle={handlePackageToggle}
-                onClear={() => {
-                  clearPackages();
-                  clearStepErrors();
-                }}
-              />
-            </MotionStep>
-          )}
+        )
+      }
+      actionBar={
+        <BookingActionBar
+          currentStep={currentStep}
+          submitting={submitting}
+          estimatedTotal={estimatedTotal}
+          participantCount={participantCount}
+          hasSelection={selectedPackages.length > 0}
+          onBack={goBack}
+        />
+      }
+    >
+      <AnimatePresence mode="wait" custom={navDirection}>
+        {currentStep === "service" && (
+          <MotionStep key="service" direction={navDirection}>
+            <PackageSelectionStep
+              selectedPackageIds={selectedPackageIds}
+              error={packageError}
+              onToggle={handlePackageToggle}
+              onClear={() => {
+                clearPackages();
+                clearStepErrors();
+              }}
+            />
+          </MotionStep>
+        )}
 
-          {currentStep === "participants" && (
-            <MotionStep key="participants">
-              <ParticipantDetailsStep form={form} />
-            </MotionStep>
-          )}
+        {currentStep === "about" && (
+          <MotionStep key="about" direction={navDirection}>
+            <AboutYouStep form={form} />
+          </MotionStep>
+        )}
 
-          {currentStep === "location" && (
-            <MotionStep key="location">
-              <LocationDetailsStep form={form} />
-            </MotionStep>
-          )}
+        {currentStep === "time" && (
+          <MotionStep key="time" direction={navDirection}>
+            <ScheduleStep
+              preferredDate={selectedDate}
+              preferredTime={preferredTime}
+              scheduleError={scheduleError}
+              onDateChange={(date) => {
+                setPreferredDate(date ? format(date, "yyyy-MM-dd") : null);
+                setPreferredTime(null);
+                clearStepErrors();
+              }}
+              serviceIds={selectedPackageIds}
+              participantGenders={availabilityParticipantGenders}
+              city={detailsPreview.city}
+              onTimeClear={clearPreferredTime}
+              onTimeChange={(time: BookingTimeSlot) => {
+                setPreferredTime(time);
+                clearStepErrors();
+              }}
+            />
+          </MotionStep>
+        )}
 
-          {currentStep === "schedule" && (
-            <MotionStep key="schedule">
-              <ScheduleStep
-                preferredDate={selectedDate}
-                preferredTime={preferredTime}
-                scheduleError={scheduleError}
-                onDateChange={(date) => {
-                  setPreferredDate(date ? format(date, "yyyy-MM-dd") : null);
-                  setPreferredTime(null);
-                  clearStepErrors();
-                }}
-                serviceIds={selectedPackageIds}
-                participantGenders={availabilityParticipantGenders}
-                city={detailsPreview.city}
-                onTimeClear={clearPreferredTime}
-                onTimeChange={(time: BookingTimeSlot) => {
-                  setPreferredTime(time);
-                  clearStepErrors();
-                }}
-              />
-            </MotionStep>
-          )}
+        {currentStep === "confirm" && (
+          <MotionStep key="confirm" direction={navDirection}>
+            <ConfirmStep
+              form={form}
+              details={detailsPreview}
+              submissionError={submissionError}
+              selectedPackages={selectedPackages}
+              perPersonTotal={packageTotal}
+              total={estimatedTotal}
+              preferredDate={preferredDate}
+              preferredTime={preferredTime}
+              onEditStep={goBackToStep}
+            />
+          </MotionStep>
+        )}
 
-          {currentStep === "details" && (
-            <MotionStep key="details">
-              <DetailsConsentStep form={form} />
-            </MotionStep>
-          )}
-
-          {currentStep === "review" && (
-            <MotionStep key="review">
-              <ReviewStep
-                details={form.getValues() as BookingDetailsFormValues}
-                submissionError={submissionError}
-                selectedPackages={selectedPackages}
-                perPersonTotal={packageTotal}
-                total={estimatedTotal}
-                preferredDate={preferredDate}
-                preferredTime={preferredTime}
-              />
-            </MotionStep>
-          )}
-
-          {currentStep === "prepared" && (
-            <MotionStep key="prepared">
-              <PreparedStep
-                bookingId={submittedBookingId}
-                manageUrl={submittedManageUrl}
-                onStartOver={startOver}
-              />
-            </MotionStep>
-          )}
-        </AnimatePresence>
-      </BookingDialog>
-    </>
-  );
-}
-
-interface BookingSummaryActionsProps {
-  currentStep: (typeof BOOKING_STEPS)[number];
-  submitting: boolean;
-  onBack: () => void;
-  onGoToParticipants: () => void;
-  onGoToLocation: () => void;
-  onGoToSchedule: () => void;
-  onGoToDetails: () => void;
-  onGoToReview: () => void;
-  onPrepareRequest: () => void;
-}
-
-function BookingSummaryActions({
-  currentStep,
-  submitting,
-  onBack,
-  onGoToParticipants,
-  onGoToLocation,
-  onGoToSchedule,
-  onGoToDetails,
-  onGoToReview,
-  onPrepareRequest,
-}: BookingSummaryActionsProps) {
-  return (
-    <>
-      {currentStep !== "packages" && currentStep !== "prepared" && (
-        <button type="button" className={styles.secondaryButton} onClick={onBack}>
-          <ArrowLeft aria-hidden="true" size={17} />
-          Back
-        </button>
-      )}
-
-      {currentStep === "packages" && (
-        <button type="button" className={styles.primaryButton} onClick={onGoToParticipants}>
-          Continue to clients
-        </button>
-      )}
-
-      {currentStep === "participants" && (
-        <button type="button" className={styles.primaryButton} onClick={onGoToLocation}>
-          Continue to location
-        </button>
-      )}
-
-      {currentStep === "location" && (
-        <button type="button" className={styles.primaryButton} onClick={onGoToSchedule}>
-          Continue to times
-        </button>
-      )}
-
-      {currentStep === "schedule" && (
-        <button type="button" className={styles.primaryButton} onClick={onGoToDetails}>
-          Continue to details
-        </button>
-      )}
-
-      {currentStep === "details" && (
-        <button type="button" className={styles.primaryButton} onClick={onGoToReview}>
-          Review request
-        </button>
-      )}
-
-      {currentStep === "review" && (
-        <button
-          type="button"
-          className={styles.primaryButton}
-          disabled={submitting}
-          onClick={onPrepareRequest}
-        >
-          Submit booking request
-        </button>
-      )}
-
-      {currentStep === "prepared" && (
-        <Dialog.Close className={styles.primaryButton}>Close</Dialog.Close>
-      )}
-    </>
+        {currentStep === "success" && (
+          <MotionStep key="success" direction={navDirection}>
+            <SuccessScreen
+              bookingId={submittedBookingId}
+              manageUrl={submittedManageUrl}
+              onStartOver={startOver}
+            />
+          </MotionStep>
+        )}
+      </AnimatePresence>
+    </BookingDialog>
   );
 }

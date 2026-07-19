@@ -5,7 +5,7 @@ import {
   isBookingPackageId,
   type BookingPackageId,
 } from "../data/booking-packages";
-import type { BookingStep } from "../types";
+import type { BookingStage } from "../types";
 
 function getSafeUrlPackageIds(searchParams: URLSearchParams) {
   const serviceId = searchParams.get("services")?.trim();
@@ -15,11 +15,11 @@ function getSafeUrlPackageIds(searchParams: URLSearchParams) {
 
 interface UseBookingUrlStateOptions {
   open: boolean;
-  currentStep: BookingStep;
+  currentStep: BookingStage;
   selectedPackageIds: BookingPackageId[];
   lastTriggerRef: RefObject<HTMLElement | null>;
   setOpen: (open: boolean) => void;
-  setCurrentStep: (step: BookingStep) => void;
+  setCurrentStep: (step: BookingStage) => void;
   setSelectedPackageIds: (ids: BookingPackageId[]) => void;
 }
 
@@ -69,8 +69,8 @@ export function useBookingUrlState({
       }
 
       setOpen(true);
-      if (currentStep === "prepared") {
-        setCurrentStep("packages");
+      if (currentStep === "success") {
+        setCurrentStep("service");
       }
     };
 

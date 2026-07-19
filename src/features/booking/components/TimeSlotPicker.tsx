@@ -12,6 +12,19 @@ interface TimeSlotPickerProps {
   onSelect: (time: BookingTimeSlot) => void;
 }
 
+const SLOT_GROUPS = [
+  { label: "Morning", match: (hour: number) => hour < 12 },
+  { label: "Afternoon", match: (hour: number) => hour >= 12 && hour < 17 },
+  { label: "Evening", match: (hour: number) => hour >= 17 },
+];
+
+function groupSlots(times: string[]) {
+  return SLOT_GROUPS.map((group) => ({
+    label: group.label,
+    times: times.filter((time) => group.match(Number(time.slice(0, 2)))),
+  })).filter((group) => group.times.length > 0);
+}
+
 export function TimeSlotPicker({
   selectedTime,
   availableTimes,
@@ -19,6 +32,8 @@ export function TimeSlotPicker({
   error,
   onSelect,
 }: TimeSlotPickerProps) {
+  const groups = groupSlots(availableTimes);
+
   return (
     <div className={styles.slotCard}>
       <div className={styles.cardHeaderLine}>
@@ -26,19 +41,32 @@ export function TimeSlotPicker({
         Preferred appointment time
       </div>
       {loading ? (
-        <p className={styles.slotEmpty}>Checking available times...</p>
-      ) : availableTimes.length > 0 ? (
-        <div className={styles.slotGrid}>
-          {availableTimes.map((slot) => (
-            <button
-              type="button"
-              key={slot}
-              className={selectedTime === slot ? styles.slotActive : styles.slot}
-              aria-pressed={selectedTime === slot}
-              onClick={() => onSelect(slot)}
-            >
-              {slot}
-            </button>
+        <div className={styles.skeletonRow} aria-hidden="true">
+          {Array.from({ length: 6 }, (_, index) => (
+            <span key={index} className={styles.skeletonPill} />
+          ))}
+        </div>
+      ) : groups.length > 0 ? (
+        <div className={styles.slotGroups}>
+          {groups.map((group) => (
+            <div key={group.label} className={styles.slotGroup}>
+              <p className={styles.slotGroupLabel}>{group.label}</p>
+              <div className={styles.slotGrid}>
+                {group.times.map((slot) => (
+                  <button
+                    type="button"
+                    key={slot}
+                    className={
+                      selectedTime === slot ? styles.slotActive : styles.slot
+                    }
+                    aria-pressed={selectedTime === slot}
+                    onClick={() => onSelect(slot)}
+                  >
+                    {slot}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       ) : (

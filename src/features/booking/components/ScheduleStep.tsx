@@ -118,15 +118,14 @@ export function ScheduleStep({
 
   return (
     <section className={styles.stepSection} aria-labelledby="schedule-heading">
-      <div className={styles.sectionHeader}>
-        <div>
-          <p className={styles.sectionKicker}>4 of 7</p>
-          <h3 id="schedule-heading">Choose a matched time</h3>
-          <p>
-            These times match the therapist availability needed for your
-            booking.
-          </p>
-        </div>
+      <div className={styles.stepHeader}>
+        <p className={styles.stepKicker}>Step 3 of 4</p>
+        <h2 id="schedule-heading" className={styles.stepTitle} tabIndex={-1}>
+          Choose a matched time
+        </h2>
+        <p className={styles.stepSubtitle}>
+          These times match the therapist availability needed for your booking.
+        </p>
       </div>
 
       <div className={styles.schedulerGrid}>

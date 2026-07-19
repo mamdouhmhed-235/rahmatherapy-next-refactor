@@ -7,11 +7,11 @@ import {
   getSelectedPackages,
   type BookingPackageId,
 } from "../data/booking-packages";
-import type { BookingStep } from "../types";
+import type { BookingStage } from "../types";
 
 interface BookingDraftState {
   selectedPackageIds: BookingPackageId[];
-  currentStep: BookingStep;
+  currentStep: BookingStage;
   preferredDate: string | null;
   preferredTime: string | null;
 }
@@ -20,7 +20,7 @@ interface BookingDraftActions {
   setSelectedPackageIds: (ids: BookingPackageId[]) => void;
   togglePackage: (id: BookingPackageId) => void;
   clearPackages: () => void;
-  setCurrentStep: (step: BookingStep) => void;
+  setCurrentStep: (step: BookingStage) => void;
   setPreferredDate: (date: string | null) => void;
   setPreferredTime: (time: string | null) => void;
   resetDraft: () => void;
@@ -30,7 +30,7 @@ export type BookingDraftStore = BookingDraftState & BookingDraftActions;
 
 const initialState: BookingDraftState = {
   selectedPackageIds: [],
-  currentStep: "packages",
+  currentStep: "service",
   preferredDate: null,
   preferredTime: null,
 };
