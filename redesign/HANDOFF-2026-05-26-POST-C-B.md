@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 19/19 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, and C-19's privacy page can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 20/20 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 + C-20 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 + C-20 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, C-19's privacy page, and C-20's address autocomplete can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -208,6 +208,15 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Plan:** `redesign/plans/C-phase/C-19-privacy-policy-page-plan.md` (NEW 2026-07-16)
 - **Scope (deliberately minimal — user-locked):** ONE new file, `src/app/(public)/privacy/page.tsx`, public design language, plain English, custom to the audited data flows (booking fields incl. health notes, named processors, concrete retention, rights, ICO contact, last-updated). **No edits to any other page** — booking-form/footer linking left for later. No migrations, no packages. Backed by the 2026-07-16 legal research (Art 13 checklist; explicit-consent route for health notes; ICO Tier-1 fee flagged as a business action, not code).
 - **Sequencing:** fully independent; ships anytime; 1 commit.
+
+### C-20 — Address autocomplete on both booking forms (NEW 2026-07-16, plan-refinement phase)
+
+- **Brief:** `redesign/briefs/C-20-address-autocomplete-brief.md` (NEW 2026-07-16)
+- **Plan:** `redesign/plans/C-phase/C-20-address-autocomplete-plan.md` (NEW 2026-07-16)
+- **Scope:** Google Places autocomplete on the admin create-booking form + the customer booking form. One shared form-library-agnostic `AddressAutocompleteField` (customer binds via react-hook-form, admin via useState — both apply a parsed `AddressParts`). **Load-bearing detail:** the customer side applies `city` with `shouldValidate` so the covered-area notice re-evaluates. Deliberate deviations from the user's reference snippet: `next/script` lazy-load on first focus (not the CDN component library), env-var key, **UK component mapping** (`postal_town`→city, `administrative_area_level_2`→area), no `window.alert`. Plus UK-only address suggestions, Places session tokens, and a tested plain-input fallback when the key/script is unavailable.
+- **Migration:** none; no new package. One env var (`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, build-time inlined).
+- **Blocking sign-off:** Cloud Console key restriction (referrers + APIs) + rotation decision (key was shared in plaintext during planning); C-18 registry entry + consent classification (functional-on-interaction recommended).
+- **Sequencing:** independent; touches `ManualBookingForm.tsx` (shared with C-06 Step 13 / C-02 Phase E — different regions) and `LocationDetailsStep.tsx`. 4 phases / 5 commits.
 
 ---
 
@@ -440,6 +449,16 @@ User direction 2026-07-16, with an explicit simplicity correction: a generic-but
 
 **C-19 created** (master plan now 19/19; C-PRIVACY row note updated — B-89/B-90 + operational complaint handling remain there). Fully independent; 1 commit at impl.
 
+### 5.22 C-20 added as a 20th plan — address autocomplete on both booking forms (2026-07-16, plan-refinement phase)
+
+User direction 2026-07-16 with a Google Maps/Places key + the "Address Selection" quickstart snippet. Audit: both booking forms collect the same four fields (`address`/`postcode`/`city`/`area`) but bind differently — customer `LocationDetailsStep` via react-hook-form, admin `ManualBookingForm` via useState — so C-20 builds ONE form-library-agnostic component emitting parsed `AddressParts`, applied by each host in its own idiom.
+
+**Four deliberate deviations from the supplied snippet** (recorded in the plan §1 so no one "restores" them): `next/script` lazy-load on first focus instead of the Extended Component Library CDN import; env-var key instead of a hard-coded one; **UK component mapping** (`postal_town`→city, `administrative_area_level_2`→area — the snippet's US `locality`/`administrative_area_level_1` model yields wrong or empty values for UK addresses); silent no-op instead of `window.alert` on unmatched free text. Added: `country: 'gb'` restriction, Places session tokens (billing), plain-input fallback when the key/script is unavailable.
+
+**Load-bearing integration detail:** the customer side must apply the filled `city` with `setValue(..., { shouldValidate: true })` — otherwise the covered-area notice (which watches `city`) silently stops re-evaluating. Called out in the plan Step 5, the risk table, and gate case 5.
+
+**Blocking sign-off items:** Cloud Console key restriction (HTTP referrers + Maps/Places APIs only) and a rotation decision — **the key was pasted in plaintext during planning**, so rotating before ship is the safe move; plus the C-18 registry entry + consent classification (functional-on-interaction recommended, decided with the user, never defaulted).
+
 ---
 
 ## 6 — Cross-plan coordination + dependencies + sequencing
@@ -625,6 +644,7 @@ redesign/briefs/
 ├── C-17-google-analytics-brief.md                            # NEW 2026-07-16 plan-refinement
 ├── C-18-cookie-consent-brief.md                              # NEW 2026-07-16 plan-refinement
 ├── C-19-privacy-policy-page-brief.md                         # NEW 2026-07-16 plan-refinement
+├── C-20-address-autocomplete-brief.md                        # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
@@ -648,6 +668,7 @@ redesign/plans/C-phase/
 ├── C-17-google-analytics-plan.md                             # NEW 2026-07-16 plan-refinement
 ├── C-18-cookie-consent-plan.md                               # NEW 2026-07-16 plan-refinement
 ├── C-19-privacy-policy-page-plan.md                          # NEW 2026-07-16 plan-refinement
+├── C-20-address-autocomplete-plan.md                         # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -764,6 +785,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **(2026-07-16 amendment)** C-17 added as a 17th plan — Google Analytics (GA4) on customer pages: env-gated production-only tag on `(public)` + `/booking/manage`, admin never tracked, one `booking_request_submitted` conversion event, zero PII, no packages, zero migrations. See §5.19. Brief + plan written (amended same day for the C-18 pairing). Fully independent; ships anytime — co-ship with C-18.
 - **(2026-07-16 amendment)** C-18 added as an 18th plan — cookie consent & PECR compliance: registry-driven banner + panel + /cookies page in the public design language, basic Consent Mode v2 (zero pre-consent Google requests), `consent_events` proof table (one Zone-2 migration), footer withdrawal, 6-month/version-bump re-prompts, standing cookie/tag-registry rule in Part 0. Rewrites C-17's component into the consent-gated loader (hard co-ship pair). See §5.20. Brief + plan written; master plan checklist updated to 18/18. No further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-19 added as a 19th plan — privacy policy page: ONE new file (`(public)/privacy/page.tsx`), custom to the audited data flows, user-locked minimal scope (no other page touched; linking left for later). See §5.21. Brief + plan written; master plan checklist updated to 19/19. No further amendments needed before C-C.
+- **(2026-07-16 amendment)** C-20 added as a 20th plan — address autocomplete (Google Places) on both booking forms: one shared form-library-agnostic component, UK component mapping, lazy load on focus, session tokens, plain-input fallback; blocking sign-off on Cloud Console key restriction + rotation and the C-18 consent classification. See §5.22. Brief + plan written; master plan checklist updated to 20/20. Independent; ships anytime. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
 
@@ -823,8 +845,8 @@ To be ticked once C-C ships all 12 plans:
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
 - **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (19/19 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added 2026-07-16 (§5.15–§5.21).
-- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + the C-17/C-18 co-ship pair + C-19 independent).
+- **C-B status:** ✅ COMPLETE (20/20 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added + C-20 added 2026-07-16 (§5.15–§5.22).
+- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + the C-17/C-18 co-ship pair + C-19 + C-20 independent).
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
 
