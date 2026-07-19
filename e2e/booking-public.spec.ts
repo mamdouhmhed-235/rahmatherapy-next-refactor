@@ -8,7 +8,7 @@ test.describe("Public booking smoke", () => {
     page,
   }) => {
     await page.goto("/home/", { waitUntil: "domcontentloaded" });
-    await page.getByRole("link", { name: /book a home session/i }).click();
+    await page.getByRole("link", { name: /book an appointment/i }).first().click();
     await expect(
       page.getByRole("heading", { name: /request a home appointment/i })
     ).toBeVisible();
