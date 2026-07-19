@@ -65,8 +65,15 @@ The user's supplied Google quickstart (verbatim, for reference only):
 | Hard-codes the API key | `process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Keys never in the repo; rotation without a code change |
 | US component model (`locality`, `administrative_area_level_1`, `postal_code`, `country`) | UK model: `postal_town` → city, `administrative_area_level_2` → area, `postal_code` → postcode, `street_number + route` → address | The snippet's mapping produces wrong/empty values for UK addresses |
 | `window.alert()` on a bad selection | Silent no-op (keep whatever the user typed) | An alert mid-booking is hostile; free text is already valid input |
+| `fields: ['address_components','geometry','name']` | **`address_components` + `geometry` ONLY — never `name`** | **COST-CRITICAL (verified 2026-07-16):** Place Details bills at the highest field tier requested. `name`/`displayName` is **Pro** tier → free allowance halves (10,000 → 5,000/month) and unit price triples ($5 → $17 per 1,000). A booking form needs the address, not a business name. |
 
-Also added beyond the snippet: `componentRestrictions: { country: 'gb' }`, Places **session tokens**, and a hard no-op fallback when the key/script is unavailable.
+Also added beyond the snippet: `componentRestrictions: { country: 'gb' }`, Places **session tokens**, **~300 ms input debounce** (a cost control — see below), and a hard no-op fallback when the key/script is unavailable.
+
+**Verified billing model (2026-07-16 research — drives three implementation choices):**
+- A session that **ends in a selection**: every keystroke request collapses into *Autocomplete Session Usage* (**$0, unlimited**) and exactly **one** Place Details event is charged. So cost scales with **bookings**, not keystrokes.
+- A session that is **abandoned** (typing, no selection): each request bills against the *Autocomplete Requests* allowance (10,000/month free). Abandoners outnumber bookers, so **debouncing at ~300 ms is the difference between ~7,200/month (inside free) and ~14,400/month (over)**.
+- Loading the Maps JS library **without rendering a map** should produce **zero** Dynamic Maps events (that SKU fires on map instantiation). Marked verify-in-console after go-live (§3.6).
+- If the implementation uses the newer `PlaceAutocompleteElement`, **session tokens are handled automatically**; a hand-rolled classic-`Autocomplete` integration must manage them explicitly or every keystroke bills.
 
 ---
 
@@ -112,7 +119,7 @@ interface Props {
 
 Behaviour:
 - `loadMapsApi()` module-singleton: injects the Maps JS script (`libraries=places`, `region=GB`, `language=en-GB`) **on first focus**; returns a cached promise so a second field or the second form reuses it; resolves `null` when the key is missing → component silently stays a plain input (brief §3.1).
-- On load: attach the autocomplete (per pre-flight #4's API choice) with `componentRestrictions:{country:'gb'}`, `types:['address']`, `fields:['address_components','geometry','name']`, and a **session token** created on the first keystroke of a lookup and discarded after a selection.
+- On load: attach the autocomplete (per pre-flight #4's API choice) with `componentRestrictions:{country:'gb'}`, `types:['address']`, **`fields:['address_components','geometry']` — Essentials tier only, NEVER `name`/`displayName`** (see §1 cost table), a **session token** created on the first keystroke and discarded after selection (automatic if using `PlaceAutocompleteElement`), and **~300 ms debounce on input** before requests fire.
 - On selection: `parsePlaceToAddressParts(place.address_components)` → `onAddressSelected(parts)`. If `place.address_components` is absent (user pressed Enter on free text), no-op — no alert.
 - Cleanup: remove listeners on unmount; guard against the script resolving after unmount.
 - Styling is entirely the host's (via `inputProps.className`) so the same component looks native in both trees.
@@ -163,6 +170,7 @@ Type and select ≥5 real addresses, asserting all four fields:
 ### 3.3 Behavioural
 - **Lazy load:** DevTools Network shows **no maps.googleapis.com request on page load**; first request appears only after focusing the address field.
 - **Session tokens:** typing → selecting produces one session (code review + request inspection).
+- **Cost-shape checks (blocking, 2026-07-16):** (a) **no `name`/`displayName` in any field list** — grep the component + confirm in the request payload; (b) **debounce active** (~300 ms — rapid typing must not emit a request per character; count requests in the Network tab for a 20-character address); (c) after go-live, the Maps Platform **Metrics** page (SKU view) shows *Autocomplete Session Usage* at £0, a small count of *Place Details Essentials*, and **zero** *Dynamic Maps* events.
 - **Fallback:** run the dev server with the key unset → plain input, no console errors surfaced to the user, form fully usable and submittable.
 - **Manual-entry parity:** submit a booking with a fully hand-typed address on both forms → identical result to today.
 - **No-selection path:** type free text, press Enter, submit → no alert, value preserved.
@@ -172,7 +180,10 @@ Type and select ≥5 real addresses, asserting all four fields:
 Keyboard: arrow keys + Enter select a suggestion; Escape dismisses; focus returns sanely. Screen-reader: the suggestion list is announced (Google's widget provides ARIA; verify and document any gap). **375 + 1280 on both forms:** the dropdown is fully visible — specifically not clipped behind the customer flow's sticky footer or the admin sticky save bar. Screenshots stored in `redesign/audits/C-A/screenshots-c-20/`.
 
 ### 3.5 Key safety sign-off (blocking)
-Confirm with the user, before marking C-20 done: key restricted (referrers + APIs), rotation decision recorded, billing alert optional-but-recommended. **No sign-off without this.**
+Confirm with the user, before marking C-20 done: key restricted (referrers + APIs) — **done 2026-07-16**: `https://rahmatherapy.uk/*`, `https://*.rahmatherapy.uk/*`, `http://localhost:3000/*` + Maps JS / Places / Places (New); rotation decision recorded; £1 budget alert set. **No sign-off without this.**
+
+### 3.6 Cost posture confirmation (post-deploy, with the user)
+Two weeks after go-live and again on the first working day of the following month: Maps Platform → **Metrics** (SKU view) shows *Autocomplete Session Usage* £0, *Place Details Essentials* well under 8,000/month, **zero** Dynamic Maps. Note the trial-credit trap — during the first 90 days a $300 credit can silently absorb overage, so this check must confirm usage is inside the **free allowance itself**, not merely that the bill is £0.
 
 ---
 
@@ -180,7 +191,10 @@ Confirm with the user, before marking C-20 done: key restricted (referrers + API
 
 | Risk | Likelihood | Severity | Mitigation |
 |---|---|---|---|
-| Unrestricted key abused → billing | medium | high | §3.5 blocking sign-off; rotation flagged (key was shared in plaintext); referrer+API restrictions; budget alert recommended. |
+| Unrestricted key abused → billing | medium | high | §3.5 blocking sign-off (**done 2026-07-16**); rotation flagged (key was shared in plaintext); referrer restriction is the load-bearing control since Maps quotas are per-minute, not per-day, and budgets only email. |
+| **`name` field requested → Pro tier** (halves free allowance, triples unit price) | **high if unchecked — the reference snippet includes it** | medium | §1 deviations table + §3.3 blocking grep. The single most likely way this feature accidentally costs money. |
+| Abandoned autocomplete sessions blow the Autocomplete Requests allowance | medium | medium | ~300 ms debounce (§2 Step 3) + §3.3 request-count check; verified arithmetic: ~7,200/month debounced vs ~14,400 undebounced against 10,000 free. |
+| Trial credit masks real overage for 90 days | medium | low | §3.6 checks usage against the free allowance itself, not the invoice total. |
 | Google API surface differs (classic vs `PlaceAutocompleteElement`) | medium | medium | Pre-flight #4 decides; the swap is contained in one component file behind a stable prop contract. |
 | UK component mapping wrong for some addresses | medium | medium | Fallback chains + the 5-case real-address matrix (§3.2) as a hard gate. |
 | Autocomplete fills `city` without triggering covered-area logic | medium | high | `setValue(..., { shouldValidate: true })` is specified explicitly (Step 5) and tested in §3.2 case 5 — the plan's single most important detail. |

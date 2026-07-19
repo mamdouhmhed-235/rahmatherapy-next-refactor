@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 20/20 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 + C-20 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 + C-20 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, C-19's privacy page, and C-20's address autocomplete can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 21/21 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 + C-20 + C-21 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 + C-20 + C-21 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, C-19's privacy page, C-20's address autocomplete, and C-21's canonical-domain fix can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**; **C-21 is a 1-commit defect fix worth shipping early**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -217,6 +217,16 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Migration:** none; no new package. One env var (`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, build-time inlined).
 - **Blocking sign-off:** Cloud Console key restriction (referrers + APIs) + rotation decision (key was shared in plaintext during planning); C-18 registry entry + consent classification (functional-on-interaction recommended).
 - **Sequencing:** independent; touches `ManualBookingForm.tsx` (shared with C-06 Step 13 / C-02 Phase E — different regions) and `LocationDetailsStep.tsx`. 4 phases / 5 commits.
+- **Cost amendment 2026-07-16 (verified research):** Essentials fields ONLY (`address_components` + `geometry`) — **never `name`/`displayName`**, which the reference snippet includes and which would halve the free allowance (10,000→5,000/mo) and triple unit price ($5→$17/1,000); ~300 ms debounce because abandoned sessions bill per request; billing account with card mandatory even for free use; budgets only email and Maps quotas are per-minute, so the referrer restriction is the real cost control; post-deploy Metrics check must confirm usage sits inside the free allowance itself (the 90-day $300 trial credit can mask overage).
+
+### C-21 — Canonical domain fix (NEW 2026-07-16, plan-refinement phase)
+
+- **Brief:** `redesign/briefs/C-21-canonical-domain-fix-brief.md` (NEW 2026-07-16)
+- **Plan:** `redesign/plans/C-phase/C-21-canonical-domain-fix-plan.md` (NEW 2026-07-16)
+- **Defect:** the live domain `rahmatherapy.uk` appears **nowhere in the codebase**; two wrong domains are hard-coded instead — `rahmatherapy.co.uk` (12 refs, incl. `layout.tsx:9` `metadataBase` which builds every canonical + OG image URL, plus structured data on about/services/reviews/faqs) and `rahmatherapy.com` (8 refs, incl. **`home/page.tsx:24` homepage JSON-LD**; the other 7 are admin placeholders). Root cause: no single source of truth for the site URL.
+- **Fix:** `SITE_URL` constant in `src/content/site/`, every absolute URL derived from it, value corrected, conditional contact-email change (**user confirms whether the `.co.uk` mailbox is real — never break a working address**), cosmetic sweep, and an **anti-drift test** asserting zero wrong-domain literals in `src/`. Verification is rendered-output-based (curl canonical/OG/JSON-LD on all 6 public pages).
+- **Migration:** none. No visual change. 1 commit. **Ship early** — wrong canonicals compound while indexed.
+- **Flagged, not scoped:** no `sitemap.ts` / `robots.ts` exists.
 
 ---
 
@@ -457,7 +467,15 @@ User direction 2026-07-16 with a Google Maps/Places key + the "Address Selection
 
 **Load-bearing integration detail:** the customer side must apply the filled `city` with `setValue(..., { shouldValidate: true })` — otherwise the covered-area notice (which watches `city`) silently stops re-evaluating. Called out in the plan Step 5, the risk table, and gate case 5.
 
-**Blocking sign-off items:** Cloud Console key restriction (HTTP referrers + Maps/Places APIs only) and a rotation decision — **the key was pasted in plaintext during planning**, so rotating before ship is the safe move; plus the C-18 registry entry + consent classification (functional-on-interaction recommended, decided with the user, never defaulted).
+**Blocking sign-off items:** Cloud Console key restriction (HTTP referrers + Maps/Places APIs only) — **completed 2026-07-16** (`https://rahmatherapy.uk/*`, `https://*.rahmatherapy.uk/*`, `http://localhost:3000/*`; Maps JS + Places + Places New) — and a rotation decision, since **the key was pasted in plaintext during planning**; plus the C-18 registry entry + consent classification (functional-on-interaction recommended, decided with the user, never defaulted).
+
+**Billing/cost amendment (2026-07-16, verified research — see §5.23).**
+
+### 5.23 C-20 amended + C-21 added — Maps cost model and the canonical-domain defect (2026-07-16)
+
+**C-20 cost amendment.** Verified research into current Maps Platform pricing (post-March-2025 per-SKU free allowances) corrected a real error carried in from the user's reference snippet: `fields: ['address_components','geometry','name']`. Place Details bills at the **highest field tier requested**, and `name`/`displayName` is **Pro** — including it halves the monthly free allowance (10,000 → 5,000) and triples the unit price ($5 → $17 per 1,000). The plan now mandates **Essentials fields only** and treats the field list as a blocking gate item. Also folded in: session-token billing means a completed booking costs exactly ONE Place Details event (typing is free) while **abandoned** sessions bill per request — making a **~300 ms debounce** a cost control (≈7,200/month debounced vs ≈14,400 un-debounced against a 10,000 free allowance); a **billing account with a card is mandatory** even for free-tier use (no card → 1 request/day); **budgets only email, never hard-stop**, and Maps quotas are largely per-minute rather than per-day — so the **HTTP-referrer key restriction is the load-bearing cost control**; and the 90-day $300 trial credit can silently absorb overage, so the post-deploy Metrics check must confirm usage sits inside the free allowance itself. Expected real usage ≈12% of the free allowance.
+
+**C-21 added (19th→21st plan; defect discovered during the same key-restriction work).** Restricting the key required knowing the live domain — which surfaced that `rahmatherapy.uk` appears nowhere in the code, while `rahmatherapy.co.uk` (12 refs, incl. site-wide `metadataBase`) and `rahmatherapy.com` (8 refs, incl. the homepage's JSON-LD) are hard-coded. Search engines are being told the public pages live on domains that don't serve the site. Fix is a single `SITE_URL` source + corrected value + anti-drift test; 1 commit; recommended early. Adjacent gap flagged: no sitemap/robots files exist.
 
 ---
 
@@ -645,6 +663,7 @@ redesign/briefs/
 ├── C-18-cookie-consent-brief.md                              # NEW 2026-07-16 plan-refinement
 ├── C-19-privacy-policy-page-brief.md                         # NEW 2026-07-16 plan-refinement
 ├── C-20-address-autocomplete-brief.md                        # NEW 2026-07-16 plan-refinement
+├── C-21-canonical-domain-fix-brief.md                        # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
@@ -669,6 +688,7 @@ redesign/plans/C-phase/
 ├── C-18-cookie-consent-plan.md                               # NEW 2026-07-16 plan-refinement
 ├── C-19-privacy-policy-page-plan.md                          # NEW 2026-07-16 plan-refinement
 ├── C-20-address-autocomplete-plan.md                         # NEW 2026-07-16 plan-refinement
+├── C-21-canonical-domain-fix-plan.md                         # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -845,8 +865,8 @@ To be ticked once C-C ships all 12 plans:
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
 - **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (20/20 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added + C-20 added 2026-07-16 (§5.15–§5.22).
-- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + the C-17/C-18 co-ship pair + C-19 + C-20 independent).
+- **C-B status:** ✅ COMPLETE (21/21 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added + C-20 added + C-20 cost-amended + C-21 added 2026-07-16 (§5.15–§5.23).
+- **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + the C-17/C-18 co-ship pair + C-19 + C-20 + C-21 independent; C-21 recommended early).
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
 
