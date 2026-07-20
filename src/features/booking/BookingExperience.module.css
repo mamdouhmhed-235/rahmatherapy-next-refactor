@@ -488,6 +488,37 @@
   flex-direction: column;
   align-items: center;
   min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 10px;
+}
+
+@media (min-width: 1024px) {
+  .totalStack {
+    pointer-events: none;
+  }
+}
+
+.totalChevron {
+  display: none;
+  margin-left: 4px;
+  vertical-align: -2px;
+  color: var(--rahma-muted);
+  transition: transform var(--motion-duration-fast) var(--ease-gentle);
+}
+
+@media (max-width: 1023px) {
+  .totalChevron {
+    display: inline;
+  }
+}
+
+.totalStack[aria-expanded="true"] .totalChevron {
+  transform: rotate(180deg);
 }
 
 .totalLabel {
@@ -1197,6 +1228,32 @@
   font-size: 14px;
 }
 
+/* ---------- Returning customer ---------- */
+
+.prefillChip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--primary) 22%, var(--rahma-border));
+  background: color-mix(in oklab, var(--primary) 6%, var(--rahma-surface));
+  font-size: 13.5px;
+  color: var(--rahma-charcoal);
+}
+
+.prefillChip svg {
+  flex: 0 0 auto;
+  color: var(--rahma-green);
+}
+
+.prefillChip p {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 200px;
+}
+
 /* ---------- Coverage chips ---------- */
 
 .chipRow {
@@ -1245,7 +1302,8 @@
 
 @media (min-width: 900px) {
   .schedulerGrid {
-    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+    align-items: start;
   }
 }
 
@@ -1285,6 +1343,75 @@
   margin: 0;
   max-width: 100%;
   font-size: 14px;
+}
+
+.dayHasTimes {
+  position: relative;
+}
+
+.dayHasTimes::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--rahma-gold);
+  pointer-events: none;
+}
+
+.calendarLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding-top: 2px;
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--rahma-muted);
+}
+
+.legendDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--rahma-gold);
+}
+
+.legendMuted {
+  width: 14px;
+  height: 14px;
+  border-radius: 5px;
+  background: var(--rahma-sand);
+  border: 1px solid var(--rahma-border);
+}
+
+.calendarHint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--rahma-muted);
+}
+
+.monthStatus {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--rahma-green);
+}
+
+.slotCountLine {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rahma-green);
 }
 
 .slotGroups {
@@ -1705,6 +1832,106 @@
   margin-top: 4px;
 }
 
+/* ---------- Mobile summary sheet ---------- */
+
+.sheetScrim {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .sheetScrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgba(12, 38, 60, 0.42);
+    animation: bookingBackdropIn 160ms var(--ease-gentle) both;
+  }
+}
+
+.summarySheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 72dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--rahma-surface);
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -18px 48px -24px rgba(12, 38, 60, 0.5);
+  padding: 4px 16px calc(16px + env(safe-area-inset-bottom));
+  animation: bookingSheetUp 220ms var(--ease-gentle) both;
+}
+
+@keyframes bookingSheetUp {
+  from {
+    transform: translateY(24px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.sheetHeader {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 2px 2px;
+}
+
+.summarySheet .summary {
+  display: block;
+  position: static;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* ---------- Manage-link copy ---------- */
+
+.manageUrlRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+
+.manageUrlRow code {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.copyButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--rahma-border);
+  border-radius: 999px;
+  background: var(--rahma-surface);
+  color: var(--rahma-green);
+  font-family: var(--font-work-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--motion-duration-fast) var(--ease-gentle),
+    background-color var(--motion-duration-fast) var(--ease-gentle);
+}
+
+.copyButton:hover {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--rahma-border));
+  background: color-mix(in oklab, var(--primary) 5%, var(--rahma-surface));
+}
+
 /* ---------- Focus-visible (carried over) ---------- */
 
 .closeButton:focus-visible {
@@ -1725,7 +1952,9 @@
 .secondaryButton:focus-visible,
 .textButton:focus-visible,
 .stepButton:focus-visible,
-.disclosureButton:focus-visible {
+.disclosureButton:focus-visible,
+.totalStack:focus-visible,
+.copyButton:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
   box-shadow: var(--focus-ring-token);
@@ -1813,7 +2042,9 @@
 @media (prefers-reduced-motion: reduce) {
   .backdrop,
   .shell,
-  .successIcon {
+  .successIcon,
+  .sheetScrim,
+  .summarySheet {
     animation-duration: 1ms;
   }
 

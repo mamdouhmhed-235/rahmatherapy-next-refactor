@@ -1,7 +1,8 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, Copy } from "lucide-react";
 import styles from "../BookingExperience.module.css";
 
 export function SuccessScreen({
@@ -13,6 +14,24 @@ export function SuccessScreen({
   manageUrl: string | null;
   onStartOver: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+  const copiedTimerRef = useRef<number | null>(null);
+
+  const copyManageUrl = async () => {
+    if (!manageUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(manageUrl);
+      setCopied(true);
+      if (copiedTimerRef.current) {
+        window.clearTimeout(copiedTimerRef.current);
+      }
+      copiedTimerRef.current = window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard unavailable — the visible URL below remains selectable.
+    }
+  };
+
   return (
     <section className={styles.successWrap} aria-labelledby="success-heading">
       <div className={styles.successIcon}>
@@ -46,7 +65,20 @@ export function SuccessScreen({
             Manage this booking
           </a>
           <p>Save this link if you need to request a change or cancellation.</p>
-          <code>{manageUrl}</code>
+          <div className={styles.manageUrlRow}>
+            <code>{manageUrl}</code>
+            <button
+              type="button"
+              className={styles.copyButton}
+              onClick={copyManageUrl}
+            >
+              <Copy aria-hidden="true" size={14} />
+              {copied ? "Copied ✓" : "Copy link"}
+            </button>
+          </div>
+          <span className={styles.srOnly} aria-live="polite">
+            {copied ? "Manage link copied to clipboard" : ""}
+          </span>
         </div>
       ) : (
         <p className={styles.successBody}>

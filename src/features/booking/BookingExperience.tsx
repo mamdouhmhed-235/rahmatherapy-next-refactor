@@ -23,6 +23,11 @@ import {
 import type { BookingTimeSlot } from "./data/time-slots";
 import { useBookingUrlState } from "./hooks/useBookingUrlState";
 import {
+  clearReturningCustomer,
+  loadReturningCustomer,
+  saveReturningCustomer,
+} from "./utils/returning-customer";
+import {
   bookingAcknowledgementSchema,
   bookingDetailsSchema,
   bookingVisitSchema,
@@ -36,10 +41,20 @@ import {
   type BookingStep,
 } from "./types";
 
+import styles from "./BookingExperience.module.css";
+
 const SCHEDULE_FIELDS = ["preferredDate", "preferredTime"];
 
 export function BookingExperience() {
-  const [open, setOpen] = useState(false);
+  // This component is client-only (ssr: false), so the URL is readable at
+  // first render. Initializing synchronously keeps the URL-sync effect from
+  // ever seeing an open deep link while `open` is still false — the dev
+  // StrictMode double-effect used to strip ?booking=1 through that gap.
+  const [open, setOpen] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      new URL(window.location.href).searchParams.get("booking") === "1"
+  );
   const [packageError, setPackageError] = useState<string | undefined>();
   const [scheduleError, setScheduleError] = useState<string | undefined>();
   const [submissionError, setSubmissionError] = useState<string | undefined>();
@@ -48,8 +63,11 @@ export function BookingExperience() {
   const [submitting, setSubmitting] = useState(false);
   const [navDirection, setNavDirection] = useState(1);
   const [attemptedStep, setAttemptedStep] = useState<BookingStep | null>(null);
+  const [prefilled, setPrefilled] = useState(false);
+  const [summarySheetOpen, setSummarySheetOpen] = useState(false);
   const lastTriggerRef = useRef<HTMLElement | null>(null);
   const contentGridRef = useRef<HTMLDivElement | null>(null);
+  const prefillAttemptedRef = useRef(false);
 
   const {
     selectedPackageIds,
@@ -140,6 +158,7 @@ export function BookingExperience() {
         contentGridRef.current?.scrollTo({ top: 0 });
       }, 0);
     }
+    setSummarySheetOpen(false);
   }, [open, currentStep]);
 
   // Move focus to the step heading (or the first field on About) once the
@@ -252,6 +271,55 @@ export function BookingExperience() {
       document.body.style.overflow = "";
     };
   }, [open]);
+
+  // Prefill contact + address from the customer's last successful booking,
+  // once per session and only while the form is still pristine.
+  useEffect(() => {
+    if (!open || prefillAttemptedRef.current) {
+      return;
+    }
+    prefillAttemptedRef.current = true;
+
+    const stored = loadReturningCustomer();
+    if (!stored) {
+      return;
+    }
+
+    const values = form.getValues();
+    const pristine =
+      !form.formState.isDirty &&
+      !values.fullName &&
+      !values.phone &&
+      !values.email &&
+      !values.address;
+    if (!pristine) {
+      return;
+    }
+
+    form.reset({ ...emptyBookingDetails, ...stored });
+    setPrefilled(true);
+  }, [open, form]);
+
+  const clearPrefill = () => {
+    clearReturningCustomer();
+    const current = form.getValues();
+    form.reset({
+      ...current,
+      fullName: "",
+      phone: "",
+      email: "",
+      clientGender: "",
+      participantGenders:
+        current.numberOfPeople > 1 ? current.participantGenders : [""],
+      city: "",
+      area: "",
+      postcode: "",
+      address: "",
+      accessNotes: "",
+      parkingNotes: "",
+    });
+    setPrefilled(false);
+  };
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -422,6 +490,7 @@ export function BookingExperience() {
       });
       setSubmittedBookingId(result.bookingId);
       setSubmittedManageUrl(result.manageUrl);
+      saveReturningCustomer(values as BookingDetailsFormValues);
       clearStepErrors();
       setAttemptedStep(null);
       setNavDirection(1);
@@ -501,8 +570,50 @@ export function BookingExperience() {
           estimatedTotal={estimatedTotal}
           participantCount={participantCount}
           hasSelection={selectedPackages.length > 0}
+          summaryOpen={summarySheetOpen}
+          onToggleSummary={() => setSummarySheetOpen((value) => !value)}
           onBack={goBack}
         />
+      }
+      overlay={
+        summarySheetOpen && currentStep !== "success" ? (
+          <div
+            className={styles.sheetScrim}
+            onClick={() => setSummarySheetOpen(false)}
+          >
+            <div
+              id="booking-summary-sheet"
+              className={styles.summarySheet}
+              role="dialog"
+              aria-label="Booking request summary"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.stopPropagation();
+                  setSummarySheetOpen(false);
+                }
+              }}
+            >
+              <div className={styles.sheetHeader}>
+                <button
+                  type="button"
+                  className={styles.textButton}
+                  onClick={() => setSummarySheetOpen(false)}
+                >
+                  Close
+                </button>
+              </div>
+              <BookingSummary
+                selectedPackages={selectedPackages}
+                perPersonTotal={packageTotal}
+                estimatedTotal={estimatedTotal}
+                details={detailsPreview}
+                preferredDate={preferredDate}
+                preferredTime={preferredTime}
+              />
+            </div>
+          </div>
+        ) : null
       }
     >
       <AnimatePresence mode="wait" custom={navDirection}>
@@ -522,7 +633,11 @@ export function BookingExperience() {
 
         {currentStep === "about" && (
           <MotionStep key="about" direction={navDirection}>
-            <AboutYouStep form={form} />
+            <AboutYouStep
+              form={form}
+              prefilled={prefilled}
+              onClearPrefill={clearPrefill}
+            />
           </MotionStep>
         )}
 

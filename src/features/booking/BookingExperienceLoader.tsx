@@ -11,14 +11,25 @@ const BookingExperience = dynamic(
   { ssr: false }
 );
 
+function preloadBookingExperience() {
+  void import("./BookingExperience");
+}
+
 function hasBookingParam() {
   return new URL(window.location.href).searchParams.get("booking") === "1";
 }
 
 export function BookingExperienceLoader() {
-  const [shouldLoad, setShouldLoad] = useState(
-    () => typeof window !== "undefined" && hasBookingParam()
-  );
+  const [shouldLoad, setShouldLoad] = useState(false);
+
+  // Deep-link check happens in an effect (not a state initializer) so the
+  // server and client render identical empty markup — no hydration mismatch
+  // when the page loads with ?booking=1.
+  useEffect(() => {
+    if (hasBookingParam()) {
+      setShouldLoad(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (shouldLoad) {
@@ -42,8 +53,33 @@ export function BookingExperienceLoader() {
       setShouldLoad(true);
     };
 
+    // Warm the booking chunk the moment a visitor shows intent (hover,
+    // keyboard focus, or first touch on any Book button) so opening feels
+    // instant even on slow connections.
+    const handleIntent = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (!target.closest("[data-booking-trigger='true']")) return;
+
+      preloadBookingExperience();
+      removeIntentListeners();
+    };
+
+    const removeIntentListeners = () => {
+      document.removeEventListener("pointerover", handleIntent);
+      document.removeEventListener("focusin", handleIntent);
+      document.removeEventListener("touchstart", handleIntent);
+    };
+
     document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
+    document.addEventListener("pointerover", handleIntent, { passive: true });
+    document.addEventListener("focusin", handleIntent);
+    document.addEventListener("touchstart", handleIntent, { passive: true });
+
+    return () => {
+      document.removeEventListener("click", handleClick);
+      removeIntentListeners();
+    };
   }, [shouldLoad]);
 
   return shouldLoad ? <BookingExperience /> : null;

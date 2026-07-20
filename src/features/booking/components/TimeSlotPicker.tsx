@@ -48,6 +48,10 @@ export function TimeSlotPicker({
         </div>
       ) : groups.length > 0 ? (
         <div className={styles.slotGroups}>
+          <p className={styles.slotCountLine}>
+            {availableTimes.length}{" "}
+            {availableTimes.length === 1 ? "time" : "times"} available
+          </p>
           {groups.map((group) => (
             <div key={group.label} className={styles.slotGroup}>
               <p className={styles.slotGroupLabel}>{group.label}</p>

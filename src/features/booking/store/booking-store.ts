@@ -5,6 +5,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import {
   getPackageById,
   getSelectedPackages,
+  isBookingPackageId,
   type BookingPackageId,
 } from "../data/booking-packages";
 import type { BookingStage } from "../types";
@@ -76,6 +77,26 @@ export const useBookingDraftStore = create<BookingDraftStore>()(
       partialize: (state) => ({
         selectedPackageIds: state.selectedPackageIds,
       }),
+      merge: (persisted, current) => {
+        const merged = {
+          ...current,
+          ...(persisted as Partial<BookingDraftState>),
+        };
+
+        // Rehydration is async and can land after a ?booking=1 deep link has
+        // already applied its service selection — the deep link must win
+        // over a stale saved draft, so resolve the conflict here.
+        if (typeof window !== "undefined") {
+          const params = new URL(window.location.href).searchParams;
+          if (params.get("booking") === "1") {
+            const serviceId = params.get("services")?.trim();
+            merged.selectedPackageIds =
+              serviceId && isBookingPackageId(serviceId) ? [serviceId] : [];
+          }
+        }
+
+        return merged;
+      },
     }
   )
 );

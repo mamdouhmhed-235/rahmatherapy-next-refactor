@@ -21,6 +21,7 @@ interface BookingDialogProps {
   children: ReactNode;
   summary: ReactNode;
   actionBar: ReactNode;
+  overlay?: ReactNode;
   onOpenChange: (open: boolean) => void;
   onStepBack: (step: BookingStep) => void;
   onSubmit: () => void;
@@ -34,6 +35,7 @@ export function BookingDialog({
   children,
   summary,
   actionBar,
+  overlay,
   onOpenChange,
   onStepBack,
   onSubmit,
@@ -115,6 +117,7 @@ export function BookingDialog({
               </div>
               {actionBar}
             </form>
+            {overlay}
           </div>
         </Dialog.Popup>
       </Dialog.Portal>

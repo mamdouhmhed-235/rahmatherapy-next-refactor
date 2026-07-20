@@ -32,19 +32,17 @@ export function useBookingUrlState({
   setCurrentStep,
   setSelectedPackageIds,
 }: UseBookingUrlStateOptions) {
+  // `open` itself is initialized from the URL synchronously in
+  // BookingExperience; this effect applies a deep-linked service for the
+  // pre-hydration render. The store's persist `merge` handles the async
+  // rehydration case so the deep link always wins over a stale draft.
   useEffect(() => {
     const url = new URL(window.location.href);
-    const packageIds = getSafeUrlPackageIds(url.searchParams);
-    const shouldOpen = url.searchParams.get("booking") === "1";
 
-    if (shouldOpen) {
-      setSelectedPackageIds(packageIds);
-      const timer = window.setTimeout(() => setOpen(true), 0);
-      return () => window.clearTimeout(timer);
+    if (url.searchParams.get("booking") === "1") {
+      setSelectedPackageIds(getSafeUrlPackageIds(url.searchParams));
     }
-
-    return undefined;
-  }, [setOpen, setSelectedPackageIds]);
+  }, [setSelectedPackageIds]);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {

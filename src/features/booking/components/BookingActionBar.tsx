@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ChevronUp } from "lucide-react";
 import { formatPrice } from "../utils/format";
 import type { BookingStage } from "../types";
 import styles from "../BookingExperience.module.css";
@@ -11,6 +11,8 @@ interface BookingActionBarProps {
   estimatedTotal: number;
   participantCount: number;
   hasSelection: boolean;
+  summaryOpen: boolean;
+  onToggleSummary: () => void;
   onBack: () => void;
 }
 
@@ -20,6 +22,8 @@ export function BookingActionBar({
   estimatedTotal,
   participantCount,
   hasSelection,
+  summaryOpen,
+  onToggleSummary,
   onBack,
 }: BookingActionBarProps) {
   if (currentStep === "success") {
@@ -45,7 +49,14 @@ export function BookingActionBar({
           <span className={styles.actionBarSpacer} aria-hidden="true" />
         )}
 
-        <div className={styles.totalStack}>
+        <button
+          type="button"
+          className={styles.totalStack}
+          onClick={onToggleSummary}
+          aria-expanded={summaryOpen}
+          aria-controls="booking-summary-sheet"
+          aria-label="Show booking summary"
+        >
           <span className={styles.totalLabel}>Estimated total</span>
           <span className={styles.totalValue}>
             {hasSelection ? (
@@ -58,8 +69,13 @@ export function BookingActionBar({
             ) : (
               "—"
             )}
+            <ChevronUp
+              aria-hidden="true"
+              size={15}
+              className={styles.totalChevron}
+            />
           </span>
-        </div>
+        </button>
 
         <button
           type="submit"

@@ -9,6 +9,7 @@ import {
   Phone,
   ShieldCheck,
   User,
+  UserCheck,
   Users,
 } from "lucide-react";
 import {
@@ -22,6 +23,8 @@ import styles from "../BookingExperience.module.css";
 
 interface AboutYouStepProps {
   form: UseFormReturn<BookingDetailsFormValues>;
+  prefilled?: boolean;
+  onClearPrefill?: () => void;
 }
 
 const PEOPLE_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -72,7 +75,11 @@ function getFieldArrayError(error: unknown): string | undefined {
     : undefined;
 }
 
-export function AboutYouStep({ form }: AboutYouStepProps) {
+export function AboutYouStep({
+  form,
+  prefilled = false,
+  onClearPrefill,
+}: AboutYouStepProps) {
   const {
     register,
     setValue,
@@ -198,6 +205,23 @@ export function AboutYouStep({ form }: AboutYouStepProps) {
           Tell us who the visit is for and where we should come.
         </p>
       </div>
+
+      {prefilled ? (
+        <div className={styles.prefillChip} role="status">
+          <UserCheck aria-hidden="true" size={18} />
+          <p>
+            Welcome back — we&apos;ve filled your details from your last
+            booking.
+          </p>
+          <button
+            type="button"
+            className={styles.textButton}
+            onClick={onClearPrefill}
+          >
+            Clear my details
+          </button>
+        </div>
+      ) : null}
 
       <div className={styles.stepBlock}>
         <h3 className={styles.blockTitle}>Who is this for?</h3>
