@@ -15,7 +15,7 @@
 
 When the next session opens, the opener should output (literal text):
 
-> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 22/22 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 + C-20 + C-21 + C-22 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 + C-20 + C-21 + C-22 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, C-19's privacy page, C-20's address autocomplete, C-21's canonical-domain fix, and C-22's booking-form abuse protection can each ship first as quick wins; break phases anytime; **C-18 co-ships with C-17**; **C-21 + C-22 are small and worth shipping early**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
+> Loaded the post-C-B handoff. On `master` HEAD [SHA] clean. [N] commits ahead of origin/master. **All of C-B is complete — 23/23 plans (each with brief + plan).** `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` checklist shows C-B ✅ (original 12 + C-13 + C-14 added 2026-05-26; C-15 + C-16 + C-17 + C-18 + C-19 + C-20 + C-21 + C-22 + C-23 added 2026-07-16 during the plan-refinement phase). **C-C implementation is unblocked.** Pre-flight: [dev server status via curl, working tree status, any deviations from documented state]. Recommended C-C sequence per `C-B-DECISIONS.md` §5 + amendments: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10**, with **C-14 + the C-17/C-18 pair + C-19 + C-20 + C-21 + C-22 + C-23 independent** (C-14's Phase D customer date-picker fix, the GA+consent pair, C-19's privacy page, C-20's address autocomplete, C-21's canonical-domain fix, C-22's booking-form abuse protection, and C-23's admin availability calendar can each ship first; break phases anytime; **C-18 co-ships with C-17**; **C-21 + C-22 are small and worth shipping early**; **C-23 carries its own engine-port prerequisite and coordinates with C-14 on `availability.ts`**). C-04a + C-FIELDWORK are sequencing-critical (load-bearing for C-05 + C-11). C-15 ships after C-08 + before C-13/C-02. C-16 ships after C-09/C-07 + hard-before C-10. Awaiting user direction on which plan to ship first.
 
 Then pause. Do not proceed without user direction.
 
@@ -237,6 +237,18 @@ Each row links the brief + plan + summarises scope + key decisions + sequencing.
 - **Scope (user-locked):** public customer booking form ONLY; honeypot + per-IP rate limiting ONLY. No CAPTCHA/Turnstile (documented escalation step), no admin/enquiries changes.
 - **Design:** honeypot hidden from humans AND assistive tech (`aria-hidden` + `tabIndex={-1}` + off-screen + `autoComplete="off"` — the classic a11y trap is an explicit gate item), server **silently drops with a success-shaped 200**. Rate limit keyed on `CF-Connecting-IP` (never X-Forwarded-For), burst 3/10min + sustained 10/day (deliberately generous — shared/NAT IPs are normal), rejects **before** any DB or email work, 429 copy always offers the clinic phone, **fails open** when the header is absent. Mechanism matrix: Cloudflare rate-limit binding preferred → dashboard WAF rule → Durable Object; Supabase-table counter rejected (a DB write in the path of the traffic being blocked).
 - **Migration:** none; no package. Independent; 3 commits; small — worth shipping early.
+
+### C-23 — Availability-aware calendar on the admin create-booking page (NEW 2026-07-16, plan-refinement phase)
+
+- **Brief:** `redesign/briefs/C-23-admin-availability-calendar-brief.md` (NEW 2026-07-16 — §2 carries the audit + the explicit non-removal list)
+- **Plan:** `redesign/plans/C-phase/C-23-admin-availability-calendar-plan.md` (NEW 2026-07-16)
+- **Scope:** bring the public flow's "no-guessing availability" to `/admin/bookings/new` — the calendar marks days with matching therapist availability instead of staff discovering it click by click. **Reuses the shared engine** (user requirement — no duplicated logic).
+- **Phase A is a prerequisite port:** `src/lib/booking/availability.ts` + `src/app/api/availability/month/` come from `redesign/start-state` (`0325838`) to master **byte-identically**. Verified 2026-07-16: master hasn't touched that file since the fork and start-state's only change is that commit, so the branches differ by *exactly* the refactor — the port is conflict-free and **de-risks the eventual start-state→master merge** (it sees no divergence there instead of a 469-line conflict). Refactor shape: `loadSettings` → `loadContextRest` → batched `loadDayRecords(dates[])` → pure `computeDaySlots`; `calculateAvailableSlots` keeps its exact contract. On master the month route is admin-only until that merge — intentional.
+- **Phase B:** additive, defaulted engine options (`ignoreBookingWindow`, `ignorePublicPause`) + a new authenticated admin month route — the public route's customer-window and public-pause guards would otherwise blank the admin calendar (staff legitimately book beyond the window and while public booking is paused).
+- **Audit findings that reshaped the naive port:** ONE shared `bookingDate`/`startTime` rendered by THREE mutually-exclusive branches (single/same-gender, mixed-gender, fallback) → **one calendar with two marker sets** for mixed-gender cohorts, never two dates (a second date would change submitted data); and `overrideAvailability` + per-cohort skips exist → the calendar **informs but never disables**, unlike public.
+- **Deliberately not ported:** auto-select-first-available and auto-hop-month — they'd fight an operator who already has a requested date.
+- **Governing constraint:** change nothing that already works. Three blocking gates: port fidelity (empty diff vs start-state), identical submitted payload before/after, and a line-by-line non-removal audit.
+- **Migration:** none; no new package (`react-day-picker` already used in admin). Independent; 6 commits. Coordinates with **C-14** (same engine file — note added to its Step 13) and C-20/C-06/C-02 (same admin form, different regions).
 
 ---
 
@@ -502,6 +514,20 @@ A gap analysis at the end of the plan-refinement session surfaced four things no
 
 **Google Maps billing posture settled (user, 2026-07-16):** key restrictions saved (`rahmatherapy.uk` apex + wildcard + localhost; 3 APIs), billing account enabled, £1 budget alert set. No editable per-API quota rows exist on the free tier — expected; the referrer restriction is the load-bearing control per the verified research, so no further action.
 
+### 5.25 C-23 added — admin availability calendar + the first cross-branch port (2026-07-16)
+
+User direction: bring the public flow's "no-guessing availability" idea to the admin create-booking page, **reusing the shared engine rather than duplicating logic**, with the reference implementation on `redesign/start-state` (`0325838`).
+
+**The branch finding that made this tractable.** The engine refactor exists only on start-state, and the two branches "neither contains the other" (§7). But a targeted check showed master has never touched `src/lib/booking/availability.ts` since the fork (`02951a2`) — its only entry is the merge `3ef8423` — while start-state's only change is `0325838`. The branches therefore differ on that file by **exactly the refactor**, making a byte-identical `git checkout` port conflict-free. Critically, porting *identically* means the eventual `redesign/start-state → master` merge sees **no divergence** on those files rather than a 469-line conflict — **C-23 Phase A reduces the merge risk the branch strategy already carries.** This is the first cross-branch port in the programme; the empty-diff check is a blocking gate precisely to preserve that property.
+
+**Three audit findings reshaped the naive port** (the admin form is not a mirror of the public one): (1) ONE shared `bookingDate`/`startTime` rendered by THREE mutually-exclusive branches — so mixed-gender cohorts get **one calendar with two marker sets**, never two dates (a second date would change submitted data and break the shared start time; the user's initial "two calendars" choice was corrected against the code before writing); (2) `overrideAvailability` + per-cohort skips mean the calendar must **inform, never disable** — the inverse of the public picker; (3) the public month route's customer-window and public-pause guards would blank the admin calendar, so an **additive, defaulted options bag** on `calculateAvailableDays` plus an authenticated admin route gives one engine two policies.
+
+**Not ported by judgement:** auto-select-first-available and auto-hop-month — public behaviour that would fight an admin who already has a customer's requested date in hand.
+
+**Governing constraint (user):** *"ensure it doesn't cause any discrepancies or issues nor remove anything unnecessarily."* The brief carries an explicit non-removal list (override toggle, both cohort skips, the fallback branch, per-day slot rows, `min=today`, step gating, draft persistence) and the plan has three blocking gates: port fidelity, byte-identical submitted payload before/after, and a line-by-line non-removal audit.
+
+**Coordination:** C-14's Step 13 edits the same engine regions — a note was added there covering both landing orders (if C-14 lands first, C-23's port is no longer byte-identical and Phase A must be re-planned as a merge).
+
 ---
 
 ## 6 — Cross-plan coordination + dependencies + sequencing
@@ -690,6 +716,7 @@ redesign/briefs/
 ├── C-20-address-autocomplete-brief.md                        # NEW 2026-07-16 plan-refinement
 ├── C-21-canonical-domain-fix-brief.md                        # NEW 2026-07-16 plan-refinement
 ├── C-22-booking-form-abuse-protection-brief.md               # NEW 2026-07-16 plan-refinement
+├── C-23-admin-availability-calendar-brief.md                 # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-brief.md
 
 redesign/plans/C-phase/
@@ -716,6 +743,7 @@ redesign/plans/C-phase/
 ├── C-20-address-autocomplete-plan.md                         # NEW 2026-07-16 plan-refinement
 ├── C-21-canonical-domain-fix-plan.md                         # NEW 2026-07-16 plan-refinement
 ├── C-22-booking-form-abuse-protection-plan.md                # NEW 2026-07-16 plan-refinement
+├── C-23-admin-availability-calendar-plan.md                  # NEW 2026-07-16 plan-refinement
 └── C-FIELDWORK-EXPERIENCE-plan.md
 ```
 
@@ -833,6 +861,7 @@ SELECT event_type, COUNT(*) FROM email_delivery_events GROUP BY event_type;
 - **(2026-07-16 amendment)** C-18 added as an 18th plan — cookie consent & PECR compliance: registry-driven banner + panel + /cookies page in the public design language, basic Consent Mode v2 (zero pre-consent Google requests), `consent_events` proof table (one Zone-2 migration), footer withdrawal, 6-month/version-bump re-prompts, standing cookie/tag-registry rule in Part 0. Rewrites C-17's component into the consent-gated loader (hard co-ship pair). See §5.20. Brief + plan written; master plan checklist updated to 18/18. No further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-19 added as a 19th plan — privacy policy page: ONE new file (`(public)/privacy/page.tsx`), custom to the audited data flows, user-locked minimal scope (no other page touched; linking left for later). See §5.21. Brief + plan written; master plan checklist updated to 19/19. No further amendments needed before C-C.
 - **(2026-07-16 amendment)** C-22 added as a 22nd plan — public booking form abuse protection (honeypot + per-IP rate limiting, public form only). Plus **three open gaps recorded, not yet actioned by the user: database backup/DR (highest severity — no plan covers it), email deliverability SPF/DKIM/DMARC verification, and missing sitemap/robots.** See §5.24. Brief + plan written; master plan checklist updated to 22/22.
+- **(2026-07-16 amendment)** C-23 added as a 23rd plan — availability-aware calendar on the admin create-booking page, reusing the shared engine. Carries the programme's **first cross-branch port** (`availability.ts` + month route from `redesign/start-state`, byte-identical, verified conflict-free — it *reduces* the eventual merge's surface). Admin-specific reshaping: one calendar with two marker sets (not two dates), informs-never-disables, additive engine options for relaxed admin rules. Three blocking gates enforce "no discrepancies, nothing removed". See §5.25. Brief + plan written; C-14 Step 13 coordination note added; master plan checklist updated to 23/23.
 - **(2026-07-16 amendment)** C-20 added as a 20th plan — address autocomplete (Google Places) on both booking forms: one shared form-library-agnostic component, UK component mapping, lazy load on focus, session tokens, plain-input fallback; blocking sign-off on Cloud Console key restriction + rotation and the C-18 consent classification. See §5.22. Brief + plan written; master plan checklist updated to 20/20. Independent; ships anytime. No further amendments needed before C-C.
 
 ### Programme-level final gates (Band C completion)
@@ -893,7 +922,7 @@ To be ticked once C-C ships all 12 plans:
 - **HEAD:** `8b9ad1c` (original handoff write time) → updated by subsequent commits including the 2026-05-26 cancelled-booking amendment commits (see git log for current HEAD).
 - **Commits this session (C-B plan-writing):** 24 (12 briefs + 12 plans + C-11 admin-wide clarification — bookkeeping interleaved). Plus 3 fix(build) commits + the merge commit pre-dating C-10. **Plus 3 amendment commits 2026-05-26** for the C-04a + C-05 cancelled-booking ease+restore bundle (§5.11). **Plus 3 amendment commits 2026-05-26** for C-13 group-booking surface (§5.12). **Plus amendment commits 2026-05-26** for C-06 Step 13 optional admin-booking email (§5.13). **Plus amendment commits 2026-05-26** for C-14 granular working hours + booking-window guard (§5.14).
 - **Working tree:** clean (verify before any C-C work).
-- **C-B status:** ✅ COMPLETE (22/22 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added + C-20 added + C-20 cost-amended + C-21 added 2026-07-16 (§5.15–§5.23).
+- **C-B status:** ✅ COMPLETE (23/23 plans). C-04a + C-05 amended + C-13 added + C-06 amended (Step 13) + C-14 added 2026-05-26 (§5.11–§5.14); C-08 amended + C-15 added + C-04a S7 + C-16 added + C-17 added + C-18 added + C-19 added + C-20 added + C-20 cost-amended + C-21 added + C-22 added + C-23 added 2026-07-16 (§5.15–§5.25).
 - **C-C status:** ⏳ UNBLOCKED. Recommended order: **C-06 → C-04a → C-05 → C-01 → C-FIELDWORK → C-11 → C-08 → C-15 → C-13 → C-02 → C-09 → C-03 → C-07 → C-16 → C-10** (C-14 + the C-17/C-18 co-ship pair + C-19 + C-20 + C-21 independent; C-21 recommended early).
 
 **No outstanding work in progress.** Branch is at a clean checkpoint suitable for any of the recommended next moves.
