@@ -6,31 +6,25 @@ import { HomeImage } from "./HomeImage";
 
 export function HomeTeamPreview() {
   return (
-    <SectionContainer tone="ivory" width="wide">
-      <SectionHeading
-        align="center"
-        title="The team coming to your home"
-        description="Nadimur, Minhaj and our female therapist. CMA and IPHM qualified — same-gender care for female clients."
-        className="mx-auto"
-      />
+    <SectionContainer tone="charcoal" width="wide">
+      <SectionHeading align="center" title="Meet the team" inverse className="mx-auto" />
       <div className="mt-12 grid gap-5 md:grid-cols-3">
         {homeTeamMembers.map((member) => (
           <article
             key={member.name}
-            className="overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-sm"
+            className="flex flex-col overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-card"
           >
-            <div className="relative h-72 overflow-hidden bg-rahma-green">
+            <div className="relative h-[340px] overflow-hidden bg-rahma-green">
               <HomeImage
                 src={member.image}
                 alt={member.alt}
                 imageType={member.imageType}
-                className="transition-transform duration-700 hover:scale-105"
               />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
             </div>
-            <div className="p-6">
+            <div className="flex flex-1 flex-col p-6">
               <h3 className="text-xl font-semibold text-rahma-charcoal">{member.name}</h3>
               <p className="mt-1 text-sm font-semibold text-rahma-green">{member.role}</p>
-              <p className="mt-4 text-sm leading-6 text-rahma-muted">{member.body}</p>
             </div>
           </article>
         ))}
@@ -38,7 +32,7 @@ export function HomeTeamPreview() {
       <div className="mt-10 flex justify-center">
         <Link
           href="/about"
-          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+          className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           Meet the team
           <ArrowRight aria-hidden="true" size={16} />

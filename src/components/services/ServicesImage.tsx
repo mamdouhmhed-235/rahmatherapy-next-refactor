@@ -8,10 +8,21 @@ interface ServicesImageProps {
   imageType: string;
   className?: string;
   priority?: boolean;
+  fetchPriority?: "high";
   sizes?: string;
 }
 
-const approvedServiceImagePaths = new Set<string>();
+const approvedServiceImagePaths = new Set<string>([
+  "/images/services/package-supreme.jpg",
+  "/images/services/package-hijama-card.jpg",
+  "/images/services/package-fire.jpg",
+  "/images/services/package-massage.jpg",
+  "/images/services/package-massage-60.jpg",
+  "/images/services/services-hero-v1.jpg",
+  "/images/services/services-final-cta-v1.jpg",
+  "/images/services/package-finder-v1.jpg",
+  "/images/services/treatment-methods-v1.jpg",
+]);
 
 export function ServicesImage({
   src,
@@ -19,6 +30,7 @@ export function ServicesImage({
   imageType,
   className,
   priority = false,
+  fetchPriority,
   sizes = "(max-width: 768px) 100vw, 50vw",
 }: ServicesImageProps) {
   if (!approvedServiceImagePaths.has(src)) {
@@ -40,6 +52,7 @@ export function ServicesImage({
       alt={alt}
       fill
       priority={priority}
+      fetchPriority={fetchPriority}
       sizes={sizes}
       className={cn("object-cover", className)}
     />

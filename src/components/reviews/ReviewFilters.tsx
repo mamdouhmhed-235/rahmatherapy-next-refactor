@@ -19,7 +19,7 @@ export function ReviewFilters({
   onSearchChange,
 }: ReviewFiltersProps) {
   return (
-    <div className="sticky top-20 z-20 rounded-3xl border border-rahma-border bg-white/95 p-4 shadow-sm backdrop-blur">
+    <div className="sticky top-[var(--site-header-height)] z-20 rounded-3xl border border-rahma-border bg-white/95 p-4 shadow-elevated backdrop-blur">
       <div className="relative">
         <Search
           aria-hidden="true"

@@ -16,7 +16,7 @@ export function PackageWhoItsFor({ page }: { page: PackagePage }) {
           <article
             key={card.title}
             className={cn(
-              "rounded-3xl border border-rahma-border bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-card lg:col-span-2",
+              "rounded-3xl border border-rahma-border bg-white p-6 shadow-soft transition duration-300 hover:-translate-y-1 hover:shadow-card lg:col-span-2",
               index === 3 && "lg:col-start-2",
             )}
           >

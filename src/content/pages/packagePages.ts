@@ -107,20 +107,6 @@ const sharedSessionSteps = [
 
 export const packageSessionSteps = sharedSessionSteps;
 
-export const packageSafetyItems = [
-  "CMA and IPHM qualified therapists",
-  "Pre-treatment suitability questions",
-  "Clean mobile setup",
-  "Single-use items where required",
-  "Treatment explained before starting",
-  "Male and female therapists available",
-  "Female clients treated by female therapist",
-  "Aftercare guidance included",
-] as const;
-
-export const packageSafetyDisclaimer =
-  "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please speak to a healthcare professional before booking.";
-
 export const packagePages = [
   {
     slug: "supreme-combo-package",
@@ -131,10 +117,10 @@ export const packagePages = [
     openingCopy: "When your body feels tight, heavy or overdue for a proper reset, one treatment method may not feel like enough. The Supreme Combo Package brings Rahma Therapy’s key techniques together in one complete home session.",
     price: "£55",
     duration: "Confirm at booking",
-    heroImage: "/images/packages/supreme-combo-hero.webp",
+    heroImage: "/images/packages/supreme-combo-package/hero.jpg",
     heroImageType: "Premium treatment setup with cups, IASTM tool, oils, towels, massage couch.",
     heroAlt: "Supreme Combo Package with cupping massage and IASTM tools",
-    breakdownImage: "/images/packages/supreme-combo-breakdown.webp",
+    breakdownImage: "/images/packages/supreme-combo-package/breakdown.jpg",
     breakdownImageType: "Close-up of cups and IASTM tool in clean setup.",
     breakdownAlt: "Cupping and IASTM tools used in the Supreme Combo Package",
     heroOverlayTitle: "The full reset",
@@ -328,10 +314,10 @@ export const packagePages = [
     openingCopy: "Hijama is personal. You want it done cleanly, respectfully and by someone who explains what is happening before anything begins. Rahma Therapy’s Hijama Package gives you a focused wet cupping session at home, with pre-cupping massage, dry cupping and aftercare guidance included.",
     price: "£45",
     duration: "Confirm at booking",
-    heroImage: "/images/packages/hijama-hero.webp",
+    heroImage: "/images/packages/hijama-package/hero.jpg",
     heroImageType: "Clean wet cupping/hijama setup with cups and hygienic items, no blood.",
     heroAlt: "Private hijama package setup for home treatment in Luton",
-    breakdownImage: "/images/packages/hijama-process.webp",
+    breakdownImage: "/images/packages/hijama-package/breakdown.jpg",
     breakdownImageType: "Therapist preparing cups or clean equipment, non-graphic.",
     breakdownAlt: "Clean hijama preparation by Rahma Therapy",
     heroOverlayTitle: "Private home hijama",
@@ -353,8 +339,7 @@ export const packagePages = [
       includes: [
         "Pre-cupping massage",
         "Dry cupping",
-        "Wet cupping / hijama",
-        "Aftercare guidance"
+        "Wet cupping / hijama"
       ]
     },
     fitCards: [
@@ -391,10 +376,6 @@ export const packagePages = [
       {
         title: "Wet cupping / hijama",
         body: "Traditional wet cupping using suction and small superficial incisions, subject to suitability."
-      },
-      {
-        title: "Aftercare guidance",
-        body: "Simple advice after your session so you know what to do next."
       }
     ],
     treatmentBreakdown: [
@@ -504,10 +485,10 @@ export const packagePages = [
     openingCopy: "Want the feeling of cupping without wet cupping? The Fire Package is designed for clients who want a warming, traditional cupping experience with massage and essential oils — no hijama, no incisions, just a focused cupping session at home.",
     price: "£40",
     duration: "Confirm at booking",
-    heroImage: "/images/packages/fire-cupping-hero.webp",
+    heroImage: "/images/packages/fire-cupping-package/hero.jpg",
     heroImageType: "Glass cups/fire cupping setup, controlled and calm, no theatrical flame.",
     heroAlt: "Fire cupping package setup with glass cups",
-    breakdownImage: "/images/packages/fire-cupping-breakdown.webp",
+    breakdownImage: "/images/packages/fire-cupping-package/breakdown.jpg",
     breakdownImageType: "Glass cups, towels, essential oils.",
     breakdownAlt: "Fire cupping and essential oils package setup",
     heroOverlayTitle: "No wet cupping",
@@ -527,10 +508,9 @@ export const packagePages = [
       bestFor: "Cupping without hijama, or a warming session for muscle tension and stiffness.",
       therapistOption: "Male or female therapist of your choice. Female clients are treated by a female therapist.",
       includes: [
-        "Pre-cupping massage with essential oils",
-        "Dry / fire cupping",
-        "No wet cupping",
-        "Aftercare guidance"
+        "Pre-cupping massage",
+        "Dry cupping",
+        "Fire cupping"
       ]
     },
     fitCards: [
@@ -557,16 +537,16 @@ export const packagePages = [
     ],
     includesDetailed: [
       {
-        title: "Pre-cupping massage with essential oils",
-        body: "A massage stage using essential oils to prepare the treatment area and create a calmer experience."
+        title: "Pre-cupping massage",
+        body: "A massage stage using an essential oil blend to prepare the treatment area and create a calmer experience."
       },
       {
-        title: "Dry / fire cupping",
-        body: "Cupping suction without wet cupping or incisions."
+        title: "Dry cupping",
+        body: "Cupping suction without incisions, used to target selected areas of tension."
       },
       {
-        title: "Aftercare guidance",
-        body: "Simple advice after your session so you know what to expect."
+        title: "Fire cupping",
+        body: "A traditional heat-assisted cupping method carried out with care and control. No wet cupping."
       }
     ],
     treatmentBreakdown: [
@@ -668,10 +648,10 @@ export const packagePages = [
     openingCopy: "Not every session needs to be long. Sometimes you just need focused work on the one area that keeps bothering you — your lower back, your shoulders, your neck or your legs after training. The 30-minute Massage Therapy package gives you targeted support at home without rearranging your whole day.",
     price: "£40",
     duration: "30 minutes",
-    heroImage: "/images/packages/massage-30-hero.webp",
+    heroImage: "/images/packages/massage-therapy-30-mins/hero.jpg",
     heroImageType: "Therapist giving focused neck/back/shoulder massage.",
     heroAlt: "Thirty minute mobile massage therapy session in Luton",
-    breakdownImage: "/images/packages/massage-30-breakdown.webp",
+    breakdownImage: "/images/packages/massage-therapy-30-mins/breakdown.jpg",
     breakdownImageType: "Close-up of targeted massage or oil/towel setup.",
     breakdownAlt: "Focused mobile massage therapy for one target area",
     heroOverlayTitle: "Focused support",
@@ -866,10 +846,10 @@ export const packagePages = [
     openingCopy: "When tension is not just in one place, a short session can feel rushed. The 1-hour Massage Therapy package gives your therapist more time to work across your back, neck, shoulders, legs or other agreed areas — with a massage style tailored to what your body needs.",
     price: "£60",
     duration: "1 hour",
-    heroImage: "/images/packages/massage-60-hero.webp",
+    heroImage: "/images/packages/massage-therapy-1-hour/hero.jpg",
     heroImageType: "Calm full massage session in private home-style environment.",
     heroAlt: "One hour mobile massage therapy session in Luton",
-    breakdownImage: "/images/packages/massage-60-breakdown.webp",
+    breakdownImage: "/images/packages/massage-therapy-1-hour/breakdown.jpg",
     breakdownImageType: "Relaxed full-body massage setup or therapist preparing massage couch.",
     breakdownAlt: "Longer mobile massage therapy setup for a private home session",
     heroOverlayTitle: "More time, more care",

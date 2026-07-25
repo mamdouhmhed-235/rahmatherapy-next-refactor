@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { PackageCheck } from "lucide-react";
 import type { BookingPackage } from "../data/booking-packages";
 import type { BookingDetails } from "../types";
@@ -14,7 +13,6 @@ interface BookingSummaryProps {
   details: BookingDetails;
   preferredDate: string | null;
   preferredTime: string | null;
-  actions: ReactNode;
 }
 
 function formatParticipantSummary(details: BookingDetails) {
@@ -40,7 +38,6 @@ export function BookingSummary({
   details,
   preferredDate,
   preferredTime,
-  actions,
 }: BookingSummaryProps) {
   return (
     <aside
@@ -49,16 +46,10 @@ export function BookingSummary({
       aria-live="polite"
     >
       <div className={styles.summaryAccent} aria-hidden="true" />
-      <div className={styles.summaryTopRow}>
-        <div>
-          <div className={styles.summaryHeader}>
-            <PackageCheck aria-hidden="true" size={20} />
-            <h3>Your booking request</h3>
-          </div>
-          <p className={styles.summaryIntro}>
-            Check your selected service, group details, visit area and preferred
-            time.
-          </p>
+      <div className={styles.summaryBody}>
+        <div className={styles.summaryHeader}>
+          <PackageCheck aria-hidden="true" size={20} />
+          <h3>Your booking request</h3>
         </div>
 
         <div className={styles.summaryList}>
@@ -75,9 +66,7 @@ export function BookingSummary({
             ))
           )}
         </div>
-      </div>
 
-      <div className={styles.summaryActionRow}>
         <div className={styles.summaryTotal}>
           <span>
             {details.numberOfPeople > 1
@@ -86,31 +75,26 @@ export function BookingSummary({
           </span>
           <strong>{formatPrice(estimatedTotal)}</strong>
         </div>
-        <div className={styles.summaryActions}>{actions}</div>
-      </div>
 
-      <dl className={styles.summaryMeta}>
-        <div>
-          <dt>Services</dt>
-          <dd>{selectedPackages.length}</dd>
-        </div>
-        <div>
-          <dt>Clients</dt>
-          <dd>{formatParticipantSummary(details)}</dd>
-        </div>
-        <div>
-          <dt>Area</dt>
-          <dd>{details.city || "Location needed"}</dd>
-        </div>
-        <div>
-          <dt>Date</dt>
-          <dd>{formatDateLabel(preferredDate)}</dd>
-        </div>
-        <div>
-          <dt>Time</dt>
-          <dd>{preferredTime || "Time not chosen"}</dd>
-        </div>
-      </dl>
+        <dl className={styles.summaryMeta}>
+          <div>
+            <dt>Clients</dt>
+            <dd>{formatParticipantSummary(details)}</dd>
+          </div>
+          <div>
+            <dt>Area</dt>
+            <dd>{details.city || "Location needed"}</dd>
+          </div>
+          <div>
+            <dt>Date</dt>
+            <dd>{formatDateLabel(preferredDate)}</dd>
+          </div>
+          <div>
+            <dt>Time</dt>
+            <dd>{preferredTime || "Time not chosen"}</dd>
+          </div>
+        </dl>
+      </div>
     </aside>
   );
 }

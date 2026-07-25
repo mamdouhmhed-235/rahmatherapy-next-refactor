@@ -90,7 +90,7 @@ export function AftercareTabs() {
               className={cn(
                 "min-h-11 rounded-full border px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:shrink-0",
                 isActive
-                  ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal"
+                  ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal-strong"
                   : "border-rahma-border bg-white text-rahma-green hover:border-rahma-green"
               )}
             >
@@ -117,33 +117,30 @@ export function AftercareTabs() {
             className="h-full min-h-full rounded-none border-0"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
-          <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-sm">
+          <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-soft">
             {activeTab.imageOverlay}
           </span>
         </div>
         <div>
           <p className="text-base leading-7 text-rahma-muted">{activeTab.intro}</p>
-          <div className="mt-6 grid gap-6">
-            <div className="grid gap-x-5 gap-y-6 sm:grid-cols-2">
-              {activeTab.items.map((item) => (
-                <article
-                  key={item.title}
-                  className="h-full rounded-3xl border border-rahma-border bg-white p-5 shadow-sm"
-                >
-                  <div className="mb-4 flex size-11 items-center justify-center rounded-full bg-rahma-ivory text-rahma-green">
-                    <FaqsAftercareIcon name={item.icon} />
-                  </div>
+          <div className="mt-6 divide-y divide-rahma-border">
+            {activeTab.items.map((item) => (
+              <div key={item.title} className="flex items-start gap-4 py-5 first:pt-0">
+                <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-rahma-ivory text-rahma-green">
+                  <FaqsAftercareIcon name={item.icon} />
+                </div>
+                <div>
                   <h3 className="text-lg font-semibold text-rahma-charcoal">
                     {item.title}
                   </h3>
                   <p className="mt-2 text-sm leading-7 text-rahma-muted">{item.body}</p>
-                </article>
-              ))}
-            </div>
-            <p className="rounded-3xl border border-rahma-border bg-rahma-ivory p-5 text-sm leading-7 text-rahma-muted">
-              {activeTab.note}
-            </p>
+                </div>
+              </div>
+            ))}
           </div>
+          <p className="mt-5 rounded-3xl border border-rahma-border bg-rahma-ivory p-5 text-sm leading-7 text-rahma-muted">
+            {activeTab.note}
+          </p>
         </div>
       </motion.div>
     </SectionContainer>

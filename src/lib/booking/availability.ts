@@ -31,6 +31,26 @@ export interface AvailableSlotsResult {
   reason?: string;
 }
 
+export interface CalculateAvailableDaysInput {
+  dates: string[];
+  serviceIds: string[];
+  participantGenders: TherapistGender[];
+  city: string;
+}
+
+export interface AvailableDaySummary {
+  date: string;
+  hasSlots: boolean;
+  slotCount: number;
+}
+
+export interface AvailableDaysResult {
+  days: AvailableDaySummary[];
+  durationMins: number;
+  requiredStaffByGender: Record<TherapistGender, number>;
+  reason?: string;
+}
+
 interface BusinessSettingsRecord {
   booking_window_days: number;
   buffer_time_mins: number;
@@ -84,18 +104,35 @@ interface DateOverrideRecord {
   override_type?: string | null;
 }
 
+interface GlobalOverrideRow extends DateOverrideRecord {
+  override_date: string;
+}
+
 interface StaffDateOverrideRecord extends DateOverrideRecord {
   staff_id: string;
 }
 
-interface StaffBlockedDateRecord {
+interface StaffDateOverrideRow extends StaffDateOverrideRecord {
+  override_date: string;
+}
+
+interface BlockedDateRow {
+  blocked_date: string;
+}
+
+interface StaffBlockedDateRow {
   staff_id: string;
+  blocked_date: string;
 }
 
 interface BookingRecord {
   id: string;
   start_time: string;
   end_time: string;
+}
+
+interface BookingRow extends BookingRecord {
+  booking_date: string;
 }
 
 interface BookingAssignmentRecord {
@@ -107,6 +144,29 @@ interface BookingAssignmentRecord {
 interface TimeWindow {
   start: number;
   end: number;
+}
+
+interface AvailabilityContext {
+  settings: BusinessSettingsRecord;
+  durationMins: number;
+  eligibleStaff: StaffRecord[];
+  eligibleStaffIds: string[];
+  globalRules: AvailabilityRuleRecord[];
+  staffRulesByStaffId: Map<string, StaffAvailabilityRuleRecord[]>;
+}
+
+interface ContextFailure {
+  reason: string;
+  durationMins: number;
+}
+
+interface DayRecords {
+  globalBlocked: boolean;
+  globalOverride?: DateOverrideRecord;
+  staffBlockedIds: Set<string>;
+  staffOverrideByStaffId: Map<string, StaffDateOverrideRecord>;
+  bookings: BookingRecord[];
+  assignments: BookingAssignmentRecord[];
 }
 
 const SLOT_STEP_MINS = 30;
@@ -358,18 +418,7 @@ function filterStaffWithBookingPermissions(
   });
 }
 
-export async function calculateAvailableSlots(
-  input: CalculateAvailableSlotsInput,
-  supabase: SupabaseClient,
-  options: { now?: Date } = {}
-): Promise<AvailableSlotsResult> {
-  const requiredStaffByGender = countRequiredStaff(input.participantGenders);
-
-  if (!DATE_PATTERN.test(input.date)) {
-    return emptyResult(input, 0, requiredStaffByGender, "Invalid date.");
-  }
-
-  const now = options.now ?? new Date();
+async function loadSettings(supabase: SupabaseClient) {
   const settingsResult = await supabase
     .from("business_settings")
     .select(
@@ -378,27 +427,24 @@ export async function calculateAvailableSlots(
     .eq("id", 1)
     .single<BusinessSettingsRecord>();
 
-  if (settingsResult.error || !settingsResult.data) {
-    return emptyResult(input, 0, requiredStaffByGender, "Booking settings unavailable.");
-  }
+  return settingsResult.error || !settingsResult.data
+    ? null
+    : settingsResult.data;
+}
 
-  const settings = settingsResult.data;
-  if (!settings.booking_status_enabled) {
-    return emptyResult(input, 0, requiredStaffByGender, "Online booking is currently paused.");
-  }
-
-  if (
-    !isDateInBusinessWindow({
-      date: input.date,
-      now,
-      bookingWindowDays: settings.booking_window_days,
-    })
-  ) {
-    return emptyResult(input, 0, requiredStaffByGender, "Date is outside the booking window.");
-  }
-
+/**
+ * Loads everything that does not depend on the requested date: city and
+ * service checks, eligible staff (with booking permissions), and the global
+ * and per-staff weekly availability rules. Reason strings mirror the
+ * original single-date implementation exactly.
+ */
+async function loadContextRest(
+  supabase: SupabaseClient,
+  settings: BusinessSettingsRecord,
+  input: { serviceIds: string[]; participantGenders: TherapistGender[]; city: string }
+): Promise<AvailabilityContext | ContextFailure> {
   if (!isCityAllowed(input.city, getAllowedCities(settings.allowed_cities))) {
-    return emptyResult(input, 0, requiredStaffByGender, "Location is outside the service area.");
+    return { reason: "Location is outside the service area.", durationMins: 0 };
   }
 
   const serviceResult = await supabase
@@ -411,11 +457,14 @@ export async function calculateAvailableSlots(
 
   const services = serviceResult.data ?? [];
   if (serviceResult.error || services.length !== input.serviceIds.length) {
-    return emptyResult(input, 0, requiredStaffByGender, "Selected service is unavailable.");
+    return { reason: "Selected service is unavailable.", durationMins: 0 };
   }
 
   if (!servicesAllowParticipants(services, input.participantGenders)) {
-    return emptyResult(input, 0, requiredStaffByGender, "Selected service is not suitable for every participant.");
+    return {
+      reason: "Selected service is not suitable for every participant.",
+      durationMins: 0,
+    };
   }
 
   const durationMins = services.reduce(
@@ -434,7 +483,7 @@ export async function calculateAvailableSlots(
 
   const staff = staffResult.data ?? [];
   if (staffResult.error || staff.length === 0) {
-    return emptyResult(input, durationMins, requiredStaffByGender, "No eligible staff are available.");
+    return { reason: "No eligible staff are available.", durationMins };
   }
 
   const roleIds = Array.from(new Set(staff.map((member) => member.role_id)));
@@ -453,7 +502,7 @@ export async function calculateAvailableSlots(
   ]);
 
   if (rolePermissionsResult.error || staffOverridesResult.error) {
-    return emptyResult(input, durationMins, requiredStaffByGender, "Staff permission data unavailable.");
+    return { reason: "Staff permission data unavailable.", durationMins };
   }
 
   const eligibleStaff = filterStaffWithBookingPermissions(
@@ -462,69 +511,105 @@ export async function calculateAvailableSlots(
     staffOverridesResult.data ?? []
   );
   if (eligibleStaff.length === 0) {
-    return emptyResult(input, durationMins, requiredStaffByGender, "No eligible staff are available.");
+    return { reason: "No eligible staff are available.", durationMins };
   }
 
   const eligibleStaffIds = eligibleStaff.map((member) => member.id);
-  const dayOfWeek = getBusinessDayOfWeek(input.date);
 
-  const [
-    globalRulesResult,
-    blockedDatesResult,
-    globalOverrideResult,
-    staffRulesResult,
-    staffBlockedResult,
-    staffOverrideResult,
-    bookingsResult,
-  ] = await Promise.all([
+  const [globalRulesResult, staffRulesResult] = await Promise.all([
     supabase
       .from("availability_rules")
       .select("day_of_week, start_time, end_time, is_working_day")
       .returns<AvailabilityRuleRecord[]>(),
     supabase
-      .from("blocked_dates")
-      .select("blocked_date")
-      .eq("blocked_date", input.date),
-    supabase
-      .from("availability_overrides")
-      .select("start_time, end_time")
-      .eq("override_date", input.date)
-      .maybeSingle<DateOverrideRecord>(),
-    supabase
       .from("staff_availability_rules")
       .select("staff_id, day_of_week, start_time, end_time, is_working_day")
       .in("staff_id", eligibleStaffIds)
       .returns<StaffAvailabilityRuleRecord[]>(),
+  ]);
+
+  if (globalRulesResult.error || staffRulesResult.error) {
+    return { reason: "Availability data unavailable.", durationMins };
+  }
+
+  const staffRulesByStaffId = new Map<string, StaffAvailabilityRuleRecord[]>();
+  for (const rule of staffRulesResult.data ?? []) {
+    staffRulesByStaffId.set(rule.staff_id, [
+      ...(staffRulesByStaffId.get(rule.staff_id) ?? []),
+      rule,
+    ]);
+  }
+
+  return {
+    settings,
+    durationMins,
+    eligibleStaff,
+    eligibleStaffIds,
+    globalRules: globalRulesResult.data ?? [],
+    staffRulesByStaffId,
+  };
+}
+
+interface DayRecordsFailure {
+  reason: string;
+}
+
+/**
+ * Loads every date-scoped record for the given dates in one round trip per
+ * table, bucketed by date. Note: the original single-date code used
+ * maybeSingle() for the global override (erroring on duplicate rows); this
+ * variant takes the first row per date instead.
+ */
+async function loadDayRecords(
+  supabase: SupabaseClient,
+  dates: string[],
+  eligibleStaffIds: string[]
+): Promise<Map<string, DayRecords> | DayRecordsFailure> {
+  const [
+    blockedDatesResult,
+    globalOverrideResult,
+    staffBlockedResult,
+    staffOverrideResult,
+    bookingsResult,
+  ] = await Promise.all([
+    supabase
+      .from("blocked_dates")
+      .select("blocked_date")
+      .in("blocked_date", dates)
+      .returns<BlockedDateRow[]>(),
+    supabase
+      .from("availability_overrides")
+      .select("override_date, start_time, end_time")
+      .in("override_date", dates)
+      .returns<GlobalOverrideRow[]>(),
     supabase
       .from("staff_blocked_dates")
-      .select("staff_id")
-      .eq("blocked_date", input.date)
+      .select("staff_id, blocked_date")
+      .in("blocked_date", dates)
       .in("staff_id", eligibleStaffIds)
-      .returns<StaffBlockedDateRecord[]>(),
+      .returns<StaffBlockedDateRow[]>(),
     supabase
       .from("staff_availability_overrides")
-      .select("staff_id, start_time, end_time, override_type")
-      .eq("override_date", input.date)
+      .select("staff_id, start_time, end_time, override_type, override_date")
+      .in("override_date", dates)
       .in("staff_id", eligibleStaffIds)
-      .returns<StaffDateOverrideRecord[]>(),
+      .returns<StaffDateOverrideRow[]>(),
     supabase
       .from("bookings")
-      .select("id, start_time, end_time")
-      .eq("booking_date", input.date)
+      .select("id, start_time, end_time, booking_date")
+      .in("booking_date", dates)
       .in("status", ["pending", "confirmed"])
-      .returns<BookingRecord[]>(),
+      .returns<BookingRow[]>(),
   ]);
 
   if (
-    globalRulesResult.error ||
     blockedDatesResult.error ||
     globalOverrideResult.error ||
-    staffRulesResult.error ||
     staffBlockedResult.error ||
     staffOverrideResult.error ||
     bookingsResult.error
   ) {
-    return emptyResult(input, durationMins, requiredStaffByGender, "Availability data unavailable.");
+    return { reason: "Availability data unavailable." };
   }
 
   const bookings = bookingsResult.data ?? [];
@@ -537,49 +622,106 @@ export async function calculateAvailableSlots(
           .in("booking_id", bookingIds)
           .in("status", ["unassigned", "assigned"])
           .returns<BookingAssignmentRecord[]>()
-      : { data: [], error: null };
+      : { data: [] as BookingAssignmentRecord[], error: null };
 
   if (assignmentsResult.error) {
-    return emptyResult(input, durationMins, requiredStaffByGender, "Booking assignment data unavailable.");
+    return { reason: "Booking assignment data unavailable." };
   }
 
-  const staffRulesByStaffId = new Map<string, StaffAvailabilityRuleRecord[]>();
-  for (const rule of staffRulesResult.data ?? []) {
-    staffRulesByStaffId.set(rule.staff_id, [
-      ...(staffRulesByStaffId.get(rule.staff_id) ?? []),
-      rule,
-    ]);
+  const bookingDateById = new Map(
+    bookings.map((booking) => [booking.id, booking.booking_date])
+  );
+
+  const byDate = new Map<string, DayRecords>();
+  for (const date of dates) {
+    byDate.set(date, {
+      globalBlocked: false,
+      staffBlockedIds: new Set<string>(),
+      staffOverrideByStaffId: new Map<string, StaffDateOverrideRecord>(),
+      bookings: [],
+      assignments: [],
+    });
   }
 
-  const staffOverrideByStaffId = new Map(
-    (staffOverrideResult.data ?? []).map((override) => [override.staff_id, override])
-  );
-  const staffBlockedIds = new Set(
-    (staffBlockedResult.data ?? []).map((blocked) => blocked.staff_id)
-  );
+  for (const row of blockedDatesResult.data ?? []) {
+    const day = byDate.get(row.blocked_date);
+    if (day) day.globalBlocked = true;
+  }
+
+  for (const row of globalOverrideResult.data ?? []) {
+    const day = byDate.get(row.override_date);
+    if (day && !day.globalOverride) {
+      day.globalOverride = { start_time: row.start_time, end_time: row.end_time };
+    }
+  }
+
+  for (const row of staffBlockedResult.data ?? []) {
+    byDate.get(row.blocked_date)?.staffBlockedIds.add(row.staff_id);
+  }
+
+  for (const row of staffOverrideResult.data ?? []) {
+    const day = byDate.get(row.override_date);
+    if (day && !day.staffOverrideByStaffId.has(row.staff_id)) {
+      day.staffOverrideByStaffId.set(row.staff_id, {
+        staff_id: row.staff_id,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        override_type: row.override_type,
+      });
+    }
+  }
+
+  for (const booking of bookings) {
+    byDate.get(booking.booking_date)?.bookings.push({
+      id: booking.id,
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+    });
+  }
+
+  for (const assignment of assignmentsResult.data ?? []) {
+    const bookingDate = bookingDateById.get(assignment.booking_id);
+    if (bookingDate) {
+      byDate.get(bookingDate)?.assignments.push(assignment);
+    }
+  }
+
+  return byDate;
+}
+
+/**
+ * Pure slot computation for one date given the loaded context and that
+ * date's records. Mirrors the original implementation line for line.
+ */
+function computeDaySlots(
+  context: AvailabilityContext,
+  day: DayRecords,
+  date: string,
+  now: Date,
+  requiredStaffByGender: Record<TherapistGender, number>
+): AvailableSlot[] {
+  const { settings, durationMins, eligibleStaff } = context;
+  const dayOfWeek = getBusinessDayOfWeek(date);
+
   const staffWindowsById = new Map(
     eligibleStaff.map((member) => [
       member.id,
       resolveStaffWindows({
         staff: member,
         dayOfWeek,
-        globalBlocked: (blockedDatesResult.data ?? []).length > 0,
-        globalRules: globalRulesResult.data ?? [],
-        globalOverride: globalOverrideResult.data ?? undefined,
-        staffRulesByStaffId,
-        staffBlockedIds,
-        staffOverrideByStaffId,
+        globalBlocked: day.globalBlocked,
+        globalRules: context.globalRules,
+        globalOverride: day.globalOverride,
+        staffRulesByStaffId: context.staffRulesByStaffId,
+        staffBlockedIds: day.staffBlockedIds,
+        staffOverrideByStaffId: day.staffOverrideByStaffId,
       }),
     ])
   );
   const busyByStaffId = new Map(
     eligibleStaff.map((member) => [
       member.id,
-      bookingBusyIntervals(
-        bookings,
-        assignmentsResult.data ?? [],
-        member.id
-      ),
+      bookingBusyIntervals(day.bookings, day.assignments, member.id),
     ])
   );
 
@@ -591,7 +733,7 @@ export async function calculateAvailableSlots(
 
     if (
       !isOutsideMinimumNotice({
-        date: input.date,
+        date,
         time: startTime,
         now,
         minimumNoticeHours: settings.minimum_notice_hours,
@@ -622,8 +764,8 @@ export async function calculateAvailableSlots(
     );
 
     const unassignedCounts = unassignedReservationCounts(
-      bookings,
-      assignmentsResult.data ?? [],
+      day.bookings,
+      day.assignments,
       start,
       end,
       settings.buffer_time_mins
@@ -648,10 +790,149 @@ export async function calculateAvailableSlots(
     }
   }
 
+  return slots;
+}
+
+export async function calculateAvailableSlots(
+  input: CalculateAvailableSlotsInput,
+  supabase: SupabaseClient,
+  options: { now?: Date } = {}
+): Promise<AvailableSlotsResult> {
+  const requiredStaffByGender = countRequiredStaff(input.participantGenders);
+
+  if (!DATE_PATTERN.test(input.date)) {
+    return emptyResult(input, 0, requiredStaffByGender, "Invalid date.");
+  }
+
+  const now = options.now ?? new Date();
+  const settings = await loadSettings(supabase);
+
+  if (!settings) {
+    return emptyResult(input, 0, requiredStaffByGender, "Booking settings unavailable.");
+  }
+
+  if (!settings.booking_status_enabled) {
+    return emptyResult(input, 0, requiredStaffByGender, "Online booking is currently paused.");
+  }
+
+  if (
+    !isDateInBusinessWindow({
+      date: input.date,
+      now,
+      bookingWindowDays: settings.booking_window_days,
+    })
+  ) {
+    return emptyResult(input, 0, requiredStaffByGender, "Date is outside the booking window.");
+  }
+
+  const contextResult = await loadContextRest(supabase, settings, input);
+  if ("reason" in contextResult) {
+    return emptyResult(
+      input,
+      contextResult.durationMins,
+      requiredStaffByGender,
+      contextResult.reason
+    );
+  }
+
+  const dayRecords = await loadDayRecords(supabase, [input.date], contextResult.eligibleStaffIds);
+  if ("reason" in dayRecords) {
+    return emptyResult(
+      input,
+      contextResult.durationMins,
+      requiredStaffByGender,
+      dayRecords.reason
+    );
+  }
+
+  const day = dayRecords.get(input.date);
+  const slots = day
+    ? computeDaySlots(contextResult, day, input.date, now, requiredStaffByGender)
+    : [];
+
   return {
     date: input.date,
     slots,
-    durationMins,
+    durationMins: contextResult.durationMins,
+    requiredStaffByGender,
+  };
+}
+
+/**
+ * Month-view variant: computes per-day availability summaries for a set of
+ * dates in a single pass. Context and rules load once; date-scoped records
+ * load in one round trip per table. Days outside the booking window come
+ * back as unavailable without touching the database.
+ */
+export async function calculateAvailableDays(
+  input: CalculateAvailableDaysInput,
+  supabase: SupabaseClient,
+  options: { now?: Date } = {}
+): Promise<AvailableDaysResult> {
+  const requiredStaffByGender = countRequiredStaff(input.participantGenders);
+  const unavailable = (reason?: string): AvailableDaysResult => ({
+    days: input.dates.map((date) => ({ date, hasSlots: false, slotCount: 0 })),
+    durationMins: 0,
+    requiredStaffByGender,
+    reason,
+  });
+
+  const now = options.now ?? new Date();
+  const settings = await loadSettings(supabase);
+
+  if (!settings) {
+    return unavailable("Booking settings unavailable.");
+  }
+
+  if (!settings.booking_status_enabled) {
+    return unavailable("Online booking is currently paused.");
+  }
+
+  const contextResult = await loadContextRest(supabase, settings, input);
+  if ("reason" in contextResult) {
+    return { ...unavailable(contextResult.reason), durationMins: contextResult.durationMins };
+  }
+
+  const datesInWindow = input.dates.filter(
+    (date) =>
+      DATE_PATTERN.test(date) &&
+      isDateInBusinessWindow({
+        date,
+        now,
+        bookingWindowDays: settings.booking_window_days,
+      })
+  );
+
+  if (datesInWindow.length === 0) {
+    return {
+      days: input.dates.map((date) => ({ date, hasSlots: false, slotCount: 0 })),
+      durationMins: contextResult.durationMins,
+      requiredStaffByGender,
+    };
+  }
+
+  const dayRecords = await loadDayRecords(
+    supabase,
+    datesInWindow,
+    contextResult.eligibleStaffIds
+  );
+  if ("reason" in dayRecords) {
+    return { ...unavailable(dayRecords.reason), durationMins: contextResult.durationMins };
+  }
+
+  const days = input.dates.map((date) => {
+    const day = dayRecords.get(date);
+    if (!day) {
+      return { date, hasSlots: false, slotCount: 0 };
+    }
+
+    const slots = computeDaySlots(contextResult, day, date, now, requiredStaffByGender);
+    return { date, hasSlots: slots.length > 0, slotCount: slots.length };
+  });
+
+  return {
+    days,
+    durationMins: contextResult.durationMins,
     requiredStaffByGender,
   };
 }

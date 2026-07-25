@@ -574,6 +574,46 @@ h3 {
   bottom: 0.45rem;
 }
 
+/* Homepage hero: the nav floats transparently over the looping video and fades
+   to the solid nav once you scroll past the hero (toggled by SiteHeader's
+   `data-transparent`). */
+.navbar31_component[data-transparent="true"] {
+  background-color: transparent;
+  border-bottom-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.navbar31_component[data-transparent="true"] .navbar31_desktop-links {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.navbar31_component[data-transparent="true"] .navbar31_desktop-link {
+  color: #ffffff;
+}
+
+.navbar31_component[data-transparent="true"] .navbar31_desktop-link:hover,
+.navbar31_component[data-transparent="true"] .navbar31_desktop-link.is-active {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+}
+
+.navbar31_component[data-transparent="true"] .navbar31_menu-button {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.navbar31_component[data-transparent="true"] .menu-icon4_line-top,
+.navbar31_component[data-transparent="true"] .menu-icon4_line-bottom,
+.navbar31_component[data-transparent="true"] .menu-icon4_line-middle-top,
+.navbar31_component[data-transparent="true"] .menu-icon4_line-middle-base {
+  background-color: #ffffff;
+}
+
+.navbar31_component[data-transparent="true"] .navbar31_logo {
+  filter: drop-shadow(0 1px 10px rgba(0, 0, 0, 0.55));
+}
+
 .navbar31_menu {
   position: fixed;
   inset: 0 0 0 auto;
@@ -692,6 +732,15 @@ h3 {
 .navbar31_social-list {
   grid-template-columns: repeat(3, 1.5rem);
   gap: 1rem;
+}
+
+.navbar31_social-link {
+  transition: color 200ms ease, transform 200ms ease;
+}
+
+.navbar31_social-link:hover {
+  color: var(--primary);
+  transform: translateY(-1px);
 }
 
 .home_hero_card {
@@ -2821,6 +2870,7 @@ h3 {
   .button:hover,
   .navbar31_link:hover,
   .navbar31_menu-button:hover,
+  .navbar31_social-link:hover,
   .service_item-link:hover,
   .service_item-link:hover .service_image,
   .result_tab-link:hover,

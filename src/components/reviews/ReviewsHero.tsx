@@ -20,7 +20,7 @@ export function ReviewsHero() {
             <Link
               href="?booking=1"
               data-booking-trigger="true"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
               Book a home session
               <ArrowRight aria-hidden="true" size={16} />
@@ -34,9 +34,9 @@ export function ReviewsHero() {
           </div>
         </div>
 
-        <div className="relative min-h-[420px] overflow-hidden rounded-3xl border border-white/70 shadow-card">
+        <div className="relative aspect-square overflow-hidden rounded-3xl border border-white/70 shadow-card">
           <ReviewsImage
-            src="/images/reviews/reviews-hero.webp"
+            src="/images/reviews/reviews-hero-v1.jpg"
             alt="Rahma Therapy mobile treatment setup for client reviews"
             imageType="Clean premium mobile therapy setup, massage couch, cups, towels, calm home environment"
             priority

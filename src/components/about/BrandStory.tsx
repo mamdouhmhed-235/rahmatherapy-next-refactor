@@ -9,12 +9,12 @@ export function BrandStory() {
       <div className="grid gap-10 lg:grid-cols-[0.95fr_1fr] lg:items-center">
         <div className="relative min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <AboutImage
-            src="/images/about/home-treatment-setup.webp"
+            src="/images/about/brand-story-v1.webp"
             alt="Private mobile therapy setup for hijama and massage at home"
             imageType="Home treatment setup with massage bed, cups, towels, oils or tools. Calm and professional. No graphic imagery."
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/62 via-black/10 to-transparent" />
-          <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-sm">
+          <span className="absolute bottom-6 left-6 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green shadow-soft">
             Mobile care across Luton
           </span>
         </div>
@@ -27,18 +27,11 @@ export function BrandStory() {
           </h2>
           <div className="mt-6 space-y-5 text-base leading-8 text-rahma-muted sm:text-lg">
             <p>
-              Rahma Therapy started in Luton in 2020 with one purpose: make
-              professional cupping and massage easier to access — at home, with
-              privacy, with care.
-            </p>
-            <p>
-              Today the team is Nadimur, Minhaj and our female therapist, working
-              across hijama, dry cupping, fire cupping, massage and IASTM.
-            </p>
-            <p>
-              Most people find us when their back is tight, their shoulders are
-              carrying stress, training has left them stiff — or they simply want
-              hijama done well, at home.
+              Rahma Therapy took off in 2020 during the covid pandemic where our
+              clients were looking for home based treatments with a qualified
+              therapist without breaking the bank. Fast forward to now, we have
+              served over 500+ patients helping with injury recovery, sports
+              therapy, general health/wellbeing and much more!
             </p>
           </div>
           <Link

@@ -10,11 +10,11 @@ export function PackageCards() {
     <SectionContainer tone="ivory" width="wide">
       <SectionHeading
         align="center"
-        title="Five packages. Pick yours."
-        description="Different needs, different packages. The therapist comes to you."
+        title="Choose from one of our packages below"
+        description="Mobile service with no extra cost (T&C's apply)."
         className="mx-auto"
       />
-      <div className="mt-12 grid gap-5 lg:grid-cols-12">
+      <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-12">
         {servicePackages.map((service, index) => {
           const isFeatured = index < 2;
 
@@ -38,10 +38,10 @@ export function PackageCards() {
                 className="transition-transform duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/45 to-transparent" />
-              <span className="absolute left-6 top-6 z-30 rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-rahma-charcoal sm:left-7 sm:top-7">
+              <span className="absolute left-6 top-6 z-30 rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-rahma-charcoal-strong sm:left-7 sm:top-7">
                 {service.badge}
               </span>
-              <strong className="absolute right-6 top-6 z-30 shrink-0 rounded-full bg-white px-4 py-2 text-lg font-semibold text-rahma-green shadow-sm sm:right-7 sm:top-7">
+              <strong className="absolute right-6 top-6 z-30 shrink-0 rounded-full bg-white px-4 py-2 text-lg font-semibold text-rahma-green shadow-soft sm:right-7 sm:top-7">
                 {service.price}
               </strong>
               <div className="absolute inset-0 z-20 flex flex-col justify-end p-6 text-white sm:p-7">
@@ -76,18 +76,18 @@ export function PackageCards() {
                   </div>
                   <div className="relative z-30 mt-5 flex flex-wrap gap-3">
                     <Link
-                      href={service.href}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green transition hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-gold"
+                      href={service.bookingHref}
+                      data-booking-trigger="true"
+                      className="inline-flex min-h-11 items-center gap-2 rounded-full bg-rahma-gold px-4 py-2 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                     >
-                      {service.cta}
+                      {service.bookingCta}
                       <ArrowRight aria-hidden="true" size={16} />
                     </Link>
                     <Link
-                      href={service.bookingHref}
-                      data-booking-trigger="true"
-                      className="inline-flex min-h-11 items-center rounded-full border border-white/35 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rahma-gold"
+                      href={service.href}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/35 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-gold"
                     >
-                      {service.bookingCta}
+                      {service.cta}
                     </Link>
                   </div>
                 </div>

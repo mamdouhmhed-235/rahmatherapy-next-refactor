@@ -1,4 +1,5 @@
 import { BookingExperienceLoader } from "@/features/booking/BookingExperienceLoader";
+import { PublicScrollbar } from "@/components/layout/PublicScrollbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { MAINTENANCE_MODE } from "@/lib/maintenance";
@@ -26,6 +27,7 @@ export default function PublicLayout({
       <SiteFooter />
       {!MAINTENANCE_MODE && <BookingExperienceLoader />}
       {MAINTENANCE_MODE && <MaintenanceModal />}
+      <PublicScrollbar />
     </>
   );
 }

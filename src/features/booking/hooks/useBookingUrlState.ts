@@ -5,7 +5,7 @@ import {
   isBookingPackageId,
   type BookingPackageId,
 } from "../data/booking-packages";
-import type { BookingStep } from "../types";
+import type { BookingStage } from "../types";
 
 function getSafeUrlPackageIds(searchParams: URLSearchParams) {
   const serviceId = searchParams.get("services")?.trim();
@@ -15,11 +15,11 @@ function getSafeUrlPackageIds(searchParams: URLSearchParams) {
 
 interface UseBookingUrlStateOptions {
   open: boolean;
-  currentStep: BookingStep;
+  currentStep: BookingStage;
   selectedPackageIds: BookingPackageId[];
   lastTriggerRef: RefObject<HTMLElement | null>;
   setOpen: (open: boolean) => void;
-  setCurrentStep: (step: BookingStep) => void;
+  setCurrentStep: (step: BookingStage) => void;
   setSelectedPackageIds: (ids: BookingPackageId[]) => void;
 }
 
@@ -32,19 +32,17 @@ export function useBookingUrlState({
   setCurrentStep,
   setSelectedPackageIds,
 }: UseBookingUrlStateOptions) {
+  // `open` itself is initialized from the URL synchronously in
+  // BookingExperience; this effect applies a deep-linked service for the
+  // pre-hydration render. The store's persist `merge` handles the async
+  // rehydration case so the deep link always wins over a stale draft.
   useEffect(() => {
     const url = new URL(window.location.href);
-    const packageIds = getSafeUrlPackageIds(url.searchParams);
-    const shouldOpen = url.searchParams.get("booking") === "1";
 
-    if (shouldOpen) {
-      setSelectedPackageIds(packageIds);
-      const timer = window.setTimeout(() => setOpen(true), 0);
-      return () => window.clearTimeout(timer);
+    if (url.searchParams.get("booking") === "1") {
+      setSelectedPackageIds(getSafeUrlPackageIds(url.searchParams));
     }
-
-    return undefined;
-  }, [setOpen, setSelectedPackageIds]);
+  }, [setSelectedPackageIds]);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -69,8 +67,8 @@ export function useBookingUrlState({
       }
 
       setOpen(true);
-      if (currentStep === "prepared") {
-        setCurrentStep("packages");
+      if (currentStep === "success") {
+        setCurrentStep("service");
       }
     };
 

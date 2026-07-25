@@ -3,10 +3,7 @@ import { AboutFinalCTA } from "@/components/about/AboutFinalCTA";
 import { AboutHero } from "@/components/about/AboutHero";
 import { AboutStatsStrip } from "@/components/about/AboutStatsStrip";
 import { BrandStory } from "@/components/about/BrandStory";
-import { ComfortSection } from "@/components/about/ComfortSection";
-import { MilestoneTimeline } from "@/components/about/MilestoneTimeline";
 import { TeamProfiles } from "@/components/about/TeamProfiles";
-import { TrustSnapshot } from "@/components/about/TrustSnapshot";
 
 export const metadata: Metadata = {
   title: "About Rahma Therapy | Mobile Hijama, Cupping & Massage in Luton",
@@ -35,11 +32,8 @@ export default function AboutPage() {
       />
       <AboutHero />
       <AboutStatsStrip />
-      <TrustSnapshot />
       <BrandStory />
       <TeamProfiles />
-      <MilestoneTimeline />
-      <ComfortSection />
       <AboutFinalCTA />
     </>
   );

@@ -3,8 +3,8 @@ import { StarsRating } from "@/components/shared";
 
 export function HomeTrustStrip() {
   return (
-    <section className="border-y border-rahma-border bg-white px-5 py-9 sm:py-11 lg:px-8">
-      <div className="mx-auto max-w-5xl">
+    <section className="border-y border-rahma-border bg-white px-5 pb-10 pt-14 sm:pb-12 sm:pt-16 lg:px-8">
+      <div className="mx-auto max-w-7xl">
         <p className="text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-rahma-muted">
           Qualified · Trusted · Rated
         </p>

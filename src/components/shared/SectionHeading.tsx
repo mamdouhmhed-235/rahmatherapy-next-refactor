@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 
 type HeadingAlign = "left" | "center";
 type HeadingSize = "default" | "large" | "compact";
+type HeadingWeight = "medium" | "semibold";
 
 const alignClasses: Record<HeadingAlign, string> = {
   left: "items-start text-left",
@@ -15,12 +16,18 @@ const sizeClasses: Record<HeadingSize, string> = {
   compact: "text-2xl sm:text-3xl",
 };
 
+const weightClasses: Record<HeadingWeight, string> = {
+  medium: "font-medium",
+  semibold: "font-semibold",
+};
+
 interface SectionHeadingProps extends Omit<HTMLAttributes<HTMLDivElement>, "title"> {
   eyebrow?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   align?: HeadingAlign;
   size?: HeadingSize;
+  weight?: HeadingWeight;
   inverse?: boolean;
 }
 
@@ -30,6 +37,7 @@ export function SectionHeading({
   description,
   align = "left",
   size = "default",
+  weight = "medium",
   inverse = false,
   className,
   ...props
@@ -51,8 +59,9 @@ export function SectionHeading({
       ) : null}
       <h2
         className={cn(
-          "font-display font-medium leading-[1.04] tracking-normal",
+          "font-display leading-[1.04] tracking-normal",
           sizeClasses[size],
+          weightClasses[weight],
           inverse ? "text-white" : "text-rahma-charcoal"
         )}
       >

@@ -11,14 +11,14 @@ export function PackageHero({ page }: { page: PackagePage }) {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
             {page.eyebrow}
           </p>
-          <h1 className="mt-4 max-w-3xl font-display text-3xl font-medium leading-[1.06] text-rahma-charcoal sm:text-5xl md:text-4xl lg:mt-5 lg:text-6xl">
+          <h1 className="mt-4 max-w-3xl font-display text-3xl font-medium leading-[1.06] text-rahma-charcoal sm:text-5xl lg:mt-5 lg:text-6xl">
             {page.h1}
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-7 text-rahma-muted sm:text-lg sm:leading-8">
             {page.subheading}
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-3 sm:mt-7">
-            <span className="rounded-full bg-rahma-gold px-5 py-2 text-lg font-semibold text-rahma-charcoal">
+            <span className="rounded-full bg-rahma-gold px-5 py-2 text-lg font-semibold text-rahma-charcoal-strong">
               {page.price}
             </span>
             {page.duration ? (
@@ -31,7 +31,7 @@ export function PackageHero({ page }: { page: PackagePage }) {
             <Link
               href={page.bookingHref}
               data-booking-trigger="true"
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
               {page.bookingCta}
               <ArrowRight aria-hidden="true" size={16} />

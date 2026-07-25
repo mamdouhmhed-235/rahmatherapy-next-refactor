@@ -37,7 +37,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
     <article
       onMouseEnter={() => setHoverExpanded(true)}
       onMouseLeave={() => setHoverExpanded(false)}
-      className="break-inside-avoid rounded-3xl border border-rahma-border bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-md motion-reduce:transform-none motion-reduce:transition-none sm:p-6"
+      className="break-inside-avoid rounded-3xl border border-rahma-border bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-card motion-reduce:transform-none motion-reduce:transition-none sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
         <StarRating rating={review.rating} />
@@ -82,7 +82,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
           aria-controls={reviewTextId}
           onClick={() => setButtonExpanded((current) => !current)}
           className={cn(
-            "rounded-full text-sm font-semibold text-rahma-green underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue",
+            "-my-2 -mr-2 inline-flex min-h-11 items-center rounded-full px-2 text-sm font-semibold text-rahma-green underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue",
             expanded ? "text-rahma-charcoal" : "text-rahma-green"
           )}
         >

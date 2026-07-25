@@ -22,7 +22,6 @@ describe("BookingSummary", () => {
         }}
         preferredDate="2026-06-01"
         preferredTime="10:00"
-        actions={<button type="button">Continue</button>}
       />
     );
 

@@ -5,13 +5,14 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import {
   getPackageById,
   getSelectedPackages,
+  isBookingPackageId,
   type BookingPackageId,
 } from "../data/booking-packages";
-import type { BookingStep } from "../types";
+import type { BookingStage } from "../types";
 
 interface BookingDraftState {
   selectedPackageIds: BookingPackageId[];
-  currentStep: BookingStep;
+  currentStep: BookingStage;
   preferredDate: string | null;
   preferredTime: string | null;
 }
@@ -20,7 +21,7 @@ interface BookingDraftActions {
   setSelectedPackageIds: (ids: BookingPackageId[]) => void;
   togglePackage: (id: BookingPackageId) => void;
   clearPackages: () => void;
-  setCurrentStep: (step: BookingStep) => void;
+  setCurrentStep: (step: BookingStage) => void;
   setPreferredDate: (date: string | null) => void;
   setPreferredTime: (time: string | null) => void;
   resetDraft: () => void;
@@ -30,7 +31,7 @@ export type BookingDraftStore = BookingDraftState & BookingDraftActions;
 
 const initialState: BookingDraftState = {
   selectedPackageIds: [],
-  currentStep: "packages",
+  currentStep: "service",
   preferredDate: null,
   preferredTime: null,
 };
@@ -76,6 +77,26 @@ export const useBookingDraftStore = create<BookingDraftStore>()(
       partialize: (state) => ({
         selectedPackageIds: state.selectedPackageIds,
       }),
+      merge: (persisted, current) => {
+        const merged = {
+          ...current,
+          ...(persisted as Partial<BookingDraftState>),
+        };
+
+        // Rehydration is async and can land after a ?booking=1 deep link has
+        // already applied its service selection — the deep link must win
+        // over a stale saved draft, so resolve the conflict here.
+        if (typeof window !== "undefined") {
+          const params = new URL(window.location.href).searchParams;
+          if (params.get("booking") === "1") {
+            const serviceId = params.get("services")?.trim();
+            merged.selectedPackageIds =
+              serviceId && isBookingPackageId(serviceId) ? [serviceId] : [];
+          }
+        }
+
+        return merged;
+      },
     }
   )
 );

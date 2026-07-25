@@ -12,6 +12,7 @@ export function HomePackageCards() {
         align="center"
         title="Pick your package"
         description="Clear packages. Simple pricing. We come to you."
+        weight="semibold"
         className="mx-auto"
       />
       <div className="mt-12 grid gap-5 lg:grid-cols-12">
@@ -37,7 +38,7 @@ export function HomePackageCards() {
               <span className="absolute left-6 top-6 z-30 rounded-full bg-rahma-gold px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-rahma-charcoal sm:left-7 sm:top-7">
                 {item.badge}
               </span>
-              <strong className="absolute right-6 top-6 z-30 shrink-0 rounded-full bg-white px-4 py-2 text-lg font-semibold text-rahma-green shadow-sm sm:right-7 sm:top-7">
+              <strong className="absolute right-6 top-6 z-30 shrink-0 rounded-full bg-white px-4 py-2 text-lg font-semibold text-rahma-green shadow-soft sm:right-7 sm:top-7">
                 {item.price}
               </strong>
               <div className="absolute inset-0 z-20 flex flex-col justify-end p-6 text-white sm:p-7">
@@ -72,18 +73,18 @@ export function HomePackageCards() {
                   </div>
                   <div className="relative z-30 mt-5 flex flex-wrap gap-3">
                     <Link
-                      href={item.href}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-rahma-green transition hover:bg-white/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-gold"
+                      href={item.bookingHref}
+                      data-booking-trigger="true"
+                      className="inline-flex min-h-11 items-center gap-2 rounded-full bg-rahma-gold px-4 py-2 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                     >
-                      {item.cta}
+                      Book this package
                       <ArrowRight aria-hidden="true" size={16} />
                     </Link>
                     <Link
-                      href={item.bookingHref}
-                      data-booking-trigger="true"
-                      className="inline-flex min-h-11 items-center rounded-full border border-white/35 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rahma-gold"
+                      href={item.href}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/35 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-gold"
                     >
-                      Book this package
+                      {item.cta}
                     </Link>
                   </div>
                 </div>

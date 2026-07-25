@@ -48,7 +48,7 @@ export const aftercareTabs = [
   {
     id: "hijama",
     label: "Hijama / wet cupping",
-    image: "/images/faqs-aftercare/hijama-aftercare.webp",
+    image: "/images/faqs-aftercare/hijama-aftercare-v1.jpg",
     imageType: "Clean cups, plasters or dressings, towel and aftercare setup. No blood.",
     imageAlt: "Clean hijama aftercare setup with dressings and cups",
     imageOverlay: "Hijama aftercare",
@@ -80,7 +80,7 @@ export const aftercareTabs = [
   {
     id: "cupping",
     label: "Dry & fire cupping",
-    image: "/images/faqs-aftercare/cupping-aftercare.webp",
+    image: "/images/faqs-aftercare/cupping-aftercare-v1.jpg",
     imageType: "Glass or plastic cups and towel in a clean, calm setup. No unsafe flame close-up.",
     imageAlt: "Dry and fire cupping aftercare setup with cups and towel",
     imageOverlay: "Cupping aftercare",
@@ -112,7 +112,7 @@ export const aftercareTabs = [
   {
     id: "massage",
     label: "Massage / IASTM",
-    image: "/images/faqs-aftercare/massage-aftercare.webp",
+    image: "/images/faqs-aftercare/massage-aftercare-v1.jpg",
     imageType: "Relaxed massage setup with oils, towel and client resting.",
     imageAlt: "Massage aftercare setup with oils and towel",
     imageOverlay: "Massage aftercare",

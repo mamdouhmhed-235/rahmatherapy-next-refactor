@@ -9,7 +9,7 @@ export function HomeFAQPreview() {
     <SectionContainer tone="surface" width="narrow">
       <SectionHeading
         align="center"
-        title="Last questions before you book?"
+        title="FAQ's"
         description="The ones we hear most."
         className="mx-auto"
       />

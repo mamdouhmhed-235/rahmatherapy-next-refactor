@@ -40,6 +40,9 @@ export function SiteHeader() {
   const pathname = usePathname() ?? "/";
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [headerHidden, setHeaderHidden] = React.useState(false);
+  // Transparent (floating-over-hero) state — only on the homepage, only while
+  // the hero is still under the nav. Flips to the solid nav once scrolled past.
+  const [overHero, setOverHero] = React.useState(true);
   const lastScrollYRef = React.useRef(0);
   const scrollFrameRef = React.useRef<number | null>(null);
 
@@ -47,6 +50,7 @@ export function SiteHeader() {
     const timer = window.setTimeout(() => {
       setMenuOpen(false);
       setHeaderHidden(false);
+      setOverHero(window.scrollY < window.innerHeight - 160);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [pathname]);
@@ -56,6 +60,7 @@ export function SiteHeader() {
 
     const updateHeaderVisibility = () => {
       scrollFrameRef.current = null;
+      setOverHero(window.scrollY < window.innerHeight - 160);
 
       if (menuOpen) {
         setHeaderHidden(false);
@@ -88,6 +93,9 @@ export function SiteHeader() {
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
+    // Initialise overHero on mount (handles refresh-while-scrolled) without a
+    // synchronous setState in the effect body.
+    scrollFrameRef.current = window.requestAnimationFrame(updateHeaderVisibility);
 
     return () => {
       window.removeEventListener("scroll", handleScroll);
@@ -132,6 +140,10 @@ export function SiteHeader() {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // trailingSlash: true means usePathname() can return "/home/" — normalise it.
+  const isHomepage = pathname.replace(/\/+$/, "") === "/home";
+  const transparent = isHomepage && overHero && !menuOpen;
+
   return (
     <header
       data-animation="over-right"
@@ -143,6 +155,7 @@ export function SiteHeader() {
       fs-scrolldisable-element="smart-nav"
       data-menu-open={menuOpen ? "true" : undefined}
       data-header-hidden={!menuOpen && headerHidden ? "true" : undefined}
+      data-transparent={transparent ? "true" : undefined}
       className="navbar31_component color-scheme-1 w-nav"
       role="banner"
       style={{ bottom: "auto", height: "4.875rem" }}
@@ -203,7 +216,7 @@ export function SiteHeader() {
                 <div className="text-size-medium text-weight-semibold">
                   Get in touch
                 </div>
-                <div className="spacer-xxsmall" />
+                <div className="spacer-tiny" />
                 <Link href={contactLinks.phone.href} className="text-size-small">
                   {contactLinks.phone.value}
                 </Link>

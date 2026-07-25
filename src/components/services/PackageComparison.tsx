@@ -50,7 +50,7 @@ export function PackageComparison() {
         description="A side-by-side view of every package."
         className="mx-auto"
       />
-      <div className="mt-12 hidden overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-sm lg:block">
+      <div className="mt-12 hidden overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-card lg:block">
         <table className="w-full table-fixed border-collapse text-left">
           <thead>
             <tr className="border-b border-rahma-border">
@@ -90,7 +90,7 @@ export function PackageComparison() {
         {servicePackages.map((service) => (
           <article
             key={service.id}
-            className="rounded-3xl border border-rahma-border bg-white p-5 shadow-sm"
+            className="rounded-3xl border border-rahma-border bg-white p-5 shadow-card"
           >
             <div className="flex items-start justify-between gap-4">
               <h3 className="text-xl font-semibold text-rahma-charcoal">{service.title}</h3>

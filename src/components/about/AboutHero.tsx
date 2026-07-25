@@ -11,35 +11,36 @@ export function AboutHero() {
             About us
           </p>
           <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl lg:text-6xl">
-            A small Luton team. Big on trust.
+            Serving Luton and surrounding since 2020
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
-            Three CMA and IPHM qualified therapists bringing hijama, cupping and
-            massage to homes across Luton since 2020.
+            CMA and IPHM qualified therapists to assist where you are most
+            comfortable
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
               href="?booking=1"
               data-booking-trigger="true"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+              className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
-              Book a home session
+              Book an appointment
             </Link>
             <Link
               href="/services"
               className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-rahma-green/30 bg-white px-6 text-sm font-semibold text-rahma-green transition hover:border-rahma-green focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
-              View treatments
+              View packages
               <ArrowRight aria-hidden="true" size={17} />
             </Link>
           </div>
         </div>
-        <div className="relative min-h-[430px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[560px] lg:min-h-[600px]">
+        <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <AboutImage
-            src="/images/about/about-hero-team.webp"
-            alt="Rahma Therapy mobile hijama and massage therapists in Luton"
+            src="/images/about/about-hero-v3.jpg"
+            alt="Rahma Therapy mobile therapy team arriving at a home in Luton with treatment kit"
             imageType="Rahma Therapy therapists in clean professional clothing. Ideally Nadimur, Minhaj and female therapist."
             priority
+            fetchPriority="high"
           />
         </div>
       </div>

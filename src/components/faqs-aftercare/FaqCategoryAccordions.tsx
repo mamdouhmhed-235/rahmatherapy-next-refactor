@@ -90,7 +90,7 @@ export function FaqCategoryAccordions() {
               className={cn(
                 "min-h-11 rounded-full border px-5 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:shrink-0",
                 isActive
-                  ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal"
+                  ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal-strong"
                   : "border-rahma-border bg-white text-rahma-green hover:border-rahma-green"
               )}
             >

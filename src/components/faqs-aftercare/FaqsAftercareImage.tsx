@@ -8,10 +8,19 @@ interface FaqsAftercareImageProps {
   imageType: string;
   className?: string;
   priority?: boolean;
+  fetchPriority?: "high";
   sizes?: string;
 }
 
-const approvedFaqsAftercareImagePaths = new Set<string>();
+const approvedFaqsAftercareImagePaths = new Set<string>([
+  "/images/faqs-aftercare/faqs-hero-v1.jpg",
+  "/images/faqs-aftercare/before-appointment-v1.jpg",
+  "/images/faqs-aftercare/hijama-aftercare-v1.jpg",
+  "/images/faqs-aftercare/cupping-aftercare-v1.jpg",
+  "/images/faqs-aftercare/massage-aftercare-v1.jpg",
+  "/images/faqs-aftercare/safety-suitability-v1.jpg",
+  "/images/faqs-aftercare/final-cta-v1.jpg",
+]);
 
 export function FaqsAftercareImage({
   src,
@@ -19,6 +28,7 @@ export function FaqsAftercareImage({
   imageType,
   className,
   priority = false,
+  fetchPriority,
   sizes = "(max-width: 768px) 100vw, 50vw",
 }: FaqsAftercareImageProps) {
   if (!approvedFaqsAftercareImagePaths.has(src)) {
@@ -40,6 +50,7 @@ export function FaqsAftercareImage({
       alt={alt}
       fill
       priority={priority}
+      fetchPriority={fetchPriority}
       sizes={sizes}
       className={cn("object-cover", className)}
     />

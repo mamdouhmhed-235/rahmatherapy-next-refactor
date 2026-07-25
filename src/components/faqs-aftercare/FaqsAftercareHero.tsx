@@ -10,7 +10,7 @@ export function FaqsAftercareHero() {
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-green">
             FAQs & Aftercare
           </p>
-          <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl md:text-4xl lg:text-6xl">
+          <h1 className="mt-5 max-w-3xl font-display text-4xl font-medium leading-[1.04] text-rahma-charcoal sm:text-5xl lg:text-6xl">
             Clear answers before and after your home session.
           </h1>
           <p className="mt-6 max-w-2xl text-base leading-8 text-rahma-muted sm:text-lg">
@@ -21,7 +21,7 @@ export function FaqsAftercareHero() {
             <Link
               href="?booking=1"
               data-booking-trigger="true"
-              className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
+              className="inline-flex min-h-12 items-center justify-center rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue"
             >
               Book a home session
             </Link>
@@ -34,12 +34,13 @@ export function FaqsAftercareHero() {
             </Link>
           </div>
         </div>
-        <div className="relative min-h-[320px] overflow-hidden rounded-3xl bg-rahma-green shadow-card sm:min-h-[360px] lg:min-h-[560px]">
+        <div className="relative aspect-[3/2] overflow-hidden rounded-3xl bg-rahma-green shadow-card">
           <FaqsAftercareImage
-            src="/images/faqs-aftercare/faqs-hero.webp"
+            src="/images/faqs-aftercare/faqs-hero-v1.jpg"
             alt="Clean Rahma Therapy mobile hijama cupping and massage setup in Luton"
             imageType="Clean mobile treatment setup with massage couch, cups, towels, oils and neatly prepared equipment. No blood."
             priority
+            fetchPriority="high"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
         </div>

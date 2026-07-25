@@ -8,26 +8,26 @@ export function HomeFinalCTA() {
       <div className="mx-auto max-w-[88rem]">
         <div className="relative min-h-[460px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <HomeImage
-            src="/images/home/home-final-cta.webp"
+            src="/images/home/home-final-cta.jpg"
             alt="Private mobile therapy session with Rahma Therapy"
             imageType="Calm premium treatment/wellness image with space for dark overlay."
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#144a78]/94 via-[#144a78]/78 to-[#144a78]/46" />
+          <div className="absolute inset-0 bg-gradient-to-r from-rahma-charcoal/94 via-rahma-charcoal/78 to-rahma-charcoal/46" />
           <div className="relative z-10 flex min-h-[460px] max-w-3xl flex-col justify-center p-6 text-white sm:p-10 lg:p-14">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rahma-gold">
-              Book at home
+              Mobile | Massage | Cupping
             </p>
             <h2 className="mt-4 font-display text-4xl font-medium leading-tight sm:text-5xl lg:text-6xl">
-              Ready to feel like yourself again?
+              Ready to start your wellness journey?
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-7 text-white/80 sm:text-lg">
-              Book a private hijama, cupping or massage session in Luton.
+              Book a private appointment at the comfort of your home.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="?booking=1"
                 data-booking-trigger="true"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-rahma-gold px-6 text-sm font-semibold text-rahma-charcoal-strong transition hover:bg-[#ffc252] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               >
                 Book now
                 <ArrowRight aria-hidden="true" size={16} />

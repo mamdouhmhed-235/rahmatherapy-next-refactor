@@ -19,13 +19,14 @@ export function PackageFinder() {
   const selectedOption =
     packageFinderOptions.find((option) => option.id === selectedId) ??
     packageFinderOptions[0];
+  const isMultiRecommendation = selectedOption.recommendations.length > 1;
 
   return (
     <SectionContainer tone="surface" width="wide">
       <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
         <div className="relative order-2 min-h-[420px] overflow-hidden rounded-3xl bg-rahma-green shadow-card lg:order-1">
           <ServicesImage
-            src="/images/services/package-finder.webp"
+            src="/images/services/package-finder-v1.jpg"
             alt="Rahma Therapy consultation for choosing a treatment package"
             imageType="Therapist consultation or treatment planning image."
             className="h-full min-h-full rounded-none border-0"
@@ -36,10 +37,10 @@ export function PackageFinder() {
             Package finder
           </p>
           <h2 className="mt-4 font-display text-3xl font-medium leading-tight text-rahma-charcoal sm:text-4xl lg:text-5xl">
-            Not sure which one?
+            Unsure?
           </h2>
           <p className="mt-5 max-w-2xl text-base leading-7 text-rahma-muted sm:text-lg">
-            Tell us what you need. We&rsquo;ll point you to the right one.
+            Tell us what you need and we&rsquo;ll guide you to the right package.
           </p>
           <div className="mt-7 flex flex-wrap gap-3" role="group" aria-label="Package needs">
             {packageFinderOptions.map((option) => {
@@ -54,7 +55,7 @@ export function PackageFinder() {
                   className={cn(
                     "min-h-11 rounded-full border px-4 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue",
                     isSelected
-                      ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal"
+                      ? "border-rahma-gold bg-rahma-gold text-rahma-charcoal-strong"
                       : "border-rahma-border bg-white text-rahma-charcoal hover:border-rahma-green"
                   )}
                 >
@@ -68,26 +69,42 @@ export function PackageFinder() {
             initial={reduceMotion ? false : { opacity: 0, y: 10 }}
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="mt-8 rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-sm"
+            className="mt-8 rounded-3xl border border-rahma-border bg-rahma-ivory p-6 shadow-card"
           >
             <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-              Recommended package: {selectedOption.packageTitle}
+              {isMultiRecommendation
+                ? "Recommended packages: "
+                : "Recommended package: "}
+              {selectedOption.recommendations
+                .map((rec) => rec.packageTitle)
+                .join(" or ")}
             </p>
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-rahma-green">
-              Recommended package
+              {isMultiRecommendation ? "Recommended packages" : "Recommended package"}
             </p>
-            <h3 className="mt-3 text-2xl font-semibold text-rahma-charcoal">
-              {selectedOption.packageTitle}
-            </h3>
-            <p className="mt-3 text-sm leading-7 text-rahma-muted">{selectedOption.body}</p>
-            <Link
-              href={selectedOption.href}
-              data-booking-trigger="true"
-              className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:w-auto"
-            >
-              {selectedOption.cta}
-              <ArrowRight aria-hidden="true" size={16} />
-            </Link>
+            <div className="mt-3 grid gap-6">
+              {selectedOption.recommendations.map((rec, index) => (
+                <div
+                  key={rec.packageTitle}
+                  className={cn(
+                    index > 0 && "border-t border-rahma-border pt-6"
+                  )}
+                >
+                  <h3 className="text-2xl font-semibold text-rahma-charcoal">
+                    {rec.packageTitle}
+                  </h3>
+                  <p className="mt-3 text-sm leading-7 text-rahma-muted">{rec.body}</p>
+                  <Link
+                    href={rec.href}
+                    data-booking-trigger="true"
+                    className="mt-6 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-rahma-green px-6 text-sm font-semibold text-white transition hover:bg-rahma-charcoal focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rahma-blue sm:w-auto"
+                  >
+                    {rec.cta}
+                    <ArrowRight aria-hidden="true" size={16} />
+                  </Link>
+                </div>
+              ))}
+            </div>
           </motion.article>
         </div>
       </div>
