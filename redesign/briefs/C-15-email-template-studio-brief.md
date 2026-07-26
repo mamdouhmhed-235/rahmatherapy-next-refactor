@@ -96,6 +96,7 @@ export interface FixedPart {
 - **Subject becomes an override field** (`field_key = 'subject'`) on every template. `SUBJECTS` in `email-templates/actions.ts` becomes a thin read of the registry (or is deleted where redundant).
 - **Renderer copy-lift audit:** each of the ~14 render functions in `templates.ts` is walked; every hardcoded user-facing sentence is either (a) lifted into a `SafeField` with `defaultValue`, or (b) declared a `FixedPart` with a reason (auto-generated summaries, legal footer, layout scaffolding). The admin_internal templates gain real fields (intro line, detail-ordering sentence) instead of footer-only.
 - **Render functions read defaults from the registry** (`overrides[key] ?? field.defaultValue`) so editor, preview, reset, and real sends can never disagree.
+- **Length cap (D13, 2026-07-26):** `email_template_overrides.value` has a DB `CHECK (<=500 chars)` (migration 20260519120000). Every new/expanded field keeps `maxLength` ≤ 500 and every lifted `defaultValue` is validated ≤ 500 chars pre-ship. NO migration to relax the CHECK.
 - File-size guard: if `templates-data.ts` grows unwieldy, split into `templates-data/` per-audience modules re-exported from an index (registry API unchanged).
 
 ### 2.2 Template gallery
@@ -119,7 +120,7 @@ Full-page editor (the cramped in-tab form retires):
 
 ### 2.4 Live preview
 
-- New handler: `POST /admin/email-templates/preview/[templateId]` accepting `{ draftValues: Record<string,string> }` → merges draft over saved overrides → renders through the real render function with canonical **sample data** → returns HTML. Debounced ~300 ms from the editor; response swapped into the preview iframe via `srcdoc`.
+- New handler: `POST /admin/email-templates/preview/[id]` *(segment corrected 2026-07-26 — the existing route folder is `preview/[id]/`, not `[templateId]/`)* accepting `{ draftValues: Record<string,string> }` → merges draft over saved overrides → renders through the real render function with canonical **sample data** → returns HTML. Debounced ~300 ms from the editor; response swapped into the preview iframe via `srcdoc`.
 - `GET` behaviour preserved for the initial paint.
 - Sample data: one canonical `SAMPLE_TEMPLATE_INPUT` module (fictional client "Aisha Khan", `.example.test` address, fixed date) shared by preview + test send. A persistent "Preview uses sample data" note stays.
 - Plain-text templates preview in the existing `<pre>` style, same draft-merge path.
@@ -221,7 +222,7 @@ At 375: fields stack above preview; save bar sticky above the mobile nav (`botto
 - `src/app/admin/emails/templates/components/LivePreview.tsx` — debounced draft preview
 - `src/app/admin/emails/components/TemplateGallery.tsx` — gallery cards + badges
 - `src/lib/email/sample-data.ts` — canonical `SAMPLE_TEMPLATE_INPUT` + per-template extras
-- `src/app/admin/email-templates/preview/[templateId]/route.ts` — extended for POST draft rendering (may already exist as GET — extended, not new, per pre-flight)
+- `src/app/admin/email-templates/preview/[id]/route.ts` — extended for POST draft rendering (exists as GET — extended, not new; segment verified `[id]` 2026-07-26)
 - Tests: registry defaults round-trip, reset action, test-send action, TokenTextField behaviour
 
 ### EDITED (~8)

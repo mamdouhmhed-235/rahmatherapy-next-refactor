@@ -1,5 +1,9 @@
 # C-15 — Email template studio — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: C-08 Phase A (5 new templates — verify `git log --oneline --grep="C-08" | grep -q "feat(redesign): C-08"`; template-id check in pre-flight #3). C-08 Phase D (`staff_profiles.notification_email`) is SOFT — test send falls back to login email.
+> Decisions: C-B-DECISIONS.md carries no C-15 entries (post-handoff addition); Owner decisions D13/D14 (2026-07-26) applied. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase — post-handoff addition)
 **Date written:** 2026-07-16 (user direction: templates section overhaul)
 **Brief:** `redesign/briefs/C-15-email-template-studio-brief.md` (companion — read first)
@@ -10,15 +14,19 @@
 
 ## 0 — Pre-flight
 
-1. **Branch + clean tree.** `git status --short` empty (loose WIP aside, per session norms). Verify branch with user.
+1. **Branch + clean tree.** *(Amended 2026-07-26)* On `master`; HEAD at or descended from `ea97932`; verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- "src/app/admin/emails" "src/app/admin/email-templates" "src/lib/email"` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted .playwright-mcp logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.
 2. **Dev server reachable.** `curl -I http://localhost:3000/admin/login/` → 200.
 3. **C-08 landed?** `git log --oneline | grep "C-08"` — Phase A templates expected (registry sweep covers them); Phase D (`notification_email`) preferred but soft (test send falls back to login email). Record which.
-4. **Baseline tests + static gates green.**
+   *(Added 2026-07-26 — distinguish the two states explicitly.)* Phase A landed ⇔ `grep -c "enquiry_logged" src/app/admin/emails/components/templates-data.ts` ≥ 1 (0 at refinement time). If 0, C-08 Phase A has NOT landed: the Step 2 sweep covers 9 templates only — record and surface to user (sequencing expects C-08 first). Phase D landed ⇔ read-only `SELECT column_name FROM information_schema.columns WHERE table_name='staff_profiles' AND column_name='notification_email';` returns a row. If empty, Phase D is absent: Step 14's recipient falls back to login email (soft — proceed).
+4. **Baseline tests + static gates green.** *(Amended 2026-07-26)* Baselines: `pnpm vitest run` — 6 pre-existing failures in 3 files (ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1) are the accepted baseline; `pnpm lint` — no NEW errors vs the 59-error baseline (55 untracked design_handoff_area_pages/prototype JSX + 4 pre-existing in src/features/booking/); `npx tsc --noEmit` clean.
 5. **Registry + override inventory:**
 
    ```bash
-   grep -c "id:" src/app/admin/emails/components/templates-data.ts
-   # Template count baseline (9, or 14 post-C-08).
+   grep -c "^    id:" src/app/admin/emails/components/templates-data.ts
+   # Template count baseline (9, or 14 post-C-08; earlier-landing Band C plans, e.g.
+   # C-01, may add more — record the actual count).
+   # NOTE (2026-07-26): the anchored pattern is required — unanchored `grep -c "id:"`
+   # returns 15 (also matches interface fields like `id: string`); anchored returns 9.
    grep -n "resolveTemplateOverrides\|substituteVars\|escapeHtml" src/lib/email/templates.ts | head -20
    ```
 
@@ -29,7 +37,7 @@
    -- Capture verbatim — §3.6 asserts identical rows post-ship.
    ```
 
-6. **Preview route shape.** `ls src/app/admin/email-templates/preview/` — confirm the GET handler location; POST extends the same route file.
+6. **Preview route shape.** `ls src/app/admin/email-templates/preview/` — confirm the GET handler location; POST extends the same route file. *(Verified 2026-07-26)* Expected: a single `[id]/` dynamic segment — Step 7 extends `preview/[id]/route.ts`. Never create a sibling `[templateId]/` folder (duplicate slug names at the same route level break the Next.js build).
 7. **Old-component import graph** (retirement blast radius):
 
    ```bash
@@ -37,6 +45,8 @@
    ```
 
 8. **DO-NOT-TOUCH:** Badar's `9d55ce2a`; real client rows; test sends only to the actor's own address (design guarantees this).
+
+   DO-NOT-TOUCH (live data): booking 9d55ce2a (Badar — real customer email); Owner account rahmatherapy@outlook.com in email-test paths; any client whose email isn't *.example.test or name isn't Phase10*/Audit Test* test patterns.
 
 If pre-flight shows the preview route missing or override rows with unexpected field_keys, surface to user before proceeding.
 
@@ -52,23 +62,32 @@ Phases A→B→C→D→E ship strictly in order (each builds on the last); Phase
 
 In `templates-data.ts`: add `defaultValue` + `tokens` to `SafeField`; add `subjectDefault` + `fixedParts` to `TemplateMeta`; widen `SafeFieldKind` to `string` (per-template keys). Add `TemplateToken` + `FixedPart` interfaces per brief §2.1. Keep the file client-safe (strings only, no render imports).
 
+> **Shared-surface note (2026-07-26, rubric §10):** `templates-data.ts` is a Band C collision surface — re-grep for the current anchor before editing; prior Band C plans may have shifted line positions; expect C-01 and C-08's edits in this region. Per D7, C-01/C-08 extend `SafeFieldKind` minimally (reusing shared `SafeField` consts); C-15 owns the fuller registry rework — the widened `kind: string` supersedes their union additions.
+
 **Step 2 — Per-template copy-lift audit + registry fill.**
 
 For each template (9 existing + C-08's 5): walk its render function; classify every user-facing string as **liftable field** (gets a `SafeField` with `defaultValue` = the current hardcoded string, verbatim) or **FixedPart** (auto-generated summaries, layout scaffolding — gets a legend entry with source description). Fill `subjectDefault` from the SUBJECTS map verbatim. Record the classification table in the progress file (brief Q9.5).
 
 Deliverable: every template has ≥ subject + intro + footer editable; admin_internal templates gain real fields.
 
+> **Length cap (D13, 2026-07-26):** `email_template_overrides.value` carries a DB `CHECK (<=500 chars)` (migration 20260519120000). Every new/expanded field's `maxLength` MUST be ≤ 500, and every `defaultValue` lifted here MUST be validated ≤ 500 chars before Phase A ships (Step 5's registry completeness spec asserts both). Existing 5 fields (maxLength 200–300) are safely under. NO migration to relax the CHECK.
+
 **Step 3 — Renderers read defaults from the registry.**
 
 In `templates.ts`: replace inline defaults (`overrides.subject ?? "Your booking is confirmed"`) with registry reads (`overrides[key] ?? fieldDefault(templateId, key)`). One shared helper `fieldDefault(templateId, fieldKind)` sourced from `templates-data.ts` (server-importable — metadata only). `SUBJECTS` in `email-templates/actions.ts` becomes a registry read; delete the map.
+
+Anchors (verified 2026-07-26): `escapeHtml` (src/lib/email/templates.ts:34), `substituteVars` (templates.ts:46), `resolveTemplateOverrides` (templates.ts:430), `SUBJECTS` (src/app/admin/email-templates/actions.ts:68) — re-grep before editing. Verify: post-change `grep -n "SUBJECTS" src/app/admin/email-templates/actions.ts` shows only the registry read (hardcoded map gone).
 
 **Step 4 — `saveTemplateOverride` accepts the widened field set.**
 
 The action already iterates `template.fields` — widening is mostly free; verify `subject` round-trips (save → resolve → render). Keep the HTML-strip + maxLength validation unchanged.
 
+Anchor (verified 2026-07-26): `saveTemplateOverride` (src/app/admin/email-templates/actions.ts:80) — re-grep before editing. Verification: the Step 5 specs cover the save → resolve → render round-trip.
+
 **Step 5 — Phase A tests.**
 
 - Registry completeness spec: every template has `subjectDefault`, every field a non-empty `defaultValue`.
+- Length-cap spec (D13, 2026-07-26): every field's `maxLength` ≤ 500 and every `defaultValue.length` ≤ its field's `maxLength` — guards the `email_template_overrides.value` DB CHECK.
 - Render-parity spec (load-bearing): for each template, render with zero overrides BEFORE the sweep (fixture captured pre-change) and AFTER — byte-identical HTML. Proves the copy-lift changed no live email.
 - Existing override rows still honoured (mock rows → rendered output contains them).
 
@@ -82,7 +101,9 @@ Canonical `SAMPLE_TEMPLATE_INPUT` (fictional "Aisha Khan", `.example.test` email
 
 **Step 7 — POST draft-preview handler.**
 
-Extend `src/app/admin/email-templates/preview/[templateId]/route.ts`: `POST { draftValues }` → auth check (same as GET) → validate keys against the registry + maxLength → merge draft over saved overrides → render with sample data → return HTML (or text for plain_text templates). No persistence. GET unchanged.
+Extend `src/app/admin/email-templates/preview/[id]/route.ts`: `POST { draftValues }` → auth check (same as GET) → validate keys against the registry + maxLength → merge draft over saved overrides → render with sample data → return HTML (or text for plain_text templates). No persistence. GET unchanged.
+
+*(Path corrected 2026-07-26 — the dynamic segment is `[id]`, not `[templateId]`; params typed `Promise<{ id: string }>` at route.ts:80. Do NOT create a sibling `[templateId]/` folder — duplicate slug names at the same route level break the Next.js build.)*
 
 **Step 8 — Phase B tests.** Handler spec: auth, unknown template 404, oversize value 400, draft merge wins over saved override, output contains sample data.
 
@@ -155,7 +176,7 @@ Cards grouped by audience; badge query (one grouped select over `email_template_
 | `emails/components/templates-data.ts` | Registry expansion — all templates gain defaults/tokens/fixedParts/subjectDefault (may split into per-audience modules) |
 | `lib/email/templates.ts` | Renderers read registry defaults; `data-fixed-part` annotation mode; copy-lift |
 | `email-templates/actions.ts` | Widened `saveTemplateOverride`; + `resetTemplateToDefault` + `sendTestEmail`; − `sendTemplateManually`; SUBJECTS map → registry read |
-| `email-templates/preview/[templateId]/route.ts` | + POST draft rendering |
+| `email-templates/preview/[id]/route.ts` | + POST draft rendering |
 | `emails/page.tsx` | Templates tab mounts `TemplateGallery` |
 | `clients/[clientId]/page.tsx` | + 2 AUDIT_PHRASING entries |
 | `lib/email/notifications.ts` | Only if `resolveTemplateOverrides` needs a draft-merge variant export (else untouched) |
@@ -179,6 +200,8 @@ pnpm lint && npx tsc --noEmit && pnpm vitest run && pnpm build
 node scripts/measure-admin-bundles.mjs
 ```
 
+*(Baselines 2026-07-26)* `pnpm lint`: no NEW errors vs the 59-error baseline (55 untracked design_handoff_area_pages/prototype JSX + 4 pre-existing in src/features/booking/) — a literal 0-error expectation will misfire. `pnpm vitest run`: 6 pre-existing failures in 3 files (ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1) preserved.
+
 **Bundle budget:** editor page is a NEW route (own chunk, ~8-10 kB: editor + token field + preview). Gallery replaces heavier in-tab editor code on `/admin/emails` — expect ~net-zero there. **Ceiling: +10 kB on the new `/admin/emails/templates/[id]` route; +2 kB max on `/admin/emails`.**
 
 ### 3.2 Render-parity assertion (the plan's load-bearing check)
@@ -196,7 +219,7 @@ Zero-override renders byte-identical before/after the registry sweep (Phase A St
 
 ### 3.4 Screenshot evidence
 
-Gallery (1280 + 375) · editor two-pane (1280) · editor stacked (375) · chip insertion mid-edit · live preview showing an unsaved edit · fixed-part outlines on · reset confirm dialog · `[Test]` email in inbox. Store in `redesign/audits/C-A/screenshots-19-emails/c-15-after/`.
+Gallery (1280 + 375) · editor two-pane (1280) · editor stacked (375) · chip insertion mid-edit · live preview showing an unsaved edit · fixed-part outlines on · reset confirm dialog · `[Test]` email in inbox. Store in `redesign/evidence/C-15/` *(evidence convention 2026-07-26, replaces the former `redesign/audits/C-A/screenshots-19-emails/c-15-after/` target — never write into `redesign/audits/**`)*.
 
 ---
 
@@ -213,6 +236,7 @@ Gallery (1280 + 375) · editor two-pane (1280) · editor stacked (375) · chip i
 | `templates-data.ts` balloons past maintainability | medium | low | Split into per-audience modules behind the same index export (registry API stable). |
 | Test send reaches a non-self recipient | low | high | Recipient derived server-side from the actor's profile only; never a form value; spec asserts it. |
 | C-13/C-02 template steps collide with the reworked renderers | low | medium | They extend renderers additively; registry API unchanged; sequencing puts C-15 before both. |
+| C-01 registry overlap (`templates-data.ts` / `email-templates/actions.ts`) — coordination was one-directional | low | low | Reciprocal note (D14, 2026-07-26): C-01's plan already carries a forward-compat note for C-15. If C-01 ships first (recommended order), its review-email templates join the Step 2 sweep; templates registered post-studio inherit the registry API — gallery/editor/preview automatically (brief §5.9). |
 
 ---
 
