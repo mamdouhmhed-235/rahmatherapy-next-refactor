@@ -1,5 +1,9 @@
 # C-08 — Email automation expansion — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none — C-08 ships independently (brief §8). See §1 Step 15 and §1 Sub-step 3 below for same-file coordination notes (not blocking sequencing; confirmed programme order runs C-04a before C-08).
+> Decisions: C-B-DECISIONS.md §3 C-08 (2026-07-16 amendment supersedes the "no schema migration" lock — reconfirmed 2026-07-26, D6/C08-F4). Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Amended:** 2026-07-16 — business-notifications bundle (user direction): new Phase D (steps 13–18) — `staff_profiles.notification_email` + per-type prefs migration, `resolveBusinessNotificationRecipients` resolver with skip-self, `enquiry_logged` template, `/admin/me` Notifications section. Migration is now definite Zone-2 (was conditional). See brief §2.7–§2.9.
@@ -11,10 +15,10 @@
 
 ## 0 — Pre-flight
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree.** On `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. `git status --porcelain -- src/lib/email/ src/app/admin/emails/ src/app/admin/email-templates/ src/app/admin/bookings/actions.ts src/app/admin/enquiries/actions.ts src/app/admin/me/ src/lib/auth/rbac.ts src/app/admin/clients/` returns empty (path-scoped to this plan's touched files — the wider tree is intentionally dirty: untracked photo/design folders, deleted `.playwright-mcp/` logs; never stage broadly, never stash/restore/checkout to "clean" it).
 2. **Dev server reachable.** `curl -I http://localhost:3000/admin/login/` → 200.
 3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing.
-4. **Static gates green.** `pnpm lint`, `npx tsc --noEmit` both 0 errors.
+4. **Static gates green.** `npx tsc --noEmit` — 0 errors. `pnpm lint` — no NEW errors vs the verified 59-error baseline (55 from untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`).
 5. **DB verification:**
 
    ```sql
@@ -73,6 +77,8 @@
 
 10. **DO-NOT-TOUCH list:** Badar's `9d55ce2a`, any real customer booking.
 
+    DO-NOT-TOUCH (live data): booking 9d55ce2a (Badar — real customer email); Owner account rahmatherapy@outlook.com in email-test paths; any client whose email isn't *.example.test or name isn't Phase10*/Audit Test* test patterns.
+
 11. **(2026-07-16) Notification-infrastructure verification:**
 
     ```sql
@@ -125,7 +131,11 @@ export function renderBookingConfirmedClientEmail(
     const overrides = await resolveTemplateOverrides("booking_confirmed_client");
     const vars = buildVarMap(input);
 
-    const subject = overrides.subject ?? "Your booking is confirmed";
+    // NOTE (2026-07-26 refinement, F1): subject is NOT a templates-data.ts override
+    // field in the real schema — no existing template exposes a "subject" override
+    // key; email-templates/actions.ts's SUBJECTS map (Sub-step 2) is the sole
+    // subject-line source, matching all 9 existing templates.
+    const subject = "Your booking is confirmed";
     const body_intro = substituteVars(
       overrides.body_intro ??
         "Hi {clientName}, your appointment on {bookingDate} at {startTime} is confirmed. We'll send a reminder closer to the day.",
@@ -186,24 +196,69 @@ const SUBJECTS: Record<string, string> = {
 
 **Sub-step 3 — `templates-data.ts` registration.**
 
-Edit `src/app/admin/emails/components/templates-data.ts`. Add a new TemplateMeta entry:
+> **(2026-07-26 refinement, F1 — high severity, confirmed)** The sample originally here did not compile against the real schema: `TemplateMeta` requires `{ id, audience, cardName, trigger, rendersAs: "html"|"plain_text", fields: SafeField[] }` — there is no `description` property (fold that prose into `trigger`). `SafeFieldKind` is a closed union of exactly `greeting_intro | footer_contact | group_copy | intro | wrapper_change_summary | plain_text_intro` (verified `templates-data.ts:8-32`), and `fields` are `SafeField` objects (`kind`, `label`, `placeholder`, `helper`, `maxLength`, optional `multiline`) drawn from shared consts — not ad hoc `{kind, label, maxLength}` shapes. Corrected below per D7 (decisions-resolved.md): extend `SafeFieldKind` minimally; C-15 owns the fuller registry rework later, this extension is additive only.
+
+Edit `src/app/admin/emails/components/templates-data.ts`. First, extend the closed union (minimal, additive — 3 new kinds covering what these templates need; no existing kind fits):
+
+```ts
+export type SafeFieldKind =
+  | "greeting_intro"
+  | "footer_contact"
+  | "group_copy"
+  | "intro"
+  | "wrapper_change_summary"
+  | "plain_text_intro"
+  | "body_intro"       // NEW — intro paragraph, C-08's 5 templates
+  | "body_cta_label"    // NEW — CTA button label (templates with a manage/action link)
+  | "body_signoff";     // NEW — closing signoff line
+```
+
+Add matching shared `SafeField` consts alongside `FOOTER_CONTACT`/`GREETING_INTRO` etc.:
+
+```ts
+const BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder: "Hi {clientName}, your appointment on {bookingDate} at {startTime} is confirmed.",
+  helper: "Variables in curly braces are filled automatically.",
+  maxLength: 500,
+  multiline: true,
+};
+
+const BODY_CTA_LABEL: SafeField = {
+  kind: "body_cta_label",
+  label: "CTA button label",
+  placeholder: "Manage your booking",
+  helper: "Text on the action button, where the template has one.",
+  maxLength: 80,
+};
+
+const BODY_SIGNOFF: SafeField = {
+  kind: "body_signoff",
+  label: "Signoff",
+  placeholder: "Thank you,\nThe Rahma Therapy team",
+  helper: "Closing line above the footer contact line.",
+  maxLength: 200,
+  multiline: true,
+};
+```
+
+Then add the TemplateMeta entry (no `subject` field — subject stays SUBJECTS-map-only, matching all 9 existing templates; no `description` property):
 
 ```ts
 {
   id: "booking_confirmed_client",
-  cardName: "Booking confirmed - client",
-  description: "Sent when admin confirms a pending booking with the client. Triggers on pending→confirmed transitions in quickUpdateBooking and updateBookingManagement.",
   audience: "customer",
-  fields: [
-    { kind: "subject", label: "Subject", maxLength: 100 },
-    { kind: "body_intro", label: "Intro paragraph", maxLength: 500 },
-    { kind: "body_cta_label", label: "CTA button label", maxLength: 80 },
-    { kind: "body_signoff", label: "Signoff", maxLength: 200 },
-  ],
+  cardName: "Booking confirmed - client",
+  trigger: "Sent when admin confirms a pending booking with the client. Fires on pending→confirmed transitions in quickUpdateBooking and updateBookingManagement.",
+  rendersAs: "html",
+  fields: [BODY_INTRO, BODY_CTA_LABEL, BODY_SIGNOFF, FOOTER_CONTACT],
 },
 ```
 
-(Mirror for each of the 4 templates. `audience` values per brief §3.)
+(Mirror for each of the 4 templates using this corrected shape — `id`/`audience`/`cardName`/`trigger`/`rendersAs`/`fields`, drawing from `BODY_INTRO`/`BODY_CTA_LABEL`/`BODY_SIGNOFF`/`FOOTER_CONTACT`; omit `BODY_CTA_LABEL` for templates with no action link, e.g. `staff_unassignment`/`claim`. `audience` values per brief §3. Step 16's `enquiry_logged` registration follows this same corrected shape under `admin_internal`.)
+
+> **Coordination (rubric §10 / collision-map §7):** `templates-data.ts`'s `TemplateMeta`/`SafeFieldKind` schema is also edited by C-01, C-02, C-13, and (primarily) C-15. Before this step, re-grep the file's `SafeFieldKind` union — if C-01 (or another plan) has already landed a compatible extension, reuse it rather than adding a second, incompatible one. Any new field's `maxLength` must stay ≤500 chars (`email_template_overrides.value` CHECK constraint — D13).
 
 **Sub-step 4 — Send fn in `notifications.ts`.**
 
@@ -703,6 +758,13 @@ email_resent: "Email resent",
 
 ### Phase D — Business-notification bundle (2026-07-16 amendment; brief §2.7–§2.9)
 
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply migration `<ts>_c08_notification_email_and_metadata.sql` to production — adds `staff_profiles.notification_email` + `staff_profiles.business_notification_prefs`, seeds the active Owner row(s), and conditionally adds `email_delivery_events.metadata` if pre-flight #5b found it absent.
+> Exact SQL / change: verbatim in the Step 13 body below.
+> Post-action verification: re-run pre-flight #11a (expect the 2 new `staff_profiles` columns present) + confirm exactly the active Owner row(s) were seeded (seeded row count matches active-Owner-profile count) + no other rows touched.
+> Never auto-apply. Approval is per-action and does not carry forward.
+
 **Step 13 — Migration (Zone-2 — explicit user confirmation).**
 
 ```sql
@@ -738,6 +800,8 @@ Implement per brief §2.9 (contract reproduced there): active Owner/Admin profil
 Alert-type keys (locked): `new_booking_request`, `booking_cancelled`, `reschedule_request`, `enquiry_logged`, `slot_claimed`.
 
 **Step 15 — Reroute all admin_internal sends through the resolver.**
+
+> **Coordination (rubric §10 / D26):** `sendBookingCancellationEmails` (`notifications.ts`, currently `:409-422`) is also edited by C-04a (adds a `delaySeconds`-based deferred send). Per the confirmed programme order, C-04a lands before C-08 — re-grep the function body before this step; expect C-04a's deferred-send changes already present in this region, and thread this step's `actorStaffId` param into whatever shape C-04a leaves the function in, rather than trusting the line numbers cited above.
 
 One edit per send-fn — each loops the resolved recipients and writes one tracked email per recipient:
 - `sendBookingCreatedEmails` admin leg (`notifications.ts:366-379`) — type `new_booking_request`, no exclusion (customer-initiated).
@@ -817,7 +881,7 @@ Follows the standard 7-sub-step template pattern (renderer + plain-text + SUBJEC
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs the 59-error baseline (55 untracked prototype JSX + 4 pre-existing in src/features/booking/)
 npx tsc --noEmit                # 0 errors
 pnpm vitest run                 # new specs pass; baseline preserved
 pnpm build                      # clean
@@ -873,7 +937,7 @@ For each of the 4 new templates, exercise the trigger:
 - 1280 + 375 × (2026-07-16) `/admin/me` Notifications card — email field with hint, master toggle, 5 per-type checkboxes
 - 1280 × (2026-07-16) received `enquiry_logged` email (Resend dashboard)
 
-Store in `redesign/audits/C-A/screenshots-19-emails/c-08-after/`.
+Store in `redesign/evidence/C-08/` (rubric §8 — `redesign/audits/**` is read-only historical record, not a writable evidence target).
 
 ---
 

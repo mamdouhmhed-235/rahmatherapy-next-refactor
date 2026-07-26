@@ -1,5 +1,9 @@
 # C-08 — Email automation expansion (5 NEW templates + 1 existing-template verification + per-row Resend tooling + business-notification routing)
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none — C-08 ships independently (§8 below). See companion plan `redesign/plans/C-phase/C-08-email-automation-expansion-plan.md` for the refinement changelog and same-file coordination notes.
+> Decisions: C-B-DECISIONS.md §3 C-08 (2026-07-16 amendment supersedes the "no schema migration" lock — reconfirmed 2026-07-26, D6/C08-F4).
+
 **Type:** Band C plan-writing brief (C-B phase)
 **Date written:** 2026-05-26
 **Amended:** 2026-07-16 — business-notifications bundle (user direction): personal notification email + per-type alert preferences on staff profiles, a business-notification recipient resolver replacing `getAdminRecipient` for internal alerts, and a new `enquiry_logged` template. See §2.7–§2.9. Supersedes the §5.6 and Q9.3 locks (noted inline).
@@ -228,6 +232,8 @@ ADMIN INTERNAL
 ```
 
 Each new template's edit form has the standard fields: subject, body_intro, body_cta_label, body_cta_url (where applicable), body_signoff. Optional advanced overrides per template (e.g., `client_assigned_therapist` may have a `therapist_intro` field if we want the admin to customise the "your therapist will be" framing per service).
+
+*(2026-07-26 refinement, F1 — corrected in the plan: `subject` is not a `templates-data.ts` override field in the current schema — no existing template exposes one, and the SUBJECTS map (`email-templates/actions.ts`) is the sole subject-line source. The plan's Sub-step 3 instead registers `body_intro` / `body_cta_label` (where applicable) / `body_signoff` as new `SafeFieldKind` union members — see plan §1 Phase A Sub-step 3.)*
 
 ### 4.2 Resend button on delivery rows
 
