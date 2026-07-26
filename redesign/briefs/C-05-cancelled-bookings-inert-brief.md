@@ -555,9 +555,11 @@ The helper + predicate edits are all in TypeScript. The SQL query change at edit
 
 **Hard dependency:** **C-04a must ship first** (or simultaneously). The lockdown without a Restore button strands admins on mistakenly cancelled bookings.
 
-**No dependency on C-06.** C-05 doesn't touch `clients.deleted_at`. The forward-looking `bookings.deleted_at` check (added by C-06) could be folded into `ensureBookingActive` as an additional reason: a booking whose parent client is soft-deleted is also inert. **Decided at plan-writing time:** ship the basic 3-reason helper in C-05; C-06 (which lands first by recommended order) adds the `deleted_at` check via a small follow-up to `ensureBookingActive`. The helper's discriminated-union return type makes that an additive change.
+> **UPDATED 2026-07-26 (Checkpoint D4):** **C-06 is now ALSO a hard dependency**, promoted from "no dependency" below — it must ship before C-05's Phase A Step 1. The `ensureBookingActive` SELECT is unconditional on `bookings.deleted_at` / `clients.deleted_at`, which only exist after C-06's migration. See plan §0 Pre-flight Step 6 (rewritten to a HARD gate) and plan Phase A Step 1. The paragraph below is superseded and kept for historical context.
 
-Actually, given the recommended C-B order is C-06 → C-04a → C-05, by the time C-05's C-C work runs, C-06's `bookings.deleted_at` is in place. **Plan §1 adds the deleted_at reason from day one** — null-safe pre-C-06.
+~~**No dependency on C-06.** C-05 doesn't touch `clients.deleted_at`. The forward-looking `bookings.deleted_at` check (added by C-06) could be folded into `ensureBookingActive` as an additional reason: a booking whose parent client is soft-deleted is also inert. **Decided at plan-writing time:** ship the basic 3-reason helper in C-05; C-06 (which lands first by recommended order) adds the `deleted_at` check via a small follow-up to `ensureBookingActive`. The helper's discriminated-union return type makes that an additive change.~~
+
+~~Actually, given the recommended C-B order is C-06 → C-04a → C-05, by the time C-05's C-C work runs, C-06's `bookings.deleted_at` is in place. **Plan §1 adds the deleted_at reason from day one** — null-safe pre-C-06.~~
 
 **No dependency on C-09 (cache).** The new SQL JOIN at edit point 5 doesn't add a cache tag — it's part of the page's existing fetch chain. C-09's tag retrofit covers it later.
 

@@ -1,5 +1,9 @@
 # C-05 — Lock cancelled / no_show / past-dated bookings inert + status-aware filter + cancelled-row strikethrough — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: C-04a (`git log --oneline --grep="C-04a" | grep -q "feat(redesign): C-04a"`), C-06 (`git log --oneline --grep="C-06" | grep -q "feat(redesign): C-06"` — HARD gate per Checkpoint D4/finding F4; additionally verify `bookings.deleted_at` + `clients.deleted_at` columns exist via a read-only `information_schema.columns` query before Phase A Step 1).
+> Decisions: C-B-DECISIONS.md §2 Q1 + §3 C-05; Checkpoint D4 (decisions-resolved.md). Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-05-cancelled-bookings-inert-brief.md` (companion — read first)
@@ -10,12 +14,12 @@
 
 ## 0 — Pre-flight (verify before touching code)
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree.** ~~`git status --short` empty. HEAD on `redesign/start-state`.~~ **UPDATED 2026-07-26 (F1):** on `master`; HEAD at or descended from `ea97932`; verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/app/admin/bookings/ src/app/admin/clients/` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp/` logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → `HTTP/1.1 200 OK`.
-3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 baseline failures preserved).
-4. **Static gates green.** `pnpm lint`, `npx tsc --noEmit` both 0 errors.
+3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 baseline failures preserved — ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1).
+4. **Static gates green.** **UPDATED 2026-07-26 (F2):** `npx tsc --noEmit` — 0 errors. `pnpm lint` — no NEW lint errors vs the 59-error baseline (55 from untracked `design_handoff_area_pages/prototype/*.jsx`, 4 pre-existing in `src/features/booking/`).
 5. **C-04a must be merged.** Verify: `git log --oneline | grep -i "C-04a"` returns the C-04a implementation commits. If C-04a is not in HEAD, **stop** — sequencing constraint requires Restore button before lockdown.
-6. **C-06 status.** Not a hard dependency, but if C-06 is in HEAD, `bookings.deleted_at` column exists. The helper's SELECT can include it; otherwise the helper omits the field and the deleted_at branch becomes a no-op. The plan handles both cases (see Step 1 conditional).
+6. **C-06 must be merged — HARD gate (promoted 2026-07-26 per Checkpoint D4 / finding F4).** ~~Not a hard dependency, but if C-06 is in HEAD, `bookings.deleted_at` column exists. The helper's SELECT can include it; otherwise the helper omits the field and the deleted_at branch becomes a no-op. The plan handles both cases (see Step 1 conditional).~~ Verify via read-only query: `SELECT column_name FROM information_schema.columns WHERE table_name = 'bookings' AND column_name = 'deleted_at';` and the same for `table_name = 'clients'`. Both must return a row. If either is absent, C-06's migration has not landed — **stop** and surface to the user before starting Phase A Step 1. Phase A Step 1's helper SELECT is unconditional (single code path, no try/catch fallback) and requires both columns to exist.
 7. **DB introspection.** Confirm via `mcp__supabase__execute_sql`:
 
    ```sql
@@ -24,7 +28,14 @@
    WHERE status IN ('cancelled', 'no_show') OR booking_date < CURRENT_DATE
    ORDER BY booking_date DESC LIMIT 20;
    ```
-   At least one cancelled + one past-dated booking should exist for the E2E sweep. If not, create via C-04a's Cancel action against a test booking and via SQL date back-dating (Zone-2 — explicit confirmation).
+   At least one cancelled + one past-dated booking should exist for the E2E sweep. If not, create via C-04a's Cancel action against a test booking; a past-dated fixture requires a SQL date back-date.
+
+   > ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+   > An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+   > Action: back-date a test booking's `booking_date` via SQL to create a past-dated fixture for the E2E sweep.
+   > Exact SQL / change: `UPDATE bookings SET booking_date = '<past-date>' WHERE id = '<test-booking-id>'` — target must be a test booking per the DO-NOT-TOUCH block below (never Badar's `9d55ce2a`).
+   > Post-action verification: re-run the SELECT above; the target row now shows the back-dated `booking_date`.
+   > Never auto-apply. Approval is per-action and does not carry forward.
 
 8. **Capture pre-state for the claimable race scenario:**
    ```sql
@@ -39,7 +50,9 @@
 
 9. **Test data DO-NOT-TOUCH list:** Badar's `9d55ce2a` and any non-test client. The C-05 sweep will create/use cancelled test bookings — never Badar's.
 
-If any pre-flight check fails (especially #5 C-04a sequencing), **stop** and surface to the user.
+   > DO-NOT-TOUCH (live data): booking 9d55ce2a (Badar — real customer email); Owner account rahmatherapy@outlook.com in email-test paths; any client whose email isn't *.example.test or name isn't Phase10*/Audit Test* test patterns.
+
+If any pre-flight check fails (especially #5 C-04a sequencing, or #6 C-06 sequencing), **stop** and surface to the user.
 
 ---
 
@@ -50,6 +63,8 @@ Phases A–C are the original C-05 body (edit points 1–7). Phase D was added i
 ### Phase A — The helper + foundational predicate (edit points 6 + 7)
 
 **Step 1 — Implement `ensureBookingActive` helper.**
+
+> **Shared-surface coordination note (rubric §10, verbatim from collision-map.md):** *"`_helpers.ts`'s `ensureBookingActive` SELECT includes `deleted_at` / `clients(deleted_at)`, columns that only exist after C-06's migration — confirm C-06 has landed (not just C-04a) before this Phase A step, or gate the SELECT."* **Resolved 2026-07-26 per Checkpoint D4:** confirm-before-proceeding wins — pre-flight Step 6 is now a HARD gate; the SELECT below is not conditionally gated.
 
 - Edit `src/app/admin/bookings/access.ts`. Add at the bottom (after `canAccessBooking`):
 
@@ -88,8 +103,9 @@ export async function ensureBookingActive(
 ): Promise<BookingActivityCheck> {
   const allowToday = options.allowToday ?? true;
 
-  // SELECT shape: include deleted_at + clients!inner(deleted_at) ONLY if C-06 has shipped.
-  // Pre-C-06, the missing columns return error rows, so we SELECT defensively:
+  // SELECT shape: unconditional — pre-flight Step 6 hard-gates on C-06's migration
+  // having landed (2026-07-26, Checkpoint D4 / finding F4), so deleted_at and
+  // clients(deleted_at) always exist by the time this helper runs.
   const selectColumns = "id, status, booking_date, start_time, deleted_at, clients(deleted_at)";
 
   const { data: booking, error } = await supabase
@@ -166,12 +182,14 @@ function addDaysISO(iso: string, days: number): string {
 }
 ```
 
-**Conditional behaviour pre-C-06:** if `bookings.deleted_at` column doesn't exist yet, the SELECT will fail with a PostgREST error. **Pre-flight Step 6 dictates the SELECT shape:**
+**UPDATED 2026-07-26 (Checkpoint D4 / finding F4):** the "conditional pre-C-06" behaviour and the `try/catch` fallback described below were never implemented in the code above and are now superseded — C-06 is a HARD pre-flight gate (Step 6). The SELECT shown above is unconditional and is the ONLY code path. Do not implement a conditional column set or a `try/catch` fallback. If pre-flight Step 6's `information_schema` check fails, **stop** before writing this helper.
 
-- If C-06 is in HEAD → SELECT includes `deleted_at` + `clients(deleted_at)` as shown.
-- If C-06 is NOT in HEAD → SELECT only `id, status, booking_date, start_time` (drop the forward-looking branches).
+~~**Conditional behaviour pre-C-06:** if `bookings.deleted_at` column doesn't exist yet, the SELECT will fail with a PostgREST error. **Pre-flight Step 6 dictates the SELECT shape:**~~
 
-Given the recommended C-B order has C-06 → C-04a → C-05 and the C-C ship order will respect plan dependencies, by the time C-05's C-C work runs, C-06 should be merged. Plan locks the full SELECT and adds a small `try/catch` fallback: if the SELECT errors on `deleted_at`, retry with the minimal column set.
+~~- If C-06 is in HEAD → SELECT includes `deleted_at` + `clients(deleted_at)` as shown.~~
+~~- If C-06 is NOT in HEAD → SELECT only `id, status, booking_date, start_time` (drop the forward-looking branches).~~
+
+~~Given the recommended C-B order has C-06 → C-04a → C-05 and the C-C ship order will respect plan dependencies, by the time C-05's C-C work runs, C-06 should be merged. Plan locks the full SELECT and adds a small `try/catch` fallback: if the SELECT errors on `deleted_at`, retry with the minimal column set.~~
 
 **Step 2 — Update `hasClaimableAssignment` predicate (edit point 6).**
 
@@ -246,7 +264,7 @@ Extend `bookings/__tests__/access.test.ts` (if exists) with `hasClaimableAssignm
 
 **Step 4 — Hook `ensureBookingActive` into `claimBookingAssignment`.**
 
-In `bookings/actions.ts:239-365`. Replace lines 269-275 (current SELECT) with:
+In `bookings/actions.ts:239-365`. Replace lines 269-273 (current SELECT — `data`/`from`/`select`/`eq`/`single`; **corrected 2026-07-26, F6:** line 274 is blank, line 275 is the `if (!booking)` check, which the replacement snippet below also needs to keep/adapt — not part of the SELECT itself) with:
 
 ```ts
 const activityCheck = await ensureBookingActive(assignment.booking_id, adminClient);
@@ -349,7 +367,7 @@ In the same file:
 - Line 787-791 (`canClaim`): prepend `isBookingActive &&`.
 - Line 794 (`isOwn`): unchanged (informational). But the buttons it gates (lines 864-872 + 873-881) get a wrapping condition `{isOwn && isBookingActive ? ... : null}`.
 - Line 798-801 (`canPromptForSessionNote`): prepend `isBookingActive &&`.
-- Line 883-890 — the `canReassignBookings` boolean must be multiplied at the top-level where it's derived. Look for the assignment near the top of the file (probably `const canReassignBookings = canManageBookings(profile) && canAssignBookings(profile)` — grep for it). Append `&& isBookingActive`.
+- **Derivation site (corrected 2026-07-26, F5):** `canReassignBookings` is derived once at `[bookingId]/page.tsx:319` — `const canReassignBookings = fullScope && canAssignBookings(profile);` — NOT at `883-890`, which is only the usage site (rendering `AssignmentManager`). Append `&& isBookingActive` to the line-319 derivation. Re-grep before editing — prior Band C plans may have shifted line positions since this was verified (2026-07-26 pass).
 
 **Step 11 — Inline notice block in the assignments section.**
 
@@ -659,7 +677,7 @@ Run after Phase C lands. Every command must pass.
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # UPDATED 2026-07-26 (F3): no NEW errors vs the 59-error baseline (55 untracked design_handoff_area_pages/prototype JSX + 4 pre-existing in src/features/booking/)
 npx tsc --noEmit                # 0 errors
 pnpm vitest run                 # new specs pass; baseline failures preserved
 pnpm build                      # clean
@@ -734,7 +752,7 @@ WHERE target_id = '<cancelled-test-booking>'
 - 375: cancelled booking detail (Therapist with assignment) — affordances gone but assignment row still visible
 - 1280: `/admin/bookings?view=claimable` (Therapist) — no cancelled/past-dated rows
 
-Store in `redesign/audits/C-A/screenshots-04-bookings-detail/c-05-after/`.
+Store in `redesign/evidence/C-05/` (rubric §8 evidence convention, 2026-07-26 — supersedes ~~`redesign/audits/C-A/screenshots-04-bookings-detail/c-05-after/`~~; `redesign/audits/**` is read-only historical record).
 
 ---
 
@@ -742,7 +760,7 @@ Store in `redesign/audits/C-A/screenshots-04-bookings-detail/c-05-after/`.
 
 | Risk | Likelihood | Severity | Mitigation |
 |---|---|---|---|
-| Helper SELECT fails when `deleted_at` column doesn't exist (pre-C-06 sequencing) | low | medium | Pre-flight Step 6 verifies; conditional SELECT shape. Plan locks the full select with try/catch fallback. |
+| Helper SELECT fails when `deleted_at` column doesn't exist (pre-C-06 sequencing) | low | medium | **UPDATED 2026-07-26 (D4/F4):** Pre-flight Step 6 is now a HARD gate (`information_schema` check) — C-06 must be merged before Phase A Step 1 runs. Single unconditional SELECT; no try/catch fallback. |
 | Therapist previously assigned to cancelled booking loses detail-page access | low | medium | `canOpenBookingRecord` keeps `isOwnBooking` branch unchanged (Step 2b). Verified in plan §1. |
 | `ensureBookingActive` adds latency to every claim/reassign action | very low | low | Single extra SELECT (~10ms). Negligible. |
 | SQL JOIN at edit point 5 changes claimable count visibly mid-sweep | low | low | Expected behaviour. Document the count delta in progress file. |
@@ -759,7 +777,7 @@ Store in `redesign/audits/C-A/screenshots-04-bookings-detail/c-05-after/`.
 
 ### 4.1 Real risk: `canReassignBookings` derivation location
 
-The plan assumes `canReassignBookings` is derived once at the top of `bookings/[bookingId]/page.tsx`. Verify this during impl — grep `git grep -n "canReassignBookings" src/app/admin/bookings/`. If it's computed in multiple places, add `isBookingActive &&` to each.
+**UPDATED 2026-07-26 (F5):** confirmed via this pass's grep — `canReassignBookings` is derived once, at `[bookingId]/page.tsx:319` (`const canReassignBookings = fullScope && canAssignBookings(profile);`), not at the `883-890` usage site cited in Step 10's original text. Still re-verify at impl time — `git grep -n "canReassignBookings" src/app/admin/bookings/` — since intervening Band C plans may shift line positions before C-05 executes. If it's computed in multiple places, add `isBookingActive &&` to each.
 
 ---
 
@@ -795,7 +813,14 @@ C-05 has no migrations. No DB state to undo.
 
 **Safe for any C-05 E2E walk:**
 - Cancelled test bookings — create via C-04a Cancel action against `Audit Test Client *` bookings during pre-flight.
-- Past-dated active test bookings — manually back-date `booking_date` via SQL (Zone-2 — explicit user confirmation per back-date).
+- Past-dated active test bookings — manually back-date `booking_date` via SQL.
+
+  > ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+  > An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+  > Action: back-date a test booking's `booking_date` via SQL to create/refresh a past-dated fixture.
+  > Exact SQL / change: `UPDATE bookings SET booking_date = '<past-date>' WHERE id = '<test-booking-id>'` — target must be a safe test booking (see DO-NOT-TOUCH block in §0; never Badar's `9d55ce2a`).
+  > Post-action verification: `SELECT id, booking_date FROM bookings WHERE id = '<test-booking-id>'` returns the new date.
+  > Never auto-apply. Approval is per-action and does not carry forward.
 - No_show test bookings — create via C-04a's new no_show quick action against test bookings.
 
 **DO NOT touch:**
@@ -848,7 +873,7 @@ Surfaced during plan-writing:
 
 2. **Inline notice vs next-action card overlap** — Step 11 + §4 table. Visual QA at impl time may merge them or adjust spacing.
 
-3. **`bookings.deleted_at` SELECT conditional handling** — Step 1 + pre-flight Step 6. If C-06 ships after C-05 (against recommended order), the helper SELECT needs a fallback. Plan handles both cases.
+3. ~~`bookings.deleted_at` SELECT conditional handling — Step 1 + pre-flight Step 6. If C-06 ships after C-05 (against recommended order), the helper SELECT needs a fallback. Plan handles both cases.~~ **RESOLVED 2026-07-26 (Checkpoint D4 / finding F4):** C-06 is now a hard pre-flight gate (Step 6); the helper ships a single unconditional SELECT, no fallback. If C-06 ships out of order, pre-flight Step 6 stops execution before Phase A begins.
 
 4. **`canOpenBookingRecord` posture** — Step 2b documents the decision (keep as-is). Reviewer (you) may want stricter gating; trade-off is breaking Therapist's audit-trail access to their previously-assigned bookings.
 
