@@ -1,5 +1,9 @@
 # C-16 — Data growth: pagination standard + bounded lists — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: C-09, C-05, C-06 — all soft/conditional (Pre-flight #2 already branches on each's landing state via `git log --oneline | grep -E "C-05|C-06|C-09"`; none hard-gate this plan's start).
+> Decisions: C-B-DECISIONS.md — no section references C-16 (confirmed via grep + xref-index.json, 2026-07-26). Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase — post-handoff addition)
 **Date written:** 2026-07-16 (user direction: plan-refinement phase)
 **Brief:** `redesign/briefs/C-16-data-growth-pagination-brief.md` (companion — read first)
@@ -10,7 +14,7 @@
 
 ## 0 — Pre-flight
 
-1. **Branch + clean tree**; verify with user. Dev server → 200. Baseline tests + static gates green.
+1. **Branch + clean tree**; ~~verify with user~~ **(2026-07-26, F1)** on `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`; working tree has no modifications under the paths this plan touches (`git status --porcelain -- src/lib/pagination.ts src/app/admin/components/PaginationBar.tsx src/app/admin/bookings/page.tsx src/app/admin/clients/page.tsx src/app/admin/enquiries/page.tsx src/app/admin/emails/page.tsx src/app/admin/privacy/page.tsx src/app/admin/operations/page.tsx src/app/admin/roles/` returns empty) — the wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp` logs); NEVER stage broadly, NEVER stash/restore/checkout to 'clean' it. Dev server → 200. ~~Baseline tests + static gates green.~~ **(2026-07-26, F2)** Baseline tests + static gates green — `pnpm vitest run` 485/491 (6 pre-existing failures in 3 files: ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1 — is the baseline); `npx tsc --noEmit` clean; `pnpm lint` — no NEW lint errors vs the 59-error baseline (55 untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`).
 2. **Predecessor landing state** (shapes Phase C):
    ```bash
    git log --oneline | grep -E "C-05|C-06|C-09" | head
@@ -35,7 +39,7 @@
    ```bash
    grep -rn "\.range(\|\.limit(" src/app/admin --include=*.ts --include=*.tsx | grep -v __tests__
    ```
-6. **DO-NOT-TOUCH:** Badar's `9d55ce2a`; real client rows; `audit/queries.ts` pagination internals; RECON §5 untouchables.
+6. **DO-NOT-TOUCH:** Badar's `9d55ce2a`; real client rows; `audit/queries.ts` pagination internals; RECON §5 untouchables. **(2026-07-26, rubric §9)** DO-NOT-TOUCH (live data): booking `9d55ce2a` (Badar — real customer email); Owner account `rahmatherapy@outlook.com` in email-test paths; any client whose email isn't `*.example.test` or name isn't `Phase10*`/`Audit Test*` test patterns.
 
 ---
 
@@ -43,9 +47,17 @@
 
 ### Phase A — Inventory (discovery; no code)
 
-**Step 1 — Walk every `/admin/*` surface** (Playwright-assisted, read-only) and build `redesign/audits/C-A/c-16-list-inventory.md`: one row per list-rendering region — surface, component, growth class (`static`/`slow`/`fast`), current bound, 5-year projection, verdict (`paginate`/`cap+view-all`/`restructure`/`already-correct`), notes. Include the new surfaces from shipped plans (C-02 series page, C-06 deleted toggle, C-15 gallery, C-08 delivery additions).
+**Step 1 — Walk every `/admin/*` surface** (Playwright-assisted, read-only) and build `redesign/evidence/C-16/c-16-list-inventory.md` **(2026-07-26, rubric §8 — was `redesign/audits/C-A/c-16-list-inventory.md`)**: one row per list-rendering region — surface, component, growth class (`static`/`slow`/`fast`), current bound, 5-year projection, verdict (`paginate`/`cap+view-all`/`restructure`/`already-correct`), notes. Include the new surfaces from shipped plans (C-02 series page, C-06 deleted toggle, C-15 gallery, C-08 delivery additions).
 
-**Step 2 — Checkpoint with the user.** Diff the inventory against brief §1.1's expected table; present surprises + the Q9.4 operations verdict for confirmation before Phase C. The punch list from here drives Phases C–E; anything verdicted `already-correct` is recorded, not touched.
+**Step 2 — Checkpoint with the user.**
+
+> ⛔ **HARD-STOP — USER CHECKPOINT: CONFIRMATION REQUIRED** ⛔ **(2026-07-26, F3)**
+> An executing agent MUST pause here and obtain explicit user confirmation in chat before proceeding to Phase C.
+> Action: present the Phase A inventory (`redesign/evidence/C-16/c-16-list-inventory.md`) diffed against brief §1.1's expected table, plus the Q9.4 operations verdict, for user confirmation.
+> Post-action verification: the user has explicitly confirmed the punch list and the Q9.4 operations verdict in chat; record the confirmed verdict for reuse at Step 11 before Phase D begins.
+> Never auto-apply. Approval is per-action and does not carry forward.
+
+Diff the inventory against brief §1.1's expected table; present surprises + the Q9.4 operations verdict for confirmation before Phase C. The punch list from here drives Phases C–E; anything verdicted `already-correct` is recorded, not touched.
 
 ### Phase B — Shared primitives
 
@@ -80,11 +92,13 @@ export function pageRange(page: number, pageSize: number): { from: number; to: n
 
 Server-component-friendly: props `{ page, pageCount, total, pageSize, makeHref(page) }` → renders readout ("Showing 26–50 of 3,412", `tabular-nums`) + Prev/Next as `<Link>`s (disabled state renders a non-link). Cursor mode: `{ prevHref?, nextHref? }` with no total (audit-log-compatible). Nothing renders when `pageCount <= 1`. `min-h-11` targets, `aria-label`s, CSS variables only. Component test.
 
-**Phase B checkpoint:** lint/tsc/tests green; no surface consumes it yet.
+**Phase B checkpoint:** ~~lint/tsc/tests green~~ **(2026-07-26, F2)** lint (no NEW errors vs the 59-error baseline — 55 untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`) / tsc (clean) / tests (vitest 485/491 baseline preserved) green; no surface consumes it yet.
 
 ### Phase C — Heavy hitters (bookings → clients → enquiries)
 
 **Step 5 — Bookings list: view predicates move into SQL.**
+
+> **(2026-07-26, collision-map §10 — shared-surface coordination)** `bookings/page.tsx` is edited by C-05 (filter logic, `~148-258`), C-16 (this step, pagination, `~438-446`), and C-13 (row extraction, `~804-927`); C-04a's `BookingRowActions.tsx` is called from this file at `~916`. Re-grep for the current anchor before editing — do not trust cached line numbers once any of the other three plans has landed; expect C-05/C-13/C-04a's edits in this region.
 
 - Map each `filterBookings` view (post-C-05 shape: attention/today/upcoming/claimable/cancelled/no_show/completed/all + status param) to a SQL predicate builder in the bookings data helper (C-09's file if present). Single-source discipline: a vitest spec renders BOTH paths (SQL builder against a fixture table via mocked rows, and `filterBookings` in memory) over the same 20-case fixture set and asserts identical row selection — the in-memory function remains the semantic oracle.
 - `canViewAll` path: filtered query + `.range()` (LIST_PAGE_SIZE) + head-count. Scoped practitioner path (assigned + claimable merge): keep in-memory merge, add defensive `.limit(200)` per branch + code comment (one person's live work can't legitimately approach this).
@@ -102,7 +116,7 @@ Server-component-friendly: props `{ page, pageCount, total, pageSize, makeHref(p
 
 **Step 9 — Emails delivery:** 100-cap → pager (LOG_PAGE_SIZE); date-group headers render within the page; Resend buttons (C-08) unaffected.
 **Step 10 — Privacy:** 25-cap → pager (LIST_PAGE_SIZE).
-**Step 11 — Operations:** pager (LOG_PAGE_SIZE) OR documented cap per the Phase A user-confirmed verdict.
+**Step 11 — Operations:** pager (LOG_PAGE_SIZE) OR documented cap per the Phase A user-confirmed verdict. **(2026-07-26, F3)** The Q9.4 operations verdict was locked at Phase A Step 2's HARD-STOP user checkpoint — do not re-decide here; if Step 2's checkpoint record shows no explicit operations verdict, STOP and return to Step 2 before implementing this step.
 **Step 12 — Password requests:** per verdict (small pager or cap + view-all).
 
 Each step: swap the silent `.limit(N)` for count + range + bar; empty/end states per brief §5; one commit per surface.
@@ -124,7 +138,7 @@ Each step: swap the silent `.limit(N)` for count + range + bar; empty/end states
 |---|---|
 | `src/lib/pagination.ts` (+ `pagination.test.ts`) | clamp/range/pageCount helpers + page-size constants |
 | `src/app/admin/components/PaginationBar.tsx` (+ test) | Shared pager UI (offset + cursor modes) |
-| `redesign/audits/C-A/c-16-list-inventory.md` | Phase A deliverable |
+| `redesign/evidence/C-16/c-16-list-inventory.md` **(2026-07-26, rubric §8 — was `redesign/audits/C-A/c-16-list-inventory.md`)** | Phase A deliverable |
 | `src/app/admin/bookings/__tests__/view-predicates-parity.test.ts` | SQL-vs-`filterBookings` parity fixture spec |
 
 ### EDITED (~10–14, inventory-dependent)
@@ -149,7 +163,7 @@ Each step: swap the silent `.limit(N)` for count + range + bar; empty/end states
 ## 3 — Verification gate
 
 ### 3.1 Static gates
-`pnpm lint` · `npx tsc --noEmit` · `pnpm vitest run` (parity spec + pagination helpers + bar) · `pnpm build` · bundle script. **Ceiling: +4 kB shared (bar + helpers), ~net-zero per page** (pagination code replaces in-memory filter mass on bookings).
+`pnpm lint` **(2026-07-26, F2: no NEW errors vs the 59-error baseline — 55 untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`)** · `npx tsc --noEmit` · `pnpm vitest run` (parity spec + pagination helpers + bar; 485/491 baseline — 6 pre-existing failures in 3 files unrelated to this plan) · `pnpm build` · bundle script. **Ceiling: +4 kB shared (bar + helpers), ~net-zero per page** (pagination code replaces in-memory filter mass on bookings).
 
 ### 3.2 No-unbounded-queries assertion
 ```bash
@@ -164,7 +178,7 @@ Temporary `LIST_PAGE_SIZE = 3` override (env/constant flip in the dev session on
 The 20-case fixture spec (§1 Step 5) green — SQL predicates select exactly what `filterBookings` selects, per view, including C-05's cancelled/no_show opt-ins and claimable strictness.
 
 ### 3.5 Role sweep + evidence
-4 roles × 4 viewports: pager visible + operable on each converted surface; Therapist scoped bookings path unchanged; roles page before/after screenshots at 375 + 1280; chip counts correct across two pages of the same view. Store in `redesign/audits/C-A/screenshots-c-16/`.
+4 roles × 4 viewports: pager visible + operable on each converted surface; Therapist scoped bookings path unchanged; roles page before/after screenshots at 375 + 1280; chip counts correct across two pages of the same view. Store in `redesign/evidence/C-16/screenshots-c-16/` **(2026-07-26, rubric §8 — was `redesign/audits/C-A/screenshots-c-16/`)**.
 
 ---
 

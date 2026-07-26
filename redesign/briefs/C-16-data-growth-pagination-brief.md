@@ -66,7 +66,7 @@ Walk every `/admin/*` surface. For each list-rendering region, record:
 - **5-year projection** (rows).
 - **Verdict:** `paginate` / `cap+view-all` / `restructure` / `already-correct`.
 
-Output: `redesign/audits/C-A/c-16-list-inventory.md` with a remediation punch list. **Checkpoint:** the punch list is reviewed against this brief's expected table (§1.1) — surprises surfaced to the user before Phase C.
+Output: `redesign/evidence/C-16/c-16-list-inventory.md` **(2026-07-26, rubric §8 — was `redesign/audits/C-A/c-16-list-inventory.md`)** with a remediation punch list. **Checkpoint:** the punch list is reviewed against this brief's expected table (§1.1) — surprises surfaced to the user before Phase C.
 
 ### 2.2 Phase B — The shared standard (build once)
 
@@ -155,7 +155,7 @@ No new permissions; pagination inherits each surface's existing visibility rules
 ### NEW (~7)
 - `src/app/admin/components/PaginationBar.tsx` (+ test)
 - `src/lib/pagination.ts` — `paginateListQuery` + `LIST_PAGE_SIZE` (+ test)
-- `redesign/audits/C-A/c-16-list-inventory.md` — Phase A deliverable
+- `redesign/evidence/C-16/c-16-list-inventory.md` **(2026-07-26, rubric §8 — was `redesign/audits/C-A/c-16-list-inventory.md`)** — Phase A deliverable
 - Per-surface test additions (bookings/clients/enquiries pagination specs)
 
 ### EDITED (~10–14, inventory-dependent)
