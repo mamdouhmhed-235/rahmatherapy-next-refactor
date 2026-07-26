@@ -1,5 +1,9 @@
 # C-FIELDWORK-EXPERIENCE — Capability-keyed fieldwork ergonomics — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none hard — C-FIELDWORK ships independently per brief §8 (soft-recommended after C-01 in the C-B order; verify absence of a hard gate via `git log --oneline --grep="C-01"` — a miss does not block this plan). Downstream: C-11's own pre-flight #5 hard-stops until this plan's output exists — verify with `test -f src/app/admin/dashboard/PractitionerTodaySection.tsx && test -f src/app/admin/dashboard/shared-helpers.ts && echo present`.
+> Decisions: C-B-DECISIONS.md §2 Q10 + §3 C-FIELDWORK-EXPERIENCE. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-FIELDWORK-EXPERIENCE-brief.md` (companion — read first)
@@ -10,10 +14,10 @@
 
 ## 0 — Pre-flight (verify before touching code)
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree.** ~~`git status --short` empty. HEAD on `redesign/start-state`.~~ **(2026-07-26, F1)** On `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/app/admin/dashboard/ "src/app/admin/bookings/[bookingId]/"` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp` logs) — NEVER stage broadly, NEVER stash/restore/checkout to 'clean' it.
 2. **Dev server reachable.** `curl -I http://localhost:3000/admin/login/` → `HTTP/1.1 200 OK`.
 3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 baseline failures preserved).
-4. **Static gates green.** `pnpm lint`, `npx tsc --noEmit` both 0 errors.
+4. **Static gates green.** ~~`pnpm lint`, `npx tsc --noEmit` both 0 errors.~~ **(2026-07-26, F2)** `npx tsc --noEmit` — 0 errors. `pnpm lint` — no NEW lint errors vs the 59-error baseline (55 from untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`); a literal 0-errors expectation is stale.
 5. **Code surfaces unchanged from plan-writing snapshot:**
 
    ```bash
@@ -42,7 +46,7 @@
    - At least one cancelled booking that a Therapist was previously assigned to (for §5.4 edge case).
    - Test client with phone + address populated (so `tel:` and maps render fully).
 
-8. **DO-NOT-TOUCH list:** Badar's `9d55ce2a` (cancelled, off-limits). Real customer bookings.
+8. **DO-NOT-TOUCH list:** Badar's `9d55ce2a` (cancelled, off-limits). Real customer bookings. **(2026-07-26, rubric §9)** DO-NOT-TOUCH (live data): booking `9d55ce2a` (Badar — real customer email); Owner account `rahmatherapy@outlook.com` in email-test paths; any client whose email isn't `*.example.test` or name isn't `Phase10*`/`Audit Test*` test patterns.
 
 9. **C-B sequencing context:** C-04a and C-05 are recommended to ship before C-FIELDWORK in C-C order (per recommended C-B-DECISIONS §5 order). C-FIELDWORK doesn't hard-depend on either, but:
    - If C-04a is in HEAD: the hero "Mark complete" temporal guard can match the no_show button's pattern.
@@ -418,8 +422,14 @@ Preserve everything else (Profile completion nudge, Personal stripe, Highlight o
 Edit `src/app/admin/dashboard/page.tsx`. After computing `today` / `data` / variant routing logic:
 
 ```tsx
-// Around line 638 where TherapistDashboard is rendered:
-if (plan.variant === "therapist") {
+// (2026-07-26, F3 — corrected: the actual gating condition at
+// src/app/admin/dashboard/page.tsx:633 is `resolveAdminShellVariant(profile)`,
+// not `plan.variant`. `plan.variant` exists elsewhere in the file (e.g. for
+// stripeVariant) but does not gate this branch. Re-grep before editing:
+// `git grep -n "resolveAdminShellVariant" src/app/admin/dashboard/page.tsx`
+// → expect a hit at/near line 633; its return block (line 638) contains
+// PullToRefresh + LegacyDisclosureCleanup + TherapistDashboard.
+if (resolveAdminShellVariant(profile) === "therapist") {
   return <TherapistDashboard {...therapistProps} />;
 }
 
@@ -519,9 +529,9 @@ New file `src/app/admin/dashboard/__tests__/PractitionerTodaySection.test.tsx`:
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # (2026-07-26, F2) no NEW errors vs the 59-error baseline (55 untracked design_handoff_area_pages/prototype/*.jsx + 4 pre-existing in src/features/booking/)
 npx tsc --noEmit                # 0 errors
-pnpm vitest run                 # new specs pass; baseline failures preserved
+pnpm vitest run                 # new specs pass; baseline failures preserved (485/491, 6 pre-existing)
 pnpm build                      # clean
 node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ```
@@ -535,6 +545,13 @@ node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ### 3.2 Playwright role sweep (4 roles × 4 viewports, with capability variations)
 
 **Pre-sweep DB prep (Zone-2 — confirm with user):** ensure at least one Owner / Admin / Coord test account has `can_take_bookings=true` + at least one active assignment.
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔ **(2026-07-26, rubric §3 / sequencing-decisions.md cross-cutting list)**
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: flip `can_take_bookings` on a non-Therapist test/Owner account in the live DB for the Playwright role sweep.
+> Exact SQL / change: see block below (`UPDATE staff_profiles SET can_take_bookings = true WHERE email = '...'`).
+> Post-action verification: re-run the `SELECT` below and confirm exactly the intended account(s) show `can_take_bookings = true`.
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 ```sql
 -- Check current state
@@ -586,7 +603,7 @@ SELECT email, can_take_bookings FROM staff_profiles WHERE can_take_bookings = tr
 - 1280: Business dashboard with PractitionerTodaySection mounted for Owner with can_take_bookings=true
 - 1280: Coord dashboard with section NOT rendered (can_take_bookings=false)
 
-Store in `redesign/audits/C-A/screenshots-01-dashboard/c-fieldwork-after/`.
+Store in `redesign/evidence/C-FIELDWORK-EXPERIENCE/` **(2026-07-26, rubric §8 — was `redesign/audits/C-A/screenshots-01-dashboard/c-fieldwork-after/`; `redesign/audits/**` is read-only historical record)**.
 
 ---
 
@@ -645,6 +662,13 @@ UPDATE staff_profiles SET can_take_bookings = false WHERE email = '<test-account
 - Any real customer booking.
 
 **Capability flip (Zone-2 — explicit user confirmation):**
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔ **(2026-07-26, rubric §3 / sequencing-decisions.md cross-cutting list)**
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: flip `staff_profiles.can_take_bookings` on `rahmatherapy@outlook.com` (live Owner account) for dual-view E2E, then restore (or leave flipped per user preference) post-test.
+> Exact SQL / change: see block below (`UPDATE staff_profiles SET can_take_bookings = true/false WHERE email = 'rahmatherapy@outlook.com'`).
+> Post-action verification: re-run the pre-test `SELECT` and confirm the account's `can_take_bookings` matches the user-approved end state.
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 ```sql
 -- Pre-test: capture current state
