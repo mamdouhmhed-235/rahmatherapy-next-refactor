@@ -166,7 +166,7 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
   //    as a bonus; cancelled_at clearing added by S7)
   // 6. Cancel any queued cancellation email for this booking (Change 13 integration):
   //    UPDATE email_delivery_events SET delivery_status = 'cancelled_by_restore'
-  //    WHERE booking_id = $1 AND event_type = 'booking_cancellation_client'
+  //    WHERE booking_id = $1 AND event_type = 'booking_cancellation_customer'  -- existing constant, notifications.ts (D2 2026-07-26)
   //      AND delivery_status = 'queued' AND scheduled_for > now()
   //    Returns count; if > 0, the restore was an undo-window operation — set a flag
   //    suppress_restore_email so the client doesn't get a confusing "restored" email
@@ -271,7 +271,7 @@ New template renderer `renderBookingRestoredEmail(input)` in `src/lib/email/temp
 
 > "Good news — your booking with {companyName} on {date} at {time} has been restored. We're sorry for the earlier cancellation; everything is back on. If you have any questions, reply to this email or call {phone}."
 
-`booking_restored_client` added to the email_event_type enum in DB if it's a check-constrained text column (verify in pre-flight; likely not constrained — current event types are convention).
+`booking_restored_client` added to the email_event_type enum in DB if it's a check-constrained text column (verify in pre-flight; likely not constrained — current event types are convention). **(Verified 2026-07-26:** `event_type` is free text with no CHECK — no migration needed for the new value. `delivery_status` IS check-constrained — see §2.8(a).)**
 
 ### 2.2 The state-machine guard (change 4)
 
@@ -515,7 +515,11 @@ Zone-2 migration. Existing rows have `scheduled_for = NULL` (preserves immediate
 
 **Schema check at pre-flight:** verify whether `email_delivery_events` already has any of these column names (likely not). The migration is purely additive.
 
+**(Amended 2026-07-26 — verified schema premise.)** `delivery_status` is CHECK-constrained to `(accepted, failed, skipped)` in production. The new lifecycle values this design writes (`queued`, `sent`, `cancelled_by_restore`, plus rollback's `cancelled_manual`) require the migration to also extend that CHECK, or every queue insert fails at runtime. Plan §1 Step 10 carries the DDL + the Zone-2 HARD-STOP.
+
 **(b) Send-fn wrapper** — extend `sendTrackedEmail` in `src/lib/email/notifications.ts` to accept an optional `delaySeconds`:
+
+**(Amended 2026-07-26 — C04a-5.)** `sendTrackedEmail` is currently a **private (non-exported)** function at `notifications.ts:262` whose inline input already includes required `bookingId`, optional `staffId`, and `to: string | null`; its immediate path routes through `sendEmail` + `recordEmailDeliveryEvent`, and a missing `to` records a "skipped" event. Keep it private — extend the existing inline input type with `delaySeconds?: number` and insert the queue branch after the missing-recipient skip guard. The sketch below is illustrative only; the plan's rewritten Step 11 carries the reconciled detail.
 
 ```ts
 export async function sendTrackedEmail(
@@ -588,7 +592,7 @@ export async function GET(request: Request) {
 }
 ```
 
-Register in `worker-entrypoint.ts` cron dispatch + `wrangler.jsonc` cron schedule `* * * * *` (every minute). Worst-case actual email delay from `scheduled_for` to send: 60s (one cron tick). For a 10s undo window, perceived delay is 10–70s from cancel click to email arriving — invisible to the user since they have no expectation about send timing (only the toast offers a 10s undo).
+Register in `worker-entrypoint.ts` cron dispatch + `wrangler.jsonc` cron schedule `* * * * *` (every minute). **(Amended 2026-07-26 — D3/C04a-1/C04a-2.)** `worker-entrypoint.ts` currently has NO cron dispatch — a single unconditional `scheduled()` → `fireBookingReminders(env)` — and `wrangler.jsonc` has exactly one cron (`"0 8 * * *"`). Registration is order-agnostic with C-01: if no dispatch switch exists yet, build it (switch on `event.cron` matching the `wrangler.jsonc` triggers); otherwise add one case. Plan §1 Step 12 carries the rewritten detail. Worst-case actual email delay from `scheduled_for` to send: 60s (one cron tick). For a 10s undo window, perceived delay is 10–70s from cancel click to email arriving — invisible to the user since they have no expectation about send timing (only the toast offers a 10s undo).
 
 **Change 14 — Cancel-with-Undo toast UX.**
 
@@ -633,7 +637,7 @@ if (afterStatus === "cancelled" && beforeStatus !== "cancelled") {
 }
 ```
 
-`sendBookingCancellationEmails` (`notifications.ts:385`) gains the `options.delaySeconds` parameter, threaded down to `sendTrackedEmail`.
+`sendBookingCancellationEmails` (`notifications.ts:385`) gains the `options.delaySeconds` parameter, threaded down to `sendTrackedEmail`. **(Amended 2026-07-26 — C04a-3/D2.)** The function's real options are `{ initiatedBy: "customer" | "admin"; cancellationNote?: string | null }` and it sends three legs (customer `booking_cancellation_customer` + admin `booking_cancellation_admin` + assigned-staff). `delaySeconds` is ADDED to the existing options — existing callers keep passing `initiatedBy` — and threads only into the customer-leg `sendTrackedEmail` call; the admin and staff legs stay immediate (internal recipients keep real-time notice; the undo window exists to spare the customer a round-trip).
 
 **Customer-side cancel path:** `manage/actions.ts` (the customer-facing cancellation) is **out of scope** for the delay — customer cancels are intentional and shouldn't have an admin-style undo window. They still fire `sendBookingCancellationEmails` immediately (no `delaySeconds`). Change 14 only changes admin-initiated cancels.
 
@@ -950,7 +954,7 @@ This is the **canonical happy path for non-undo restore** — preserved from the
 
 **No new permissions** — existing `manage_bookings_all` covers restore + reopen + no_show + row-level restore + undo. Capability gate for auto-promote is `can_take_bookings` (already in `staff_profiles`).
 
-**New cron route** (Change 13c) — `src/app/api/cron/scheduled-emails/route.ts` runs at `* * * * *` (every minute). Registered in `wrangler.jsonc` cron triggers + `worker-entrypoint.ts` dispatch. Independent from C-01's `*/15 * * * *` review-emails cron (different mechanism; same Cloudflare Workers infrastructure).
+**New cron route** (Change 13c) — `src/app/api/cron/scheduled-emails/route.ts` runs at `* * * * *` (every minute). Registered in `wrangler.jsonc` cron triggers + `worker-entrypoint.ts` dispatch *(dispatch switch built by whichever of C-01/C-04a lands first — D3 2026-07-26; today neither has: one cron `"0 8 * * *"`, no switch)*. Independent from C-01's `*/15 * * * *` review-emails cron (different mechanism; same Cloudflare Workers infrastructure).
 
 ---
 
@@ -995,7 +999,7 @@ This is the **canonical happy path for non-undo restore** — preserved from the
 
 **No dependency on C-08.** C-04a creates `sendBookingRestoredClientEmail` directly; doesn't rely on C-08's template overrides infrastructure (which other plans use).
 
-**No dependency on C-01.** C-04a doesn't touch `review_email_sent_at` or `completed_at`. Change 13's `scheduled-emails` cron is **independent** from C-01's `review-emails` cron — different mechanisms (scheduled-time vs status-trigger), different cadences (`* * * * *` vs `*/15 * * * *`), different worker routes. Both can ship in any order; both register on the same Cloudflare Workers cron infrastructure. C-12+ could unify them if a generic scheduled-send abstraction emerges — out of C-04a scope.
+**No dependency on C-01.** C-04a doesn't touch `review_email_sent_at` or `completed_at`. Change 13's `scheduled-emails` cron is **independent** from C-01's `review-emails` cron — different mechanisms (scheduled-time vs status-trigger), different cadences (`* * * * *` vs `*/15 * * * *`), different worker routes. Both can ship in any order; both register on the same Cloudflare Workers cron infrastructure. C-12+ could unify them if a generic scheduled-send abstraction emerges — out of C-04a scope. **(2026-07-26 — D3:** neither cron exists yet and `worker-entrypoint.ts` has no dispatch switch — whichever of C-01/C-04a lands first builds the `event.cron` switch; the other adds a case.)**
 
 **Coordination with C-05 (N1 filter fix):** the row-level Restore from Change 10 is only discoverable on the list once C-05's N1 fix makes cancelled rows visible. C-04a is technically independent (the row menu code lands regardless), but the user-facing affordance only materialises after the C-05 ship. Both plans should ship together if possible — handoff §6 lists this as a soft co-ship preference.
 

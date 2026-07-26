@@ -1,5 +1,9 @@
 # C-04a — Cancellation restore + delayed-email infra + row-level affordances + auto-promote + hygiene tail — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none hard — C-04a runs second in the Band C main chain, after C-06, whose outputs it does not require (the `clients?.deleted_at` guard in Step 1 is null-safe). Cron dispatch is order-agnostic with C-01 (D3 — Step 12). Downstream: C-05 and C-13 depend on this plan's `_helpers.ts` exports; they verify C-04a landed with `git log --oneline --grep="C-04a" | grep -q "feat(redesign): C-04a"`.
+> Decisions: C-B-DECISIONS.md §Q8 (split C-04a / `||`→`??` exception), §Q10 (auto-promote). Refinement resolutions applied: D2, D3, D26. Findings applied: C04a-1..C04a-7 — see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Amended:** 2026-07-16 — S7 refinement (user direction): 28-day restore window keyed to the cancellation moment. New `bookings.cancelled_at` column + backfill in the Step 10 migration; guard in `restoreBooking` (step 3.6); stamping in both admin cancel paths; UI hides Restore + distinct copy when expired. Brief §1.11 / §2.1 S7 / §5.12 / §6 are the spec source.
@@ -13,10 +17,10 @@ This plan covers the "how" — execution order, verify-checkpoints, files touche
 
 ## 0 — Pre-flight (verify before touching code)
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree.** *(Amended 2026-07-26 — post-merge premise, C04a-6.)* On `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/app/admin/bookings/ src/app/admin/reports/ src/app/admin/clients/ src/lib/email/ src/app/api/cron/ worker-entrypoint.ts wrangler.jsonc supabase/migrations/ src/types/supabase.ts` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp` logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → `HTTP/1.1 200 OK`.
-3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 baseline failures preserved).
-4. **Static gates green.** `pnpm lint`, `npx tsc --noEmit` both 0 errors.
+3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 pre-existing failures in 3 files — ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1 — baseline preserved; not regressions). *(Baseline breakdown added 2026-07-26, rubric §2.)*
+4. **Static gates green.** *(Amended 2026-07-26 — C04a-7.)* `pnpm lint` shows no NEW errors vs the 59-error baseline (55 from untracked `design_handoff_area_pages/prototype/*.jsx`, 4 pre-existing in `src/features/booking/`); `npx tsc --noEmit` 0 errors.
 5. **DB introspection.** Confirm via `mcp__supabase__execute_sql`:
 
    ```sql
@@ -47,6 +51,15 @@ This plan covers the "how" — execution order, verify-checkpoints, files touche
    -- (e) AMENDMENT 2026-05-26 — verify BookingRowActions component exists with current shape
    -- (cheap grep, not DB — done via the codebase)
    -- expect: BookingRowAction union at BookingRowActions.tsx:17-22 with 5 actions
+
+   -- (f) ADDED 2026-07-26 (Appendix B schema premise) — delivery_status CHECK constraint.
+   SELECT c.conname, pg_get_constraintdef(c.oid) FROM pg_constraint c
+   JOIN pg_class t ON t.oid = c.conrelid
+   WHERE t.relname = 'email_delivery_events' AND c.contype = 'c';
+   -- expect: one CHECK limiting delivery_status to (accepted, failed, skipped).
+   -- Record the conname — Step 10's migration must DROP/re-ADD it extended with the
+   -- new lifecycle values (queued, sent, cancelled_by_restore, cancelled_manual),
+   -- otherwise every queue insert / status flip this plan performs fails at runtime.
    ```
 
 6. **Test fixture inventory.** Confirm via `mcp__supabase__execute_sql`:
@@ -65,7 +78,7 @@ This plan covers the "how" — execution order, verify-checkpoints, files touche
    ```
    If any completed booking has `amount_paid = 0`, the `??` fix will reduce `completedRevenue`. Document the delta in the progress file.
 
-8. **Test data DO-NOT-TOUCH list:** Badar's booking `9d55ce2a` (cancelled, real email `avonrk@hotmail.co.uk`). Any client with non-`*.example.test` / non-`Phase10*` / non-`Audit Test*` email — real customer.
+8. **Test data DO-NOT-TOUCH list:** Badar's booking `9d55ce2a` (cancelled, real email `avonrk@hotmail.co.uk`). Any client with non-`*.example.test` / non-`Phase10*` / non-`Audit Test*` email — real customer. *(Amended 2026-07-26, rubric §9:)* also the Owner account `rahmatherapy@outlook.com` in email-test paths.
 
 If any pre-flight step fails or reveals unexpected state, **stop** and surface to the user.
 
@@ -188,7 +201,7 @@ export async function restoreBooking(formData: FormData): Promise<BookingUpdateS
     .from("email_delivery_events")
     .update({ delivery_status: "cancelled_by_restore" }, { count: "exact" })
     .eq("booking_id", bookingId)
-    .eq("event_type", "booking_cancellation_client")
+    .eq("event_type", "booking_cancellation_customer") // existing constant (notifications.ts) — D2 2026-07-26
     .eq("delivery_status", "queued")
     .gt("scheduled_for", new Date().toISOString());
 
@@ -404,6 +417,8 @@ export function isBookingMomentPastLondon(booking: {
 
 Lifting / cross-coordinating with C-05 — if C-05 ships first, this helper already exists; if C-04a ships first, C-04a creates it and C-05 imports.
 
+> **Coordination note (2026-07-26, rubric §10):** This plan creates `src/app/admin/bookings/_helpers.ts` (it does not exist on `master` @ `ea97932`). C-05 and C-13 both extend it — land this plan first, and do not remove/rename any exported helper C-05/C-13's plans reference by name (`isBookingMomentPastLondon`, `computeBookingMomentLondon`, `isRestoreWindowExpired`, `RESTORE_WINDOW_DAYS`).
+
 **S3 — Restore confirm modal shows prior cancellation reason.** The `NextActionButton` client component composes the modal body from booking context:
 
 ```tsx
@@ -488,7 +503,7 @@ export async function sendBookingRestoredClientEmail(
 - Verify: `npx tsc --noEmit` green. The send function will only actually fire end-to-end after Step 1 + Phase A wiring is fully done.
 
 **Phase A verify checkpoint:**
-- `pnpm lint` 0 errors
+- `pnpm lint` no NEW errors vs the 59-error baseline (see §0 step 4 — 2026-07-26 consistency fix)
 - `npx tsc --noEmit` 0 errors
 - `pnpm vitest run bookings` — new restoreBooking specs pass; existing booking tests still pass
 - Playwright manual: navigate to a cancelled test booking → Restore button visible with new copy → click → confirm modal → confirm → status flips → audit row written. **Reset the test booking back to cancelled afterward for repeatability.**
@@ -802,6 +817,13 @@ if (booking.status === "completed") {
 
 ### Phase F — Delayed-email infrastructure (Change 13 — amendment 2026-05-26)
 
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply the C-04a scheduled-emails + `bookings.cancelled_at` migration to production project twzutkfgqclqurvkmvqz via `mcp__supabase__apply_migration`
+> Exact SQL / change: the full migration SQL in the Step 10 body below (plus the `delivery_status` CHECK extension in the schema-premise note beneath it) — show it to the user verbatim before invoking. Backfill 2 depends on the `audit_logs.after_state` JSON shape verified at pre-flight §0.5; do not apply until that verification has been shown.
+> Post-action verification: the two queries in Step 10's "Verify via" block (5 columns present; stamped/unstamped coverage counts reported to the user) + `pg_get_constraintdef` shows the extended `delivery_status` CHECK
+> Never auto-apply. Approval is per-action and does not carry forward.
+
 **Step 10 — Migration: add scheduled-email columns + index.**
 
 Zone-2 — explicit user confirmation before applying.
@@ -847,6 +869,14 @@ FROM (
 WHERE b.id = a.booking_id AND b.status = 'cancelled' AND b.cancelled_at IS NULL;
 ```
 
+**Schema premise (added 2026-07-26 — Appendix B, production snapshot 2026-07-25):** `email_delivery_events.delivery_status` is NOT free-form — it carries `CHECK (delivery_status IN ('accepted','failed','skipped'))`. Of the lifecycle values this plan writes, `'queued'` (Step 11 insert), `'sent'` (Step 12 cron flip), `'cancelled_by_restore'` (Step 1 suppression), and `'cancelled_manual'` (§5.1/§5.2 rollback) all violate that CHECK — only `'failed'` is already allowed. The migration MUST therefore also extend the CHECK; include this DDL in the same migration file and surface it at the HARD-STOP alongside the block above (pre-flight §0.5(f) records the constraint name):
+
+```sql
+ALTER TABLE email_delivery_events DROP CONSTRAINT <conname from pre-flight §0.5(f)>;
+ALTER TABLE email_delivery_events ADD CONSTRAINT email_delivery_events_delivery_status_check
+  CHECK (delivery_status IN ('accepted','failed','skipped','queued','sent','cancelled_by_restore','cancelled_manual'));
+```
+
 File path: `supabase/migrations/<ts>_c04a_scheduled_emails.sql`. Generate timestamp via `date +%Y%m%d%H%M%S`.
 
 Apply via `mcp__supabase__apply_migration` with `project_id='twzutkfgqclqurvkmvqz'`. Verify via:
@@ -868,66 +898,87 @@ Run `mcp__supabase__generate_typescript_types` after, save to `src/types/supabas
 
 **Step 11 — Extend `sendTrackedEmail` with `delaySeconds`.**
 
-Edit `src/lib/email/notifications.ts`. Locate `sendTrackedEmail` function. Extend its input type + branch:
+*(Rewritten 2026-07-26 — C04a-5/C04a-3/D2: the previous sketch assumed an exported function with a narrower input and a raw-insert immediate path, and introduced a non-existent event-type string; reconciled against the real `notifications.ts` @ `ea97932`.)*
+
+> **Coordination note (2026-07-26, rubric §10 / D26):** re-grep for the current anchor before editing; prior Band C plans may have shifted line positions; expect C-08's edits in this region — `sendBookingCancellationEmails` may already contain admin-leg (admin-recipient) changes when this step runs. C-01, C-02 and C-13 also touch `notifications.ts`. Landing order keeps C-04a first, but never assume it.
+
+Edit `src/lib/email/notifications.ts`. Current reality (verified 2026-07-26): `sendTrackedEmail` is a **private (non-exported)** function at `notifications.ts:262` with an inline input type `{ bookingId: string; eventType: string; recipientRole: string; staffId?: string | null; to: string | null; subject: string; html: string; text: string }`. Its body: missing `to` → `recordEmailDeliveryEvent(..., deliveryStatus: "skipped")`; otherwise `sendEmail(...)` then `recordEmailDeliveryEvent(...)` with `accepted`/`failed`. Keep it private — no caller outside this module needs it (restore-side suppression operates on `email_delivery_events` rows, not on this function).
+
+Extend the existing inline input type with `delaySeconds?: number` and insert the queue branch AFTER the missing-recipient skip guard and BEFORE the immediate-send try/catch:
 
 ```ts
-type SendTrackedEmailInput = {
-  bookingId?: string;
-  eventType: string;
-  recipientRole: string;
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-  delaySeconds?: number;  // NEW
-};
-
-export async function sendTrackedEmail(
+async function sendTrackedEmail(
   supabase: SupabaseClient,
-  input: SendTrackedEmailInput
+  input: {
+    bookingId: string;
+    eventType: string;
+    recipientRole: string;
+    staffId?: string | null;
+    to: string | null;
+    subject: string;
+    html: string;
+    text: string;
+    delaySeconds?: number; // NEW — Change 13
+  }
 ) {
+  if (!input.to) {
+    // ... existing "skipped" recordEmailDeliveryEvent path — UNCHANGED
+  }
+
+  // NEW — Change 13 queue branch
   if (input.delaySeconds && input.delaySeconds > 0) {
-    const scheduledFor = new Date(Date.now() + input.delaySeconds * 1000).toISOString();
+    const scheduledFor = new Date(
+      Date.now() + Math.max(0, input.delaySeconds) * 1000
+    ).toISOString();
     const { error } = await supabase.from("email_delivery_events").insert({
       booking_id: input.bookingId,
       event_type: input.eventType,
+      recipient_email: input.to,
       recipient_role: input.recipientRole,
+      staff_id: input.staffId ?? null,
       to_email: input.to,
       subject: input.subject,
       html_payload: input.html,
       text_payload: input.text,
       scheduled_for: scheduledFor,
-      delivery_status: "queued",
+      delivery_status: "queued", // requires Step 10's CHECK extension
     });
     if (error) throw new Error(`Failed to queue scheduled email: ${error.message}`);
-    return { queued: true, scheduledFor };
+    return { status: "queued" as const, scheduledFor };
   }
-  // ... existing immediate-send path unchanged
+
+  // ... existing immediate-send path (sendEmail + recordEmailDeliveryEvent) — UNCHANGED
 }
 ```
 
-Extend `sendBookingCancellationEmails` (line 385) signature:
+The queue branch writes the delivery-event row directly (the queued row IS the delivery event — the Step 12 cron later flips it to `sent`/`failed`); the immediate path keeps using `recordEmailDeliveryEvent`. The new `"queued"` return variant is non-breaking — existing callers ignore the return value (confirm with `git grep -n "sendTrackedEmail(" src/lib/email/`).
+
+**Diff-review checkpoint** *(added 2026-07-26 — review gap):* this is an edit inside a real ~55-line function, not a green-field paste. Before committing, run `git diff src/lib/email/notifications.ts` and confirm the skip guard, the `sendEmail` call, both `recordEmailDeliveryEvent` legs, and the `staffId` threading are all still present and unchanged.
+
+Extend `sendBookingCancellationEmails` (`notifications.ts:385` — re-grep the anchor) by ADDING `delaySeconds` to its EXISTING options — do NOT replace the options type. The function currently takes `options: { initiatedBy: "customer" | "admin"; cancellationNote?: string | null } = { initiatedBy: "admin" }` and sends three legs in a `Promise.all`: customer (`eventType: "booking_cancellation_customer"` — the existing constant, kept per D2), admin (`booking_cancellation_admin`, rendered with `initiatedBy`/`cancellationNote`), and `sendAssignedStaffBookingChangeEmails`. All of that behaviour stays:
 
 ```ts
 export async function sendBookingCancellationEmails(
   bookingId: string,
   supabase: SupabaseClient,
-  options: { delaySeconds?: number } = {}  // NEW
+  options: {
+    initiatedBy: "customer" | "admin";
+    cancellationNote?: string | null;
+    delaySeconds?: number; // NEW — Change 14 undo window
+  } = { initiatedBy: "admin" }
 ) {
-  const { booking, settings, input } = await getBookingTemplateInput(bookingId, supabase);
-  // ... existing logic
-  await sendTrackedEmail(supabase, {
-    bookingId,
-    eventType: "booking_cancellation_client",
-    recipientRole: "customer",
-    to: customerEmail,
-    subject: `${input.companyName} — booking cancellation confirmed`,
-    html: renderBookingCancellationEmail(input),
-    text: renderBookingPlainText("Booking cancelled", input),
-    delaySeconds: options.delaySeconds,  // threaded
-  });
+  // ... existing body UNCHANGED except ONE line: the customer-leg
+  // sendTrackedEmail call (eventType "booking_cancellation_customer") gains
+  //     delaySeconds: options.delaySeconds,
+  // The admin leg and the assigned-staff leg stay immediate — the undo
+  // window exists to spare the CUSTOMER a round-trip; internal recipients
+  // keep real-time notice (brief §5.9 covers the race semantics).
 }
 ```
+
+Existing callers (`actions.ts:214-216`, `actions.ts:424-426`, and `manage/actions.ts`) pass `{ initiatedBy: ... }` and compile unchanged — the extension is additive. Phase H's call sites must keep passing `initiatedBy` alongside the new `delaySeconds` (see Step 14), since `initiatedBy` remains required whenever an options object is supplied.
+
+- Verify *(added 2026-07-26, rubric §7)*: `npx tsc --noEmit` green; `git grep -n "booking_cancellation_customer" src/lib/email/notifications.ts src/app/admin/bookings/actions.ts` shows both the send site and (after Step 1) the restore-suppression filter using the same string — the Change 13/14 suppression path depends on this exact match (D2).
 
 **Step 12 — Cron route + worker registration.**
 
@@ -988,38 +1039,58 @@ export async function GET(request: Request) {
 }
 ```
 
-Register in `worker-entrypoint.ts`:
+Register in `worker-entrypoint.ts` *(rewritten 2026-07-26 — C04a-1/C04a-2/D3)*:
+
+Current reality (verified 2026-07-26 @ `ea97932`): `worker-entrypoint.ts` (103 lines) has a single unconditional `scheduled()` handler — `ctx.waitUntil(fireBookingReminders(env))` at lines 91-99. There is NO dispatch switch, routing table, `handle()`, or `handleScheduledTask()` anywhere in the file, and `wrangler.jsonc` has exactly ONE cron trigger: `"0 8 * * *"` (booking-reminders, daily 08:00 UTC). C-01's review-emails cron does not exist yet.
+
+**Order-agnostic instruction (D3):** if `scheduled()` still has no cron-dispatch switch when this step runs (the current state), BUILD it — dispatch on `event.cron` (the `ScheduledControllerLike.cron` field, which carries the triggering cron expression exactly as written in `wrangler.jsonc` `triggers.crons`). If C-01 (or C-02) landed first and a switch already exists, ADD one case. Neither this plan nor C-01 may assume the other landed. Re-grep for the current `scheduled()` body before editing; prior Band C plans may have shifted line positions; expect C-01/C-02's edits in this region (rubric §10).
 
 ```ts
-// In the cron dispatch block alongside booking-reminders + review-emails (C-01):
-case "scheduled-emails":
-  return handleScheduledTask(
-    () => handle("/api/cron/scheduled-emails"),
-    "scheduled-emails"
-  );
-```
-
-Add to `wrangler.jsonc` cron triggers:
-
-```jsonc
-{
-  "triggers": {
-    "crons": [
-      "*/15 * * * *",  // booking-reminders (existing)
-      "*/15 * * * *",  // review-emails (C-01)
-      "* * * * *"      // scheduled-emails (C-04a) — every minute
-    ]
+// worker-entrypoint.ts — scheduled() body becomes a dispatch on the firing cron:
+async scheduled(
+  event: ScheduledControllerLike,
+  env: CronEnv,
+  ctx: ExecutionCtxLike
+): Promise<void> {
+  switch (event.cron) {
+    case "0 8 * * *": // booking-reminders (existing daily cron)
+      ctx.waitUntil(fireBookingReminders(env));
+      break;
+    case "* * * * *": // scheduled-emails (C-04a — every minute)
+      ctx.waitUntil(fireScheduledEmails(env));
+      break;
+    default:
+      // Unknown cron (e.g. registered by a plan that landed after this file
+      // was last edited) — log, never throw.
+      console.error(`[scheduled] no handler for cron "${event.cron}"`);
   }
 }
 ```
 
-The dispatch logic in `worker-entrypoint.ts` selects based on `event.scheduledTime`'s pattern OR a dedicated route key. Verify the current selection mechanism during impl (likely a switch on cron expression or a routing table).
+`fireScheduledEmails(env)` mirrors `fireBookingReminders` (same `WORKER_SELF_REFERENCE.fetch` + `CRON_SECRET` guard + logging), targeting `https://internal.invalid/api/cron/scheduled-emails`. **Consistency check:** the existing booking-reminders pattern is POST + `X-Cron-Secret` header, while the route sketch above shows GET + `Authorization: Bearer` — pick ONE pair and keep the worker call and the new route's secret check consistent (copying the booking-reminders POST + `X-Cron-Secret` pattern verbatim is the lower-friction choice).
+
+Add to `wrangler.jsonc` cron triggers — APPEND to whatever the array currently holds (do not rewrite entries other plans may have added):
+
+```jsonc
+{
+  "triggers": {
+    // Today the array is ["0 8 * * *"] (booking-reminders). After this step it
+    // also contains "* * * * *" (scheduled-emails). C-01's review-emails cron
+    // may or may not be present — leave any other entry untouched.
+    "crons": ["0 8 * * *", "* * * * *"]
+  }
+}
+```
+
+- Verify *(added 2026-07-26, rubric §7)*: `npx tsc --noEmit` green (the worker file is in the tsc pass); `git grep -n "event.cron\|fireScheduledEmails" worker-entrypoint.ts` shows the switch + the new handler; `grep -n "crons" wrangler.jsonc` shows both entries. The new cron only fires after the next Cloudflare deploy — until then, drain queued rows via the manual `curl` in the Phase F checkpoint.
 
 **Phase F verify checkpoint:**
 - Migration applied; columns exist; index exists.
 - `npx tsc --noEmit` green after types regen.
 - New unit test for the cron route's queued-row handling (mock Resend; assert status flip).
 - Manual cron-fire test via `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/scheduled-emails` — should return `{ sent: 0, total: 0 }` when no queued rows exist.
+- *(Added 2026-07-26 — Appendix B premise)* `pg_get_constraintdef` on `email_delivery_events` shows the extended `delivery_status` CHECK admitting `queued`/`sent`/`cancelled_by_restore`/`cancelled_manual`.
+- *(Added 2026-07-26 — review gap)* **End-to-end suppression proof** (runs once Phase H's `delaySeconds: 10` wiring is in — schedule it before final sign-off, not necessarily inside Phase F's commit): cancel a test booking (queues the customer email), restore it within 10s, then assert the suppression path actually matched a real row — the queued row's `delivery_status` = `'cancelled_by_restore'` AND the `booking_restored` audit row has `after_state.cancelled_queued_email = true` (i.e. `cancelledQueuedCount > 0`). This proves Step 1's filter (`event_type = 'booking_cancellation_customer'`) matches the send-site constant end-to-end and guards against silent event-type drift (C04a-4).
 
 ### Phase G — Row-level Restore + status-aware row menu (Changes 10-12 — amendment 2026-05-26)
 
@@ -1133,6 +1204,8 @@ In the JSX where the menu items are rendered (find the popover content area), wr
 
 Pass `booking_date` + `start_time` + (S7) `cancelled_at` + `customer_cancelled_at` through Props (extend the `Props` type at lines 24-33 with `bookingDate: string; startTime: string; cancelledAt: string | null; customerCancelledAt: string | null;`). The list-page component at `page.tsx:916` passes them through.
 
+> **Coordination note (2026-07-26, rubric §10):** `admin/bookings/page.tsx` is edited by C-05 (`filterBookings`, :148-258), C-16 (pagination, :438-446) and C-13 (extracts the row `<article>` block :804-927 — after C-13 lands, the `BookingRowActions` call site moves into `BookingCard.tsx`). Re-grep for the current call site (`git grep -n "<BookingRowActions" src/app/admin/bookings/`) before threading the new props; prior Band C plans may have shifted line positions; expect C-05/C-16/C-13's edits in this region.
+
 **Step 13d — Vitest spec for `quickUpdateBooking` action=restore.**
 
 New file `src/app/admin/bookings/__tests__/quickUpdateBookingRestore.test.ts`:
@@ -1156,6 +1229,7 @@ Edit `src/app/admin/bookings/actions.ts`. In `updateBookingManagement` (~line 21
 ```ts
 if (data.status === "cancelled" && beforeState.status !== "cancelled") {
   await sendBookingCancellationEmails(bookingId, adminClient, {
+    initiatedBy: "admin", // existing argument at this call site — KEEP (C04a-3, 2026-07-26)
     delaySeconds: 10,  // NEW — Change 14 undo window
   });
 }
@@ -1166,6 +1240,7 @@ In `quickUpdateBooking` action=cancel branch (~line 423-437), similarly:
 ```ts
 if (action === "cancel" && beforeState.status !== "cancelled") {
   await sendBookingCancellationEmails(bookingId, adminClient, {
+    initiatedBy: "admin", // existing argument at this call site — KEEP (C04a-3, 2026-07-26)
     delaySeconds: 10,
   });
 }
@@ -1271,14 +1346,16 @@ In `bookings/__tests__/quickUpdateBookingCancel.test.ts` (extend existing or cre
 | `src/app/admin/reports/reporting.ts` | line 438 `||` → `??` (RECON §5 untouchable exception approved per C-B-DECISIONS Q8) |
 | `src/app/admin/reports/__tests__/reports-helpers.test.ts` | Update "4 statuses" test to "2 statuses" |
 | `src/app/admin/clients/page.tsx` | − `hasRefund` helper, − `refund_issued` filter logic |
-| `worker-entrypoint.ts` | Register `/api/cron/scheduled-emails` in cron dispatch (Change 13c) |
-| `wrangler.jsonc` | Add `* * * * *` cron schedule (Change 13c) |
+| `worker-entrypoint.ts` | Build the `event.cron` dispatch switch if absent, else add a case (D3 2026-07-26 — order-agnostic with C-01); add `fireScheduledEmails` targeting `/api/cron/scheduled-emails` (Change 13c) |
+| `wrangler.jsonc` | Add `* * * * *` cron schedule — appended to the existing `["0 8 * * *"]` array (Change 13c; C04a-2 2026-07-26) |
 | `src/types/supabase.ts` | Regenerated post-migration via `mcp__supabase__generate_typescript_types` |
 
 ### CONDITIONAL (only if email_event_type is enum)
 | File | Change |
 |---|---|
 | `supabase/migrations/<ts>_c04a_booking_restored_email_event.sql` | `ALTER TYPE ... ADD VALUE 'booking_restored_client'` |
+
+*(2026-07-26 — Appendix B: `event_type` is verified free text with no CHECK, so this conditional migration is expected NOT to be needed. If pre-flight §0.5(b) contradicts that, applying it is likewise Zone-2 — reuse the ⛔ HARD-STOP gate format from Step 10.)*
 
 ### UNCHANGED (do NOT touch)
 - `reporting.ts` core exports — only line 438 is the explicit one-char exception. All other exports stay untouched.
@@ -1296,7 +1373,7 @@ Run after Phase E lands. Every command must pass.
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs the 59-error baseline (C04a-7, 2026-07-26)
 npx tsc --noEmit                # 0 errors
 pnpm vitest run                 # new specs pass; baseline failures preserved
 pnpm build                      # clean
@@ -1328,14 +1405,14 @@ Recipe per role:
 10. **(Owner/Admin/Coord) Cancel-with-Undo toast (Phase H)** — On a confirmed row, click Cancel via overflow menu. Verify success toast appears with "Booking cancelled. The client will be notified in 10 seconds." + Undo button. Click Undo within 10s. Verify "Cancellation undone." toast. Verify via DB:
     ```sql
     SELECT delivery_status FROM email_delivery_events
-    WHERE booking_id = '<test-booking>' AND event_type = 'booking_cancellation_client'
+    WHERE booking_id = '<test-booking>' AND event_type = 'booking_cancellation_customer' -- D2 2026-07-26
     ORDER BY created_at DESC LIMIT 1;
     -- Expected: 'cancelled_by_restore'
     ```
 11. **(Owner/Admin/Coord) Cancel + let toast expire** — Cancel another confirmed booking; do not click Undo. Wait ≥ 65s (one full cron tick). Verify:
     ```sql
     SELECT delivery_status, scheduled_for FROM email_delivery_events
-    WHERE booking_id = '<test-booking-2>' AND event_type = 'booking_cancellation_client'
+    WHERE booking_id = '<test-booking-2>' AND event_type = 'booking_cancellation_customer' -- D2 2026-07-26
     ORDER BY created_at DESC LIMIT 1;
     -- Expected: delivery_status='sent', scheduled_for in the past
     ```
@@ -1392,7 +1469,7 @@ Capture PNGs:
 - 375: Auto-completed banner on booking that just promoted
 - 1280: /admin/reports payment filter (3 options visible)
 
-Store in `redesign/audits/C-A/screenshots-04-bookings-detail/c-04a-after/` (or new directory per C-C convention).
+Store in `redesign/evidence/C-04a/` *(evidence convention 2026-07-26, rubric §8 / D15 — never write into `redesign/audits/**`; the old `redesign/audits/C-A/screenshots-...` target is superseded)*.
 
 ---
 
@@ -1469,6 +1546,8 @@ ALTER TABLE bookings DROP COLUMN IF EXISTS cancelled_at;
 SELECT COUNT(*) FROM email_delivery_events WHERE delivery_status = 'queued';
 -- Expected: 0 (run the cron route or manually flip status first)
 ```
+
+*(Added 2026-07-26 — Appendix B premise)* If the applied migration extended the `delivery_status` CHECK (Step 10 schema-premise note), the undo migration must also restore the original CHECK — and that re-ADD fails while any row still carries a new lifecycle value. Confirm first: `SELECT DISTINCT delivery_status FROM email_delivery_events;` returns only `accepted`/`failed`/`skipped` (re-map or clean up test rows otherwise).
 
 **Phase A migration (event_type, if it was needed):**
 
@@ -1579,6 +1658,8 @@ Surfaced during plan-writing — not blocking, but worth noting:
 7. **(amendment 2026-05-26) Scheduled-emails cron generalisation** — Change 13's infrastructure could replace C-01's status-trigger model entirely (uniform `scheduled_for` semantics). Out of C-04a scope; flagged in handoff §5 as a C-12+ refactor candidate.
 
 8. **(amendment 2026-05-26) Worker-entrypoint dispatch mechanism** — `worker-entrypoint.ts` may use cron-expression matching, a routing table, or a switch on event metadata to dispatch incoming cron events to the right route. Plan Step 12 sketches "case 'scheduled-emails'" but the exact pattern must be verified during impl. Cheap grep at pre-flight time: `git grep -n "scheduledTime\|cron" worker-entrypoint.ts`.
+
+   **(RESOLVED 2026-07-26 — C04a-1/D3.)** Verified: NO dispatch mechanism exists — `scheduled()` is a single unconditional `fireBookingReminders(env)` call. Step 12 was rewritten order-agnostically: build the `event.cron` switch if absent, else add a case. The hedge above no longer needs impl-time discovery; the pre-flight grep remains useful to detect whether C-01/C-02 built the switch first.
 
 9. **(amendment 2026-05-26) Reliable Undo race detection in audit logs** — brief §5.9 + Q9.10 surfaces the audit-fork forensics. If real-world misclick rate is high, a C-12+ improvement could surface "undid within X seconds" badge on the booking detail page for transparency. Out of C-04a scope.
 
