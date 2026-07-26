@@ -186,6 +186,8 @@ toast.warning(message, { ... });
 
 `bookings/new/page.tsx` after the enquiry fetch (currently line 54-60), add:
 
+> **Finding C-03-F1 correction (2026-07-26):** the enquiry select at `page.tsx:57` currently omits `converted_booking_id` — extend the select list to include it before this guard can read the field (see plan §1 Phase B Step 4).
+
 ```ts
 const enquiry = enquiryResult.data ?? null;
 if (enquiry?.converted_booking_id) {
@@ -270,7 +272,7 @@ Cleanup: when the page successfully submits (or admin clicks Cancel), the matchi
 
 ### 2.7 W01-V-1 Cancel routing (item 7)
 
-`ManualBookingForm.tsx` — the Cancel button currently has `href="/admin/bookings/"`. Update:
+`ManualBookingForm.tsx` — the Cancel button currently has `href="/admin/bookings/"`. **Finding C-03-F2 correction (2026-07-26):** this hardcoded href appears at TWO independent sites (the desktop-nav Cancel `Link` and the Leave-confirmation dialog's own "Leave" `Link`) — both need updating, not one (see plan §1 Phase C Step 11). Update:
 
 ```tsx
 const cancelHref = enquiryId

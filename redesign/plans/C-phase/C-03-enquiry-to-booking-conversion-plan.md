@@ -1,5 +1,9 @@
 # C-03 — Enquiry → booking one-click conversion — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none — C-03 ships independently (per §0 Step 7).
+> Decisions: C-B-DECISIONS.md §3 C-03. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-03-enquiry-to-booking-conversion-brief.md` (companion — read first)
@@ -10,9 +14,9 @@
 
 ## 0 — Pre-flight
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree.** On `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/lib/booking/service-fuzzy-match.ts src/app/admin/bookings/new/page.tsx src/app/admin/bookings/new/ManualBookingForm.tsx src/app/admin/bookings/actions.ts "src/app/admin/bookings/[bookingId]/"` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp` logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → 200.
-3. **Baseline tests + static gates.** `pnpm vitest run` 485/491; `pnpm lint` + `tsc` green.
+3. **Baseline tests + static gates.** `pnpm vitest run` 485/491 (6 pre-existing failures in 3 files — ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1 — baseline, not regressions); `tsc` green; `pnpm lint` shows no NEW errors vs the 59-error baseline (55 from untracked `design_handoff_area_pages/prototype/*.jsx`, 4 pre-existing in `src/features/booking/`).
 4. **DB pre-flight:**
 
    ```sql
@@ -35,6 +39,13 @@
    - At least 1 enquiry with `converted_booking_id IS NOT NULL` for B-106 redirect test.
    - If neither exists, create via the existing flow or SQL (Zone-2 — explicit confirmation).
 
+   > ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+   > An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+   > Action: create missing test-fixture enquiry row(s) via direct SQL (only if the existing UI flow cannot produce the needed fixture state)
+   > Exact SQL / change: INSERT into `enquiries` with test-safe values (`*.example.test` email / `Phase10*`/`Audit Test*` name pattern per the DO-NOT-TOUCH convention below) — no production data
+   > Post-action verification: re-run the pre-flight Step 4b enquiry inventory query — expect the new fixture row(s) present
+   > Never auto-apply. Approval is per-action and does not carry forward.
+
 6. **Code-surface inventory** (verify line numbers haven't drifted since plan-writing):
 
    ```bash
@@ -52,6 +63,8 @@
 
 8. **DO-NOT-TOUCH list:** Badar's `9d55ce2a`, real customer data.
 
+   > DO-NOT-TOUCH (live data): booking 9d55ce2a (Badar — real customer email); Owner account rahmatherapy@outlook.com in email-test paths; any client whose email isn't *.example.test or name isn't Phase10*/Audit Test* test patterns.
+
 ---
 
 ## 1 — Safe implementation order (4 phases — narrow plan)
@@ -59,6 +72,13 @@
 ### Phase A — Migration + service-fuzzy-match helper
 
 **Step 1 — (Conditional) index migration.**
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply conditional index migration `idx_enquiries_converted_booking` on `enquiries.converted_booking_id` (only if pre-flight Step 4a found 0 rows)
+> Exact SQL / change: see migration body below — `CREATE INDEX IF NOT EXISTS idx_enquiries_converted_booking ON enquiries (converted_booking_id) WHERE converted_booking_id IS NOT NULL;`
+> Post-action verification: re-run the pre-flight Step 4a query — expect 1 row for `idx_enquiries_converted_booking`
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 If pre-flight Step 4a returns 0 rows:
 
@@ -145,6 +165,8 @@ Test matrix (use production services list from pre-flight Step 4c):
 ### Phase B — Server + page integration
 
 **Step 4 — Re-conversion guard (B-106) in `bookings/new/page.tsx`.**
+
+> **Finding C-03-F1 correction (2026-07-26):** the enquiry Supabase select at `page.tsx:57` currently reads `"id, full_name, email, phone, source, service_interest, notes"` — `converted_booking_id` is NOT in that list, so the guard below would read `undefined`. Extend the select list to `"id, full_name, email, phone, source, service_interest, notes, converted_booking_id"` first.
 
 Edit `src/app/admin/bookings/new/page.tsx`. After the Promise.all that loads enquiry (line 38-70):
 
@@ -322,7 +344,15 @@ All `sessionStorage.setItem` / `sessionStorage.getItem` calls use this scoped ke
 
 **Step 11 — W01-V-1 Cancel routing.**
 
-Locate the Cancel button JSX (likely near the submit row). Update href:
+> **Finding C-03-F2 correction (2026-07-26):** `ManualBookingForm.tsx` has TWO independently hardcoded `href="/admin/bookings"` Cancel targets, not one — the desktop-nav Cancel `Link` (no-data path, currently `:1907`) AND the Leave-confirmation dialog's own "Leave" `Link` (shown when `formHasData` is true, currently `:1956`). Both must be updated, or Cancel-with-unsaved-data still routes to `/admin/bookings` regardless of enquiry/client prefill.
+
+Re-grep before editing (line numbers drift once other Band-C plans land — see coordination note below):
+
+```bash
+git grep -n 'href="/admin/bookings"' src/app/admin/bookings/new/ManualBookingForm.tsx
+```
+
+Compute the shared destination once, then apply it at both sites:
 
 ```tsx
 const cancelHref = enquiry?.id
@@ -331,10 +361,18 @@ const cancelHref = enquiry?.id
   ? `/admin/clients/${prefillClient.id}`
   : "/admin/bookings";
 
+// Site 1 — desktop-nav Cancel Link (no-data path, currently navStrip ~:1907)
 <Link href={cancelHref}>Cancel</Link>
+
+// Site 2 — Leave-confirmation dialog's "Leave" Link (currently leaveDialog ~:1956)
+<Link href={cancelHref}>Leave</Link>
 ```
 
 **Optional polish:** add a `title` attribute matching the destination ("Cancel and return to enquiries" / "...to client profile" / "...to bookings").
+
+> **Coordination (rubric §10):** `ManualBookingForm.tsx` is edited by C-02, C-03, C-06, C-20, and C-23 in this programme. Re-run this plan's own anchor greps before editing — a predecessor plan may have already shifted the `:1907`/`:1956` line numbers. If the target region overlaps a just-landed edit from another Band-C plan, stop and diff manually rather than applying a line-numbered patch.
+
+**Verify:** `git grep -n 'href={cancelHref}' src/app/admin/bookings/new/ManualBookingForm.tsx` returns 2 matches (nav strip + leave dialog).
 
 **Phase C verify checkpoint:**
 - Lint + tsc + vitest green.
@@ -465,9 +503,9 @@ The toast strips the query params after firing (to prevent re-fire on refresh).
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs 59-error baseline (55 untracked design_handoff_area_pages/prototype JSX + 4 pre-existing in src/features/booking/)
 npx tsc --noEmit                # 0 errors
-pnpm vitest run                 # new specs pass; baseline preserved
+pnpm vitest run                 # new specs pass; 6 pre-existing baseline failures preserved (ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1)
 pnpm build                      # clean
 node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ```
@@ -542,7 +580,7 @@ WHERE target_id = '<test-enquiry-id>' AND action_type = 'enquiry_converted_to_bo
 - 375 × conversion form mobile view with matched banner
 - 1280 × Cancel-from-enquiry → enquiries list landing
 
-Store in `redesign/audits/C-A/screenshots-08-enquiries/c-03-after/` (or new directory per C-C convention).
+Store in `redesign/evidence/C-03/` (rubric §8 evidence convention — supersedes the prior `redesign/audits/**` target; that path is read-only historical record).
 
 ---
 
