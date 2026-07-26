@@ -1,5 +1,9 @@
 # C-07 — Cross-page routing improvements + per-role defaults — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none hard — C-03 (BookingDetailToasts.tsx), C-11 (BusinessDashboard.tsx), C-FIELDWORK are soft-coordinated only; §0 Step 4 and §1 Phases A2/B2 carry fallback stubs if any is absent.
+> Decisions: C-B-DECISIONS.md §3 C-07; checkpoint resolution D5 (2026-07-26). Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-07-routing-and-per-role-defaults-brief.md` (companion — read first)
@@ -10,9 +14,9 @@
 
 ## 0 — Pre-flight
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree (scoped).** On `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` (expect `master`) + `git merge-base --is-ancestor ea97932 HEAD` (expect exit 0). Working tree has no modifications under this plan's touched paths: `git status --porcelain -- src/app/admin/clients src/app/admin/bookings src/app/admin/dashboard src/app/admin/me src/lib/booking src/app/booking/manage` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp` logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → 200.
-3. **Baseline tests + static gates.** `pnpm vitest run` 485/491; `pnpm lint` + `tsc` green.
+3. **Baseline tests + static gates.** `pnpm vitest run` — expect 485/491 passing; the 6 pre-existing failures are the documented baseline (ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1) and must remain the ONLY failures — no new ones. `pnpm lint` — expect the 59-error baseline (55 from untracked `design_handoff_area_pages/prototype/*.jsx`, 4 pre-existing in `src/features/booking/`); gate is "no NEW errors vs this baseline," not "0 errors." `tsc --noEmit` — 0 errors (unaffected baseline).
 4. **Cross-plan dependency check:**
 
    ```bash
@@ -48,9 +52,11 @@
 
 7. **Filter strip + dashboard infrastructure:**
 
+   > ✅ **STRUCTURE CORRECTION (2026-07-26)** — `RANGE_OPTIONS` does not exist; the real structure is `PresetKey`/`PresetRange`/`buildPresets()` (see Step 9 rewrite below). [C07-F3]
+
    ```bash
-   git grep -n "Today.*This week\|RANGE_OPTIONS\|chip" src/app/admin/dashboard/dashboard-filters-client.tsx | head -10
-   # Locate the chip array for Yesterday insertion
+   git grep -n "Today.*This week\|buildPresets\|PresetRange\|PresetKey" src/app/admin/dashboard/dashboard-filters-client.tsx | head -10
+   # Locate the buildPresets() preset array for Yesterday insertion
    ```
 
 8. **Test fixture inventory:**
@@ -60,6 +66,8 @@
    - Owner + Therapist test accounts active.
 
 9. **DO-NOT-TOUCH list:** Badar's `9d55ce2a`, real customer data.
+
+DO-NOT-TOUCH (live data): booking `9d55ce2a` (Badar — real customer email); Owner account `rahmatherapy@outlook.com` in email-test paths; any client whose email isn't `*.example.test` or name isn't `Phase10*`/`Audit Test*` test patterns.
 
 ---
 
@@ -307,35 +315,36 @@ This narrows the dashboard view; the explicit copy clarifies the narrowness; the
 
 **Step 8 — Customer manage page footer + verifications.**
 
-Locate `src/app/booking/manage/[token]/page.tsx` (or equivalent path).
+> ✅ **PATH CORRECTION (2026-07-26)** — real file is `src/app/booking/manage/page.tsx`. `token` is a `searchParams` query param (`Promise<{ token?: string }>`, destructured at page.tsx:43-46) — there is NO `[token]` dynamic route segment / directory. [C07-F1]
 
-Add footer to the manage page:
+> ✅ **DATA-SOURCE CORRECTION (2026-07-26)** — the page already fetches `booking.settings.contactEmail` / `booking.settings.contactPhone` via the existing `getCustomerManageBooking(token)` call (page.tsx:47, used to build `contactLine` at :53-58 and rendered in the "Contact" SideCard at :105-116). Reuse this — do NOT add a second `createSupabaseAdminClient()` fetch of `business_settings`; that duplicates data the page already has and adds an unnecessary DB round-trip. [C07-F4]
+
+Locate `src/app/booking/manage/page.tsx`.
+
+Add footer to the manage page, reusing the already-fetched `booking.settings` values (no new fetch required):
 
 ```tsx
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+// booking.settings.contactEmail / booking.settings.contactPhone come from the
+// existing `getCustomerManageBooking(token)` call already in scope (page.tsx:47).
 
-// In the page render:
-const adminClient = createSupabaseAdminClient();
-const { data: settings } = await adminClient
-  .from("business_settings")
-  .select("contact_phone, contact_email")
-  .eq("id", 1)
-  .single();
-
-// Render footer:
-<footer className="mt-12 border-t border-[var(--admin-border)] pt-6 text-center text-sm text-[var(--admin-text-muted)]">
+// Render footer (near the end of the page's <main>, after the existing <section>):
+<footer className="mt-12 border-t border-[var(--rahma-border)] pt-6 text-center text-sm text-[var(--rahma-muted)]">
   <p>
     Need help?
-    {settings?.contact_phone ? (
-      <> Call us on <a href={`tel:${settings.contact_phone}`}>{settings.contact_phone}</a></>
+    {booking.settings.contactPhone ? (
+      <> Call us on <a href={`tel:${booking.settings.contactPhone}`}>{booking.settings.contactPhone}</a></>
     ) : null}
-    {settings?.contact_phone && settings?.contact_email ? " or " : null}
-    {settings?.contact_email ? (
-      <>email <a href={`mailto:${settings.contact_email}`}>{settings.contact_email}</a></>
+    {booking.settings.contactPhone && booking.settings.contactEmail ? " or " : null}
+    {booking.settings.contactEmail ? (
+      <>email <a href={`mailto:${booking.settings.contactEmail}`}>{booking.settings.contactEmail}</a></>
     ) : null}
   </p>
 </footer>
 ```
+
+Note: this duplicates the existing "Contact" SideCard (page.tsx:105-116) in substance, placed instead as a page-bottom footer per brief §2.8/§4.7. Both may coexist; if the two reads oddly side-by-side at impl time, document the call in the progress file rather than expanding scope.
+
+**Verification:** `git grep -n "contactEmail\|contactPhone" src/app/booking/manage/page.tsx` — expect the existing hits (~47, ~53-58, ~105-116) plus the new footer render; `npx tsc --noEmit` clean (no new admin-client import added).
 
 **Other verifications (no code changes if existing behaviour is correct):**
 - Cancel sub-flow → "Back to booking" link works.
@@ -352,28 +361,34 @@ If any of these don't work, document in progress file; C-12+ scope.
 
 **Step 9 — B-154: Yesterday chip.**
 
-Edit `src/app/admin/dashboard/dashboard-filters-client.tsx`. Locate `RANGE_OPTIONS` array (referenced in reports-helpers.ts). Add Yesterday:
+> ✅ **STRUCTURE CORRECTION (2026-07-26)** — `RANGE_OPTIONS` does not exist. The real structure (`dashboard-filters-client.tsx:40-68`) is: `type PresetKey = "today" | "this_week" | "this_month" | "last_30" | "custom"`; `interface PresetRange { key: PresetKey; label: string; from: string; to: string }`; and a `buildPresets(todayISO: string): PresetRange[]` function that computes `from`/`to` inline per preset entry — there is no separate switch-case date-computation helper. [C07-F3]
+
+Edit `src/app/admin/dashboard/dashboard-filters-client.tsx`. Add `"yesterday"` to `PresetKey` and insert a matching entry into the array `buildPresets()` returns, between `"today"` and `"this_week"`:
 
 ```ts
-export const RANGE_OPTIONS = [
-  { value: "today", label: "Today" },
-  { value: "yesterday", label: "Yesterday" },  // NEW
-  { value: "week", label: "This week" },
-  { value: "month", label: "This month" },
-  { value: "thirty_days", label: "Last 30 days" },
-  { value: "custom", label: "Custom" },
-];
+type PresetKey = "today" | "yesterday" | "this_week" | "this_month" | "last_30" | "custom";
+
+function buildPresets(todayISO: string): PresetRange[] {
+  const today = parseDate(todayISO) ?? new Date();
+  // ...existing weekStart/weekEnd/monthStart/monthEnd/thirtyAgo computation unchanged...
+  const yesterday = new Date(today);
+  yesterday.setUTCDate(today.getUTCDate() - 1);
+  return [
+    { key: "today", label: "Today", from: isoDate(today), to: isoDate(today) },
+    { key: "yesterday", label: "Yesterday", from: isoDate(yesterday), to: isoDate(yesterday) }, // NEW
+    { key: "this_week", label: "This week", from: isoDate(weekStart), to: isoDate(weekEnd) },
+    { key: "this_month", label: "This month", from: isoDate(monthStart), to: isoDate(monthEnd) },
+    { key: "last_30", label: "Last 30 days", from: isoDate(thirtyAgo), to: isoDate(today) },
+    { key: "custom", label: "Custom", from: "", to: "" },
+  ];
+}
 ```
 
-Update the date-range computation logic (likely in a helper) to handle `'yesterday'`:
-
-```ts
-case "yesterday":
-  const yesterday = subDays(today, 1);
-  return { from: yesterday, to: yesterday };
-```
+`getActivePreset()` (dashboard-filters-client.tsx:70-77) already iterates the presets array generically — no change needed there; it picks up the new `"yesterday"` key automatically.
 
 Verify chip renders + click sets from/to to yesterday.
+
+**Verification:** `git grep -n "buildPresets\|PresetKey" src/app/admin/dashboard/dashboard-filters-client.tsx` — expect the edited array/type to include the new `"yesterday"` entry.
 
 **Step 10 — B-155: dual-date sync.**
 
@@ -472,21 +487,35 @@ Apply same scope filter to enquiries (Owner who handles enquiries personally), a
 
 **Step 13 — Per-role default in `bookings/page.tsx`.**
 
-Locate the view-defaulting logic (`const view = (getQueryValue(query.view) || "attention") as BookingViewKey;`).
+> ✅ **PREMISE CORRECTION (2026-07-26) — reconcile, don't triplicate (Decision D5).** A role-aware default ALREADY EXISTS at page.tsx:347-349: `const defaultView: BookingViewKey = canViewAll ? "attention" : "today"; const currentView = (getQueryValue(query.view) ?? defaultView) as BookingViewKey;` — this already drives the UI chrome (`view={currentView}`, e.g. passed to `BookingsEmptyState` at :531). However, `filterBookings()` (page.tsx:148-153, called at :501) independently recomputes its OWN default — `const view = (getQueryValue(query.view) || "attention") as BookingViewKey;` — hardcoded to `"attention"` regardless of role, ignoring `currentView`/`defaultView` entirely. This is a latent pre-existing bug: a non-admin role visiting `/admin/bookings` with no `?view=` param sees the "Today" tab highlighted (via `currentView`) while the actual filtered list is computed against `"attention"` (via `filterBookings`'s own default) — tab chrome and rendered results can silently diverge. [C07-F2] **Do not add a third parallel default** — reconcile into ONE source of truth: `filterBookings()` must accept the already-computed `currentView` as a parameter instead of recomputing its own.
 
-Add role-aware default:
+Locate the ALREADY-EXISTING role-aware default (`page.tsx:347-349`) and `filterBookings()`'s internal recomputation (`page.tsx:148-153`).
+
+Change `filterBookings()`'s signature to accept the resolved view instead of deriving its own:
 
 ```ts
-function getDefaultViewForRole(roleName: string | null): string {
-  if (roleName?.toLowerCase().includes("therapist")) return "today";
-  return "attention";  // Owner, Admin, Coord
-}
-
-const defaultView = getDefaultViewForRole(profile.role_name);
-const view = (getQueryValue(query.view) || defaultView) as BookingViewKey;
+function filterBookings(
+  bookings: BookingRecord[],
+  query: Record<string, string | string[] | undefined>,
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>,
+  currentView: BookingViewKey   // NEW — resolved once by the caller; no longer recomputed here
+) {
+  const view = currentView;   // was: (getQueryValue(query.view) || "attention") as BookingViewKey
+  const search = getQueryValue(query.search)?.trim().toLowerCase() ?? "";
+  // ...rest of filterBookings unchanged...
 ```
 
-Therapist visiting `/admin/bookings` (no query params) → "Today" tab pre-selected. URL doesn't auto-update (defaults are render-time only).
+Update the call site (page.tsx:501) to pass the existing `currentView`:
+
+```ts
+const filteredBookings = filterBookings(bookings, query, profile, currentView);
+```
+
+`defaultView`/`currentView` (page.tsx:347-349) stay as the single computation — no new `getDefaultViewForRole()` helper is needed; the existing `canViewAll ? "attention" : "today"` check already implements the B-167 role split.
+
+Therapist visiting `/admin/bookings` (no query params) → "Today" tab pre-selected, AND the filtered list now genuinely matches "Today" (previously it silently stayed on `"attention"`-scoped data). URL doesn't auto-update (defaults are render-time only).
+
+**Verification:** `git grep -n "function filterBookings\|filterBookings(bookings" src/app/admin/bookings/page.tsx` — confirm the signature takes `currentView` and the call site passes it; `pnpm vitest run` — no new failures beyond the documented baseline; manually confirm a Therapist test account visiting `/admin/bookings` with no query params sees BOTH the "Today" tab highlighted AND today-scoped results (not attention-scoped).
 
 **Phase B3 verify checkpoint:**
 - Therapist visits `/admin/bookings` → "Today" tab active.
@@ -666,7 +695,7 @@ Render `<SavedFiltersBar />` above the bookings table. Hidden when no saved filt
 | `src/app/admin/dashboard/dashboard-data.ts` | B2 | + scope param narrowing |
 | `src/app/admin/dashboard/BusinessDashboard.tsx` (from C-11) | B2 | Mount DashboardScopeToggle |
 | `src/app/admin/bookings/page.tsx` | B3 + B4 | Per-role default view; + SavedFiltersBar |
-| `src/app/booking/manage/[token]/page.tsx` | A4 | + Need help footer |
+| `src/app/booking/manage/page.tsx` (path corrected 2026-07-26 — see Step 8, C07-F1) | A4 | + Need help footer |
 
 ### UNCHANGED
 - `reporting.ts`, `dashboard-helpers.ts`, RBAC matrix, middleware, B-1 primitives.
@@ -680,9 +709,9 @@ Render `<SavedFiltersBar />` above the bookings table. Hidden when no saved filt
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs the 59-error baseline (55 untracked design_handoff_area_pages/prototype/*.jsx + 4 pre-existing in src/features/booking/)
 npx tsc --noEmit                # 0 errors
-pnpm vitest run                 # new specs pass; baseline preserved
+pnpm vitest run                 # new specs pass; 6 pre-existing baseline failures preserved (ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1)
 pnpm build                      # clean
 node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ```
@@ -740,7 +769,7 @@ SELECT allowed_cities FROM business_settings WHERE id = 1;
 - 375 × QuickLinks at mobile
 - 375 × saved filters bar at mobile
 
-Store in `redesign/audits/C-A/c-07-after/`.
+Store in `redesign/evidence/C-07/` (evidence convention 2026-07-26 — supersedes any `redesign/audits/**` write target, which is read-only historical record).
 
 ---
 

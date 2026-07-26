@@ -1,5 +1,9 @@
 # C-07 — Cross-page routing improvements + per-role defaults
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none hard — C-03, C-11, C-FIELDWORK are soft-coordinated only (see companion plan §0/§1 for fallback stubs).
+> Decisions: C-B-DECISIONS.md §3 C-07; checkpoint resolution D5 (2026-07-26). Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing brief (C-B phase)
 **Date written:** 2026-05-26
 **Predecessors:**
@@ -30,7 +34,7 @@ C-07 is the **cross-page routing polish + per-role defaults plan**. Two halves, 
 - **W02-E-1** — city whitelist invisible until SQL error. Lift `allowed_cities` to the booking form for inline validation.
 - **W08-V-1** — Owner scope terminology drift ("Personal" / "My" / "Mine") across surfaces. Pick one and apply consistently.
 - **B-170** — Therapist dashboard's "Open to claim" disagrees with `/admin/bookings?view=claimable`. Sync the two surfaces (or make the dashboard copy explicit about its narrower view).
-- **Customer manage page polish** — out-of-admin tree (`/booking/manage/[token]/`). Cross-page navigation between cancel + reschedule sub-flows surfaced as a master-plan add. Scope locked in §2.8.
+- **Customer manage page polish** — out-of-admin tree (`/booking/manage/`, token as a query param — see §2.8 correction). Cross-page navigation between cancel + reschedule sub-flows surfaced as a master-plan add. Scope locked in §2.8.
 
 **Phase B (C-07b — per-role defaults)** — adjust default state per role to reduce the click-cost of common workflows:
 - **B-139** — dashboard has no scope-toggle (Personal vs Team). Add for roles where it applies.
@@ -194,7 +198,9 @@ Net: dashboard surfaces near-future claimable; full list available via the link.
 
 ### 2.8 Customer manage page polish (Phase A)
 
-Out-of-admin tree at `/booking/manage/[token]/`. Per W04 audit references:
+> ✅ **PATH CORRECTION (2026-07-26)** — real file is `src/app/booking/manage/page.tsx`; `token` is a `searchParams` query param, not a `[token]` dynamic route segment. See companion plan Step 8 for the corrected anchor. [C07-F1]
+
+Out-of-admin tree at `/booking/manage/` (token passed as a query param, e.g. `/booking/manage?token=...`). Per W04 audit references:
 - Surface exists + token-gated.
 - Cancel + reschedule sub-flows work.
 - `customer_cancellation_cutoff_hours` gates cancel.
@@ -368,7 +374,9 @@ contact@rahmatherapy.example.test
 ─────────────────────────────────────────────────────
 ```
 
-Reads contact details from `business_settings.contact_phone` + `business_settings.contact_email`. Defense-in-depth for clients who get stuck.
+> ✅ **DATA-SOURCE CORRECTION (2026-07-26)** — the page already fetches these values via `getCustomerManageBooking(token)` as `booking.settings.contactPhone` / `booking.settings.contactEmail` (already used to build the existing "Contact" SideCard) — no new `business_settings` fetch is needed. See companion plan Step 8. [C07-F4]
+
+Reads contact details from the already-fetched `booking.settings.contactPhone` / `booking.settings.contactEmail`. Defense-in-depth for clients who get stuck.
 
 ---
 
