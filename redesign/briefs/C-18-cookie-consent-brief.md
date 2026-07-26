@@ -63,13 +63,13 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [ /* filled from the Phase
 ```
 
 - Drives: banner panel toggle list (one toggle per non-essential purpose present in the registry), the panel's disclosure table, and the /cookies page. **Impossible for the three surfaces to drift.**
-- Initial contents from the Phase A cookie inventory: `rahma_consent` (essential), GA4's `_ga` + `_ga_*` (analytics), any Supabase cookies anonymous visitors actually receive (expected: none on public — verified), booking-draft sessionStorage (disclosed as strictly necessary storage, not a cookie).
+- Initial contents from the Phase A cookie inventory: `rahma_consent` (essential), GA4's `_ga` + `_ga_*` (analytics), any Supabase cookies anonymous visitors actually receive (expected: none on public — verified), booking-draft **localStorage** (disclosed as strictly necessary storage, not a cookie) — **updated 2026-07-26 (C18-F2): the merged flow persists the draft in localStorage, not sessionStorage — zustand persist key `zam-therapy-booking-draft-v3` (`src/features/booking/store/booking-store.ts:75-76`) plus `rahma-booking-contact-v1` returning-customer contact details (PII-adjacent, `src/features/booking/utils/returning-customer.ts:7,39`); sessionStorage appears on public pages only via MaintenanceModal (`src/components/shared/MaintenanceModal.tsx:20-21`). All are strictly-necessary storage entries in the registry.**
 - **Standing rule (master-plan Part 0, lands with this amendment):** any new third-party tag or cookie ships with a registry entry + `CONSENT_BANNER_VERSION` bump, and loads through the consent gate. No exceptions.
 
 ### 2.2 Consent state + Consent Mode ordering (user reqs 1, 8)
 
 - **First-party consent cookie `rahma_consent`** (not localStorage — SSR-readable, natural expiry): JSON `{ v: bannerVersion, id: <uuid>, choices: { analytics: boolean }, ts }`; `Max-Age` 6 months; `SameSite=Lax; Secure; Path=/`. Absent / expired / version-mismatch → banner shows.
-- **Inline head script** (tiny, first-party, `beforeInteractive`) on customer layouts: initialises `dataLayer` and fires `gtag('consent','default',{ ad_storage:'denied', analytics_storage:'denied', ad_user_data:'denied', ad_personalization:'denied' })` — plus `analytics_storage:'granted'` restore when a valid stored consent grants it. Executes before any Google code by construction (no Google code exists on the page until the gated loader injects it).
+- **Inline head script** (tiny, first-party, `beforeInteractive`) on customer layouts — **mechanism updated 2026-07-26 (D16/C18-F1): a plain inline `<script>` rendered via `dangerouslySetInnerHTML` in the customer layouts, NOT `next/script` `beforeInteractive` — Next 16.2.4 restricts `beforeInteractive` to the root layout (app/layout.tsx), which is DO-NOT-TOUCH; inline content itself is supported, placement was the problem** — initialises `dataLayer` and fires `gtag('consent','default',{ ad_storage:'denied', analytics_storage:'denied', ad_user_data:'denied', ad_personalization:'denied' })` — plus `analytics_storage:'granted'` restore when a valid stored consent grants it. Executes before any Google code by construction (no Google code exists on the page until the gated loader injects it).
 - **Gated loader (C-17 amendment):** `GoogleAnalytics` renders the gtag `Script`s ONLY when current consent grants analytics. Grant flow: write cookie → `gtag('consent','update',{ analytics_storage:'granted' })` → mount the script (dataLayer queueing makes the order safe). Reject flow: write cookie, never mount. **Basic Consent Mode** — pre-consent, zero requests to any Google host.
 
 ### 2.3 Banner + preferences panel (user reqs 2, 3, 4, 6 + design constraints)
@@ -131,7 +131,7 @@ New `(public)/cookies/page.tsx`: what cookies/storage we use (rendered from the 
 - **4.6 JS disabled:** no banner, but also no gtag (it's JS) — vacuously compliant; /cookies page is server-rendered and reachable.
 - **4.7 Logging endpoint down:** consent UX proceeds; event lost + console-logged; cookie remains the operative preference. Accepted (availability over blocking consent).
 - **4.8 Multi-tab:** cookie is shared; a grant in tab A is seen by tab B on next navigation; no cross-tab sync needed (accepted).
-- **4.9 Booking-flow interplay:** banner must not obscure the booking dialog's primary actions at 375 — verified in the gate; the flow's sessionStorage draft is essential storage, unaffected by choices.
+- **4.9 Booking-flow interplay:** banner must not obscure the booking dialog's primary actions at 375 — verified in the gate; the flow's sessionStorage draft is essential storage, unaffected by choices. **Updated 2026-07-26 (C18-F2): the draft lives in localStorage (`zam-therapy-booking-draft-v3` + `rahma-booking-contact-v1`), not sessionStorage — still essential storage, unaffected by choices.**
 - **4.10 C-17 deployed before C-18** (if sequenced apart): plain GA collects without consent in the interim — the user's earlier accepted gap, now superseded: **co-ship recommended**, and if C-17 somehow ships alone, C-18 is the immediate next deploy.
 
 ---
@@ -155,8 +155,8 @@ New `(public)/cookies/page.tsx`: what cookies/storage we use (rendered from the 
 - Tests: consent-state, banner behaviour (parity/no-pretick/focus), route validation
 
 ### EDITED (~4)
-- `src/components/GoogleAnalytics.tsx` — becomes the consent-gated loader (C-17 amendment)
-- `src/app/(public)/layout.tsx` + `src/app/booking/layout.tsx` — mount ConsentScripts + CookieBanner alongside the loader
+- `src/components/GoogleAnalytics.tsx` — becomes the consent-gated loader (C-17 amendment) — **2026-07-26 (C18-F3): does not exist on master (C-17 unimplemented); becomes a CREATE in gated form under the plan's pre-flight #3 fallback**
+- `src/app/(public)/layout.tsx` + `src/app/booking/layout.tsx` — mount ConsentScripts + CookieBanner alongside the loader — **2026-07-26 (C18-F3): `src/app/booking/layout.tsx` does not exist on master; created by whichever of C-17/C-18 lands first, EXTENDED (not recreated) by the other**
 - `src/components/layout/SiteFooter.tsx` — persistent "Cookie settings" link
 
 ### UNCHANGED (do NOT touch)
@@ -167,7 +167,7 @@ New `(public)/cookies/page.tsx`: what cookies/storage we use (rendered from the 
 ## 7 — Sequencing and dependencies
 
 - **With or immediately after C-17** (hard pairing — C-18 rewrites C-17's component; co-implementation in one C-C window is the recommended path; the pair is independent of all other plans, like C-14).
-- Same branch note as C-17 (public layouts diverge ~9 lines from the frontend line; confirm target with the user).
+- Same branch note as C-17 (public layouts diverge ~9 lines from the frontend line; confirm target with the user) — **superseded 2026-07-26 (C18-F5): merge `ea97932` landed the frontend line into `master` (single source of truth); work on `master` at or descended from `ea97932` — the branch decision is moot.**
 - Bundle: banner + panel ~4-5 kB on public pages (client component, lazy-loadable if measured heavy). **Ceiling: +5 kB public bundles.**
 
 ---

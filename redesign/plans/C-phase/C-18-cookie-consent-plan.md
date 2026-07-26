@@ -1,5 +1,9 @@
 # C-18 — Cookie consent & PECR compliance — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: C-17 (soft pairing — co-ship recommended; marker: `grep -rn "GoogleAnalytics" src/` → 0 hits = C-17 not landed, pre-flight #3 fallback applies; non-empty = landed, Step 8 rewrite path applies).
+> Decisions: C-B-DECISIONS.md — zero C-18 mentions (predates C-18; verified 2026-07-26). Refinement decisions D15, D16 applied. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase — post-handoff addition)
 **Date written:** 2026-07-16 (user direction: plan-refinement phase; successor to C-17)
 **Brief:** `redesign/briefs/C-18-cookie-consent-brief.md` (companion — read first; §1 carries the verified legal state)
@@ -10,14 +14,19 @@
 
 ## 0 — Pre-flight
 
-1. **Branch decision with the user** (same note as C-17 — public layouts diverge ~9 lines from the frontend line). **Co-implementation with C-17 in one window is the recommended path** — confirm.
-2. Dev server → 200; baseline tests + static gates green.
+1. **Branch decision with the user** (same note as C-17 — public layouts diverge ~9 lines from the frontend line) — **superseded 2026-07-26: the branch decision is moot. Merge `ea97932` landed the frontend line into `master` (single source of truth). Assert instead: on `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`.** **Co-implementation with C-17 in one window is the recommended path** — confirm.
+2. Dev server → 200; baseline tests + static gates green — **amended 2026-07-26: the verified baseline is NOT clean-green. `npx tsc --noEmit` clean; `pnpm build` succeeds; vitest 485/491 with 6 pre-existing failures in 3 files (ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1); `pnpm lint` 59 errors (55 untracked `design_handoff_area_pages/prototype` JSX + 4 pre-existing in `src/features/booking/`). All gates in this plan are no-NEW-failures vs this baseline. Working tree: `git status --porcelain -- src/lib/consent src/components/consent "src/app/(public)" src/app/api/consent-events src/components/layout/SiteFooter.tsx supabase/migrations` returns empty; the wider tree is intentionally dirty (untracked photo/design folders, deleted .playwright-mcp logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.**
+2a. **External-access check (gates #2–#3 presuppose these):** confirm production-site access (production cookie inventory + cookie-attribute checks) and GA property DebugView access are available in this window; if either is unavailable, record which gate items defer and surface to the user before starting.
 3. **C-17 landing state:** `grep -rn "GoogleAnalytics" src/` — if C-17 is implemented, its component gets rewritten (Step 8); if not, implement C-17 Phase A directly in the gated form (skip the plain-GA intermediate entirely).
-4. **Cookie inventory (feeds the registry — brief §2.1):** in a private window against the dev server AND the production site, record every cookie + storage key an anonymous visitor receives on: home, a service page, the booking flow (through to the review step), /booking/manage with a token. Expected: no Supabase auth cookies for anonymous visitors (verify — if any appear, classify + registry them), booking-draft sessionStorage, and (post-C-17) `_ga`/`_ga_*`. Record results in the progress file.
+4. **Cookie inventory (feeds the registry — brief §2.1):** in a private window against the dev server AND the production site, record every cookie + storage key an anonymous visitor receives on: home, a service page, the booking flow (through to the confirm step — current dialog steps are PackageSelectionStep → AboutYouStep → ScheduleStep → ConfirmStep with SuccessScreen terminal; ReviewStep was deleted in merge `ea97932`), /booking/manage with a token. Expected: no Supabase auth cookies for anonymous visitors (verify — if any appear, classify + registry them), booking-draft **localStorage** (zustand persist key `zam-therapy-booking-draft-v3`, `src/features/booking/store/booking-store.ts:75-76`) + `rahma-booking-contact-v1` returning-customer contact details (PII-adjacent — `src/features/booking/utils/returning-customer.ts:7,39`; sessionStorage appears on public pages only via MaintenanceModal, `src/components/shared/MaintenanceModal.tsx:20-21`), and (post-C-17) `_ga`/`_ga_*`. Record results in the progress file — **the progress file does not exist yet: create `redesign/per-page-progress/C-18-cookie-consent-progress.md` at pre-flight time before recording.**
 5. **Consent-events table absence:** `SELECT to_regclass('public.consent_events');` → null expected.
 6. **Design tokens:** confirm `--rahma-*` set in `src/styles/tokens.css` unchanged; `SiteFooter.tsx` structure for the settings-link insertion.
 7. **Legal state re-check (cheap):** confirm no ICO GA4-specific ruling has landed since 2026-07-16 (one web search) — if the DUAA statistics exception has been formally extended to GA4-class tools, surface to the user before building (brief Q8.4).
 8. **DO-NOT-TOUCH:** admin tree, root layout, middleware, RECON §5 untouchables.
+
+```
+DO-NOT-TOUCH (live data): booking 9d55ce2a (Badar — real customer email); Owner account rahmatherapy@outlook.com in email-test paths; any client whose email isn't *.example.test or name isn't Phase10*/Audit Test* test patterns.
+```
 
 ---
 
@@ -28,6 +37,8 @@
 **Step 1 — `src/lib/consent/cookie-registry.ts`** per brief §2.1: types, `CONSENT_BANNER_VERSION = "2026-07-16.1"`, entries from the pre-flight #4 inventory. Registry completeness test: every inventoried cookie/storage item has an entry; no entry lacks name/purpose/duration/description.
 
 **Step 2 — `/cookies` notice page** (`src/app/(public)/cookies/page.tsx`): server component rendering the registry (grouped by purpose), plain-English intro, consent-record explanation, retention note, "Change your choices" button (opens the panel via a query param or client island), last-updated from the version constant. Public design language; add to the sitemap if one exists.
+
+> Executability note (2026-07-26): no sitemap file exists (`src/app/sitemap.*` = none) — the "add to the sitemap" conditional resolves to no-op. Verify: `curl -s http://localhost:3000/cookies` on the dev server → 200 with registry content rendered.
 
 ### Phase B — Consent state + Consent Mode ordering
 
@@ -53,11 +64,16 @@ export const CONSENT_MAX_AGE_S = 60 * 60 * 24 * 182; // ~6 months (ICO-aligned)
 
 Unit tests: round-trip, malformed JSON → null, version mismatch → null, id preservation, `clearGaCookies` name matching.
 
-**Step 4 — `ConsentScripts.tsx`** (server component, inline `<Script id="consent-default" strategy="beforeInteractive">`): initialises `dataLayer`/`gtag` stub and fires `gtag('consent','default',{ ad_storage:'denied', analytics_storage:'denied', ad_user_data:'denied', ad_personalization:'denied', wait_for_update: 500 })`; then, if the (server-read) consent cookie grants analytics, immediately fires `gtag('consent','update',{ analytics_storage:'granted' })`. First-party inline only — zero external requests. Mount FIRST in `(public)/layout.tsx` + `booking/layout.tsx` so it precedes everything (the gated loader is the only Google-code source, so ordering holds by construction — brief §2.2).
+**Step 4 — `ConsentScripts.tsx`** (server component rendering a plain inline `<script id="consent-default">` via `dangerouslySetInnerHTML` — **mechanism updated 2026-07-26 per D16/C18-F1: NOT `next/script` `strategy="beforeInteractive"`, which Next 16.2.4 restricts to the root layout (app/layout.tsx) — the root layout is DO-NOT-TOUCH. Inline script content itself is fine; placement was the problem. A plain inline `<script>` at the top of the nested server layout streams before any other page script and the consent-default stub tolerates the weaker-than-pre-hydration guarantee — the gated loader is the only Google-code source, so ordering still holds by construction**): initialises `dataLayer`/`gtag` stub and fires `gtag('consent','default',{ ad_storage:'denied', analytics_storage:'denied', ad_user_data:'denied', ad_personalization:'denied', wait_for_update: 500 })`; then, if the (server-read) consent cookie grants analytics, immediately fires `gtag('consent','update',{ analytics_storage:'granted' })`. First-party inline only — zero external requests. Mount FIRST in `(public)/layout.tsx` + `booking/layout.tsx` so it precedes everything (the gated loader is the only Google-code source, so ordering holds by construction — brief §2.2).
+
+> Files/anchors (2026-07-26): `src/app/(public)/layout.tsx` (33 lines) has a `MAINTENANCE_MODE` branch the original step never addressed — `MaintenanceBanner` at L22, `BookingExperienceLoader` gated OFF at L28, `MaintenanceModal` ON at L29. Mount `ConsentScripts` unconditionally (both branches): the consent default must fire in maintenance mode too, and `MaintenanceModal` itself touches sessionStorage. `src/app/booking/layout.tsx` does NOT exist on master (`/booking/manage` renders under the ROOT layout; only root, `(public)`, and `admin` layouts exist). Verify: view-source of a dev-server public page shows the inline consent-default script in the streamed HTML before any other script content.
+> Coordination (collision map, 2026-07-26): "`booking/layout.tsx` does not exist yet and is created by either C-17 or C-18, whichever lands first (per C-18's own pre-flight #3 fallback). The other plan must EXTEND the existing file, not recreate it. `ConsentScripts` must land in the SAME session/window as any GA mount — never ship an unconditional (non-gated) analytics loader without the consent gate already in place."
 
 ### Phase C — Banner + preferences panel
 
 **Step 5 — `CookieBanner.tsx`** (client): reads consent via a tiny provider/hook; renders nothing when a valid current-version consent exists. First layer per brief §2.3 — the parity invariant implemented by rendering Accept-all and Reject-all from the SAME styled component with only the label differing (parity by construction). Bottom-fixed, safe-area-inset padding, no scroll-lock, no overlay. `rahma-*` tokens; reduced-motion-safe entrance.
+
+> Z-order note (2026-07-26, C18-F4): the booking flow is a Base UI MODAL dialog portal — backdrop z-index 9998, popup 9999 (`src/features/booking/components/BookingDialog.tsx:57-62`; `src/features/booking/BookingExperience.module.css:12,20`). A banner z-indexed below the dialog is unreachable while the dialog is open (the modal backdrop intercepts pointer events). Accepted posture: banner sits below the dialog; consent interaction resumes when the dialog closes. Gate #8's "primary actions unobstructed" check must therefore be run WITH the dialog open, and the banner must never overlay the dialog's action row.
 
 **Step 6 — Preferences panel** (within the same component tree): accessible dialog (focus trap, `aria-modal`, ESC, labelled heading), Essential locked row, per-purpose toggles **off by default** (rendered from the registry's non-essential purposes), expandable per-cookie table, [Save choices]/[Accept all]/[Reject all]. Openable from: banner, footer link, /cookies page button (`?cookie-settings=1` param or a custom event — implementer picks; both documented).
 
@@ -67,7 +83,16 @@ Unit tests: round-trip, malformed JSON → null, version mismatch → null, id p
 
 **Step 8 — Rewrite `GoogleAnalytics.tsx`** into the consent-gated loader: renders the two gtag Scripts only when (a) env-gated production check passes (C-17 semantics preserved) AND (b) current consent grants analytics — via the provider so an in-session grant mounts it without navigation. The C-17 insertion-point comment is consumed here. C-17's gating tests extend: consent-denied → null even in production with env set.
 
+> Branch note (2026-07-26, C18-F3): `src/components/GoogleAnalytics.tsx` does not exist on master — C-17 is unimplemented (`grep -rn "GoogleAnalytics" src/` = 0 hits this pass). Under pre-flight #3's fallback this step CREATES the component directly in gated form (C-17 Phase A semantics folded in); "rewrite" applies only if C-17 landed first. Either way the end state is identical: gated loader, env-production check, consent check via the provider.
+
 ### Phase E — Consent proof
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply migration `supabase/migrations/<ts>_c18_consent_events.sql` (CREATE TABLE `consent_events` + ENABLE ROW LEVEL SECURITY, no policies) to the production Supabase project via `mcp__supabase__apply_migration`.
+> Exact SQL / change: brief §2.4 SQL block + `ALTER TABLE consent_events ENABLE ROW LEVEL SECURITY;` — show verbatim in chat before applying.
+> Post-action verification: `SELECT to_regclass('public.consent_events');` → non-null; `SELECT relrowsecurity FROM pg_class WHERE relname = 'consent_events';` → true; direct anon insert/select fail.
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 **Step 9 — Migration (Zone-2 — explicit user confirmation):** `consent_events` per brief §2.4 SQL + `ALTER TABLE consent_events ENABLE ROW LEVEL SECURITY;` (no policies — deny-all client access; service-role writes only). Apply via `mcp__supabase__apply_migration`; `generate_typescript_types` after; verify: table exists, RLS on, anon insert/select fail.
 
@@ -78,6 +103,8 @@ Unit tests: round-trip, malformed JSON → null, version mismatch → null, id p
 ### Phase F — Withdrawal surface
 
 **Step 12 — `SiteFooter.tsx`:** persistent "Cookie settings" link (same footer style; present on every public page) opening the panel pre-filled. Verify /booking/manage also exposes a path (its layout mounts the banner component; footer presence verified — if that page lacks the SiteFooter, add the link to its page shell).
+
+> Current-build note (2026-07-26, C18-F9): `SiteFooter` is imported only by `(public)/layout.tsx` — `/booking/manage` renders under the ROOT layout with NO footer, so the fallback branch ("add the link to its page shell") is the OPERATIVE path there. `SiteFooter` is a server component; its legal-links row (`src/components/layout/SiteFooter.tsx:76-91`) renders conditionally from `footerContent.legalLinks` (`src/content/site/footer.ts:26`, currently `[]`) — either add the link via a `legalLinks` entry (server-rendered; the panel-opening behaviour then needs the `?cookie-settings=1` param or a client island) or place a dedicated client link component alongside the row. Verify: link present on every `(public)` page + a working panel-open path on `/booking/manage`.
 
 ### Phase G — Verification (gate below) + bookkeeping
 
@@ -102,9 +129,9 @@ Unit tests: round-trip, malformed JSON → null, version mismatch → null, id p
 ### EDITED (~4)
 | File | Change |
 |---|---|
-| `src/components/GoogleAnalytics.tsx` | → consent-gated loader (C-17 amendment; env semantics preserved) |
+| `src/components/GoogleAnalytics.tsx` | → consent-gated loader (C-17 amendment; env semantics preserved) — **2026-07-26: does not exist on master (C-17 unimplemented); becomes a CREATE in gated form under pre-flight #3's fallback (C18-F3)** |
 | `src/app/(public)/layout.tsx` | + ConsentScripts (first) + CookieBanner mounts |
-| `src/app/booking/layout.tsx` | same |
+| `src/app/booking/layout.tsx` | same — **2026-07-26: does not exist on master (C-17 CREATE output); created by whichever of C-17/C-18 lands first, EXTENDED (not recreated) by the other (C18-F3; Step 4 coordination note)** |
 | `src/components/layout/SiteFooter.tsx` | + persistent "Cookie settings" link |
 
 ### UNCHANGED (do NOT touch)
@@ -114,7 +141,7 @@ Admin tree, root layout, middleware, build configs, RECON §5 untouchables.
 
 ## 3 — Verification gate
 
-1. **Static gates:** lint, tsc, vitest (all new specs), build, bundle (+5 kB public ceiling). No new packages.
+1. **Static gates:** lint, tsc, vitest (all new specs), build, bundle (+5 kB public ceiling). No new packages. **Baseline caveat (2026-07-26): lint/vitest are no-NEW-failures vs the verified baseline — lint 59 errors (55 untracked `design_handoff_area_pages/prototype` JSX + 4 pre-existing `src/features/booking/`), vitest 6 pre-existing failures in 3 files; tsc + build clean.**
 2. **The regulator test (acceptance #1):** production build, private window, DevTools Network filtered to `google` — load home, navigate two pages, open the booking dialog, click nothing → **zero Google requests**. Repeat after Reject-all → still zero. Evidence: HAR/screenshot.
 3. **Grant path:** Accept-all → gtag loads; GA DebugView shows consent-granted page_view; cookie attributes verified (Max-Age ≈ 182 days, SameSite=Lax, Secure); `consent_events` row (`granted`) with version/purposes/choices via SQL.
 4. **Withdrawal:** grant → withdraw via footer link → `_ga*` cookies gone (DevTools), `withdrawn` row logged, page reloaded, post-reload Network shows zero Google requests.
@@ -125,7 +152,7 @@ Admin tree, root layout, middleware, build configs, RECON §5 untouchables.
 9. **RLS:** direct anon insert/select against `consent_events` fails; route insert succeeds.
 10. **Registry accuracy:** pre-flight #4 inventory ↔ registry ↔ /cookies page ↔ panel table all agree (the completeness test + manual check).
 
-Evidence stored in `redesign/audits/C-A/screenshots-c-18/`.
+Evidence stored in `redesign/evidence/C-18/` (**convention updated 2026-07-26 per D15 — `redesign/audits/**` is read-only historical record; never write there**).
 
 ---
 
@@ -139,7 +166,7 @@ Evidence stored in `redesign/audits/C-A/screenshots-c-18/`.
 | `_ga` cookie deletion misses a domain/path variant | medium | low | `clearGaCookies` handles host + dot-domain variants; gate item 4 verifies empirically on production domain. |
 | Logging endpoint abused (spam inserts) | low | low | Schema + known-version + size validation, 204-always (no probe oracle), service-role-only table; volume is trivially low-value — accepted residual. |
 | Consent cookie blocked (user blocks all cookies) | low | low | Banner re-shows each visit; gtag never loads (no stored grant) — fail-closed and compliant. |
-| Banner obscures booking dialog at 375 | medium | low | Gate item 8; banner z-index below dialog + bottom-safe-area layout. |
+| Banner obscures booking dialog at 375 | medium | low | Gate item 8; banner z-index below dialog + bottom-safe-area layout. **2026-07-26 (C18-F4): the dialog is a Base UI modal portal (backdrop z-9998, popup z-9999) — a below-dialog banner is unreachable while the dialog is open (accepted; consent resumes on close); run gate #8 with the dialog open — see Step 5 z-order note.** |
 | ICO later blesses GA4 under the DUAA exception | low | none | Banner becomes stricter than required — harmless (brief Q8.4). |
 | C-17 ships alone first (interim non-consented collection) | low | medium | Co-ship recommended in both plans; if it happens, C-18 is the immediate next deploy and the gap is a recorded user decision. |
 
