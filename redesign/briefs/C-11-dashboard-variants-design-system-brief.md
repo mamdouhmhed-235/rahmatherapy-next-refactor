@@ -1,5 +1,9 @@
 # C-11 — Dashboard variants + shared design system + dark mode + motion-reduce pass
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: C-FIELDWORK (hard — `PractitionerTodaySection.tsx` + `shared-helpers.ts` must exist under `src/app/admin/dashboard/`; absent as of 2026-07-26).
+> Decisions: C-B-DECISIONS.md §2 Q11 + §3 C-11; checkpoint resolutions D8/D9/D10 (2026-07-26). Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing brief (C-B phase)
 **Date written:** 2026-05-26
 **Predecessors:**
@@ -20,15 +24,15 @@ C-11 is **the largest C-B plan by scope** alongside C-02. It does four things at
 
 1. **Extract 3 dashboard variant files** matching the existing `DashboardVariant` taxonomy: `BusinessDashboard.tsx` (NEW — Owner + Admin), `CoordinatorDashboard.tsx` (NEW), `TherapistDashboard.tsx` (already exists — refactor to consume shared blocks). `page.tsx` becomes a thin variant router.
 2. **Build a shared dashboard building blocks library** so each variant composes from the same primitives (`RevenueStripe`, `EnquiriesTodoStripe`, `ClaimQueueStripe`, `PendingBookingsStripe`, `ScheduleGapStripe`, `RecentActivityStripe`, `EmptyState` narrative pattern, `QuickHelpPanel`, `DashboardHeader`, `MobileStickyActionBar`).
-3. **Add dark mode — admin-wide, not dashboard-only.** Applies to **every page under `/admin/*`** — dashboard, bookings (list + detail + new), clients (list + detail + new + edit), calendar, staff (list + detail + availability + performance), enquiries, reports, emails, email-templates, operations, services, settings, roles, privacy, audit, account-password-requests, /admin/me, and any future admin surfaces. ThemeProvider wraps the entire admin tree via `src/app/admin/layout.tsx`; CSS variables in `globals.css` are global. Default-on, user-switchable toggle to light, persists per user via `staff_profiles.theme_preference` (new column), honours `prefers-color-scheme` as tertiary fallback only. Every CSS variable in `globals.css` / `admin-theme.css` gets a dark counterpart, and the plan includes a sweep to find + remap any hardcoded color literals in admin components.
-4. **Sweep `animate-spin` instances** across the admin tree to apply `motion-reduce:animate-none` consistently (currently inconsistent — AuditPageActions has it; ~30 other instances don't).
+3. **Add dark mode — admin-wide, not dashboard-only.** Applies to **every page under `/admin/*`** — dashboard, bookings (list + detail + new), clients (list + detail + new + edit), calendar, staff (list + detail + availability + performance), enquiries, reports, emails, email-templates, operations, services, settings, roles, privacy, audit, account-password-requests, /admin/me, and any future admin surfaces. ThemeProvider wraps the entire admin tree via `src/app/admin/layout.tsx`; CSS variables in `globals.css` are global. Default-on, user-switchable toggle to light, persists per user via `staff_profiles.theme_preference` (new column), honours `prefers-color-scheme` as tertiary fallback only. Every CSS variable in `globals.css` / `admin-theme.css` gets a dark counterpart, and the plan includes a sweep to find + remap any hardcoded color literals in admin components. *(Corrected 2026-07-26 — C11-F3: the `--admin-*` variables actually live in `src/styles/tokens.css:61-196`, in the SAME shared `:root` as the public tokens, imported via `globals.css:4`; `admin-theme.css` does not exist. Dark counterparts are `[data-theme="dark"]`-scoped and target ONLY the `--admin-*` family — see plan Step 11a.)*
+4. **Sweep `animate-spin` instances** across the admin tree to apply `motion-reduce:animate-none` consistently (currently inconsistent — AuditPageActions has it; ~30 other instances don't). *(Verified 2026-07-26 — C11-F5: 60 instances across 39 files, 59 unguarded. Demoted to optional hygiene per D8 — the app-wide reduce rule at `globals.css:437-446` already freezes spinners; see plan Phase F wrapper.)*
 
 **Key scope discoveries during plan-writing:**
 
 - **Dark mode is fully greenfield.** Zero `dark:` Tailwind classes, zero `data-theme` attribute, zero `useTheme` hook, zero `ThemeProvider` exist today. Dark mode is foundational design work — not a polish pass.
 - **Variant extraction is the easiest of the four.** Owner/Admin/Coord branches already inline in `page.tsx` after the early `TherapistDashboard` return at line 633. Refactor is mechanical.
 - **C-FIELDWORK is in flight or just landed.** C-11 consumes `PractitionerTodaySection` from C-FIELDWORK. C-FIELDWORK already mounts it in the inline `page.tsx` branches; C-11's extraction inherits the mount.
-- **`animate-spin` audit:** at least 20 instances across `src/app/admin/`, only a handful currently apply `motion-reduce:animate-none`. The sweep is ~30 file edits.
+- **`animate-spin` audit:** at least 20 instances across `src/app/admin/`, only a handful currently apply `motion-reduce:animate-none`. The sweep is ~30 file edits. *(Verified 2026-07-26 — C11-F5: 60 instances / 39 files; only `AuditPageActions.tsx:80` guarded. Sweep optional per D8.)*
 
 **Sequencing constraint:** **C-FIELDWORK ships before or with C-11.** C-11 imports `PractitionerTodaySection` and the shared helpers (`getGreeting`, etc.) from C-FIELDWORK's output.
 
@@ -77,6 +81,8 @@ Decisions doc Q11:
 - ❌ Most files: 20+ `<Loader2 className="size-4 animate-spin" />` without the guard
 
 C-11 sweeps these to apply `motion-reduce:animate-none` consistently across all `animate-spin` usages. **Trivial per-file fix, just lots of files.**
+
+> **Superseded-by-build (2026-07-26 — C11-F4):** `globals.css:437-446` now carries an app-wide `prefers-reduced-motion` rule (`animation-duration: 0.01ms !important`, iteration-count 1) that freezes every spinner — B-03's acceptance check passes today without the sweep. Per D8 (Owner approved) the sweep is demoted to **optional hygiene — largely already satisfied** (60 occurrences / 39 admin files verified 2026-07-26).
 
 ---
 
@@ -155,6 +161,8 @@ Already exists. C-FIELDWORK already extracted today + next-appt rendering into P
 - `EmptyState` (currently inline — extract)
 - `MobileStickyActionBar` (currently inline — extract)
 
+> **Build reality 2026-07-26 (C11-F8):** three of these already exist as separate components on `ea97932` — `dashboard-header.tsx` (consumed at `TherapistDashboard.tsx:434`), `src/app/admin/components/EmptyState.tsx` (imported at `TherapistDashboard.tsx:25`), and render-only `dashboard/MobileStickyActionBar.tsx` (helper in `dashboard-helpers-b5.ts:263`). What remains inline at `TherapistDashboard.tsx:75-90` is the `getGreeting`/`FORMATTERS` helper pair (pending the C-FIELDWORK lift). The refactor is re-pointing/moving these into `blocks/`, not fresh extraction — re-grep anchors at impl.
+
 After this, `TherapistDashboard.tsx` is ~200 lines instead of 1361. The 1100+ extracted lines distribute across `blocks/` files.
 
 ### 2.5 `page.tsx` thin variant router (work area 5)
@@ -222,7 +230,7 @@ export function useTheme() {
 
 Mount in `src/app/admin/layout.tsx` — wraps the entire admin tree. The initial theme is fetched server-side from `staff_profiles.theme_preference`, defaulted to `'dark'`.
 
-(c) **CSS variable duplication:** every `--admin-*` variable in `globals.css` / `admin-theme.css` gets a dark counterpart selector-scoped under `[data-theme="dark"]`. Light theme stays as the current set, scoped under `[data-theme="light"]` (or default — TBD per design). Plan locks the structure.
+(c) **CSS variable duplication:** every `--admin-*` variable in `globals.css` / `admin-theme.css` gets a dark counterpart selector-scoped under `[data-theme="dark"]`. Light theme stays as the current set, scoped under `[data-theme="light"]` (or default — TBD per design). Plan locks the structure. *(Corrected 2026-07-26 — C11-F3: the variables live in `src/styles/tokens.css:61-196`, sharing one `:root` with the public `--rahma-*`/shadcn tokens; `admin-theme.css` does not exist. Light stays the `:root` default; dark is `[data-theme="dark"]`-scoped and touches ONLY the `--admin-*` family, or the public site would dark-flip. See plan Step 11a.)*
 
 (d) **Toggle UI:** new component `ThemeToggle.tsx` in the admin shell header (right-aligned, near profile menu). Three states: Dark / Light / System. Per-click cycle or dropdown — plan §9.3.
 
@@ -232,7 +240,7 @@ Sweep `git grep -n "animate-spin" src/app/admin/`. For each match:
 - If already has `motion-reduce:animate-none` → skip.
 - Otherwise, add the modifier inline.
 
-Estimated touch: ~30 files. Pure mechanical edit; no behaviour change for users without `prefers-reduced-motion`.
+Estimated touch: ~30 files. Pure mechanical edit; no behaviour change for users without `prefers-reduced-motion`. *(Verified 2026-07-26 — C11-F5: 60 instances / 39 files, 59 unguarded. Optional hygiene per D8 — see §1.4 superseded-by-build note.)*
 
 Also: `dashboard-filters-client.tsx:372, :473, :521` (per audit B-03) — three known violators in the dashboard surface itself.
 
@@ -252,7 +260,9 @@ For each match, classify:
 
 This sweep is **per-file judgement**, not a blanket find-and-replace. Estimated touch: ~10-15 files with hardcoded colors (a rough scan found instances in BookingDetailSidebar, ClientLtvRibbon, dashboard cards, status badges). Real count established at pre-flight.
 
-**Scope discipline:** the sweep stays inside `src/app/admin/`. Public-facing pages, marketing site, and shared UI primitives outside the admin tree are out of C-11 scope.
+*(Verified 2026-07-26 — C11-F6: the real count is 98 files / 520 `oklch(` lines under `src/app/admin/` — ~7x the estimate. Per D9 (Owner approved), C-11's sweep is TRIMMED to the files the variant extraction actually touches plus the `globals.css` admin literals below; the remaining ~90-file admin-wide sweep is explicitly logged for C-12+ — see plan Step 11b amendment.)*
+
+**Scope discipline:** the sweep stays inside `src/app/admin/`. Public-facing pages, marketing site, and shared UI primitives outside the admin tree are out of C-11 scope. *(Amended 2026-07-26 — C11-F7: PLUS the admin-scoped literals inside `src/app/globals.css` — `.admin-action-primary`/`.admin-action-outline` `#ffffff`, `.admin-nav-surface` `#ffffff`, `.admin-nav-link` `rgba()`, `.admin-shell::before` oklch gradient — which would stay light-stuck in dark theme. Public pages otherwise remain out of scope.)*
 
 ### 2.8 Fix the V-01 + B-01 + B-03 dashboard bugs (work area 8)
 
@@ -454,6 +464,8 @@ Default to `'dark'` (app default). The toggle UI shows "Dark". `staff_profiles.t
 
 The server fetches `staff_profiles.theme_preference`, renders `<html data-theme="dark|light">`. Client hydrates with the same value — no FOUC.
 
+> **Correction (2026-07-26 — C11-F10, verifier-confirmed):** the sentence above cannot work — `src/app/admin/layout.tsx` is a NESTED layout with no access to `<html>` (only the root layout owns it), so the admin tree cannot render `<html data-theme>` server-side. Per D10, `data-theme` is set client-side by a plain inline `<script>` at the top of the admin layout's returned JSX (executes early in the body stream; no root-layout touch). See plan Step 15 amendment.
+
 For `'system'` theme: server can't know the user's OS preference. SSR renders the app default (dark); client-side ThemeProvider reads `matchMedia` and updates the `data-theme` attribute if needed. Brief FOUC possible if user has system-light AND chose 'system'. **Mitigation:** inline `<script>` in `<head>` that reads `prefers-color-scheme` and sets `data-theme` before React hydrates. Plan §9.5.
 
 ### 5.4 Variant routing edge cases
@@ -538,9 +550,10 @@ No backfill needed — NULL means "use app default" (which is dark). Per-row upd
 | `src/app/admin/dashboard/page.tsx` | Shrink to thin variant router (~300 lines down from 1017) |
 | `src/app/admin/dashboard/TherapistDashboard.tsx` | Consume shared blocks; remove inlined helpers (already exported via shared-helpers.ts per C-FIELDWORK) |
 | `src/app/admin/layout.tsx` | Wrap entire admin tree with ThemeProvider; fetch initial theme server-side; inline FOUC mitigation script |
-| `src/app/globals.css` (or admin-theme.css) | Duplicate every `--admin-*` variable under `[data-theme="dark"]` and `[data-theme="light"]` selectors; `@media print` forces light |
-| `~30 files with animate-spin` (admin-wide) | Add `motion-reduce:animate-none` modifier |
-| `~10-15 files with hardcoded colors` (admin-wide) | Migrate OKLCH / hex literals to `--admin-*` CSS variables OR add theme-paired variants (see brief §2.7b sweep) |
+| `src/styles/tokens.css` | Duplicate every `--admin-*` variable under `[data-theme="dark"]` and `[data-theme="light"]` selectors; `@media print` forces light (path corrected 2026-07-26 per C11-F3 — `--admin-*` family lives here in the shared `:root`; `admin-theme.css` does not exist) |
+| `src/app/globals.css` | Migrate admin-scoped hardcoded literals (`.admin-action-*`, `.admin-nav-*`, `.admin-shell::before` — C11-F7) to `--admin-*` vars |
+| `39 files with animate-spin` (60 instances, verified 2026-07-26 — C11-F5) | Add `motion-reduce:animate-none` modifier — OPTIONAL hygiene per D8 |
+| Variant-extraction files with hardcoded colors (trimmed per D9 from the verified 98-file inventory — C11-F6) | Migrate OKLCH / hex literals to `--admin-*` CSS variables OR add theme-paired variants (see brief §2.7b sweep; remaining ~90 files logged for C-12+) |
 
 ### UNCHANGED (do NOT touch)
 - `reporting.ts`, `dashboard-helpers.ts`, RBAC matrix, middleware, B-1 primitives.
@@ -591,6 +604,8 @@ Decisions doc Q11 explicitly: **dark default**. Plan locks. User can toggle to S
 
 Locked: **inline in `<head>` via Next.js `<script>` tag with `dangerouslySetInnerHTML`**. Reads `localStorage` (mirror of `staff_profiles.theme_preference` for instant access) + falls back to `prefers-color-scheme` if needed. The script must run before React hydrates. Plan locks the approach; impl-time tuning expected.
 
+*(Amended 2026-07-26 — C11-F10/D10: "in `<head>`" is unachievable from the nested admin layout (no `<html>`/`<head>` access; `beforeInteractive` is root-layout-only in Next 16.2.4). The lock becomes: plain inline `<script dangerouslySetInnerHTML>` at the TOP of `src/app/admin/layout.tsx`'s returned JSX — executes early in the body stream, no root-layout touch. Same IIFE logic.)*
+
 **Q9.6 — Migration of existing per-staff colour preferences?**
 
 None today. Schema is greenfield for theme_preference. The 6 existing staff accounts get NULL → app default (dark) on first login post-deploy.
@@ -626,9 +641,9 @@ A C-11 implementation is complete when:
 7. **Dark mode default** — new user logging in for the first time sees dark theme.
 8. **Light + System variants work** — user can toggle to each, verified visually.
 9. **No FOUC** — page loads with the correct theme applied immediately (no light-then-dark flash).
-10. **Motion-reduce sweep complete** — every `animate-spin` in `src/app/admin/` has `motion-reduce:animate-none` adjacent. Verified via grep + manual file scan.
+10. **Motion-reduce sweep complete** — every `animate-spin` in `src/app/admin/` has `motion-reduce:animate-none` adjacent. Verified via grep + manual file scan. *(Amended 2026-07-26 per D8: sweep is optional hygiene — if skipped, this criterion is instead satisfied by the B-03 devtools check (no spinner animates under `prefers-reduced-motion: reduce`, already guaranteed by `globals.css:437-446`).)*
 11. **WCAG AA contrast met** in both dark + light themes — verified on at least one representative page from EACH admin section (dashboard, bookings list, bookings detail, clients list, clients detail, calendar, staff list, staff detail, reports, emails, settings, privacy, audit).
-12. **Hardcoded-color sweep complete** — admin components consume `--admin-*` CSS variables consistently; intentional brand-colour literals (e.g., Rahma Gold for Cormorant numerals) verified at AA contrast in both themes.
+12. **Hardcoded-color sweep complete** — admin components consume `--admin-*` CSS variables consistently; intentional brand-colour literals (e.g., Rahma Gold for Cormorant numerals) verified at AA contrast in both themes. *(Amended 2026-07-26 per D9: "complete" means the TRIMMED scope — variant-extraction files + `globals.css` admin literals — is migrated, AND the deferred ~90-file list is recorded in the progress file as a C-12+ item.)*
 13. **Theme applies admin-wide** — verified by walking each admin section in both dark + light themes; no surface looks "stuck" in one theme.
 14. **No regressions on Therapist dashboard** — existing Therapist UX preserved including ProfileCompletionNudge, Personal Stripe, RecentClientsStrip, Need help?, mobile pull-to-refresh.
 15. **All static gates pass** — lint, tsc, vitest, build, bundle delta within budget.
@@ -651,7 +666,7 @@ A C-11 implementation is complete when:
 | `dashboard/dashboard-helpers-b5.ts` | `mobileStickyActionForVariant` to lift |
 | `dashboard/PullToRefresh.tsx:142` | Existing motion-reduce pattern (the canonical reference) |
 | `dashboard/QuickHelpPanel.tsx` | Existing block to extend with per-variant content |
-| Global CSS (`globals.css` or `admin-theme.css`) | All `--admin-*` variables to duplicate for dark theme |
+| Global CSS (`globals.css` or `admin-theme.css`) | All `--admin-*` variables to duplicate for dark theme *(corrected 2026-07-26 — C11-F3: actual location is `src/styles/tokens.css:61-196`, shared `:root` with public tokens)* |
 
 ---
 
