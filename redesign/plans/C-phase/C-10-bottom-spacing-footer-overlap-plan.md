@@ -1,5 +1,9 @@
 # C-10 — Bottom-spacing / footer overlap fix — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: C-16 (pagination + bounded lists) — verify with `git log --oneline --grep="C-16" | grep -q "feat(redesign): C-16"`.
+> Decisions: C-B-DECISIONS.md §3 C-10. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase — final plan)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-10-bottom-spacing-footer-overlap-brief.md` (companion — read first)
@@ -10,9 +14,9 @@
 
 ## 0 — Pre-flight
 
-1. **Branch + clean tree.** `git status --short` empty.
+1. **Branch + clean tree.** ~~`git status --short` empty.~~ **(2026-07-26, C10-F3)** On `master`; HEAD at or descended from `ea97932`; verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- <this plan's touched paths>` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted .playwright-mcp logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → 200.
-3. **Baseline tests + static gates.** `pnpm vitest run` 485/491; `pnpm lint` + `tsc` green.
+3. **Baseline tests + static gates.** `pnpm vitest run` 485/491 (6 pre-existing failures in 3 files — ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1 — is the baseline); `tsc` green; ~~`pnpm lint` green~~ **(2026-07-26, C10-F4)** `pnpm lint` — no NEW lint errors vs the 59-error baseline (55 untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`).
 4. **Cross-plan dependency check** — ideally all prior C-B plans merged so the new routes from C-06 (clients edit) + C-02 (series view) are catalogued alongside existing surfaces. Pre-flight tolerates missing prior plans; catalogue what exists. **(2026-07-16) HARD exception: C-16 (pagination + bounded lists) must be merged first** — it changes list-page heights and adds `PaginationBar` above the bottom padding on ~8 surfaces; measuring spacing before it lands would catalogue stale geometry. If C-16 is absent, STOP and confirm with the user.
 5. **Locate `AdminPageScaffold`:**
 
@@ -30,6 +34,7 @@
    The list of admin pages NOT in this output is the candidate set for Phase A inspection.
 
 7. **DO-NOT-TOUCH list:** Badar's `9d55ce2a`, real customer data — Playwright walks read-only.
+7a. **(2026-07-26, rubric §9) DO-NOT-TOUCH (live data):** booking `9d55ce2a` (Badar — real customer email); Owner account `rahmatherapy@outlook.com` in email-test paths; any client whose email isn't `*.example.test` or name isn't `Phase10*`/`Audit Test*` test patterns.
 
 ---
 
@@ -91,7 +96,7 @@ Record the result + screenshot per surface.
 
 **Step 2 — Produce the catalogue.**
 
-New file `redesign/audits/C-A/c-10-overlap-catalogue.md`:
+New file `redesign/evidence/C-10/c-10-overlap-catalogue.md` **(2026-07-26, rubric §8 — evidence dir convention; was `redesign/audits/C-A/c-10-overlap-catalogue.md`, but `redesign/audits/**` is a read-only historical record)**:
 
 ```markdown
 # C-10 Bottom-spacing overlap catalogue
@@ -150,19 +155,21 @@ For each entry in Phase A's Remediation list, apply the appropriate fix pattern 
 
 **Pattern 1 — Wrap with AdminPageScaffold:**
 
+> **Correction (2026-07-26, C10-F1):** `AdminPageScaffold` (`src/app/admin/components/admin-ui.tsx:113-130`) does NOT supply bottom padding itself — it renders only `grid min-w-0 gap-6` plus optional width-based max-width classes. Wrapping alone is NOT sufficient to fix an overlap. Every current working surface's `pb-24` breathing room is supplied via an explicit `className` prop on the scaffold instance (or on a plain wrapping div for surfaces that don't use the scaffold) — not scaffold-default behavior. The fix below wraps AND supplies the padding explicitly.
+
 ```tsx
 import { AdminPageScaffold } from "@/app/admin/components/admin-ui";
 
 export default async function SomeAdminPage() {
   return (
-    <AdminPageScaffold width="default">
+    <AdminPageScaffold width="default" className="pb-24 md:pb-8">
       {/* existing content */}
     </AdminPageScaffold>
   );
 }
 ```
 
-Pick width prop based on visual inspection — typically `default` (max-w-7xl mx-auto) or `narrow` (max-w-2xl for forms).
+Pick width prop based on visual inspection — ~~typically `default` (max-w-7xl mx-auto) or `narrow` (max-w-2xl for forms).~~ **(2026-07-26, C10-F2 — corrected against `admin-ui.tsx:113-130`)** `width="default"` applies no extra max-width class (content unbounded); `width="narrow"` applies `mx-auto max-w-4xl`; `width="wide"` applies `max-w-none`.
 
 **Pattern 2 — Adjust sticky save bar:**
 
@@ -213,7 +220,7 @@ After all remediations land, re-run the Phase A walk on the fixed surfaces. All 
 ## 2 — Files touched (final list — depends on Phase A)
 
 ### NEW (1 file)
-- `redesign/audits/C-A/c-10-overlap-catalogue.md` — Phase A discovery deliverable
+- `redesign/evidence/C-10/c-10-overlap-catalogue.md` — Phase A discovery deliverable **(2026-07-26, rubric §8: moved from `redesign/audits/C-A/`)**
 
 ### EDITED (TBD — estimated 5-15 files based on brief §7)
 
@@ -235,7 +242,7 @@ Per surface in Phase A Remediation list. Each is a small CSS class addition / ad
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs 59-error baseline (2026-07-26, C10-F4: 55 untracked design_handoff_area_pages/prototype/*.jsx + 4 pre-existing in src/features/booking/)
 npx tsc --noEmit                # 0 errors
 pnpm vitest run                 # baseline preserved (CSS-only changes don't affect tests)
 pnpm build                      # clean
@@ -270,7 +277,7 @@ Per remediated surface, 375 mobile:
 
 Plus a few 1280 desktop screenshots for spot-check.
 
-Store in `redesign/audits/C-A/c-10-after/`.
+Store in `redesign/evidence/C-10/c-10-after/` **(2026-07-26, rubric §8: moved from `redesign/audits/C-A/c-10-after/`)**.
 
 ---
 
@@ -297,7 +304,7 @@ Each remediation commits independently (or grouped by surface family). Revert pe
 
 ### 5.2 Catalogue revert
 
-`redesign/audits/C-A/c-10-overlap-catalogue.md` deletion if needed.
+`redesign/evidence/C-10/c-10-overlap-catalogue.md` deletion if needed **(2026-07-26, rubric §8: moved from `redesign/audits/C-A/`)**.
 
 ### 5.3 No DB rollback
 

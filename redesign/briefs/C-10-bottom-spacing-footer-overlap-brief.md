@@ -16,7 +16,7 @@
 
 C-10 is **the smallest C-B plan** — a discovery + remediation pass for "footer overlap" / bottom-spacing issues across admin surfaces. Master plan §3 C-10 framed it as "Some pages have the bottom section sitting too close to the footer, so the bottom content can't be seen properly."
 
-**Root cause (from audit #01 CV-02):** `AdminPageScaffold` adds `pb-24` on mobile (96px) and `md:pb-8` on desktop (32px). The mobile bottom nav is `position: fixed; bottom: 0; height: 56.6px`. 96px clears the nav with ~40px breathing room. **Surfaces that DON'T use `AdminPageScaffold` (or that override its padding) get bottom content covered by the fixed nav.**
+**Root cause (from audit #01 CV-02):** ~~`AdminPageScaffold` adds `pb-24` on mobile (96px) and `md:pb-8` on desktop (32px).~~ **Correction (2026-07-26, C10-F1):** `AdminPageScaffold` (`src/app/admin/components/admin-ui.tsx:113-130`) itself supplies NO bottom padding — it renders only `grid min-w-0 gap-6` plus optional width-based max-width classes. The `pb-24` (mobile) / `md:pb-8` (desktop) breathing room seen on working surfaces (e.g. `dashboard/page.tsx:851`, `TherapistDashboard.tsx:432`, `bookings/[bookingId]/page.tsx:408`) is supplied via an explicit `className` prop on the scaffold instance — or on a plain wrapping div for surfaces that don't use the scaffold at all — not as scaffold-default behavior. The mobile bottom nav is `position: fixed; bottom: 0; height: 56.6px`. 96px of bottom padding clears the nav with ~40px breathing room. **Surfaces that don't supply this bottom padding — whether or not they use `AdminPageScaffold` — get bottom content covered by the fixed nav.**
 
 C-10 is a **two-phase plan**:
 1. **Phase A — Catalogue:** Playwright walk at 375 + 1280 across every admin surface. Identify surfaces where content is hidden behind the bottom nav OR a sticky save bar OR similar.
@@ -92,7 +92,7 @@ const contentBottom = lastContentEl?.getBoundingClientRect().bottom;
 
 For sticky save bars (e.g., `/admin/settings`), check that the save bar's `bottom` accounts for the nav's height — common pattern is `bottom: 14` (above-nav stacked).
 
-**Output of Phase A:** a markdown deliverable `redesign/audits/C-A/c-10-overlap-catalogue.md` listing each surface + status (✅ OK / ⚠️ overlap detected / 🔨 NEW route to verify) + screenshot evidence per fail.
+**Output of Phase A:** a markdown deliverable `redesign/evidence/C-10/c-10-overlap-catalogue.md` **(2026-07-26, rubric §8: moved from `redesign/audits/C-A/` — that path is a read-only historical record)** listing each surface + status (✅ OK / ⚠️ overlap detected / 🔨 NEW route to verify) + screenshot evidence per fail.
 
 ### 2.2 Phase B — Remediation
 
@@ -243,7 +243,7 @@ If the sticky bar is `display: none` when no changes, no overlap. When shown, mu
 ## 7 — Files touched (preview — unknown until Phase A)
 
 ### NEW (1 file)
-- `redesign/audits/C-A/c-10-overlap-catalogue.md` — Phase A deliverable
+- `redesign/evidence/C-10/c-10-overlap-catalogue.md` — Phase A deliverable **(2026-07-26, rubric §8: moved from `redesign/audits/C-A/`)**
 
 ### EDITED (TBD per Phase A catalogue — estimated 5-15 files)
 
@@ -316,7 +316,7 @@ Print stylesheet should already remove the fixed nav. No bottom-spacing issue fo
 
 A C-10 implementation is complete when:
 
-1. **Phase A catalogue exists** at `redesign/audits/C-A/c-10-overlap-catalogue.md` listing every admin surface + status.
+1. **Phase A catalogue exists** at `redesign/evidence/C-10/c-10-overlap-catalogue.md` **(2026-07-26, rubric §8: moved from `redesign/audits/C-A/`)** listing every admin surface + status.
 2. **All ⚠️ surfaces remediated** — each fix is a small CSS-class addition + visual verification.
 3. **No regressions** — fixes don't break desktop layouts.
 4. **Playwright re-sweep at 375 + 768 + 1280 passes** — every admin surface clears the bottom nav with ≥ 20px breathing room.
