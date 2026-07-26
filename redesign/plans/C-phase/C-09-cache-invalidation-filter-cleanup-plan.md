@@ -1,5 +1,9 @@
 # C-09 — Cache invalidation + filter-FAKE cleanup — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: C-06, C-04a, C-05, C-01, C-FIELDWORK, C-11, C-08, C-02 — soft (Pre-flight Step 8 already branches on each's landing state via `git log --oneline | grep -E "C-06|C-04a|C-05|C-01|C-FIELDWORK|C-11|C-08|C-02"`; unmerged ones get a `// TODO C-09:` stub instead of a hard gate).
+> Decisions: C-B-DECISIONS.md §2 Q9 + §3 C-09. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-09-cache-invalidation-filter-cleanup-brief.md` (companion — read first)
@@ -10,9 +14,9 @@
 
 ## 0 — Pre-flight
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree.** On `master`; HEAD at or descended from `ea97932`; verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/app/admin src/lib/cache` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted .playwright-mcp logs) — NEVER stage broadly, NEVER stash/restore/checkout to 'clean' it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → 200.
-3. **Baseline tests + static gates.** `pnpm vitest run` 485/491; `pnpm lint` + `tsc` green.
+3. **Baseline tests + static gates.** `pnpm vitest run` — 485/491 passing; 6 pre-existing failures in 3 files (ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1) are the accepted baseline, not this plan's to fix. `pnpm lint` — no NEW errors vs the 59-error baseline (55 from untracked `design_handoff_area_pages/prototype/*.jsx`, not in git; 4 pre-existing in `src/features/booking/`). `tsc --noEmit` — 0 errors (this gate is genuinely clean at baseline).
 4. **Existing `updateTag` + `unstable_cache` inventory:**
 
    ```bash
@@ -63,7 +67,7 @@
    - Assignment change (touches `bookings`, `staff`)
    - Etc.
 
-10. **DO-NOT-TOUCH list:** Badar's `9d55ce2a`, real customer data.
+10. **DO-NOT-TOUCH list:** Badar's `9d55ce2a`, real customer data. Full block (live data): booking `9d55ce2a` (Badar — real customer email); Owner account `rahmatherapy@outlook.com` in email-test paths; any client whose email isn't `*.example.test` or name isn't `Phase10*`/`Audit Test*` test patterns.
 
 If pre-flight fails (especially #6 cache hazards), surface to user.
 
@@ -158,7 +162,7 @@ export const TAG_AUDIENCE: Record<ResourceTag, string[]> = {
 };
 ```
 
-**Verification:** `pnpm lint` + `tsc` green. No runtime change yet — just constants.
+**Verification:** `pnpm lint` — no NEW errors vs the 59-error baseline (§0 Step 3); `tsc --noEmit` — 0 errors. No runtime change yet — just constants.
 
 ### Phase B — Mutation server action sweep
 
@@ -208,7 +212,8 @@ updateTag(TAGS.AUDIT);
 - Each one: `TAGS.STAFF` + `TAGS.BOOKINGS` (availability affects booking eligibility) + `TAGS.AUDIT`.
 
 **`src/app/admin/enquiries/actions.ts`:**
-- `createEnquiry` / `updateEnquiryStatus` / `convertEnquiry`: `TAGS.ENQUIRIES` + `TAGS.AUDIT`. Convert also touches `TAGS.BOOKINGS` + `TAGS.CLIENTS`.
+- `createEnquiry` (line 49) / `updateEnquiryStatus` (line 116): `TAGS.ENQUIRIES` + `TAGS.AUDIT`.
+- *(2026-07-26 premise-update — F1: no `convertEnquiry` function exists in this file or anywhere in `src/`, and unlike the other not-yet-built functions this plan cites, it carries no cross-plan stub annotation — no Band-C plan claims it. Convert-to-booking already flows through `createManualBooking`'s conditional `TAGS.ENQUIRIES` tag, above in this same step ("conditionally `TAGS.ENQUIRIES` (if enquiryId path taken)") — do not implement a separate `convertEnquiry` action here. If one is added later it needs its own plan.)*
 
 **`src/app/admin/staff/actions.ts`** (and any sub-action files):
 - Staff CUD: `TAGS.STAFF` + `TAGS.AUDIT`.
@@ -233,7 +238,7 @@ For each updated server action, add (or extend) a vitest spec asserting:
 Use vitest `vi.mock("next/cache", ...)` to capture the calls.
 
 **Phase B verify checkpoint:**
-- `pnpm lint` + `tsc` + `vitest run` green.
+- `pnpm lint` — no NEW errors vs the 59-error baseline (§0 Step 3); `tsc --noEmit` — 0 errors; `vitest run` green (485/491 baseline preserved).
 - Per-mutation manual check via Playwright: trigger the mutation, verify the expected page invalidates immediately (next page load reflects the change).
 
 ### Phase C — Page data fetcher retrofit
@@ -525,9 +530,9 @@ This is the C-09 deliverable; future band planners pick from this list.
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs 59-error baseline (55 untracked design_handoff_area_pages/prototype/*.jsx + 4 pre-existing in src/features/booking/)
 npx tsc --noEmit                # 0 errors
-pnpm vitest run                 # new specs pass; baseline preserved
+pnpm vitest run                 # new specs pass; 485/491 baseline preserved (6 pre-existing failures: ManualBookingForm x3, admin-access x2, createBookingTransaction x1)
 pnpm build                      # clean
 node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ```
@@ -591,7 +596,7 @@ C-09 is invisible — minimal screenshots:
 - 1 screenshot per swept filter surface showing filter applied (5 screenshots)
 - 1 "before/after" comparison on /admin/bookings/new after B-149 settings update demo
 
-Store in `redesign/audits/C-A/c-09-after/`.
+Store in `redesign/evidence/C-09/` (rubric evidence convention — never `redesign/audits/**`).
 
 ---
 
