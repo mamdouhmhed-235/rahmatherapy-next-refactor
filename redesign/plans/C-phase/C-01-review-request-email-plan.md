@@ -1,5 +1,9 @@
 # C-01 — Google review request email (2h after completion) — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none hard-blocking — C-01 is LIGHT-routed (admin-side, merge-untouched per factpack/CORE.md routing table). Shared-surface note: `worker-entrypoint.ts` / `wrangler.jsonc` cron dispatch is also touched by C-02 and C-04a — see the order-agnostic note at Step 15/16.
+> Decisions: C-B-DECISIONS.md §2 Q4, §3 C-01. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-01-review-request-email-brief.md` (companion — read first)
@@ -10,10 +14,10 @@
 
 ## 0 — Pre-flight (verify before touching code)
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree.** On `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` (expect `master`) and `git merge-base --is-ancestor ea97932 HEAD` (expect exit 0). Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/lib/email/ src/app/api/cron/ src/app/admin/email-templates/ src/app/admin/emails/components/ src/app/admin/clients/ worker-entrypoint.ts wrangler.jsonc supabase/migrations/` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp/` logs) — NEVER stage broadly, NEVER stash/restore/checkout to 'clean' it. *(Was: "HEAD on `redesign/start-state`" — that branch merged into master at `ea97932`; C01-F1.)*
 2. **Dev server reachable.** `curl -I http://localhost:3000/admin/login/` → `HTTP/1.1 200 OK`.
-3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 baseline failures preserved).
-4. **Static gates green.** `pnpm lint`, `npx tsc --noEmit` both 0 errors.
+3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing — 6 pre-existing failures in 3 files (ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1) preserved, not caused by this plan.
+4. **Static gates green.** `npx tsc --noEmit` — 0 errors. `pnpm lint` — no NEW errors vs the 59-error baseline (55 untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`); this plan's gate is "no new errors," not "0 errors." *(C01-F2.)*
 5. **DB schema verification:**
 
    ```sql
@@ -44,10 +48,10 @@
    ```
 
 6. **Cloudflare Workers cron infrastructure confirmed.** Verify:
-   - `wrangler.jsonc` has the `triggers.crons` array with `["0 8 * * *"]`.
-   - `worker-entrypoint.ts` has the `scheduled()` handler dispatching to `fireBookingReminders`.
+   - `wrangler.jsonc` has the `triggers.crons` array with `["0 8 * * *"]` present — re-grep the live array first: if C-02 or C-04a landed first, additional cron entries may already be present; this plan appends its own entry rather than assuming a single-entry array.
+   - `worker-entrypoint.ts`'s `scheduled()` handler dispatches to `fireBookingReminders` today (a single unconditional call, no switch). If an `event.cron`-keyed dispatch switch already exists (because C-02 or C-04a landed first), this plan adds one case to it instead of building a new switch — do not assume ownership of this file (D3; collision-map §4 — shared with C-02, C-04a).
    - `src/app/api/cron/booking-reminders/route.ts` exists and is the canonical pattern.
-   - `process.env.CRON_SECRET` is set (verify via reading `.env.local` or asking user).
+   - `process.env.CRON_SECRET` is set — verify by reading `.env.local` directly (confirm the key exists; do not print its value) or asking the user to confirm; do not proceed on an assumed value.
 
 7. **Resend configuration confirmed.**
    - `RESEND_API_KEY` env var set.
@@ -74,6 +78,8 @@
     - Badar's `9d55ce2a` (cancelled, won't qualify anyway).
     - **Owner account email `rahmatherapy@outlook.com`** — backfill suppresses this in §6.
     - Any non-test client.
+
+> DO-NOT-TOUCH (live data): booking 9d55ce2a (Badar — real customer email); Owner account rahmatherapy@outlook.com in email-test paths; any client whose email isn't *.example.test or name isn't Phase10*/Audit Test* test patterns.
 
 If any pre-flight step fails, **stop** and surface to the user.
 
@@ -141,6 +147,13 @@ WHERE contact_email = 'rahmatherapy@outlook.com';
 
 COMMIT;
 ```
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply the C-01 migration (Step 1 SQL above) to the production Supabase project via `mcp__supabase__apply_migration`.
+> Exact SQL / change: the migration body in Step 1 above (adds `bookings.completed_at` + `bookings.review_email_sent_at`, the `bookings_set_completed_at` trigger, the conditional `email_delivery_events` CHECK update, and the backfill/suppression UPDATEs).
+> Post-action verification: Step 4's 3 verification queries below (columns exist, trigger exists, 0 completed bookings with NULL sentinel columns).
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 **Step 2 — Apply migration via `mcp__supabase__apply_migration`.**
 
@@ -303,14 +316,22 @@ const SUBJECTS: Record<string, string> = {
 
 > **Coordination (2026-07-16):** C-15 (email template studio) expands this registry with `defaultValue`/`tokens`/`subjectDefault`/`fixedParts`. If C-15 has already shipped when C-01 lands, register this template in the expanded shape (defaults in the registry, not inline in the renderer); if not, register as below and C-15's sweep picks it up. Either way this step's intent is unchanged.
 
+> **Coordination (2026-07-26, rubric §10 shared-surface note — collision-map §7):** `templates-data.ts`'s `TemplateMeta`/`SafeFieldKind` schema is edited by C-01, C-02, C-08, C-13, and (primarily) C-15. `SafeFieldKind` is a closed union — do not invent new `kind` string literals ad hoc. If C-15 has landed, extend its post-refactor schema. If C-15 has not landed, coordinate with whichever of C-01/C-08 lands first before adding a second incompatible extension to the union. Any new field's `maxLength` must stay compatible with `email_template_overrides.value`'s DB CHECK (<=500 chars).
+
+> **Premise correction (2026-07-26, C01-F3):** the current `TemplateMeta` interface (`templates-data.ts:25-32`) requires `{ id, audience, cardName, trigger, rendersAs: "html"|"plain_text", fields: SafeField[] }` — there is no `description` field, and `trigger`/`rendersAs` are required. `SafeFieldKind` (`templates-data.ts:8-13`) is the closed union `greeting_intro | footer_contact | group_copy | intro | wrapper_change_summary | plain_text_intro` — none of the `kind` values below exist in it yet. Per D7, extend `SafeFieldKind` minimally with the 16 literals this template needs (`subject`, `body_intro`, `body_ask`, `body_cta_label`, `body_cta_url`, `body_signoff`, `massage_variant_1`..`5`, `cupping_variant_1`..`5`) — C-15 owns the fuller registry rework later. Corrected shape:
+
 Edit `src/app/admin/emails/components/templates-data.ts`. Add a new entry to the `TEMPLATES` array (after the existing 9):
 
 ```ts
 {
   id: "review_request_client",
   cardName: "Review request (2h post-completion)",
-  description: "Sent automatically 2 hours after a booking is marked completed. Asks for a Google review with 3 randomly-picked sample messages the client can copy or use as inspiration.",
+  // Sent automatically 2 hours after a booking is marked completed. Asks for
+  // a Google review with 3 randomly-picked sample messages the client can
+  // copy or use as inspiration.
   audience: "customer", // verify the actual enum value used; might be 'client'
+  trigger: "booking_status_completed_plus_2h",
+  rendersAs: "html",
   fields: [
     { kind: "subject", label: "Subject", maxLength: 100 },
     { kind: "body_intro", label: "Intro paragraph", maxLength: 500 },
@@ -332,7 +353,9 @@ Edit `src/app/admin/emails/components/templates-data.ts`. Add a new entry to the
 }
 ```
 
-The exact shape of `TemplateMeta.fields` (and `kind` enum) must match the existing pattern — verify by reading the TemplateMeta interface at line 25 of `templates-data.ts`.
+All `maxLength` values above stay ≤500 chars to match `email_template_overrides.value`'s DB CHECK constraint (D13) — do not raise any of them without a Zone-2 migration relaxing that CHECK, which this plan does not include.
+
+The exact shape of `TemplateMeta.fields` (and the `kind` enum, once extended per above) must match the existing pattern — verify by reading the `TemplateMeta`/`SafeFieldKind` definitions at `templates-data.ts:8-32` before editing.
 
 **Step 13 — Add to AUDIT_PHRASING.**
 
@@ -365,6 +388,8 @@ New file: `src/app/api/cron/review-emails/route.ts`. Per brief §2.4. Mirror the
 
 **Step 15 — Extend `worker-entrypoint.ts`.**
 
+> **Coordination (2026-07-26, rubric §10 shared-surface note / D3 — collision-map §4):** `worker-entrypoint.ts`'s `scheduled()` handler and `wrangler.jsonc`'s `crons` array are shared with C-02, C-04a. Today there is exactly ONE cron trigger and NO dispatch mechanism — do not assume one exists. The first of these three plans to land must add an `event.cron`-keyed switch/dispatch in `scheduled()`; every plan after it adds exactly one case + one crons-array entry, and must verify (by reading the live file, not the plan's own cached sketch) that the switch structure from the prior plan is respected, not replaced.
+
 Edit `worker-entrypoint.ts`. Add `fireReviewEmails(env)` helper:
 
 ```ts
@@ -396,7 +421,7 @@ async function fireReviewEmails(env: CronEnv): Promise<void> {
 }
 ```
 
-Modify the existing `scheduled()` to dispatch by `event.cron`:
+**If `scheduled()` is still the pre-C-01 unconditional call to `fireBookingReminders(env)`** (no dispatch switch exists yet), replace it with an `event.cron`-keyed dispatch:
 
 ```ts
 async scheduled(event, env, ctx): Promise<void> {
@@ -410,14 +435,17 @@ async scheduled(event, env, ctx): Promise<void> {
 }
 ```
 
+**If a dispatch switch already exists** (C-02 or C-04a landed first), instead add exactly one `else if (event.cron === "*/15 * * * *") { ctx.waitUntil(fireReviewEmails(env)); }` branch into their existing switch, preserving every other branch untouched.
+
 **Step 16 — Update `wrangler.jsonc`.**
 
-Append to `triggers.crons`:
+Append `"*/15 * * * *"` to the existing `triggers.crons` array — re-read the live file first; if C-02 or C-04a already added their own cron string(s), append alongside them rather than assuming the array only holds the original `"0 8 * * *"` entry:
 
 ```jsonc
 "triggers": {
   "crons": [
     "0 8 * * *",
+    // ...any entries C-02/C-04a already added, preserved as-is...
     "*/15 * * * *"
   ]
 }
@@ -435,7 +463,7 @@ curl -X POST http://localhost:3000/api/cron/review-emails \
 
 Expected return: `{ summary: { candidates: 0, sent: 0, ... } }` (no eligible bookings since backfill marked all existing completions as handled). If 401, env var missing.
 
-To exercise the send path locally without firing real emails to real customers: temporarily set `RESEND_API_KEY` to an invalid value → `sendTrackedEmail` errors → audit row + delivery-failure row written but no email sent. Or use Resend's test domain. Decided at impl time.
+To exercise the send path locally without firing real emails to real customers: temporarily set `RESEND_API_KEY` to an invalid value → `sendTrackedEmail` errors → audit row + delivery-failure row written but no email sent. Or use Resend's test domain. Decided at impl time. **Recommended default (executability):** use Resend's test/sandbox domain if configured; otherwise temporarily invalidate `RESEND_API_KEY` for this one curl, then verify via `SELECT event_type, delivery_status FROM email_delivery_events WHERE event_type='review_request_client' ORDER BY sent_at DESC LIMIT 1;` that a failed-delivery row was written (not a real send) — restore the real key immediately after.
 
 **Step 18 — Vitest spec for the cron route.**
 
@@ -462,6 +490,14 @@ Pre-requisite: at least one test client with a `*.example.test` email + at least
 1. Owner signs in via Playwright. Navigate to a test booking detail.
 2. Mark complete via C-04a's `quickUpdateBooking` (or pre-existing Status form). Verify `bookings.completed_at` is set by the trigger.
 3. **Backdate `completed_at` via Zone-2 SQL** (explicit confirmation):
+
+   > ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+   > An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+   > Action: backdate `completed_at` on a single test booking to force it into the review-email cron's candidate window.
+   > Exact SQL / change: `UPDATE bookings SET completed_at = now() - interval '3 hours' WHERE id = '<test-booking>';` — target must be a `*.example.test` booking per §6's DO-NOT-TRIGGER guidance.
+   > Post-action verification: `SELECT id, completed_at FROM bookings WHERE id = '<test-booking>';` shows the backdated timestamp.
+   > Never auto-apply. Approval is per-action and does not carry forward.
+
    ```sql
    UPDATE bookings SET completed_at = now() - interval '3 hours' WHERE id = '<test-booking>';
    ```
@@ -488,6 +524,13 @@ If `/admin/email-templates/preview/[id]` works for the new template:
 - Navigate to `/admin/email-templates/preview/review_request_client`.
 - Verify it renders with default fields + sample variants.
 - Pre-flight Step 5 of brief §11 references the preview route's existing BUILD-rbac-permission gate (per C-A.1 audit). The plan does NOT add new RBAC for this template — uses the existing `MANAGE_EMAIL_TEMPLATES` permission.
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: run the production deploy (`wrangler deploy`) that activates the new `*/15 * * * *` cron trigger alongside the existing `0 8 * * *` trigger.
+> Exact SQL / change: no SQL — this is the Cloudflare Workers config/deploy step described below (external-console/production-deploy class change).
+> Post-action verification: Cloudflare dashboard → Workers → cron-events shows both cadences firing; first `*/15` fire returns `summary.candidates: 0` (backfill suppressed historical rows); no new Sentry exceptions from the review-emails route.
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 **Step 22 — Cloudflare cron deployment (Zone-2).**
 
@@ -533,9 +576,9 @@ If Cloudflare's per-Worker cron limit is hit (most paid plans support multiple),
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs the 59-error baseline (55 untracked design_handoff_area_pages/prototype/*.jsx + 4 pre-existing in src/features/booking/ — C01-F2, 2026-07-26)
 npx tsc --noEmit                # 0 errors
-pnpm vitest run                 # new specs pass; baseline failures preserved
+pnpm vitest run                 # new specs pass; baseline failures preserved (6 pre-existing in 3 files)
 pnpm build                      # clean
 node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ```
@@ -595,7 +638,7 @@ Recipe per role:
 - 1280: Resend dashboard send-event preview
 - 1280: Audit log entry on `/admin/audit` showing `review_email_sent`
 
-Store in `redesign/audits/C-A/screenshots-19-emails/c-01-after/`.
+Store in `redesign/evidence/C-01/` (rubric §8 — `redesign/audits/**` is read-only historical record, not a write target).
 
 ---
 
@@ -684,6 +727,13 @@ WHERE b.id = '<id>';
 Both `contact_email` and `clients.email` should match a test pattern.
 
 **Backdating for E2E:**
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: backdate `completed_at` on a `*.example.test` test booking (same class of write as Step 19.3 above; use this form when re-running E2E outside the Step 19 walkthrough).
+> Exact SQL / change: the UPDATE below.
+> Post-action verification: `SELECT id, completed_at FROM bookings WHERE id = '<test-booking>';` shows the backdated timestamp.
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 ```sql
 -- Zone-2: explicit user confirmation

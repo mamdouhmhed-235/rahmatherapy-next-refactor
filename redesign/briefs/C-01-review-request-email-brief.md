@@ -456,6 +456,8 @@ function empty(): ReviewEmailSummary {
 
 ### 2.5 wrangler.jsonc + worker-entrypoint.ts
 
+> **Coordination note (2026-07-26, D3 / collision-map §4):** this dispatch mechanism and the `crons` array are also touched by C-02 and C-04a. Today there is exactly one cron and no dispatch switch — whichever of the three plans lands first builds the `event.cron`-keyed switch below; the other two each add one case to it. The sketch below assumes this plan builds it first; the plan file's Step 15 carries the order-agnostic instruction for either ordering.
+
 `wrangler.jsonc` — append the new cron trigger:
 
 ```jsonc
@@ -499,6 +501,8 @@ const SUBJECTS: Record<string, string> = {
 `src/app/admin/emails/components/templates-data.ts` — add a new `TemplateMeta` entry to the `TEMPLATES` array. Fields include the 6 shared fields (subject, body_intro, body_ask, body_cta_label, body_cta_url, body_signoff) PLUS the 10 variant fields (massage_variant_1..5 + cupping_variant_1..5).
 
 Note for plan: the templates UI may need adjustment to render 16+ editable fields cleanly. The variant fields could be grouped under a collapsible "Sample review variants" section. UX detail for plan.
+
+> **Premise correction (2026-07-26, C01-F3):** `SafeFieldKind` (`templates-data.ts:8-13`) is a closed union; none of the 16 `kind` values above exist in it today. The plan's Step 12 extends the union minimally to add them — coordinate with C-08, which independently needs new `kind` literals too (collision-map §7); do not let both plans invent incompatible extensions.
 
 ### 2.7 Audit log type
 
