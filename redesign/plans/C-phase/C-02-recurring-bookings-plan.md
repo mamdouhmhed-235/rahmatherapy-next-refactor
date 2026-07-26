@@ -1,5 +1,9 @@
 # C-02 — Recurring / standing bookings — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: `C-01` (`git log --oneline --grep="C-01" | grep -q "feat(redesign): C-01"`), `C-08` (`git log --oneline --grep="C-08" | grep -q "feat(redesign): C-08"`).
+> Decisions: C-B-DECISIONS.md §2 Q3 + §3 C-02. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-02-recurring-bookings-brief.md` (companion — read first)
@@ -10,9 +14,9 @@
 
 ## 0 — Pre-flight
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `redesign/start-state`.
+1. **Branch + clean tree.** *(Refinement 2026-07-26, C02-F1 — was `redesign/start-state`/unqualified clean-tree check.)* On `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/app/admin/bookings src/app/admin/calendar src/app/admin/services src/app/admin/email-templates src/app/admin/emails src/lib/email supabase/migrations wrangler.jsonc worker-entrypoint.ts` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp` logs) — NEVER stage broadly, NEVER stash/restore/checkout to 'clean' it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → 200.
-3. **Baseline tests + static gates.** `pnpm vitest run` 485/491 (6 baseline failures preserved); `pnpm lint` + `npx tsc --noEmit` both green.
+3. **Baseline tests + static gates.** *(Refinement 2026-07-26, C02-F2 — lint gate lacked the baseline caveat.)* `pnpm vitest run` 485/491 (6 baseline failures preserved: ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1); `npx tsc --noEmit` green; `pnpm lint` — no NEW errors vs the 59-error baseline (55 untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`).
 4. **DB verification:**
 
    ```sql
@@ -44,14 +48,14 @@
    - If C-06 is merged (clients.deleted_at + deleteClient), the recurring-template table's `ON DELETE RESTRICT` on `client_id` will block client deletion when active templates exist. C-06's `deleteClient` server action must be extended to either:
      - (a) Refuse delete with structured error if active recurring templates exist, OR
      - (b) Cancel all active templates as part of the deletion cascade.
-   - **Locked: option (b)** — `deleteClient` should cancel active templates as part of its cascade. This is a C-06 plan update; plan §8 documents.
+   - **Locked: option (b)** — `deleteClient` should cancel active templates as part of its cascade. This is a C-06 plan update; plan §8 documents. *(Refinement 2026-07-26, D1: C-06 Step 9 now carries this — verify via `grep -i recurring redesign/plans/C-phase/C-06-client-crud-hardening-plan.md` before proceeding; expect matches in Step 9.)*
 
 7. **Test fixture inventory:**
    - At least one test client with valid email + future-date booking slot availability.
    - At least one test booking with cancelled status to verify the no-recreate behaviour on horizon extension.
    - Test Owner/Admin/Coord accounts active.
 
-8. **DO-NOT-TOUCH list:** Badar's `9d55ce2a`, any real customer.
+8. **DO-NOT-TOUCH (live data):** booking `9d55ce2a` (Badar — real customer email); Owner account `rahmatherapy@outlook.com` in email-test paths; any client whose email isn't `*.example.test` or name isn't `Phase10*`/`Audit Test*` test patterns. *(Refinement 2026-07-26, rubric §9.)*
 
 9. **Capture pre-deploy metrics:**
 
@@ -203,6 +207,13 @@ $$;
 
 COMMIT;
 ```
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply the C-02 migration (services.allow_recurrence + recurring_booking_templates table + bookings.recurring_template_id FK + compute_occurrence_dates + create_recurring_booking_series RPCs) via `mcp__supabase__apply_migration`.
+> Exact SQL: per Step 1 body above, verbatim.
+> Post-action verification: re-run pre-flight §0 Step 4 queries (a)-(c) — all should now return 1 row instead of 0; `npx tsc --noEmit` green after type regeneration.
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 **Step 2 — Apply migration via `mcp__supabase__apply_migration`.**
 
@@ -496,10 +507,14 @@ Per C-08 pattern. Default copy:
 
 `sendRecurringSeriesCreatedEmail(templateId, supabase)`. Fetches template + linked client + service + first occurrence date. Same `sendTrackedEmail` pattern.
 
+> Shared-surface note (rubric §10, collision-map §3): `notifications.ts` is also edited by C-01 (`sendBookingReminderEmail` insertion), C-04a (extends `sendBookingCancellationEmails` + exports `sendTrackedEmail`), C-08 (admin-recipient resolution inside `sendBookingCreatedEmails`/`sendBookingCancellationEmails`), and C-13 (Phase G/H copy, additive). Recommended programme landing order: C-08 → C-04a → C-01 → C-02 → C-13. This plan's addition (`sendRecurringSeriesCreatedEmail`) is new and additive — re-grep the file before inserting it; do not assume any cached line numbers are still current.
+
 **Step 11 — Registration.**
 
 - SUBJECTS map entry. *(2026-07-16: if C-15 has shipped, SUBJECTS is retired — set `subjectDefault` in the registry instead.)*
 - templates-data.ts TemplateMeta entry with audience='customer' + fields list. *(2026-07-16: C-15 ships before C-02 in the recommended order — register in the expanded registry shape: `defaultValue` per field, `subjectDefault`, `tokens`, `fixedParts`. The template then appears in the studio gallery/editor automatically.)*
+
+> Shared-surface note (rubric §10, collision-map §7): `templates-data.ts`'s `TemplateMeta`/`SafeFieldKind` schema is edited by C-01, C-02, C-08, C-13, and (primarily) C-15. `SafeFieldKind` is a closed union — do not invent new `kind` string literals ad hoc. If C-15 has landed, extend its post-refactor schema (per the note above). If C-15 has not landed, coordinate with whichever of C-01/C-08 lands first before adding a second incompatible extension to the union. Any new field's `maxLength` must stay compatible with `email_template_overrides.value`'s DB CHECK (<=500 chars).
 
 **Step 12 — Vitest spec** following C-08's `sendBookingConfirmedClientEmail` test scaffold.
 
@@ -531,7 +546,11 @@ export function RecurringSection(props: RecurringSectionProps) {
 
 **Step 14 — Wire into `ManualBookingForm.tsx`.**
 
-Edit `src/app/admin/bookings/new/ManualBookingForm.tsx`. In step 4 (Date & time section, near the submit button), mount `<RecurringSection ... />`. When the user submits the form with `is_recurring=on`, the form action dispatches to `createRecurringSeries` instead of `createManualBooking`.
+*(Refinement 2026-07-26, C02-F3 — corrected mis-anchor: step 4 is the Review/Confirm summary screen, not a "Date & time section." The date/time picker panel actually lives in step 3.)*
+
+Edit `src/app/admin/bookings/new/ManualBookingForm.tsx`. Mount `<RecurringSection ... />` inside the form's step-4 Review/Confirm block (`~1654-1892` — SummaryCards + consent checkbox + error banner), positioned near the submit strip (`~1921-1930`, "Submit booking request" button). Do NOT anchor to the date/time picker — that panel is rendered inside step 3 (`validateStep` step===3 gate at `:212-217`; panel at `:1416-1417`). Verify the anchor before editing: `grep -n "SummaryCards\|Submit booking request" src/app/admin/bookings/new/ManualBookingForm.tsx` should return hits near lines 1654-1892 and 1921-1930 respectively (re-grep first — line numbers shift once other Band-C plans land on this file, see coordination note below). When the user submits the form with `is_recurring=on`, the form action dispatches to `createRecurringSeries` instead of `createManualBooking`.
+
+> Shared-surface note (rubric §10, collision-map §1): ManualBookingForm.tsx is edited by C-02, C-03, C-06, C-20, and C-23 in this programme. Before this plan's ManualBookingForm.tsx steps, re-run this plan's own anchor greps (do not trust hardcoded line numbers) — a predecessor plan may have already shifted them. If a target region overlaps a just-landed edit from another Band-C plan, stop and diff manually rather than applying a line-numbered patch.
 
 The form's action prop becomes conditional:
 
@@ -594,6 +613,8 @@ Per-template advisory lock prevents concurrent extensions of the same template.
 **Step 20 — `wrangler.jsonc` + `worker-entrypoint.ts` extensions.**
 
 Add cron trigger `"0 3 * * *"` (daily 03:00 UTC). Add `fireExtendRecurringHorizons(env)` dispatch in scheduled() based on `event.cron`.
+
+> Shared-surface note (rubric §10, collision-map §4): `worker-entrypoint.ts`'s `scheduled()` handler and `wrangler.jsonc`'s `crons` array are shared with C-01 and C-04a. As of this refinement there is exactly ONE cron trigger and NO dispatch mechanism — do not assume one exists. The first of C-01/C-02/C-04a to land must add an `event.cron`-keyed switch/dispatch in `scheduled()`; every plan after it adds exactly one case + one crons-array entry, and must verify (by reading the live file, not this plan's cached sketch) that the switch structure from a prior landing is respected, not replaced. Recommended programme order: C-01 → C-04a → C-02.
 
 **Step 21 — Vitest spec for the cron handler.**
 
@@ -680,7 +701,7 @@ Final phase. Playwright + DB verification + screenshots. Per §3.
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs 59-error baseline (55 untracked design_handoff_area_pages/prototype/*.jsx + 4 pre-existing src/features/booking/) — C02-F2
 npx tsc --noEmit                # 0 errors
 pnpm vitest run                 # new specs pass; baseline preserved
 pnpm build                      # clean
@@ -750,7 +771,7 @@ WHERE recurring_template_id = '<test-template-id>' GROUP BY status;
 - 1280 × bookings list with Series filter active
 - 1280 × `/admin/services` edit form with allow_recurrence toggle
 
-Store in `redesign/audits/C-A/screenshots-03-bookings-new/c-02-after/`.
+Store in `redesign/evidence/C-02/`. *(Refinement 2026-07-26, rubric §8 — replaces the prior `redesign/audits/**` target.)*
 
 ### 3.6 WCAG + responsive checks
 
@@ -775,7 +796,7 @@ Store in `redesign/audits/C-A/screenshots-03-bookings-new/c-02-after/`.
 | Edit-series UX confuses operators (limited editable fields) | low | low | Inline helper text in the form explains "Cancel + recreate to change cadence." |
 | Restoring a cancelled series occurrence creates orphan | low | low | Restore (C-04a) un-cancels the booking. Template stays cancelled. Acceptable — admin can manually flip template status if they want to re-activate the series. |
 | Public booking flow accidentally exposed | very low | low | New form section is gated by admin RBAC at the route level. Plus public site uses a separate form (`/booking/...`) that doesn't import RecurringSection. |
-| C-06 deleteClient blocks deletion due to active template | medium | medium | **Cross-plan update to C-06's plan §1 Step 9:** before SET clients.deleted_at, query for active recurring_booking_templates where client_id=$1 AND cancelled_at IS NULL. If found, cancel them as part of the deletion cascade. C-06's plan needs to be updated post-C-02-merge. |
+| C-06 deleteClient blocks deletion due to active template | medium | medium | **Cross-plan update to C-06's plan §1 Step 9:** before SET clients.deleted_at, query for active recurring_booking_templates where client_id=$1 AND cancelled_at IS NULL. If found, cancel them as part of the deletion cascade. C-06's plan needs to be updated post-C-02-merge. **(Refinement 2026-07-26, D1: done — C-06 Step 9 now carries this; see §4.2.)** |
 
 ### 4.1 Real risk: cron-extension queue depth
 
@@ -784,6 +805,8 @@ If 100 active recurring templates each need extension on the same cron run, that
 ### 4.2 Real risk: cross-plan ordering with C-06
 
 Decisions doc Q5 (C-06 scope) was written before C-02 plan-writing. C-06's `deleteClient` cascade scope doesn't mention recurring templates. **C-06's plan needs an explicit update** to include the template-cancellation step. This plan (§8 Sequencing) flags it; C-06 implementer reads the brief + plan and adds the step.
+
+> **Refinement 2026-07-26 (D1, resolving C02-F4):** C-06 Step 9 now carries this — the recurring-template-cascade branch (cancel active `recurring_booking_templates` before soft-deleting the client) has been written into C-06's plan. Verify at C-02 impl time: `grep -i recurring redesign/plans/C-phase/C-06-client-crud-hardening-plan.md` should return matches in Step 9.
 
 ---
 
@@ -873,7 +896,7 @@ WHERE recurring_template_id IN (
 
 1. Read brief + plan end-to-end.
 2. **Run §0 Pre-flight in full**, especially the C-01 + C-08 dependency check and the C-06 cross-plan coordination.
-3. **Update C-06's plan** with the active-recurring-templates check in `deleteClient`. This is a parallel plan-text update before C-02 ships. See §4.2.
+3. **Update C-06's plan** with the active-recurring-templates check in `deleteClient`. This is a parallel plan-text update before C-02 ships. See §4.2. *(Refinement 2026-07-26, D1: done — C-06 Step 9 now carries this; re-verify it's still present before C-02 executes.)*
 4. Execute Phase A → I in order.
 5. Migration in Phase A is Zone-2 — show SQL to user; await approval; capture migration_name.
 6. Verification gate (§3) non-negotiable.

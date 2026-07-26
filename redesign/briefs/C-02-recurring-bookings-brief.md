@@ -1,5 +1,9 @@
 # C-02 — Recurring / standing bookings
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: `C-01` (`git log --oneline --grep="C-01" | grep -q "feat(redesign): C-01"`), `C-08` (`git log --oneline --grep="C-08" | grep -q "feat(redesign): C-08"`).
+> Decisions: C-B-DECISIONS.md §2 Q3 + §3 C-02. Findings applied: see refinement changelog (companion plan file).
+
 **Type:** Band C plan-writing brief (C-B phase)
 **Date written:** 2026-05-26
 **Predecessors:**
@@ -378,6 +382,8 @@ export async function cancelRecurringSeries(formData: FormData): Promise<{ ok: b
 
 ### 2.7 Form changes — `ManualBookingForm`
 
+*(Refinement 2026-07-26, C02-F3: verified against current code — the form's date/time picker actually lives in step 3 (`validateStep` step===3 gate at `ManualBookingForm.tsx:212-217`, panel at `:1416-1417`); step 4 is the Review/Confirm summary screen (`:1654-1892`) where the submit button lives (`:1921-1930`). The sketch below uses the brief's original "Step 4: Date & time" framing for narrative purposes only — the companion plan's Step 14 anchors the actual mount point to the Review/Confirm block, not the date/time picker.)*
+
 Extend `ManualBookingForm.tsx` (currently 4-step wizard: Contact / Services / Location / Date+time) with a **5th conditional step** OR an inline "Make this recurring?" section in step 4 (Date+time):
 
 **Recommended: inline section in step 4** — keeps the form's "4-step wizard" mental model.
@@ -467,6 +473,8 @@ Public booking form (out-of-admin tree) does NOT expose recurrence creation (per
 ## 4 — Layout strategy
 
 ### 4.1 ManualBookingForm step 4 — inline recurring section
+
+*(Refinement 2026-07-26, C02-F3: "step 4" here means the wizard step this section's UX narrative is framed around — in the current codebase the mount point is the step-4 Review/Confirm block, not the date/time picker, which is step 3. See §2.7 note and companion plan Step 14.)*
 
 Per §2.7 sketch. Key UX details:
 
@@ -619,9 +627,18 @@ C-04a's Restore button applies to recurring occurrences too. Restoring a cancell
 
 If the client linked to a recurring template is soft-deleted via C-06's `deleteClient`, the `ON DELETE RESTRICT` on `recurring_booking_templates.client_id` blocks the deletion. C-06's `deleteClient` server action must first cancel any active recurring series for the client. Plan §1 + §8 Sequencing documents this cross-plan check.
 
+> **Refinement 2026-07-26 (D1):** C-06 Step 9 now carries this — verify via `grep -i recurring redesign/plans/C-phase/C-06-client-crud-hardening-plan.md` before C-02 executes.
+
 ---
 
 ## 6 — Migration footprint
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔ *(Refinement 2026-07-26, rubric §3)*
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply the C-02 migration (services.allow_recurrence + recurring_booking_templates table + bookings.recurring_template_id FK + compute_occurrence_dates + create_recurring_booking_series RPCs) via `mcp__supabase__apply_migration`.
+> Exact SQL: per the migration body below, verbatim (full DDL lifted into the companion plan's Phase A Step 1).
+> Post-action verification: greenfield-check queries (§0 pre-flight equivalent in the companion plan) now return the new table/columns/functions.
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 **Zone-2 — explicit user confirmation required for the migration.** Single migration covers:
 
@@ -706,7 +723,7 @@ Post-migration: `mcp__supabase__generate_typescript_types`.
 
 - **C-04a's Restore button** applies to recurring occurrences too — natural cross-plan synergy, no extra work in C-02.
 - **C-05's `ensureBookingActive` helper** is called by the standard claim / assignment paths — recurring occurrences go through the same paths, automatically benefit.
-- **C-06's `deleteClient`** must check for active recurring templates before allowing client soft-delete. Cross-plan check documented in C-02 §5.13. **C-06's plan should be updated to check this** — see plan §8 cross-plan update.
+- **C-06's `deleteClient`** must check for active recurring templates before allowing client soft-delete. Cross-plan check documented in C-02 §5.13. **C-06's plan should be updated to check this** — see plan §8 cross-plan update. *(Refinement 2026-07-26, D1: done — C-06 Step 9 now carries this.)*
 - **C-08's email patterns** — C-02's `recurring_series_created_client` template follows the same template-overrides + templates-data.ts registration pattern. C-08 doesn't need to ship it; C-02 owns the template.
 - **C-01's cron infrastructure** — same Cloudflare Worker cron used. Plan §1 Step 8 documents.
 - **C-11's PractitionerTodaySection** — assigned recurring occurrences appear in the practitioner's today list automatically. Bound-therapist binding pre-populates the assignment.
@@ -778,7 +795,7 @@ A C-02 implementation is complete when:
 15. **Playwright role × cadence × end-condition matrix** passes:
     - 3 cadences × 3 end-conditions = 9 series-creation paths verified
     - Per-occurrence cancel, series cancel, restore, reschedule each tested
-16. **Cross-plan check** — C-06's `deleteClient` rejects when client has active recurring templates (or auto-cancels them — see plan §8 cross-plan update).
+16. **Cross-plan check** — C-06's `deleteClient` rejects when client has active recurring templates (or auto-cancels them — see plan §8 cross-plan update). *(Refinement 2026-07-26, D1: C-06 Step 9 now carries the auto-cancel cascade — verify present before C-02 executes.)*
 17. **Badar's `9d55ce2a`** untouched throughout E2E.
 
 ---
