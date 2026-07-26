@@ -4,7 +4,7 @@
 **Date written:** 2026-07-16 (user direction: plan-refinement phase)
 **Predecessors:**
 - User direction 2026-07-16: bring the public flow's "no-guessing availability" idea to `/admin/bookings/new` — the calendar itself shows which days are bookable instead of staff clicking dates one at a time. Explicit instruction: **reuse the shared engine rather than duplicating logic**, and judge which parts translate.
-- **Reference implementation:** `redesign/start-state` commit `0325838` — `src/lib/booking/availability.ts` (engine refactor + `calculateAvailableDays`), `src/app/api/availability/month/route.ts`, `ScheduleStep.tsx`, `DatePickerField.tsx`. **Not on master.**
+- **Reference implementation:** `redesign/start-state` commit `0325838` — `src/lib/booking/availability.ts` (engine refactor + `calculateAvailableDays`), `src/app/api/availability/month/route.ts`, `ScheduleStep.tsx`, `DatePickerField.tsx`. **Not on master.** **Amended 2026-07-26 (C23-F5, verifier-CONFIRMED): now ON master — the `redesign/start-state → master` merge (`ea97932`) carried `0325838`; master and start-state are byte-identical on these paths (empty diff, verified twice). The plan's Phase A is verify-only.**
 - Code audit 2026-07-16 of `src/app/admin/bookings/new/ManualBookingForm.tsx` (2,019 lines) — findings in §2, and they materially reshape the naive port.
 **Companion files:**
 - Plan: `redesign/plans/C-phase/C-23-admin-availability-calendar-plan.md`
@@ -17,6 +17,8 @@
 Staff currently discover admin availability by trial and error: pick a date → wait → "No therapists available on this date" → pick another. C-23 makes the admin calendar **show** which days can be served, before any click.
 
 Five phases: **port the engine refactor to master byte-identically** (it is a verified conflict-free port, and porting *reduces* the risk of the eventual `redesign/start-state → master` merge) → **admin-scoped month endpoint** with relaxed rules via an additive options bag → **admin calendar component** that informs but never blocks → **wire into the existing three date-input branches without changing any submitted data** → verify month-vs-day equivalence.
+
+*Amended 2026-07-26 (C23-F1/F5): the merge already happened (`ea97932`) — the port phase is already satisfied (master ↔ start-state byte-identical on both files, verified twice). Phase A collapses to a read-only identity assertion; the remaining four phases stand. Note the risk-posture change: the engine + `/api/availability/month` now serve the LIVE public customer calendar (see §4.1 wrapper).*
 
 **The governing constraint (user direction 2026-07-16): change nothing that already works.** No new form state, no second date, no removed override paths, no altered payload. C-23 changes *how staff see* dates, not what the form submits.
 
@@ -60,6 +62,8 @@ The public month route is unauthenticated and inherits two customer-facing guard
 
 ### 4.1 Phase A — Port the engine to master (prerequisite, zero behaviour change)
 
+> ✅ **VERIFY-ALREADY-IMPLEMENTED (2026-07-26)** — the build at `ea97932` already implements this phase (C23-F1, verifier-CONFIRMED twice: `git diff master redesign/start-state --stat` on both paths → empty; C23-F5: the merge carried `0325838` onto master). Executor: run the plan's pre-flight #3 read-only identity assertion instead of the checkout below — do NOT run the tree-mutating `git checkout`. The final paragraph of this section is INVERTED (C23-F2): `/api/availability/month` is ALREADY live and customer-facing — the shipped public booking flow's `ScheduleStep.tsx:94-104` POSTs it (unauthenticated, service-role client); any engine/route edit touches production customer behaviour now. Original text preserved below for reference.
+
 `git checkout redesign/start-state -- src/lib/booking/availability.ts src/app/api/availability/month/` — **byte-identical**.
 
 Verified 2026-07-16: master's `availability.ts` has been untouched since the fork (`02951a2`); start-state's only change is `0325838`. The branches therefore differ on that file by *exactly* the refactor — the port is conflict-free, and because it is identical, the eventual `redesign/start-state → master` merge sees **no divergence** on these files instead of a 469-line conflict. **Porting de-risks the planned merge.**
@@ -91,7 +95,7 @@ Single/same-gender first (one month fetch), then mixed-gender (two month fetches
 - **Auto-select the first available day.** Public auto-selects to spare a stranger a click; an admin usually has a *requested* date in hand, and auto-jumping months would fight the operator and silently overwrite a date they just typed.
 - **Disabling full days** (finding 3).
 - **Auto-hop to next month when empty** — same reasoning; the calendar reports emptiness, the operator decides.
-- Any change to the public flow — the public frontend stays on `redesign/start-state`.
+- Any change to the public flow — the public frontend stays on `redesign/start-state`. *(Amended 2026-07-26, C23-F5: the public frontend now lives on `master` — the 4-step dialog flow shipped with `ea97932`. The constraint stands unchanged: C-23 still touches nothing in the public flow.)*
 
 ---
 
@@ -117,9 +121,10 @@ Single/same-gender first (one month fetch), then mixed-gender (two month fetches
 ## 7 — Sequencing and cross-plan coordination
 
 - **Independent** of every other plan; Phase A carries its own prerequisite. Ships anytime.
-- **C-14** — its Phase C/D edit `availability.ts` (the RECON-sensitive engine). After C-23 Phase A, that file is the refactored version: C-14's Phase C override-fetch widening (`.maybeSingle()` → array) now applies inside `loadDayRecords`/`loadContextRest`, and Phase D's `getBookingDateBounds` refactor sits alongside the new options bag. **Whichever ships second re-reads the other's changes** — noted in both plans.
+- **C-14** — its Phase C/D edit `availability.ts` (the RECON-sensitive engine). After C-23 Phase A, that file is the refactored version: C-14's Phase C override-fetch widening (`.maybeSingle()` → array) now applies inside `loadDayRecords`/`loadContextRest`, and Phase D's `getBookingDateBounds` refactor sits alongside the new options bag. **Whichever ships second re-reads the other's changes** — noted in both plans. *(Updated 2026-07-26, C23-F7: the file is ALREADY the refactored version on master independent of C-23 — C-14's "if C-23 landed first" branch is unconditionally active, and its "re-plan Phase A as a merge" branch is impossible. Serialization, Owner-approved: C-23 Phase B lands BEFORE C-14's engine phases — noted in both plans.)*
 - **C-20 / C-06 Step 13 / C-02 Phase E** — all touch `ManualBookingForm.tsx` in different regions (address fields, email-optional, recurring section) vs C-23's step-3 date area. Coordinate commit order only.
-- **Branch strategy** — Phase A is a *strict subset* of what the eventual `redesign/start-state → master` merge would bring, applied identically, so it reduces that merge's surface rather than adding to it.
+- **C-22** *(added 2026-07-26, D23 — Owner-approved)* — C-22 adds per-IP rate limiting to the public `POST /api/availability` + `POST /api/availability/month` routes; C-23's new authenticated admin month route is NOT rate-limited by it. Same route files as C-23's engine surface — coordinate in one window, re-grep anchors if the other has landed.
+- **Branch strategy** — Phase A is a *strict subset* of what the eventual `redesign/start-state → master` merge would bring, applied identically, so it reduces that merge's surface rather than adding to it. *(Superseded 2026-07-26, C23-F5: that merge has already happened — `ea97932`. There is no pending merge left to de-risk; Phase A is verify-only.)*
 
 ---
 
