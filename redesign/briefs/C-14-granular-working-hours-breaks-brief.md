@@ -1,5 +1,7 @@
 # C-14 — Granular working hours (breaks) + customer booking-window date guard
 
+> **Refinement 2026-07-26** — companion to the refined plan; stale anchors corrected against `master` @ `ea97932` (post-merge single source of truth). Owner resolutions D11 (Phase D → verify + optional follow-ups) + D12 (Phase C atomic co-deploy) applied. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing brief (post-C-B amendment, 2026-05-26)
 **Date written:** 2026-05-26
 **Predecessors:**
@@ -16,7 +18,7 @@
 
 ## 0 — TL;DR
 
-C-14 makes the clinic's working hours **granular** — each working day (and each custom override date) can carry an open time, a close time, and **one or more breaks** in between (e.g., opens 08:00, break 12:30–15:00, break 17:00–17:30, closes 20:00). It also fixes a **customer-facing booking-window bug**: the public date picker lets customers click dates beyond the configured advance-booking window even though the server rejects them.
+C-14 makes the clinic's working hours **granular** — each working day (and each custom override date) can carry an open time, a close time, and **one or more breaks** in between (e.g., opens 08:00, break 12:30–15:00, break 17:00–17:30, closes 20:00). It also fixes a **customer-facing booking-window bug**: the public date picker lets customers click dates beyond the configured advance-booking window even though the server rejects them. *(2026-07-26: substantially fixed by the merged rebuild — the picker is now availability-aware; Phase D collapses to verify with slim optional follow-ups per D11/C14-F06.)*
 
 Five surfaces, **4 phases (A–D)**:
 
@@ -31,7 +33,7 @@ Five surfaces, **4 phases (A–D)**:
 
 **Customer-facing rule:** breaks are **hidden** from customers — they simply see no slots across a break (falls out of the slot engine automatically). No "we're on break" label.
 
-**Sequencing:** independent of the other 13 plans. Touches `availability.ts` (RECON-sensitive slot engine) only in Phase C (contained: global override fetch widens from single-row to multi-row). Phase D (picker) is independent + the most visible customer win — can ship first.
+**Sequencing:** independent of the other 13 plans. Touches `availability.ts` (RECON-sensitive slot engine) only in Phase C (contained: global override fetch widens from single-row to multi-row). Phase D (picker) is independent + the most visible customer win — can ship first. *(2026-07-26: C-23 Phase B also edits `availability.ts` — serialize, C-23 Phase B first recommended, whichever runs second re-verifies line anchors; Phase D is now verify-only per D11.)*
 
 ---
 
@@ -54,6 +56,8 @@ This is the recurring clinic-wide schedule (all days going forward), distinct fr
 ### 1.4 Customers can click dates beyond the booking window
 
 `DatePickerField.tsx:26` uses `disabled={{ before: today }}` — it greys out past dates but has **no upper bound**. The server already enforces the window (`calculateAvailableSlots` → `isDateInBusinessWindow`, returning "Date is outside the booking window" for anything past `booking_window_days`), so a customer who clicks a too-far date just gets an empty result. The user wants those dates **non-clickable** so customers only ever interact with genuinely bookable dates. The `minimum_notice_hours` setting has the symmetric gap at the lower bound (today stays clickable even if a minimum notice rules it out).
+
+*(Premise updated 2026-07-26 — C14-F06/F07: the merged rebuild made the picker availability-aware. `disabled` is now an ARRAY `[{ before: today }, ...fullDates]` (`DatePickerField.tsx:65`), and out-of-window days arrive `hasSlots:false` from `/api/availability/month` (`calculateAvailableDays` marks them at `availability.ts:896-904`; minimum-notice filters slots at L734-743) — rendered unclickable "Fully booked" once month data loads. Residual gaps only: loading-window clickability + no distinct outside-window affordance — optional follow-ups per D11.)*
 
 ---
 
@@ -127,12 +131,15 @@ This phase has the only schema + slot-engine changes.
   - Drop `availability_overrides_override_date_key` (the unique on `override_date`) so a date can hold multiple windows.
   - Verify + drop the `staff_availability_overrides` `(staff_id, override_date)` unique constraint if present (staff overrides already fetch as an array, but per-staff-per-date is likely unique today).
 - **Slot engine (`availability.ts`):**
-  - The **global** override fetch (`:488-492`) uses `.maybeSingle()` (assumes one override per date). Widen to `.returns<DateOverrideRecord[]>()` and feed the rows through `normalizeWindows` so override breaks subtract correctly.
-  - The **staff** override fetch (`:504-509`) already returns an array; verify `resolveStaffWindows` treats multiple rows for one staff+date as multiple windows (it likely takes one — needs a small change to normalize all rows for that staff+date).
+  - The **global** override fetch is already an array (rewritten 2026-07-26, C14-F01: the old `:488-492` `.maybeSingle()` no longer exists — array fetch at `availability.ts:580-584`). The one-override-per-date assumption now sits in `loadDayRecords`'s per-date bucketing (first-row-wins, L651-656) and `resolveStaffWindows` L314; widen the bucketing to keep ALL rows per date and feed them through `normalizeWindows` so override breaks subtract correctly.
+  - The **staff** override fetch (now L591-596) already returns an array, but `loadDayRecords` L662-672 keeps only the first row per staff+date (`Map<string, StaffDateOverrideRecord>`, L640) and `resolveStaffWindows` L305-307 normalizes that single record — the widening spans the bucketing loop + Map value type + `resolveStaffWindows`, not `resolveStaffWindows` alone (rewritten 2026-07-26, C14-F04).
   - `override_type` (staff overrides) — only `custom-hours` overrides get segments/breaks; `blocked`/`closed` overrides stay full-day closures (no breaks). Global overrides have no `override_type` (blocking is done via `blocked_dates`), so all global override rows are custom-hours windows.
 - **UI:** `AvailabilityOverridesManager.tsx` + `StaffAvailabilityOverridesManager.tsx` gain the `WorkingHoursDayEditor` for the override's hours. Save → delete-date's-rows + insert-segments.
+- **Consumers bound to the unique (added 2026-07-26, D12):** `createAvailabilityOverride` upserts `onConflict: "override_date"` (`availability/actions.ts:250-258`) — must be rewritten to delete+insert in the SAME deploy as the drop (it errors at runtime otherwise); `admin/bookings/assignment-eligibility.ts:162-166` `.maybeSingle()`s the override for a booking date — must be array-widened (errors on 2+ rows); the staff duplicate-date guard (`PG_UNIQUE_VIOLATION` in `addStaffAvailabilityOverride`) needs a replacement pre-check (C14-F03/F12). See plan Steps 12a/13a.
 
 ### 2.6 Phase D — Customer booking-window date guard (independent)
+
+> ✅ **VERIFY-ALREADY-IMPLEMENTED (2026-07-26, D11)** — the merged rebuild at `ea97932` already delivers this outcome (availability-aware picker; see the plan's Phase D wrapper for evidence + the slim optional follow-ups). The mechanism below is preserved for reference; note: `isDateInBusinessWindow` now lives at `src/lib/time/london.ts:97-110` with a second caller `booking-schema.ts:179` (hardcoded 365 — C14-F05); the picker's `disabled` is now an ARRAY (C14-F07); no booking-experience server entry exists — the dialog mounts client-only via `BookingExperienceLoader` (`ssr:false`) at `(public)/layout.tsx:28` (C14-F13); the `toLondon`/`startOfLondonDay`-style helpers do not exist in `london.ts` — compose `getBusinessDate`/`addBusinessDays` instead (C14-F14).
 
 - **`DatePickerField.tsx`:** add an upper + notice-aware lower bound to the `disabled` matcher:
   ```tsx
@@ -275,12 +282,13 @@ No new tables. No new columns. No new permissions.
 - `src/app/admin/availability/AvailabilityRulesManager.tsx` — multi-segment editor (Phase A)
 - `src/app/admin/availability/actions.ts` — `saveAvailabilityDay` (delete+insert segments, transactional)
 - `src/app/admin/staff/[staffId]/availability/StaffAvailabilityRulesForm.tsx` — Phase B editor
-- staff availability save action — Phase B segments save
+- staff availability save action — Phase B segments save *(lives in `src/app/admin/staff/actions.ts`: `createStaffAvailabilityRule` L446 / `deleteStaffAvailabilityRule` L499 — C14-F09)*
 - `src/app/admin/availability/AvailabilityOverridesManager.tsx` + `StaffAvailabilityOverridesManager.tsx` — Phase C override editor
-- `src/lib/booking/availability.ts` — **Phase C only:** widen global override fetch (`:488-492` `.maybeSingle()` → array) + normalize override windows; verify staff-override multi-row handling. **Phases A/B require no change here.** **Phase D:** refactor `isDateInBusinessWindow` to derive from `getBookingDateBounds`.
+- `src/app/admin/bookings/assignment-eligibility.ts` — Phase C override `.maybeSingle()` → array + staff Map record[] widening *(added 2026-07-26, D12/C14-F03)*; `src/app/admin/availability/actions.ts` also gains the Phase C `createAvailabilityOverride` delete+insert rewrite, and `staff/[staffId]/availability/actions.ts` the replacement duplicate-date guard *(C14-F12)*
+- `src/lib/booking/availability.ts` — **Phase C only:** widen `loadDayRecords`'s per-date/per-staff override bucketing (record → record[]) + `resolveStaffWindows` multi-row consumption *(2026-07-26: the fetches are already arrays; the old `:488-492` `.maybeSingle()` is gone — C14-F01/F04)*. **Phases A/B require no change here.** **Phase D (optional follow-up only, D11):** refactor `isDateInBusinessWindow` to derive from `getBookingDateBounds` *(the function moved to `src/lib/time/london.ts:97-110`; second caller `booking-schema.ts:179`, hardcoded 365 — C14-F05)*.
 - `src/features/booking/components/DatePickerField.tsx` — `disabled={{ before: earliest, after: latest }}` (Phase D)
 - `src/features/booking/components/ScheduleStep.tsx` — thread bounds to the picker (Phase D)
-- booking-experience server entry — pass `booking_window_days` + `minimum_notice_hours` into the client tree (Phase D)
+- booking-experience server entry — pass `booking_window_days` + `minimum_notice_hours` into the client tree (Phase D) *(does not exist — client-only mount via `BookingExperienceLoader` `ssr:false` at `(public)/layout.tsx:28`; relevant only to the optional Phase D follow-up — C14-F13/D11)*
 
 ### UNCHANGED (do NOT touch)
 - `blocked_dates` / `staff_blocked_dates` — full-day closures, no time component, no breaks.
@@ -296,7 +304,7 @@ No new tables. No new columns. No new permissions.
 - **Phase D (picker) is fully independent** and the most visible customer-facing fix — recommend shipping it first (or even as a standalone quick win) since it touches none of the breaks work.
 - **Phases A → B → C** in order: A proves the segments model + editor; B reuses both for staff; C adds the schema + engine change last (highest risk).
 - **`availability.ts` is RECON-sensitive** (booking slot engine). Phases A/B touch it **not at all** (verified multi-window support). Phase C touches it in a contained way (override fetch widening). Flag the RECON exception for Phase C in the plan; keep the change minimal + well-tested.
-- No overlap with the other 13 C-NN plans' files.
+- No overlap with the other 13 C-NN plans' files. *(2026-07-26: no longer strictly true — C-23 Phase B adds an options bag to `availability.ts` `calculateAvailableSlots`/`calculateAvailableDays`; serialize — C-23 Phase B first recommended, whichever runs second re-verifies line anchors.)*
 
 **Recommended C-C position:** flexible. Phase D can slot anywhere early. The breaks phases can land after the data-integrity headline plans (C-06/C-04a/C-05) since they're additive UX, not data-integrity fixes.
 
@@ -314,7 +322,7 @@ Copies the full schedule (opens + all breaks + closes). Confirmed — the existi
 
 ### Q9.3 — Staff override multi-row handling in `resolveStaffWindows`
 
-The staff override fetch already returns an array (multiple staff). Per-staff-per-date is likely one row today. Phase C must verify `resolveStaffWindows` normalizes **all** rows for a given staff+date into windows (not just the first). Flagged for impl-time code read.
+The staff override fetch already returns an array (multiple staff). Per-staff-per-date is likely one row today. Phase C must verify `resolveStaffWindows` normalizes **all** rows for a given staff+date into windows (not just the first). Flagged for impl-time code read. *(Answered 2026-07-26 — it does NOT: `loadDayRecords` L662-672 keeps only the first row per staff+date; widening spans the bucketing loop + Map value type + `resolveStaffWindows` — C14-F04.)*
 
 ### Q9.4 — Same-day minimum-notice nuance (Phase D)
 
@@ -339,9 +347,9 @@ The tiny-segment **warning** fires under 30 min (the slot step). Not a hard bloc
 5. **Override breaks.** A specific date with a custom-hours override + a break → slots reflect the break on that date only.
 6. **Closed day round-trips.** Toggle a day off → one `is_working_day=false` row → toggle on → hours restore.
 7. **Existing single-window days unaffected.** Days without breaks behave exactly as before; no data migration needed.
-8. **(Phase D) Out-of-window dates non-clickable.** With `booking_window_days = 30`, the customer picker disables day 31+. The last clickable date equals the last date the slots API accepts.
-9. **(Phase D) Minimum-notice floor.** With `minimum_notice_hours` set high enough to rule out today, today is non-clickable.
-10. **(Phase D) Admin picker unbounded.** The admin manual-booking date picker still allows any future date.
+8. **(Phase D) Out-of-window dates non-clickable.** With `booking_window_days = 30`, the customer picker disables day 31+. The last clickable date equals the last date the slots API accepts. *(Already met via month data once loaded — verify, don't rebuild; D11/C14-F06.)*
+9. **(Phase D) Minimum-notice floor.** With `minimum_notice_hours` set high enough to rule out today, today is non-clickable. *(Already met — server slot filter + "Fully booked" render; D11/C14-F06.)*
+10. **(Phase D) Admin picker unbounded.** The admin manual-booking date picker still allows any future date. *(Already met — admin date input `min` = today only, no max, `ManualBookingForm.tsx:1630`; D11/C14-F06.)*
 11. **All static gates pass:** lint, tsc, vitest (incl. new segment + date-bounds specs), build, bundle delta within budget.
 12. **Playwright sweep** at 375/768/1280/1440 for the availability editors + the customer picker.
 13. **No regression** in existing availability behaviour (single-window days, blocked dates, overrides without breaks).
@@ -357,10 +365,10 @@ The tiny-segment **warning** fires under 30 min (the slot step). Not a hard bloc
 | `staff/[staffId]/availability/StaffAvailabilityRulesForm.tsx` | Per-staff editor (Phase B) |
 | `staff/[staffId]/availability/AvailabilityModeSelector.tsx` | Existing use_global/custom toggle (no change) |
 | `availability/AvailabilityOverridesManager.tsx` + staff equivalent | Override editors (Phase C) |
-| `lib/booking/availability.ts:144-222` | `normalizeWindows` + `getRuleWindowsForDay` + `containsWindow` — multi-window engine (verified) |
-| `lib/booking/availability.ts:488-509` | Global (single) + staff (array) override fetches — Phase C widening |
-| `lib/booking/availability.ts:390-398` | `isDateInBusinessWindow` — Phase D shared-helper refactor |
-| `features/booking/components/DatePickerField.tsx:26` | The picker missing an upper bound (Phase D) |
+| `lib/booking/availability.ts:144-222` | `normalizeWindows` + `getRuleWindowsForDay` + `containsWindow` — multi-window engine (verified) *(2026-07-26 anchors: L204-213 / L275-282 / L215-217 — C14-F08)* |
+| `lib/booking/availability.ts:488-509` | Global (single) + staff (array) override fetches — Phase C widening *(2026-07-26: now L580-596 inside `loadDayRecords`, both already arrays; the per-date/per-staff bucketing L646-690 is the widening target — C14-F01/F04/F08)* |
+| `lib/booking/availability.ts:390-398` | `isDateInBusinessWindow` — Phase D shared-helper refactor *(moved to `src/lib/time/london.ts:97-110`; second caller `booking-schema.ts:179` — C14-F05)* |
+| `features/booking/components/DatePickerField.tsx:26` | The picker missing an upper bound (Phase D) *(rewritten — availability-aware, `disabled` array at L65; Phase D wrapped per D11 — C14-F07)* |
 | `lib/time/london.ts` | Europe/London helpers for date-bounds |
 | DB (verified 2026-05-26) | recurring tables: PK only (no day-uniqueness); `availability_overrides`: unique on `override_date` (Phase C drop) |
 
