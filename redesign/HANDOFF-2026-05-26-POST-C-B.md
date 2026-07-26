@@ -528,6 +528,10 @@ User direction: bring the public flow's "no-guessing availability" idea to the a
 
 **Coordination:** C-14's Step 13 edits the same engine regions — a note was added there covering both landing orders (if C-14 lands first, C-23's port is no longer byte-identical and Phase A must be re-planned as a merge).
 
+### 5.26 Full-corpus refinement pass — all 23 plans reconciled with the post-merge build (2026-07-26)
+
+The `redesign/start-state → master` merge (`ea97932`, 2026-07-20) replaced the public booking flow and landed the availability engine, invalidating premises across the corpus. A structured refinement pass (per-plan evidence-cited reviews with adversarial verification → cross-plan synthesis → Owner checkpoint → gated surgical edits) reconciled every plan + brief and made them ultracode-workflow-executable. Headlines: C-17/C-20/C-22 retargeted to the new flow (`SuccessScreen`/`AboutYouStep`/`ConfirmStep` + `BookingExperience.handleConfirmSubmit`); C-23 Phase A and most of C-14 Phase D collapsed to VERIFY-ALREADY-IMPLEMENTED wrappers (original text preserved); C-11's stale token step that would have dark-flipped the public site corrected to admin-scoped tokens; C-06 Step 9 now carries the deleteClient recurring-cascade (closes §5.8's open amendment); C-21 grew to the 15-literal/12-file post-merge inventory with a pure-constant `SITE_URL`; C-22 scope extended (Owner-approved) to rate-limit the two public availability APIs and its honeypot wired end-to-end; every migration/prod-env/console step now carries a grep-able `⛔ HARD-STOP` block. Owner approved all 25 checkpoint decisions (D1–D26). **Canonical records: `redesign/plans/C-phase/BAND-C-REFINEMENT-2026-07-26.md` (decisions, commits, conventions, open items) + `redesign/plans/C-phase/BAND-C-MIGRATION-LEDGER.md` (9 migrations, zero DDL conflicts proven, execution sequence).** The refined plan files supersede this handoff's per-plan summaries (§3) wherever they differ.
+
 ---
 
 ## 6 — Cross-plan coordination + dependencies + sequencing

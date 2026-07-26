@@ -433,6 +433,8 @@ Once all C-B plans are written:
 
 ## Master implementation checklist (stub — filled in once C-B plans are written)
 
+> **2026-07-26 — Full-corpus refinement pass complete (pre-C-C).** All 23 plans + briefs were reconciled against the post-merge build (`master` @ `ea97932`) and made autonomously executable: verified anchors, post-merge premises, grep-able `⛔ HARD-STOP` blocks on every Zone-2/prod-env/console step, `VERIFY-ALREADY-IMPLEMENTED` wrappers for merge-superseded steps (C-23 Phase A, C-14 Phase D), evidence convention `redesign/evidence/<plan-id>/`, and the D1 deleteClient-recurring-cascade now inside C-06 Step 9 (closing the C-02 cross-plan requirement below). 23 commits `docs(redesign): C-NN refinement` (d7584cb…7ab28d1). **Read `BAND-C-REFINEMENT-2026-07-26.md` + `BAND-C-MIGRATION-LEDGER.md` before starting any C-C implementation** — they carry the Owner-approved decisions (D1–D26), new sequencing constraints (incl. C-06→C-05 HARD, C-23-Phase-B-before-C-14), and the consolidated migration sequence. Per-plan rows below are unchanged history; the refined plan files are authoritative.
+
 | # | Plan file | State | Started | Shipped | Commit | Blocked by | Notes |
 |---|---|---|---|---|---|---|---|
 | C-A.1 | per-page audit files (25 surfaces) | ✅ | 2026-05-25 | 2026-05-25 | bundle | — | **C-A.1 COMPLETE.** All 25 surfaces audited. #21+#23+#24+#25 batched: roles delete is stubbed (PE-58 guard pattern correct), password-requests notes not persisted (data-loss), audit log has proper cursor pagination (C-09 template alongside operations), reports has zero animate-spin (cleanest a11y posture). |
