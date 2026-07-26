@@ -1,5 +1,9 @@
 # C-13 — Group-booking surface + gender-clarity chips + composite identity + per-participant progress — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none hard (brief §8 — purely render-layer, data model already correct). Soft sequencing only: recommended after C-04a+C-05 (`_helpers.ts`; Pre-flight Step 5 already branches on `git log --oneline | grep -iE "(C-04a|C-05|C-FIELDWORK|C-08|C-11)"`), after C-FIELDWORK, after C-08, before C-11; C-15 now ships before C-13's Phase G (2026-07-16 plan note, unchanged).
+> Decisions: C-B-DECISIONS.md — zero C-13 mentions (confirmed via grep + xref-index.json). Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (post-C-B amendment, 2026-05-26)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-13-group-bookings-and-gender-clarity-brief.md` (companion — read first)
@@ -12,16 +16,17 @@ This plan covers the "how" — execution order, verify-checkpoints, files touche
 
 ## 0 — Pre-flight (verify before touching code)
 
-1. **Branch + clean tree.** `git status --short` empty. HEAD on `master` (post-C-B amendment commits).
+1. **Branch + clean tree.** `git status --short` empty. HEAD on `master` (post-C-B amendment commits). **Amended 2026-07-26 (C13-03, rubric §2):** work on `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/app/admin/bookings/ src/app/admin/dashboard/ src/app/admin/calendar/ src/lib/email/` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted .playwright-mcp logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` → `HTTP/1.1 200 OK`.
 3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 baseline failures preserved). Verify the C-04a + C-05 amendments' new specs are passing if those have shipped already.
-4. **Static gates green.** `pnpm lint`, `npx tsc --noEmit` both 0 errors.
+4. **Static gates green.** `pnpm lint`, `npx tsc --noEmit` both 0 errors. **Baseline caveat (2026-07-26, C13-04):** `pnpm lint` gate is no NEW errors vs the 59-error baseline (55 untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`) — a literal 0-errors gate never passes on this tree. `npx tsc --noEmit` stays 0 errors (clean per verified baseline).
 5. **Recommended C-C dependencies.** Verify which of these have shipped:
    - `git log --oneline | grep -iE "(C-04a|C-05|C-FIELDWORK|C-08|C-11)"`
    - If C-04a + C-05 are in HEAD → `_helpers.ts` exists; C-13 extends.
    - If C-FIELDWORK is in HEAD → `PractitionerTodaySection` exists; verify its card shape so C-13's `BookingCard` is a clean superset.
    - If C-08 is in HEAD → `staff_claim` + `booking_confirmed_client` template renderers exist; C-13's Phase G is additive.
    - If C-11 is in HEAD → `dashboard/blocks/` shared library exists; verify whether it already imports a `BookingCard` — should not (per C-11 plan §1 Step 1 the shared blocks library list does not include BookingCard, leaving room for C-13).
+   - **(2026-07-26, collision-map §10 coordination note)** Also check C-16's pagination work: `git log --oneline | grep -iE "C-16"`. If C-16 is in HEAD → its bounded-fetch/`PaginationBar` change on `bookings/page.tsx` (`~438-446`) sits upstream of the row-rendering block this plan extracts (`~804-927`) — re-grep both anchor regions before editing; do not trust this plan's cached line numbers.
 6. **Codebase verification queries:**
    ```bash
    # Confirm the booking row JSX still lives at bookings/page.tsx around lines 800-930
@@ -62,6 +67,13 @@ This plan covers the "how" — execution order, verify-checkpoints, files touche
    -- expect ≥ 1 row OR create via ManualBookingForm
    ```
 
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔ **(2026-07-26, C13-05 / rubric §3)**
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: create any missing test-fixture bookings (single / group same-gender / mixed-gender / fully-assigned / unassigned) via Owner Playwright sweep of `/admin/bookings/new` — only if Step 8's inventory below finds a fixture missing.
+> Exact SQL / change: none — UI-driven `ManualBookingForm` submission against the live Supabase project; no migration, no schema change.
+> Post-action verification: re-run the Step 7(b)/(c) SELECT queries and confirm the new fixture rows appear with `contact_full_name ILIKE '%Phase10%'` or `'%Audit Test%'`.
+> Never auto-apply. Approval is per-action and does not carry forward.
+
 8. **Test fixture inventory.** Confirm:
    - At least one **single** booking (participant count = 1) for the single-row regression check.
    - At least one **group same-gender** booking (e.g., 3 female participants) for §5.1 + Phase B verification.
@@ -69,9 +81,9 @@ This plan covers the "how" — execution order, verify-checkpoints, files touche
    - At least one **fully-assigned** group for §5.4 + Q9.1 verification.
    - At least one **unassigned** group for the gender chip + fraction badge verification.
 
-   If any fixture missing, create via Owner Playwright sweep of `/admin/bookings/new` (Zone-2 — explicit user confirmation for DB writes during pre-flight if needed).
+   If any fixture missing, create via Owner Playwright sweep of `/admin/bookings/new` (Zone-2 — explicit user confirmation for DB writes during pre-flight if needed; see HARD-STOP above).
 
-9. **Test data DO-NOT-TOUCH list:** Badar's `9d55ce2a` (cancelled, real email). Any client whose email isn't `*.example.test` / `Phase10*` / `Audit Test*` / unicode-RTL stress.
+9. **Test data DO-NOT-TOUCH list:** Badar's `9d55ce2a` (cancelled, real email). Any client whose email isn't `*.example.test` / `Phase10*` / `Audit Test*` / unicode-RTL stress. **(2026-07-26, rubric §9)** Canonical DO-NOT-TOUCH (live data): booking `9d55ce2a` (Badar — real customer email); Owner account `rahmatherapy@outlook.com` in email-test paths; any client whose email isn't `*.example.test` or name isn't `Phase10*`/`Audit Test*` test patterns.
 
 10. **Bundle baseline capture** — run `node scripts/measure-admin-bundles.mjs` and save to progress file. C-13 budget +5 kB across `/admin/bookings/*` (BookingCard extraction adds bytes; helper additions trivial; calendar tile changes minimal).
 
@@ -182,10 +194,10 @@ Remove the now-unused `requiresGenderMatch` variable.
 **Step 3 — Wire into `[bookingId]/page.tsx`.**
 
 The detail page has two chip sites:
-- Page-header gender chip at `:660-674` (the `sameGenderRequired` ternary inside `ParticipantCard`).
+- Page-header gender chip at `:660-674` (the `sameGenderRequired` ternary inside `ParticipantRow` **(2026-07-26, C13-01 — actual component name; not `ParticipantCard`, which exists only in the unrelated `src/app/booking/manage/page.tsx`, out of scope)**).
 - Possibly another at the top-level header if present (grep `Same-gender required` to find all).
 
-For `ParticipantCard` at `:629-674`, since the function deals with one participant at a time, use the helper with a single-element array:
+For `ParticipantRow` **(2026-07-26, C13-01 — not `ParticipantCard`; see note above)** at `:629-674`, since the function deals with one participant at a time, use the helper with a single-element array:
 
 ```tsx
 const genderChip = composeGenderRequirementChip(
@@ -422,6 +434,8 @@ function ParticipantSubRow({ participant, assignment, index, isInert }: {
 }
 ```
 
+> **Coordination note (2026-07-26, collision-map §10 — add to C-05, C-16, C-13; reference in C-04a):** `bookings/page.tsx` is edited by C-05 (filter logic, `~148-258`), C-16 (pagination, `~438-446`), and C-13 (this step, row extraction, `~804-927`); C-04a's `BookingRowActions.tsx` is called from this file at `~916` and its Restore-button JSX insertion also lands here. Re-grep all four anchor regions before editing — do not trust this plan's cached line numbers once any of the other three has landed; expect C-05/C-16/C-04a's edits in this region.
+
 **Step 7 — Replace inline `<article>` block in `bookings/page.tsx`.**
 
 In `bookings/page.tsx`, find the `<article>` block at lines 804-927 (where `BookingRow` or similar wraps the JSX). Replace with:
@@ -574,7 +588,7 @@ export async function generateMetadata({ params }: { params: Promise<{ bookingId
 
 At `[bookingId]/page.tsx:455-456`, remove the standalone `"Group booking"` AdminStatusBadge. The composite identity + fraction badge surface the same information more clearly.
 
-**Step 15 — Refactor `ParticipantCard` chip.**
+**Step 15 — Refactor `ParticipantRow` chip.** *(2026-07-26, C13-01 — was named `ParticipantCard`; actual component is `ParticipantRow`)*
 
 In `[bookingId]/page.tsx:629-674`, replace the `sameGenderRequired` ternary + fallback `"Therapist: female"` chip with the new helper:
 
@@ -596,6 +610,8 @@ const participantChip = composeGenderRequirementChip(
 ### Phase G — Email templates (Change 7)
 
 > **Coordination (2026-07-16):** C-15 (email template studio) now ships before C-13 in the recommended order and reworks `templates.ts` renderers to read default copy from the registry. Phase G is unaffected structurally — the group-context block is a fixed (auto-generated) fragment, so it registers as a `FixedPart` legend entry ("Group participants list — built from the booking's participants") rather than an editable field. Wire the block into the post-C-15 renderer bodies; the steps below otherwise apply as written.
+
+> **Coordination note (2026-07-26, collision-map §10 — add to C-01, C-02, C-08, C-13, C-15):** `templates-data.ts`'s `TemplateMeta`/`SafeFieldKind` schema is edited by C-01, C-02, C-08, C-13, and (primarily) C-15. `SafeFieldKind` is a closed union — do not invent new `kind` string literals ad hoc. If C-15 has landed, extend its post-refactor schema. If C-15 has not landed, coordinate with whichever of C-01/C-08 lands first before adding a second incompatible extension to the union. C-13's own `FixedPart` legend entry (above) does not add an editable field, so the `email_template_overrides.value` 500-char CHECK constraint (D13) does not apply to it directly — but any future editable field added to this plan's templates work must stay within that cap.
 
 **Step 16 — Implement `renderGroupContextBlock` in `templates.ts`.**
 
@@ -709,9 +725,9 @@ New file `src/lib/email/__tests__/renderGroupContextBlock.test.ts`:
 
 **Step 20 — Verify dashboard data layer for mixed-group case.**
 
-In `src/app/admin/dashboard/dashboard-data.ts` (or wherever `SnapshotAppointment` is constructed):
-- Grep for `requiredGender` derivation.
-- If it's derived from `booking_participants[0].required_therapist_gender` (first-participant only), document this as a known limitation and apply §5.11 (b) collapse: when mixed-group is detected, set `requiredGender = "mixed"` and render `"Unassigned · Mixed group"`.
+**(2026-07-26, C13-02 — path-swap)** `dashboard-data.ts` contains only query-planning/fetch code (`DashboardQueryPlan`, `getDashboardQueryPlan`, `getDashboardData`) — no `requiredGender` logic. The actual derivation is in `src/app/admin/dashboard/page.tsx`: `requiredGenderByBooking` (a `Map<string, string>`, lines 812-820) populated only for the coordinator variant, first-match-wins per booking (skips `"any"` and already-seen bookings), fed into `SnapshotAppointment.requiredGender` at line 897. Work in `src/app/admin/dashboard/page.tsx`, not `dashboard-data.ts`:
+- Grep for `requiredGender` derivation (`grep -n "requiredGender" src/app/admin/dashboard/page.tsx`).
+- It's already first-participant-wins (see above) — document this as a known limitation and apply §5.11 (b) collapse: when mixed-group is detected, set `requiredGender = "mixed"` and render `"Unassigned · Mixed group"`.
 - If the data layer doesn't have access to participant counts, defer to C-12+ and leave dashboard chip generic ("Unassigned").
 
 **Step 21 — Final cleanup + audit.**
@@ -748,9 +764,9 @@ In `src/app/admin/dashboard/dashboard-data.ts` (or wherever `SnapshotAppointment
 |---|---|
 | `src/app/admin/bookings/_helpers.ts` | + `composeGenderRequirementChip` (Phase A) + `composeBookingIdentity` (Phase C). Extends helper created by C-04a/C-05 amendments. |
 | `src/app/admin/bookings/page.tsx` | Replace inline `<article>` block (lines 804-927) with `<BookingCard />`. Remove now-unused derivations. |
-| `src/app/admin/bookings/[bookingId]/page.tsx` | Detail header → composite identity. Remove `"Group booking"` AdminStatusBadge at `:455-456`. `ParticipantCard` chip → helper-derived. `generateMetadata` (or equivalent) → composite identity in `<title>`. |
+| `src/app/admin/bookings/[bookingId]/page.tsx` | Detail header → composite identity. Remove `"Group booking"` AdminStatusBadge at `:455-456`. `ParticipantRow` chip *(was `ParticipantCard`, C13-01)* → helper-derived. `generateMetadata` (or equivalent) → composite identity in `<title>`. |
 | `src/app/admin/dashboard/dashboard-cards.tsx` | `AssignmentChip` label → helper-derived dynamic gender phrasing + mixed-group collapse (§5.11 b). |
-| `src/app/admin/dashboard/dashboard-data.ts` | (Phase H Step 20) Verify `requiredGender` derivation; apply mixed-group marker if data layer supports, else document deferral. |
+| `src/app/admin/dashboard/page.tsx` *(2026-07-26, C13-02 — was `dashboard-data.ts`; derivation actually lives in `page.tsx`'s `requiredGenderByBooking` Map, `:812-822`)* | (Phase H Step 20) Verify `requiredGender` derivation; apply mixed-group marker if data layer supports, else document deferral. |
 | `src/app/admin/calendar/page.tsx` | Calendar event tile → Users icon + Group chip + composite identity tooltip when `participantCount > 1`. SELECT extended with `booking_participants` count if missing. |
 | `src/lib/email/templates.ts` | + `renderGroupContextBlockHtml` + `renderGroupContextBlockText`. Conditional inclusion in `renderStaffAssignmentEmail`, `renderBookingClaimEmail` (C-08), `renderBookingConfirmationEmail`. |
 | `src/lib/email/notifications.ts` | `getBookingTemplateInput` (or relevant fetch) SELECT extended with `booking_participants` + `booking_assignments(staff_profiles(name))` if not already included. Threaded into template renderers. |
@@ -779,6 +795,8 @@ pnpm vitest run                 # new specs pass; baseline failures preserved
 pnpm build                      # clean
 node scripts/measure-admin-bundles.mjs  # bundle delta within budget
 ```
+
+**Baseline caveat (2026-07-26, C13-04):** `pnpm lint` = no NEW errors vs the 59-error baseline (55 untracked `design_handoff_area_pages/prototype/*.jsx` + 4 pre-existing in `src/features/booking/`); `pnpm vitest run` = 485/491 baseline preserved (6 pre-existing failures in 3 files: ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1); `npx tsc --noEmit` / `pnpm build` clean.
 
 **Bundle budget for C-13:** BookingCard extraction adds ~3 kB (component file). Helper functions add ~0.5 kB. Calendar tile addition ~0.5 kB. Email template fragment is server-only (no bundle impact). **Plan ceiling: +5 kB cumulative across `/admin/bookings/*` + `/admin/calendar/*`.**
 
@@ -833,7 +851,7 @@ FROM bookings b WHERE id = '<test-group-id>';
 
 ### 3.4 Screenshot evidence
 
-Capture PNGs (store in `redesign/audits/C-A/screenshots-02-bookings-list/c-13-after/`):
+Capture PNGs (store in `redesign/evidence/C-13/` **(2026-07-26, rubric §8 — was `redesign/audits/C-A/screenshots-02-bookings-list/c-13-after/`; evidence never writes into `redesign/audits/**`)**):
 
 - 375 + 1280 — single booking list row (regression baseline)
 - 375 + 1280 — group booking list row (nested layout)
@@ -920,7 +938,7 @@ Cross-reference against safe-fixture list before clicking.
 | 3 | Phase C — `composeBookingIdentity` helper + vitest + wire into list (BookingCard), detail header, page title |
 | 4 | Phase D — fraction badge (already integrated into Phase B; folded into commit 2 OR a small follow-up commit if extracted) |
 | 5 | Phase E — calendar tile Group chip + Users icon |
-| 6 | Phase F — booking detail surface refinement (remove standalone Group badge, ParticipantCard chip refactor, metadata) |
+| 6 | Phase F — booking detail surface refinement (remove standalone Group badge, ParticipantRow chip refactor *(was ParticipantCard, C13-01)*, metadata) |
 | 7 | Phase G — email templates `renderGroupContextBlockHtml` + wire into staff assignment / claim / confirmation renderers + threading payload from `notifications.ts` |
 | 8 | Phase H — dashboard data layer mixed-group collapse + final cleanup audit + bundle measurement + master plan ✅ flip |
 

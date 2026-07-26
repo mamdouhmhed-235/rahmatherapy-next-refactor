@@ -286,7 +286,7 @@ The detail page already does most of the right work (`[bookingId]/page.tsx` part
 
 - **Page header** (~`[bookingId]/page.tsx` — find the section that renders the page title with booking date/time/client name) — apply `composeBookingIdentity` to surface `"Aisha Khan + 2 others"`.
 - **AssignmentRow participant labelling** (`:759-815`) — already shows participant `display_name` (`participant?.display_name ? participant.display_name : ...`). Verified correct.
-- **`ParticipantCard` chip rephrase** (`:660-674`) — replace `"Same-gender required"` with the per-participant clarity: `"Needs female therapist"` or `"Needs male therapist"` based on `participant.required_therapist_gender`. Today's logic at `:639-640` only checks `participant.required_therapist_gender === participant.participant_gender`; refactor to use the new helper convention.
+- **`ParticipantRow` chip rephrase** *(2026-07-26, C13-01 — was `ParticipantCard`; the actual component in `[bookingId]/page.tsx` is `ParticipantRow`, declared at `:625`)* (`:660-674`) — replace `"Same-gender required"` with the per-participant clarity: `"Needs female therapist"` or `"Needs male therapist"` based on `participant.required_therapist_gender`. Today's logic at `:639-640` only checks `participant.required_therapist_gender === participant.participant_gender`; refactor to use the new helper convention.
 
 ### 2.7 Change 7 — Email templates with group context (Phase G — email surface)
 
@@ -525,7 +525,7 @@ The dashboard `SnapshotAppointment` type collapses participant data into a singl
 |---|---|
 | `src/app/admin/bookings/_helpers.ts` | + `composeGenderRequirementChip` (Phase A) + `composeBookingIdentity` (Phase C). Already created by C-04a/C-05 amendments — this extends it. |
 | `src/app/admin/bookings/page.tsx` | Replace inline `<article>` block (~lines 804-927) with `<BookingCard />` usage. Threading helpers in via props or import. Cancelled-row strikethrough class composition (from C-05) preserved on the outer card. |
-| `src/app/admin/bookings/[bookingId]/page.tsx` | Detail header composite identity; ParticipantCard chip rephrase via `composeGenderRequirementChip` (single-participant call). Remove now-redundant `"Group booking"` AdminStatusBadge at `:455-456`. |
+| `src/app/admin/bookings/[bookingId]/page.tsx` | Detail header composite identity; ParticipantRow chip rephrase *(was ParticipantCard, C13-01)* via `composeGenderRequirementChip` (single-participant call). Remove now-redundant `"Group booking"` AdminStatusBadge at `:455-456`. |
 | `src/app/admin/dashboard/dashboard-cards.tsx` | Rephrase `AssignmentChip` label via new helper. `appointment.requiredGender` already passed through. Apply (b) mixed-group collapse per §5.11. |
 | `src/app/admin/calendar/page.tsx` | Calendar tile gains Users icon + Group chip + composite identity tooltip. Find the tile-render JSX during impl; likely inline. |
 | `src/lib/email/templates.ts` | + `renderGroupContextBlock(booking)` helper. Conditional inclusion in `renderStaffAssignmentEmail`, `renderClaimNotificationEmail` (C-08), `renderBookingConfirmationEmail`. |
@@ -675,7 +675,7 @@ A C-13 implementation is complete when:
 | `bookings/page.tsx:763-764` | `clientName` derivation (replace with `composeBookingIdentity`) |
 | `bookings/page.tsx:804-927` | Inline `<article>` block — extract target for `BookingCard.tsx` |
 | `[bookingId]/page.tsx:455-456` | Detail page Group booking badge (remove post-composite-identity) |
-| `[bookingId]/page.tsx:620-708` | `ParticipantCard` component — chip rephrase target |
+| `[bookingId]/page.tsx:620-708` | `ParticipantRow` component *(was `ParticipantCard`, C13-01 — 2026-07-26)* — chip rephrase target |
 | `[bookingId]/page.tsx:639-640` | `sameGenderRequired` derivation per participant |
 | `[bookingId]/page.tsx:712-815` | `AssignmentPanel` + `AssignmentRow` — participant-name context already correct |
 | `actions.ts:240-356` | `claimBookingAssignment` — per-participant claim semantics verified |
