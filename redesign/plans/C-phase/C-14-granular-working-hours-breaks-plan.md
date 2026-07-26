@@ -1,7 +1,7 @@
 # C-14 — Granular working hours (breaks) + customer booking-window date guard — **PLAN**
 
 > **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
-> Dependencies: none hard (self-contained). Soft serialization: C-23 Phase B recommended BEFORE C-14 (both edit `src/lib/booking/availability.ts`; whichever runs second re-verifies line anchors) — check with `git log --oneline --grep="C-23" | grep -q "C-23"`; if it has landed, re-grep every `availability.ts` anchor in this plan before editing.
+> Dependencies: none hard (self-contained). Soft serialization: C-23 Phase B recommended BEFORE C-14 (both edit `src/lib/booking/availability.ts`; whichever runs second re-verifies line anchors) — check with the CODE-level probe `grep -n "ignoreBookingWindow\|ignorePublicPause" src/lib/booking/availability.ts` (non-empty = C-23 Phase B's options bag has landed) plus `git log --oneline --grep="feat(redesign): C-23"` for its other commits — a bare `--grep="C-23"` is unreliable: the 2026-07-26 refinement DOCS commits already match it (final-sweep fix 2026-07-26). If Phase B has landed, re-grep every `availability.ts` anchor in this plan before editing.
 > Decisions: C-B-DECISIONS.md — no C-14 entries. Owner resolutions 2026-07-26: D11 (Phase D → verify + optional follow-ups) + D12 (Phase C atomic co-deploy + assignment-eligibility + duplicate-date guard) applied. Findings applied: see refinement changelog.
 
 **Type:** Band C plan-writing output (post-C-B amendment, 2026-05-26)

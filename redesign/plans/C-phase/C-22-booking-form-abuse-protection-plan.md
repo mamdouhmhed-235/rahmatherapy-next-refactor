@@ -56,9 +56,13 @@ Include the value in the POST payload. **Payload hoist (2026-07-26, C22-F2 — m
 ```ts
 // C-22: honeypot. A filled decoy means a bot. Return a success-shaped response so
 // the operator learns nothing, but do no work: no booking, no emails.
-if (typeof body?.company_website === "string" && body.company_website.trim() !== "") {
+// Identifier + narrowing corrected 2026-07-26 (final sweep): the route's parsed-JSON
+// variable is `payload` (declared `let payload: unknown;` at route.ts:43, assigned :46) —
+// there is no `body` identifier in this file, and `unknown` needs an explicit narrow or tsc fails.
+const rawPayload = payload as Record<string, unknown> | null;
+if (typeof rawPayload?.company_website === "string" && rawPayload.company_website.trim() !== "") {
   console.warn("[C-22] honeypot tripped", { at: new Date().toISOString() });
-  return Response.json({ ok: true }, { status: 200 }); // shape must match the real success response
+  return Response.json({ ok: true }, { status: 200 }); // placeholder — use the verified shape below (C22-F3), incl. a fabricated bookingId
 }
 ```
 

@@ -1,7 +1,7 @@
 # C-23 — Availability-aware calendar on the admin create-booking page — **PLAN**
 
 > **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
-> Dependencies: none — C-23 is independent. Serialization (2026-07-26, Owner-approved): C-23 Phase B lands BEFORE C-14's `availability.ts` phases — before starting, check `git log --oneline --grep="C-14"` (if C-14 landed first, stop and re-anchor Phase B against its engine edits). Coordination: C-22 (D23) adds rate limiting to the public `/api/availability*` routes — check `git log --oneline --grep="C-22"` before touching those files.
+> Dependencies: none — C-23 is independent. Serialization (2026-07-26, Owner-approved): C-23 Phase B lands BEFORE C-14's `availability.ts` phases — before starting, check `git log --oneline --grep="feat(redesign): C-14"` AND `ls src/lib/booking/working-hours-segments.ts 2>/dev/null` (either non-empty = C-14 implementation landed first — stop and re-anchor Phase B against its engine edits; a bare `--grep="C-14"` is unreliable, the 2026-07-26 refinement DOCS commits already match it — final-sweep fix 2026-07-26). Coordination: C-22 (D23) adds rate limiting to the public `/api/availability*` routes — check `git log --oneline --grep="feat(redesign): C-22"` before touching those files.
 > Decisions: C-B-DECISIONS.md contains no C-23 entries (post-handoff addition; governing directions cited inline). Checkpoint decision D25 (2026-07-26, Owner-approved) applied. Findings applied: see refinement changelog.
 
 **Type:** Band C plan-writing output (C-B phase — post-handoff addition)
