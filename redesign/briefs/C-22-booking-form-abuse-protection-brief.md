@@ -3,8 +3,9 @@
 **Type:** Band C plan-writing brief (C-B phase — post-handoff addition)
 **Date written:** 2026-07-16 (user direction: plan-refinement phase)
 **Scope discipline (user-locked):** the **public customer booking form only** (`POST /api/bookings`). **Not** the admin create-booking form, not enquiries, not any other endpoint. Two mechanisms only: a honeypot field and per-IP rate limiting.
+**Amended 2026-07-26 (D23, Owner-approved):** per-IP rate limiting scope EXTENDED to also cover `POST /api/availability` and `POST /api/availability/month` — two public, unauthenticated, service-role read endpoints added by the `ea97932` merge, called repeatedly by the live booking dialog. Higher thresholds than the booking POST; same `CF-Connecting-IP` keying; fails open. Honeypot remains booking-form-only. C-23's authenticated admin month route is NOT rate-limited (coordinate with C-23 Phase B — same route files).
 **Predecessors:**
-- Gap analysis 2026-07-16: verified **zero** rate limiting, CAPTCHA, honeypot or throttling anywhere in `src/` (`grep` across the tree). `POST /api/bookings` is fully open.
+- Gap analysis 2026-07-16: verified **zero** rate limiting, CAPTCHA, honeypot or throttling anywhere in `src/` (`grep` across the tree). `POST /api/bookings` is fully open. **Update 2026-07-26 (C22-F6):** still zero guards anywhere, but the `ea97932` merge added two more open public POST endpoints (`/api/availability`, `/api/availability/month`) — brought into rate-limit scope by D23 (see amended scope line above).
 - Code audit: the endpoint validates with zod then calls `create_booking_request` (DB write: booking + client + participants) and triggers **two emails per submission** (customer confirmation + internal admin notification) via Resend.
 - Runtime audit: Cloudflare Workers (`wrangler.jsonc`). No KV namespace, no custom Durable Object, no rate-limit binding configured today. The three existing DO classes (`DOQueueHandler`, `DOShardedTagCache`, `BucketCachePurge`) are OpenNext internals — **not** to be reused for application state.
 **Companion files:**
@@ -43,6 +44,8 @@ Two cheap, complementary defences: a honeypot stops naive bots (most of them) at
 
 Admin booking form · enquiries · any other endpoint · CAPTCHA / Turnstile / any third-party challenge · submission-timing heuristics · IP blocklists or reputation services · account lockout. If honeypot + rate limiting prove insufficient in production, Turnstile is the documented next step — a later decision, not this plan.
 
+**Amended 2026-07-26 (D23):** "any other endpoint" no longer excludes the two availability endpoints — those are IN scope for rate limiting only (see the amended scope line in the header). Everything else here stays out of scope.
+
 ---
 
 ## 3 — States & edge cases
@@ -59,7 +62,7 @@ Admin booking form · enquiries · any other endpoint · CAPTCHA / Turnstile / a
 
 ## 4 — Migration / dependencies
 
-**No database migration. No new package.** Possibly one `wrangler.jsonc` binding addition (rate-limit binding) — a deploy-config change, called out at impl. Independent of every other plan; can ship anytime. Small.
+**No database migration. No new package.** Possibly one `wrangler.jsonc` binding addition (rate-limit binding) — a deploy-config change, called out at impl. Independent of every other plan; can ship anytime. Small. **Coordination note (2026-07-26, D23):** C-23 Phase B modifies the same availability route files — still independent, but coordinate edits in one window or land in an explicit order.
 
 ---
 
@@ -74,6 +77,7 @@ Admin booking form · enquiries · any other endpoint · CAPTCHA / Turnstile / a
 7. Missing `CF-Connecting-IP` fails open (dev environment still works).
 8. Admin create-booking flow is entirely unaffected.
 9. Static gates pass; no new package; limits are named constants in one place.
+10. **(Added 2026-07-26, D23)** `POST /api/availability` and `POST /api/availability/month` are rate-limited at higher thresholds; normal booking-dialog calendar use never trips them; a scripted burst → 429; fails open without `CF-Connecting-IP`.
 
 ---
 
