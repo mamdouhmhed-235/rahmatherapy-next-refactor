@@ -138,6 +138,7 @@ C-06 ships 12 steps (11 original + Step 12 from the 2026-05-26 amendment). Order
 **Step 8 — Server action.** In `clients/actions.ts`, add `deleteClient(clientId, reason, supabase)`:
 - RBAC: requires `canManageAllClients(profile)` for `reason='admin_delete'`; requires `MANAGE_PRIVACY_OPERATIONS` for `reason='gdpr_erasure'`.
 - Soft-delete: `UPDATE clients SET deleted_at = now()` (new column — see Migration §6). The row stays in DB so audit_log target labels still resolve.
+- **(Amended 2026-07-26 — D1, C-02 cross-plan)** Cancel active recurring templates as part of the cascade, before the client soft-delete: `UPDATE recurring_booking_templates SET cancelled_at = now() WHERE client_id = $1 AND cancelled_at IS NULL`. C-02's FK (`recurring_booking_templates.client_id` ON DELETE RESTRICT) would otherwise block deletion once C-02 ships; C-06 lands first, so the branch must no-op cleanly while the table does not yet exist (undefined-table = pre-C-02 state). Plan Step 9 (2b) carries the detail.
 - Cascade soft-delete bookings: `UPDATE bookings SET status = 'cancelled', deleted_at = now() WHERE client_id = $1 AND status NOT IN ('cancelled', 'completed')`. Don't touch completed bookings — they're a tax + ICO record. Don't touch cancelled bookings — they're already inert (C-05 lockdown).
 - Hard-delete sensitive notes: `DELETE FROM client_notes WHERE client_id = $1 AND is_sensitive = true` (GDPR Article 17 — special-category health data must actually disappear).
 - Anonymise audit_log target labels: `UPDATE audit_logs SET target_label = '[deleted client]' WHERE target_type = 'clients' AND target_id = $1`. Keep the rows (audit integrity) but strip PII from the label.
@@ -503,7 +504,7 @@ CREATE OR REPLACE FUNCTION public.create_booking_request(
 
 **Step 12 coordinates with Step 1:** both modify the same `create_booking_request` RPC body. Land them together (or Step 12 immediately after Step 1's RPC rewrite) so the function is rewritten once with the combined client-resolution logic (client_id → email → phone fallback). The migration's RPC `CREATE OR REPLACE` is a single statement covering both.
 
-**Cross-plan:** C-06 has no hard blockers. It ships before C-04a → C-05 per the C-B-DECISIONS §5 recommended order. C-04a depends on no C-06 outputs; C-06 depends on no other C-NN plan's outputs.
+**Cross-plan:** C-06 has no hard blockers. It ships before C-04a → C-05 per the C-B-DECISIONS §5 recommended order. C-04a depends on no C-06 outputs; C-06 depends on no other C-NN plan's outputs. **Update 2026-07-26:** C-05 now HARD-gates on C-06's migration (`deleted_at` columns — D4), and C-02's recurring-template FK depends on the Step 8 cascade amendment above (D1). C-06 itself still depends on no other plan.
 
 **Coordination with C-09:** the new `updateTag("clients")` / `updateTag("bookings")` calls in `updateClient` + `deleteClient` align with C-09's tag taxonomy. C-06 sets the precedent; C-09 retrofits the rest of the admin.
 
@@ -563,7 +564,7 @@ A C-06 implementation is complete when:
 5. **Privacy "Completed" on a `deletion_review` actually deletes the client.** Verified via post-state DB query showing `clients.deleted_at IS NOT NULL` + `bookings.deleted_at IS NOT NULL` for open ones.
 6. **Privacy "Completed" on a `data_export` triggers a JSON download.** Verified via Playwright `browser_evaluate` capturing the download URL.
 7. **Coordinator cannot delete.** Delete button is hidden in the UI; direct route invocation returns insufficient-permissions error.
-8. **All static gates pass:** `pnpm lint`, `npx tsc --noEmit`, `pnpm vitest run` (6 baseline failures preserved), `pnpm build`, bundle delta within budget.
+8. **All static gates pass:** `pnpm lint` (no NEW errors vs the 59-error baseline — 2026-07-26), `npx tsc --noEmit`, `pnpm vitest run` (6 baseline failures preserved), `pnpm build`, bundle delta within budget.
 9. **Playwright role sweep at 375 / 768 / 1280 / 1440 passes for all 4 roles.**
 10. **Badar's row (`9d55ce2a`, real email `avonrk@hotmail.co.uk`) is untouched.** Test data only.
 11. **(Step 12) Admin booking creatable without email.** From `/admin/bookings/new`: leave Email empty → Step 2 ("Services") is reachable → complete the flow → booking created with `contact_email IS NULL`. Verified via post-state DB query. No confirmation email sent (checkbox was hidden).

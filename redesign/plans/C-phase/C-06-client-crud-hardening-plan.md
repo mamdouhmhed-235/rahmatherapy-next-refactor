@@ -1,5 +1,9 @@
 # C-06 — Client CRUD hardening + destructive-overwrite fix + privacy honesty fold-in + optional admin-booking email — **PLAN**
 
+> **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
+> Dependencies: none — C-06 is first in the Band C main chain. Downstream: C-05 hard-gates on C-06's Step 12 migration (D4 — its pre-flight verifies the `deleted_at` columns via information_schema); C-02's recurring-template FK requires the Step 9 cascade branch (D1).
+> Decisions: C-B-DECISIONS.md §2 Q5/Q6/Q2 + §3 C-06. Findings applied: see refinement changelog.
+
 **Type:** Band C plan-writing output (C-B phase)
 **Date written:** 2026-05-26
 **Brief:** `redesign/briefs/C-06-client-crud-hardening-brief.md` (companion — read first)
@@ -14,10 +18,10 @@ This plan is the "how" — what to build in what order, what to verify at each s
 
 Every C-C session for this plan opens with these checks. If any fails, fix or pause before proceeding.
 
-1. **Branch + clean tree.** `git status --short` returns empty. `git rev-parse --abbrev-ref HEAD` returns `redesign/start-state`.
+1. **Branch + clean tree.** *(Amended 2026-07-26 — post-merge premise, C06-02.)* On `master`; HEAD at or descended from `ea97932` — verify with `git branch --show-current` + `git merge-base --is-ancestor ea97932 HEAD`. Working tree has no modifications under the paths this plan touches: `git status --porcelain -- src/app/admin/clients/ src/app/admin/privacy/ src/app/admin/bookings/ src/app/api/bookings/ src/app/api/cron/booking-reminders/ src/lib/auth/rbac.ts src/lib/email/notifications.ts supabase/migrations/` returns empty. The wider tree is intentionally dirty (untracked photo/design folders, deleted `.playwright-mcp` logs) — NEVER stage broadly, NEVER stash/restore/checkout to "clean" it.
 2. **Dev server.** `curl -I http://localhost:3000/admin/login/` returns `HTTP/1.1 200 OK`. If not, prompt the user to start `pnpm dev` (do NOT spawn a duplicate).
-3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 baseline failures preserved per master plan).
-4. **Static gates green.** `pnpm lint` 0 errors, `npx tsc --noEmit` 0 errors. (Confirms baseline before any C-06 changes.)
+3. **Baseline tests.** `pnpm vitest run` shows 485 / 491 passing (6 pre-existing failures in 3 files — ManualBookingForm ×3, admin-access ×2, createBookingTransaction ×1 — baseline preserved per master plan; not regressions). *(Baseline breakdown added 2026-07-26, rubric §2.)*
+4. **Static gates green.** *(Amended 2026-07-26 — C06-03.)* `pnpm lint` shows no NEW errors vs the 59-error baseline (55 from untracked `design_handoff_area_pages/prototype/*.jsx`, 4 pre-existing in `src/features/booking/`), `npx tsc --noEmit` 0 errors. (Confirms baseline before any C-06 changes.)
 5. **DB introspection.** Confirm via `mcp__supabase__execute_sql`:
    - `SELECT column_name FROM information_schema.columns WHERE table_name='clients' AND column_name='deleted_at'` → returns 0 rows (column not yet added).
    - `SELECT name FROM public.permissions WHERE name IN ('manage_client_identity_fields','manage_client_destructive_ops')` → returns 0 rows.
@@ -29,6 +33,9 @@ Every C-C session for this plan opens with these checks. If any fails, fix or pa
    - `Zara Test Client` — safe to edit.
    - Stress-name client `Mohammed Abdulrahman Abdul-Hakim Al-Farsi-Lampungbungkangkang` — safe to edit (verify name field handles the length).
    - Unicode/RTL/emoji bookings (`77f90d24`, `ae9bb5bd`, `eaafbb1a`) — safe to attempt operations against their linked clients to verify the form handles non-ASCII.
+7. **DO-NOT-TOUCH data block.** *(Added 2026-07-26, rubric §9.)*
+
+   > DO-NOT-TOUCH (live data): booking 9d55ce2a (Badar — real customer email); Owner account rahmatherapy@outlook.com in email-test paths; any client whose email isn't *.example.test or name isn't Phase10*/Audit Test* test patterns.
 
 If any pre-flight step fails, **stop** and surface to the user before touching code.
 
@@ -59,6 +66,8 @@ Each step is a self-contained working slice. After each step, the listed verify-
 - Verify: `npx tsc --noEmit` green. Existing readers of `ClientRecord` (notably `/admin/clients/page.tsx`, `/admin/clients/[clientId]/page.tsx`) compile fine because all reads ignore the new field.
 
 ### Phase B — The headline fix (steps 4-5)
+
+> **Coordination note (2026-07-26, rubric §10):** *"ManualBookingForm.tsx is edited by C-02, C-03, C-06, C-20, and C-23 in this programme. Before this plan's ManualBookingForm.tsx steps, re-run this plan's own anchor greps (do not trust hardcoded line numbers) — a predecessor plan may have already shifted them. If a target region overlaps a just-landed edit from another Band-C plan, stop and diff manually rather than applying a line-numbered patch."*
 
 **Step 4 — `ManualBookingForm` + booking action plumbing.**
 - Edit `src/app/admin/bookings/new/ManualBookingForm.tsx`:
@@ -161,6 +170,15 @@ export async function deleteClient(
   //    it's a helper called by the Delete button action and by the privacy "Completed" handler.
   // 2. SELECT client; if deleted_at IS NOT NULL → return { success: true, alreadyDeleted: true }
   //    after writing an idempotent audit row.
+  // 2b. (Added 2026-07-26 — D1/C06-01, C-02 cross-plan) Cancel active recurring templates
+  //    BEFORE the client soft-delete:
+  //    UPDATE recurring_booking_templates SET cancelled_at = now()
+  //    WHERE client_id = $1 AND cancelled_at IS NULL
+  //    RETURNING id  -- capture cancelledTemplateIds[]; include
+  //    cancelled_recurring_template_count + ids in the step-7 audit after_state roll-up.
+  //    C-02's FK (recurring_booking_templates.client_id ON DELETE RESTRICT) would otherwise
+  //    block deletion once C-02 ships. C-06 lands BEFORE C-02, so the table may not exist
+  //    yet: treat undefined-table (SQLSTATE 42P01) as a clean no-op (pre-C-02 state).
   // 3. UPDATE clients SET deleted_at = now() WHERE id = $1
   // 4. UPDATE bookings SET deleted_at = now(), status = 'cancelled', cancelled_at = now(),
   //    cancellation_reason = 'client_deleted'
@@ -180,6 +198,8 @@ export async function deleteClient(
   // 9. Return { success: true, cascadedBookingCount }
 }
 ```
+
+*(Step 2b added 2026-07-26 per D1/C06-01 — folds in C-02's locked "option (b)" (C-02-recurring-bookings-plan.md:43-47, :778, :786): `deleteClient` cancels active `recurring_booking_templates` before soft-deleting the client, stamping `cancelled_at` per the C-04a S7 coordination note.)*
 
 **Then add the public-facing server actions that call it:**
 
@@ -202,6 +222,7 @@ export async function bulkDeleteClients(...): Promise<{ deletedCount: number; er
 
 - Add unit tests `clients/__tests__/deleteClient.test.ts`:
   - Soft-deletes client + cascades to open bookings + leaves completed alone + hard-deletes sensitive notes → ✓
+  - *(Added 2026-07-26, D1)* Cancels active `recurring_booking_templates` (stamps `cancelled_at`) before the client soft-delete; treats a missing table (pre-C-02, SQLSTATE 42P01) as a clean no-op → ✓
   - Idempotent on already-deleted client → ✓
   - Audit log row shape matches spec → ✓
   - RBAC: Coord call to `adminDeleteClient` returns `Insufficient permissions` → ✓
@@ -226,6 +247,7 @@ export async function bulkDeleteClients(...): Promise<{ deletedCount: number; er
   - Listen for `?deleted=1` URL param post-redirect → show success toast via existing Sonner pattern.
 - Edit `src/app/admin/clients/ClientRowMenu.tsx`:
   - Add "Delete client" item between "View audit history" and the existing items, behind a `canManageClientDestructiveOps` check. Same destructive styling as the bulk-delete bar's confirm button.
+- Verify *(added 2026-07-26, rubric §7)*: `npx tsc --noEmit` green; as Owner, `/admin/clients` renders the checkbox column, selecting 2 rows raises the sticky `BulkDeleteToolbar`, and `/admin/clients/[test-client]` detail shows the Delete button; as Coord, neither affordance renders.
 
 ### Phase E — Privacy wiring (step 11 — code) + Migration (step 12 — DB)
 
@@ -258,6 +280,16 @@ if (parsed.data.status === "completed") {
   - For `data_export` completion, add a "Download export now" button INSIDE the modal — when clicked, invokes `generateClientDataExport` via `fetch()` and triggers a browser download. Only THEN does the status flip to Completed (admin confirms via the existing confirm button after the download has been generated).
 - Edit `src/app/admin/privacy/page.tsx` (around line 630-631 where `request.request_type` is rendered):
   - Pass `request_type` into the `<PrivacyStatusForm>` instances.
+- Verify *(added 2026-07-26, rubric §7)*: `npx tsc --noEmit` green; `pnpm lint` no NEW errors vs baseline. Functional verification of the deletion/export branches lands post-migration via §3.2 walks (g) + (h).
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply the single C-06 migration (soft-delete columns, `contact_email DROP NOT NULL`, two new permissions + grants, `create_booking_request` RPC replacement) to production project twzutkfgqclqurvkmvqz via `mcp__supabase__apply_migration`
+> Exact SQL / change: the full migration SQL in the Step 12 body below — show it to the user verbatim before invoking
+> Post-action verification: `SELECT pg_get_functiondef('public.create_booking_request'::regproc)` shows the new body; `SELECT is_nullable FROM information_schema.columns WHERE table_name='bookings' AND column_name='contact_email'` → `YES`; `SELECT column_name FROM information_schema.columns WHERE table_name='clients' AND column_name='deleted_at'` → 1 row
+> Never auto-apply. Approval is per-action and does not carry forward.
+
+> **Coordination note (2026-07-26, rubric §10):** *"C-06 modifies the `create_booking_request` RPC signature (additive, positional order preserved) — the public route's unmodified call into `createBookingTransaction()` is unaffected as long as C-06's new params are appended with server-side defaults, not required. No landing-order dependency between C-06 and C-22 on this surface; verify independently that neither plan's tests assume the other hasn't shipped."*
 
 **Step 12 — Migration.** Single SQL file applied via `mcp__supabase__apply_migration` (Zone-2 — confirm with user before invoking). **Includes the Step 13 amendment DDL** (`contact_email DROP NOT NULL` + the RPC's null-email/phone-fallback branch):
 
@@ -436,10 +468,13 @@ COMMIT;
   - `SELECT is_nullable FROM information_schema.columns WHERE table_name='bookings' AND column_name='contact_email'` → now `YES`.
   - Re-run `pnpm vitest run api/bookings/createBookingTransaction` — should pass now.
   - Manual Playwright test: visit `/admin/clients/[test-client]` → "Book again" → submit form → confirm RPC honoured `client_id` (existing client's name is NOT overwritten — verify via `mcp__supabase__execute_sql` SELECT pre + post).
+  - *(Added 2026-07-26, D4)* Downstream: C-05 hard-gates on this migration's `deleted_at` columns — record the applied migration name in the progress file so C-05's pre-flight information_schema check has a traceable anchor.
 
 ### Phase F — Optional admin-booking email (Step 13 — amendment 2026-05-26)
 
 Implements brief §2.5. The DB pieces (12a `DROP NOT NULL` + 12b RPC null-branch) are folded into the Step 12 migration above. Step 13 is the **code** layer: ManualBookingForm UI + Zod + downstream guards + the "No email — reminders off" indicator. Lands after the migration so the DB is ready first (the UI relaxation is harmless without the migration, but submission only succeeds once `contact_email` is nullable).
+
+> **Coordination (2026-07-26, rubric §10):** the ManualBookingForm.tsx shared-surface note above Step 4 applies here too — re-grep the `:196-198` / `:914` / `:1037` / `:613` / `:1855` anchors before editing; prior Band C plans may have shifted line positions.
 
 **Step 13a — `ManualBookingForm` email-optional UI.** Edit `src/app/admin/bookings/new/ManualBookingForm.tsx`:
 - `:1037` — drop `required` from the Email `FieldLabel` (remove `*`). Helper text → `"Optional. Used for confirmations and reminders when provided."`
@@ -559,7 +594,7 @@ Run after Step 12 lands. Every command must pass before commits go to master pla
 ### 3.1 Static gates
 
 ```bash
-pnpm lint                       # 0 errors
+pnpm lint                       # no NEW errors vs the 59-error baseline (55 untracked design_handoff_area_pages/prototype JSX + 4 pre-existing in src/features/booking/) — amended 2026-07-26 (C06-03)
 npx tsc --noEmit                # 0 errors
 pnpm vitest run                 # new specs pass; 6 baseline failures preserved (createBookingTransaction × 1 now passes — net 5 baseline failures? VERIFY)
 pnpm build                      # clean
@@ -618,7 +653,7 @@ o. **PUBLIC FLOW ISOLATION (critical):** `POST /api/bookings` with a payload **o
 
 ### 3.3 Screenshot evidence
 
-Capture PNGs into `redesign/audits/C-A/screenshots-06-clients-new/c-06-after/` (or new directory per C-C convention):
+Capture PNGs into `redesign/evidence/C-06/` (evidence convention 2026-07-26, rubric §8 — never write into `redesign/audits/**`):
 
 - 375 + 1280: client detail header showing Edit + Delete buttons (Owner)
 - 375 + 1280: edit form (Owner) with all fields editable
@@ -695,6 +730,13 @@ If C-06 needs to be rolled back partially or fully during C-C, the order is reve
 ### 5.1 Undo migration (Step 12)
 
 If the migration is partially-applied or causing issues:
+
+> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
+> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
+> Action: apply the C-06 rollback SQL to production project twzutkfgqclqurvkmvqz (restores the original RPC, drops the new permissions/columns)
+> Exact SQL / change: the rollback SQL below — show it to the user verbatim before invoking (the RPC body comes from the pre-flight §0 step 5 capture)
+> Post-action verification: `SELECT pg_get_functiondef('public.create_booking_request'::regproc)` shows the restored original body; `SELECT column_name FROM information_schema.columns WHERE table_name='clients' AND column_name='deleted_at'` → 0 rows
+> Never auto-apply. Approval is per-action and does not carry forward.
 
 ```sql
 BEGIN;
@@ -815,7 +857,7 @@ When this plan is picked up for implementation:
 3. Re-read W06 §10 (the architecture is lifted here but the audit's framing is useful context).
 4. Run all of §0 (Pre-flight) before any code change.
 5. Execute Phase A → Phase B → Phase C → Phase D → Phase E → Phase F (Step 13 email-optional) in order. Don't skip ahead.
-6. Migration (Step 12) is Zone-2 — explicit user confirmation before invoking `mcp__supabase__apply_migration`. Show the user the migration SQL first. **It now includes the Step 13 `contact_email DROP NOT NULL` + the RPC's null-email/phone-fallback branch — both land in the single migration.**
+6. Migration (Step 12) is Zone-2 — explicit user confirmation before invoking `mcp__supabase__apply_migration`. Show the user the migration SQL first. **It now includes the Step 13 `contact_email DROP NOT NULL` + the RPC's null-email/phone-fallback branch — both land in the single migration.** *(2026-07-26, C06-04: a formatted ⛔ HARD-STOP block now precedes Step 12 — the executing agent stops there, not just here.)*
 7. Verification gate (§3) is non-negotiable.
 8. Update `redesign/per-page-progress/C-06-client-crud-hardening-progress.md` as each phase lands.
 9. Final commit also updates `redesign/plans/C-phase/BAND-C-MASTER-PLAN.md` C-06 row state from `⏳` to `✅` with shipped date + commit SHA.
