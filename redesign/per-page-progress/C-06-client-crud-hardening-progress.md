@@ -6,9 +6,8 @@
 **Started:** 2026-07-27 · orchestrated session (implementer + independent verifier per phase)
 **Predecessor plan closed at:** `d1630af` (C-22)
 
-> ## ⏸ STATUS: ALL SIX PHASES IMPLEMENTED + VERIFIED. **MIGRATION APPLIED.** Only the §3 closeout gate remains.
-> **Last good commit:** `c57721f` · **Next action:** re-verify the Phase F fix round, then run the §3 closeout sweep (scope decided by the Owner — see below), then finalise this file and flip the master-plan row to ✅.
-> This file is written incrementally so the plan can be resumed from git alone (protocol §3).
+> ## ✅ STATUS: SHIPPED — all six phases implemented + independently verified, migration applied, §3 gate passed within the Owner-set scope.
+> **Final commit:** `88d2a6d` · **18 commits** across the plan (`d1630af..88d2a6d`).
 >
 > **Owner decision on the closeout sweep (2026-07-27): read-only sweep + REVERSIBLE mutations only.**
 > Run: the full role sweep, RBAC visibility checks, the edit happy-path, the email-collision test, and the no-email booking creation. **SKIP** the delete cascade (§3.2e), the bulk delete (§3.2f) and the privacy `deletion_review` completion (§3.2g) — those hard-delete sensitive health notes (irreversible) and consume `Audit Test Client` fixtures that later plans (C-05, C-02, C-09, C-16) still need. Record all three as NOT RUN against their unit-spec coverage.
@@ -198,15 +197,94 @@ Hidden `client_id` input, `confirm_duplicate` acknowledgement, `DuplicateClientE
 
 ---
 
+## 6b — CLOSEOUT (§3 gate) — results
+
+**All 18 commits:** `5398837` A · `7ebdb25` B · `065c659` B-fix · `83724b8` plan corrections · `c20dc5e` B-tests · `1b802ed` C · `7dc8f82` checkpoint · `f0487b6` D · `862115b` D-fix · `90d1558` E-code · `1b9daf4` migration applied · `624c5ab` E-fix · `96adc51` erasure copy · `e5d5d47` F · `c57721f` F-fix · `bca91c3` checkpoint · `64f6e8c` closeout fixes · `88d2a6d` closeout fixes 2.
+
+### Phase D (`f0487b6` + `862115b`) — the delete primitive
+`deleteClient` helper + `adminDeleteClient` + `bulkDeleteClients` (serial), delete button, bulk toolbar, "Show deleted (N)" toggle, row-menu item. **Step 9.6 `target_label` anonymisation SKIPPED** — the column does not exist (confirmed twice live; the plan permits skipping). Step 2b's recurring-template cascade treats a missing table as a clean no-op.
+
+Owner-approved corrections after the verifier found a permanently-unrecoverable failure mode: **the client soft-delete moved to LAST** (a mid-cascade failure previously left the client stamped, bookings uncancelled, notes intact, no audit row — and the retry short-circuited on idempotency and reported success, so health data survived an "completed" erasure); and **`before_state` is PII-redacted for `gdpr_erasure`** via a whitelist, applied on the idempotent path too.
+
+### Phase E (`90d1558` + `624c5ab` + `96adc51`) — privacy wiring + export + migration
+The privacy "Completed" button now does what it says. Per-request-type modal copy replaced a single string that was a lie for **all four** types. JSON export per brief §2.4 with non-sensitive notes only and a 50-row audit cap. Fix round: the export now **fails loudly on a partial fetch** (it previously shipped a file claiming the data subject had no bookings, with a success toast), is reachable for an already-completed request, and its copy is pinned by spec.
+
+### §3 gate results
+| Gate | Result |
+|---|---|
+| §3.1 lint / tsc / vitest / build | **59E+7W identity · 0 · 5 failed 612 passed 617 · clean** |
+| §3.1 bundle (+15 kB ceiling) | **≤ 1.24 kB** — and the new edit route lands *below* the existing detail route, disproving the plan's `DuplicateWarningBanner`-duplication worry |
+| §3.2 RBAC role sweep, 4 roles | **PASS on every row of brief §3** |
+| §3.2c edit happy path | PASS — one audit row, `after_state` = only the changed field; value restored via the UI |
+| §3.2d email collision | PASS — hard error, **no** DB write, 0 audit rows |
+| §3.2k no-email booking | PASS on all five criteria — `contact_email IS NULL`, no `email_delivery_events` row, chip renders |
+| §3.2e / §3.2f / §3.2g | **NOT RUN — Owner-excluded** (irreversible sensitive-note deletion; consumes fixtures later plans need). Covered by `deleteClient.test.ts` + `updatePrivacyRequestStatus.test.ts`. |
+| §3.2h data export / §3.2i direct RBAC invocation | NOT RUN — real PII / a server-side miss would hard-delete notes. Covered by specs. |
+| §3.3 screenshots | 6 PNGs + `closeout-role-sweep.md` in `redesign/evidence/C-06/` |
+
+### Closeout fixes (`64f6e8c`, `88d2a6d`)
+- **`updateClient` had no `deleted_at` guard** — a dispatchable-server-action POST could rewrite an erased client's PII and re-add it to `audit_logs`, undoing the redaction. Guarded before the concurrency check.
+- **Deleted rows' promised affordances were dead** — "View" 404'd; the audit link used `target_type=client` (singular) against rows written as `clients`. Dead link suppressed; audit link switched to `?q=<id>`, which works regardless of how the naming split is resolved.
+- **`client_deleted` was in no audit family** (Owner-approved, files-list extended to `audit/format.ts`) — every family filter on `/admin/audit` excluded the only forensic record of an erasure.
+- **All five cache invalidations were no-ops** (Owner-approved) — `updateTag("clients"|"bookings"|"audit")` name tags that do not exist. Replaced with the real `report-data` / `dashboard-data`, matching `createClient` in the same file.
+- **375 px: the bulk "Delete selected" button was unreachable.** Root cause: an implicit grid track sized `auto` resolved to the rows' ~508 px min-content, stretching every page-level sibling to 564 px inside a 344 px container. Fixed with `grid-cols-[minmax(0,1fr)]` on the page scaffold (in-repo precedent), leaving row geometry untouched.
+
+---
+
 ## 7 — Outstanding
 
-- Phase D (Steps 9–10): `deleteClient` + `adminDeleteClient` + `bulkDeleteClients`, delete button, bulk toolbar, "Show deleted (N)" toggle. **Step 9.6 audit-log anonymisation is SKIPPED** — `audit_logs.target_label` does not exist (verified live; the plan already permits skipping). **Step 2b recurring-template cascade must treat undefined-table (SQLSTATE 42P01) as a clean no-op** — `recurring_booking_templates` does not exist until C-02.
-- Phase E (Steps 11–12): privacy wiring + JSON export + **⛔ the migration** (Zone-2, orchestrator-only, built from the corrected plan §1 Step 12).
-- Phase F (Step 13): email-optional admin booking.
-- Full §3 verification gate, evidence into `redesign/evidence/C-06/`, master-plan row → ✅.
+### Owner actions
+| # | Action |
+|---|---|
+| 1 | **Remove two rows the closeout sweep created** (I did not delete them): booking `d8a61721-71ec-419b-a5b9-b711f88d35bd` and client `e518393f-d5aa-42c7-b87b-52faf8526abe` (`C06 Closeout NoEmail Test`, NULL email). |
+| 2 | **Fixture drift:** plan §0.6's `Audit Test Client 2/3/4/5` were renamed by a later unicode/stress audit (slot 3 is now `李小龍 …`, slot 4 `Ñoño García-López …`). Their emails still follow `audit.client.N@example.test` but their **names no longer match the DO-NOT-TOUCH safe pattern**, so later plans must not assume those fixtures. |
+| 3 | Decide whether `/admin/clients/[clientId]` should render erased records read-only — brief §5.3's "View" affordance is currently absent rather than dead. |
+| 4 | Decide on real PII scrubbing for `gdpr_erasure` (deferred to the compliance band; the copy is now honest either way). |
+| 5 | The deferred soft-delete read-path inventory is in §8 below — several entries need a posture decision. |
+
+### Carried to later plans
+- **C-04a (next):** three specific items in §8.
+- **C-05:** its hard gate on the `deleted_at` columns **will pass** — both exist, and the dependency grep matches six `feat(redesign): C-06 Phase …` commits. Its `ensureBookingActive` select is explicit and does not repeat C-06's select-omission trap. It also closes the `bookings/actions.ts` mutable-soft-deleted-booking group.
+- **C-08:** staff-assignment and status-change emails are now **silently skipped for phone-only bookings** (the throw is swallowed at every call site). Also `sendBookingCreatedEmails`' early return suppresses the clinic's own `admin_booking_notification`, not just the customer send.
+- **C-09:** C-06 now uses the real `report-data` / `dashboard-data` tags; the three phantom names are gone, so C-09 inherits no fictional taxonomy.
+- **C-02:** the cascade branch is present and schema-matched, and the missing-table no-op will correctly stop being a no-op. **But the recorded rationale is factually wrong** — the branch is justified in code and plan as preventing C-02's `ON DELETE RESTRICT` FK from blocking deletion, which it never would, because C-06 **soft**-deletes and no row is ever removed. The real reason is that a deleted client must stop generating recurring occurrences. Recorded here so a later audit does not conclude the branch is dead code and delete it.
+- **Shared surfaces:** `ManualBookingForm.tsx` anchors shifted substantially; the `DuplicateWarningBanner` block sits inside `<form>` but **outside every step container** deliberately (its checkbox is `required`, and inside a `hidden` step Chrome silently refuses to submit). Re-grep by symbol per §1.9.
+- **Latent type hazard:** `bookings/types.ts:85`, `search-actions.ts:26`, `customer-manage.ts:31` and `notifications.ts:65` all still declare `contact_email: string` against a now-nullable column, invisible to tsc because reads cast through `.returns<>()`. Null-safe at runtime today by luck.
 
 **Bonus finding for a later plan:** `resend_booking_emails` **exists** in `public.permissions` (verified live 2026-07-27) — this closes the one open verification item the migration ledger carried into C-C for **C-08**'s pre-flight.
 
 ---
 
-*C-06 in progress. This file is updated as phases land.*
+## 8 — Deferred soft-delete read-path inventory (the Owner's §2.2 follow-up)
+
+Produced by the closeout adversarial review. Owner ruling: reports stay unfiltered; filter only the working surfaces C-06 touched.
+
+**Standing fact: nothing in `src/` reads `bookings.deleted_at` at all.** C-06 writes that column and no code consumes it — cascade-cancelled bookings are hidden today *only* by their `status`. **C-05 will be its first reader.**
+
+**Filtered correctly (C-06's own surfaces):** `clients/page.tsx`, `clients/[clientId]/page.tsx`, `clients/[clientId]/edit/page.tsx`.
+
+**(b) — working surfaces that should filter and don't:**
+- **`search-actions.ts:121` (`searchClients`)** — highest value. Surfaces an erased subject's name, email, phone and postcode in the global search dropdown to any client-viewer, linking to a page that now 404s.
+- **`search-actions.ts:73` (`searchBookings`)** — no status *or* `deleted_at` filter; returns cascade-cancelled bookings carrying the erased subject's contact details.
+- `clients/actions.ts:208,215` (`createClient` dedup) — surfaces an erased person as a "possible duplicate", then dead-ends on `clients_email_key` with a raw Postgres message. The migration's `client_record_removed` guard covers only the RPC, not this path.
+- `bookings/new/page.tsx:49` — `?clientId=<soft-deleted>` prefills a client the RPC then rejects with an unmapped `P0002`, surfacing the raw sentence to the admin.
+
+**(c) — ambiguous, need a posture decision:**
+- `dashboard/dashboard-data.ts:404` (`getClients`) and `:349` (`getBookings`) — report-shaped data on a working surface; the ruling doesn't clearly cover it.
+- `bookings/page.tsx:441,452,465` and `bookings/[bookingId]/page.tsx:292,299` — the latter becomes moot once C-05 lands.
+- `bookings/actions.ts` (11 sites) — all by-id mutations; a soft-deleted booking stays mutable. **C-05's remit.**
+- `nav-notifications.ts:442` — a cascade-cancelled booking with a live reschedule request still raises a nav badge.
+- `customer-manage.ts:277` + `booking/manage/actions.ts` — a manage token held before erasure still resolves and renders the customer's own details (mutations are status-guarded).
+- `clients/actions.ts:314` — the email-clash probe must include deleted rows (the index is plain), but its message leaks an erased subject's name.
+
+**(a) — correctly unfiltered:** `reporting.ts`, `reports/export`, `privacy/page.tsx` (a completed `deletion_review` must keep its subject's name), `privacy/data-export.ts`, and every booking read already gated by `status` or by a client that passed a `deleted_at` gate.
+
+### C-04a hand-off (plan #4, next)
+1. **Verify the SELECT STRING, not the type.** C-04a's restore guard reads `beforeState.clients?.deleted_at`, which is `undefined` unless the embedded select literally includes `clients(deleted_at)` — the identical silent-cast trap C-06 hit and documented in §4.1. tsc, lint and vitest are all blind to it.
+2. **Its refusal copy points at something that doesn't exist.** *"Restore the client first, then the booking."* — C-06 ships **no** un-delete affordance of any kind. Reword at implementation time.
+3. **Backfill interaction is benign but should be stated.** C-06's cascade writes neither `customer_cancelled_at` nor a booking-level cancellation audit row, so pre-C-04a cascade-cancelled bookings land in C-04a's `unstamped_will_be_unrestorable` bucket — the right outcome, reached by accident.
+4. C-04a's restore clears `cancelled_at` but **not** `bookings.deleted_at`, leaving a restored booking permanently flagged deleted for C-05's `ensureBookingActive`.
+
+---
+
+*C-06 SHIPPED 2026-07-27. Final commit `88d2a6d`.*
