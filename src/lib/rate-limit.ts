@@ -9,8 +9,15 @@ import type { RateLimitWindow } from "./rate-limit-durable-object";
 // customer (brief §2.2). The 429 copy always offers the phone number so a
 // limited customer is never stranded.
 
-/** Public booking submissions — 3 per 10 minutes. */
-export const RATE_LIMIT_BURST: RateLimitWindow = { limit: 3, windowSeconds: 600 };
+// Raised 3 → 5 (Owner-approved): this window counts ATTEMPTS, not successful
+// bookings. A customer whose submit fails server-side — a BookingCreationError
+// because the slot was taken while they were filling the form — retries, and
+// can plausibly reach four attempts inside ten minutes without doing anything
+// wrong. Brief §4's top risk row is "a real customer gets rate-limited and
+// gives up", and 5 stops a flood exactly as well as 3 does: a flood is
+// thousands of requests, not four.
+/** Public booking submissions — 5 per 10 minutes. */
+export const RATE_LIMIT_BURST: RateLimitWindow = { limit: 5, windowSeconds: 600 };
 /** Public booking submissions — 10 per day. */
 export const RATE_LIMIT_SUSTAINED: RateLimitWindow = {
   limit: 10,
@@ -36,6 +43,15 @@ export const AVAILABILITY_RATE_LIMIT_SUSTAINED: RateLimitWindow = {
   windowSeconds: 86_400,
 };
 
+// A rate-limit check is a storage read behind a Durable Object round trip —
+// sub-millisecond work, single-digit milliseconds on the wire, tens of
+// milliseconds if the object is cold. This ceiling sits an order of magnitude
+// above that, so a healthy limiter never trips it (which would silently switch
+// rate limiting off), but a degraded one cannot stall the caller: this call
+// fronts every public availability lookup and every booking submit.
+/** Longest a limiter round trip may take before the request is let through. */
+export const RATE_LIMITER_TIMEOUT_MS = 500;
+
 export const BOOKING_RATE_LIMIT: RateLimitWindow[] = [
   RATE_LIMIT_BURST,
   RATE_LIMIT_SUSTAINED,
@@ -60,6 +76,16 @@ interface DurableObjectStubLike {
 interface DurableObjectNamespaceLike {
   idFromName(name: string): unknown;
   get(id: unknown): DurableObjectStubLike;
+}
+
+// Turns an abort into a rejection the caller can race against, so a stub that
+// ignores the signal cannot keep the request waiting anyway.
+function rejectOnAbort(signal: AbortSignal): Promise<never> {
+  return new Promise((_, reject) => {
+    signal.addEventListener("abort", () => reject(signal.reason), {
+      once: true,
+    });
+  });
 }
 
 // The RATE_LIMITER binding only exists inside the deployed Worker. Under
@@ -96,18 +122,31 @@ export async function checkRateLimit(
 
   try {
     const stub = namespace.get(namespace.idFromName(`${scope}:${ip}`));
-    const response = await stub.fetch(RATE_LIMITER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ windows }),
-    });
+    // A hung limiter must fail open like a thrown one: the existing escape
+    // hatches only cover an error and a non-ok response, so without this a
+    // degraded durable object would stall the live customer calendar with no
+    // way out. The signal cancels the round trip; racing it means the escape
+    // hatch holds even if the stub never honours the signal.
+    const timeout = AbortSignal.timeout(RATE_LIMITER_TIMEOUT_MS);
+    const response = await Promise.race([
+      stub.fetch(RATE_LIMITER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ windows }),
+        signal: timeout,
+      }),
+      rejectOnAbort(timeout),
+    ]);
 
     if (!response.ok) return true;
 
     const result = (await response.json()) as { allowed?: boolean };
     return result.allowed !== false;
   } catch (error) {
-    console.error("[C-22] rate limiter unreachable; allowing request.", error);
+    console.error(
+      "[C-22] rate limiter unreachable or too slow; allowing request.",
+      error
+    );
     return true;
   }
 }

@@ -3,7 +3,7 @@
 // Chosen after the two cheaper options were ruled out on this account: the
 // Workers rate-limiting binding only accepts a 10s or 60s period (and counts
 // per Cloudflare location, not globally), and Workers Free WAF rate limiting is
-// a single 10-second rule — neither can express 3-per-10-minutes or 10-per-day.
+// a single 10-second rule — neither can express 5-per-10-minutes or 10-per-day.
 // Deliberately NOT one of OpenNext's three internal DO classes; this is
 // application state. Registered in wrangler.jsonc (new_sqlite_classes — the
 // only Durable Object storage backend available on Workers Free) and
@@ -64,7 +64,22 @@ export class RateLimiter {
   // elapsed. The known trade-off — up to 2x the limit across a window boundary
   // — errs towards letting a request through, which is the right side to err on
   // here (brief §2.2: a false positive costs the business a real customer).
+  //
+  // Only an ALLOWED request spends budget. Every window is staged first and the
+  // whole set is committed together, so a request the burst window has already
+  // refused never touches the 24-hour counter. Incrementing on refusal meant
+  // ~11 requests in one minute (5 allowed, 6 refused) burned the entire daily
+  // allowance — a cheap, silent denial of booking for everyone behind a carrier
+  // NAT or an office egress IP.
+  //
+  // Refusal is still stable: a refused request leaves the counter sitting at
+  // its limit, so the next request in the same window recomputes the same
+  // over-limit total and is refused again. And because nothing is written,
+  // windowStart is never rewritten either — the window stays anchored at its
+  // first request, so a hammering bot cannot roll the lockout forward and the
+  // blocked customer is released exactly on schedule.
   async consume(windows: RateLimitWindow[], now: number): Promise<boolean> {
+    const staged: { key: string; next: WindowState }[] = [];
     let allowed = true;
     let longestWindowSeconds = 0;
 
@@ -77,12 +92,17 @@ export class RateLimiter {
         ? { windowStart: now, count: 1 }
         : { windowStart: previous.windowStart, count: previous.count + 1 };
 
-      await this.storage.put(key, next);
-
       if (next.count > window.limit) {
         allowed = false;
       }
+      staged.push({ key, next });
       longestWindowSeconds = Math.max(longestWindowSeconds, window.windowSeconds);
+    }
+
+    if (allowed) {
+      for (const { key, next } of staged) {
+        await this.storage.put(key, next);
+      }
     }
 
     if (longestWindowSeconds > 0) {

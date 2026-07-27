@@ -6,6 +6,7 @@ import {
   AVAILABILITY_RATE_LIMIT_SUSTAINED,
   BOOKING_RATE_LIMIT,
   RATE_LIMITED_BOOKING_MESSAGE,
+  RATE_LIMITER_TIMEOUT_MS,
   RATE_LIMIT_BURST,
   RATE_LIMIT_SUSTAINED,
   checkRateLimit,
@@ -41,17 +42,17 @@ function fakeStorage() {
 }
 
 describe("RateLimiter durable object", () => {
-  it("allows requests up to the limit and denies the next one", async () => {
+  it("allows five attempts in the burst window and denies the sixth", async () => {
     const storage = fakeStorage();
     const limiter = new RateLimiter({ storage });
     const now = Date.UTC(2026, 5, 1, 10, 0, 0);
 
     const verdicts = [];
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
       verdicts.push(await limiter.consume([RATE_LIMIT_BURST], now + attempt));
     }
 
-    expect(verdicts).toEqual([true, true, true, false]);
+    expect(verdicts).toEqual([true, true, true, true, true, false]);
   });
 
   it("starts a fresh window once the previous one has elapsed", async () => {
@@ -59,7 +60,7 @@ describe("RateLimiter durable object", () => {
     const limiter = new RateLimiter({ storage });
     const now = Date.UTC(2026, 5, 1, 10, 0, 0);
 
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt <= RATE_LIMIT_BURST.limit; attempt += 1) {
       await limiter.consume([RATE_LIMIT_BURST], now + attempt);
     }
 
@@ -72,7 +73,7 @@ describe("RateLimiter durable object", () => {
     const limiter = new RateLimiter({ storage });
     const now = Date.UTC(2026, 5, 1, 10, 0, 0);
 
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt <= RATE_LIMIT_BURST.limit; attempt += 1) {
       await limiter.consume([RATE_LIMIT_BURST], now + attempt);
     }
 
@@ -91,18 +92,92 @@ describe("RateLimiter durable object", () => {
     const burstMs = RATE_LIMIT_BURST.windowSeconds * 1000;
     let now = Date.UTC(2026, 5, 1, 10, 0, 0);
 
-    // Four full burst windows: 12 attempts, so the 10-per-day window runs out
-    // even though every burst window is freshly reset.
+    // A bot pacing itself inside the burst limit: three full burst windows of
+    // five, so nothing is ever denied by the burst window, and the 10-per-day
+    // window is the only thing that can stop it. It does, on attempt 11.
     const verdicts = [];
-    for (let round = 0; round < 4; round += 1) {
-      for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let round = 0; round < 3; round += 1) {
+      for (let attempt = 0; attempt < RATE_LIMIT_BURST.limit; attempt += 1) {
         verdicts.push(await limiter.consume(BOOKING_RATE_LIMIT, now + attempt));
       }
       now += burstMs;
     }
 
     expect(verdicts.slice(0, 10).every(Boolean)).toBe(true);
-    expect(verdicts.slice(10)).toEqual([false, false]);
+    expect(verdicts.slice(10)).toEqual([false, false, false, false, false]);
+  });
+
+  it("spares the daily budget when the burst window is the one denying", async () => {
+    const storage = fakeStorage();
+    const limiter = new RateLimiter({ storage });
+    const burstMs = RATE_LIMIT_BURST.windowSeconds * 1000;
+    const start = Date.UTC(2026, 5, 1, 10, 0, 0);
+
+    // Eleven attempts inside one minute: five allowed, six denied by the burst
+    // window. If a denied request still counted against the 24-hour window,
+    // those eleven would exhaust the whole daily allowance of ten — one flood
+    // would lock every customer behind that NAT out of booking for the day.
+    const flood: boolean[] = [];
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      flood.push(
+        await limiter.consume(BOOKING_RATE_LIMIT, start + attempt * 5_000)
+      );
+    }
+
+    expect(flood).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+    ]);
+
+    // Exactly five of the ten daily requests were spent, so five remain. Paced
+    // four per fresh burst window, the burst limit can never be what denies —
+    // so every verdict below is the sustained window, and the position of the
+    // first `false` IS the remaining daily allowance.
+    const paced: boolean[] = [];
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const windowIndex = Math.floor(attempt / 4) + 1;
+      paced.push(
+        await limiter.consume(
+          BOOKING_RATE_LIMIT,
+          start + windowIndex * burstMs + (attempt % 4) * 1_000
+        )
+      );
+    }
+
+    expect(paced).toEqual([true, true, true, true, true, false, false, false]);
+  });
+
+  it("never extends the window while it is blocking", async () => {
+    const storage = fakeStorage();
+    const limiter = new RateLimiter({ storage });
+    const windowMs = RATE_LIMIT_BURST.windowSeconds * 1000;
+    const start = Date.UTC(2026, 5, 1, 10, 0, 0);
+
+    for (let attempt = 0; attempt <= RATE_LIMIT_BURST.limit; attempt += 1) {
+      await limiter.consume([RATE_LIMIT_BURST], start + attempt);
+    }
+
+    // Hammer the blocked window right up to its final millisecond...
+    expect(
+      await limiter.consume([RATE_LIMIT_BURST], start + windowMs - 1)
+    ).toBe(false);
+
+    // ...and it still opens on time. The window is anchored at its FIRST
+    // request and denied requests must never move that anchor, or a bot could
+    // hold the lockout open indefinitely and the customer sharing that address
+    // would never be released.
+    expect(await limiter.consume([RATE_LIMIT_BURST], start + windowMs)).toBe(
+      true
+    );
   });
 
   it("bounds its own state: the alarm slides forward and wipes storage", async () => {
@@ -230,6 +305,27 @@ describe("checkRateLimit", () => {
     ).resolves.toBe(true);
   });
 
+  it(
+    "allows the request when the limiter never answers",
+    async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      // A durable object that accepted the call and then hung. Every other
+      // fail-open path needs the limiter to actually fail; this one needs it to
+      // do nothing at all, in front of a live customer's calendar call.
+      stubFetch.mockImplementation(() => new Promise<Response>(() => {}));
+
+      await expect(
+        checkRateLimit(
+          limitedRequest({ "CF-Connecting-IP": "203.0.113.7" }),
+          "bookings",
+          BOOKING_RATE_LIMIT
+        )
+      ).resolves.toBe(true);
+    },
+    // Fails fast rather than hanging the suite if the timeout ever regresses.
+    RATE_LIMITER_TIMEOUT_MS * 4
+  );
+
   it("denies the request when the limiter says the window is exhausted", async () => {
     stubFetch.mockResolvedValue(
       new Response(JSON.stringify({ allowed: false }), {
@@ -306,7 +402,7 @@ describe("checkRateLimit and RateLimiter, wired together", () => {
     }));
 
     const verdicts: boolean[] = [];
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
       verdicts.push(
         await checkRateLimit(bookingRequest("203.0.113.7"), "bookings", [
           RATE_LIMIT_BURST,
@@ -316,7 +412,7 @@ describe("checkRateLimit and RateLimiter, wired together", () => {
 
     // A shape mismatch on either side surfaces here as an all-allowed run:
     // checkRateLimit swallows the durable object's error and fails open.
-    expect(verdicts).toEqual([true, true, true, false]);
+    expect(verdicts).toEqual([true, true, true, true, true, false]);
   });
 
   it("gives each client IP its own counter through the real durable object", async () => {
@@ -325,7 +421,7 @@ describe("checkRateLimit and RateLimiter, wired together", () => {
       env: { RATE_LIMITER: namespace },
     }));
 
-    for (let attempt = 0; attempt < 4; attempt += 1) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
       await checkRateLimit(bookingRequest("203.0.113.7"), "bookings", [
         RATE_LIMIT_BURST,
       ]);
