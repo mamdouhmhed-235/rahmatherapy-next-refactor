@@ -67,6 +67,24 @@ describe("RateLimiter durable object", () => {
     expect(await limiter.consume([RATE_LIMIT_BURST], now + windowMs)).toBe(true);
   });
 
+  it("holds the window open until the last millisecond before it elapses", async () => {
+    const storage = fakeStorage();
+    const limiter = new RateLimiter({ storage });
+    const now = Date.UTC(2026, 5, 1, 10, 0, 0);
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await limiter.consume([RATE_LIMIT_BURST], now + attempt);
+    }
+
+    // The exclusive side of the boundary the test above covers inclusively:
+    // one millisecond early the window is still the same window, so the
+    // over-limit attempt is still denied.
+    const windowMs = RATE_LIMIT_BURST.windowSeconds * 1000;
+    expect(await limiter.consume([RATE_LIMIT_BURST], now + windowMs - 1)).toBe(
+      false
+    );
+  });
+
   it("keeps denying once the longer window is exhausted", async () => {
     const storage = fakeStorage();
     const limiter = new RateLimiter({ storage });
@@ -91,13 +109,18 @@ describe("RateLimiter durable object", () => {
     const storage = fakeStorage();
     const limiter = new RateLimiter({ storage });
     const now = Date.UTC(2026, 5, 1, 10, 0, 0);
+    const later = now + 60_000;
+    const sustainedMs = RATE_LIMIT_SUSTAINED.windowSeconds * 1000;
 
     await limiter.consume(BOOKING_RATE_LIMIT, now);
+    await limiter.consume(BOOKING_RATE_LIMIT, later);
 
     expect(storage.values.size).toBe(2);
-    expect(storage.alarms).toEqual([
-      now + RATE_LIMIT_SUSTAINED.windowSeconds * 1000,
-    ]);
+    // Sliding, not set-once: each request re-arms the wipe to the longest
+    // window measured from its own timestamp, so an active IP never has its
+    // counters cleared out from under it.
+    expect(storage.alarms).toEqual([now + sustainedMs, later + sustainedMs]);
+    expect(storage.alarms[1]).toBeGreaterThan(storage.alarms[0]);
 
     await limiter.alarm();
     expect(storage.values.size).toBe(0);
@@ -158,6 +181,42 @@ describe("checkRateLimit", () => {
     ).resolves.toBe(true);
   });
 
+  it("allows the request when the binding exists but is not a durable object namespace", async () => {
+    getCloudflareContextMock.mockImplementation(() => ({
+      // Present, but without idFromName — a misconfigured or shadowed binding.
+      env: { RATE_LIMITER: { get: () => ({ fetch: stubFetch }) } },
+    }));
+
+    await expect(
+      checkRateLimit(
+        limitedRequest({ "CF-Connecting-IP": "203.0.113.7" }),
+        "bookings",
+        BOOKING_RATE_LIMIT
+      )
+    ).resolves.toBe(true);
+
+    expect(stubFetch).not.toHaveBeenCalled();
+  });
+
+  it("allows the request when the limiter answers with a non-ok status", async () => {
+    // Body says deny; the status says the answer is not trustworthy. Fail open
+    // wins — the response is never even read.
+    stubFetch.mockResolvedValue(
+      new Response(JSON.stringify({ allowed: false }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(
+      checkRateLimit(
+        limitedRequest({ "CF-Connecting-IP": "203.0.113.7" }),
+        "bookings",
+        BOOKING_RATE_LIMIT
+      )
+    ).resolves.toBe(true);
+  });
+
   it("allows the request when the limiter itself throws", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     stubFetch.mockRejectedValue(new Error("durable object unreachable"));
@@ -195,6 +254,88 @@ describe("checkRateLimit", () => {
     );
 
     expect(idFromName).toHaveBeenCalledWith("availability-month:203.0.113.7");
+  });
+});
+
+describe("checkRateLimit and RateLimiter, wired together", () => {
+  // Every other spec in this file exercises one side of the durable-object
+  // payload with the other side mocked, so nothing proves the two agree. If
+  // the request or response shape ever diverged, the durable object would
+  // throw, checkRateLimit would fail open, and rate limiting would be silently
+  // inert in production behind a fully green suite. So: a fake namespace whose
+  // stub invokes the REAL RateLimiter.fetch over fake storage — no hand-written
+  // JSON literal anywhere between the two sides.
+  function realLimiterNamespace() {
+    const limiters = new Map<string, RateLimiter>();
+
+    return {
+      idFromName: (name: string) => name,
+      get: (id: unknown) => {
+        const name = String(id);
+        const existing = limiters.get(name);
+        const limiter = existing ?? new RateLimiter({ storage: fakeStorage() });
+        if (!existing) limiters.set(name, limiter);
+
+        return {
+          fetch: (input: string, init?: RequestInit) =>
+            limiter.fetch(new Request(input, init)),
+        };
+      },
+    };
+  }
+
+  function bookingRequest(ip: string) {
+    return new Request("http://localhost/api/bookings/", {
+      method: "POST",
+      headers: { "CF-Connecting-IP": ip },
+    });
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("denies the over-limit request through the real durable object", async () => {
+    const namespace = realLimiterNamespace();
+    getCloudflareContextMock.mockImplementation(() => ({
+      env: { RATE_LIMITER: namespace },
+    }));
+
+    const verdicts: boolean[] = [];
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      verdicts.push(
+        await checkRateLimit(bookingRequest("203.0.113.7"), "bookings", [
+          RATE_LIMIT_BURST,
+        ])
+      );
+    }
+
+    // A shape mismatch on either side surfaces here as an all-allowed run:
+    // checkRateLimit swallows the durable object's error and fails open.
+    expect(verdicts).toEqual([true, true, true, false]);
+  });
+
+  it("gives each client IP its own counter through the real durable object", async () => {
+    const namespace = realLimiterNamespace();
+    getCloudflareContextMock.mockImplementation(() => ({
+      env: { RATE_LIMITER: namespace },
+    }));
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await checkRateLimit(bookingRequest("203.0.113.7"), "bookings", [
+        RATE_LIMIT_BURST,
+      ]);
+    }
+
+    await expect(
+      checkRateLimit(bookingRequest("203.0.113.8"), "bookings", [
+        RATE_LIMIT_BURST,
+      ])
+    ).resolves.toBe(true);
   });
 });
 

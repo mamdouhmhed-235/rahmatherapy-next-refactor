@@ -133,10 +133,33 @@ describe("POST /api/bookings honeypot", () => {
     );
     expect(sendBookingCreatedEmails).toHaveBeenCalledTimes(1);
 
-    // The honeypot key is stripped by the server schema, so it can never
-    // reach the RPC payload.
-    expect(rpc.mock.calls[0]?.[1]).not.toHaveProperty("company_website");
+    // createBookingTransaction builds the RPC argument by enumerating p_-prefixed
+    // keys, so the meaningful claim is not "company_website is absent" (no
+    // client key of any name could appear) but that the argument really is that
+    // closed allow-list — a spread of the client payload would break this.
+    const rpcArgs = rpc.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(Object.keys(rpcArgs).every((key) => key.startsWith("p_"))).toBe(true);
     expect(console.warn).not.toHaveBeenCalled();
+  });
+
+  it("ignores a honeypot key smuggled inside details", async () => {
+    const response = await postBooking({
+      ...validRequestBody,
+      details: {
+        ...validRequestBody.details,
+        company_website: "https://spam.example.test",
+      },
+    });
+
+    // Nested is not the top-level decoy the guard reads, so this is an ordinary
+    // booking: the unknown key must not fail server validation, and its value
+    // must not survive anywhere into what the RPC receives.
+    expect(response.status).toBe(200);
+    expect(console.warn).not.toHaveBeenCalled();
+    expect(sendBookingCreatedEmails).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(rpc.mock.calls[0]?.[1])).not.toContain(
+      "spam.example.test"
+    );
   });
 
   it("returns the same response shape whether or not the honeypot trips", async () => {
