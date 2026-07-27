@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createManualBooking } from "../actions";
 import { ManualBookingForm } from "./ManualBookingForm";
 
 vi.mock("../actions", () => ({
@@ -88,3 +89,88 @@ describe("ManualBookingForm", () => {
     expect(container.querySelector('[name="required_therapist_gender"]')).toBeNull();
   });
 });
+
+describe("ManualBookingForm duplicate flow + client_id plumbing", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.mocked(createManualBooking).mockReset();
+  });
+
+  it("sends the prefilled client's id so the RPC links the booking instead of matching on email", () => {
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={prefillClient} enquiry={null} />
+    );
+    const hidden = container.querySelector<HTMLInputElement>('input[name="client_id"]');
+    expect(hidden).not.toBeNull();
+    expect(hidden?.type).toBe("hidden");
+    expect(hidden?.value).toBe(prefillClient.id);
+  });
+
+  it("omits client_id entirely when there is no prefilled client", () => {
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    expect(container.querySelector('input[name="client_id"]')).toBeNull();
+  });
+
+  it("blocks submit on a duplicate warning until the acknowledgement is ticked", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createManualBooking).mockResolvedValue({
+      duplicateWarning: "Sara Mohamed (sara@example.test)",
+    });
+    const { submitButton } = await submitFromStep4(user);
+
+    // Server came back with a match: the shared banner renders and submit re-locks.
+    await screen.findByText("Possible duplicate client");
+    expect(screen.getByText("Sara Mohamed (sara@example.test)")).not.toBeNull();
+    expect(submitButton().disabled).toBe(true);
+
+    await user.click(screen.getByRole("checkbox", { name: /existing client record/i }));
+    await waitFor(() => expect(submitButton().disabled).toBe(false));
+  });
+
+  it("acknowledging the duplicate says the booking links the existing client, not that a new profile is created", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createManualBooking).mockResolvedValue({
+      duplicateWarning: "Sara Mohamed (sara@example.test)",
+    });
+    await submitFromStep4(user);
+
+    await screen.findByText("Use the existing client record for this booking.");
+    // The shared component's create-a-separate-profile default would be a lie
+    // here: this form always books against the matched client.
+    expect(screen.queryByText("Create a separate client profile anyway.")).toBeNull();
+  });
+});
+
+/**
+ * Jumps to the review step via the session-storage draft the form already
+ * restores, ticks consent so nothing but the duplicate check can block submit,
+ * and fires one submission.
+ */
+async function submitFromStep4(user: ReturnType<typeof userEvent.setup>) {
+  sessionStorage.setItem(
+    "booking-new-draft",
+    JSON.stringify({
+      step: 4,
+      fullName: "Aisha Khan",
+      email: "aisha@example.test",
+      phone: "07123456789",
+      address: "10 Test Street",
+      postcode: "LU1 1AA",
+      city: "Luton",
+    })
+  );
+  const { container } = render(
+    <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+  );
+  const submitButton = () =>
+    screen.getAllByRole("button", { name: /Submit booking request/i })[0] as HTMLButtonElement;
+
+  await user.click(container.querySelector<HTMLInputElement>("#consent_acknowledged")!);
+  await waitFor(() => expect(submitButton().disabled).toBe(false));
+
+  await user.click(submitButton());
+  await waitFor(() => expect(createManualBooking).toHaveBeenCalledTimes(1));
+  return { submitButton };
+}
