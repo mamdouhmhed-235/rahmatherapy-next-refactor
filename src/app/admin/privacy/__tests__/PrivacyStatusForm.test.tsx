@@ -53,11 +53,33 @@ describe("PrivacyStatusForm completion copy", () => {
   it("names the whole cascade for a deletion_review", async () => {
     const copy = await completionCopy("deletion_review");
 
-    expect(copy).toMatch(/delete this client's profile/i);
+    expect(copy).toMatch(/hide this client's profile/i);
     expect(copy).toMatch(/cancel their open bookings/i);
-    expect(copy).toMatch(/sensitive notes/i);
+    expect(copy).toMatch(/sensitive health notes/i);
     expect(copy).toMatch(/completed bookings stay/i);
-    expect(copy).toMatch(/cannot be undone/i);
+    // Irreversibility is claimed for the notes alone, and the profile's real
+    // fate is stated outright.
+    expect(copy).toMatch(/unrecoverable/i);
+    expect(copy).toMatch(/hidden, not erased/i);
+  });
+
+  it("does not overstate what a deletion_review erasure does", async () => {
+    const copy = await completionCopy("deletion_review");
+
+    // `deleteClient` on `gdpr_erasure` stamps `deleted_at` on the clients row
+    // and nothing more — full_name, email, phone and address all survive, and
+    // clearing the stamp restores the record. Only the sensitive notes are
+    // hard-deleted. Copy that promises an erased profile, or a wholly
+    // irreversible operation, is the same class of UI lie C-06 exists to kill,
+    // pointing the other way.
+    expect(copy).not.toMatch(
+      /(delet|eras|wip|purg)\w*\s+(this\s+|the\s+|their\s+)?(client'?s?\s+)?(profile|record|account|details)/i
+    );
+    expect(copy).not.toMatch(
+      /permanently\s+\w+\s+(this\s+|the\s+|their\s+)?(client|profile|record|account)\b/i
+    );
+    expect(copy).not.toMatch(/\b(this|it|that|all of this)\s+cannot be undone/i);
+    expect(copy).not.toMatch(/\bpermanent(ly)?\s+and\s+irreversible/i);
   });
 
   it("tells the truth about a data_export: local download, client not emailed", async () => {

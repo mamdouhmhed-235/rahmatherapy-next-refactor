@@ -44,7 +44,7 @@ function isDestructive(value: string) {
  */
 const COMPLETION_DESCRIPTION: Record<string, string> = {
   deletion_review:
-    "Marking complete will delete this client's profile, cancel their open bookings, and permanently remove any sensitive notes. Past completed bookings stay for tax and ICO records. This cannot be undone.",
+    "Marking complete will hide this client's profile from the admin, cancel their open bookings, and permanently delete any sensitive health notes. Past completed bookings stay for tax and ICO records. Only the notes are unrecoverable — the profile is hidden, not erased.",
   data_export:
     "Use Download export now to save the client's data as a JSON file, excluding sensitive health notes. The file downloads to this device for you to check and send on — the client is not emailed. Marking complete then records the request as fulfilled.",
   correction:
@@ -187,8 +187,9 @@ export function PrivacyStatusForm({
               selectedStatus === "completed" ? "Mark completed" : "Decline"
             }
             cancelLabel="Cancel"
-            // A deletion_review completion is now a real, irreversible erasure,
-            // so it gets the destructive treatment rather than the success tick.
+            // A deletion_review completion cancels open bookings and hard-deletes
+            // sensitive notes, so it gets the destructive treatment rather than
+            // the success tick.
             destructive={
               selectedStatus === "declined" ||
               (selectedStatus === "completed" &&
