@@ -821,6 +821,9 @@ export async function createManualBooking(
           : undefined,
         clientId,
         confirmDuplicate,
+        // Admin-only: surface the duplicate warning so staff decide consciously.
+        // The public route omits this and links returning customers silently.
+        raiseOnDuplicate: true,
       },
       adminClient
     );

@@ -43,6 +43,15 @@ export interface CreateBookingTransactionInput {
   participantServiceSlugs?: string[][];
   clientId?: string | null;
   confirmDuplicate?: boolean;
+  /**
+   * Opt in to the RPC's `duplicate_client_exists` exception. Only the admin
+   * flow wants it — the public flow leaves it off so a returning customer is
+   * silently linked to their existing client row instead of getting a 409.
+   * This never controls whether the row is overwritten: the RPC's
+   * `on conflict (email) do nothing` means existing client fields are never
+   * modified either way.
+   */
+  raiseOnDuplicate?: boolean;
 }
 
 export class BookingCreationError extends Error {
@@ -152,6 +161,7 @@ export async function createBookingTransaction(
     p_area: input.details.area || null,
     p_client_id: input.clientId ?? null,
     p_confirm_duplicate: input.confirmDuplicate ?? false,
+    p_raise_on_duplicate: input.raiseOnDuplicate ?? false,
   });
 
   // The RPC raises `duplicate_client_exists: <client id>` with the matching

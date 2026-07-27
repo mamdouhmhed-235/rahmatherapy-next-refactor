@@ -1993,6 +1993,7 @@ export function ManualBookingForm({
             message={state.duplicateWarning}
             checked={confirmDuplicate}
             onCheckedChange={setConfirmDuplicate}
+            acknowledgeLabel="Use the existing client record for this booking."
           />
         ) : null}
         {step1}

@@ -93,6 +93,7 @@ describe("createBookingTransaction", () => {
       p_area: "Bedfordshire",
       p_client_id: null,
       p_confirm_duplicate: false,
+      p_raise_on_duplicate: false,
     });
   });
 

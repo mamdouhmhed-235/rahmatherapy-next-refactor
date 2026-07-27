@@ -11,10 +11,17 @@ export function DuplicateWarningBanner({
   message,
   checked,
   onCheckedChange,
+  acknowledgeLabel = "Create a separate client profile anyway.",
 }: {
   message: string;
   checked: boolean;
   onCheckedChange: (next: boolean) => void;
+  /**
+   * What ticking the box actually does. The default suits the create-client
+   * form, where a separate profile is a real outcome. Callers whose flow can
+   * only link to the existing record pass their own honest wording.
+   */
+  acknowledgeLabel?: string;
 }) {
   return (
     <div
@@ -42,9 +49,7 @@ export function DuplicateWarningBanner({
               onChange={(event) => onCheckedChange(event.currentTarget.checked)}
               className="mt-0.5 size-4 rounded border-[var(--admin-border-form)] text-[var(--admin-primary)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             />
-            <span className="font-medium">
-              Create a separate client profile anyway.
-            </span>
+            <span className="font-medium">{acknowledgeLabel}</span>
           </label>
         </div>
       </div>
