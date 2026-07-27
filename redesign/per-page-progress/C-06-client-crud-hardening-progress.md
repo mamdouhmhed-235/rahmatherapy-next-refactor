@@ -6,9 +6,35 @@
 **Started:** 2026-07-27 · orchestrated session (implementer + independent verifier per phase)
 **Predecessor plan closed at:** `d1630af` (C-22)
 
-> ## ⏸ STATUS: IN PROGRESS — Phases A–E landed. **MIGRATION APPLIED.** Phase F outstanding.
-> **Next action:** Phase E verifier → Phase F (Step 13, email-optional) → §3 closeout gate.
+> ## ⏸ STATUS: ALL SIX PHASES IMPLEMENTED + VERIFIED. **MIGRATION APPLIED.** Only the §3 closeout gate remains.
+> **Last good commit:** `c57721f` · **Next action:** re-verify the Phase F fix round, then run the §3 closeout sweep (scope decided by the Owner — see below), then finalise this file and flip the master-plan row to ✅.
 > This file is written incrementally so the plan can be resumed from git alone (protocol §3).
+>
+> **Owner decision on the closeout sweep (2026-07-27): read-only sweep + REVERSIBLE mutations only.**
+> Run: the full role sweep, RBAC visibility checks, the edit happy-path, the email-collision test, and the no-email booking creation. **SKIP** the delete cascade (§3.2e), the bulk delete (§3.2f) and the privacy `deletion_review` completion (§3.2g) — those hard-delete sensitive health notes (irreversible) and consume `Audit Test Client` fixtures that later plans (C-05, C-02, C-09, C-16) still need. Record all three as NOT RUN against their unit-spec coverage.
+
+---
+
+## 5b — Phase F (`e5d5d47` + `c57721f`) — optional email on the admin booking flow
+
+Email is now optional on `/admin/bookings/new` only. Phone stays required at all three layers. The confirmation checkbox is hidden **and forced false** via the hidden input when there is no address; downstream guards added to `sendBookingCreatedEmails` and the booking-reminders cron. "No email — reminders off" chip on the booking detail.
+
+**Public-flow isolation holds — the load-bearing guarantee.** `src/app/api/bookings/route.ts` is **byte-untouched** across the entire C-06 range (blob hash identical at both ends). Both a missing-email and an `email: ""` payload still return 400 with the RPC and mailer never invoked. The verifier further reasoned that the RPC's null-email branch 3 is unreachable from the public path: there are only two callers, and the public one passes a `z.email()`-validated string that cannot be empty or whitespace-only.
+
+**The acknowledge label is now branch-aware** (closes the Phase B note). Verified against the *deployed* function: on the email branch the UNIQUE index means confirming can only ever link, but on the phone branch `p_confirm_duplicate` falls through to `insert … values (…, null, …) returning id` — a brand-new NULL-email client. The old fixed label would have lied at the exact moment the admin consented to it.
+
+**Two Phase-F fixes after the verifier returned FAIL:**
+- *Lost plan step:* Step 13f bullet 2's `p_contact_email: ""` assertion in `createBookingTransaction.test.ts` had been silently dropped. Added — as a new spec, leaving that file's existing exact deep-equality assertion untouched (it is C-06's expected-shrinkage target and must stay passing).
+- *A real bug Phase F introduced:* the form submitted `value={email}` **untrimmed** while every gate used `.trim()`, so a whitespace-only email matched neither union member, and the resulting `fieldErrors` are **never rendered** — the admin saw "Check the highlighted booking details" with nothing highlighted and no way out. Fixed at source (`value={email.trim()}`) plus `z.string().trim().pipe(...)` as defence in depth.
+  - **Why the specs for this nearly proved nothing:** the first draft drove whitespace in by *typing*, and passed against the broken code — `<input type="email">` has an HTML value-sanitization algorithm that strips leading/trailing whitespace, which jsdom implements. The bug is only reachable via `prefillClient?.email`, `enquiry?.email`, or a restored sessionStorage draft. The specs were rewritten to seed via `prefillClient`, the true failing path, and were then demonstrated failing against the un-trimmed code.
+
+**Also folded in:** the `admin_delete` modals in `DeleteClientButton.tsx` and `BulkDeleteToolbar.tsx` dropped "This cannot be undone." (which overstated a soft-delete) and gained the honest clause used by `PrivacyStatusForm`. The bulk modal *gained* a sensitive-notes bullet, because removing the blanket claim would otherwise have left it with no irreversibility warning at all.
+
+### Outstanding notes from the Phase F verifier (recorded, not actioned)
+1. **Staff assignment emails are now silently skipped for phone-only bookings.** `sendStaffAssignmentEmail` / `sendAssignedStaffBookingChangeEmails` throw "Booking has no contact email address.", and every call site swallows it with `.catch(console.error)`. No admin action breaks, but a therapist will not be emailed. Plan §13c scoped the guards to `sendBookingCreatedEmails` + crons, so this is plan-faithful. **C-08 follow-up.**
+2. **"Only the notes are unrecoverable" is still slightly broad** — cascade-cancelled bookings lose their prior status (`pending` vs `confirmed`) with no record of it, and at HEAD there is no restore affordance at all. C-04a ships Restore next, which resolves the second half.
+3. `src/app/admin/bookings/types.ts` still types `contact_email: string` against a now-nullable column — the same unchecked-cast hazard class as the `deleted_at` select gap, invisible to tsc. Not on Phase F's file list.
+4. A narrow acknowledge-label staleness case: the banner stays visible while the email field is still editable, so typing a *new* unmatched address after a phone-branch warning flips the label while the next submit takes branch 2. The reverse mismatch is impossible.
 
 ---
 
