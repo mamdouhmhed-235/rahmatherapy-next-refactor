@@ -104,14 +104,27 @@ export function ClientRowMenu({
               Start new booking
             </Link>
           )}
+          {/* A soft-deleted client 404s on the detail route, so the row stops
+              offering the profile link rather than pointing at a dead page
+              (brief §5.3). Audit history below stays reachable either way. */}
+          {deleted ? null : (
+            <Link
+              href={`/admin/clients/${clientId}`}
+              className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            >
+              View client profile
+            </Link>
+          )}
+          {/* Filter by id, not by `target_type`: the audit page matches
+              `target_type` with an exact `eq` and only accepts the singular keys
+              in `TARGET_TYPE_OPTIONS`, while client rows are written as
+              `target_type: "clients"` — so `?target_type=client` returned
+              nothing, and `target_id` was never a filter the page reads. `q` is
+              the audit query's full-UUID lookup across
+              `id / target_id / actor_staff_id`, so it finds this client's rows
+              however `target_type` ends up spelled. */}
           <Link
-            href={`/admin/clients/${clientId}`}
-            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-          >
-            View client profile
-          </Link>
-          <Link
-            href={`/admin/audit?target_type=client&target_id=${clientId}`}
+            href={`/admin/audit?q=${clientId}`}
             className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             View audit history

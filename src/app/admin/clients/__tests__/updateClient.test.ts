@@ -42,6 +42,7 @@ const CURRENT_ROW = {
   source_detail: null,
   notes: "Prefers mornings.",
   updated_at: "2026-07-01T09:00:00.000Z",
+  deleted_at: null as string | null,
 };
 
 function staff(name: string, permissions: string[]): StaffProfile {
@@ -282,6 +283,33 @@ describe("updateClient", () => {
       error: "This client was updated by someone else. Reload to see the latest.",
     });
     expect(updates).toHaveLength(0);
+  });
+
+  // The edit route 404s on a deleted client, but this action is `"use server"`
+  // and therefore dispatchable on its own. A permitted actor POSTing straight at
+  // it must not be able to resurrect an erased record's PII — neither in
+  // `clients` nor in the `client_updated` audit row that would carry it.
+  it("refuses to update a soft-deleted client and writes nothing", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(owner);
+    const { updates, audits } = stubAdminClient({
+      current: { ...CURRENT_ROW, deleted_at: "2026-07-10T12:00:00.000Z" },
+    });
+
+    const result = await updateClient(
+      {},
+      editFormData({
+        full_name: "Erased Person",
+        email: "erased@example.test",
+        phone: "07999 888 777",
+      })
+    );
+
+    expect(result).toEqual({
+      error: "This client has been deleted and can no longer be edited.",
+    });
+    expect(updates).toHaveLength(0);
+    expect(audits).toHaveLength(0);
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("refuses a therapist outright", async () => {

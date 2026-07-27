@@ -39,7 +39,7 @@ const CLIENT_IDENTITY_FIELDS = [
 ] as const;
 
 const CLIENT_EDIT_COLUMNS =
-  "id, full_name, phone, email, gender_preference, address, postcode, city, area, client_source, source_detail, notes, updated_at";
+  "id, full_name, phone, email, gender_preference, address, postcode, city, area, client_source, source_detail, notes, updated_at, deleted_at";
 
 interface ClientEditableRow {
   id: string;
@@ -55,6 +55,7 @@ interface ClientEditableRow {
   source_detail: string | null;
   notes: string | null;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 const PRIVACY_REQUEST_TYPES = [
@@ -318,6 +319,18 @@ export async function updateClient(
 
   if (currentError || !current) {
     return { error: "This client record could not be loaded. Reload and try again." };
+  }
+
+  // A soft-deleted record is not editable. The edit route already 404s on
+  // `deleted_at`, but this module is `"use server"`, so `updateClient` is
+  // directly dispatchable: without this guard an authenticated client manager
+  // could POST straight at the action, rewrite an erased client's PII, bump
+  // `updated_at`, and file a fresh `client_updated` audit row carrying exactly
+  // the identifiers the `gdpr_erasure` redaction (see `auditBeforeState`) exists
+  // to keep out of `audit_logs`. Same threat model `deleteClient` re-asserts its
+  // own permissions for.
+  if (current.deleted_at) {
+    return { error: "This client has been deleted and can no longer be edited." };
   }
 
   // Optimistic concurrency (brief §5.6). `clients.updated_at` is stamped by the

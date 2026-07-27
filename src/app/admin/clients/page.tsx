@@ -1410,15 +1410,23 @@ function ClientRow({
         {initials}
       </span>
       <div className="min-w-0 flex-1 max-w-[18rem] md:max-w-[22rem]">
-        <Link
-          href={`/admin/clients/${client.id}`}
-          className={`relative block truncate text-sm font-semibold text-[var(--admin-heading)] outline-none after:absolute after:inset-0 after:rounded-[var(--admin-radius-control)] after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-[var(--admin-focus)]/55 ${
-            isDeleted ? "line-through" : ""
-          }`}
-        >
-          {client.full_name}
-          {isDeleted ? <span className="sr-only"> (deleted)</span> : null}
-        </Link>
+        {isDeleted ? (
+          // The detail route 404s on a soft-deleted client, so the row title —
+          // whose ::after overlay makes the whole row clickable — is plain text
+          // here instead of a dead link. Audit history stays available from the
+          // row menu (brief §5.3).
+          <p className="block truncate text-sm font-semibold text-[var(--admin-heading)] line-through">
+            {client.full_name}
+            <span className="sr-only"> (deleted)</span>
+          </p>
+        ) : (
+          <Link
+            href={`/admin/clients/${client.id}`}
+            className="relative block truncate text-sm font-semibold text-[var(--admin-heading)] outline-none after:absolute after:inset-0 after:rounded-[var(--admin-radius-control)] after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-[var(--admin-focus)]/55"
+          >
+            {client.full_name}
+          </Link>
+        )}
         {showContact && client.phone ? (
           <p className="truncate text-xs text-[var(--admin-text-muted)]">
             {client.phone}
