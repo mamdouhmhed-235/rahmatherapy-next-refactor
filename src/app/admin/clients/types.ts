@@ -10,6 +10,7 @@ export interface ClientRecord {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export interface ClientBookingItem {
@@ -41,6 +42,7 @@ export interface ClientBookingRecord {
   health_notes?: string | null;
   customer_notes?: string | null;
   created_at: string;
+  deleted_at?: string | null;
   booking_items: ClientBookingItem[];
   booking_participants?: ClientParticipantRecord[];
 }

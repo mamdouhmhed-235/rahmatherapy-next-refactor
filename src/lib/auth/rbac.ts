@@ -24,6 +24,8 @@ export const PERMISSIONS = {
   CREATE_CLIENT_SESSION_NOTES: "create_client_session_notes",
   MANAGE_CLIENTS_ALL: "manage_clients_all",
   MANAGE_SENSITIVE_CLIENT_NOTES: "manage_sensitive_client_notes",
+  MANAGE_CLIENT_IDENTITY_FIELDS: "manage_client_identity_fields",
+  MANAGE_CLIENT_DESTRUCTIVE_OPS: "manage_client_destructive_ops",
   VIEW_STAFF: "view_staff",
   MANAGE_STAFF_PROFILES: "manage_staff_profiles",
   ASSIGN_STAFF_ROLES: "assign_staff_roles",
@@ -176,6 +178,20 @@ export function canManageSensitiveClientNotes(profile: StaffProfile | null) {
     PERMISSIONS.MANAGE_SENSITIVE_CLIENT_NOTES,
     PERMISSIONS.MANAGE_PRIVACY_OPERATIONS,
   ]);
+}
+
+export function canManageClientIdentityFields(profile: StaffProfile | null) {
+  return Boolean(
+    profile?.active &&
+      hasPermission(profile, PERMISSIONS.MANAGE_CLIENT_IDENTITY_FIELDS)
+  );
+}
+
+export function canManageClientDestructiveOps(profile: StaffProfile | null) {
+  return Boolean(
+    profile?.active &&
+      hasPermission(profile, PERMISSIONS.MANAGE_CLIENT_DESTRUCTIVE_OPS)
+  );
 }
 
 export function canViewStaff(profile: StaffProfile | null) {
