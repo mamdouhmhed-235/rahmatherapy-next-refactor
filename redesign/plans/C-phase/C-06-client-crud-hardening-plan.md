@@ -351,7 +351,18 @@ CREATE OR REPLACE FUNCTION public.create_booking_request(
   p_area                       text DEFAULT NULL,
   -- NEW PARAMETERS (appended — backward-compatible)
   p_client_id                  uuid DEFAULT NULL,
-  p_confirm_duplicate          boolean DEFAULT false
+  p_confirm_duplicate          boolean DEFAULT false,
+  -- CORRECTION 2026-07-27 (Owner-approved, C-C impl): third appended param.
+  -- WHY: without it, branch 2 below raises duplicate_client_exists for EVERY caller
+  -- that omits p_confirm_duplicate — and src/app/api/bookings/route.ts does exactly
+  -- that, so every RETURNING PUBLIC CUSTOMER would receive a 409. Verified live:
+  -- 2 clients already have repeat bookings; 4 bookings are website-sourced.
+  -- booking_source cannot discriminate the callers (the admin form lets staff pick
+  -- "website" from the enum). Admin passes TRUE and keeps the warning UX; the public
+  -- path omits it, gets FALSE, and silently links to the existing client.
+  -- This flag controls only WHETHER WE WARN — never whether we overwrite: the
+  -- DO UPDATE → DO NOTHING change below kills the destructive overwrite for BOTH paths.
+  p_raise_on_duplicate         boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -383,7 +394,9 @@ BEGIN
         AND deleted_at IS NULL
       LIMIT 1;
 
-    IF v_existing_client_id IS NOT NULL AND NOT p_confirm_duplicate THEN
+    -- CORRECTION 2026-07-27 (Owner-approved): gated on p_raise_on_duplicate so the
+    -- public path (which passes neither flag) never 409s a returning customer.
+    IF v_existing_client_id IS NOT NULL AND p_raise_on_duplicate AND NOT p_confirm_duplicate THEN
       -- Raise structured exception the server action surfaces as duplicateWarning
       RAISE EXCEPTION 'duplicate_client_exists: %', v_existing_client_id
         USING errcode = 'P0001',
@@ -409,6 +422,23 @@ BEGIN
         WHERE email = v_normalized_email
           AND deleted_at IS NULL
         LIMIT 1;
+    END IF;
+
+    -- CORRECTION 2026-07-27 (Owner-approved): SOFT-DELETE CLASH GUARD.
+    -- If v_client_id is STILL NULL here, the email is held by a SOFT-DELETED client.
+    -- clients_email_key is a PLAIN unique index (verified live: no partial predicate),
+    -- so ON CONFLICT (email) DO NOTHING collides with the erased row and returns zero
+    -- rows, while both lookups above filter deleted_at IS NULL. Without this guard the
+    -- next statement inserts NULL into bookings.client_id — which is NOT NULL (verified
+    -- live) — producing a raw 23502 that route.ts echoes verbatim to a public customer.
+    -- C-06's own Phase D creates this state, so the plan would have introduced the bug.
+    -- Fail cleanly and customer-safely instead. (A partial unique index
+    -- WHERE deleted_at IS NULL is the better long-term data model — recorded as a
+    -- follow-up, deliberately NOT bundled into this already-high-risk migration.)
+    IF v_client_id IS NULL THEN
+      RAISE EXCEPTION 'client_record_removed'
+        USING errcode = 'P0001',
+              hint = 'This email belongs to a removed client record. Link the client explicitly or use a different address.';
     END IF;
 
   ELSE
@@ -457,8 +487,18 @@ COMMIT;
 | Branch | Condition | Behaviour |
 |---|---|---|
 | 1 | `p_client_id` provided | Use that client directly. Email irrelevant. |
-| 2 | No client_id, email present | Email is dedup key — collision → `duplicate_client_exists` unless confirm; else insert-or-resolve. |
+| 2 | No client_id, email present | Email is dedup key — collision → `duplicate_client_exists` **only when `p_raise_on_duplicate` (admin)** and not already confirmed; else insert-or-resolve (links, never overwrites). |
+| 2a | No client_id, email present, email held by a SOFT-DELETED client | **`client_record_removed`** — the soft-delete clash guard. Prevents a raw `23502` on `bookings.client_id`. |
 | 3 | No client_id, email absent | **Phone is dedup key** — phone match → `duplicate_client_exists` unless confirm; else insert client with `email = NULL`. |
+
+**Caller contract (CORRECTION 2026-07-27, Owner-approved):**
+
+| Caller | `p_client_id` | `p_confirm_duplicate` | `p_raise_on_duplicate` | Result on a duplicate email |
+|---|---|---|---|---|
+| Public `route.ts` | — | — | **false** (default) | Silently links to the existing client. **No 409.** No field overwritten. |
+| Admin `createManualBooking` | when prefilled | when acknowledged | **true** | Raises → `DuplicateWarningBanner` → admin acknowledges → links. |
+
+**Phase E must also:** map the new `client_record_removed` exception inside `createBookingTransaction.ts` (already on the files-touched list) to a customer-safe `BookingCreationError` message that offers the clinic phone — otherwise `route.ts` echoes the raw code to a customer. **Do NOT edit `route.ts`** to achieve this; it stays on the UNCHANGED list.
 
 `bookings.contact_email` receives `NULLIF(v_normalized_email, '')` so an empty admin email lands as NULL (never `''` — which would matter if a future constraint were added).
 
