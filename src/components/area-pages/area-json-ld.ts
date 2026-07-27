@@ -27,7 +27,7 @@ export function buildAreaJsonLd(area: AreaPage, { isHub }: { isHub: boolean }) {
   };
 
   const breadcrumbItems = [
-    { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/` },
+    { "@type": "ListItem", position: 1, name: "Home", item: `${SITE_URL}/home/` },
     { "@type": "ListItem", position: 2, name: "Areas we serve", item: `${SITE_URL}/areas/` },
   ];
 

@@ -22,13 +22,13 @@ const breadcrumbJsonLd = {
       "@type": "ListItem",
       position: 1,
       name: "Home",
-      item: siteUrl("/"),
+      item: siteUrl("/home/"),
     },
     {
       "@type": "ListItem",
       position: 2,
       name: "Reviews",
-      item: siteUrl("/reviews"),
+      item: siteUrl("/reviews/"),
     },
   ],
 };

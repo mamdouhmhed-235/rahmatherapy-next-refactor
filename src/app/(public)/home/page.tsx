@@ -22,7 +22,7 @@ const jsonLd = {
   "@type": "HealthAndBeautyBusiness",
   name: "Rahma Therapy",
   areaServed: "Luton",
-  url: siteUrl("/"),
+  url: siteUrl("/home/"),
   telephone: "+447798897222",
   priceRange: "£40-£60",
   description:

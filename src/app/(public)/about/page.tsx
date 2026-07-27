@@ -19,7 +19,7 @@ const jsonLd = {
   description:
     "Mobile hijama, cupping and massage therapy in Luton with CMA and IPHM qualified male and female therapists.",
   areaServed: "Luton",
-  url: siteUrl("/about"),
+  url: siteUrl("/about/"),
   telephone: "07798897222",
   sameAs: ["https://www.instagram.com/rahmatherapyluton/"],
 };
