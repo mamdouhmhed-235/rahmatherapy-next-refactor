@@ -26,7 +26,7 @@ const REQUIRED_STAR = (
 
 const ERROR_COPY: Record<string, string> = {
   empty: "Add your email address.",
-  format: "Email needs an @ symbol. For example, sara@rahmatherapy.com.",
+  format: "Email needs an @ symbol. For example, sara@example.com.",
   server: "Something went wrong. Try again in a minute.",
 };
 
@@ -108,7 +108,7 @@ export function ForgotForm({
             }
             data-error={fieldError ? "true" : undefined}
             defaultValue={email ?? ""}
-            placeholder="you@rahmatherapy.com"
+            placeholder="you@example.com"
           />
           {fieldError ? (
             <div

@@ -7,6 +7,7 @@ import { FaqsAftercareHero } from "@/components/faqs-aftercare/FaqsAftercareHero
 import { QuickAnswersStrip } from "@/components/faqs-aftercare/QuickAnswersStrip";
 import { SafetySuitability } from "@/components/faqs-aftercare/SafetySuitability";
 import { WhenToGetAdvice } from "@/components/faqs-aftercare/WhenToGetAdvice";
+import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
   title: "FAQs & Aftercare | Hijama, Cupping & Massage in Luton | Rahma Therapy",
@@ -22,7 +23,7 @@ const jsonLd = {
     "Mobile hijama, cupping and massage therapy in Luton with CMA and IPHM qualified male and female therapists.",
   areaServed: "Luton",
   telephone: "07798897222",
-  url: "https://rahmatherapy.co.uk/faqs-aftercare",
+  url: siteUrl("/faqs-aftercare"),
   sameAs: ["https://www.instagram.com/rahmatherapyluton/"],
 };
 

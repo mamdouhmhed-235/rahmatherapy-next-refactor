@@ -4,6 +4,7 @@ import { AboutHero } from "@/components/about/AboutHero";
 import { AboutStatsStrip } from "@/components/about/AboutStatsStrip";
 import { BrandStory } from "@/components/about/BrandStory";
 import { TeamProfiles } from "@/components/about/TeamProfiles";
+import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
   title: "About Rahma Therapy | Mobile Hijama, Cupping & Massage in Luton",
@@ -18,7 +19,7 @@ const jsonLd = {
   description:
     "Mobile hijama, cupping and massage therapy in Luton with CMA and IPHM qualified male and female therapists.",
   areaServed: "Luton",
-  url: "https://rahmatherapy.co.uk/about",
+  url: siteUrl("/about"),
   telephone: "07798897222",
   sameAs: ["https://www.instagram.com/rahmatherapyluton/"],
 };

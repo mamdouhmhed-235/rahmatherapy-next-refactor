@@ -6,6 +6,7 @@ import { ReviewsFinalCTA } from "@/components/reviews/ReviewsFinalCTA";
 import { ReviewsHero } from "@/components/reviews/ReviewsHero";
 import { ReviewsStatsStrip } from "@/components/reviews/ReviewsStatsStrip";
 import { ReviewThemeHighlights } from "@/components/reviews/ReviewThemeHighlights";
+import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
   title: "Reviews | Rahma Therapy Luton",
@@ -21,13 +22,13 @@ const breadcrumbJsonLd = {
       "@type": "ListItem",
       position: 1,
       name: "Home",
-      item: "https://rahmatherapy.co.uk/",
+      item: siteUrl("/"),
     },
     {
       "@type": "ListItem",
       position: 2,
       name: "Reviews",
-      item: "https://rahmatherapy.co.uk/reviews",
+      item: siteUrl("/reviews"),
     },
   ],
 };

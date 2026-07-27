@@ -11,6 +11,7 @@
 //   - BUILD-rbac-permission-email-templates.md (real permission gate)
 
 import { NextResponse } from "next/server";
+import { siteUrl } from "@/content/site/site-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canManageEmailSettings,
@@ -49,9 +50,9 @@ const DUMMY_INPUT: BookingEmailTemplateInput = {
       assignedStaffName: "Fatimah Hussain",
     },
   ],
-  manageUrl: "https://rahmatherapy.co.uk/bookings/example",
+  manageUrl: siteUrl("/bookings/example"),
   customerNotes: "Please park on the road, the driveway is narrow.",
-  contactEmail: "hello@rahmatherapy.co.uk",
+  contactEmail: "rahmatherapy@outlook.com",
   contactPhone: "07000 000000",
 };
 

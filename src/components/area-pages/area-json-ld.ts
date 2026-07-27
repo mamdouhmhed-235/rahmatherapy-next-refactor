@@ -1,6 +1,5 @@
 import type { AreaPage } from "@/content/pages/areaPages";
-
-const SITE_URL = "https://rahmatherapy.co.uk";
+import { SITE_URL } from "@/content/site/site-url";
 
 // Service + BreadcrumbList JSON-LD, reproduced exactly from the prototype
 // (area.html inline script). The hub (/areas) drops the trailing breadcrumb

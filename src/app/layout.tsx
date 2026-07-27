@@ -4,9 +4,10 @@ import "react-day-picker/style.css";
 import "@/styles/site-parity.css";
 import "./globals.css";
 import { SentryProvider } from "@/components/SentryProvider";
+import { SITE_URL } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://rahmatherapy.co.uk"),
+  metadataBase: new URL(SITE_URL),
   title: "Mobile Hijama, Cupping & Massage Therapy in Luton | Rahma Therapy",
   description:
     "Mobile hijama, cupping, massage and soft-tissue therapy in Luton and surrounding areas.",

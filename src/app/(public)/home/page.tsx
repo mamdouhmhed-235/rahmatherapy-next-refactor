@@ -9,6 +9,7 @@ import { HomeTeamPreview } from "@/components/home/HomeTeamPreview";
 import { HomeTrustStrip } from "@/components/home/HomeTrustStrip";
 import { PainPointCards } from "@/components/home/PainPointCards";
 import { WhyRahmaTherapy } from "@/components/home/WhyRahmaTherapy";
+import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
   title: "Rahma Therapy | Mobile Hijama, Cupping & Massage in Luton",
@@ -21,7 +22,7 @@ const jsonLd = {
   "@type": "HealthAndBeautyBusiness",
   name: "Rahma Therapy",
   areaServed: "Luton",
-  url: "https://rahmatherapy.com/",
+  url: siteUrl("/"),
   telephone: "+447798897222",
   priceRange: "£40-£60",
   description:

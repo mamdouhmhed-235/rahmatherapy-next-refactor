@@ -18,7 +18,7 @@ const MIN_PASSWORD_LENGTH = 12;
 function maskEmail(email: string): string {
   const trimmed = email.trim().toLowerCase();
   const at = trimmed.indexOf("@");
-  if (at <= 0) return "f••@rahmatherapy.co.uk";
+  if (at <= 0) return "f••@example.com";
   const local = trimmed.slice(0, at);
   const domain = trimmed.slice(at + 1);
   const head = local.slice(0, 1) || "f";

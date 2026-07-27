@@ -19,7 +19,7 @@ export const contactLinks = {
   },
   email: {
     label: "Email",
-    value: "hello@rahmatherapy.co.uk",
-    href: "mailto:hello@rahmatherapy.co.uk",
+    value: "rahmatherapy@outlook.com",
+    href: "mailto:rahmatherapy@outlook.com",
   },
 } as const satisfies Record<"phone" | "whatsapp" | "email", ContactLink>;

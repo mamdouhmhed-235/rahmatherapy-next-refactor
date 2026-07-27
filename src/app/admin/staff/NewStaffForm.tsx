@@ -57,7 +57,7 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
     if (!email.trim()) {
       errors.email = "Add an email so they can sign in.";
     } else if (!EMAIL_REGEX.test(email.trim())) {
-      errors.email = "Email needs an @ symbol. For example: name@rahmatherapy.com.";
+      errors.email = "Email needs an @ symbol. For example: name@example.com.";
     }
     if (!roleId) {
       errors.role_id = "Pick a role so they have the right permissions on day one.";
@@ -165,7 +165,7 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
               value={email}
               required
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="name@rahmatherapy.com"
+              placeholder="name@example.com"
               hint="They'll receive a sign-in invitation at this address."
               disabled={isPending}
               error={fieldErrors.email}

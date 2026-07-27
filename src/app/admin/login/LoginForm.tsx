@@ -26,7 +26,7 @@ function validate(email: string, password: string): FieldErrors | null {
     errors.email = "Add your email address.";
   } else if (!email.includes("@")) {
     errors.email =
-      "Email needs an @ symbol (for example, sara@rahmatherapy.com).";
+      "Email needs an @ symbol (for example, sara@example.com).";
   }
   if (!password) {
     errors.password = "Add your password.";
@@ -111,7 +111,7 @@ export function LoginForm({ redirectTo }: LoginFormProps) {
           data-error={fieldErrors.email ? "true" : undefined}
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@rahmatherapy.com"
+          placeholder="you@example.com"
           disabled={loading}
         />
         {fieldErrors.email ? (

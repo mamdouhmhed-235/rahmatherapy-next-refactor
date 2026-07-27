@@ -298,7 +298,7 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
                     error={state.fieldErrors?.contact_email}
                     value={contactEmail}
                     onChange={setContactEmail}
-                    placeholder="hello@rahmatherapy.com"
+                    placeholder="hello@example.com"
                     disabled={isPending}
                   />
                 </div>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AreaPage } from "@/components/area-pages/AreaPage";
 import { buildAreaJsonLd } from "@/components/area-pages/area-json-ld";
 import { getAreaPage } from "@/content/pages/areaPages";
+import { siteUrl } from "@/content/site/site-url";
 
 // The hub: Luton acts as the /areas landing page and links down to the spokes.
 const hubArea = getAreaPage("luton");
@@ -16,7 +17,7 @@ export function generateMetadata(): Metadata {
     title: hubArea.seo.title,
     description: hubArea.seo.description,
     alternates: {
-      canonical: "https://rahmatherapy.co.uk/areas/",
+      canonical: siteUrl("/areas/"),
     },
   };
 }

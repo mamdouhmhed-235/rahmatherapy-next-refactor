@@ -7,7 +7,7 @@ import { maskedEmailA11yLabel } from "../PasswordResetCard";
  * Per brief §11 state 2:
  *   - body: "Thanks. An Owner will review this and email you when it's
  *     approved. You can close this page; the link will come to your inbox."
- *   - Sub-line: "Sent for: f••@rahmatherapy.co.uk" (masked email)
+ *   - Sub-line: "Sent for: f••@example.com" (masked email)
  *   - Ghost "Submit a different email" → clears cookie + re-renders state 1
  *   - No submit affordance; form is gone.
  *

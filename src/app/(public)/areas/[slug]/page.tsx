@@ -3,6 +3,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { AreaPage } from "@/components/area-pages/AreaPage";
 import { buildAreaJsonLd } from "@/components/area-pages/area-json-ld";
 import { areaSpokes, getAreaPage } from "@/content/pages/areaPages";
+import { siteUrl } from "@/content/site/site-url";
 
 type PageProps = {
   params: Promise<{
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title: area.seo.title,
     description: area.seo.description,
     alternates: {
-      canonical: `https://rahmatherapy.co.uk/areas/${area.slug}/`,
+      canonical: siteUrl(`/areas/${area.slug}/`),
     },
   };
 }
