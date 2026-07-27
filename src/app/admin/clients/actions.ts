@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canManageAllClients,
+  canManageClientIdentityFields,
   getStaffProfile,
   PERMISSIONS,
   requirePermission,
@@ -22,6 +23,38 @@ const CLIENT_SOURCES = [
   "manual",
   "other",
 ] as const;
+
+const GENDER_PREFERENCES = ["no_preference", "female", "male"] as const;
+
+/**
+ * Identity fields (brief §3 RBAC matrix): editable only by an actor holding
+ * `manage_client_identity_fields`. Everything else on the record is
+ * operational and editable by any client manager.
+ */
+const CLIENT_IDENTITY_FIELDS = [
+  "full_name",
+  "email",
+  "gender_preference",
+] as const;
+
+const CLIENT_EDIT_COLUMNS =
+  "id, full_name, phone, email, gender_preference, address, postcode, city, area, client_source, source_detail, notes, updated_at";
+
+interface ClientEditableRow {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  gender_preference: string;
+  address: string | null;
+  postcode: string | null;
+  city: string | null;
+  area: string | null;
+  client_source: string;
+  source_detail: string | null;
+  notes: string | null;
+  updated_at: string;
+}
 
 const PRIVACY_REQUEST_TYPES = [
   "data_export",
@@ -48,6 +81,10 @@ const clientSchema = z.object({
   client_source: z.enum(CLIENT_SOURCES),
   source_detail: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+});
+
+const clientUpdateSchema = clientSchema.extend({
+  gender_preference: z.enum(GENDER_PREFERENCES),
 });
 
 async function requireClientManager() {
@@ -220,6 +257,131 @@ export async function createClient(
   revalidatePath("/admin/clients");
   revalidatePath("/admin/dashboard");
   redirect(`/admin/clients/${data.id}`);
+}
+
+export async function updateClient(
+  _previousState: ClientActionState,
+  formData: FormData
+): Promise<ClientActionState> {
+  let actor;
+  try {
+    actor = await requireClientManager();
+  } catch {
+    return { error: "Insufficient permissions." };
+  }
+
+  const clientId = String(formData.get("client_id") ?? "").trim();
+  const updatedAtToken = String(formData.get("client_updated_at") ?? "").trim();
+  if (!clientId) return { error: "Client is required." };
+
+  const parsed = clientUpdateSchema.safeParse({
+    full_name: formData.get("full_name"),
+    phone: formData.get("phone"),
+    email: formData.get("email"),
+    gender_preference: formData.get("gender_preference"),
+    address: formData.get("address"),
+    postcode: formData.get("postcode"),
+    city: formData.get("city"),
+    area: formData.get("area"),
+    client_source: formData.get("client_source"),
+    source_detail: formData.get("source_detail"),
+    notes: formData.get("notes"),
+  });
+
+  if (!parsed.success) {
+    return {
+      error: "Check the client details.",
+      fieldErrors: toFieldErrors(parsed.error),
+    };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: current, error: currentError } = await adminClient
+    .from("clients")
+    .select(CLIENT_EDIT_COLUMNS)
+    .eq("id", clientId)
+    .single<ClientEditableRow>();
+
+  if (currentError || !current) {
+    return { error: "This client record could not be loaded. Reload and try again." };
+  }
+
+  // Optimistic concurrency (brief §5.6). `clients.updated_at` is stamped by the
+  // clients_updated_at trigger on every write, so a stale token means someone
+  // else saved between this form loading and submitting.
+  if (updatedAtToken !== current.updated_at) {
+    return {
+      error: "This client was updated by someone else. Reload to see the latest.",
+    };
+  }
+
+  const patch: Record<string, string | null> = {
+    full_name: parsed.data.full_name,
+    email: normalizeEmail(parsed.data.email),
+    gender_preference: parsed.data.gender_preference,
+    phone: normalizePhone(parsed.data.phone),
+    address: parsed.data.address || null,
+    postcode: parsed.data.postcode || null,
+    city: parsed.data.city || null,
+    area: parsed.data.area || null,
+    client_source: parsed.data.client_source,
+    source_detail: parsed.data.source_detail || null,
+    notes: parsed.data.notes || null,
+  };
+
+  // Field-level gate. The form already renders these read-only for actors
+  // without the permission; dropping them here is the belt to that braces —
+  // a hand-crafted POST gets the same treatment as the UI.
+  if (!canManageClientIdentityFields(actor)) {
+    for (const field of CLIENT_IDENTITY_FIELDS) {
+      delete patch[field];
+    }
+  }
+
+  if (patch.email && patch.email !== current.email) {
+    const { data: clash, error: clashError } = await adminClient
+      .from("clients")
+      .select("id, full_name")
+      .eq("email", patch.email)
+      .neq("id", clientId)
+      .limit(1)
+      .maybeSingle<{ id: string; full_name: string }>();
+    if (clashError) return { error: clashError.message };
+    if (clash) {
+      return {
+        error: `Email already in use by ${clash.full_name}. Resolve manually.`,
+      };
+    }
+  }
+
+  const changed = Object.fromEntries(
+    Object.entries(patch).filter(
+      ([field, value]) => value !== current[field as keyof ClientEditableRow]
+    )
+  );
+
+  if (Object.keys(changed).length > 0) {
+    const { error: updateError } = await adminClient
+      .from("clients")
+      .update(changed)
+      .eq("id", clientId);
+    if (updateError) return { error: updateError.message };
+
+    await adminClient.from("audit_logs").insert({
+      actor_staff_id: actor.id,
+      action_type: "client_updated",
+      target_type: "clients",
+      target_id: clientId,
+      before_state: current,
+      after_state: changed,
+    });
+  }
+
+  updateTag("clients");
+  updateTag("audit");
+  revalidatePath("/admin/clients");
+  revalidatePath(`/admin/clients/${clientId}`);
+  redirect(`/admin/clients/${clientId}?updated=1`);
 }
 
 export async function addClientNote(

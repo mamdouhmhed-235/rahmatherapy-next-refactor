@@ -12,6 +12,7 @@ import {
   Mail,
   MapPin,
   MessageCircle,
+  Pencil,
   Phone,
   Pin,
   ShieldCheck,
@@ -592,6 +593,21 @@ export default async function ClientDetailPage({
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2 print:hidden">
             <PrintRecordButton />
+            {/* Edit sits between Print and the booking CTA (brief §4.2 order:
+                Print · Edit · Delete · Book again — Delete lands with C-06's
+                delete primitive). Gated on canCreateBooking per plan step 8;
+                the destination route re-gates on canManageAllClients, which
+                every role holding canCreateBooking also holds. */}
+            {canCreateBooking ? (
+              <Link
+                href={`/admin/clients/${client.id}/edit`}
+                title="Edit this client's details"
+                className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              >
+                <Pencil className="size-4" aria-hidden="true" />
+                Edit
+              </Link>
+            ) : null}
             {canCreateBooking ? (
               <Link
                 href={`/admin/bookings/new?clientId=${client.id}`}
