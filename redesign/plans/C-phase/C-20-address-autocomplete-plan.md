@@ -20,7 +20,7 @@
    - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` present in the dev env (and planned for the Cloudflare BUILD env — `NEXT_PUBLIC_*` is inlined at build time, same caveat as C-17 Step 3).
    - Confirm with the user: key **restricted** (HTTP referrers: production domain + localhost; APIs: Maps JavaScript API + Places API only) and, per brief §2.4, whether the plaintext-shared key is being **rotated** first. Do not ship an unrestricted key.
 
-   > ⏸ **STOP-AND-ASK: OWNER INPUT REQUIRED** — (a) rotation decision for the key shared in plaintext during planning (this depends on conversational context not recoverable from the repo); (b) live confirmation of the CURRENT referrer list — the 2026-07-16 restriction covers `rahmatherapy.uk` domains + localhost only, NOT the codebase canonical `rahmatherapy.co.uk` (see §3.5 re-mark + §3.5a, D19). Do not proceed with placeholder values.
+   > ⏸ **STOP-AND-ASK: OWNER INPUT REQUIRED** — (a) rotation decision for the key shared in plaintext during planning (this depends on conversational context not recoverable from the repo). *(Item (b) — referrer-list expansion — withdrawn 2026-07-26: Owner confirmed the site serves ONLY on `rahmatherapy.uk`, so the 2026-07-16 referrer list is correct and complete; see §3.5.)* Do not proceed with placeholder values.
 4. **API-surface check (brief §3.9):** verify in the Cloud Console / current Google docs whether this project should use the classic `google.maps.places.Autocomplete` (as in the user's reference snippet) or the newer `PlaceAutocompleteElement`. Record the answer; implement whichever the account supports. The component's external contract is identical either way.
 5. **Form-shape re-verify** (2026-07-16 line numbers):
    ```bash
@@ -215,16 +215,7 @@ Keyboard: arrow keys + Enter select a suggestion; Escape dismisses; focus return
 ### 3.5 Key safety sign-off (blocking)
 Confirm with the user, before marking C-20 done: key restricted (referrers + APIs) — **done 2026-07-16**: `https://rahmatherapy.uk/*`, `https://*.rahmatherapy.uk/*`, `http://localhost:3000/*` + Maps JS / Places / Places (New); rotation decision recorded; £1 budget alert set. **No sign-off without this.**
 
-> **Re-marked NOT COMPLETE (2026-07-26 — D19, C20-F2 verifier-CONFIRMED):** the 2026-07-16 referrer list covers only `rahmatherapy.uk` domains + localhost, but the codebase canonical domain is `rahmatherapy.co.uk` (root `metadataBase`; ×15 literals in 12 files; `rahmatherapy.uk` ×0 in `src/`; C-21's cutover pending). If production serves on `.co.uk`, the key is referrer-blocked and autocomplete silently degrades behind its own fallback — invisible in any smoke test that doesn't check the console. This gate is NOT done until §3.5a below is executed and re-verified with the Owner.
-
-### 3.5a Referrer coverage fix (NEW 2026-07-26 — D19)
-
-> ⛔ **HARD-STOP — ZONE-2: USER CONFIRMATION REQUIRED** ⛔
-> An executing agent MUST pause here and obtain explicit user approval in chat before proceeding.
-> Action: Owner adds `https://rahmatherapy.co.uk/*` (and `https://www.rahmatherapy.co.uk/*` if www is used) to the Maps API key's HTTP-referrer list in Google Cloud Console (external-console change — the Owner performs it; the agent never edits Cloud Console).
-> Exact SQL / change: Cloud Console → APIs & Services → Credentials → the Maps key → Website restrictions: ADD the `.co.uk` referrer(s); KEEP the existing `rahmatherapy.uk` entries and `http://localhost:3000/*`; API restrictions unchanged (Maps JS / Places / Places (New)).
-> Post-action verification: Owner confirms the updated referrer list (screenshot to `redesign/evidence/C-20/`); then a smoke test on the served domain shows suggestions appearing with no `RefererNotAllowedMapError` in the browser console.
-> Never auto-apply. Approval is per-action and does not carry forward.
+> **Re-mark WITHDRAWN — gate stands DONE as of 2026-07-16 (Owner clarification, 2026-07-26).** The same-day re-mark (D19/C20-F2) and its §3.5a "add `.co.uk` referrer" HARD-STOP step are void: the Owner confirmed the site is served ONLY on `https://rahmatherapy.uk/` — the `.co.uk` strings in the codebase are wrong *metadata* (canonicals/JSON-LD, which C-21 corrects), not a serving origin. HTTP-referrer restrictions check the domain pages are actually served from, so the 2026-07-16 list (`rahmatherapy.uk` + wildcard + localhost) is correct and complete; no `.co.uk` referrer is needed, ever. The **rotation decision** (key shared in plaintext during planning) remains the one open sign-off item. Smoke-test note kept: verify suggestions appear on the served domain with no `RefererNotAllowedMapError` in the console.
 
 ### 3.6 Cost posture confirmation (post-deploy, with the user)
 Two weeks after go-live and again on the first working day of the following month: Maps Platform → **Metrics** (SKU view) shows *Autocomplete Session Usage* £0, *Place Details Essentials* well under 8,000/month, **zero** Dynamic Maps. Note the trial-credit trap — during the first 90 days a $300 credit can silently absorb overage, so this check must confirm usage is inside the **free allowance itself**, not merely that the bill is £0.
@@ -235,7 +226,7 @@ Two weeks after go-live and again on the first working day of the following mont
 
 | Risk | Likelihood | Severity | Mitigation |
 |---|---|---|---|
-| Unrestricted key abused → billing | medium | high | §3.5 blocking sign-off (**done 2026-07-16** — **re-marked NOT COMPLETE 2026-07-26, D19/C20-F2: referrers omit the canonical `.co.uk` domain; §3.5a HARD-STOP fixes coverage**); rotation flagged (key was shared in plaintext); referrer restriction is the load-bearing control since Maps quotas are per-minute, not per-day, and budgets only email. |
+| Unrestricted key abused → billing | medium | high | §3.5 blocking sign-off (**done 2026-07-16**; the 2026-07-26 re-mark was withdrawn same day — Owner confirmed the site serves only on `rahmatherapy.uk`, so the referrer list is correct); rotation flagged (key was shared in plaintext); referrer restriction is the load-bearing control since Maps quotas are per-minute, not per-day, and budgets only email. |
 | **Referrer/domain mismatch → autocomplete silently dead in prod** (NEW 2026-07-26) | high until §3.5a done | medium | §3.5a Owner referrer addition + smoke test for `RefererNotAllowedMapError`; soft-order C-21 first (header note, D19). |
 | **`name` field requested → Pro tier** (halves free allowance, triples unit price) | **high if unchecked — the reference snippet includes it** | medium | §1 deviations table + §3.3 blocking grep. The single most likely way this feature accidentally costs money. |
 | Abandoned autocomplete sessions blow the Autocomplete Requests allowance | medium | medium | ~300 ms debounce (§2 Step 3) + §3.3 request-count check; verified arithmetic: ~7,200/month debounced vs ~14,400 undebounced against 10,000 free. |

@@ -1,7 +1,7 @@
 # C-21 — Canonical domain fix — **PLAN**
 
 > **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
-> Dependencies: none — C-21 is fully independent (no dependency markers to check). Soft ordering: C-20 prefers C-21's domain cutover first (Maps-key referrer coverage, D19) — tracked in C-20's plan, no gate here.
+> Dependencies: none — C-21 is fully independent (no dependency markers to check). *(The 2026-07-26 "C-20 prefers C-21 first" referrer-coverage note was withdrawn same day — Owner confirmed the site serves only on `rahmatherapy.uk`, so C-20's Maps-key referrers were never affected by the canonical-domain defect. C-21 early remains recommended purely for SEO — wrong canonicals compound while indexed.)*
 > Decisions: C-B-DECISIONS.md — no C-21 entries (doc predates C-21). Refinement decisions D21/D22 applied. Findings applied: see refinement changelog.
 
 **Type:** Band C plan-writing output (C-B phase — post-handoff addition)
