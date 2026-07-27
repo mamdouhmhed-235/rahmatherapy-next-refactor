@@ -284,6 +284,22 @@ export function ConfirmStep({
           {submissionError}
         </p>
       ) : null}
+
+      {/* Honeypot — invisible to humans and assistive tech. Bots that fill every
+          input trip it. Do NOT use display:none (some bots skip those). */}
+      <div
+        aria-hidden="true"
+        className="absolute left-[-9999px] top-0 h-0 w-0 overflow-hidden"
+      >
+        <label htmlFor="company_website">Leave this field empty</label>
+        <input
+          type="text"
+          id="company_website"
+          tabIndex={-1}
+          autoComplete="off"
+          {...register("company_website")}
+        />
+      </div>
     </section>
   );
 }

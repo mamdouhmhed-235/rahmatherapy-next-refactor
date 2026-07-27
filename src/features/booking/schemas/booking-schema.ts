@@ -165,6 +165,12 @@ export const bookingLocationSchema =
 
 export const bookingDetailsSchema = bookingParticipantFieldsSchema
   .merge(bookingLocationFieldsSchema)
+  .extend({
+    // C-22 honeypot — a pass-through so client validation never flags it.
+    // Optional on purpose: a missing key must never be able to block a real
+    // booking. The server reads the hoisted top-level copy, not this one.
+    company_website: z.string().optional(),
+  })
   .superRefine(validateServiceArea)
   .superRefine(validateParticipantGenders);
 

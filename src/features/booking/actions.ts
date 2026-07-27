@@ -47,6 +47,9 @@ export async function submitBookingRequest(
       details: payload.details,
       preferredDate: payload.preferredDate,
       preferredTime: payload.preferredTime,
+      // Top level on purpose — the server's honeypot check runs before any
+      // schema parsing, so a value nested under `details` would never fire.
+      company_website: payload.company_website,
     }),
   });
   const responsePayload: unknown = await response.json().catch(() => null);

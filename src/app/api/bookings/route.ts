@@ -51,6 +51,27 @@ export async function POST(request: Request) {
     );
   }
 
+  // C-22: honeypot. A filled decoy means a bot. Return a success-shaped
+  // response so the operator learns nothing, but do no work: no booking,
+  // no emails. `company_website` is deliberately absent from the schema
+  // below, so a filled value can never reach the RPC either.
+  const rawPayload = payload as Record<string, unknown> | null;
+  if (
+    typeof rawPayload?.company_website === "string" &&
+    rawPayload.company_website.trim() !== ""
+  ) {
+    console.warn("[C-22] honeypot tripped", { at: new Date().toISOString() });
+    return NextResponse.json({
+      status: "submitted",
+      message: "Booking request submitted.",
+      bookingId: crypto.randomUUID(),
+      participantCount: 1,
+      itemCount: 1,
+      assignmentCount: 1,
+      manageUrl: null,
+    });
+  }
+
   const parsed = bookingRequestSchema.safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(

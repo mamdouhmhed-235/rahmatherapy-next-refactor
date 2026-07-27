@@ -47,6 +47,9 @@ export interface BookingDetails {
   area: string;
   accessNotes: string;
   parkingNotes: string;
+  // C-22 honeypot. Never shown to a human, never sent to the database — it
+  // exists only so a form-filling bot leaves a fingerprint.
+  company_website: string;
 }
 
 export const emptyBookingDetails: BookingDetails = {
@@ -70,6 +73,7 @@ export const emptyBookingDetails: BookingDetails = {
   area: "",
   accessNotes: "",
   parkingNotes: "",
+  company_website: "",
 };
 
 export interface BookingRequestPayload {
@@ -79,4 +83,7 @@ export interface BookingRequestPayload {
   preferredDate: string;
   preferredTime: BookingTimeSlot;
   estimatedTotal: number;
+  // Hoisted out of `details` so the server can read it before validating
+  // anything else (the server schema strips it from `details`).
+  company_website: string;
 }
