@@ -88,6 +88,11 @@ describe("createBookingTransaction", () => {
       p_participant_display_names: ["Aisha Khan"],
       p_participant_notes: [""],
       p_booking_source: "website",
+      p_override_availability: false,
+      p_participant_service_slugs: null,
+      p_area: "Bedfordshire",
+      p_client_id: null,
+      p_confirm_duplicate: false,
     });
   });
 

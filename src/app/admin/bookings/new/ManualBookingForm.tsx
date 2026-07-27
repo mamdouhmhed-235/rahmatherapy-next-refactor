@@ -21,6 +21,7 @@ import {
   AdminMobileActionBar,
   AdminPanel,
 } from "@/app/admin/components/admin-ui";
+import { DuplicateWarningBanner } from "@/app/admin/clients/components/DuplicateWarningBanner";
 import { createManualBooking, type ManualBookingState } from "../actions";
 
 // ─── Step-4 review helpers (hoisted so React doesn't re-create the component
@@ -508,6 +509,13 @@ export function ManualBookingForm({
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
   const [stepBannerError, setStepBannerError] = useState("");
   const [prefillEdited, setPrefillEdited] = useState<Set<string>>(new Set());
+  const [confirmDuplicate, setConfirmDuplicate] = useState<boolean>(false);
+
+  // reset the acknowledgement whenever a new duplicate match comes back
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setConfirmDuplicate(false);
+  }, [state.duplicateWarning]);
 
   // Form values
   const [bookingSource, setBookingSource] = useState(
@@ -923,11 +931,16 @@ export function ManualBookingForm({
     return false;
   })();
 
+  // A duplicate match blocks submission until the admin acknowledges it.
+  const duplicateBlocked = Boolean(state.duplicateWarning) && !confirmDuplicate;
+  const submitDisabled = pending || !isStepReady || duplicateBlocked;
+
   // ─── Hidden inputs for server action ─────────────────────────────────────────
 
   const hiddenInputs = (
     <>
       {enquiry && <input type="hidden" name="enquiry_id" value={enquiry.id} />}
+      {prefillClient && <input type="hidden" name="client_id" value={prefillClient.id} />}
       <input type="hidden" name="booking_source" value={bookingSource} />
       <input type="hidden" name="full_name" value={fullName} />
       <input type="hidden" name="email" value={email} />
@@ -1920,9 +1933,9 @@ export function ManualBookingForm({
       ) : (
         <button
           type="submit"
-          disabled={pending || !isStepReady}
+          disabled={submitDisabled}
           aria-busy={pending || undefined}
-          aria-disabled={(!isStepReady && !pending) || undefined}
+          aria-disabled={((!isStepReady || duplicateBlocked) && !pending) || undefined}
           className="inline-flex items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
         >
           {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
@@ -1975,6 +1988,13 @@ export function ManualBookingForm({
 
       <form action={action} onSubmit={handleFormSubmit} className="grid gap-4 pb-20 md:pb-0">
         {hiddenInputs}
+        {state.duplicateWarning ? (
+          <DuplicateWarningBanner
+            message={state.duplicateWarning}
+            checked={confirmDuplicate}
+            onCheckedChange={setConfirmDuplicate}
+          />
+        ) : null}
         {step1}
         {step2}
         {step3}
@@ -2002,9 +2022,9 @@ export function ManualBookingForm({
           ) : (
             <button
               type="submit"
-              disabled={pending || !isStepReady}
+              disabled={submitDisabled}
               aria-busy={pending || undefined}
-              aria-disabled={(!isStepReady && !pending) || undefined}
+              aria-disabled={((!isStepReady || duplicateBlocked) && !pending) || undefined}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
             >
               {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}

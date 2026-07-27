@@ -41,6 +41,8 @@ export interface CreateBookingTransactionInput {
   bookingSource?: BookingSource;
   overrideAvailability?: boolean;
   participantServiceSlugs?: string[][];
+  clientId?: string | null;
+  confirmDuplicate?: boolean;
 }
 
 export class BookingCreationError extends Error {
@@ -49,6 +51,21 @@ export class BookingCreationError extends Error {
     public readonly status = 400
   ) {
     super(message);
+  }
+}
+
+/**
+ * Raised when `create_booking_request` refuses to reuse an existing client row
+ * because the caller didn't explicitly acknowledge the match. The generic
+ * message stays PII-free for the public route; the matched client's details
+ * ride along for the admin flow's duplicate-warning banner.
+ */
+export class DuplicateClientError extends BookingCreationError {
+  constructor(
+    public readonly matchedClientId: string | null,
+    public readonly matchedClientName: string | null
+  ) {
+    super("A client with these contact details already exists.", 409);
   }
 }
 
@@ -133,7 +150,19 @@ export async function createBookingTransaction(
       services.join(",")
     ) ?? null,
     p_area: input.details.area || null,
+    p_client_id: input.clientId ?? null,
+    p_confirm_duplicate: input.confirmDuplicate ?? false,
   });
+
+  // The RPC raises `duplicate_client_exists: <client id>` with the matching
+  // client's name in HINT. Every other RAISE in that function is a bare
+  // P0001 too, so the message prefix — not the SQLSTATE — is the discriminator.
+  if (error && error.code === "P0001" && error.message.startsWith("duplicate_client_exists")) {
+    throw new DuplicateClientError(
+      error.message.split(":")[1]?.trim() || null,
+      error.hint ? error.hint.trim() : null
+    );
+  }
 
   if (error || !data || typeof data !== "object") {
     throw new BookingCreationError(

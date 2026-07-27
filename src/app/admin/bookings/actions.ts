@@ -15,6 +15,7 @@ import { canAssignBookings, getStaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   BookingCreationError,
+  DuplicateClientError,
   createBookingTransaction,
   type BookingSource,
 } from "@/app/api/bookings/createBookingTransaction";
@@ -690,6 +691,7 @@ export async function respondToCustomerReschedule(formData: FormData): Promise<v
 export interface ManualBookingState {
   error?: string;
   fieldErrors?: Record<string, string>;
+  duplicateWarning?: string;
 }
 
 const manualBookingSchema = z.object({
@@ -739,6 +741,8 @@ export async function createManualBooking(
   );
   const selectedPackageIds = formData.getAll("service_slugs").map(String);
   const enquiryId = String(formData.get("enquiry_id") ?? "").trim();
+  const clientId = String(formData.get("client_id") ?? "").trim() || null;
+  const confirmDuplicate = formData.get("confirm_duplicate") === "on";
   const overrideAvailability = formData.get("override_availability") === "on";
   const participantServiceSlugs: string[][] = participantIndexes.map((index) =>
     formData.getAll(`participant_services_${index}[]`).map(String).filter(Boolean)
@@ -815,6 +819,8 @@ export async function createManualBooking(
         participantServiceSlugs: participantServiceSlugs.some((s) => s.length > 0)
           ? participantServiceSlugs
           : undefined,
+        clientId,
+        confirmDuplicate,
       },
       adminClient
     );
@@ -951,6 +957,23 @@ export async function createManualBooking(
     revalidatePath("/admin/calendar");
     redirect(`/admin/bookings/${result.bookingId}`);
   } catch (error) {
+    // Checked before BookingCreationError — DuplicateClientError extends it.
+    if (error instanceof DuplicateClientError) {
+      const { data: match } = error.matchedClientId
+        ? await adminClient
+            .from("clients")
+            .select("full_name, email, phone")
+            .eq("id", error.matchedClientId)
+            .maybeSingle()
+        : { data: null };
+
+      return {
+        duplicateWarning: match
+          ? `${match.full_name} (${match.email ?? match.phone ?? "no contact"})`
+          : (error.matchedClientName ?? "An existing client already uses these contact details."),
+      };
+    }
+
     if (error instanceof BookingCreationError) {
       return { error: error.message };
     }
