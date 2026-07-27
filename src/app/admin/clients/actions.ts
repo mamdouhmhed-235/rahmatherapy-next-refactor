@@ -404,8 +404,8 @@ export async function updateClient(
     });
   }
 
-  updateTag("clients");
-  updateTag("audit");
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${clientId}`);
   redirect(`/admin/clients/${clientId}?updated=1`);
@@ -678,9 +678,8 @@ export async function deleteClient(
     },
   });
 
-  updateTag("clients");
-  updateTag("bookings");
-  updateTag("audit");
+  updateTag("report-data");
+  updateTag("dashboard-data");
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${clientId}`);
   revalidatePath("/admin/bookings");

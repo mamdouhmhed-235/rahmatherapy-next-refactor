@@ -37,6 +37,7 @@ const ACTIONS: Record<string, ActionEntry> = {
   // Clients & enquiries
   client_created: { phrase: "created client", family: "clients_and_enquiries", chip: "confirmed" },
   client_updated: { phrase: "updated client", family: "clients_and_enquiries", chip: "pending" },
+  client_deleted: { phrase: "deleted client", family: "clients_and_enquiries", chip: "cancelled" },
   client_note_added: { phrase: "added a note to client", family: "clients_and_enquiries", chip: "pending" },
   client_privacy_request_created: { phrase: "opened a privacy request for client", family: "clients_and_enquiries", chip: "pending" },
   client_privacy_request_status_updated: { phrase: "updated privacy-request status for client", family: "clients_and_enquiries", chip: "pending" },

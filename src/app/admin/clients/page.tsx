@@ -668,8 +668,14 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
     </form>
   );
 
+  // `grid-cols-[minmax(0,1fr)]` pins the single column to the container. Left
+  // implicit, the `auto` track sizes to the widest child's min-content — the
+  // client rows, 564px at a 375px viewport — and every page-level sibling gets
+  // stretched with it, pushing the sticky bulk-action bar's buttons past the
+  // right edge with no horizontal scroll to reach them. The rows themselves
+  // keep their existing overflow; only the track is clamped.
   return (
-    <div className="grid gap-5 pb-24 lg:pb-16">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-5 pb-24 lg:pb-16">
       {justDeleted ? (
         <ClientFlashToast message="Client deleted." param="deleted" />
       ) : null}

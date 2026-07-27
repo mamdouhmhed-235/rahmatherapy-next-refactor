@@ -1,3 +1,4 @@
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
@@ -185,6 +186,22 @@ describe("updateClient", () => {
       after_state: updates[0],
     });
     expect(redirect).toHaveBeenCalledWith("/admin/clients/client-1?updated=1");
+  });
+
+  // `report-data` and `dashboard-data` are the only cache tags this codebase
+  // actually caches under. Invalidating a name nothing is tagged with is a
+  // no-op, so a renamed client would keep showing its old name on the dashboard
+  // and in reports until something else happened to bust those caches.
+  it("invalidates the real report and dashboard cache tags", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(owner);
+    stubAdminClient();
+
+    await updateClient({}, editFormData({ phone: "07999 888 777" }));
+
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
+      "report-data",
+      "dashboard-data",
+    ]);
   });
 
   it("lets a coordinator change operational fields", async () => {

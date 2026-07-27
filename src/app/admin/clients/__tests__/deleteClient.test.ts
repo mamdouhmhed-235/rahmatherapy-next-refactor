@@ -1,3 +1,4 @@
+import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
@@ -449,6 +450,21 @@ describe("deleteClient", () => {
       cancelled_recurring_template_count: 1,
       cancelled_recurring_template_ids: ["template-1"],
     });
+  });
+
+  // `report-data` and `dashboard-data` are the only cache tags this codebase
+  // actually caches under. A deleted client's cancelled bookings have to drop
+  // out of the dashboard and the reports immediately — invalidating names
+  // nothing is tagged with leaves both serving the erased client's figures.
+  it("invalidates the real report and dashboard cache tags", async () => {
+    const stub = stubAdminClient();
+
+    await deleteClient("client-1", "admin_delete", stub.client, owner.id);
+
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
+      "report-data",
+      "dashboard-data",
+    ]);
   });
 
   it("keeps the full client snapshot in before_state for an admin_delete", async () => {
