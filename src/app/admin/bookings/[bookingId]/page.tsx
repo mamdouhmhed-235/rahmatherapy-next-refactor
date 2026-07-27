@@ -51,6 +51,15 @@ import {
   type StaffAssignmentPreview,
 } from "../assignment-eligibility";
 import {
+  getCancellationMoment,
+  isBookingMomentPastLondon,
+  isRestoreWindowExpired,
+} from "../_helpers";
+import {
+  NextActionButton,
+  type RestoreContext,
+} from "./NextActionButton";
+import {
   BookingManagementForm,
   BookingNotesScopedForm,
 } from "../BookingManagementForm";
@@ -85,6 +94,12 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
   no_show: "No-show",
 };
 
+// TODO(C-04a Phase F/G): add `cancelled_at` to this select in the SAME change
+// that adds it to `BookingRecord` (../types.ts). Splitting them leaves the
+// field `undefined` at runtime while tsc stays green, which makes
+// `isRestoreWindowExpired` fail closed on every cancelled booking and hides the
+// Restore button everywhere. The list's `BOOKING_SELECT` (../page.tsx) needs
+// the same pairing.
 const BOOKING_DETAIL_SELECT = `
   id,
   client_id,
@@ -261,6 +276,47 @@ function normalizeClaimableBooking(
   };
 }
 
+/**
+ * S3 — the Restore confirm modal shows what is being undone. A customer's own
+ * cancellation note wins; otherwise the most recent cancel audit row supplies
+ * who and when.
+ *
+ * Both admin cancel paths are queried: the Status form writes
+ * `booking_management_updated`, the quick action writes `booking_quick_cancel`
+ * (`actions.ts`), and in production every admin cancellation so far has gone
+ * through the latter.
+ */
+async function getRestoreContext(
+  booking: BookingRecord,
+  adminClient: ReturnType<typeof createSupabaseAdminClient>
+): Promise<RestoreContext> {
+  if (booking.customer_cancellation_note) {
+    return {
+      customerNote: booking.customer_cancellation_note,
+      cancelledByName: null,
+      cancelledAtLabel: null,
+    };
+  }
+
+  const { data } = await adminClient
+    .from("audit_logs")
+    .select("created_at, staff_profiles(name)")
+    .eq("target_id", booking.id)
+    .in("action_type", ["booking_management_updated", "booking_quick_cancel"])
+    .eq("after_state->>status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ created_at: string; staff_profiles: { name: string } | null }>();
+
+  return {
+    customerNote: null,
+    cancelledByName: data?.staff_profiles?.name ?? null,
+    cancelledAtLabel: data
+      ? safeFormatDateTime(data.created_at, { dateStyle: "medium" })
+      : null,
+  };
+}
+
 export default async function BookingDetailPage({
   params,
 }: BookingDetailPageProps) {
@@ -404,6 +460,11 @@ export default async function BookingDetailPage({
   const nextAction = fullScope
     ? deriveNextAction(bookingWithTimeline)
     : null;
+  // Only paid for when the Restore button is actually going to render.
+  const restoreContext =
+    nextAction?.action?.kind === "restore_booking"
+      ? await getRestoreContext(bookingWithTimeline, adminClient)
+      : null;
 
   return (
     <AdminPageScaffold className="pb-24 md:pb-0">
@@ -467,7 +528,14 @@ export default async function BookingDetailPage({
         <NoEmailNotice clientId={bookingWithTimeline.client_id ?? null} />
       ) : null}
 
-      {nextAction ? <NextActionStrip action={nextAction} /> : null}
+      {nextAction ? (
+        <NextActionStrip
+          action={nextAction}
+          bookingId={booking.id}
+          fromStatus={booking.status}
+          restoreContext={restoreContext}
+        />
+      ) : null}
 
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem] lg:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="grid min-w-0 gap-6">
@@ -1154,6 +1222,12 @@ function shortRef(id: string) {
 
 type NextActionTone = "info" | "warning" | "success" | "default" | "danger";
 
+interface NextActionTrigger {
+  kind: "restore_booking";
+  label: string;
+  targetStatus: BookingStatus;
+}
+
 interface NextAction {
   tone: NextActionTone;
   icon: React.ElementType;
@@ -1164,24 +1238,63 @@ interface NextAction {
    * Rendered larger, serif, to give the page its operational pulse.
    */
   numeral?: { value: string; suffix?: string };
+  /** C-04a — inline corrective action rendered inside the strip. */
+  action?: NextActionTrigger;
 }
 
 function deriveNextAction(booking: BookingRecord): NextAction | null {
   if (booking.status === "cancelled") {
+    // Both guards are enforced server-side by `restoreBooking`; hiding the
+    // button here is affordance hygiene, and the hint has to stop promising a
+    // restore that the server would refuse (B-121 was exactly that lie).
+    const momentPassed = isBookingMomentPastLondon(booking);
+    const windowExpired = isRestoreWindowExpired(booking);
+    const cancelledAt = getCancellationMoment(booking);
+    const cancelledOnLabel = cancelledAt
+      ? safeFormatDateTime(cancelledAt, { dateStyle: "medium" })
+      : null;
+
     return {
       tone: "danger",
       icon: ShieldX,
       headline: "This booking is cancelled.",
-      hint: "Restore it from the audit log if it was cancelled by mistake.",
+      hint: momentPassed
+        ? "The appointment time has already passed — restore is no longer available. The audit log preserves the record."
+        : windowExpired
+          ? cancelledOnLabel
+            ? `Cancelled on ${cancelledOnLabel} — the 28-day restore window has passed. The audit log preserves the record.`
+            : "The 28-day restore window has passed. The audit log preserves the record."
+          : "Restore it if it was cancelled by mistake — the client will be notified.",
+      action:
+        momentPassed || windowExpired
+          ? undefined
+          : {
+              kind: "restore_booking",
+              label: "Restore booking",
+              targetStatus: "confirmed",
+            },
     };
   }
 
   if (booking.status === "no_show") {
+    // S7 is moot here: no-show is only markable once the appointment has been
+    // and gone, so S6 has already closed the restore path in practice.
+    const restorable = !isBookingMomentPastLondon(booking);
+
     return {
       tone: "warning",
       icon: AlertCircle,
       headline: "Marked as no-show.",
-      hint: "Recorded for your records. Reach out to the client if you need to follow up.",
+      hint: restorable
+        ? "Recorded. Restore it if the client did attend."
+        : "Recorded for your records. Reach out to the client if you need to follow up.",
+      action: restorable
+        ? {
+            kind: "restore_booking",
+            label: "Restore booking",
+            targetStatus: "confirmed",
+          }
+        : undefined,
     };
   }
 
@@ -1327,7 +1440,17 @@ const NEXT_ACTION_TEXT: Record<NextActionTone, string> = {
   danger: "text-[oklch(26%_0.14_25)]",
 };
 
-function NextActionStrip({ action }: { action: NextAction }) {
+function NextActionStrip({
+  action,
+  bookingId,
+  fromStatus,
+  restoreContext,
+}: {
+  action: NextAction;
+  bookingId: string;
+  fromStatus: BookingStatus;
+  restoreContext: RestoreContext | null;
+}) {
   const Icon = action.icon;
   return (
     <section
@@ -1378,6 +1501,23 @@ function NextActionStrip({ action }: { action: NextAction }) {
               {action.numeral.suffix}
             </span>
           ) : null}
+        </div>
+      ) : null}
+      {action.action ? (
+        <div className="min-w-0 sm:shrink-0">
+          <NextActionButton
+            bookingId={bookingId}
+            fromStatus={fromStatus}
+            targetStatus={action.action.targetStatus}
+            label={action.action.label}
+            context={
+              restoreContext ?? {
+                customerNote: null,
+                cancelledByName: null,
+                cancelledAtLabel: null,
+              }
+            }
+          />
         </div>
       ) : null}
     </section>

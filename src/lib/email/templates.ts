@@ -269,6 +269,29 @@ export function renderBookingCancellationEmail(
   );
 }
 
+export function renderBookingRestoredEmail(
+  input: BookingEmailTemplateInput & { fromStatus: string },
+  overrides: Record<string, string> = {}
+) {
+  // Only a restore out of `cancelled` warrants an apology — a no-show or a
+  // reopened completed booking was never cancelled on the client.
+  const defaultIntro =
+    input.fromStatus === "cancelled"
+      ? `Good news ${escapeHtml(input.clientName)} — your ${escapeHtml(input.companyName)} booking has been restored. We are sorry for the earlier cancellation; everything is back on.`
+      : `Good news ${escapeHtml(input.clientName)} — your ${escapeHtml(input.companyName)} booking is back on.`;
+  const greetingIntroHtml = overrides.greeting_intro
+    ? escapeHtml(substituteVars(overrides.greeting_intro, buildVarMap(input)))
+    : defaultIntro;
+  return renderLayout(
+    "Booking restored",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking restored</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${greetingIntroHtml}</p>
+    ${renderSummary(input)}
+    ${renderParticipants(input)}
+    ${renderFooter(input, overrides)}`
+  );
+}
+
 export function renderAdminBookingCancellationEmail(
   input: BookingEmailTemplateInput & {
     bookingId: string;

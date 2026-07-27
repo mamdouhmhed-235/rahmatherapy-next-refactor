@@ -14,6 +14,7 @@ import {
   renderBookingConfirmationEmail,
   renderBookingPlainText,
   renderBookingReminderEmail,
+  renderBookingRestoredEmail,
   renderStaffAssignmentEmail,
   renderStaffBookingChangeEmail,
   type BookingEmailTemplateInput,
@@ -446,6 +447,34 @@ export async function sendBookingCancellationEmails(
       "An assigned booking has been cancelled."
     ),
   ]);
+}
+
+/**
+ * C-04a — a restore used to be silent to the client: they heard the
+ * cancellation and then nothing (B-120). `fromStatus` is what the booking is
+ * being restored out of; the template only apologises when that was a
+ * cancellation.
+ */
+export async function sendBookingRestoredClientEmail(
+  bookingId: string,
+  supabase: SupabaseClient,
+  options: { fromStatus: string } = { fromStatus: "cancelled" }
+) {
+  const { booking, input } = await getBookingTemplateInput(bookingId, supabase);
+  const customerEmail = booking.contact_email || booking.clients?.email;
+  if (!customerEmail) {
+    throw new Error("Booking client has no email address.");
+  }
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "booking_restored_client",
+    recipientRole: "customer",
+    to: customerEmail,
+    subject: `${input.companyName} — your booking is back on`,
+    html: renderBookingRestoredEmail({ ...input, fromStatus: options.fromStatus }),
+    text: renderBookingPlainText("Booking restored", input),
+  });
 }
 
 export async function sendBookingCancellationEmail(

@@ -8,6 +8,7 @@ import {
   sendBookingCreatedEmails,
   sendAssignedStaffBookingChangeEmails,
   sendBookingCancellationEmails,
+  sendBookingRestoredClientEmail,
   sendStaffAssignmentEmail,
 } from "@/lib/email/notifications";
 import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
@@ -28,6 +29,7 @@ import {
   getClaimAssignmentEligibility,
   getStaffAssignmentPreviews,
 } from "./assignment-eligibility";
+import { isBookingMomentPastLondon, isRestoreWindowExpired } from "./_helpers";
 import type { AssignmentStatus, BookingStatus, PaymentMethod, PaymentStatus } from "./types";
 
 export interface BookingUpdateState {
@@ -55,6 +57,35 @@ const BOOKING_SOURCES: BookingSource[] = [
   "other",
 ];
 const OWN_ASSIGNMENT_STATUSES: AssignmentStatus[] = ["completed", "no_show"];
+const RESTORE_TARGET_STATUSES = ["confirmed", "pending"] as const;
+type RestoreTargetStatus = (typeof RESTORE_TARGET_STATUSES)[number];
+
+/**
+ * `bookings.cancelled_at` arrives with C-04a's Phase F migration. Until then
+ * the restore payload cannot clear it: PostgREST rejects an unknown column with
+ * PGRST204, raw Postgres with 42703. Same fallback shape as C-06's cascade in
+ * `clients/actions.ts`.
+ */
+const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
+
+function hasErrorCode(error: unknown, codes: Set<string>) {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && codes.has(code);
+}
+
+/**
+ * The `restoreBooking` pre-image. The embedded `clients(deleted_at)` is the
+ * whole point of naming the relation in the select — see the note there.
+ */
+interface RestoreBookingRecord {
+  status: BookingStatus;
+  booking_date: string;
+  start_time: string;
+  cancelled_at?: string | null;
+  customer_cancelled_at: string | null;
+  clients: { deleted_at: string | null } | null;
+  [key: string]: unknown;
+}
 
 interface AssignmentClaimRecord {
   id: string;
@@ -436,6 +467,173 @@ export async function quickUpdateBooking(formData: FormData) {
       console.error("Unable to send assigned staff change emails.", error);
     });
   }
+
+  updateTag("report-data");
+  updateTag("dashboard-data");
+  revalidatePath("/admin/bookings");
+  revalidatePath(`/admin/bookings/${bookingId}`);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
+
+  return { success: true };
+}
+
+/**
+ * C-04a — the restore primitive. Kept separate from `updateBookingManagement`'s
+ * status dropdown so restore carries its own audit action, its own client email
+ * and its own guards, rather than being an undocumented side effect of editing
+ * a form field (B-121).
+ */
+export async function restoreBooking(
+  formData: FormData
+): Promise<BookingUpdateState> {
+  const actor = await requireBookingManager();
+  if (!actor || !canManageAllBookings(actor)) {
+    return { error: "Insufficient permissions." };
+  }
+
+  const bookingId = String(formData.get("booking_id") ?? "").trim();
+  const targetStatusValue = String(formData.get("target_status") ?? "confirmed");
+  const forceCompleted = formData.get("force_completed_reversal") === "on";
+  const reason = String(formData.get("reason") ?? "").trim();
+
+  if (!bookingId) return { error: "Booking is required." };
+  if (!RESTORE_TARGET_STATUSES.includes(targetStatusValue as RestoreTargetStatus)) {
+    return { fieldErrors: { target_status: "Choose a valid restore target." } };
+  }
+  const targetStatus = targetStatusValue as RestoreTargetStatus;
+
+  const adminClient = createSupabaseAdminClient();
+  // `clients(deleted_at)` is named deliberately: PostgREST never embeds a
+  // relation unless the select asks for it, so a bare `select("*")` would leave
+  // the deleted-client guard below reading `undefined` forever — and the admin
+  // client is untyped, so tsc would not catch it.
+  const { data: beforeState } = await adminClient
+    .from("bookings")
+    .select("*, clients(deleted_at)")
+    .eq("id", bookingId)
+    .single<RestoreBookingRecord>();
+
+  if (!beforeState) return { error: "Booking not found." };
+
+  const { clients: bookingClient, ...bookingBeforeState } = beforeState;
+
+  // Restore semantics: only valid for inert statuses (cancelled, no_show) OR
+  // a completed reopen with explicit force flag.
+  const isInertSource =
+    beforeState.status === "cancelled" || beforeState.status === "no_show";
+  const isCompletedReopen = beforeState.status === "completed";
+
+  if (!isInertSource && !isCompletedReopen) {
+    return { error: "Only cancelled, no-show, or completed bookings can be restored." };
+  }
+
+  // S6 — past-datetime guard. Stricter than C-05's date-only lockdown; the UI
+  // hides the button too, but the server is the authority. Brief §5.8.
+  if (isInertSource && isBookingMomentPastLondon(beforeState)) {
+    return {
+      error: "This booking's appointment time has already passed and cannot be restored.",
+    };
+  }
+
+  // S7 — 28-day restore window, keyed to the cancellation moment (S6 is keyed
+  // to the appointment moment; both must pass). `no_show` sources skip this:
+  // they are already dead via S6. Brief §5.12.
+  if (beforeState.status === "cancelled" && isRestoreWindowExpired(beforeState)) {
+    return {
+      error: "This booking was cancelled more than 28 days ago and can no longer be restored.",
+    };
+  }
+
+  if (isCompletedReopen && (!forceCompleted || reason.length < 5)) {
+    return {
+      error: "Reopening a completed booking requires confirmation and a reason.",
+      fieldErrors: forceCompleted
+        ? { reason: "Provide a reason (min 5 chars)." }
+        : { force_completed_reversal: "Confirm via the modal." },
+    };
+  }
+
+  // C-06 soft-deleted the client. There is no un-delete affordance anywhere in
+  // the product, so the refusal states the outcome instead of offering a step
+  // the admin cannot take.
+  if (bookingClient?.deleted_at) {
+    return {
+      error: "This booking's client has been deleted, so it can no longer be restored.",
+    };
+  }
+
+  const clearsCancellation = beforeState.status === "cancelled";
+  const buildPayload = (includeCancelledAt: boolean) => {
+    const payload: Record<string, unknown> = { status: targetStatus };
+    // Clear stale cancellation fields on the way out of cancelled (W04 B-125).
+    if (clearsCancellation) {
+      payload.customer_cancelled_at = null;
+      payload.customer_cancellation_note = null;
+      // TODO(C-04a Phase F/G): `cancelled_at` is created by Phase F's
+      // migration. Attempt it first so the clear joins the convention the
+      // moment the column is live, and fall back while it is absent.
+      if (includeCancelledAt) payload.cancelled_at = null;
+    }
+    return payload;
+  };
+
+  const applyRestore = (payload: Record<string, unknown>) =>
+    adminClient.from("bookings").update(payload).eq("id", bookingId).select().single();
+
+  let restored = await applyRestore(buildPayload(true));
+  if (restored.error && hasErrorCode(restored.error, MISSING_COLUMN_CODES)) {
+    restored = await applyRestore(buildPayload(false));
+  }
+  if (restored.error) return { error: restored.error.message };
+  const updatedBooking = restored.data;
+
+  // Cancel any cancellation email still sitting in the undo window. Inert until
+  // Phase F adds `scheduled_for` and the `queued` delivery status — the filter
+  // matches nothing until then, so the count stays 0 and nothing is suppressed.
+  const { count: cancelledQueuedCount } = await adminClient
+    .from("email_delivery_events")
+    .update({ delivery_status: "cancelled_by_restore" }, { count: "exact" })
+    .eq("booking_id", bookingId)
+    .eq("event_type", "booking_cancellation_customer")
+    .eq("delivery_status", "queued")
+    .gt("scheduled_for", new Date().toISOString());
+
+  const suppressRestoreEmail = (cancelledQueuedCount ?? 0) > 0;
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "booking_restored",
+    target_type: "bookings",
+    target_id: bookingId,
+    before_state: bookingBeforeState,
+    after_state: {
+      ...updatedBooking,
+      restore_from_status: beforeState.status,
+      restore_target_status: targetStatus,
+      force_completed: forceCompleted || undefined,
+      reason: reason || undefined,
+      cancelled_queued_email: suppressRestoreEmail,
+    },
+  });
+
+  // The client never saw a cancellation that was killed inside its undo window,
+  // so a "restored" email would be the first they hear of the round trip.
+  if (!suppressRestoreEmail) {
+    await sendBookingRestoredClientEmail(bookingId, adminClient, {
+      fromStatus: beforeState.status,
+    }).catch((emailError) => {
+      console.error("Unable to send booking restore email to client.", emailError);
+    });
+  }
+
+  await sendAssignedStaffBookingChangeEmails(
+    bookingId,
+    adminClient,
+    `Booking restored from ${beforeState.status} to ${targetStatus}.`
+  ).catch((emailError) => {
+    console.error("Unable to send assigned staff restore emails.", emailError);
+  });
 
   updateTag("report-data");
   updateTag("dashboard-data");
