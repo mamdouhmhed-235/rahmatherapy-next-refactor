@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod/v4";
 import { calculateAvailableSlots } from "@/lib/booking/availability";
+import {
+  AVAILABILITY_RATE_LIMIT,
+  RATE_LIMITED_AVAILABILITY_MESSAGE,
+  checkRateLimit,
+} from "@/lib/rate-limit";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const availabilityRequestSchema = z.object({
@@ -11,6 +16,16 @@ const availabilityRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // C-22 Step 4a (D23): public, unauthenticated, service-role read endpoint —
+  // same per-IP limiter as the booking POST, at far higher thresholds because
+  // the booking dialog calls this per day-pick.
+  if (!(await checkRateLimit(request, "availability", AVAILABILITY_RATE_LIMIT))) {
+    return NextResponse.json(
+      { ok: false, error: RATE_LIMITED_AVAILABILITY_MESSAGE },
+      { status: 429 }
+    );
+  }
+
   let payload: unknown;
 
   try {

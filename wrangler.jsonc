@@ -28,6 +28,25 @@
   "images": {
     "binding": "IMAGES"
   },
+  // C-22 per-IP rate-limit counter for the public booking + availability
+  // endpoints. The RateLimiter class lives in src/lib/rate-limit-durable-object.ts
+  // and is re-exported from worker-entrypoint.ts. new_sqlite_classes (not
+  // new_classes) because this account is on Workers Free, where SQLite-backed
+  // Durable Objects are the only kind available.
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "RATE_LIMITER",
+        "class_name": "RateLimiter"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["RateLimiter"]
+    }
+  ],
   "observability": {
     "enabled": true
   },

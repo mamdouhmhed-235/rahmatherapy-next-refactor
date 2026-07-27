@@ -28,6 +28,10 @@ import openNextWorker, {
 
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge };
 
+// C-22: our own Durable Object — the per-IP rate-limit counter for the public
+// booking + availability endpoints. Bound as RATE_LIMITER in wrangler.jsonc.
+export { RateLimiter } from "./src/lib/rate-limit-durable-object";
+
 // Minimal local typing for the Cloudflare Worker `Fetcher` binding shape so
 // this file compiles under the Next.js tsc pass without pulling in the full
 // `@cloudflare/workers-types` lib. The actual binding object is provided by

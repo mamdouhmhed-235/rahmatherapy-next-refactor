@@ -8,6 +8,11 @@ import {
 import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
 import { sendBookingCreatedEmails } from "@/lib/email/notifications";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
+import {
+  BOOKING_RATE_LIMIT,
+  RATE_LIMITED_BOOKING_MESSAGE,
+  checkRateLimit,
+} from "@/lib/rate-limit";
 
 const genderInputSchema = z.union([z.enum(["male", "female"]), z.literal("")]);
 
@@ -40,6 +45,16 @@ const bookingRequestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // C-22: per-IP rate limit, before the body is even parsed — no Supabase
+  // client, no RPC and no email work happens for a rejected attempt. Fails
+  // open without CF-Connecting-IP or the Durable Object binding.
+  if (!(await checkRateLimit(request, "bookings", BOOKING_RATE_LIMIT))) {
+    return NextResponse.json(
+      { ok: false, error: RATE_LIMITED_BOOKING_MESSAGE },
+      { status: 429 }
+    );
+  }
+
   let payload: unknown;
 
   try {

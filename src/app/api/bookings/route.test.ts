@@ -1,8 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
 import { sendBookingCreatedEmails } from "@/lib/email/notifications";
+import { RATE_LIMITED_BOOKING_MESSAGE } from "@/lib/rate-limit";
 import { POST } from "./route";
+
+vi.mock("@opennextjs/cloudflare", () => ({
+  getCloudflareContext: vi.fn(),
+}));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: vi.fn(),
@@ -51,11 +58,14 @@ const validRequestBody = {
   company_website: "",
 };
 
-function postBooking(body: Record<string, unknown>) {
+function postBooking(
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {}
+) {
   return POST(
     new Request("http://localhost/api/bookings/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
     })
   );
@@ -138,5 +148,95 @@ describe("POST /api/bookings honeypot", () => {
     expect(Object.keys(dropped as object).sort()).toEqual(
       Object.keys(real as object).sort()
     );
+  });
+});
+
+describe("POST /api/bookings rate limiting", () => {
+  const getCloudflareContextMock = getCloudflareContext as unknown as Mock;
+  const stubFetch = vi.fn();
+
+  function withLimiter(allowed: boolean) {
+    stubFetch.mockResolvedValue(
+      new Response(JSON.stringify({ allowed }), {
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    getCloudflareContextMock.mockImplementation(() => ({
+      env: {
+        RATE_LIMITER: {
+          idFromName: vi.fn(),
+          get: () => ({ fetch: stubFetch }),
+        },
+      },
+    }));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rpc.mockResolvedValue({
+      data: {
+        bookingId: "booking-a",
+        participantCount: 1,
+        itemCount: 1,
+        assignmentCount: 1,
+      },
+      error: null,
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue({
+      rpc,
+    } as unknown as ReturnType<typeof createSupabaseAdminClient>);
+    vi.mocked(ensureBookingManageUrl).mockResolvedValue(
+      "https://booking.example.test/booking/manage?token=abc"
+    );
+    vi.mocked(sendBookingCreatedEmails).mockResolvedValue(
+      {} as Awaited<ReturnType<typeof sendBookingCreatedEmails>>
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("returns 429 with the phone-inclusive message once the limit is exceeded", async () => {
+    withLimiter(false);
+
+    const response = await postBooking(validRequestBody, {
+      "CF-Connecting-IP": "203.0.113.7",
+    });
+    const body = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(429);
+    expect(body.error).toBe(RATE_LIMITED_BOOKING_MESSAGE);
+    expect(body.error).toContain("call us on");
+
+    // The whole point: rejection happens before any real work.
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(sendBookingCreatedEmails).not.toHaveBeenCalled();
+  });
+
+  it("fails open when CF-Connecting-IP is absent", async () => {
+    withLimiter(false);
+
+    const response = await postBooking(validRequestBody);
+
+    expect(response.status).toBe(200);
+    expect(stubFetch).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(sendBookingCreatedEmails).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails open when the durable object binding is unavailable", async () => {
+    getCloudflareContextMock.mockImplementation(() => {
+      throw new Error("no cloudflare context");
+    });
+
+    const response = await postBooking(validRequestBody, {
+      "CF-Connecting-IP": "203.0.113.7",
+    });
+
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(sendBookingCreatedEmails).toHaveBeenCalledTimes(1);
   });
 });
