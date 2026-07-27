@@ -6,9 +6,47 @@
 **Started:** 2026-07-27 · orchestrated session (implementer + independent verifier per phase)
 **Predecessor plan closed at:** `d1630af` (C-22)
 
-> ## ⏸ STATUS: IN PROGRESS — Phases A, B, C landed. Phases D, E (migration), F outstanding.
-> **Last good commit:** `1b802ed` · **Next action:** Phase C verifier result → then Phase D (Steps 9–10, `deleteClient` + delete UI).
+> ## ⏸ STATUS: IN PROGRESS — Phases A–E landed. **MIGRATION APPLIED.** Phase F outstanding.
+> **Next action:** Phase E verifier → Phase F (Step 13, email-optional) → §3 closeout gate.
 > This file is written incrementally so the plan can be resumed from git alone (protocol §3).
+
+---
+
+## 0 — ⛔ MIGRATION APPLIED (2026-07-27) — Owner-approved in chat
+
+**Applied to production `twzutkfgqclqurvkmvqz`** via `mcp__supabase__apply_migration` by the orchestrator (never a subagent — protocol §1.2).
+
+- **Recorded version:** `20260727202424` / `c06_client_crud_hardening`
+- **Repo file:** `supabase/migrations/20260727120000_c06_client_crud_hardening.sql` (698 lines)
+- ⚠️ **Version-vs-filename drift:** the recorded version differs from the filename. This is the repo's **pre-existing pattern** (both Band-B migrations differ from their recorded versions too). Harmless here because every statement is idempotent — `ADD COLUMN IF NOT EXISTS`, `DROP NOT NULL`, `ON CONFLICT DO NOTHING` ×2, `DROP FUNCTION IF EXISTS` + `CREATE OR REPLACE` — so a re-apply is a no-op.
+
+### Rollback artefact (the mitigation for applying without a backup)
+`redesign/evidence/C-06/create_booking_request-BEFORE.sql` — **14,686 bytes, md5 `b44229fac5da168afb60fbd742565164`**, captured verbatim from the live function and re-confirmed byte-identical immediately before applying. Plan §5.1's rollback is therefore exact, not reconstructed.
+
+### Fidelity — verified twice, independently
+1. **Before applying:** diffed the reconstruction against the live capture. Six hunks; the only lines *removed* were the old signature, the email-required check, the destructive `on conflict (email) do update` block, one `v_normalized_email` value, and the `$function$` terminator. Every validation, the availability block, the participant/items/assignment loops and the return shape carried over untouched.
+2. **After applying:** the live `pg_get_functiondef` is **byte-identical** to the reviewed reconstruction — **19,001 bytes, md5 `9ec3ca132042e3d22463de26fdc7008a`**. Zero transcription error introduced by passing the SQL through the MCP tool.
+
+### Post-apply verification (all pass)
+
+| Check | Result |
+|---|---|
+| `overload_count` | **1** — the DROP worked; no second function left behind |
+| `clients.deleted_at` / `bookings.deleted_at` | both exist |
+| `bookings.contact_email` | `is_nullable = YES` |
+| New permissions | **2** present |
+| Grants | **Admin, Owner** only — never Booking Coordinator ✅ |
+| `service_role` execute grant | restored (1 row) |
+| Destructive `set full_name = excluded.full_name` | **0 matches — the headline bug is gone** |
+| `on conflict (email) do nothing` | 1 match (the replacement) |
+| `p_raise_on_duplicate` / `client_record_removed` | both present in the body |
+
+*Note: a naive grep for `on conflict (email) do update` still returns 1 hit — it is the explanatory **comment** describing what was replaced. The executable `set … = excluded.…` clause has zero matches, which is the check that actually matters.*
+
+### The third plan defect, corrected in this migration
+The plan specified a bare `CREATE OR REPLACE FUNCTION` with three appended parameters. **PostgreSQL identifies a function by name + argument types**, so that would have created a *second* function and left the 20-argument version — destructive `on conflict do update` and all — **live in production**, while making 20-arg calls ambiguous (`42725`). An explicit `drop function` of the exact 20-arg signature was added. Preconditions verified live beforehand: exactly **1 overload**, **0 dependent objects**; the ACL is restored by the `grant execute … to service_role` that follows (PUBLIC EXECUTE is the Postgres default).
+
+Two smaller Owner-approved deviations: email validation relaxed to format-only-when-present (required for the phone-fallback branch to be reachable; inert today since both callers' Zod still require an email), and `category`/`scope`/`risk_level` set on the two permission rows (the table defaults would have filed two *client* permissions under "System" on `/admin/roles/[roleId]`).
 
 ---
 
