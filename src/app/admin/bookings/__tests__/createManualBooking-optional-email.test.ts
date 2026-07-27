@@ -117,6 +117,33 @@ describe("createManualBooking with no email (C-06 Phase F)", () => {
     );
   });
 
+  it("treats a whitespace-only email as no email at all", async () => {
+    const result = await createManualBooking({}, manualBookingFormData({ email: "   " }));
+
+    // "   " matches neither branch of the email/"" union untrimmed, and the
+    // form renders only `state.error` — so the admin would see "Check the
+    // highlighted booking details." with nothing highlighted and no way out.
+    expect(result).toBeUndefined();
+    expect(rpc).toHaveBeenCalledWith(
+      "create_booking_request",
+      expect.objectContaining({ p_contact_email: "" })
+    );
+    expect(sendBookingCreatedEmails).not.toHaveBeenCalled();
+  });
+
+  it("accepts an address with a trailing space and hands the RPC the trimmed one", async () => {
+    const result = await createManualBooking(
+      {},
+      manualBookingFormData({ email: "sara@example.test " })
+    );
+
+    expect(result).toBeUndefined();
+    expect(rpc).toHaveBeenCalledWith(
+      "create_booking_request",
+      expect.objectContaining({ p_contact_email: "sara@example.test" })
+    );
+  });
+
   it("does not attempt a confirmation send when there is no address", async () => {
     await createManualBooking({}, manualBookingFormData({ email: "" }));
 

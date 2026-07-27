@@ -950,7 +950,10 @@ export function ManualBookingForm({
       {prefillClient && <input type="hidden" name="client_id" value={prefillClient.id} />}
       <input type="hidden" name="booking_source" value={bookingSource} />
       <input type="hidden" name="full_name" value={fullName} />
-      <input type="hidden" name="email" value={email} />
+      {/* Trimmed on submit so the value the server validates is the one every
+          gate above already checked — an all-whitespace entry counts as "no
+          email" rather than failing the server's email/empty union. */}
+      <input type="hidden" name="email" value={email.trim()} />
       <input type="hidden" name="phone" value={phone} />
       <input type="hidden" name="booking_for" value={bookingForMode === "group" || participants.length > 1 ? "group" : bookingForMode} />
       <input type="hidden" name="number_of_people" value={participants.length} />

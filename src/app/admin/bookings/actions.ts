@@ -708,8 +708,12 @@ const manualBookingSchema = z.object({
     // Admin flow only: an empty email is allowed and reaches the RPC as "",
     // which it stores as NULL. The public flow keeps its own `z.email()` in
     // `api/bookings/route.ts`. Phone stays required.
+    // Trimmed before the union so whitespace-only input lands on the ""
+    // branch instead of matching neither member and dead-ending the admin.
     email: z
-      .union([z.email("Email needs an @. For example, sara@example.com."), z.literal("")])
+      .string()
+      .trim()
+      .pipe(z.union([z.email("Email needs an @. For example, sara@example.com."), z.literal("")]))
       .default(""),
     notes: z.string(),
     healthNotes: z.string(),

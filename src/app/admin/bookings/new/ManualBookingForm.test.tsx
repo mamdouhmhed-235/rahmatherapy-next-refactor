@@ -210,6 +210,44 @@ describe("ManualBookingForm optional email", () => {
     await waitFor(() => expect(sendFlag()?.value).toBe("on"));
   });
 
+  // Typing can't produce a padded address — `input[type="email"]` sanitises
+  // leading/trailing whitespace away. The seeded paths (client prefill,
+  // enquiry, restored draft) bypass that input entirely, so they are where a
+  // padded value actually reaches the hidden field the server parses.
+  it("submits a whitespace-only prefilled email as empty", () => {
+    const { container } = render(
+      <ManualBookingForm
+        services={services}
+        prefillClient={{ ...prefillClient, email: "   " }}
+        enquiry={null}
+      />
+    );
+
+    // Every gate in the form reads `email.trim()`. If the submitted value
+    // isn't trimmed too, "   " matches neither branch of the server's
+    // email/"" union and the admin gets a generic error with nothing
+    // highlighted — an invisible dead end.
+    expect(container.querySelector<HTMLInputElement>('input[name="email"]')?.value).toBe("");
+    expect(screen.queryByText("Send confirmation email to client")).toBeNull();
+  });
+
+  it("submits a prefilled address with a trailing space trimmed", () => {
+    const { container } = render(
+      <ManualBookingForm
+        services={services}
+        prefillClient={{ ...prefillClient, email: "sara@example.test " }}
+        enquiry={null}
+      />
+    );
+
+    expect(container.querySelector<HTMLInputElement>('input[name="email"]')?.value).toBe(
+      "sara@example.test"
+    );
+    // Step 1 lets it through, so nothing client-side would ever tell the admin
+    // the trailing space was the problem.
+    expect(continueButton().disabled).toBe(false);
+  });
+
   it("says a phone-matched duplicate creates a separate profile, not a link", async () => {
     const user = userEvent.setup();
     vi.mocked(createManualBooking).mockResolvedValue({

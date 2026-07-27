@@ -97,6 +97,30 @@ describe("createBookingTransaction", () => {
     });
   });
 
+  it("passes an empty contact email straight through when the admin omits it", async () => {
+    const supabase = supabaseWithRpc({
+      data: { bookingId: "booking-no-email" },
+      error: null,
+    });
+
+    await createBookingTransaction(
+      {
+        ...baseInput,
+        bookingSource: "phone",
+        details: { ...baseInput.details, email: "" },
+      },
+      supabase
+    );
+
+    // "" is sent rather than the key being dropped: the RPC normalises it to
+    // NULL, and keeping the argument-key set identical for both callers is
+    // what PostgREST resolves the overload on.
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "create_booking_request",
+      expect.objectContaining({ p_contact_email: "" })
+    );
+  });
+
   it("sends participant-level group labels, notes, genders, and admin source", async () => {
     const supabase = supabaseWithRpc({
       data: { bookingId: "booking-group" },
