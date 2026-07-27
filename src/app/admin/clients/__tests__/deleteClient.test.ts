@@ -65,8 +65,38 @@ function staff(name: string, permissions: string[]): StaffProfile {
 const owner = staff("Owner", [
   PERMISSIONS.MANAGE_CLIENTS_ALL,
   PERMISSIONS.MANAGE_CLIENT_DESTRUCTIVE_OPS,
+  PERMISSIONS.MANAGE_PRIVACY_OPERATIONS,
 ]);
 const coordinator = staff("Coordinator", [PERMISSIONS.MANAGE_CLIENTS_ALL]);
+// The two halves of the Owner's delete authority, split apart so the
+// in-function gate can be shown to check a *different* permission per reason
+// rather than one blanket check.
+const destructiveOnly = staff("Destructive", [
+  PERMISSIONS.MANAGE_CLIENTS_ALL,
+  PERMISSIONS.MANAGE_CLIENT_DESTRUCTIVE_OPS,
+]);
+const privacyOnly = staff("Privacy", [PERMISSIONS.MANAGE_PRIVACY_OPERATIONS]);
+
+/** PII columns that must never reach a `gdpr_erasure` audit row. */
+const PII_FIELDS = [
+  "full_name",
+  "email",
+  "phone",
+  "address",
+  "postcode",
+  "city",
+  "area",
+  "notes",
+];
+
+/** Identifiers + timestamps only — the `gdpr_erasure` `before_state`. */
+const REDACTED_BEFORE_STATE = {
+  id: CLIENT_ROW.id,
+  created_at: CLIENT_ROW.created_at,
+  updated_at: CLIENT_ROW.updated_at,
+  deleted_at: null,
+  pii_redacted: true,
+};
 
 interface RecordedOp {
   table: string;
@@ -121,6 +151,7 @@ function stubAdminClient({
   sensitiveNotes = [{ id: "note-1" }],
   completedBookingCount = 5,
   clientUpdateError = null as { code?: string; message: string } | null,
+  cascadeError = null as { code?: string; message: string } | null,
 } = {}) {
   const ops: RecordedOp[] = [];
 
@@ -137,6 +168,7 @@ function stubAdminClient({
     }
     if (entry.table === "bookings") {
       if (entry.op === "select") return { data: null, error: null, count: completedBookingCount };
+      if (cascadeError) return { data: null, error: cascadeError };
       const stamped = Object.hasOwn(entry.payload ?? {}, "cancelled_at");
       return stamped && !bookingsHaveCancelledAt
         ? { data: null, error: MISSING_CANCELLED_AT }
@@ -209,6 +241,9 @@ function stubAdminClient({
 describe("deleteClient", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // `deleteClient` re-asserts the caller's permission itself, so every direct
+    // call needs a session profile that holds it.
+    vi.mocked(getStaffProfile).mockResolvedValue(owner);
   });
 
   it("soft-deletes the client, cancels only open bookings, and hard-deletes sensitive notes", async () => {
@@ -266,6 +301,44 @@ describe("deleteClient", () => {
       cancelled_recurring_template_count: 1,
       cancelled_recurring_template_ids: ["template-1"],
     });
+  });
+
+  it("stamps deleted_at only after the whole cascade has succeeded", async () => {
+    const stub = stubAdminClient();
+
+    await deleteClient("client-1", "admin_delete", stub.client, owner.id);
+
+    // There is no transaction to roll back, so the soft-delete has to be the
+    // LAST mutation: it is the flag the idempotency guard reads on a retry.
+    const sequence = stub.sequence();
+    const softDelete = sequence.indexOf("clients:update");
+    expect(softDelete).toBeGreaterThan(sequence.indexOf("bookings:update"));
+    expect(softDelete).toBeGreaterThan(sequence.indexOf("client_notes:delete"));
+    expect(softDelete).toBeLessThan(sequence.indexOf("audit_logs:insert"));
+  });
+
+  it("never stamps deleted_at when an earlier cascade step fails", async () => {
+    const stub = stubAdminClient({
+      cascadeError: { message: "permission denied for table bookings" },
+    });
+
+    const result = await deleteClient(
+      "client-1",
+      "gdpr_erasure",
+      stub.client,
+      owner.id
+    );
+
+    expect(result).toEqual({
+      success: false,
+      error: "permission denied for table bookings",
+    });
+    // The whole point: the client stays live and retryable. Had `deleted_at`
+    // been written first, the retry would short-circuit on the idempotency
+    // guard and the cascade + Article 17 note deletion would never run.
+    expect(stub.find("clients", "update")).toHaveLength(0);
+    expect(stub.sequence()).not.toContain("clients:update");
+    expect(stub.find("audit_logs", "insert")).toHaveLength(0);
   });
 
   it("treats the missing recurring-templates table as a clean pre-C-02 no-op", async () => {
@@ -343,12 +416,20 @@ describe("deleteClient", () => {
       reason: "gdpr_erasure",
       already_deleted: true,
     });
+    // The idempotent path is the one brief §5.5 reaches on a privacy
+    // "Completed" — it must redact exactly like the full path, or the leak
+    // simply moves here.
+    expect(audit.before_state).toEqual({
+      ...REDACTED_BEFORE_STATE,
+      deleted_at: "2026-07-20T09:00:00.000Z",
+      already_deleted: true,
+    });
   });
 
   it("writes one rolled-up audit row carrying the whole cascade summary", async () => {
     const stub = stubAdminClient();
 
-    await deleteClient("client-1", "gdpr_erasure", stub.client, owner.id);
+    await deleteClient("client-1", "admin_delete", stub.client, owner.id);
 
     const audits = stub.find("audit_logs", "insert");
     expect(audits).toHaveLength(1);
@@ -357,9 +438,45 @@ describe("deleteClient", () => {
       action_type: "client_deleted",
       target_type: "clients",
       target_id: "client-1",
-      before_state: CLIENT_ROW,
     });
     expect(audits[0].payload!.after_state).toEqual({
+      deleted_at: expect.any(String),
+      reason: "admin_delete",
+      cascaded_booking_count: 2,
+      cascaded_booking_ids: ["booking-1", "booking-2"],
+      completed_bookings_preserved_count: 5,
+      sensitive_notes_deleted_count: 1,
+      cancelled_recurring_template_count: 1,
+      cancelled_recurring_template_ids: ["template-1"],
+    });
+  });
+
+  it("keeps the full client snapshot in before_state for an admin_delete", async () => {
+    const stub = stubAdminClient();
+
+    await deleteClient("client-1", "admin_delete", stub.client, owner.id);
+
+    // An admin delete hides the record, it does not erase it — the full
+    // snapshot is the only way back from an accidental deletion.
+    expect(stub.find("audit_logs", "insert")[0].payload!.before_state).toEqual(
+      CLIENT_ROW
+    );
+  });
+
+  it("redacts PII from before_state for a gdpr_erasure", async () => {
+    const stub = stubAdminClient();
+
+    await deleteClient("client-1", "gdpr_erasure", stub.client, owner.id);
+
+    const audit = stub.find("audit_logs", "insert")[0].payload!;
+    expect(audit.before_state).toEqual(REDACTED_BEFORE_STATE);
+    // Named explicitly: an Article 17 erasure must not leave a queryable copy
+    // of the erased person's data in audit_logs.
+    for (const field of PII_FIELDS) {
+      expect(audit.before_state).not.toHaveProperty(field);
+    }
+    // after_state — the cascade roll-up — is unchanged by the redaction.
+    expect(audit.after_state).toEqual({
       deleted_at: expect.any(String),
       reason: "gdpr_erasure",
       cascaded_booking_count: 2,
@@ -368,6 +485,63 @@ describe("deleteClient", () => {
       sensitive_notes_deleted_count: 1,
       cancelled_recurring_template_count: 1,
       cancelled_recurring_template_ids: ["template-1"],
+    });
+  });
+
+  // Defence in depth: the caller-side gates stay, and these prove the primitive
+  // refuses on its own if it is ever reached without one.
+  it("refuses an admin_delete from an actor without destructive ops", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(coordinator);
+    const stub = stubAdminClient();
+
+    const result = await deleteClient(
+      "client-1",
+      "admin_delete",
+      stub.client,
+      coordinator.id
+    );
+
+    expect(result).toEqual({ success: false, error: "Insufficient permissions." });
+    expect(stub.ops).toHaveLength(0);
+  });
+
+  it("refuses a gdpr_erasure from a destructive-ops holder without privacy operations", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(destructiveOnly);
+    const stub = stubAdminClient();
+
+    const result = await deleteClient(
+      "client-1",
+      "gdpr_erasure",
+      stub.client,
+      destructiveOnly.id
+    );
+
+    expect(result).toEqual({ success: false, error: "Insufficient permissions." });
+    expect(stub.ops).toHaveLength(0);
+  });
+
+  it("allows a gdpr_erasure for a privacy-operations holder without destructive ops", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(privacyOnly);
+    const stub = stubAdminClient();
+
+    const erasure = await deleteClient(
+      "client-1",
+      "gdpr_erasure",
+      stub.client,
+      privacyOnly.id
+    );
+    expect(erasure).toEqual({ success: true, cascadedBookingCount: 2 });
+
+    // ...and the same actor still cannot run an admin delete.
+    const adminDelete = await deleteClient(
+      "client-1",
+      "admin_delete",
+      stub.client,
+      privacyOnly.id
+    );
+    expect(adminDelete).toEqual({
+      success: false,
+      error: "Insufficient permissions.",
     });
   });
 });
@@ -430,12 +604,20 @@ describe("bulkDeleteClients", () => {
       ],
     });
     // Serial: the second client's read only happens after the first one failed.
+    // The soft-delete is the last step of each run, so a failing one stops that
+    // client's run there and the next client's read follows.
     expect(stub.sequence()).toEqual([
       "clients:select",
       "recurring_booking_templates:update",
+      "bookings:update",
+      "bookings:update",
+      "client_notes:delete",
       "clients:update",
       "clients:select",
       "recurring_booking_templates:update",
+      "bookings:update",
+      "bookings:update",
+      "client_notes:delete",
       "clients:update",
     ]);
   });

@@ -442,14 +442,46 @@ function hasErrorCode(error: unknown, codes: Set<string>) {
 }
 
 /**
- * The delete primitive. NOT an RBAC boundary — every caller gates first
- * (`adminDeleteClient` / `bulkDeleteClients` require `manage_client_destructive_ops`;
- * the privacy "Completed" handler requires `manage_privacy_operations`). It is
- * exported only so those callers can reach it; the `adminClient` parameter is a
- * live Supabase client, which no browser payload can serialise, so the exported
- * action is inert from outside the server.
+ * `before_state` for the `client_deleted` audit row. The two reasons get
+ * deliberately different shapes — do NOT collapse this back into one branch:
  *
- * Cascade order matters and is fixed by the plan (§1 Step 9).
+ * - `admin_delete` keeps the FULL pre-delete row. The record has been hidden,
+ *   not erased, and this snapshot is the only way to reconstruct an accidental
+ *   deletion.
+ * - `gdpr_erasure` keeps identifiers and timestamps ONLY. An Article 17 erasure
+ *   that left the erased person's name, email, phone, address and notes sitting
+ *   in `audit_logs` indefinitely would not be an erasure at all. For an erasure
+ *   the audit row's job is to prove WHEN and BY WHOM — never to preserve WHAT.
+ *
+ * Whitelist, not blacklist: any column added to `clients` later stays out of
+ * the erasure snapshot by default.
+ */
+function auditBeforeState(reason: DeleteClientReason, current: ClientFullRow) {
+  if (reason !== "gdpr_erasure") return current;
+  return {
+    id: current.id,
+    created_at: current.created_at ?? null,
+    updated_at: current.updated_at ?? null,
+    deleted_at: current.deleted_at ?? null,
+    pii_redacted: true,
+  };
+}
+
+/**
+ * The delete primitive. Every caller gates first (`adminDeleteClient` /
+ * `bulkDeleteClients` require `manage_client_destructive_ops`; the privacy
+ * "Completed" handler requires `manage_privacy_operations`), and this function
+ * re-asserts the same permission itself — belt-and-braces, not a replacement.
+ *
+ * The re-assertion exists because this module is `"use server"`, so the export
+ * is technically dispatchable. It is not exploitable today — the `adminClient`
+ * parameter is a live Supabase client that React's action decoder cannot
+ * materialise from a crafted POST — but argument serialisation is a fragile
+ * thing to rest a destructive, GDPR-relevant operation on. The export itself is
+ * forced: the privacy handler has to import it.
+ *
+ * Cascade order matters and is fixed by the plan (§1 Step 9) as amended below:
+ * the client soft-delete runs LAST, immediately before the audit row.
  */
 export async function deleteClient(
   clientId: string,
@@ -457,6 +489,21 @@ export async function deleteClient(
   adminClient: ReturnType<typeof createSupabaseAdminClient>,
   actorStaffId: string
 ): Promise<DeleteClientResult> {
+  // Same predicates the callers gate on, re-evaluated here: an admin delete
+  // needs `manage_client_destructive_ops` on top of client management, an
+  // erasure needs `manage_privacy_operations`. Non-throwing composition rather
+  // than `requireClientDestructiveOpsManager()` / `requirePrivacyManager()`
+  // because this function reports failure through its result object.
+  const profile = await getStaffProfile(await createSupabaseServerClient());
+  const permitted =
+    reason === "gdpr_erasure"
+      ? getClientDataAccess(profile, { hasAssignedBooking: false })
+          .canManagePrivacyOperations
+      : canManageAllClients(profile) && canManageClientDestructiveOps(profile);
+  if (!permitted) {
+    return { success: false, error: "Insufficient permissions." };
+  }
+
   const { data: current, error: currentError } = await adminClient
     .from("clients")
     .select("*")
@@ -481,7 +528,7 @@ export async function deleteClient(
       action_type: "client_deleted",
       target_type: "clients",
       target_id: clientId,
-      before_state: { ...current, already_deleted: true },
+      before_state: { ...auditBeforeState(reason, current), already_deleted: true },
       after_state: {
         deleted_at: current.deleted_at,
         reason,
@@ -512,14 +559,6 @@ export async function deleteClient(
     cancelledTemplateIds = ((templates.data ?? []) as { id: string }[]).map(
       (row) => row.id
     );
-  }
-
-  const { error: softDeleteError } = await adminClient
-    .from("clients")
-    .update({ deleted_at: deletedAt })
-    .eq("id", clientId);
-  if (softDeleteError) {
-    return { success: false, error: softDeleteError.message };
   }
 
   // Cascade-cancel open bookings only. Completed bookings are NEVER touched —
@@ -576,6 +615,22 @@ export async function deleteClient(
   const sensitiveNotesDeletedCount = ((notes.data ?? []) as { id: string }[])
     .length;
 
+  // Soft-delete the client LAST, once every step that can fail has succeeded.
+  // PostgREST gives us no transaction, so ordering is the only atomicity we
+  // have. Stamping `deleted_at` first would mean any later failure left the
+  // client flagged deleted with its bookings still open, its sensitive notes
+  // still present and no audit row — and the retry would hit the idempotency
+  // guard above, report `{ success: true, alreadyDeleted: true }` and skip the
+  // cascade and the Article 17 note deletion permanently. Running it here means
+  // a mid-run failure leaves a fully live, un-deleted, retryable record.
+  const { error: softDeleteError } = await adminClient
+    .from("clients")
+    .update({ deleted_at: deletedAt })
+    .eq("id", clientId);
+  if (softDeleteError) {
+    return { success: false, error: softDeleteError.message };
+  }
+
   // Plan step 9.6 — audit-log `target_label` anonymisation — is SKIPPED:
   // `audit_logs` has no `target_label` column (verified against the live
   // schema), and the plan permits skipping the step when it is absent.
@@ -593,7 +648,7 @@ export async function deleteClient(
     action_type: "client_deleted",
     target_type: "clients",
     target_id: clientId,
-    before_state: current,
+    before_state: auditBeforeState(reason, current),
     after_state: {
       deleted_at: deletedAt,
       reason,
