@@ -82,13 +82,18 @@ export async function POST(request: Request): Promise<Response> {
   const supabase = createSupabaseAdminClient();
   const summary = emptySummary();
 
-  // Batch fetch — every pending/confirmed booking for tomorrow's UTC date.
+  // Batch fetch — every pending/confirmed booking for tomorrow's UTC date that
+  // has an address to remind. Since C-06, `contact_email` is nullable: an admin
+  // can book a phone-only client, and those bookings must never be targeted.
+  // C-01's review-email cron needs the same `contact_email IS NOT NULL` filter
+  // on its candidate query when it ships.
   const targetDate = tomorrowDateUtc();
   const { data: candidates, error: queryError } = await supabase
     .from("bookings")
     .select("id")
     .eq("booking_date", targetDate)
-    .in("status", ["pending", "confirmed"]);
+    .in("status", ["pending", "confirmed"])
+    .not("contact_email", "is", null);
 
   if (queryError) {
     Sentry.captureException(queryError);

@@ -705,7 +705,12 @@ const manualBookingSchema = z.object({
     bookingFor: z.enum(["self", "someone_else", "group"]),
     fullName: z.string().trim().min(1, "Contact name is required."),
     phone: z.string().trim().min(1, "Phone is required."),
-    email: z.email("A valid email is required."),
+    // Admin flow only: an empty email is allowed and reaches the RPC as "",
+    // which it stores as NULL. The public flow keeps its own `z.email()` in
+    // `api/bookings/route.ts`. Phone stays required.
+    email: z
+      .union([z.email("Email needs an @. For example, sara@example.com."), z.literal("")])
+      .default(""),
     notes: z.string(),
     healthNotes: z.string(),
     clientGender: z.enum(["male", "female", ""]),
@@ -934,7 +939,9 @@ export async function createManualBooking(
       revalidatePath("/admin/enquiries");
     }
 
-    if (parsed.data.sendConfirmationEmail) {
+    // The form hides the checkbox when there is no email, so this is the
+    // second gate rather than the first — it also covers a hand-crafted post.
+    if (parsed.data.sendConfirmationEmail && parsed.data.details.email.trim()) {
       const manageUrl = await ensureBookingManageUrl(
         {
           id: result.bookingId,

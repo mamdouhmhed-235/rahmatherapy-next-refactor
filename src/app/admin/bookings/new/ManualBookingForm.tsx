@@ -194,8 +194,10 @@ function validateStep(
     if (!vals.fullName.trim()) errs.full_name = "Add the client's name so we know who to book.";
     if (!vals.phone.trim()) errs.phone = "Phone number is too short. Include the area code.";
     if (!vals.bookingSource) errs.booking_source = "Pick where this booking came from.";
-    if (!vals.email.trim()) errs.email = "Add an email address so we can send confirmations.";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vals.email.trim()))
+    // Email is optional on the admin flow — the clinic often has only a phone
+    // number. Format is still checked when a value is typed. Phone stays
+    // required: it is the WhatsApp/SMS channel and the RPC's fallback dedup key.
+    if (vals.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(vals.email.trim()))
       errs.email = "Email needs an @. For example, sara@example.com.";
   }
 
@@ -916,10 +918,15 @@ export function ManualBookingForm({
     return parts.length > 0 ? parts.join(", ") : "available";
   }
 
+  // An empty email is a supported admin state, not an omission: it suppresses
+  // the confirmation offer, and it switches the RPC's dedup key from email to
+  // phone — which changes what acknowledging a duplicate actually does.
+  const emailProvided = email.trim().length > 0;
+
   // ─── Step readiness (drives aria-disabled on Continue) ───────────────────────
 
   const isStepReady: boolean = (() => {
-    if (step === 1) return !!(fullName.trim() && phone.trim() && email.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
+    if (step === 1) return !!(fullName.trim() && phone.trim()) && (!emailProvided || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
     if (step === 2) return participants.every(
       (p) => p.name.trim() && p.gender && (p.packageSlug || (p.massageEnabled && p.massageSlug))
     );
@@ -979,7 +986,7 @@ export function ManualBookingForm({
       <input type="hidden" name="customer_notes" value={customerNotes} />
       <input type="hidden" name="health_notes" value={healthNotes} />
       <input type="hidden" name="consent_acknowledged" value={consentAcknowledged ? "on" : ""} />
-      <input type="hidden" name="send_confirmation_email" value={sendConfirmationEmail ? "on" : ""} />
+      <input type="hidden" name="send_confirmation_email" value={emailProvided && sendConfirmationEmail ? "on" : ""} />
       {participants.map((_, i) => {
         const choice = assignmentChoices[i] ?? "unassigned";
         const staffId =
@@ -1047,11 +1054,10 @@ export function ManualBookingForm({
           </div>
 
           <div className="grid gap-1.5">
-            <FieldLabel htmlFor="email" required>Email address</FieldLabel>
+            <FieldLabel htmlFor="email">Email address</FieldLabel>
             <input
               id="email"
               type="email"
-              required
               value={email}
               placeholder="sara@example.com"
               maxLength={254}
@@ -1064,7 +1070,7 @@ export function ManualBookingForm({
                 isPrefilled("email") ? "bg-[var(--admin-selected-sky)]" : "bg-[var(--admin-surface-input)]"
               )}
             />
-            <p className="text-xs text-[var(--admin-text-muted)]">Used for confirmations and reminders.</p>
+            <p className="text-xs text-[var(--admin-text-muted)]">Optional. Used for confirmations and reminders when provided.</p>
             {isPrefilled("email") && prefillSource && (
               <PreFillChip source={prefillSource} tooltip={prefillTooltip} />
             )}
@@ -1862,15 +1868,20 @@ export function ManualBookingForm({
                 )}
               </div>
 
-              <label className="flex cursor-pointer items-start gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={sendConfirmationEmail}
-                  onChange={(e) => setSendConfirmationEmail(e.target.checked)}
-                  className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
-                />
-                <span className="text-[var(--admin-body)]">Send confirmation email to client</span>
-              </label>
+              {/* No address, no offer: the checkbox is hidden rather than
+                  disabled, and the hidden input sends "" so the server never
+                  attempts a send. */}
+              {emailProvided ? (
+                <label className="flex cursor-pointer items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={sendConfirmationEmail}
+                    onChange={(e) => setSendConfirmationEmail(e.target.checked)}
+                    className="mt-0.5 shrink-0 accent-[var(--admin-primary)]"
+                  />
+                  <span className="text-[var(--admin-body)]">Send confirmation email to client</span>
+                </label>
+              ) : null}
             </div>
           </AdminPanel>
         </div>
@@ -1993,7 +2004,17 @@ export function ManualBookingForm({
             message={state.duplicateWarning}
             checked={confirmDuplicate}
             onCheckedChange={setConfirmDuplicate}
-            acknowledgeLabel="Use the existing client record for this booking."
+            // The two dedup branches have opposite outcomes, so the label has
+            // to follow the branch. With an email, `clients_email_key` is
+            // UNIQUE and `on conflict (email) do nothing` + re-fetch can only
+            // link to the matched row. With no email, the RPC matched on phone
+            // and confirming inserts a brand-new client with a null email —
+            // the shared component's default wording is the honest one there.
+            acknowledgeLabel={
+              emailProvided
+                ? "Use the existing client record for this booking."
+                : "Create a separate client profile anyway."
+            }
           />
         ) : null}
         {step1}

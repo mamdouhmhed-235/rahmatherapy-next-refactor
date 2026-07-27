@@ -174,6 +174,62 @@ describe("POST /api/bookings honeypot", () => {
   });
 });
 
+describe("POST /api/bookings keeps email required (C-06 isolation)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    rpc.mockResolvedValue({
+      data: {
+        bookingId: "booking-a",
+        participantCount: 1,
+        itemCount: 1,
+        assignmentCount: 1,
+      },
+      error: null,
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue({
+      rpc,
+    } as unknown as ReturnType<typeof createSupabaseAdminClient>);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // C-06 made email optional on the ADMIN booking flow and dropped the NOT NULL
+  // on `bookings.contact_email`, so the database no longer stops a no-email
+  // public booking. This route's own Zod is the only remaining gate, and these
+  // are the specs that keep it that way.
+  it("rejects a payload with no email at all", async () => {
+    const detailsWithoutEmail: Record<string, unknown> = {
+      ...validRequestBody.details,
+    };
+    delete detailsWithoutEmail.email;
+    const response = await postBooking({
+      ...validRequestBody,
+      details: detailsWithoutEmail,
+    });
+    const body = (await response.json()) as Record<string, unknown>;
+
+    expect(response.status).toBe(400);
+    expect(body.error).toBe("Invalid booking request.");
+    // Rejected before any work — the RPC's null-email branch is unreachable
+    // from the public flow.
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+    expect(sendBookingCreatedEmails).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty-string email, which is what the admin flow now sends", async () => {
+    const response = await postBooking({
+      ...validRequestBody,
+      details: { ...validRequestBody.details, email: "" },
+    });
+
+    expect(response.status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
 describe("POST /api/bookings rate limiting", () => {
   const getCloudflareContextMock = getCloudflareContext as unknown as Mock;
   const stubFetch = vi.fn();

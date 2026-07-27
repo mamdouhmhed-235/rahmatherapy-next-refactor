@@ -79,10 +79,15 @@ export function DeleteClientButton({
         </button>
       }
     >
+      {/* `adminDeleteClient` stamps `deleted_at` and nothing more: name, email,
+          phone and address all survive, and clearing the stamp restores the
+          record. Only the sensitive notes are hard-deleted, so only they can
+          be claimed as irreversible — the same honesty the privacy modal's
+          `deletion_review` copy now carries. */}
       <ul className="grid list-none gap-1.5 p-0 text-sm text-[var(--admin-text-muted)]">
         <li>Past completed bookings stay on the record.</li>
         <li>Sensitive health notes are deleted permanently.</li>
-        <li>This cannot be undone.</li>
+        <li>Only the notes are unrecoverable — the profile is hidden, not erased.</li>
       </ul>
     </ConfirmActionModal>
   );

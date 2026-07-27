@@ -155,7 +155,11 @@ async function getBusinessSettings(
   };
 }
 
-async function getBookingEmailRecord(bookingId: string, supabase: SupabaseClient) {
+async function getBookingEmailRecord(
+  bookingId: string,
+  supabase: SupabaseClient,
+  { requireCustomerEmail = true }: { requireCustomerEmail?: boolean } = {}
+) {
   const { data, error } = await supabase
     .from("bookings")
     .select(BOOKING_EMAIL_SELECT)
@@ -166,7 +170,10 @@ async function getBookingEmailRecord(bookingId: string, supabase: SupabaseClient
     throw new Error("Unable to load booking email context.");
   }
 
-  if (!data.contact_email && !data.clients?.email) {
+  // Since C-06, `bookings.contact_email` is nullable — an admin can book a
+  // phone-only client. Callers that treat that as an expected state rather
+  // than a failure opt out of this throw and skip the send themselves.
+  if (requireCustomerEmail && !data.contact_email && !data.clients?.email) {
     throw new Error("Booking has no contact email address.");
   }
 
@@ -176,10 +183,16 @@ async function getBookingEmailRecord(bookingId: string, supabase: SupabaseClient
 async function getBookingTemplateInput(
   bookingId: string,
   supabase: SupabaseClient,
-  options: { includeManageUrl?: boolean; manageUrl?: string } = {}
+  options: {
+    includeManageUrl?: boolean;
+    manageUrl?: string;
+    requireCustomerEmail?: boolean;
+  } = {}
 ) {
   const [booking, settings] = await Promise.all([
-    getBookingEmailRecord(bookingId, supabase),
+    getBookingEmailRecord(bookingId, supabase, {
+      requireCustomerEmail: options.requireCustomerEmail,
+    }),
     getBusinessSettings(supabase),
   ]);
   const manageUrl = options.manageUrl
@@ -346,11 +359,18 @@ export async function sendBookingCreatedEmails(
   const { booking, settings, input } = await getBookingTemplateInput(
     bookingId,
     supabase,
-    { includeManageUrl: true, manageUrl: options.manageUrl }
+    {
+      includeManageUrl: true,
+      manageUrl: options.manageUrl,
+      requireCustomerEmail: false,
+    }
   );
+  // A phone-only admin booking has no address to confirm to. That is the
+  // intended state, not a failure — skip silently instead of throwing, so the
+  // caller isn't handed an error for a booking that was created correctly.
   const customerEmail = booking.contact_email || booking.clients?.email;
   if (!customerEmail) {
-    throw new Error("Booking client has no email address.");
+    return { manageUrl: input.manageUrl ?? null };
   }
 
   await Promise.all([

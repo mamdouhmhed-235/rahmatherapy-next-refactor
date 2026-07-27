@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
+  Info,
   Mail,
   PoundSterling,
   ShieldX,
@@ -461,6 +462,10 @@ export default async function BookingDetailPage({
           </div>
         }
       />
+
+      {fullScope && !booking.contact_email ? (
+        <NoEmailNotice clientId={bookingWithTimeline.client_id ?? null} />
+      ) : null}
 
       {nextAction ? <NextActionStrip action={nextAction} /> : null}
 
@@ -1376,6 +1381,37 @@ function NextActionStrip({ action }: { action: NextAction }) {
         </div>
       ) : null}
     </section>
+  );
+}
+
+// ─── No-email indicator (C-06) ───────────────────────────────────────────────
+// Since C-06 an admin can book a phone-only client, so no confirmation or
+// reminder will ever fire for this booking. Muted info tone, not a warning:
+// it is a deliberate state, not something that went wrong. The fix is one hop
+// away on the client record, so the chip is the link to it.
+
+function NoEmailNotice({ clientId }: { clientId: string | null }) {
+  const label = "No email — reminders off";
+  const chipClass =
+    "inline-flex min-h-11 items-center gap-1.5 self-start rounded-full bg-[var(--admin-panel-muted)] px-3 text-xs font-medium text-[var(--admin-text-muted)] sm:min-h-8";
+
+  if (!clientId) {
+    return (
+      <p className={chipClass}>
+        <Info className="size-3.5 shrink-0" aria-hidden="true" />
+        {label}
+      </p>
+    );
+  }
+
+  return (
+    <Link
+      href={`/admin/clients/${clientId}/edit`}
+      className={`${chipClass} outline-none transition-colors hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55`}
+    >
+      <Info className="size-3.5 shrink-0" aria-hidden="true" />
+      {label} — add one on the client record
+    </Link>
   );
 }
 

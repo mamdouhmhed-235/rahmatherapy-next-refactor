@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createManualBooking } from "../actions";
@@ -143,18 +143,105 @@ describe("ManualBookingForm duplicate flow + client_id plumbing", () => {
   });
 });
 
+describe("ManualBookingForm optional email", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.mocked(createManualBooking).mockReset();
+    // Earlier describes in this file leave their trees mounted, and a second
+    // copy of the form would make the queries below ambiguous.
+    cleanup();
+  });
+
+  const continueButton = () =>
+    screen.getAllByRole("button", { name: /Continue/i })[0] as HTMLButtonElement;
+
+  it("reaches step 2 with the email left empty", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+
+    await user.type(screen.getByLabelText(/Full name/i), "Aisha Khan");
+    await user.type(screen.getByLabelText(/Phone number/i), "07123456789");
+
+    expect((screen.getByLabelText(/Email address/i) as HTMLInputElement).value).toBe("");
+    await waitFor(() => expect(continueButton().disabled).toBe(false));
+
+    await user.click(continueButton());
+    await waitFor(() =>
+      expect(container.querySelector('[title="Step 2: current"]')).not.toBeNull()
+    );
+  });
+
+  it("still rejects a malformed email, and stops rejecting it once cleared", async () => {
+    const user = userEvent.setup();
+    render(<ManualBookingForm services={services} prefillClient={null} enquiry={null} />);
+
+    await user.type(screen.getByLabelText(/Full name/i), "Aisha Khan");
+    await user.type(screen.getByLabelText(/Phone number/i), "07123456789");
+    const emailInput = screen.getByLabelText(/Email address/i);
+    await user.type(emailInput, "sara-at-example");
+
+    // Presence is optional; format is not. A typo'd address must not slip
+    // through as if the admin had deliberately left the field blank.
+    await waitFor(() => expect(continueButton().disabled).toBe(true));
+
+    await user.clear(emailInput);
+    await waitFor(() => expect(continueButton().disabled).toBe(false));
+
+    await user.type(emailInput, "sara@example.test");
+    await waitFor(() => expect(continueButton().disabled).toBe(false));
+  });
+
+  it("hides the confirmation-email checkbox until there is an address to send to", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    const sendFlag = () =>
+      container.querySelector<HTMLInputElement>('input[name="send_confirmation_email"]');
+
+    expect(screen.queryByText("Send confirmation email to client")).toBeNull();
+    expect(sendFlag()?.value).toBe("");
+
+    await user.type(screen.getByLabelText(/Email address/i), "sara@example.test");
+
+    await screen.findByText("Send confirmation email to client");
+    await waitFor(() => expect(sendFlag()?.value).toBe("on"));
+  });
+
+  it("says a phone-matched duplicate creates a separate profile, not a link", async () => {
+    const user = userEvent.setup();
+    vi.mocked(createManualBooking).mockResolvedValue({
+      duplicateWarning: "Sara Mohamed (07700 900123)",
+    });
+    await submitFromStep4(user, { email: "" });
+
+    // With no email the RPC dedups on phone, and acknowledging inserts a brand
+    // new client with a null email. The email branch's "use the existing
+    // record" wording would be the wrong promise here.
+    await screen.findByText("Create a separate client profile anyway.");
+    expect(
+      screen.queryByText("Use the existing client record for this booking.")
+    ).toBeNull();
+  });
+});
+
 /**
  * Jumps to the review step via the session-storage draft the form already
  * restores, ticks consent so nothing but the duplicate check can block submit,
  * and fires one submission.
  */
-async function submitFromStep4(user: ReturnType<typeof userEvent.setup>) {
+async function submitFromStep4(
+  user: ReturnType<typeof userEvent.setup>,
+  { email = "aisha@example.test" }: { email?: string } = {}
+) {
   sessionStorage.setItem(
     "booking-new-draft",
     JSON.stringify({
       step: 4,
       fullName: "Aisha Khan",
-      email: "aisha@example.test",
+      email,
       phone: "07123456789",
       address: "10 Test Street",
       postcode: "LU1 1AA",

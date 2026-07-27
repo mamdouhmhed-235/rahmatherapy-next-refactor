@@ -138,13 +138,21 @@ export function ClientSelectionProvider({
                 </button>
               }
             >
+              {/* Same soft-delete as the single-client modal: each row is only
+                  stamped with `deleted_at`, so the profiles are recoverable and
+                  the notes are not. Claiming the whole operation is irreversible
+                  would overstate it. */}
               <ul className="grid list-none gap-1.5 p-0 text-sm text-[var(--admin-text-muted)]">
                 <li>
-                  {count} client profile{count === 1 ? "" : "s"} will be deleted.
+                  {count} client profile{count === 1 ? "" : "s"} will be hidden from the admin.
                 </li>
                 <li>Open bookings for each will be cancelled.</li>
                 <li>Past completed bookings stay on the record.</li>
-                <li>This cannot be undone.</li>
+                <li>Sensitive health notes are deleted permanently.</li>
+                <li>
+                  Only the notes are unrecoverable — the profile
+                  {count === 1 ? " is" : "s are"} hidden, not erased.
+                </li>
               </ul>
             </ConfirmActionModal>
             <button
