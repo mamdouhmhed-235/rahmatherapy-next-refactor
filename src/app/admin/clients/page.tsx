@@ -41,13 +41,17 @@ interface ClientsPageProps {
   }>;
 }
 
-// TODO(C-06 Phase E): once the migration adds `clients.deleted_at`, add
-// `deleted_at` to BOTH `CLIENT_SELECT` and `CLIENT_SAFE_SELECT` below (missing
-// either one reopens the hole for that RBAC branch only), plus `BOOKING_SELECT`
-// / `BOOKING_SAFE_SELECT` if booking reads need it. Until then every read of
-// `client.deleted_at` is `undefined`, so the "Show deleted" scoping below is
-// inert — and no static gate can see that, because these selects are cast
-// through `.returns<ClientRecord[]>()`.
+// `deleted_at` is selected in BOTH branches on purpose: these two strings are
+// the contact-details and no-contact-details RBAC variants of the same read, and
+// omitting the column from either would leave soft-deleted clients fully visible
+// for that role alone. Nothing static can catch that — both are cast through
+// `.returns<ClientRecord[]>()`, so a missing column reads as `undefined` and the
+// "Show deleted" scoping below silently passes every row.
+//
+// The BOOKING_* selects deliberately do NOT carry it: no code path reads
+// `booking.deleted_at`, because a soft-deleted booking only ever exists as a
+// cascade of its client's deletion, and that client is already filtered out
+// here and 404'd on the detail page.
 const CLIENT_SELECT = `
   id,
   full_name,
@@ -58,7 +62,8 @@ const CLIENT_SELECT = `
   client_source,
   source_detail,
   created_at,
-  updated_at
+  updated_at,
+  deleted_at
 `;
 
 const CLIENT_SAFE_SELECT = `
@@ -67,7 +72,8 @@ const CLIENT_SAFE_SELECT = `
   client_source,
   source_detail,
   created_at,
-  updated_at
+  updated_at,
+  deleted_at
 `;
 
 const BOOKING_SELECT = `

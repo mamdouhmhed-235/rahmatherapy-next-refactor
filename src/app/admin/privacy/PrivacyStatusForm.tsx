@@ -2,7 +2,7 @@
 
 import { forwardRef, useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ConfirmActionModal } from "../components/admin-ui-interactions";
@@ -10,6 +10,7 @@ import {
   updatePrivacyRequestStatus,
   type PrivacyActionState,
 } from "./actions";
+import { generateClientDataExport } from "./data-export";
 
 const initialState: PrivacyActionState = {};
 
@@ -31,11 +32,37 @@ function isDestructive(value: string) {
   return value === "completed" || value === "declined";
 }
 
+/**
+ * What "Completed" actually does, per request type (brief §4.4).
+ *
+ * The single line this replaces promised a deletion and a customer email for
+ * every request type, and did neither — the modal was the "UI lie" C-06 exists
+ * to kill. `deletion_review` is now the only type that performs work beyond the
+ * status flip, and the `data_export` copy says plainly that the download lands
+ * on the privacy manager's device, not in the client's inbox (brief Q9.7 —
+ * emailing the client needs a template and delivery flow, which is C-08).
+ */
+const COMPLETION_DESCRIPTION: Record<string, string> = {
+  deletion_review:
+    "Marking complete will delete this client's profile, cancel their open bookings, and permanently remove any sensitive notes. Past completed bookings stay for tax and ICO records. This cannot be undone.",
+  data_export:
+    "Use Download export now to save the client's data as a JSON file, excluding sensitive health notes. The file downloads to this device for you to check and send on — the client is not emailed. Marking complete then records the request as fulfilled.",
+  correction:
+    "Corrections are made by hand on the client record. Marking complete records that you have made them — nothing else changes.",
+  sensitive_note_review:
+    "Sensitive-note reviews are carried out by hand in the notes queue. Marking complete records that you have finished the review — nothing else changes.",
+};
+
+const COMPLETION_FALLBACK_DESCRIPTION =
+  "Marking complete records that you have finished this request by hand — nothing else changes.";
+
 export function PrivacyStatusForm({
   requestId,
+  requestType,
   status,
 }: {
   requestId: string;
+  requestType: string;
   status: string;
 }) {
   const router = useRouter();
@@ -61,7 +88,10 @@ export function PrivacyStatusForm({
       lastSubmittedRef.current = null;
       router.refresh();
     } else if (state.error) {
-      toast.error("Couldn't update the request. Try again.", {
+      // The server's own message, not a generic one: a `deletion_review`
+      // completion can now half-succeed (status saved, erasure failed), and
+      // "Couldn't update the request" would be untrue in exactly that case.
+      toast.error(state.error, {
         duration: Infinity,
         action: {
           label: "Retry",
@@ -136,20 +166,31 @@ export function PrivacyStatusForm({
             }
             description={
               selectedStatus === "completed"
-                ? "Confirm you've reviewed booking and audit-log integrity before finalising deletion or anonymisation. The customer will get a confirmation email."
+                ? COMPLETION_DESCRIPTION[requestType] ??
+                  COMPLETION_FALLBACK_DESCRIPTION
                 : "The customer keeps the right to escalate to the ICO. Make sure the reason is recorded in the request note or client notes."
             }
             confirmLabel={
               selectedStatus === "completed" ? "Mark completed" : "Decline"
             }
             cancelLabel="Cancel"
-            destructive={selectedStatus === "declined"}
+            // A deletion_review completion is now a real, irreversible erasure,
+            // so it gets the destructive treatment rather than the success tick.
+            destructive={
+              selectedStatus === "declined" ||
+              (selectedStatus === "completed" &&
+                requestType === "deletion_review")
+            }
             onConfirm={() => {
               rememberSubmission();
               formRef.current?.requestSubmit();
             }}
             trigger={<SaveStatusButton pending={pending} unchanged={unchanged} />}
-          />
+          >
+            {selectedStatus === "completed" && requestType === "data_export" ? (
+              <ExportDownloadButton requestId={requestId} />
+            ) : null}
+          </ConfirmActionModal>
         ) : (
           <SaveStatusButton type="submit" pending={pending} unchanged={unchanged} />
         )}
@@ -159,6 +200,62 @@ export function PrivacyStatusForm({
         {liveMessage}
       </span>
     </form>
+  );
+}
+
+/**
+ * Builds the Article 15 export and hands it to the browser.
+ *
+ * The Blob is assembled here rather than served with a `Content-Disposition`
+ * header because a server action's return value travels inside the RSC flight
+ * payload — it cannot carry HTTP headers, and React's flight serialiser rejects
+ * a `Response` instance outright. See the note on `generateClientDataExport`.
+ */
+function ExportDownloadButton({ requestId }: { requestId: string }) {
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const result = await generateClientDataExport(requestId);
+      if (!result.json || !result.filename) {
+        toast.error(result.error ?? "Couldn't build that export. Try again.");
+        return;
+      }
+
+      const url = URL.createObjectURL(
+        new Blob([result.json], { type: "application/json" })
+      );
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      toast.success("Export downloaded.");
+    } catch {
+      toast.error("Couldn't build that export. Try again.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleDownload}
+      disabled={downloading}
+      aria-busy={downloading || undefined}
+      className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none"
+    >
+      {downloading ? (
+        <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+      ) : (
+        <Download className="size-4 shrink-0" aria-hidden="true" />
+      )}
+      Download export now
+    </button>
   );
 }
 

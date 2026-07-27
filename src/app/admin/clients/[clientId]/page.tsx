@@ -164,14 +164,16 @@ function whatsappHref(phone: string): string {
   return `https://wa.me/${normalised}`;
 }
 
-// TODO(C-06 Phase E): once the migration adds `clients.deleted_at`, add
-// `deleted_at` to BOTH `CLIENT_SELECT` and `CLIENT_SAFE_SELECT` below (both
-// feed `getClientSelect`, so missing either reopens the hole for that RBAC
-// branch only) and short-circuit a soft-deleted client to `notFound()`. The
-// same applies to the four BOOKING_* selects if booking reads need the column.
-// Adding the short-circuit before the column exists would read `undefined` and
-// silently never fire, and no static gate can see that — these selects are cast
-// through `.single<ClientRecord>()` / `.returns<>()`.
+// `deleted_at` is selected in BOTH branches on purpose: they are the two RBAC
+// variants that feed `getClientSelect`, and omitting the column from either
+// would leave a soft-deleted client's profile fully readable by that role alone
+// — the exact GDPR "UI lie" this plan removes. Nothing static can catch it:
+// these are cast through `.single<ClientRecord>()`, so a missing column reads as
+// `undefined` and the `notFound()` short-circuit below never fires.
+//
+// The four BOOKING_* selects deliberately do NOT carry it: no code path reads
+// `booking.deleted_at`, because a soft-deleted booking only ever exists as a
+// cascade of its client's deletion, and that client 404s below.
 const CLIENT_SELECT = `
   id,
   full_name,
@@ -182,7 +184,8 @@ const CLIENT_SELECT = `
   client_source,
   source_detail,
   created_at,
-  updated_at
+  updated_at,
+  deleted_at
 `;
 
 const CLIENT_SAFE_SELECT = `
@@ -191,7 +194,8 @@ const CLIENT_SAFE_SELECT = `
   client_source,
   source_detail,
   created_at,
-  updated_at
+  updated_at,
+  deleted_at
 `;
 
 const BOOKING_SELECT = `
@@ -464,7 +468,11 @@ export default async function ClientDetailPage({
     }
   }
 
-  if (!client) notFound();
+  // A soft-deleted client is gone as far as every working surface is concerned
+  // (brief §5.3): the profile 404s for every role, so no Edit, Delete, note or
+  // "Book again" affordance below is reachable for one. The list page keeps its
+  // own "Show deleted" view for the audit trail.
+  if (!client || client.deleted_at) notFound();
 
   if (!clientAccess.canViewClient) {
     return <InsufficientPermissions />;

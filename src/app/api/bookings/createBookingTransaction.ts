@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { contactLinks } from "@/content/site/contact";
 
 type ParticipantGender = "male" | "female";
 export type BookingSource =
@@ -171,6 +172,19 @@ export async function createBookingTransaction(
     throw new DuplicateClientError(
       error.message.split(":")[1]?.trim() || null,
       error.hint ? error.hint.trim() : null
+    );
+  }
+
+  // `client_record_removed` means this email is held by a client record that has
+  // been erased. The RPC raises it instead of letting a NULL reach
+  // `bookings.client_id` (NOT NULL) and returning a raw 23502 — which
+  // `route.ts` would echo to the customer verbatim. Nothing the customer can fix
+  // themselves, and we must not hint that the address was ever on file, so the
+  // message just moves them to the phone.
+  if (error && error.code === "P0001" && error.message.startsWith("client_record_removed")) {
+    throw new BookingCreationError(
+      `We can't take this booking online. Please call us on ${contactLinks.phone.value} and we'll book it for you.`,
+      409
     );
   }
 

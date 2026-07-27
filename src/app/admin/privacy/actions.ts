@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { PERMISSIONS, requirePermission } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { deleteClient } from "../clients/actions";
 
 const privacyStatusSchema = z.object({
   request_id: z.string().uuid(),
@@ -78,7 +79,46 @@ export async function updatePrivacyRequestStatus(
     },
   });
 
+  // Completion branches (brief §2.4). Until now "Completed" only moved a label
+  // while the modal promised a deletion and an email that never happened.
+  //
+  //   deletion_review       → run the erasure the page has always claimed to run
+  //   data_export           → nothing to cascade: the JSON is produced by
+  //                           `generateClientDataExport`, which the privacy
+  //                           manager triggers explicitly from the modal
+  //   correction            → manual workflow, status only
+  //   sensitive_note_review → manual review, status only
+  let erasureError: string | null = null;
+  if (
+    parsed.data.status === "completed" &&
+    before.request_type === "deletion_review"
+  ) {
+    // Idempotent by design: a client already removed via the Delete button
+    // comes back `{ success: true, alreadyDeleted: true }` and the cascade is
+    // skipped (brief §5.5). That is a success, not an error.
+    const erasure = await deleteClient(
+      before.client_id,
+      "gdpr_erasure",
+      adminClient,
+      actor.id
+    );
+    if (!erasure.success) {
+      erasureError =
+        erasure.error ?? "The client record could not be erased.";
+    }
+  }
+
   revalidatePath("/admin/privacy");
   revalidatePath(`/admin/clients/${before.client_id}`);
+
+  // The status update above already committed, so a failed erasure cannot be
+  // reported as a plain "couldn't update the request" — say exactly which half
+  // landed, and where to finish the job.
+  if (erasureError) {
+    return {
+      error: `Status saved, but the client record was not erased: ${erasureError} Delete the client from their profile page to finish the erasure.`,
+    };
+  }
+
   return { success: true };
 }

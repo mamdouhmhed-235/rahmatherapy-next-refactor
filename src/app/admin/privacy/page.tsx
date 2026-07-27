@@ -747,6 +747,7 @@ function PrivacyRequestRow({
             <div className="mt-2">
               <PrivacyStatusForm
                 requestId={request.id}
+                requestType={request.request_type}
                 status={request.status}
               />
             </div>

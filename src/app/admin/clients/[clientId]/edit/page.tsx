@@ -28,8 +28,15 @@ const CLIENT_EDIT_SELECT = `
   client_source,
   source_detail,
   notes,
-  updated_at
+  updated_at,
+  deleted_at
 `;
+
+/**
+ * `deleted_at` is read here but stays off `ClientEditRecord`, which describes
+ * the fields the form edits — the column gates the route, it is never a field.
+ */
+type ClientEditRow = ClientEditRecord & { deleted_at: string | null };
 
 interface EditClientPageProps {
   params: Promise<{ clientId: string }>;
@@ -66,13 +73,12 @@ export default async function EditClientPage({ params }: EditClientPageProps) {
     .from("clients")
     .select(CLIENT_EDIT_SELECT)
     .eq("id", clientId)
-    .single<ClientEditRecord>();
+    .single<ClientEditRow>();
 
-  // TODO(C-06 Phase E): once the C-06 migration adds `clients.deleted_at`, also
-  // 404 here when the row is soft-deleted (`client.deleted_at !== null`) and add
-  // `deleted_at` to CLIENT_EDIT_SELECT above. The column does not exist in the
-  // database yet, so selecting it now would break this route.
-  if (!client) notFound();
+  // Editing a record that has been erased would resurrect it: `updateClient`
+  // writes the patch and bumps `updated_at` without ever looking at
+  // `deleted_at`. The route is the gate (brief §5.3).
+  if (!client || client.deleted_at) notFound();
 
   return (
     <div className="max-w-[640px]">
