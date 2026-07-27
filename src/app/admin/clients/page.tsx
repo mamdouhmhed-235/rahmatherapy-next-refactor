@@ -4,7 +4,7 @@ import { Plus, SlidersHorizontal, UserPlus, Users } from "lucide-react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
-import { getStaffProfile } from "@/lib/auth/rbac";
+import { canManageClientDestructiveOps, getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminPageHeader,
@@ -17,6 +17,11 @@ import { formatDate, formatMoney } from "./format";
 import { getClientDataAccess } from "./access";
 import type { ClientBookingRecord, ClientRecord } from "./types";
 import { ClientRowMenu, type LastBookingSummary } from "./ClientRowMenu";
+import {
+  ClientSelectCheckbox,
+  ClientSelectionProvider,
+} from "./components/BulkDeleteToolbar";
+import { ClientFlashToast } from "./components/DeleteClientButton";
 
 export const metadata = {
   title: "Clients - Rahma Therapy Admin",
@@ -31,9 +36,18 @@ interface ClientsPageProps {
     source?: string;
     sort?: string;
     page?: string;
+    show_deleted?: string;
+    deleted?: string;
   }>;
 }
 
+// TODO(C-06 Phase E): once the migration adds `clients.deleted_at`, add
+// `deleted_at` to BOTH `CLIENT_SELECT` and `CLIENT_SAFE_SELECT` below (missing
+// either one reopens the hole for that RBAC branch only), plus `BOOKING_SELECT`
+// / `BOOKING_SAFE_SELECT` if booking reads need it. Until then every read of
+// `client.deleted_at` is `undefined`, so the "Show deleted" scoping below is
+// inert — and no static gate can see that, because these selects are cast
+// through `.returns<ClientRecord[]>()`.
 const CLIENT_SELECT = `
   id,
   full_name,
@@ -356,6 +370,8 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   const source = params.source ?? "";
   const sort = parseSort(params.sort);
   const pageParam = parsePage(params.page);
+  const showDeleted = params.show_deleted === "1" ? "1" : "";
+  const justDeleted = params.deleted === "1";
 
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
@@ -408,8 +424,18 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
       .order("start_time", { ascending: false })
       .returns<ClientBookingRecord[]>(),
   ]);
-  const clients: ClientRecord[] = clientsResult.data ?? [];
+  // Soft-deleted clients are hidden by default and reachable through the
+  // "Show deleted" toggle (brief §5.3). Everything downstream — stats, counts,
+  // pagination — works off the scoped list.
+  const allClients: ClientRecord[] = clientsResult.data ?? [];
+  const deletedCount = allClients.filter((client) =>
+    Boolean(client.deleted_at)
+  ).length;
+  const clients: ClientRecord[] = showDeleted
+    ? allClients
+    : allClients.filter((client) => !client.deleted_at);
   const bookings: ClientBookingRecord[] = bookingsResult.data ?? [];
+  const canDeleteClients = canManageClientDestructiveOps(profile);
 
   const now = new Date();
   const bookingsByClientId = new Map<string, ClientBookingRecord[]>();
@@ -490,6 +516,12 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   const pageEndIndex = Math.min(pageStartIndex + PAGE_SIZE, totalRows);
   const pageRows = rows.slice(pageStartIndex, pageEndIndex);
 
+  // Only live rows are selectable — a deleted row offers "View" and nothing
+  // else (brief §5.3).
+  const selectableClients = pageRows
+    .filter((row) => !row.client.deleted_at)
+    .map((row) => ({ id: row.client.id, full_name: row.client.full_name }));
+
   const totalClientCount = clients.length;
   const isFiltered = Boolean(q || lifecycle || payment || location || source);
   const isAlphaSort = sort === "name";
@@ -526,7 +558,15 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   const lettersInResults = new Set(groupedRows.map((group) => group.letter));
   const lifecycleChipLabel = lifecycle ? LIFECYCLE_LABEL[lifecycle as LifecycleKey] : null;
 
-  const filterValues = { q, lifecycle, payment, location, source, sort };
+  const filterValues = {
+    q,
+    lifecycle,
+    payment,
+    location,
+    source,
+    sort,
+    show_deleted: showDeleted,
+  };
 
   const activeChips: { label: string; href: string }[] = [];
   if (q) {
@@ -624,6 +664,9 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
 
   return (
     <div className="grid gap-5 pb-24 lg:pb-16">
+      {justDeleted ? (
+        <ClientFlashToast message="Client deleted." param="deleted" />
+      ) : null}
       <AdminPageHeader
         title="Clients"
         actions={
@@ -826,6 +869,19 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         </ul>
       ) : null}
 
+      {/* Soft-deleted visibility (brief §5.3) — hidden by default, and the
+          toggle only appears when there is something behind it. */}
+      {deletedCount > 0 || showDeleted ? (
+        <div className="-mt-1">
+          <Link
+            href={buildShowDeletedHref(filterValues, !showDeleted)}
+            className="inline-flex h-8 items-center rounded-full border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            {showDeleted ? "Hide deleted" : `Show deleted (${deletedCount})`}
+          </Link>
+        </div>
+      ) : null}
+
       {/* Body */}
       {pageRows.length === 0 ? (
         isFiltered ? (
@@ -853,52 +909,59 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
           />
         )
       ) : (
-        <div
-          className={`relative ${showAzStrip ? "lg:pr-12" : ""}`}
-          aria-busy={false}
+        <ClientSelectionProvider
+          enabled={canDeleteClients}
+          clients={selectableClients}
         >
-          {isAlphaSort ? (
-            <div className="grid gap-6">
-              {groupedRows.map((group) => (
-                <section key={group.letter} aria-labelledby={`section-${group.letter}`}>
-                  <div className="sticky top-[var(--admin-topnav-offset,0px)] z-10 mb-2 flex items-baseline gap-3 bg-[var(--admin-surface)] pt-1 pb-1">
-                    <h2
-                      id={`section-${group.letter}`}
-                      className="font-display text-[1.333rem] font-semibold leading-none tracking-[-0.01em] text-[var(--admin-heading)]"
-                    >
-                      {group.letter}
-                    </h2>
-                    <span
-                      aria-hidden="true"
-                      className="h-px flex-1 bg-[var(--admin-border)]"
-                    />
-                  </div>
-                  <ul className="grid list-none gap-1.5 p-0">
-                    {group.rows.map((row) => (
-                      <ClientRow
-                        key={row.client.id}
-                        row={row}
-                        showContact={clientAccess.canViewContactDetails}
+          <div
+            className={`relative ${showAzStrip ? "lg:pr-12" : ""}`}
+            aria-busy={false}
+          >
+            {isAlphaSort ? (
+              <div className="grid gap-6">
+                {groupedRows.map((group) => (
+                  <section key={group.letter} aria-labelledby={`section-${group.letter}`}>
+                    <div className="sticky top-[var(--admin-topnav-offset,0px)] z-10 mb-2 flex items-baseline gap-3 bg-[var(--admin-surface)] pt-1 pb-1">
+                      <h2
+                        id={`section-${group.letter}`}
+                        className="font-display text-[1.333rem] font-semibold leading-none tracking-[-0.01em] text-[var(--admin-heading)]"
+                      >
+                        {group.letter}
+                      </h2>
+                      <span
+                        aria-hidden="true"
+                        className="h-px flex-1 bg-[var(--admin-border)]"
                       />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          ) : (
-            <ul className="grid list-none gap-1.5 p-0">
-              {pageRows.map((row) => (
-                <ClientRow
-                  key={row.client.id}
-                  row={row}
-                  showContact={clientAccess.canViewContactDetails}
-                />
-              ))}
-            </ul>
-          )}
+                    </div>
+                    <ul className="grid list-none gap-1.5 p-0">
+                      {group.rows.map((row) => (
+                        <ClientRow
+                          key={row.client.id}
+                          row={row}
+                          showContact={clientAccess.canViewContactDetails}
+                          canDelete={canDeleteClients}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            ) : (
+              <ul className="grid list-none gap-1.5 p-0">
+                {pageRows.map((row) => (
+                  <ClientRow
+                    key={row.client.id}
+                    row={row}
+                    showContact={clientAccess.canViewContactDetails}
+                    canDelete={canDeleteClients}
+                  />
+                ))}
+              </ul>
+            )}
 
-          {showAzStrip ? <AzStrip letters={lettersInResults} /> : null}
-        </div>
+            {showAzStrip ? <AzStrip letters={lettersInResults} /> : null}
+          </div>
+        </ClientSelectionProvider>
       )}
 
       {/* C8 pagination */}
@@ -956,6 +1019,7 @@ function buildClearLinkHref(
     location: string;
     source: string;
     sort: SortKey;
+    show_deleted: string;
   },
   drop: keyof typeof values
 ): string {
@@ -970,7 +1034,14 @@ function buildClearLinkHref(
 }
 
 function buildSortHref(
-  values: { q: string; lifecycle: string; payment: string; location: string; source: string },
+  values: {
+    q: string;
+    lifecycle: string;
+    payment: string;
+    location: string;
+    source: string;
+    show_deleted: string;
+  },
   next: SortKey
 ): string {
   const params = new URLSearchParams();
@@ -990,6 +1061,7 @@ function buildFilterHref(
     location: string;
     source: string;
     sort: SortKey;
+    show_deleted: string;
   },
   key: "lifecycle",
   value: string
@@ -1013,6 +1085,7 @@ function buildPageHref(
     location: string;
     source: string;
     sort: SortKey;
+    show_deleted: string;
   },
   next: number
 ): string {
@@ -1022,6 +1095,29 @@ function buildPageHref(
     if (typeof v === "string" && v.length > 0) params.set(k, v);
   }
   if (next > 1) params.set("page", String(next));
+  const qs = params.toString();
+  return qs ? `/admin/clients?${qs}` : "/admin/clients";
+}
+
+function buildShowDeletedHref(
+  values: {
+    q: string;
+    lifecycle: string;
+    payment: string;
+    location: string;
+    source: string;
+    sort: SortKey;
+    show_deleted: string;
+  },
+  next: boolean
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (key === "show_deleted") continue;
+    if (key === "sort" && value === "name") continue;
+    if (typeof value === "string" && value.length > 0) params.set(key, value);
+  }
+  if (next) params.set("show_deleted", "1");
   const qs = params.toString();
   return qs ? `/admin/clients?${qs}` : "/admin/clients";
 }
@@ -1225,6 +1321,7 @@ function FilterFields({
 function ClientRow({
   row,
   showContact,
+  canDelete,
 }: {
   row: {
     client: ClientRecord;
@@ -1236,6 +1333,7 @@ function ClientRow({
     upcomingCount: number;
   };
   showContact: boolean;
+  canDelete: boolean;
 }) {
   const { client, lifecycle, lastCompleted, nextUpcoming, completedCount, upcomingCount } = row;
   const hue = deterministicHue(client.id);
@@ -1243,9 +1341,11 @@ function ClientRow({
   const lifecycleLabel = LIFECYCLE_LABEL[lifecycle];
   const initials = getInitials(client.full_name);
   const isLapsed = lifecycle === "lapsed";
+  const isDeleted = Boolean(client.deleted_at);
 
-  // D4 lapsed clients render at reduced saturation
-  const rowOpacity = isLapsed ? "opacity-75" : "";
+  // D4 lapsed clients render at reduced saturation; a soft-deleted row is
+  // dimmer still and struck through (brief §5.3).
+  const rowOpacity = isDeleted ? "opacity-60" : isLapsed ? "opacity-75" : "";
 
   // Primary timeline line — prefers last visit (completed), falls back to next upcoming.
   let timelineLabel: string;
@@ -1293,6 +1393,9 @@ function ClientRow({
     <li
       className={`group relative flex min-h-[56px] items-center gap-3 rounded-[var(--admin-radius-control)] border-b border-b-transparent px-3 py-2 transition-colors duration-150 ease-out hover:bg-[var(--admin-hover-mist)] hover:border-b-[oklch(60% 0.08 247)] focus-within:bg-[var(--admin-hover-mist)] md:gap-4 md:px-4 ${rowOpacity}`}
     >
+      {isDeleted ? null : (
+        <ClientSelectCheckbox clientId={client.id} clientName={client.full_name} />
+      )}
       <span
         aria-hidden="true"
         className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-semibold text-[var(--admin-heading)] ring-1 ring-transparent transition-shadow duration-200 ease-out group-hover:ring-[var(--admin-primary)]/30"
@@ -1303,9 +1406,12 @@ function ClientRow({
       <div className="min-w-0 flex-1 max-w-[18rem] md:max-w-[22rem]">
         <Link
           href={`/admin/clients/${client.id}`}
-          className="relative block truncate text-sm font-semibold text-[var(--admin-heading)] outline-none after:absolute after:inset-0 after:rounded-[var(--admin-radius-control)] after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-[var(--admin-focus)]/55"
+          className={`relative block truncate text-sm font-semibold text-[var(--admin-heading)] outline-none after:absolute after:inset-0 after:rounded-[var(--admin-radius-control)] after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-[var(--admin-focus)]/55 ${
+            isDeleted ? "line-through" : ""
+          }`}
         >
           {client.full_name}
+          {isDeleted ? <span className="sr-only"> (deleted)</span> : null}
         </Link>
         {showContact && client.phone ? (
           <p className="truncate text-xs text-[var(--admin-text-muted)]">
@@ -1333,18 +1439,22 @@ function ClientRow({
       <span title={LIFECYCLE_TITLE[lifecycle]} className="relative z-10">
         <AdminStatusBadge value={lifecycleLabel} tone={tone} compact />
       </span>
-      <Link
-        href={`/admin/bookings/new?clientId=${client.id}`}
-        aria-label={`New booking for ${client.full_name}`}
-        className="relative z-10 hidden h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2.5 text-xs font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-selected-sky)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 md:inline-flex"
-      >
-        <Plus className="size-4" aria-hidden="true" />
-        New booking
-      </Link>
+      {isDeleted ? null : (
+        <Link
+          href={`/admin/bookings/new?clientId=${client.id}`}
+          aria-label={`New booking for ${client.full_name}`}
+          className="relative z-10 hidden h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2.5 text-xs font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-selected-sky)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 md:inline-flex"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          New booking
+        </Link>
+      )}
       <ClientRowMenu
         clientId={client.id}
         clientName={client.full_name}
         lastBooking={lastBookingSummary}
+        canDelete={canDelete && !isDeleted}
+        deleted={isDeleted}
       />
     </li>
   );

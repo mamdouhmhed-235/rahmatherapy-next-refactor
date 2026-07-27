@@ -96,6 +96,10 @@ describe("ClientEditForm", () => {
         ?.value
     ).toBe("Sara Mohamed");
     expect(
+      container.querySelector<HTMLInputElement>('input[type="hidden"][name="email"]')
+        ?.value
+    ).toBe("sara@example.test");
+    expect(
       container.querySelector<HTMLInputElement>(
         'input[type="hidden"][name="gender_preference"]'
       )?.value

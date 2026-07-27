@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { MoreHorizontal } from "lucide-react";
 import * as AdminPopover from "../components/admin-popover";
+import { DeleteClientButton } from "./components/DeleteClientButton";
 
 export interface LastVisitSummary {
   serviceLabel: string | null;
@@ -21,14 +22,35 @@ export interface LastBookingSummary {
   nextBooking: NextBookingSummary | null;
 }
 
+/**
+ * The delete confirmation portals to `<body>`, so Radix reads every click and
+ * focus move inside it as happening outside the popover and would close the
+ * menu — unmounting the dialog mid-confirm. Keep the menu open whenever the
+ * interaction lands inside a dialog.
+ */
+function keepMenuOpenForDialog(
+  event: CustomEvent<{ originalEvent: Event }> & { preventDefault: () => void }
+) {
+  const target = event.detail.originalEvent.target;
+  if (target instanceof Element && target.closest('[role="dialog"]')) {
+    event.preventDefault();
+  }
+}
+
 export function ClientRowMenu({
   clientId,
   clientName,
   lastBooking,
+  canDelete = false,
+  deleted = false,
 }: {
   clientId: string;
   clientName: string;
   lastBooking: LastBookingSummary;
+  /** Actor holds `manage_client_destructive_ops` and the row is still live. */
+  canDelete?: boolean;
+  /** Soft-deleted rows offer viewing and audit history only (brief §5.3). */
+  deleted?: boolean;
 }) {
   const hasAny = lastBooking.lastVisit || lastBooking.nextBooking;
   return (
@@ -39,7 +61,11 @@ export function ClientRowMenu({
       >
         <MoreHorizontal className="size-4" aria-hidden="true" />
       </AdminPopover.Trigger>
-      <AdminPopover.Content className="w-[min(calc(100vw-1rem),22rem)] p-0">
+      <AdminPopover.Content
+        className="w-[min(calc(100vw-1rem),22rem)] p-0"
+        onInteractOutside={keepMenuOpenForDialog}
+        onFocusOutside={keepMenuOpenForDialog}
+      >
         {hasAny ? (
           <div className="grid divide-y divide-[var(--admin-border)]">
             {lastBooking.lastVisit ? (
@@ -70,12 +96,14 @@ export function ClientRowMenu({
           </div>
         )}
         <div className="grid border-t border-[var(--admin-border)] p-1.5">
-          <Link
-            href={`/admin/bookings/new?clientId=${clientId}`}
-            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 md:hidden"
-          >
-            Start new booking
-          </Link>
+          {deleted ? null : (
+            <Link
+              href={`/admin/bookings/new?clientId=${clientId}`}
+              className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 md:hidden"
+            >
+              Start new booking
+            </Link>
+          )}
           <Link
             href={`/admin/clients/${clientId}`}
             className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-hover-mist)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
@@ -88,6 +116,13 @@ export function ClientRowMenu({
           >
             View audit history
           </Link>
+          {canDelete ? (
+            <DeleteClientButton
+              clientId={clientId}
+              clientName={clientName}
+              variant="menu-item"
+            />
+          ) : null}
         </div>
       </AdminPopover.Content>
     </AdminPopover.Root>

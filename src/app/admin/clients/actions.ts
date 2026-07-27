@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canManageAllClients,
+  canManageClientDestructiveOps,
   canManageClientIdentityFields,
   getStaffProfile,
   PERMISSIONS,
@@ -91,6 +92,19 @@ async function requireClientManager() {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
   if (!profile || !profile.active || !canManageAllClients(profile)) {
+    throw new Error("Insufficient permissions.");
+  }
+  return profile;
+}
+
+/**
+ * Destructive client operations (delete + bulk delete) sit behind a second
+ * permission on top of client management — Owner and Admin only, never the
+ * Booking Coordinator (brief §3).
+ */
+async function requireClientDestructiveOpsManager() {
+  const profile = await requireClientManager();
+  if (!canManageClientDestructiveOps(profile)) {
     throw new Error("Insufficient permissions.");
   }
   return profile;
@@ -382,6 +396,300 @@ export async function updateClient(
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${clientId}`);
   redirect(`/admin/clients/${clientId}?updated=1`);
+}
+
+export type DeleteClientReason = "admin_delete" | "gdpr_erasure";
+
+export interface DeleteClientResult {
+  success: boolean;
+  alreadyDeleted?: boolean;
+  cascadedBookingCount?: number;
+  error?: string;
+}
+
+export interface BulkDeleteClientsState {
+  deletedCount?: number;
+  errors?: string[];
+  error?: string;
+}
+
+/** Full pre-delete snapshot — `before_state` on the audit row. */
+type ClientFullRow = Record<string, unknown> & {
+  id: string;
+  full_name: string;
+  deleted_at?: string | null;
+};
+
+/**
+ * `recurring_booking_templates` arrives with C-02, which lands after C-06.
+ * Until then the table is simply absent: PostgREST answers from its schema
+ * cache with PGRST205, older builds surfaced Postgres' own 42P01
+ * (undefined_table). Either is the pre-C-02 state — a clean no-op, not a
+ * failure.
+ */
+const MISSING_TABLE_CODES = new Set(["PGRST205", "42P01"]);
+
+/**
+ * `bookings.cancelled_at` arrives with C-04a (its S7 amendment adds the column
+ * plus a backfill), the plan immediately after this one. PostgREST rejects an
+ * unknown column with PGRST204, raw Postgres with 42703 (undefined_column).
+ */
+const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
+
+function hasErrorCode(error: unknown, codes: Set<string>) {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && codes.has(code);
+}
+
+/**
+ * The delete primitive. NOT an RBAC boundary — every caller gates first
+ * (`adminDeleteClient` / `bulkDeleteClients` require `manage_client_destructive_ops`;
+ * the privacy "Completed" handler requires `manage_privacy_operations`). It is
+ * exported only so those callers can reach it; the `adminClient` parameter is a
+ * live Supabase client, which no browser payload can serialise, so the exported
+ * action is inert from outside the server.
+ *
+ * Cascade order matters and is fixed by the plan (§1 Step 9).
+ */
+export async function deleteClient(
+  clientId: string,
+  reason: DeleteClientReason,
+  adminClient: ReturnType<typeof createSupabaseAdminClient>,
+  actorStaffId: string
+): Promise<DeleteClientResult> {
+  const { data: current, error: currentError } = await adminClient
+    .from("clients")
+    .select("*")
+    .eq("id", clientId)
+    .single<ClientFullRow>();
+
+  if (currentError || !current) {
+    return {
+      success: false,
+      error: "This client record could not be loaded. Reload and try again.",
+    };
+  }
+
+  const deletedAt = new Date().toISOString();
+
+  // Idempotent (brief §5.5): deleting an already-deleted client — the Delete
+  // button followed by a privacy "Completed", say — records the attempt and
+  // skips the cascade rather than cancelling a second round of bookings.
+  if (current.deleted_at) {
+    await adminClient.from("audit_logs").insert({
+      actor_staff_id: actorStaffId,
+      action_type: "client_deleted",
+      target_type: "clients",
+      target_id: clientId,
+      before_state: { ...current, already_deleted: true },
+      after_state: {
+        deleted_at: current.deleted_at,
+        reason,
+        already_deleted: true,
+      },
+    });
+    return { success: true, alreadyDeleted: true };
+  }
+
+  // Cancel active recurring templates BEFORE the client soft-delete (D1,
+  // C-02 cross-plan). C-02's `recurring_booking_templates.client_id` FK is
+  // ON DELETE RESTRICT, so live templates left behind would block the delete
+  // once C-02 ships.
+  let recurringTemplatesTableExists = true;
+  let cancelledTemplateIds: string[] = [];
+  const templates = await adminClient
+    .from("recurring_booking_templates")
+    .update({ cancelled_at: deletedAt })
+    .eq("client_id", clientId)
+    .is("cancelled_at", null)
+    .select("id");
+  if (templates.error) {
+    if (!hasErrorCode(templates.error, MISSING_TABLE_CODES)) {
+      return { success: false, error: templates.error.message };
+    }
+    recurringTemplatesTableExists = false;
+  } else {
+    cancelledTemplateIds = ((templates.data ?? []) as { id: string }[]).map(
+      (row) => row.id
+    );
+  }
+
+  const { error: softDeleteError } = await adminClient
+    .from("clients")
+    .update({ deleted_at: deletedAt })
+    .eq("id", clientId);
+  if (softDeleteError) {
+    return { success: false, error: softDeleteError.message };
+  }
+
+  // Cascade-cancel open bookings only. Completed bookings are NEVER touched —
+  // they are a tax + ICO record (brief §5.4) — and cancelled ones are already
+  // inert.
+  //
+  // `cancelled_at` is C-04a's S7 restore-window key, added by the plan that
+  // lands directly after this one. Attempt the stamped payload first so the
+  // cascade joins that convention the moment C-04a's migration is live, and
+  // fall back while the column is still absent. `deleted_at` stays in BOTH
+  // payloads, so its absence (pre-C-06 migration) still fails loudly instead of
+  // silently "succeeding" without soft-deleting anything.
+  //
+  // The plan's `cancellation_reason = 'client_deleted'` is deliberately not
+  // sent: no migration anywhere in the programme creates that column, and the
+  // reason already rides on this call's audit row (`after_state.reason`).
+  const cascadeOpenBookings = (payload: Record<string, string>) =>
+    adminClient
+      .from("bookings")
+      .update(payload)
+      .eq("client_id", clientId)
+      .not("status", "in", "(cancelled,completed)")
+      .select("id");
+
+  let cascade = await cascadeOpenBookings({
+    deleted_at: deletedAt,
+    status: "cancelled",
+    cancelled_at: deletedAt,
+  });
+  if (cascade.error && hasErrorCode(cascade.error, MISSING_COLUMN_CODES)) {
+    cascade = await cascadeOpenBookings({
+      deleted_at: deletedAt,
+      status: "cancelled",
+    });
+  }
+  if (cascade.error) {
+    return { success: false, error: cascade.error.message };
+  }
+  const cascadedBookingIds = ((cascade.data ?? []) as { id: string }[]).map(
+    (row) => row.id
+  );
+
+  // Hard delete, not soft: UK GDPR Article 17 means special-category health
+  // data has to actually disappear.
+  const notes = await adminClient
+    .from("client_notes")
+    .delete()
+    .eq("client_id", clientId)
+    .eq("is_sensitive", true)
+    .select("id");
+  if (notes.error) {
+    return { success: false, error: notes.error.message };
+  }
+  const sensitiveNotesDeletedCount = ((notes.data ?? []) as { id: string }[])
+    .length;
+
+  // Plan step 9.6 — audit-log `target_label` anonymisation — is SKIPPED:
+  // `audit_logs` has no `target_label` column (verified against the live
+  // schema), and the plan permits skipping the step when it is absent.
+
+  const { count: completedBookingsPreserved } = await adminClient
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("client_id", clientId)
+    .eq("status", "completed");
+
+  // One rolled-up row per call: a bulk delete of N clients writes N audit rows,
+  // never N × cascaded bookings (brief §2.3).
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actorStaffId,
+    action_type: "client_deleted",
+    target_type: "clients",
+    target_id: clientId,
+    before_state: current,
+    after_state: {
+      deleted_at: deletedAt,
+      reason,
+      cascaded_booking_count: cascadedBookingIds.length,
+      cascaded_booking_ids: cascadedBookingIds,
+      completed_bookings_preserved_count: completedBookingsPreserved ?? 0,
+      sensitive_notes_deleted_count: sensitiveNotesDeletedCount,
+      ...(recurringTemplatesTableExists
+        ? {
+            cancelled_recurring_template_count: cancelledTemplateIds.length,
+            cancelled_recurring_template_ids: cancelledTemplateIds,
+          }
+        : {}),
+    },
+  });
+
+  updateTag("clients");
+  updateTag("bookings");
+  updateTag("audit");
+  revalidatePath("/admin/clients");
+  revalidatePath(`/admin/clients/${clientId}`);
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/audit");
+  revalidatePath("/admin/privacy");
+  revalidatePath("/admin/dashboard");
+
+  return { success: true, cascadedBookingCount: cascadedBookingIds.length };
+}
+
+export async function adminDeleteClient(
+  formData: FormData
+): Promise<ClientActionState> {
+  let actor;
+  try {
+    actor = await requireClientDestructiveOpsManager();
+  } catch {
+    return { error: "Insufficient permissions." };
+  }
+
+  const clientId = String(formData.get("client_id") ?? "").trim();
+  if (!clientId) return { error: "Client is required." };
+
+  const result = await deleteClient(
+    clientId,
+    "admin_delete",
+    createSupabaseAdminClient(),
+    actor.id
+  );
+  if (!result.success) {
+    return { error: result.error ?? "Couldn't delete that client. Try again." };
+  }
+
+  redirect("/admin/clients?deleted=1");
+}
+
+export async function bulkDeleteClients(
+  formData: FormData
+): Promise<BulkDeleteClientsState> {
+  let actor;
+  try {
+    actor = await requireClientDestructiveOpsManager();
+  } catch {
+    return { error: "Insufficient permissions." };
+  }
+
+  const clientIds = formData
+    .getAll("client_ids")
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+  if (clientIds.length === 0) {
+    return { error: "Select at least one client first." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const errors: string[] = [];
+  let deletedCount = 0;
+
+  // Serial, never parallel: one client at a time keeps the per-row transaction
+  // footprint predictable, and a partial run is simply re-runnable on whatever
+  // is still selected (plan §4).
+  for (const clientId of clientIds) {
+    const result = await deleteClient(
+      clientId,
+      "admin_delete",
+      adminClient,
+      actor.id
+    );
+    if (result.success) {
+      deletedCount += 1;
+    } else {
+      errors.push(result.error ?? `Couldn't delete client ${clientId}.`);
+    }
+  }
+
+  revalidatePath("/admin/clients");
+  return { deletedCount, errors };
 }
 
 export async function addClientNote(

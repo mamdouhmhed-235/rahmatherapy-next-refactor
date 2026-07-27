@@ -33,6 +33,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
 import {
   canManageAllBookings,
+  canManageAllClients,
+  canManageClientDestructiveOps,
   getStaffProfile,
 } from "@/lib/auth/rbac";
 import {
@@ -56,6 +58,10 @@ import {
   PrintRecordButton,
 } from "./ClientDetailForms";
 import { ClientLtvRibbon } from "./ClientLtvRibbon";
+import {
+  ClientFlashToast,
+  DeleteClientButton,
+} from "../components/DeleteClientButton";
 
 export const metadata = {
   title: "Client Detail - Rahma Therapy Admin",
@@ -66,7 +72,12 @@ type StatusFilter = "all" | "confirmed" | "pending" | "completed" | "cancelled";
 
 interface ClientDetailPageProps {
   params: Promise<{ clientId: string }>;
-  searchParams: Promise<{ tab?: string; status?: string; service?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    status?: string;
+    service?: string;
+    updated?: string;
+  }>;
 }
 
 const VALID_TABS: readonly TabKey[] = ["upcoming", "past", "all"] as const;
@@ -153,6 +164,14 @@ function whatsappHref(phone: string): string {
   return `https://wa.me/${normalised}`;
 }
 
+// TODO(C-06 Phase E): once the migration adds `clients.deleted_at`, add
+// `deleted_at` to BOTH `CLIENT_SELECT` and `CLIENT_SAFE_SELECT` below (both
+// feed `getClientSelect`, so missing either reopens the hole for that RBAC
+// branch only) and short-circuit a soft-deleted client to `notFound()`. The
+// same applies to the four BOOKING_* selects if booking reads need the column.
+// Adding the short-circuit before the column exists would read `undefined` and
+// silently never fire, and no static gate can see that — these selects are cast
+// through `.single<ClientRecord>()` / `.returns<>()`.
 const CLIENT_SELECT = `
   id,
   full_name,
@@ -342,6 +361,7 @@ export default async function ClientDetailPage({
     tab: tabParam,
     status: statusParam,
     service: serviceParam,
+    updated: updatedParam,
   } = await searchParams;
   const tab = coerceTab(tabParam);
   const statusFilter = coerceStatus(statusParam);
@@ -504,6 +524,8 @@ export default async function ClientDetailPage({
   }
 
   const canCreateBooking = canManageAllBookings(profile);
+  const canEditClient = canManageAllClients(profile);
+  const canDeleteClient = canManageClientDestructiveOps(profile);
   const lifecycle = lifecycleBadge(bookingHistory.length);
   const sourceLabel = formatLabel(client.client_source);
   const sourceDetailLabel = client.source_detail ? client.source_detail : null;
@@ -559,6 +581,9 @@ export default async function ClientDetailPage({
 
   return (
     <div className="grid gap-6 pb-8 md:pb-0 print:gap-4 print:pb-0">
+      {updatedParam === "1" ? (
+        <ClientFlashToast message="Client updated." param="updated" />
+      ) : null}
       <ClientDetailShortcuts newBookingHref={newBookingHref} />
       <header className="grid gap-3">
         <Link
@@ -593,12 +618,12 @@ export default async function ClientDetailPage({
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2 print:hidden">
             <PrintRecordButton />
-            {/* Edit sits between Print and the booking CTA (brief §4.2 order:
-                Print · Edit · Delete · Book again — Delete lands with C-06's
-                delete primitive). Gated on canCreateBooking per plan step 8;
-                the destination route re-gates on canManageAllClients, which
-                every role holding canCreateBooking also holds. */}
-            {canCreateBooking ? (
+            {/* Brief §4.2 order: Print · Edit · Delete · Book again. Edit is
+                gated on the client permission the destination route itself
+                enforces — the booking permission it originally used is
+                equivalent for every live role, but coupling a client
+                affordance to a booking permission is a latent hazard. */}
+            {canEditClient ? (
               <Link
                 href={`/admin/clients/${client.id}/edit`}
                 title="Edit this client's details"
@@ -607,6 +632,12 @@ export default async function ClientDetailPage({
                 <Pencil className="size-4" aria-hidden="true" />
                 Edit
               </Link>
+            ) : null}
+            {canDeleteClient ? (
+              <DeleteClientButton
+                clientId={client.id}
+                clientName={client.full_name}
+              />
             ) : null}
             {canCreateBooking ? (
               <Link

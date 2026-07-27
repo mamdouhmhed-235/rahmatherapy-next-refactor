@@ -78,6 +78,8 @@ function stubAdminClient({
 } = {}) {
   const updates: Array<Record<string, unknown>> = [];
   const audits: Array<Record<string, unknown>> = [];
+  /** Every email the collision probe was actually asked about. */
+  const emailProbes: string[] = [];
 
   const from = vi.fn((table: string) => {
     if (table === "audit_logs") {
@@ -99,13 +101,16 @@ function stubAdminClient({
               }),
             }
           : {
-              eq: () => ({
-                neq: () => ({
-                  limit: () => ({
-                    maybeSingle: async () => ({ data: emailClash, error: null }),
+              eq: (_column: string, value: string) => {
+                emailProbes.push(value);
+                return {
+                  neq: () => ({
+                    limit: () => ({
+                      maybeSingle: async () => ({ data: emailClash, error: null }),
+                    }),
                   }),
-                }),
-              }),
+                };
+              },
             },
       update: (patch: Record<string, unknown>) => {
         updates.push(patch);
@@ -118,7 +123,7 @@ function stubAdminClient({
     from,
   } as unknown as ReturnType<typeof createSupabaseAdminClient>);
 
-  return { updates, audits };
+  return { updates, audits, emailProbes };
 }
 
 function editFormData(overrides: Record<string, string> = {}) {
@@ -217,6 +222,29 @@ describe("updateClient", () => {
 
     expect(updates[0]).toEqual({ phone: "07999 888 777" });
     expect(audits[0].after_state).toEqual({ phone: "07999 888 777" });
+  });
+
+  it("strips a coordinator's identity fields before probing for an email collision", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(coordinator);
+    const { updates, emailProbes } = stubAdminClient({
+      emailClash: { id: "client-2", full_name: "Fatima Ahmed" },
+    });
+
+    await updateClient(
+      {},
+      editFormData({
+        phone: "07999 888 777",
+        // A coordinator cannot change the email, so a crafted colliding value
+        // must never reach the probe. If the probe ran first it would answer
+        // with a clash and the operator would see a spurious "Email already in
+        // use" for an edit the server was going to discard anyway.
+        email: "fatima@example.test",
+      })
+    );
+
+    expect(emailProbes).toEqual([]);
+    expect(updates[0]).toEqual({ phone: "07999 888 777" });
+    expect(redirect).toHaveBeenCalledWith("/admin/clients/client-1?updated=1");
   });
 
   it("refuses an email already held by another client and writes nothing", async () => {
