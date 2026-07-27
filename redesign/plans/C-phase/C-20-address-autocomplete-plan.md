@@ -1,8 +1,8 @@
 # C-20 — Address autocomplete (Google Places) on both booking forms — **PLAN**
 
 > **Refinement 2026-07-26** — verified against `master` @ `ea97932` (post-merge single source of truth).
-> Dependencies: none hard. Soft order (D19): prefer C-21 (canonical-domain cutover) before C-20 — Maps-key referrers must cover the live domain; check `git log --oneline --grep="C-21" | grep -q "feat(redesign): C-21"`; if C-21 has not landed, §3.5a's referrer addition must be executed before ship regardless. C-18: either order (Step 9's conditional handles both; `src/lib/cookie-registry.ts` absent as of 2026-07-26 = not landed).
-> Decisions: C-B-DECISIONS.md — silent on C-20 (no conflicting Qs). Checkpoint resolutions applied: D15 (evidence dir), D19 (§3.5 re-marked NOT COMPLETE + §3.5a HARD-STOP), D20 (Step 4a modal-dialog spike). Findings applied: see refinement changelog.
+> Dependencies: none hard. *(The D19 soft-order-on-C-21 note was WITHDRAWN 2026-07-26 — Owner confirmed the site serves ONLY on `rahmatherapy.uk`, so the 2026-07-16 Maps-key referrer list already covers the live domain; C-21's cutover has no bearing on this plan's key. C-20 and C-21 may land in either order.)* C-18: either order (Step 9's conditional handles both; `src/lib/cookie-registry.ts` absent as of 2026-07-26 = not landed).
+> Decisions: C-B-DECISIONS.md — silent on C-20 (no conflicting Qs). Checkpoint resolutions applied: D15 (evidence dir), ~~D19~~ (WITHDRAWN same day — see §3.5), D20 (Step 4a modal-dialog spike). Findings applied: see refinement changelog.
 
 **Type:** Band C plan-writing output (C-B phase — post-handoff addition)
 **Date written:** 2026-07-16 (user direction: plan-refinement phase)
@@ -273,7 +273,7 @@ Real addresses only for the §3.2 matrix — use **the clinic's own address and 
 
 1. Read brief + plan; run pre-flight — **#3 (key restriction/rotation) and #4 (API surface) are blocking** (#3 carries a STOP-AND-ASK, 2026-07-26).
 2. Phases A→D in order; the parser is testable with zero browser work, so it lands first and de-risks everything after. **Step 4a (modal-dialog dropdown spike) blocks Phase C wiring (added 2026-07-26, D20).**
-3. Verification §3.2 (real-address matrix) and §3.5 (key sign-off) are the two gates that cannot be waived. **§3.5 is re-marked NOT COMPLETE — §3.5a (referrer coverage, HARD-STOP) is part of that gate (2026-07-26, D19).**
+3. Verification §3.2 (real-address matrix) and §3.5 (key sign-off) are the two gates that cannot be waived. **§3.5 stands DONE as of 2026-07-16 (the 2026-07-26 D19 re-mark was withdrawn same day — Owner confirmed the site serves only on `rahmatherapy.uk`); the surviving open item inside §3.5 is the key-rotation STOP-AND-ASK (pre-flight #3a).**
 4. Record the C-18 consent classification decision in the progress file.
 5. Final commit flips the master-plan C-20 row → ✅.
 

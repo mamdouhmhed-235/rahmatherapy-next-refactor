@@ -4,7 +4,7 @@
 
 **Programme status:** ⏳ scoping — this file. Per-item briefs + plans + the implementation checklist follow once the audit phase completes.
 
-**Working branch:** `redesign/start-state` (single-branch sequential, same discipline as Band B per HANDOFF §4.1 / AUDIT Q9).
+**Working branch:** `master` *(updated 2026-07-26 — `redesign/start-state` merged into master at `ea97932`; single-branch sequential discipline unchanged)*.
 
 **Predecessor:** Band B completed 2026-05-25 at commit `a4c71cf` (B-6) + doc commits `e6ffcd7` + `6072284`. All 7 Band B phases ✅. See `redesign/plans/B-phase/BAND-B-MASTER-CHECKLIST.md` for full closure detail.
 
@@ -31,7 +31,7 @@ Three working phases:
 ### Project root + branch
 
 - Working directory: `C:\Users\mamdo\Desktop\rahmatherapy - Copy\rahmatherapy-next-refactor`
-- Branch: `redesign/start-state` (single-branch sequential — no worktrees)
+- Branch: `master` *(updated 2026-07-26 — post-merge `ea97932`; single-branch sequential — no worktrees)*
 - Predecessor commit at programme start: `6072284` (last Band B doc commit, 2026-05-25)
 
 ### Dev server
@@ -107,7 +107,7 @@ These were programme-wide discipline in Band B and continue to apply throughout 
 
 Mirrors Band B. Per-item plans must run these before commit:
 
-1. `pnpm lint` — 0 errors.
+1. `pnpm lint` — no NEW errors vs the 59-error baseline *(updated 2026-07-26: 55 pre-existing from untracked `design_handoff_area_pages/prototype/*.jsx` + 4 in `src/features/booking/` — see `BAND-C-REFINEMENT-2026-07-26.md` convention #7)*.
 2. `npx tsc --noEmit` — 0 errors.
 3. `pnpm vitest run` — new specs pass; **6 pre-existing baseline failures preserved** per HANDOFF §4.5 (`createBookingTransaction` × 1, `admin-access` × 2, `ManualBookingForm` × 3). Band C start baseline: 485 / 491 passing.
 4. `pnpm build` — clean.

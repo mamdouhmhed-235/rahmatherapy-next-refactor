@@ -509,7 +509,7 @@ If it queries `staff_profiles` by `id = assigned_staff_id`, it's already capabil
 
 **Step 7 — `email_delivery_events.metadata` column (Zone-2 if needed). — ABSORBED INTO STEP 13 (2026-07-16)**
 
-The conditional metadata column now ships inside Phase D Step 13's single migration; no separate Phase C migration. If Phase C is implemented before Phase D in the same C-C window (expected), either apply Step 13's migration early at this point or defer Resend-linkage writes until Step 13 lands — implementer's call, surfaced to the user. Original conditional migration (reference):
+The conditional metadata column now ships inside Phase D Step 13's single migration; no separate Phase C migration. If Phase C is implemented before Phase D in the same C-C window (expected), either apply Step 13's migration early at this point or defer Resend-linkage writes until Step 13 lands — implementer's call on the FILE LAYOUT only, surfaced to the user; **applying early does NOT waive Step 13's ⛔ HARD-STOP — explicit Owner approval is required before `apply_migration` regardless of which phase invokes it (clarified 2026-07-26, protocol red-team).** Original conditional migration (reference):
 
 ```sql
 -- supabase/migrations/<ts>_c08_email_delivery_metadata.sql
