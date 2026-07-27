@@ -157,6 +157,19 @@ export function PrivacyStatusForm({
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
+        {/*
+          The export has to be reachable for a request that is already
+          completed — the state the live request is in. Inside the modal alone
+          it was not: the only way there is the "Mark request as completed?"
+          confirmation, which is the wrong question to answer when all you want
+          is the file, and nonsense for a request that is already fulfilled.
+          RBAC is untouched — the page renders this form only for
+          `manage_privacy_operations`, and the action re-checks the permission
+          server-side before it reads a row.
+        */}
+        {requestType === "data_export" ? (
+          <ExportDownloadButton requestId={requestId} />
+        ) : null}
         {destructive ? (
           <ConfirmActionModal
             title={
@@ -188,7 +201,7 @@ export function PrivacyStatusForm({
             trigger={<SaveStatusButton pending={pending} unchanged={unchanged} />}
           >
             {selectedStatus === "completed" && requestType === "data_export" ? (
-              <ExportDownloadButton requestId={requestId} />
+              <ExportDownloadButton requestId={requestId} className="w-full" />
             ) : null}
           </ConfirmActionModal>
         ) : (
@@ -211,7 +224,13 @@ export function PrivacyStatusForm({
  * payload — it cannot carry HTTP headers, and React's flight serialiser rejects
  * a `Response` instance outright. See the note on `generateClientDataExport`.
  */
-function ExportDownloadButton({ requestId }: { requestId: string }) {
+function ExportDownloadButton({
+  requestId,
+  className,
+}: {
+  requestId: string;
+  className?: string;
+}) {
   const [downloading, setDownloading] = useState(false);
 
   async function handleDownload() {
@@ -247,7 +266,10 @@ function ExportDownloadButton({ requestId }: { requestId: string }) {
       onClick={handleDownload}
       disabled={downloading}
       aria-busy={downloading || undefined}
-      className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none"
+      className={cn(
+        "inline-flex min-h-10 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none",
+        className
+      )}
     >
       {downloading ? (
         <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />

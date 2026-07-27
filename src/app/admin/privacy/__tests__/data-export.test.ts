@@ -36,13 +36,22 @@ const BOOKING_ROWS = [
 const NOTE_ROWS = [{ id: "note-1", note: "Called back.", is_sensitive: false }];
 const AUDIT_ROWS = [{ id: "audit-1", action_type: "client_updated" }];
 
-/** Records every filter/order/limit the action applies, so the shape is provable. */
-function stubAdminClient() {
+/**
+ * Records every filter/order/limit the action applies, so the shape is provable.
+ * `failing` makes one table answer the way PostgREST does on a transient error
+ * or an ambiguous embed — `{ data: null, error }`.
+ */
+function stubAdminClient({ failing }: { failing?: string } = {}) {
   const calls = {
     noteFilters: [] as [string, unknown][],
     auditLimit: null as number | null,
     bookingSelect: "",
   };
+
+  const answer = (table: string, rows: unknown) =>
+    failing === table
+      ? { data: null, error: { message: `${table} unavailable` } }
+      : { data: rows, error: null };
 
   const from = vi.fn((table: string) => {
     if (table === "client_privacy_requests") {
@@ -74,7 +83,7 @@ function stubAdminClient() {
         select: (columns: string) => {
           calls.bookingSelect = columns;
           return {
-            eq: () => ({ order: async () => ({ data: BOOKING_ROWS, error: null }) }),
+            eq: () => ({ order: async () => answer("bookings", BOOKING_ROWS) }),
           };
         },
       };
@@ -88,7 +97,7 @@ function stubAdminClient() {
               eq: (innerColumn: string, innerValue: unknown) => {
                 calls.noteFilters.push([innerColumn, innerValue]);
                 return {
-                  order: async () => ({ data: NOTE_ROWS, error: null }),
+                  order: async () => answer("client_notes", NOTE_ROWS),
                 };
               },
             };
@@ -102,7 +111,7 @@ function stubAdminClient() {
           order: () => ({
             limit: async (count: number) => {
               calls.auditLimit = count;
-              return { data: AUDIT_ROWS, error: null };
+              return answer("audit_logs", AUDIT_ROWS);
             },
           }),
         }),
@@ -193,6 +202,35 @@ describe("generateClientDataExport", () => {
     expect(stub.calls.auditLimit).toBe(50);
     expect(stub.calls.bookingSelect).toContain("booking_items(*)");
     expect(stub.calls.bookingSelect).toContain("booking_assignments(*)");
+  });
+
+  it("fails loudly when the bookings query fails, rather than exporting none", async () => {
+    const stub = stubAdminClient({ failing: "bookings" });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await generateClientDataExport(REQUEST_ID);
+
+    // The old `?? []` fallback turned a transient PostgREST failure — or an
+    // ambiguous embed on booking_items/booking_assignments — into a file
+    // asserting the data subject has no bookings, downloaded under a success
+    // toast and forwarded as a complete Article 15 response.
+    expect(result.json).toBeUndefined();
+    expect(result.filename).toBeUndefined();
+    expect(result.error).toContain("bookings");
+  });
+
+  it.each([
+    ["client_notes", "notes"],
+    ["audit_logs", "audit log"],
+  ])("fails loudly when the %s query fails", async (table, label) => {
+    const stub = stubAdminClient({ failing: table });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await generateClientDataExport(REQUEST_ID);
+
+    expect(result.json).toBeUndefined();
+    expect(result.filename).toBeUndefined();
+    expect(result.error).toContain(label);
   });
 
   it("refuses without the privacy-operations permission and reads nothing", async () => {

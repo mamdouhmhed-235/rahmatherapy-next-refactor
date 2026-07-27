@@ -106,6 +106,30 @@ export async function generateClientDataExport(
     return { error: "That client record could not be loaded." };
   }
 
+  // Every section has to load. Falling through to `?? []` on a failed query
+  // would ship a file stating the data subject has no bookings — and the
+  // privacy manager would forward it as a complete Article 15 response. A
+  // partial export is the dishonesty this plan exists to remove, so refuse to
+  // build one.
+  if (
+    bookingsResult.error ||
+    !bookingsResult.data ||
+    notesResult.error ||
+    !notesResult.data ||
+    auditResult.error ||
+    !auditResult.data
+  ) {
+    const unloadable = [
+      bookingsResult.error || !bookingsResult.data ? "bookings" : null,
+      notesResult.error || !notesResult.data ? "notes" : null,
+      auditResult.error || !auditResult.data ? "audit log" : null,
+    ].filter((section): section is string => section !== null);
+
+    return {
+      error: `Couldn't load part of this client's record (${unloadable.join(", ")}), so no export was created. A partial file would wrongly show none on record. Try again.`,
+    };
+  }
+
   const client: Record<string, unknown> = { ...clientResult.data };
   for (const field of CLIENT_RECORD_KEEPING_FIELDS) {
     delete client[field];
@@ -125,9 +149,9 @@ export async function generateClientDataExport(
           created_at: request.created_at,
         },
         client,
-        bookings: bookingsResult.data ?? [],
-        notes: notesResult.data ?? [],
-        audit_log_summary: auditResult.data ?? [],
+        bookings: bookingsResult.data,
+        notes: notesResult.data,
+        audit_log_summary: auditResult.data,
       },
       null,
       2
