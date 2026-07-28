@@ -847,8 +847,13 @@ export async function restoreBooking(
     .eq("delivery_status", "queued");
 
   if (sweepError) {
-    // Reported the way this file reports every failure it survives — the
-    // caller's console.error, and from there Sentry.
+    // No Sentry issue comes out of this line. The server and edge Sentry
+    // configs register no console-capture integration, and the default console
+    // integration only records a breadcrumb — which needs a captured event in
+    // the same scope to surface, while this path returns `{success:true}`
+    // without throwing. So the durable, queryable record of a failed sweep is
+    // `after_state.cancelled_queued_email_sweep_error` on the audit row below;
+    // this is the matching Cloudflare log line, not an alert.
     console.error(
       "Unable to sweep queued cancellation emails during restore.",
       sweepError
@@ -880,7 +885,12 @@ export async function restoreBooking(
       // suppression can also be triggered by the sweep failing, and that is a
       // different fact about the world, recorded as itself.
       cancelled_queued_email: cancelledQueuedEmail,
-      cancelled_queued_email_sweep_error: sweepError?.message || undefined,
+      // `??`, not the `|| undefined` omit-when-absent idiom above: an error
+      // whose message is "" must still record that the sweep failed. Collapsing
+      // it to `undefined` would write a row byte-identical to the healthy
+      // "nothing queued, restore email sent" case, when the restore email was
+      // in fact suppressed.
+      cancelled_queued_email_sweep_error: sweepError?.message ?? undefined,
     },
   });
 

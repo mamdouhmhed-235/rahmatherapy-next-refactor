@@ -731,6 +731,7 @@ describe("restoreBooking", () => {
         cancelled_queued_email: false,
         cancelled_queued_email_sweep_error: MISSING_SCHEDULED_FOR.message,
       });
+      expect(logged).toHaveBeenCalled();
       logged.mockRestore();
     });
   });
