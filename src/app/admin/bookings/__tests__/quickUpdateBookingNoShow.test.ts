@@ -308,6 +308,29 @@ describe("quickUpdateBooking — terminal-state guards", () => {
     expect(sendAssignedStaffBookingChangeEmails).not.toHaveBeenCalled();
   });
 
+  // The third source status, closed in the same shape. `cancel` is the one that
+  // matters most: on a no-show booking the chip was live and one click fired a
+  // real customer cancellation email.
+  it.each(["cancel", "complete"])(
+    "refuses %s on a no-show booking without writing or sending anything",
+    async (action) => {
+      const stub = stubAdminClient({
+        ...CONFIRMED_BOOKING,
+        status: "no_show",
+      });
+
+      expect(await quickUpdateBooking(quickFormData(action))).toEqual({
+        error:
+          "This booking is marked no-show. Reopen it from the Status & payment form before cancelling or completing it.",
+      });
+
+      expect(stub.find("bookings", "update")).toHaveLength(0);
+      expect(stub.find("audit_logs", "insert")).toHaveLength(0);
+      expect(sendBookingCancellationEmails).not.toHaveBeenCalled();
+      expect(sendAssignedStaffBookingChangeEmails).not.toHaveBeenCalled();
+    }
+  );
+
   // Canary: the guards key on the source status, so the legal cancel path has
   // to survive intact — write, audit row and the customer email.
   it("still cancels a confirmed booking and emails the client", async () => {
@@ -328,20 +351,20 @@ describe("quickUpdateBooking — terminal-state guards", () => {
     );
   });
 
-  // `mark_paid` sets no status, so it must stay reachable from `completed` —
-  // the guard reads the payload's status and has nothing to catch here.
-  it("still marks a completed booking paid", async () => {
-    const stub = stubAdminClient({
-      ...CONFIRMED_BOOKING,
-      status: "completed",
-    });
+  // `mark_paid` sets no status, so it must stay reachable from every terminal
+  // status — the guards read the payload's status and have nothing to catch.
+  it.each(["completed", "no_show"])(
+    "still marks a %s booking paid",
+    async (status) => {
+      const stub = stubAdminClient({ ...CONFIRMED_BOOKING, status });
 
-    expect(await quickUpdateBooking(quickFormData("mark_paid"))).toEqual({
-      success: true,
-    });
-    expect(stub.find("bookings", "update").at(-1)!.payload).toMatchObject({
-      payment_status: "paid",
-      amount_paid: 55,
-    });
-  });
+      expect(await quickUpdateBooking(quickFormData("mark_paid"))).toEqual({
+        success: true,
+      });
+      expect(stub.find("bookings", "update").at(-1)!.payload).toMatchObject({
+        payment_status: "paid",
+        amount_paid: 55,
+      });
+    }
+  );
 });

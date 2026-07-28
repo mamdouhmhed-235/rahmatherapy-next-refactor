@@ -489,16 +489,24 @@ export async function quickUpdateBooking(formData: FormData) {
     return { error: "Unsupported booking action." };
   }
 
-  // `completed` and `cancelled` are terminal for the one-click chips: leaving
-  // either is a mistake-correction that owes an explanation, and a chip has
-  // nowhere to capture one — Phase B put reopening a completed booking behind
-  // the Status form's force flag plus a reason, and the same form is the way
-  // back out of `cancelled`. The guard reads the status the write would set
-  // rather than the action name, so it cannot drift from the payload above;
-  // `mark_paid` sets no status and is therefore untouched.
+  // `completed`, `cancelled` and `no_show` are terminal for the one-click
+  // chips: leaving any of them is a mistake-correction that owes an
+  // explanation, and a chip has nowhere to capture one — Phase B put reopening
+  // a completed booking behind the Status form's force flag plus a reason, and
+  // the same form is the way back out of the two inert statuses. The guard
+  // reads the status the write would set rather than the action name, so it
+  // cannot drift from the payload above; `mark_paid` sets no status and is
+  // therefore untouched.
+  //
+  // Three branches rather than one expression because the rules genuinely
+  // differ: `completed` refuses every target, while the inert pair refuses only
+  // a move into ANOTHER terminal state — `restoreBooking`, not a chip, owns the
+  // way back to `confirmed`. Each refusal also names its own source status.
+  //
   // Owner-approved 2026-07-28 as a deviation from plan §2's UNCHANGED list:
   // `cancel` on a completed booking was one click from a real customer
-  // cancellation email, and `complete` on a cancelled one bypassed restore.
+  // cancellation email, `complete` on a cancelled one bypassed restore, and
+  // `cancel` on a no-show booking fired that customer email too.
   const nextStatus = "status" in payload ? payload.status : null;
 
   if (nextStatus && isCompletedReversal(beforeState.status, nextStatus)) {
@@ -512,6 +520,16 @@ export async function quickUpdateBooking(formData: FormData) {
     return {
       error:
         "This booking is cancelled. Reopen it from the Status & payment form before marking it complete.",
+    };
+  }
+
+  if (
+    beforeState.status === "no_show" &&
+    (nextStatus === "cancelled" || nextStatus === "completed")
+  ) {
+    return {
+      error:
+        "This booking is marked no-show. Reopen it from the Status & payment form before cancelling or completing it.",
     };
   }
 
