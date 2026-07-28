@@ -77,6 +77,30 @@ function friendlyError(raw: string, context: "claim" | "quick"): string {
   return raw;
 }
 
+/**
+ * Is one of the menu's own items currently showing its confirm dialog?
+ *
+ * Load-bearing, not cosmetic. Two of the menu items are `ConfirmActionModal`
+ * triggers, and that modal is RENDERED inside the menu while its popup is
+ * PORTALLED to `document.body`. So the menu owns the dialog's lifetime: close
+ * the menu and the dialog is unmounted mid-interaction. Both items were dead
+ * because of it — Cancel from before Phase G, Restore from Phase G — since the
+ * click-outside handler treated the portalled confirm button as "outside" and
+ * tore the dialog down on mousedown, before its click could fire.
+ *
+ * The test is the trigger's own ARIA state, which the dialog primitive sets on
+ * whatever element it renders as the trigger. Verified against the rendered DOM
+ * rather than assumed: the menu item comes back as
+ * `BUTTON[role=menuitem, aria-haspopup=dialog, aria-expanded=true, …]` while
+ * open. Scoped to `container` so only THIS row's dialogs count, and expressed in
+ * ARIA rather than vendor data-attributes so it survives a primitive swap.
+ */
+function hasOpenDialogTrigger(container: HTMLElement | null) {
+  return Boolean(
+    container?.querySelector('[aria-haspopup="dialog"][aria-expanded="true"]')
+  );
+}
+
 export function BookingRowActions({
   bookingId,
   clientName,
@@ -100,16 +124,23 @@ export function BookingRowActions({
   // to the trigger in that case (click-outside should leave focus alone).
   const closedByEscape = React.useRef(false);
 
-  // Click-outside + Escape close handlers.
+  // Click-outside + Escape close handlers. Both stand down while a menu item's
+  // confirm dialog is open: the dialog is portalled out of `menuRef`, so every
+  // click inside it — and the Escape that dismisses it — would otherwise read as
+  // "close the menu", which unmounts the dialog itself. See
+  // `hasOpenDialogTrigger`.
   React.useEffect(() => {
     if (!menuOpen) return;
     function handleClick(event: MouseEvent) {
+      if (hasOpenDialogTrigger(menuRef.current)) return;
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setMenuOpen(false);
       }
     }
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        // The dialog owns this Escape; a second one closes the menu.
+        if (hasOpenDialogTrigger(menuRef.current)) return;
         closedByEscape.current = true;
         setMenuOpen(false);
       }
@@ -423,15 +454,23 @@ export function BookingRowActions({
             <MoreHorizontal className="size-4" aria-hidden="true" />
           </button>
           {/*
-            KNOWN DEFECT, reported not fixed (C-04a fix round): the two
-            ConfirmActionModals below live INSIDE this subtree, so both menu
-            items are dead. Their trigger's `setMenuOpen(false)` unmounts the
-            menu — and the dialog it contains — in the same commit the dialog
-            opens; and even with that removed, the outside-click handler above
-            unmounts the menu on mousedown over the portalled confirm button,
-            before its click fires. Cancel and Restore therefore do nothing from
-            the row menu. Repairing it needs a controlled ConfirmActionModal
-            (admin-ui-interactions.tsx), which is outside this task's file list.
+            The two ConfirmActionModals below are rendered inside this subtree,
+            so this subtree owns their lifetime: unmount it and the open dialog
+            goes with it. That is what made both items dead — Cancel from before
+            Phase G, Restore from Phase G — and it constrains two things that
+            must not be "tidied" back:
+
+            1. Their triggers carry NO `onClick={() => setMenuOpen(false)}`,
+               unlike the plain MenuButtons. Closing the menu from the very click
+               that opens the dialog destroys the dialog in the same commit.
+            2. The click-outside and Escape handlers stand down while a dialog is
+               open (`hasOpenDialogTrigger`), because the popup is portalled to
+               `document.body` and so reads as "outside" this menu.
+
+            While the dialog is up the primitive marks this subtree
+            `aria-hidden` + inert and covers it with its backdrop, so the menu
+            staying mounted behind is invisible and unreachable. It closes on the
+            next outside click or Escape, as before.
           */}
           {menuOpen ? (
             <div
@@ -460,7 +499,6 @@ export function BookingRowActions({
                       <button
                         role="menuitem"
                         type="button"
-                        onClick={() => setMenuOpen(false)}
                         className="flex min-h-9 w-full appearance-none items-center gap-2 rounded-[var(--admin-radius-control)] border-0 bg-transparent px-3 text-left text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                       >
                         <RotateCcw className="size-4" aria-hidden="true" />
@@ -526,7 +564,6 @@ export function BookingRowActions({
                         <button
                           role="menuitem"
                           type="button"
-                          onClick={() => setMenuOpen(false)}
                           className="flex min-h-9 w-full appearance-none items-center rounded-[var(--admin-radius-control)] border-0 bg-transparent px-3 text-left text-sm font-medium text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                         >
                           Cancel booking
