@@ -15,6 +15,11 @@
 --   5  backfill 1 - customer-cancelled rows, from customer_cancelled_at
 --   6  backfill 2 - admin/customer-cancelled rows, from the latest cancel audit row
 --
+-- NEITHER backfill writes to booking 9d55ce2a-7a76-42ed-9166-a33fa66ee7fe: it is
+-- on the DO-NOT-TOUCH list in redesign/plans/C-phase/C-C-EXECUTION-PROTOCOL.md
+-- §1.7. Both statements carry an explicit exclusion - statement 6 holds the
+-- row-specific rationale.
+--
 -- EVERY statement is idempotent: re-applying this file is a no-op. Guarded with
 -- `if not exists` / `drop constraint if exists` before the re-add, and both
 -- backfills only ever write where cancelled_at is still NULL, so a re-apply can
@@ -104,12 +109,24 @@ comment on column public.bookings.cancelled_at is
 --    `cancelled_at is null` is not in the plan's text; it is added so a re-apply
 --    cannot overwrite a fresher cancelled_at with a stale customer_cancelled_at.
 --    Stamps 0 rows today (no live cancelled booking has customer_cancelled_at).
+--
+--    The `id <> '9d55ce2a...'` exclusion below is the same DO-NOT-TOUCH
+--    exclusion as statement 6 (full rationale there). It matches nothing today -
+--    that booking has no customer_cancelled_at - but this statement's predicate
+--    is state-dependent and this file is idempotent by design, i.e. built to be
+--    safely re-applied later. Any future write of customer_cancelled_at on the
+--    protected row would pull it into scope on the next apply. Carrying the
+--    exclusion in both backfills makes "this migration never writes to booking
+--    9d55ce2a" a property of the file itself rather than of a row count that
+--    happened to be zero on 2026-07-28.
 -- ---------------------------------------------------------------------------
 update public.bookings
 set cancelled_at = customer_cancelled_at
 where status = 'cancelled'
   and customer_cancelled_at is not null
-  and cancelled_at is null;
+  and cancelled_at is null
+  -- Protocol §1.7 DO-NOT-TOUCH (see statement 6).
+  and id <> '9d55ce2a-7a76-42ed-9166-a33fa66ee7fe';
 
 -- ---------------------------------------------------------------------------
 -- 6. Backfill 2 (best-effort) - the latest cancel audit row.
@@ -124,7 +141,9 @@ where status = 'cancelled'
 --      booking_management_updated   Status form           -> 0 rows stamped
 --                                   (its 2 matching audit rows point at bookings
 --                                    that are no longer cancelled)
---      booking_quick_cancel         cancel quick action   -> 2 rows stamped
+--      booking_quick_cancel         cancel quick action   -> 2 candidate rows,
+--                                   1 stamped (the other is the DO-NOT-TOUCH
+--                                   row excluded below)
 --      customer_booking_cancelled   /booking/manage       -> 0 rows (none exist yet);
 --                                   that population is backfill 1's anyway, this is
 --                                   belt-and-braces for a cleared customer_cancelled_at
@@ -134,22 +153,30 @@ where status = 'cancelled'
 --                                   rows exist, and statement 4's note explains why no
 --                                   backfill is needed for it.
 --
---    Combined coverage after this statement: 2 of 2 live cancelled bookings.
---    Rows neither backfill reaches stay NULL -> the S7 guard treats them as
---    window-expired (fail-closed, brief §5.12).
+--    Combined coverage after this statement: 1 of the 2 live cancelled bookings
+--    (0 from backfill 1, 1 here). The second is deliberately left unstamped -
+--    see the exclusion below. Rows neither backfill reaches stay NULL -> the S7
+--    guard treats them as window-expired (fail-closed, brief §5.12).
 --
---    !! OWNER DECISION NEEDED AT THE HARD-STOP !!
---    One of those two rows is booking 9d55ce2a (Badar, a real customer) - the
---    protocol §1.7 DO-NOT-TOUCH row. This statement WRITES to it:
+--    DO-NOT-TOUCH EXCLUSION - Owner decision taken 2026-07-28.
+--    Why one booking id is hardcoded in a migration: 9d55ce2a-7a76-42ed-9166-
+--    a33fa66ee7fe is Badar's booking, a REAL customer, and it is named on the
+--    DO-NOT-TOUCH list in redesign/plans/C-phase/C-C-EXECUTION-PROTOCOL.md §1.7
+--    - nothing in this programme (migration, script, test or admin action) may
+--    write to that row. Unexcluded, this statement would have written
 --        cancelled_at := 2026-05-19 17:16:59.155691+00
---    The other is eaafbb1a (audit.client.5...@example.test), a safe fixture.
---    Behaviourally the write is inert for both: appointment date 2026-05-20 is
---    already past, so S6 blocks restore, and a ~70-day-old cancellation is
---    S7-expired - identical to leaving the field NULL, which also fail-closes.
---    No status change, no email, no other column touched. It is still a write
---    to the protected row, so the Owner approves or excludes it explicitly.
---    To exclude, add to this statement's WHERE clause:
---        and b.id <> '9d55ce2a-7a76-42ed-9166-a33fa66ee7fe'
+--    to it, so the exclusion sits on the WHERE clause below.
+--
+--    Nothing is lost by excluding it. The appointment is dated 2026-05-20, so
+--    the S6 past-appointment guard refuses restore regardless of this column;
+--    and the cancellation is ~70 days old, so the S7 28-day window guard is
+--    expired whether cancelled_at holds that timestamp or stays NULL (NULL
+--    fail-closes to the same refusal, brief §5.12). The outcome is identical
+--    either way, so the tie is broken in favour of keeping §1.7 absolute rather
+--    than letting it become a per-row judgement call.
+--
+--    The row that IS stamped is eaafbb1a (audit.client.5...@example.test) - a
+--    *.example.test fixture, which §1.7 explicitly permits.
 --
 --    JSON path verified at pre-flight: after_state is the full booking row, so
 --    after_state->>'status' is the post-write status. audit_logs.target_id is a
@@ -170,6 +197,8 @@ from (
 ) a
 where b.id = a.booking_id
   and b.status = 'cancelled'
-  and b.cancelled_at is null;
+  and b.cancelled_at is null
+  -- Protocol §1.7 DO-NOT-TOUCH - Badar's real booking; rationale in the block above.
+  and b.id <> '9d55ce2a-7a76-42ed-9166-a33fa66ee7fe';
 
 commit;

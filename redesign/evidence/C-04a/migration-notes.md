@@ -9,28 +9,36 @@ Plan source: `C-04a-cancellation-restore-plan.md` §1 Phase F **Step 10** + the 
 
 ---
 
-## 0 — Read this first: two things the Owner must decide at the HARD-STOP
+## 0 — Read this first: one decision taken, one consequence to carry into the HARD-STOP
 
-### (a) Statement 6 writes to booking `9d55ce2a` — the DO-NOT-TOUCH row
+### (a) Booking `9d55ce2a` is EXCLUDED from both backfills — DECIDED 2026-07-28
 
-Backfill 2 stamps `cancelled_at` on exactly two rows, and one of them is **Badar's booking `9d55ce2a`** (`avonrk@hotmail.co.uk`), the real customer protocol §1.7 names as untouchable.
+As first written, backfill 2 stamped `cancelled_at` on exactly two rows, and one of them was **Badar's booking `9d55ce2a`** (`avonrk@hotmail.co.uk`), the real customer protocol §1.7 names as untouchable.
+
+**Owner decision: exclude it.** Both backfills now carry
+
+```sql
+  and id <> '9d55ce2a-7a76-42ed-9166-a33fa66ee7fe'
+```
+
+so this migration cannot write to that row under any database state, on first apply or on any re-apply.
 
 | Booking | Identity | Value written |
 |---|---|---|
-| `9d55ce2a-7a76-42ed-9166-a33fa66ee7fe` | **Badar — real customer (§1.7)** | `cancelled_at = 2026-05-19 17:16:59.155691+00` |
+| `9d55ce2a-7a76-42ed-9166-a33fa66ee7fe` | **Badar — real customer (§1.7)** | **none — excluded** (would have been `2026-05-19 17:16:59.155691+00`) |
 | `eaafbb1a-7f02-48ef-b954-fb961c06c564` | `audit.client.5…@example.test` — safe fixture | `cancelled_at = 2026-05-20 19:24:17.514045+00` |
 
-**The write is behaviourally inert.** Both bookings are dated `2026-05-20`, so the S6 past-appointment guard already blocks restore regardless; and a ~70-day-old cancellation is S7-expired, which is the *same* outcome as leaving the column NULL (the guard fail-closes on an unknown cancellation moment). Nothing else on the row is touched: no status change, no email, no `customer_cancelled_at`.
+**Nothing is lost by excluding it.** Both bookings are dated `2026-05-20`, so the S6 past-appointment guard already blocks restore regardless; and a ~70-day-old cancellation is S7-expired, which is the *same* outcome as leaving the column NULL (the guard fail-closes on an unknown cancellation moment). Because the outcome is identical either way, the tie breaks in favour of keeping §1.7 absolute rather than letting it become a per-row judgement call.
 
-It is nonetheless a write to a protected row, so it is the Owner's call, not the implementer's. To exclude it, append to statement 6's WHERE clause:
+**Backfill 1 carries the same exclusion**, even though it matches **zero** rows today — neither cancelled booking has `customer_cancelled_at` (re-verified read-only 2026-07-28: 0 candidates with the exclusion, 0 without). Its predicate is state-dependent and the file is built to be re-applied safely: any future write of `customer_cancelled_at` on the protected row would pull it into scope on a later apply. Excluding it in both statements makes *"this migration never writes to `9d55ce2a`"* a property of the file itself rather than of a row count that happened to be zero on one day.
 
-```sql
-  and b.id <> '9d55ce2a-7a76-42ed-9166-a33fa66ee7fe'
-```
+### (b) After this migration, restore is still not demonstrable on live data — F-1 is NOT resolved
 
-### (b) After this migration, restore is still not demonstrable on live data
+Post-apply the coverage query returns **`stamped = 1 / unstamped = 1`**: `eaafbb1a` stamped, `9d55ce2a` deliberately left NULL.
 
-Post-apply, `stamped = 2 / unstamped = 0` — but **both** stamped rows are S6-past-dated and S7-expired, so no cancelled booking in production will show a Restore button. This does **not** resolve progress §0a **F-1**; the fixture question (Owner decision 1, route (a) vs (b)) is still open and still needs a future-dated fixture cancelled through a path that stamps a cancellation moment.
+**Both** cancelled bookings remain **S6-past** (appointment `2026-05-20`, already elapsed) and **S7-expired** (cancelled 69 and 68 days ago against a 28-day window) — re-verified read-only 2026-07-28. So **no production booking will show a Restore button after this migration applies**, and the unstamped row behaves exactly like the stamped one: both fail closed.
+
+This does **not** resolve progress §0a **F-1**, and nobody should expect it to at the closeout sweep. The fixture question (Owner decision 1, route (a) vs (b)) is still open and still needs a future-dated fixture cancelled through a path that stamps a cancellation moment.
 
 ---
 
@@ -118,12 +126,16 @@ update public.bookings
 set cancelled_at = customer_cancelled_at
 where status = 'cancelled'
   and customer_cancelled_at is not null
-  and cancelled_at is null;
+  and cancelled_at is null
+  -- Protocol §1.7 DO-NOT-TOUCH (see statement 6).
+  and id <> '9d55ce2a-7a76-42ed-9166-a33fa66ee7fe';
 ```
 
 **Stamps 0 rows today.** Neither live cancelled booking has `customer_cancelled_at` — no customer has ever cancelled through the manage link.
 
 `and cancelled_at is null` is **added beyond the plan's text** (Owner/orchestrator decision 5, idempotency). Without it a re-apply would overwrite a *fresher* `cancelled_at` with a stale `customer_cancelled_at`. With it, statements 5 and 6 also compose cleanly: 5 wins where both could stamp, which is right — the customer's own timestamp is more precise than an audit row's.
+
+The `id <> …` exclusion is the §1.7 DO-NOT-TOUCH guard from §0(a), carried here as well as in statement 6. It changes nothing today (0 rows either way) and is here so a future re-apply cannot reach the protected row if `customer_cancelled_at` is ever written on it.
 
 ### 6. Backfill 2 — from the latest cancel audit row
 
@@ -143,7 +155,9 @@ from (
 ) a
 where b.id = a.booking_id
   and b.status = 'cancelled'
-  and b.cancelled_at is null;
+  and b.cancelled_at is null
+  -- Protocol §1.7 DO-NOT-TOUCH - Badar's real booking; rationale in the block above.
+  and b.id <> '9d55ce2a-7a76-42ed-9166-a33fa66ee7fe';
 ```
 
 **This is the Owner-decision-2 correction.** The plan's original filter is `action_type = 'booking_management_updated'` alone, which stamps **0 of 2** live cancelled bookings — both were cancelled through the *quick action*, which writes `booking_quick_cancel` (`actions.ts:689`).
@@ -153,19 +167,19 @@ where b.id = a.booking_id
 | `action_type` | Written by | Rows with `after_state.status='cancelled'` | Bookings it stamps |
 |---|---|---|---|
 | `booking_management_updated` | Status form (`actions.ts:414`) | 2 (2 distinct targets) | **0** — both targets have since left `cancelled`, so the `b.status = 'cancelled'` join drops them |
-| `booking_quick_cancel` | cancel quick action (`actions.ts:689`) | 2 (2 distinct targets) | **2** — the entire live cancelled population |
+| `booking_quick_cancel` | cancel quick action (`actions.ts:689`) | 2 (2 distinct targets) | **1** — 2 candidates, minus `9d55ce2a` excluded per §0(a) |
 | `customer_booking_cancelled` | `/booking/manage` (`manage/actions.ts:158-167`) | 0 | **0** — none exist yet; included belt-and-braces, since backfill 1 already owns that population |
 | `client_deleted` | C-06 delete cascade (`clients/actions.ts:659`) | 0 | **0, and structurally unreachable** — `target_id` is the *client* id; the booking ids live in `after_state.cascaded_booking_ids`. No such rows exist, and per statement 4 the cascade stamps `cancelled_at` directly once the column is there, so no backfill is owed |
 
-**Combined coverage: 2 of 2 live cancelled bookings** (0 from backfill 1, 2 from backfill 2). No cancelled booking is left unstamped.
+**Combined coverage: 1 of the 2 live cancelled bookings** (0 from backfill 1, 1 from backfill 2). The second, `9d55ce2a`, is left unstamped **on purpose** — §0(a) — and fail-closes to the same refusal a stamped-but-expired value would produce.
 
 Two premises re-verified rather than assumed:
 - `after_state` is the full booking row, so `after_state->>'status'` is the post-write status (progress §2 B).
 - `audit_logs.target_id` is **already a `uuid` column** (`information_schema` → `uuid`), so `target_id::uuid` is a no-op cast, kept only for parity with the plan's text. There is no text→uuid parse that could throw.
 
-The subquery + join was **dry-run as a SELECT** against production (minus the not-yet-existing `cancelled_at is null` predicate) and returned exactly the two rows in §0(a).
+The subquery + join was **dry-run as a SELECT** against production (minus the not-yet-existing `cancelled_at is null` predicate). Without the exclusion it returns the two rows in §0(a); **re-run with the exclusion on 2026-07-28 it returns exactly one row, `eaafbb1a`** — the projected stamp count for this statement.
 
-Rows neither backfill reaches stay NULL → the S7 guard treats them as window-expired (fail-closed, brief §5.12). Today there are none.
+Rows neither backfill reaches stay NULL → the S7 guard treats them as window-expired (fail-closed, brief §5.12). Today that is exactly one row, `9d55ce2a`, and it is deliberate — its cancellation is 69 days old, so the guard refuses restore on it either way.
 
 ---
 
@@ -182,6 +196,8 @@ Re-applying the whole file is a no-op. C-06's migration was idempotent, and that
 | 4 | `add column` + comment | `if not exists` |
 | 5 | Backfill 1 | `and cancelled_at is null` — added for exactly this reason; cannot clobber a post-migration value |
 | 6 | Backfill 2 | `and b.cancelled_at is null` (in the plan already) — same protection |
+
+Both backfills additionally carry `id <> '9d55ce2a-…'` (§0(a)), so no apply — first or Nth, under any future data state — can write to the §1.7 protected row.
 
 The whole file is wrapped in `begin; … commit;`, matching C-06's precedent: a mid-file failure leaves the database untouched rather than half-migrated.
 
@@ -209,7 +225,8 @@ WHERE conrelid = 'public.email_delivery_events'::regclass
 SELECT COUNT(*) FILTER (WHERE cancelled_at IS NOT NULL) AS stamped,
        COUNT(*) FILTER (WHERE cancelled_at IS NULL)     AS unstamped_will_be_unrestorable
 FROM bookings WHERE status = 'cancelled';
--- Predicted: stamped = 2, unstamped = 0 (stamped = 1 if 9d55ce2a is excluded per §0(a)).
+-- Predicted: stamped = 1 (eaafbb1a), unstamped = 1 (9d55ce2a, excluded per §0(a)).
+-- The unstamped row is EXPECTED, not a backfill miss — see §0(b).
 ```
 
 Then `mcp__supabase__generate_typescript_types` → `src/types/supabase.ts` (plan Step 10; not done here — the types cannot describe columns that do not exist yet).
@@ -245,4 +262,4 @@ ALTER TABLE email_delivery_events
 ALTER TABLE bookings DROP COLUMN IF EXISTS cancelled_at;
 ```
 
-Dropping `bookings.cancelled_at` loses admin-cancel timestamps recorded since the migration; `customer_cancelled_at` is untouched, so customer timestamps survive. The two backfilled values are recoverable from the audit log by re-running statement 6.
+Dropping `bookings.cancelled_at` loses admin-cancel timestamps recorded since the migration; `customer_cancelled_at` is untouched, so customer timestamps survive. The single backfilled value (`eaafbb1a`) is recoverable from the audit log by re-running statement 6.
