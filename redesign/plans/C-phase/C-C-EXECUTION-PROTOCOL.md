@@ -54,6 +54,28 @@ Do NOT read all 23 plans up front — read each plan + brief when its turn start
 - On resume (fresh or compacted context): re-run §0 bootstrap; find the LATEST progress file (`git log --oneline --grep="interrupt checkpoint"` and `--grep="shipped"` establish position in §4); verify **the checkpoint commit's PARENT equals the last-good commit SHA recorded in the checkpoint's fields**; pull the inherited baseline list from the latest progress file (never from §0's programme-start snapshot); continue from the recorded step. Trust progress files + git log over memory. All rules apply unchanged.
 - **Ungraceful loss (crash/kill mid-step — no checkpoint written):** before dispatching anything, run `git status --porcelain -- <current plan's touched paths>`. Non-empty = uncommitted in-flight work: inspect the diff and EITHER resume from it (treat it as true in-progress state, complete the step, commit) OR explicitly discard it (`git checkout -- <exact paths>`, decision + reason logged in the progress file). Never dispatch an implementer onto a dirty plan-scope tree without resolving it first.
 
+## 3b — Standing programme state (added 2026-07-28; read at §0 bootstrap, before touching anything)
+
+These are programme-wide and outlive any one plan. Plan-specific detail stays in progress files; this is only what would otherwise be lost between sessions or, worse, actively misread.
+
+**⚠️ `src/lib/maintenance.ts` is DELIBERATELY DIRTY. Do not resolve it.**
+`MAINTENANCE_MODE = false` in the working copy under a standing Owner authorisation, for the **entire programme**. It is **never staged and never committed** (last commit touching it is `35bf817`, pre-programme). Without the flip, `(public)/layout.tsx` does not mount the booking experience, which blocks browser verification for C-22, C-17 Phase B, C-20 and C-14 Phase D.
+**§3's ungraceful-loss rule does NOT apply to this file.** A resuming agent that finds it modified must neither resume from it nor `git checkout --` it. Leave it exactly as it is.
+**It MUST be restored to `true` before any deploy, and the final report must state its state.**
+
+**Pre-flight addition — check table privileges before the first write of a kind.**
+When a plan adds the **first** `UPDATE`, `DELETE` or upsert against a table, run `has_table_privilege('service_role', '<table>', 'UPDATE')` before implementing. This project grants **explicitly per table**; the Supabase blanket `grant all` default is **not** in effect. tsc, lint and vitest are all blind to a missing GRANT, and this codebase's habit of discarding the `error` from a Supabase call makes the failure silent at runtime.
+C-04a lost a full verification cycle to exactly this: `service_role` had no `UPDATE` on `email_delivery_events`, so all three of its UPDATEs were 42501s and the cron would have reported `200 {sent:0, failures:[]}` — indistinguishable from healthy — while no customer ever received a cancellation email. Note also that `ON CONFLICT DO UPDATE` requires `UPDATE` privilege **whether or not a conflict occurs**.
+Still lacking `service_role` UPDATE: `blocked_dates`, `insight_dismissals`, `staff_availability_rules`, `staff_blocked_dates`, `staff_permission_overrides`. (`audit_logs` and `permissions` are correctly restricted.) **Logged, not fixed:** `staff_permission_overrides` breaks its upsert in `admin/staff/actions.ts` for this reason; Owner scoped the C-04a grant to `email_delivery_events` only.
+
+**⛔ The Cloudflare deploy is three-in-one.** Its approval text must say all three: it applies **C-22's `RateLimiter` Durable Object migration**; it activates the **`* * * * *` cron**; and since C-04a Phase H it is the **only thing that drains the cancellation-email queue** — deploy the code without the cron trigger and no customer receives a cancellation email at all. Code and trigger ship together (the trigger lives in `wrangler.jsonc`), so there is no gap provided the deploy happens.
+
+**Owner cannot be substituted for on two things.** The agent may not authenticate (entering passwords is prohibited), so any plan step requiring admin sign-in — Playwright role sweeps, most manual UI checkpoints — is **Owner-performed by necessity**, not deferred by choice. Write the checklist into the progress file and hand it over; do not record such a step as "pending" as though an agent could later run it. Likewise all Zone-2 actions are orchestrator-only under per-action Owner approval, never a subagent.
+
+**DO-NOT-TOUCH:** booking `9d55ce2a-7a76-42ed-9166-a33fa66ee7fe` — a real customer with a real email address. Never reference it in a fixture, never act on it, exclude it explicitly in any backfill.
+
+**The working tree is touched by an external process.** Files under `Desktop\` have been observed rewritten mid-task with identical mtimes (OneDrive sync, or a concurrent session). A single-instant working-tree read is not fully trustworthy: anchor findings to committed blobs (`git show <sha>:<path>`), re-read before concluding a change vanished, and verify any byte-copy restore by hash. `core.autocrlf` is `true`, so never round-trip a file through `git show` to restore it.
+
 ## 4 — Implementation order (Owner-locked; strictly sequential)
 
 | # | Plan | Notes |
