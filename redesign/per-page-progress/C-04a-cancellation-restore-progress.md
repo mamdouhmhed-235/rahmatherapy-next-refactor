@@ -5,8 +5,62 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phases A–F of 8 **COMPLETE and independently verified**. Phases G, H outstanding.
-> **Last good commit:** `2730d70` · **Next action:** Phase G (Steps 13/13b/13c/13d — row-level Restore + status-aware row menu). The ⛔ **Cloudflare deploy is still outstanding** — the cron is inert until it happens.
+> ## ⏸ STATUS: All 8 phases have code. A–G verified. **PHASE H IS NOT INDEPENDENTLY VERIFIED.**
+> **Last good commit:** `40c58e9` · **NEXT ACTION: run the Phase H verification** (see §0i — the script is saved and re-runnable). Then the §3 closeout gate, the checklist row, and the ⛔ Cloudflare deploy.
+
+---
+
+## 0i — ⚠️ PHASE H IS UNVERIFIED — START HERE NEXT SESSION
+
+Phases A–G each passed independent verification. **Phase H (`ced364f` + `40c58e9`) has not.** A 3-lens verification workflow was dispatched and **all three agents died on the session token limit** — no findings, no verdict. This is an absence of evidence, not evidence of absence: do **not** treat Phase H as verified, and do **not** close C-04a until it is.
+
+**Re-run it first thing.** The script is saved and re-runnable as-is:
+`…/e7f1625c-…/workflows/scripts/c04a-phase-h-verify-wf_02790308-825.js`
+Re-invoke with `Workflow({scriptPath: "<that path>"})`. Do NOT pass `resumeFromRunId` — nothing cached, all three agents errored.
+
+The three lenses and the specific questions they were given are in the script. The five sharpest, if it needs rebuilding:
+1. Can an Undo clicked at **t=9.9s** still suppress the email, given `scheduled_for = now+10s`? Is there any window where the user sees Undo succeed but the customer still receives the cancellation?
+2. Are there **other** writers of `bookings.status='cancelled'` that now fail to stamp `cancelled_at`, leaving a booking whose S7 window cannot be measured? (`booking/manage/actions.ts` is the known-good exception — it stamps `customer_cancelled_at` and the guard coalesces.)
+3. Does `delaySeconds` delay **only** the customer's email, or did admin/staff legs get delayed too?
+4. Is `src/lib/email/client.ts` genuinely the only Resend touchpoint? (Orchestrator verified across `src/`: yes, `:2` imports and `:31` constructs, nothing else. Re-check the whole repo, not just `src/`.)
+5. **Was any Phase H plan step silently dropped** — a requirement in plan lines 1223–1320 that neither landed nor was reported as a deviation?
+
+**Gate state at `40c58e9`, measured by the implementer, NOT independently confirmed:** tsc 0 · vitest 5 failed / 734 passed / 739, the five inherited names · lint 59E/7W across the same six files · `npm run build` exit 0.
+
+---
+
+## 0h — PHASE G + H LEDGER
+
+| Commit | What |
+|---|---|
+| `c3dfd5c` | Phase G — row-level Restore + status-aware row menu |
+| `d9c669c` | pair `cancelled_at` into the detail select, require it on `BookingRecord` |
+| `ced364f` | Phase H — cancel-with-Undo toast, `delaySeconds=10`, `cancelled_at` stamping |
+| `40c58e9` | correct the cancel chip's copy, false since Phase H |
+
+### Plan defects caught in G and H (all silent under every gate)
+- **Step 13c applies the S7 window check to `no_show`.** A no-show has no cancellation stamp, so `getCancellationMoment` returns `null` and `isRestoreWindowExpired` fails closed — the menu would read *"28-day restore window has passed"* on **every** no-show row, while `restoreBooking` and the detail page both restore them. Phase A's inert-feature failure reproduced exactly. **S7 is now scoped to `cancelled` only.**
+- **Step 13c's JSX (bare button) contradicts the plan's own Phase G checkpoint** ("click → confirm modal → confirm"). Resolved toward the checkpoint: Restore fires a real customer email, and a one-click list-row path to that is the hazard class Phases B–D closed.
+- **Step 14b's Undo omits `target_status`** — undoing a cancellation on a *pending* booking would silently **confirm** it. `restoreBooking` accepts only `confirmed`/`pending`; the plan passed neither. Added.
+- **The `cancelled_at` stamp must key on the TRANSITION, not the status.** `updateBookingManagement` is also called by two Notes forms that re-post the booking's own status. Keying on "status is cancelled" means a note saved on a 3-week-old cancellation **restarts its 28-day window and queues a second cancellation email**. Proven by mutation: weakening `isCancellationTransition` to `status === "cancelled"` turns exactly **one** spec red — the notes-save guard is the only detector. Call-site map: `:144` = Status form (the only cancellation path, changed); `:899` and `:1190` = Notes forms (unchanged).
+- **Step 14c's file is wrong** (Status form is in `BookingManagementForm.tsx`, not `[bookingId]/page.tsx`), **its `useActionState`+`useEffect` pattern does not exist in the code**, and **its `cancelledWithUndoWindow` server flag is unnecessary** — it exists only because `useActionState` hides the FormData from the effect. Omitting it also avoided breaking ~6 `toEqual({success:true})` assertions for no behavioural gain.
+- **Step 14e says "extend existing" `quickUpdateBookingCancel.test.ts` — the file did not exist.** Created, 7 specs.
+
+### Ratified scope widenings (my dispatch lists were narrower than the plan's)
+- `restoreBooking.test.ts`, `quickUpdateBookingNoShow.test.ts`, `updateBookingManagement-completed-guard.test.ts` — **all created by C-04a itself**, so inside the plan's surface.
+- `[bookingId]/page.tsx` — in the plan's own EDITED files table.
+- **`BookingActionButton.tsx` — genuinely OUTSIDE the plan; Owner authorised a copy-only fix** (2026-07-28) and **deliberately declined an Undo affordance** on that control. It stays the one cancel control of three without Undo. That is a decision, not an oversight; the reasoning is recorded in the file.
+
+### Test-design note worth keeping
+`quickUpdateBookingCancel.test.ts` deliberately mocks **`@/lib/email/client`** rather than `@/lib/email/notifications`. Mocking notifications would make every queued-row assertion unreachable — the only assertable fact would be "an option object was passed", which cannot distinguish a working undo window from a broken one. Because `client.ts` is the sole Resend touchpoint, the provider boundary stays closed structurally **and** the real `sendTrackedEmail` queue branch is now exercised end to end — **this closes part of the "Fix 2 ships untested" gap recorded in §0g.**
+
+### Still logged, not fixed
+- `restoreBooking`'s `MISSING_COLUMN_CODES` fallback for `cancelled_at` is dead code.
+- `RestoreBookingRecord.cancelled_at` is still optional (`actions.ts:92`).
+- The `10` / `10_000` / `"10 seconds"` triple is duplicated across three files with cross-referencing comments rather than a shared constant. `actions.ts` is `"use server"` so it cannot export a non-async binding; a shared home would be `_helpers.ts`.
+- The row's Restore toast claims the client was notified even when `restoreBooking` suppresses that email. Unreachable from the explicit Restore item today.
+- A completed booking reopened via the modal then cancelled in the same save gets an Undo that restores it to `confirmed`, not `completed`.
+- `format.ts`'s `labelForDeliveryStatus` has no entry for the new statuses and does not replace underscores, so they render **"Cancelled_by_restore"** / **"Cancelled_manual"**. Degrades safely; cosmetic.
 
 ---
 
