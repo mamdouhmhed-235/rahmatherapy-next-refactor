@@ -3,6 +3,7 @@
 import {
   useId,
   useMemo,
+  useRef,
   useState,
   useTransition,
 } from "react";
@@ -15,11 +16,16 @@ import {
   AdminStatusBadge,
   type AdminTone,
 } from "../components/admin-ui";
+import { ConfirmActionModal } from "../components/admin-ui-interactions";
 import { BookingActionButton } from "./BookingActionButton";
 import {
   updateBookingManagement,
   type BookingUpdateState,
 } from "./actions";
+import {
+  COMPLETED_REVERSAL_MIN_REASON_LENGTH,
+  isCompletedReversal,
+} from "./_helpers";
 import type { BookingRecord, BookingStatus } from "./types";
 
 interface BookingManagementFormProps {
@@ -63,6 +69,7 @@ interface StatusFormState {
   setPaymentMethod: (value: string) => void;
   paymentNote: string;
   setPaymentNote: (value: string) => void;
+  submit: (formData: FormData) => void;
   handleSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   recomputeDirty: (
     overrides?: Partial<{
@@ -152,7 +159,25 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    submit(new FormData(event.currentTarget));
+    const formData = new FormData(event.currentTarget);
+
+    // While a completed reopen is pending the Save control is the confirm
+    // modal's trigger, so the only way to reach a native submit is implicit
+    // submission (Enter inside a field). Route it back to the modal rather than
+    // firing a request the server guard would reject anyway.
+    if (
+      isCompletedReversal(booking.status, String(formData.get("status") ?? "")) &&
+      formData.get("force_completed_reversal") !== "on"
+    ) {
+      setState({
+        fieldErrors: {
+          status: "Reopening a completed booking needs confirming — use Save status & payment.",
+        },
+      });
+      return;
+    }
+
+    submit(formData);
   }
 
   return {
@@ -165,6 +190,7 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
     setPaymentMethod,
     paymentNote,
     setPaymentNote,
+    submit,
     handleSubmit,
     recomputeDirty,
     initial,
@@ -440,13 +466,18 @@ function PaymentNoteDisclosure({
 function StatusSaveButton({
   dirty,
   isPending,
-}: {
+  type = "submit",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
   dirty: boolean;
   isPending: boolean;
 }) {
+  // `...props` matters: as the reopen-confirm modal's trigger this button is
+  // cloned by Base UI, which hands it the click handler that opens the dialog.
   return (
     <AdminButton
-      type="submit"
+      {...props}
+      type={type}
       variant="primary"
       loading={isPending}
       disabled={!dirty}
@@ -457,6 +488,62 @@ function StatusSaveButton({
     >
       Save status &amp; payment
     </AdminButton>
+  );
+}
+
+/**
+ * Step 4b (C-04a Phase B) — the Save control becomes this modal's trigger the
+ * moment the Status select leaves `completed`. Confirming re-submits the same
+ * form with the two fields `updateBookingManagement`'s state-machine guard
+ * demands. Brief §4.3.
+ */
+function ReopenCompletedModal({
+  targetStatus,
+  dirty,
+  isPending,
+  onConfirm,
+}: {
+  targetStatus: BookingStatus;
+  dirty: boolean;
+  isPending: boolean;
+  onConfirm: (reason: string) => void;
+}) {
+  const reasonId = useId();
+  const [reason, setReason] = useState("");
+
+  return (
+    <ConfirmActionModal
+      title="Reopen this completed booking?"
+      description="Reopening a completed booking is unusual. The audit log will show why. Provide a brief reason."
+      confirmLabel="Reopen booking"
+      cancelLabel="Cancel"
+      destructive={false}
+      onConfirm={() => onConfirm(reason)}
+      trigger={
+        <StatusSaveButton type="button" dirty={dirty} isPending={isPending} />
+      }
+    >
+      <div className="grid gap-1.5">
+        <label
+          htmlFor={reasonId}
+          className="text-sm font-medium text-[var(--admin-heading)]"
+        >
+          Reason for reopening
+        </label>
+        <textarea
+          id={reasonId}
+          rows={3}
+          value={reason}
+          onChange={(event) => setReason(event.currentTarget.value)}
+          placeholder="e.g. client returned for retreat"
+          className={textareaClass(false)}
+        />
+        <p className="text-xs text-[var(--admin-text-muted)]">
+          Min {COMPLETED_REVERSAL_MIN_REASON_LENGTH} characters. Status will
+          change from Completed to {STATUS_LABELS[targetStatus]}.
+        </p>
+      </div>
+    </ConfirmActionModal>
   );
 }
 
@@ -473,6 +560,7 @@ const LIFECYCLE_STEPS: Array<{
 
 function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
   const form = useStatusForm(booking);
+  const formRef = useRef<HTMLFormElement>(null);
   const statusId = useId();
   const paymentStatusId = useId();
   const paymentMethodId = useId();
@@ -481,8 +569,18 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
   const [paymentStatusValue, setPaymentStatusValue] = useState(
     booking.payment_status
   );
+  const [statusValue, setStatusValue] = useState<BookingStatus>(booking.status);
   const paidWithZero =
     paymentStatusValue === "paid" && Number(form.amountPaid) === 0;
+  const reopeningCompleted = isCompletedReversal(booking.status, statusValue);
+
+  function confirmReopen(reason: string) {
+    if (!formRef.current) return;
+    const formData = new FormData(formRef.current);
+    formData.set("force_completed_reversal", "on");
+    formData.set("completed_reversal_reason", reason);
+    form.submit(formData);
+  }
 
   const stepIndex = LIFECYCLE_STEPS.findIndex(
     (step) => step.key === booking.status
@@ -555,6 +653,7 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
 
       <form
         id="booking-status-form"
+        ref={formRef}
         onSubmit={form.handleSubmit}
         className="grid gap-5"
       >
@@ -576,12 +675,14 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
             <Select
               id={statusId}
               name="status"
-              defaultValue={booking.status}
+              value={statusValue}
               disabled={form.isPending}
               hasError={Boolean(form.state.fieldErrors?.status)}
-              onChange={(e) =>
-                form.recomputeDirty({ status: e.currentTarget.value })
-              }
+              onChange={(e) => {
+                const next = e.currentTarget.value as BookingStatus;
+                setStatusValue(next);
+                form.recomputeDirty({ status: next });
+              }}
             >
               <option value="pending">Pending</option>
               <option value="confirmed">Confirmed</option>
@@ -669,7 +770,16 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
         />
 
         <div className="mt-1 flex flex-wrap justify-end gap-2 border-t border-[var(--admin-border)] pt-4">
-          <StatusSaveButton dirty={form.dirty} isPending={form.isPending} />
+          {reopeningCompleted ? (
+            <ReopenCompletedModal
+              targetStatus={statusValue}
+              dirty={form.dirty}
+              isPending={form.isPending}
+              onConfirm={confirmReopen}
+            />
+          ) : (
+            <StatusSaveButton dirty={form.dirty} isPending={form.isPending} />
+          )}
         </div>
       </form>
     </AdminPanel>

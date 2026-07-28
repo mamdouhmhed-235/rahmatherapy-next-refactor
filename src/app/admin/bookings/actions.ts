@@ -29,7 +29,12 @@ import {
   getClaimAssignmentEligibility,
   getStaffAssignmentPreviews,
 } from "./assignment-eligibility";
-import { isBookingMomentPastLondon, isRestoreWindowExpired } from "./_helpers";
+import {
+  COMPLETED_REVERSAL_MIN_REASON_LENGTH,
+  isBookingMomentPastLondon,
+  isCompletedReversal,
+  isRestoreWindowExpired,
+} from "./_helpers";
 import type { AssignmentStatus, BookingStatus, PaymentMethod, PaymentStatus } from "./types";
 
 export interface BookingUpdateState {
@@ -206,6 +211,34 @@ export async function updateBookingManagement(
 
   if (!beforeState) return { error: "Booking not found." };
 
+  // State-machine guard (C-04a Phase B): leaving `completed` is a
+  // mistake-correction path, not a routine status edit, so it needs the Status
+  // form's confirm modal to send an explicit force flag plus a reason. Every
+  // other transition — including the notes forms, which re-post the booking's
+  // own status unchanged — passes straight through.
+  const completedReversalReason = String(
+    formData.get("completed_reversal_reason") ?? ""
+  ).trim();
+
+  if (isCompletedReversal(beforeState.status, status)) {
+    if (formData.get("force_completed_reversal") !== "on") {
+      return {
+        error: "Reopening a completed booking requires confirmation.",
+        fieldErrors: {
+          status: "Use Restore on the next-action strip — or confirm via the modal.",
+        },
+      };
+    }
+    if (completedReversalReason.length < COMPLETED_REVERSAL_MIN_REASON_LENGTH) {
+      return {
+        error: "Reopening a completed booking requires a reason.",
+        fieldErrors: {
+          completed_reversal_reason: `Provide a reason (min ${COMPLETED_REVERSAL_MIN_REASON_LENGTH} chars).`,
+        },
+      };
+    }
+  }
+
   const payload = {
     status,
     payment_status: paymentStatus,
@@ -239,7 +272,11 @@ export async function updateBookingManagement(
     target_type: "bookings",
     target_id: bookingId,
     before_state: beforeState,
-    after_state: data,
+    // The reopen reason only exists once the guard above has accepted it, so
+    // folding it into `after_state` is what makes the audit row explain itself.
+    after_state: completedReversalReason
+      ? { ...data, completed_reversal_reason: completedReversalReason }
+      : data,
   });
 
   if (beforeState.status !== "cancelled" && data.status === "cancelled") {

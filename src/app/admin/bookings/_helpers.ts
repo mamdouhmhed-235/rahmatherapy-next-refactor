@@ -74,3 +74,22 @@ export function isRestoreWindowExpired(booking: {
   if (Number.isNaN(cancelledAt)) return true;
   return Date.now() - cancelledAt > RESTORE_WINDOW_MS;
 }
+
+/**
+ * C-04a Phase B — the reason accompanying a completed reopen has to be at least
+ * this long. Lives here so the Status form's confirm modal and
+ * `updateBookingManagement`'s server guard cannot drift apart.
+ */
+export const COMPLETED_REVERSAL_MIN_REASON_LENGTH = 5;
+
+/**
+ * The one status transition that is a mistake-correction rather than a routine
+ * edit: leaving `completed`. Deliberately NOT S7-windowed — the force flag plus
+ * a reason is the friction. Brief §5.12.
+ */
+export function isCompletedReversal(
+  fromStatus: string,
+  toStatus: string
+): boolean {
+  return fromStatus === "completed" && toStatus !== "completed";
+}
