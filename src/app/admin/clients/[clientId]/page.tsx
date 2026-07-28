@@ -339,8 +339,6 @@ function paymentStatusTone(status: string): AdminTone {
       return "success";
     case "partial":
       return "info";
-    case "refunded":
-      return "restricted";
     case "outstanding":
     case "due":
       return "warning";

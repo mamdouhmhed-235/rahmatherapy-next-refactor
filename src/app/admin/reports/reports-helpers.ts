@@ -29,8 +29,6 @@ export const PAYMENT_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "Any payment" },
   { value: "paid", label: "Paid" },
   { value: "unpaid", label: "Outstanding" },
-  { value: "refunded", label: "Refunded" },
-  { value: "waived", label: "Waived" },
 ];
 
 const FIVE_YEARS_MS = 5 * 365 * 24 * 60 * 60 * 1000;

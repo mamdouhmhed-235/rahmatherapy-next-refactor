@@ -435,7 +435,7 @@ export function summarizeReports(data: ReportData) {
     }
 
     if (booking.status === "completed") {
-      completedRevenue += amount(booking.amount_paid || booking.total_price);
+      completedRevenue += amount(booking.amount_paid ?? booking.total_price);
     }
     if (
       ["confirmed", "pending"].includes(booking.status) &&

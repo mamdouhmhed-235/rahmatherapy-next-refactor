@@ -171,10 +171,6 @@ function getOutstandingAmount(bookings: ClientBookingRecord[]) {
   }, 0);
 }
 
-function hasRefund(bookings: ClientBookingRecord[]) {
-  return bookings.some((booking) => booking.payment_status === "refunded");
-}
-
 function todayIso(now: Date): string {
   return now.toISOString().slice(0, 10);
 }
@@ -317,10 +313,8 @@ function matchesFilters({
 
   if (payment) {
     const outstanding = getOutstandingAmount(bookings);
-    const refunded = hasRefund(bookings);
-    if (payment === "in_good_standing" && (outstanding > 0 || refunded)) return false;
+    if (payment === "in_good_standing" && outstanding > 0) return false;
     if (payment === "outstanding" && outstanding <= 0) return false;
-    if (payment === "refund_issued" && !refunded) return false;
   }
 
   if (source) {
@@ -359,7 +353,7 @@ function parseLifecycle(value: string): string {
 }
 
 function parsePayment(value: string): string {
-  return ["in_good_standing", "outstanding", "refund_issued"].includes(value) ? value : "";
+  return ["in_good_standing", "outstanding"].includes(value) ? value : "";
 }
 
 function parsePage(value: string | undefined): number {
@@ -755,7 +749,6 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
             <option value="">Any payment</option>
             <option value="in_good_standing">In good standing</option>
             <option value="outstanding">Has outstanding</option>
-            <option value="refund_issued">Refund issued</option>
           </FilterSelect>
         </FilterField>
         <FilterField label="Location" htmlFor="location">
@@ -1137,7 +1130,6 @@ function buildShowDeletedHref(
 function formatPaymentLabel(value: string): string {
   if (value === "in_good_standing") return "In good standing";
   if (value === "outstanding") return "Has outstanding";
-  if (value === "refund_issued") return "Refund issued";
   return value;
 }
 
@@ -1300,7 +1292,6 @@ function FilterFields({
           <option value="">Any payment</option>
           <option value="in_good_standing">In good standing</option>
           <option value="outstanding">Has outstanding</option>
-          <option value="refund_issued">Refund issued</option>
         </FilterSelect>
       </FilterField>
       <FilterField label="Location" htmlFor={`location-${idSuffix}`}>

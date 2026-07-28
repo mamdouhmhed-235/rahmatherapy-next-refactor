@@ -165,6 +165,53 @@ describe("reporting metrics", () => {
     expect(summary.participantCount).toBe(2);
   });
 
+  // C-04a / W09 B-148. completedRevenue used `||`, which falls through on 0:
+  // a completed booking settled out-of-band down to £0 was still counted at
+  // its booked price, overstating collected revenue.
+  it("counts a completed booking with amount_paid = 0 as 0, not its total_price", () => {
+    const summary = summarizeReports(
+      reportData({
+        bookings: [
+          {
+            id: "booking-paid-down-to-zero",
+            client_id: "client-a",
+            booking_date: "2026-06-10",
+            status: "completed",
+            payment_status: "paid",
+            total_price: 80,
+            amount_due: 80,
+            amount_paid: 0,
+          },
+        ] as ReportData["bookings"],
+      })
+    );
+
+    expect(summary.completedRevenue).toBe(0);
+  });
+
+  // The other half of the same guard: the fallback must survive, so the fix
+  // cannot be "simplified" to amount(booking.amount_paid).
+  it("falls back to total_price for a completed booking whose amount_paid was never recorded", () => {
+    const summary = summarizeReports(
+      reportData({
+        bookings: [
+          {
+            id: "booking-no-payment-recorded",
+            client_id: "client-a",
+            booking_date: "2026-06-10",
+            status: "completed",
+            payment_status: "unpaid",
+            total_price: 80,
+            amount_due: 80,
+            amount_paid: null,
+          },
+        ] as ReportData["bookings"],
+      })
+    );
+
+    expect(summary.completedRevenue).toBe(80);
+  });
+
   it("attributes group booking revenue by participant item instead of duplicating full booking value per staff member", () => {
     const staffRevenue = getStaffRevenueAttribution(
       reportData({

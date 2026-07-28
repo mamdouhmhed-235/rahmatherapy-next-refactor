@@ -44,13 +44,10 @@ describe("PAYMENT_OPTIONS", () => {
   it("includes the empty-default 'Any payment' option for the select control", () => {
     expect(PAYMENT_OPTIONS[0]).toEqual({ value: "", label: "Any payment" });
   });
-  it("covers the 4 real payment statuses (paid, unpaid, refunded, waived)", () => {
-    expect(PAYMENT_OPTIONS.slice(1).map((opt) => opt.value)).toEqual([
-      "paid",
-      "unpaid",
-      "refunded",
-      "waived",
-    ]);
+  // C-04a: refunded + waived were never in the canonical PAYMENT_STATUSES
+  // (["paid", "unpaid"]) — selecting them always returned zero rows. Removed.
+  it("covers the 2 real payment statuses (paid, unpaid)", () => {
+    expect(PAYMENT_OPTIONS.slice(1).map((opt) => opt.value)).toEqual(["paid", "unpaid"]);
   });
 });
 
