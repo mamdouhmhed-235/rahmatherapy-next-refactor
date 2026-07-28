@@ -5,8 +5,58 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: All 8 phases have code. A–G verified. **PHASE H IS NOT INDEPENDENTLY VERIFIED.**
-> **Last good commit:** `40c58e9` · **NEXT ACTION: run the Phase H verification** (see §0i — the script is saved and re-runnable). Then the §3 closeout gate, the checklist row, and the ⛔ Cloudflare deploy.
+> ## ⏸ STATUS: All 8 phases coded. **A–H all independently verified.** Phase H failed, was fixed, and a further blocker (dead row menu) was found and fixed. §3.1 static gates pass. **§3.2/§3.3 require admin sign-in and are OWNER-PERFORMED — see §0k.**
+> **Last good commit:** `c40adee` · **NEXT ACTION:** Owner runs the §0k checklist. Then the ⛔ Cloudflare deploy.
+
+---
+
+## 0j — PHASE H VERIFIED (FAIL → FIXED) + A BLOCKER NOBODY HAD SEEN
+
+The 3-lens verification returned **FAIL on all three lenses**. Two blockers, both fixed in `e6f29c2`; a third, larger defect was found *by the implementer* and fixed in `c40adee`.
+
+### BLOCKER 1 — the Status form left `cancelled` without sweeping the queued email
+`updateBookingManagement` had no guard on `cancelled → anything`, and the `<Select>` renders all five statuses unconditionally. Admin cancels via the Status form → queued row created → at t≈15s the toast is gone, so the admin does the obvious thing on that page: dropdown → Confirmed → Save. `isCancellationTransition` is false, so **no email logic ran at all** — the queued row survived and the cron sent the customer *"your booking is cancelled"* **for a booking that is live**. Exposure 10s–~70s. Phase H's own comment claimed that path was closed.
+**Fixed:** that transition now sweeps the queued row with `restoreBooking`'s exact filters and clears the stale `cancelled_at`. **Deliberately does NOT add S6/S7 gating or delegate to `restoreBooking`** — either would remove an existing admin escape hatch, which is a separate Owner decision. Email hole only.
+
+### BLOCKER 2 — Undo offered where S6 guarantees refusal
+`showCancel` has no past-moment condition, so a past-dated booking can be cancelled (routine: recording a late cancellation). The toast then offered Undo; `undoCancellation` bypassed `runQuickAction` and so missed the S6 short-circuit two functions away. `restoreBooking` refused, the customer's cancellation still sent, and the booking became permanently unrestorable. **Fixed:** both components now decide S6 *before* building the toast and omit the Undo action entirely when it would be refused.
+
+### BLOCKER 3 (found by the implementer, not the verifiers) — **the row menu's Cancel and Restore were DEAD**
+Phase G's headline deliverable could not be clicked. Two independent mechanisms, either fatal alone: the trigger's `setMenuOpen(false)` unmounted the dialog with the menu, and the portalled dialog tripped the component's own click-outside handler.
+**Attribution:** at `c3dfd5c^` the Cancel item was *already* inside `{menuOpen ? …}` with `setMenuOpen(false)` on its trigger — **Cancel is pre-existing dead, predating this programme; Restore inherited the pattern in Phase G.**
+**Fixed locally in `BookingRowActions.tsx` (`c40adee`) — the shared `ConfirmActionModal` was NOT touched**, so its other usages across 15 files are unaffected by construction. Triggers no longer self-close; both document handlers stand down while a menu item's dialog is open, detected via the ARIA-standard `[aria-haspopup="dialog"][aria-expanded="true"]` scoped to that row's own container. The primitive is **`@base-ui/react` 1.4.1, not Radix** — the DOM was probed, not assumed. The menu stays mounted behind the dialog but is `aria-hidden` + `data-base-ui-inert`, so it is invisible and unreachable.
+
+**Why it survived Phase G, Phase G's verification, and Phase H: nothing anywhere rendered `BookingRowActions`.** There is now a spec — 8 cases that fail against the old code and pass against the new, including a dismissal canary so "repair by making every click confirm" cannot pass. The implementer also caught **vacuity in its own specs**: with the confirm click dead, two assertions passed trivially because `lastToastOptions()` was `undefined` either way. Non-vacuity assertions were added first.
+
+### Also corrected in these rounds
+- **"in 10 seconds" was wrong by up to ~60s** — the cron is minute-granularity, so the true delay is 10–70s. All five user-facing strings reworded to name no number.
+- **"The client has been notified."** on four Restore paths became routinely false at Phase H (the sweep suppresses that email inside the undo window). Reworded; `restoreBooking`'s return shape deliberately unchanged.
+- The nine duplicated delay values collapsed to `CANCELLATION_UNDO_DELAY_SECONDS` / `CANCELLATION_UNDO_TOAST_MS` in `_helpers.ts`, the toast now deliberately **shorter** than the delay.
+
+**Final gates at `c40adee`: tsc 0 · vitest 5 failed / 749 passed / 754, the five inherited names by identity · lint 59E/7W across the same six files · `npm run build` clean.**
+
+---
+
+## 0k — §3 CLOSEOUT: what passed, and what only the OWNER can run
+
+### §3.1 static gates — PASS, with one honest caveat
+`lint` / `tsc` / `vitest` / `build` all pass as above. **`node scripts/measure-admin-bundles.mjs` runs clean but measures only 6 routes — `/admin/dashboard`, `/admin/reports`, `/admin/clients/[clientId]`, `/admin/staff/[staffId]`, `/admin/me`, `/admin/staff/[staffId]/performance`. None is `/admin/bookings` or `/admin/bookings/[bookingId]`.** So the plan's C-04a bundle budget (~2 kB + ~1 kB) is **not actually measured by its own gate**. Gate-design gap, logged; adding the two booking routes to that script's list is a one-line follow-up for a later plan.
+
+### §3.2 / §3.3 — OWNER-PERFORMED, and why
+Both require signing in as four roles. **The agent cannot authenticate — entering passwords is prohibited — so these were never agent-performable.** Earlier notes in this file implied the closeout was blocked on a destructive-test decision; that was a conflation with C-06's closeout. **C-04a's §3 contains no irreversible step** — the only SQL is reversible back-dating of test bookings.
+
+**Recommended fixture: `d8a61721-71ec-419b-a5b9-b711f88d35bd`** — 2026-08-11 19:00, `pending`, client "C06 Closeout NoEmail Test", **`email` and `contact_email` both NULL**, so cancelling it cannot send or queue mail to anyone. It is future-dated (S6 passes) and `pending`, which also exercises the `target_status` fix — an Undo must return it to **`pending`**, not `confirmed`.
+`34cb635d` is the only other future-dated booking and carries the Owner's own real address, so it is **not** a safe fixture for queue testing without explicit approval.
+**Never use `9d55ce2a-7a76-42ed-9166-a33fa66ee7fe`** (Badar — real customer, real email).
+
+**The checklist, in priority order:**
+1. **Row menu Cancel + Restore actually work in a real browser.** This is the `c40adee` repair, and it is jsdom-verified only. `/admin/bookings` → row overflow menu on `d8a61721` → **Cancel** → confirm modal appears → confirm → row shows cancelled. Then the menu again → **Restore booking** → confirm → row returns to **`pending`**.
+2. **Undo toast.** During step 1's cancel, the toast must offer **Undo** (future-dated, so S6 allows it) and must **not** name a number of seconds. Click it → status reverts to `pending`.
+3. **S6 no-Undo.** Back-date a test booking to yesterday via SQL, cancel it, confirm the toast carries **no** Undo and the row menu shows *"No actions available (appointment time has passed)"*.
+4. **The BLOCKER-1 path.** On the detail page: Status → Cancelled → Save; then Status → Confirmed → Save. Confirm via SQL that no `email_delivery_events` row for that booking is left `queued`.
+5. §3.2's role × viewport sweep and §3.3's screenshots as written.
+
+**F-1 is now resolvable and no longer needs the customer manage link.** Phase H stamps `cancelled_at` on admin cancels, so step 1 above produces a future-dated, in-window cancelled booking — which *is* a row that shows a Restore button. Confirm during the sweep.
 
 ---
 
