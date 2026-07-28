@@ -47,11 +47,18 @@ export function isBookingMomentPastLondon(booking: {
  * not UTC's — `getBusinessDate` is the same source the availability and
  * reporting date guards use. The server action and the detail-page button read
  * this one predicate so the button can never offer what the action refuses.
+ *
+ * `now` is injectable for one reason: the London-vs-UTC difference only shows
+ * up between 00:00 and 01:00 London during BST, so a spec has to name that
+ * instant to pin the fix. No caller passes it.
  */
-export function isBookingDateFutureLondon(booking: {
-  booking_date: string | null;
-}): boolean {
-  return String(booking.booking_date ?? "").slice(0, 10) > getBusinessDate();
+export function isBookingDateFutureLondon(
+  booking: {
+    booking_date: string | null;
+  },
+  now = new Date()
+): boolean {
+  return String(booking.booking_date ?? "").slice(0, 10) > getBusinessDate(now);
 }
 
 /**

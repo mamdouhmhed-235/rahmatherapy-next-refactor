@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   sendAssignedStaffBookingChangeEmails,
   sendBookingCancellationEmails,
@@ -7,6 +7,7 @@ import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
 import { quickUpdateBooking } from "../actions";
+import { isBookingDateFutureLondon } from "../_helpers";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -353,6 +354,70 @@ describe("quickUpdateBooking — terminal-state guards", () => {
     );
   });
 
+  // Canary: the completed-reversal guard is scoped to a `completed` SOURCE.
+  // Lose that conjunct and it reads as "any move to a status other than
+  // completed", which refuses the commonest chip on the board — the confirm of
+  // a pending booking — with the rest of this file still green. Future-dated on
+  // purpose: a booking awaiting confirmation normally is, and the W03-E-2
+  // temporal guard must not reach `confirm`.
+  it("still confirms a pending booking and notifies assigned staff", async () => {
+    const stub = stubAdminClient({
+      ...CONFIRMED_BOOKING,
+      status: "pending",
+      booking_date: TOMORROW,
+    });
+
+    expect(await quickUpdateBooking(quickFormData("confirm"))).toEqual({
+      success: true,
+    });
+
+    expect(stub.find("bookings", "update").at(-1)!.payload).toEqual({
+      status: "confirmed",
+    });
+    expect(stub.audit()).toMatchObject({
+      action_type: "booking_quick_confirm",
+      target_id: "booking-1",
+    });
+    expect(stub.audit()!.after_state).toMatchObject({ status: "confirmed" });
+
+    // Not a customer-facing event: the assigned staff hear about it, the client
+    // does not.
+    expect(sendAssignedStaffBookingChangeEmails).toHaveBeenCalledWith(
+      "booking-1",
+      stub.client,
+      "Booking status changed from pending to confirmed."
+    );
+    expect(sendBookingCancellationEmails).not.toHaveBeenCalled();
+  });
+
+  // Canary: the cancelled-source guard is `nextStatus === "completed" &&
+  // beforeState.status === "cancelled"`. Lose the second conjunct and EVERY
+  // "Mark complete" refuses — the whole point of the chip — again with the rest
+  // of this file still green.
+  it("still completes a past-dated confirmed booking and notifies assigned staff", async () => {
+    const stub = stubAdminClient();
+
+    expect(await quickUpdateBooking(quickFormData("complete"))).toEqual({
+      success: true,
+    });
+
+    expect(stub.find("bookings", "update").at(-1)!.payload).toEqual({
+      status: "completed",
+    });
+    expect(stub.audit()).toMatchObject({
+      action_type: "booking_quick_complete",
+      target_id: "booking-1",
+    });
+    expect(stub.audit()!.after_state).toMatchObject({ status: "completed" });
+
+    expect(sendAssignedStaffBookingChangeEmails).toHaveBeenCalledWith(
+      "booking-1",
+      stub.client,
+      "Booking status changed from confirmed to completed."
+    );
+    expect(sendBookingCancellationEmails).not.toHaveBeenCalled();
+  });
+
   // `mark_paid` sets no status, so it must stay reachable from every terminal
   // status — the guards read the payload's status and have nothing to catch.
   it.each(["completed", "no_show"])(
@@ -369,4 +434,37 @@ describe("quickUpdateBooking — terminal-state guards", () => {
       });
     }
   );
+});
+
+// The one hour a day the guard's date source actually matters. 23:30 UTC on
+// 27 July is 00:30 on the 28th in London (BST, UTC+1), so UTC's calendar date
+// is still yesterday: `new Date().toISOString().slice(0, 10)` — the shape this
+// guard replaced — reads a booking dated today as future-dated and refuses
+// "Mark complete" / "Mark no-show" for the first hour of every BST day. Every
+// other fixture in this file derives from `getBusinessDate()` itself, so only a
+// named instant can pin this. The system clock is moved alongside the injected
+// `now` so an implementation that reads the ambient clock is caught too.
+const BST_FIRST_HOUR = new Date("2026-07-27T23:30:00Z");
+
+describe("isBookingDateFutureLondon — London's date, not UTC's", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(BST_FIRST_HOUR);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("does not call today future-dated in the first BST hour of the day", () => {
+    expect(
+      isBookingDateFutureLondon({ booking_date: "2026-07-28" }, BST_FIRST_HOUR)
+    ).toBe(false);
+  });
+
+  it("still calls tomorrow future-dated at that same instant", () => {
+    expect(
+      isBookingDateFutureLondon({ booking_date: "2026-07-29" }, BST_FIRST_HOUR)
+    ).toBe(true);
+  });
 });
