@@ -734,6 +734,33 @@ describe("restoreBooking", () => {
       expect(logged).toHaveBeenCalled();
       logged.mockRestore();
     });
+
+    // The one input on which the audit row could stop being self-describing.
+    // PostgREST always populates `message`, so this shape is defensive rather
+    // than seen in the wild — but under `|| undefined` an empty message became
+    // `undefined`, and the persisted row came out identical to the healthy
+    // "nothing queued, restore email sent" case while the restore email had in
+    // fact been suppressed.
+    it("records a sweep error that carries an empty message", async () => {
+      const stub = stubAdminClient({
+        queuedEmail: { count: null, error: { code: "42501", message: "" } },
+      });
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect(await restoreBooking(restoreFormData())).toEqual({ success: true });
+
+      expect(sendBookingRestoredClientEmail).not.toHaveBeenCalled();
+      // Asserted on the SERIALISED row, not the in-memory object, and that is
+      // the whole guard: `undefined` keeps the key present in JS and drops it
+      // only on the way to the database, so an in-memory assertion would pass
+      // under `||` too and pin nothing. Do not "simplify" this round trip away.
+      const persisted = JSON.parse(
+        JSON.stringify(stub.audit()!.after_state)
+      ) as Record<string, unknown>;
+      expect(persisted).toHaveProperty("cancelled_queued_email_sweep_error", "");
+      expect(logged).toHaveBeenCalled();
+      logged.mockRestore();
+    });
   });
 
   it("requires a booking id", async () => {
