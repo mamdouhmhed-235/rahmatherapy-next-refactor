@@ -157,9 +157,10 @@ async function recomputeBookingAssignmentStatus(
 
 /**
  * C-04a Change 6 — once every assignment on a booking has reached a terminal
- * state, the visit is over and the booking-level status should stop lagging
- * behind it (B-168). Capability-keyed, not role-keyed (brief §2.4): whoever
- * finishes the last assignment triggers this, therapist or not.
+ * state AND at least one of them was actually completed, the visit is over and
+ * the booking-level status should stop lagging behind it (B-168).
+ * Capability-keyed, not role-keyed (brief §2.4): whoever finishes the last
+ * assignment triggers this, therapist or not.
  *
  * Only ever promotes a booking that is neither already terminal nor still in
  * the future. `no_show` counts as terminal — see `TERMINAL_BOOKING_STATUSES`.
@@ -192,7 +193,16 @@ async function autoPromoteBookingFromAssignments(
         assignment.assigned_staff_id &&
         (assignment.status === "completed" || assignment.status === "no_show")
     );
-  if (!allTerminal) return { promoted: false };
+  // The status this promotes to is `completed`, so something has to have been
+  // completed. A mix still promotes — one practitioner stood up, another seen,
+  // and the visit happened (brief §2.4). But a booking where EVERY assignment
+  // was a no-show is a visit nobody attended: recording it as `completed` would
+  // put a visit that never happened into the client's history and the revenue
+  // reports. Left in place for a human to classify.
+  const anyCompleted = assignments.some(
+    (assignment) => assignment.status === "completed"
+  );
+  if (!allTerminal || !anyCompleted) return { promoted: false };
 
   // Two preconditions on the booking itself, refused the same way: silently,
   // because the assignment write that got us here is legitimate and has already
@@ -210,19 +220,34 @@ async function autoPromoteBookingFromAssignments(
   // The WHERE guard is what makes two practitioners finishing at the same
   // moment safe: the second UPDATE matches 0 rows, so only one audit row and
   // one staff email follow (brief §5.4).
+  //
+  // `maybeSingle`, not `single`: 0 rows is the designed outcome of that guard,
+  // and `single` reports it as a PGRST116 error, which would put the normal
+  // race path into the caller's `console.error` and from there into Sentry.
+  // `maybeSingle` leaves `error` null and `data` null, so the two cases below
+  // stay distinguishable and only a genuine failure is reported.
   const { data: promoted, error } = await adminClient
     .from("bookings")
     .update({ status: "completed" })
     .eq("id", bookingId)
     .not("status", "in", TERMINAL_BOOKING_STATUS_FILTER)
     .select("status")
-    .single<{ status: BookingStatus }>();
+    .maybeSingle<{ status: BookingStatus }>();
 
-  if (error || !promoted) {
-    // Errored, or the race guard matched nothing — both are "didn't promote".
-    return { promoted: false, error: error?.message };
-  }
+  if (error) return { promoted: false, error: error.message };
+  // The race guard matched nothing — handled, not a failure.
+  if (!promoted) return { promoted: false };
 
+  // `before_state.status` is the status read a round trip earlier, not the one
+  // the UPDATE actually replaced. If someone confirms the booking in that gap,
+  // this records `pending` where the truth was `confirmed`. Left as-is:
+  // PostgREST cannot return an UPDATE's pre-image (no RETURNING OLD), re-reading
+  // after the write only ever yields `completed`, and tightening the guard to
+  // `.eq("status", bookingNow.status)` would trade the inaccuracy for a lost
+  // promotion — the booking would stay `confirmed` with every assignment closed
+  // and nothing left to re-trigger this. The concurrent writer's own
+  // `booking_management_updated` row carries the true transition with an earlier
+  // timestamp, so the log as a whole stays reconstructable.
   await adminClient.from("audit_logs").insert({
     actor_staff_id: triggeringActorStaffId,
     action_type: "booking_auto_promoted_completed",

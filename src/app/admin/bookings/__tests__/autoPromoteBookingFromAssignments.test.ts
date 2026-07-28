@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { sendAssignedStaffBookingChangeEmails } from "@/lib/email/notifications";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -75,12 +75,6 @@ const OWN_ASSIGNMENT = {
   status: "assigned",
 };
 
-/** What `.single()` returns when the race-guarded UPDATE matches nothing. */
-const NO_ROWS = {
-  code: "PGRST116",
-  message: "JSON object requested, multiple (or no) rows returned",
-};
-
 interface RecordedOp {
   table: string;
   op: "select" | "update" | "insert";
@@ -100,7 +94,9 @@ interface StubResult {
  * `assignments` is the booking's post-update assignment set — both the
  * assignment-status recompute and the auto-promoter read it back by
  * `booking_id`. `promoteMatchesRow: false` models the concurrent-promote race:
- * the WHERE guard finds nothing, so `.single()` comes back empty.
+ * the WHERE guard finds nothing, and `maybeSingle()` reports that as an empty
+ * result rather than an error. `promoteError` models a genuine write failure,
+ * which must still surface.
  *
  * `bookingDate` defaults to a past visit — the ordinary case for a practitioner
  * finishing their work — so only the temporal specs need to name it.
@@ -113,6 +109,7 @@ function stubAdminClient({
     { assigned_staff_id: "staff-Other", status: "no_show" },
   ] as { assigned_staff_id: string | null; status: string }[],
   promoteMatchesRow = true,
+  promoteError = null as string | null,
 } = {}) {
   const ops: RecordedOp[] = [];
 
@@ -135,9 +132,10 @@ function stubAdminClient({
       if (!Object.hasOwn(entry.payload ?? {}, "status")) {
         return { data: null, error: null };
       }
+      if (promoteError) return { data: null, error: { message: promoteError } };
       return promoteMatchesRow
         ? { data: { status: "completed" }, error: null }
-        : { data: null, error: NO_ROWS };
+        : { data: null, error: null };
     }
 
     return { data: null, error: null };
@@ -163,6 +161,8 @@ function stubAdminClient({
       returns: <T,>() =>
         Promise.resolve(resolve(entry) as unknown as { data: T | null; error: unknown }),
       single: <T,>() =>
+        Promise.resolve(resolve(entry) as unknown as { data: T | null; error: unknown }),
+      maybeSingle: <T,>() =>
         Promise.resolve(resolve(entry) as unknown as { data: T | null; error: unknown }),
       then: (
         onFulfilled: (value: StubResult) => unknown,
@@ -223,11 +223,21 @@ function expectNoPromotion(stub: ReturnType<typeof stubAdminClient>) {
 }
 
 describe("autoPromoteBookingFromAssignments", () => {
+  // The caller reports a failed promote through `console.error`; two specs
+  // below turn on whether it fired, so it is silenced and observed rather than
+  // left to write into the test output. `vi.clearAllMocks()` resets its call
+  // history each time without dropping the silencing implementation.
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(getStaffProfile).mockResolvedValue(therapist);
     // Awaited with a `.catch` tail, so it has to be thenable.
     vi.mocked(sendAssignedStaffBookingChangeEmails).mockReset().mockResolvedValue();
+  });
+
+  afterAll(() => {
+    consoleError.mockRestore();
   });
 
   it("promotes a live booking once every assignment is terminal", async () => {
@@ -374,8 +384,9 @@ describe("autoPromoteBookingFromAssignments", () => {
 
   // Two practitioners finishing at the same moment: the second UPDATE's WHERE
   // guard matches nothing, so the second promote writes no audit row and sends
-  // no second email (brief §5.4).
-  it("writes nothing when a concurrent promote got there first", async () => {
+  // no second email (brief §5.4). It is also the path that must stay SILENT —
+  // the guard did its job, so nothing here is a failure to report.
+  it("writes nothing and reports nothing when a concurrent promote got there first", async () => {
     const stub = stubAdminClient({ promoteMatchesRow: false });
 
     expect(await updateOwnAssignmentStatus(assignmentFormData("completed"))).toEqual({
@@ -385,13 +396,51 @@ describe("autoPromoteBookingFromAssignments", () => {
     expect(stub.promoteUpdates()).toHaveLength(1);
     expect(stub.auditRows("booking_auto_promoted_completed")).toHaveLength(0);
     expect(sendAssignedStaffBookingChangeEmails).not.toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
   });
 
-  // The hook fires on either terminal assignment status, not just `completed`:
-  // a visit where every practitioner was stood up is still a finished visit.
-  it("also promotes when the last assignment is marked no-show", async () => {
+  // The other half of the same contract: quietening the race must not quieten a
+  // real write failure.
+  it("reports a genuine failure of the promoting UPDATE", async () => {
+    const stub = stubAdminClient({ promoteError: "deadlock detected" });
+
+    expect(await updateOwnAssignmentStatus(assignmentFormData("completed"))).toEqual({
+      success: true,
+    });
+
+    expect(stub.auditRows("booking_auto_promoted_completed")).toHaveLength(0);
+    expect(consoleError).toHaveBeenCalledWith("Auto-promote failed.", "deadlock detected");
+  });
+
+  // The status this promotes to is `completed`, so at least one assignment has
+  // to have been completed. Every practitioner stood up means nobody was seen —
+  // recording that visit as `completed` would put an appointment that never
+  // happened into the client's history and the revenue reports. It stays where
+  // it is for a human to classify.
+  it("does not promote when every assignment was a no-show", async () => {
     const stub = stubAdminClient({
       assignments: [{ assigned_staff_id: therapist.id, status: "no_show" }],
+    });
+
+    expect(await updateOwnAssignmentStatus(assignmentFormData("no_show"))).toEqual({
+      success: true,
+    });
+
+    expect(stub.promoteUpdates()).toHaveLength(0);
+    expect(stub.auditRows("booking_auto_promoted_completed")).toHaveLength(0);
+    expect(sendAssignedStaffBookingChangeEmails).not.toHaveBeenCalled();
+    // Only the promotion is withheld: the practitioner's own write is recorded.
+    expect(stub.auditRows("booking_assignment_no_show")).toHaveLength(1);
+  });
+
+  // The sanctioned mix: one practitioner was stood up, another completed their
+  // work. The visit happened, so the booking still completes.
+  it("still promotes when some but not all assignments are no-shows", async () => {
+    const stub = stubAdminClient({
+      assignments: [
+        { assigned_staff_id: therapist.id, status: "no_show" },
+        { assigned_staff_id: "staff-Other", status: "completed" },
+      ],
     });
 
     await updateOwnAssignmentStatus(assignmentFormData("no_show"));

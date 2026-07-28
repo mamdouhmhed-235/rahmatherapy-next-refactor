@@ -1,4 +1,5 @@
 import { getBusinessDate, toBusinessDateTime } from "@/lib/time/london";
+import type { BookingStatus } from "./types";
 
 /**
  * Shared booking predicates. Deliberately free of server-only imports so the
@@ -137,7 +138,7 @@ export const TERMINAL_BOOKING_STATUSES = [
   "completed",
   "cancelled",
   "no_show",
-] as const;
+] as const satisfies readonly BookingStatus[];
 
 export function isTerminalBookingStatus(status: string): boolean {
   return (TERMINAL_BOOKING_STATUSES as readonly string[]).includes(status);
