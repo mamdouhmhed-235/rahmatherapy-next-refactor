@@ -213,3 +213,31 @@ describe("BookingManagementForm — reopen-completed confirm modal", () => {
     ).not.toBeNull();
   });
 });
+
+// C-04a fix round — the chips must never offer a call `quickUpdateBooking`
+// refuses: `completed` and `cancelled` are terminal for the one-click actions.
+describe("BookingManagementForm — quick actions on terminal statuses", () => {
+  afterEach(cleanup);
+
+  it("offers no live Cancel chip on a completed booking", () => {
+    render(<BookingManagementForm booking={BOOKING} />);
+
+    expect(screen.queryByRole("button", { name: /Cancel booking/i })).toBeNull();
+    // The strip still rendered — only the terminal chip went quiet.
+    expect(screen.getByRole("button", { name: /Mark paid/i })).not.toBeNull();
+  });
+
+  it("offers no live Mark complete chip on a cancelled booking", () => {
+    render(<BookingManagementForm booking={{ ...BOOKING, status: "cancelled" }} />);
+
+    expect(screen.queryByRole("button", { name: /Mark complete/i })).toBeNull();
+    expect(screen.getByRole("button", { name: /Mark paid/i })).not.toBeNull();
+  });
+
+  it("keeps both chips live on a confirmed booking", () => {
+    render(<BookingManagementForm booking={{ ...BOOKING, status: "confirmed" }} />);
+
+    expect(screen.getByRole("button", { name: /Cancel booking/i })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Mark complete/i })).not.toBeNull();
+  });
+});

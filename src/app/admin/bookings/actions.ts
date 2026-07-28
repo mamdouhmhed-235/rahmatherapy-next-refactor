@@ -453,20 +453,6 @@ export async function quickUpdateBooking(formData: FormData) {
 
   if (!beforeState) return { error: "Booking not found." };
 
-  // A no-show records what happened on the day; it is not a back door out of
-  // `completed`. Leaving `completed` is the mistake-correction path Phase B put
-  // behind an explicit force flag plus a reason, and a one-click chip has
-  // nowhere to capture either — so the new action refuses and names the form
-  // that does. Scoped to `no_show` deliberately: plan §2 freezes the existing
-  // confirm/cancel/complete/mark_paid actions, whose own completed-source gap
-  // is logged for the Owner rather than closed here.
-  if (action === "no_show" && isCompletedReversal(beforeState.status, "no_show")) {
-    return {
-      error:
-        "This booking is completed. Reopen it from the Status & payment form, which records a reason.",
-    };
-  }
-
   // W03-E-2 — an outcome cannot be recorded before the day it happens on.
   const isFutureDated = isBookingDateFutureLondon(beforeState);
 
@@ -501,6 +487,32 @@ export async function quickUpdateBooking(formData: FormData) {
       };
     }
     return { error: "Unsupported booking action." };
+  }
+
+  // `completed` and `cancelled` are terminal for the one-click chips: leaving
+  // either is a mistake-correction that owes an explanation, and a chip has
+  // nowhere to capture one — Phase B put reopening a completed booking behind
+  // the Status form's force flag plus a reason, and the same form is the way
+  // back out of `cancelled`. The guard reads the status the write would set
+  // rather than the action name, so it cannot drift from the payload above;
+  // `mark_paid` sets no status and is therefore untouched.
+  // Owner-approved 2026-07-28 as a deviation from plan §2's UNCHANGED list:
+  // `cancel` on a completed booking was one click from a real customer
+  // cancellation email, and `complete` on a cancelled one bypassed restore.
+  const nextStatus = "status" in payload ? payload.status : null;
+
+  if (nextStatus && isCompletedReversal(beforeState.status, nextStatus)) {
+    return {
+      error:
+        "This booking is completed. Reopen it from the Status & payment form, which records a reason.",
+    };
+  }
+
+  if (nextStatus === "completed" && beforeState.status === "cancelled") {
+    return {
+      error:
+        "This booking is cancelled. Reopen it from the Status & payment form before marking it complete.",
+    };
   }
 
   const { data: updatedBooking, error } = await adminClient

@@ -261,17 +261,21 @@ const QUICK_ACTIONS: QuickActionDescriptor[] = [
     doneLabel: "Marked paid",
     isDone: (b) => b.payment_status === "paid",
   },
+  // `completed` and `cancelled` are terminal for the one-click chips (see
+  // `quickUpdateBooking`): reversing either needs a reason the chip cannot
+  // capture, so the affordance disappears rather than offering a call the
+  // server will refuse. Same shape `confirm` already uses.
   {
     action: "complete",
     pendingLabel: "Mark complete",
     doneLabel: "Completed",
-    isDone: (b) => b.status === "completed",
+    isDone: (b) => b.status === "completed" || b.status === "cancelled",
   },
   {
     action: "cancel",
     pendingLabel: "Cancel booking",
     doneLabel: "Cancelled",
-    isDone: (b) => b.status === "cancelled",
+    isDone: (b) => b.status === "cancelled" || b.status === "completed",
     isDestructive: true,
   },
 ];

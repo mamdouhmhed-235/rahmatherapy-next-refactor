@@ -231,24 +231,6 @@ describe("quickUpdateBooking — no-show quick action", () => {
     }
   );
 
-  // The new action must not inherit the completed-source gap the existing
-  // one-click actions carry: leaving `completed` needs the Status form's force
-  // flag plus a reason, and a chip can capture neither.
-  it("refuses to take a completed booking to no-show", async () => {
-    const stub = stubAdminClient({
-      ...CONFIRMED_BOOKING,
-      status: "completed",
-    });
-
-    expect(await quickUpdateBooking(quickFormData("no_show"))).toEqual({
-      error:
-        "This booking is completed. Reopen it from the Status & payment form, which records a reason.",
-    });
-
-    expect(stub.find("bookings", "update")).toHaveLength(0);
-    expect(stub.find("audit_logs", "insert")).toHaveLength(0);
-  });
-
   // Regression canary for plan §2's UNCHANGED list: the temporal guard is
   // scoped to the two outcome actions and must not leak into the frozen ones.
   it("leaves the frozen actions' reach unchanged on a future-dated booking", async () => {
@@ -272,5 +254,94 @@ describe("quickUpdateBooking — no-show quick action", () => {
       error: "Unsupported booking action.",
     });
     expect(stub.find("bookings", "update")).toHaveLength(0);
+  });
+});
+
+// C-04a fix round — Owner-approved 2026-07-28 as a deviation from plan §2's
+// UNCHANGED list. `completed` and `cancelled` are terminal for the one-click
+// chips: `cancel` on a completed booking was live and fired a real customer
+// cancellation email, and `complete` on a cancelled one resurrected it in one
+// click, past Phase B's Status-form guard. Subsumes Phase C's narrower
+// completed → no-show spec.
+describe("quickUpdateBooking — terminal-state guards", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getStaffProfile).mockResolvedValue(owner);
+    vi.mocked(sendAssignedStaffBookingChangeEmails).mockReset().mockResolvedValue();
+    vi.mocked(sendBookingCancellationEmails).mockReset().mockResolvedValue();
+  });
+
+  it.each(["no_show", "cancel", "confirm"])(
+    "refuses %s on a completed booking without writing or sending anything",
+    async (action) => {
+      const stub = stubAdminClient({
+        ...CONFIRMED_BOOKING,
+        status: "completed",
+      });
+
+      expect(await quickUpdateBooking(quickFormData(action))).toEqual({
+        error:
+          "This booking is completed. Reopen it from the Status & payment form, which records a reason.",
+      });
+
+      expect(stub.find("bookings", "update")).toHaveLength(0);
+      expect(stub.find("audit_logs", "insert")).toHaveLength(0);
+      expect(sendBookingCancellationEmails).not.toHaveBeenCalled();
+      expect(sendAssignedStaffBookingChangeEmails).not.toHaveBeenCalled();
+    }
+  );
+
+  it("refuses complete on a cancelled booking without writing or sending anything", async () => {
+    const stub = stubAdminClient({
+      ...CONFIRMED_BOOKING,
+      status: "cancelled",
+    });
+
+    expect(await quickUpdateBooking(quickFormData("complete"))).toEqual({
+      error:
+        "This booking is cancelled. Reopen it from the Status & payment form before marking it complete.",
+    });
+
+    expect(stub.find("bookings", "update")).toHaveLength(0);
+    expect(stub.find("audit_logs", "insert")).toHaveLength(0);
+    expect(sendBookingCancellationEmails).not.toHaveBeenCalled();
+    expect(sendAssignedStaffBookingChangeEmails).not.toHaveBeenCalled();
+  });
+
+  // Canary: the guards key on the source status, so the legal cancel path has
+  // to survive intact — write, audit row and the customer email.
+  it("still cancels a confirmed booking and emails the client", async () => {
+    const stub = stubAdminClient();
+
+    expect(await quickUpdateBooking(quickFormData("cancel"))).toEqual({
+      success: true,
+    });
+
+    expect(stub.find("bookings", "update").at(-1)!.payload).toEqual({
+      status: "cancelled",
+    });
+    expect(stub.audit()).toMatchObject({ action_type: "booking_quick_cancel" });
+    expect(sendBookingCancellationEmails).toHaveBeenCalledWith(
+      "booking-1",
+      stub.client,
+      { initiatedBy: "admin" }
+    );
+  });
+
+  // `mark_paid` sets no status, so it must stay reachable from `completed` —
+  // the guard reads the payload's status and has nothing to catch here.
+  it("still marks a completed booking paid", async () => {
+    const stub = stubAdminClient({
+      ...CONFIRMED_BOOKING,
+      status: "completed",
+    });
+
+    expect(await quickUpdateBooking(quickFormData("mark_paid"))).toEqual({
+      success: true,
+    });
+    expect(stub.find("bookings", "update").at(-1)!.payload).toMatchObject({
+      payment_status: "paid",
+      amount_paid: 55,
+    });
   });
 });
