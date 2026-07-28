@@ -5,10 +5,25 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phases A, B, C, D of 8 landed, **all four independently verified (PASS)**. Phases E–H outstanding.
-> **Last good commit:** `81f0c00` · **Next action:** Phase E (hygiene tail) — the last phase before the ⛔ migration.
+> ## ⏸ STATUS: Phases A–E of 8 landed, **all five independently verified (PASS)**. Phases F, G, H outstanding.
+> **Last good commit:** `065d522` · **Next action:** **Phase F — the ⛔ migration and the ⛔ Cloudflare deploy.** Both Zone-2, orchestrator-only.
 >
-> **Baseline: 5 failed / 704 passed / 709** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
+> **Baseline: 5 failed / 706 passed / 711** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
+>
+> ### Phase E (`065d522`) — verified PASS
+> Dead `refunded`/`waived` filters removed (12 sites, 4 files — including **four the plan's list omits**, found by the grep Step 8 mandates); `reporting.ts:438` `||` → `??`; Step 9 specs.
+>
+> **`reporting.ts` diff is exactly one line — `--numstat` reads `1 1`** — the two-character operator, no comment, no reformat. `:1334`'s byte-identical `||` inside the AUDIT-2026-05-22 Q2-locked `getAvgBookingValue` is **untouched**, as pre-flight contradiction D requires.
+>
+> **⚠️ REVENUE IMPACT — the accurate account.** An earlier report to the Owner overstated this and was corrected. `summary.completedRevenue` has **exactly one runtime consumer**: `src/app/admin/reports/export/route.ts:84`, the `completed_revenue` row of the "Revenue summary" CSV. It is **not** read by the dashboard (`outstandingRevenue`, `repeatClients`, `newClients` only), the report tiles (`collectedRevenue`/`outstandingRevenue`), `report-insights` (`bookingCount`/`outstandingRevenue`) or `PerformanceSurface`. Verified exhaustively, including a check for `...summary` spreads and `Object.keys(summary)` iteration.
+> **Delta £110.00 → £55.00 (−50%)**, from one completed booking (`ae9bb5bd…`, 2026-05-15) with `amount_paid = 0, total_price = 55`, `payment_status = 'unpaid'` — never paid, not refunded. **Invisible on the default view**: default range is the current month and both completed bookings are May 2026, so the default export reads £0 → £0. The change surfaces only on `lifetime`, `year`, Q2 or a custom range covering May 2026.
+> Brief §2.6's *"In production today: 0 such rows visible"* is **false** — pre-flight contradiction E, confirmed twice.
+>
+> **The dead filters were provably dead, not presumed.** Production `payment_status` is only `unpaid` (13) and `paid` (2); **zero** `refunded`/`waived` mentions anywhere in `audit_logs` history, so no booking ever transitioned through them; and `PAYMENT_STATUSES = ["paid","unpaid"]` is enforced server-side, so they could never have been written.
+>
+> **Two-axis canary, isolation confirmed:** reverting `??`→`||` fails only the `amount_paid: 0` spec; dropping the fallback entirely fails only the `amount_paid: null` spec. Each mutation caught by exactly one spec. Note `completedRevenue` had **zero** spec coverage before this commit.
+>
+> **Log-only from Phase E:** `reporting.ts:1327-1328`'s comment now states something false — it claims `getAvgBookingValue` "matches `summarizeReports`' existing `completedRevenue` accumulator", but the two now diverge (`??` vs `||`). Correctly not fixed (only `:438` authorised); `getAvgBookingValue` has **no production consumer**, so the inconsistency is latent. Whoever unblocks `:1334` must update that comment in the same change. Also: `paymentStatusTone`'s `"partial"`/`"outstanding"`/`"due"` cases remain dead but unauthorised to remove (behaviour-neutral whenever someone is); a stale `?payment=refund_issued` bookmark now renders unfiltered instead of permanently empty (strictly better, and anticipated by the plan's own risk table); and the Step 7 spec kept the file's existing `.slice(1)` idiom rather than the plan's literal form — equivalent-or-stronger coverage, recorded as a documented deviation.
 >
 > ### Phase D verification outcome + fix round (`81f0c00`)
 > - **Owner decision:** auto-promote now requires all assignments terminal **AND at least one `completed`**. Previously an all-no-show booking promoted to `completed` — recording a visit nobody attended, and the only path writing `completed` without a human choosing that word. Plan Step 6 permitted it; **brief §2.4 did not** ("ALL assignments have status='completed'"), and Step 6d sanctions only a *mix*. The mixed case still promotes. The spec that enshrined the old behaviour was reversed in place.
