@@ -1,0 +1,48 @@
+-- C-04a — grant UPDATE on public.email_delivery_events to service_role.
+--
+-- WHY THIS EXISTS
+-- Every write path in the app authenticates as `service_role` via
+-- createSupabaseAdminClient (src/lib/supabase/admin.ts), so PostgREST runs
+-- statements as that role. This project grants privileges EXPLICITLY PER TABLE
+-- rather than relying on a blanket `grant all` — see
+-- 20260503094000_phase16_service_role_grants.sql. For this table the ledger was:
+--
+--   20260503170000_phase4_customer_manage_email_readiness.sql  → select, insert
+--   (phase 10)                                                 → delete
+--   20260728073903_c04a_scheduled_emails.sql                   → columns + CHECK, NO grant
+--
+-- UPDATE was never granted. Verified live before writing this file:
+--   has_table_privilege('service_role','public.email_delivery_events','UPDATE') → false
+--   grants: DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE
+-- `service_role` is rolbypassrls = true, so RLS is not the gate — the missing
+-- GRANT is. Corroborating: all 42 existing rows are 'accepted', i.e. no row has
+-- ever changed delivery_status, consistent with UPDATE never once succeeding.
+--
+-- WHAT IT UNBLOCKS
+-- C-04a introduced the first three UPDATEs this table has ever had, and all three
+-- fail 42501 without this grant:
+--   1. src/app/api/cron/scheduled-emails/route.ts — the conditional claim
+--      (`update ... where id = ? and delivery_status = 'queued'`) that decides
+--      whether the cron or a restore owns the row.
+--   2. src/app/api/cron/scheduled-emails/route.ts — the corrective flip to
+--      'failed' when a send throws.
+--   3. src/app/admin/bookings/actions.ts — restoreBooking's sweep to
+--      'cancelled_by_restore', which suppresses the queued cancellation email.
+-- Each discards its error, so without the grant the failure is SILENT: the cron
+-- returns 200 {sent:0, skipped:N, failures:[]} forever and the customer's
+-- cancellation email is never sent. The accompanying code change stops those
+-- errors being discarded; this migration is what makes the writes succeed.
+--
+-- SCOPE
+-- Deliberately one table. The same sweep found public.staff_permission_overrides
+-- also lacks UPDATE, which breaks its `on conflict do update` upsert in
+-- src/app/admin/staff/actions.ts (Postgres requires UPDATE privilege for
+-- ON CONFLICT DO UPDATE whether or not a conflict occurs; the table has 0 rows).
+-- That is outside C-04a and is recorded as a finding, not fixed here.
+--
+-- ROLLBACK
+--   revoke update on public.email_delivery_events from service_role;
+-- Returns the database to exactly its pre-migration state. Additive and
+-- idempotent: re-running the grant is a no-op.
+
+grant update on public.email_delivery_events to service_role;

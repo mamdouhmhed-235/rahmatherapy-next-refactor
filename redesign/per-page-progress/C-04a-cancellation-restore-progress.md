@@ -5,8 +5,48 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phases A–F of 8 landed. A–E independently verified (PASS); **F's MIGRATION IS APPLIED**, F awaits its verifier. Phases G, H outstanding.
-> **Last good commit:** `80c8ee4` · **Next action:** Phase F's verifier, then Phase G. The ⛔ **Cloudflare deploy is still outstanding** — the cron is inert until it happens.
+> ## ⏸ STATUS: Phases A–F of 8 landed. A–E independently verified (PASS). F verified FAIL → fix round `502824a` → re-verified across 3 lenses → **second blocker found (missing GRANT), grant migration applied**; F's code fix round #2 outstanding. Phases G, H outstanding.
+> **Last good commit:** `502824a` · **Next action:** Phase F fix round #2 (error handling). The ⛔ **Cloudflare deploy is still outstanding** — the cron is inert until it happens.
+
+---
+
+## 0f — ⛔ SECOND MIGRATION APPLIED (2026-07-28): the GRANT that makes Phase F work at all
+
+**`service_role` had no UPDATE privilege on `email_delivery_events`.** Found by the Phase F fix round's independent race-lens verifier; confirmed by the orchestrator directly against production before any action.
+
+```
+grants before: DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE   ← no UPDATE
+rolbypassrls = true                                                    ← RLS was never the gate
+```
+
+This project grants **explicitly per table** (`20260503094000_phase16_service_role_grants.sql`); the Supabase blanket `grant all` default is demonstrably not in effect. The ledger for this table was: Phase 4 → `select, insert`; Phase 10 → `delete`; `20260728073903_c04a_scheduled_emails.sql` → columns + CHECK, **no grant**.
+
+**C-04a introduced the first three UPDATEs this table has ever had, and all three were 42501s** — the cron's conditional claim, the cron's corrective flip to `failed`, and `restoreBooking`'s sweep to `cancelled_by_restore`. Each discards its error, so the failure was **silent**: the cron would return `200 {sent:0, skipped:N, failures:[]}` — indistinguishable from healthy — while the customer's cancellation email was never sent, forever. Nothing would reach Sentry, `/admin/emails`, `/admin/operations` or the nav counter.
+
+**Corroborating evidence:** all 42 rows are `accepted`. No row has ever changed `delivery_status` — consistent with UPDATE never once having succeeded.
+
+**Direction-of-travel note (the verifier's sharpest point):** before fix round #1 the cron sent *then* updated, so under the same missing grant the customer received the cancellation (and a duplicate every minute thereafter). Fix round #1 converted a loud failure into a silent total loss. The claim-before-send design is right; it is the grant that makes either version correct.
+
+### Migration
+`supabase/migrations/20260728132043_c04a_grant_update_email_delivery_events.sql` — one statement:
+`grant update on public.email_delivery_events to service_role;`
+Applied by the orchestrator under Owner approval in chat (Zone-2, never a subagent). Additive, idempotent, no data touched, no schema change. **Rollback:** `revoke update on public.email_delivery_events from service_role;` returns the database to exactly its pre-migration state.
+
+### Post-apply verification — live proof, not just a flag
+Ran the UPDATE **as `service_role`** inside a `DO` block against `id = '00000000-…-000000000000'`, a row that cannot exist. Postgres checks privilege independently of row matching, so a 0-row UPDATE proves the grant while mutating nothing. The block completed without raising.
+
+| Check | Result |
+|---|---|
+| `has_table_privilege(service_role, …, UPDATE)` | **true** |
+| grants | `DELETE, INSERT, REFERENCES, SELECT, TRIGGER, TRUNCATE, **UPDATE**` |
+| row count | 42, unchanged |
+| status mix | `accepted=42`, unchanged |
+| `staff_permission_overrides` UPDATE | still **false** — correctly out of scope |
+
+### FINDING LOGGED, NOT FIXED (§1.6(a)) — a second, pre-existing breakage
+The same privilege sweep found **eight** tables without UPDATE for `service_role`. Two are correct by design (`audit_logs` append-only, `permissions` read-only reference). Of the rest, only one is actually written by the app: `src/app/admin/staff/actions.ts:613` upserts `staff_permission_overrides` with `onConflict: "staff_id,permission_id"`. **Postgres requires UPDATE privilege for `ON CONFLICT DO UPDATE` whether or not a conflict occurs**, so every per-staff permission override save fails 42501. The table has **0 rows**, consistent with the feature never once having worked. It fails *loudly* ("Failed to save permission override."), unlike the email case. Owner explicitly scoped the grant to `email_delivery_events` only; this is recorded for a later plan, not fixed here.
+
+**Carry-forward for every remaining plan:** when a plan adds the *first* UPDATE/DELETE/upsert against a table, check `has_table_privilege('service_role', …)` in pre-flight. tsc, lint and vitest are all blind to a missing GRANT, and the app's own error-discarding makes it silent at runtime.
 
 ---
 
