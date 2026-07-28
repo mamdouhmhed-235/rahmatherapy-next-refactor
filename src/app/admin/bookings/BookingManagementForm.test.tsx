@@ -235,11 +235,14 @@ describe("BookingManagementForm — quick actions on terminal statuses", () => {
     expect(screen.getByRole("button", { name: /Mark paid/i })).not.toBeNull();
   });
 
-  it("offers neither chip live on a no-show booking", () => {
+  // Confirm included: a live Confirm chip on a no-show booking was one click
+  // from silently un-doing the no-show, bypassing Restore entirely.
+  it("offers no live status chip on a no-show booking", () => {
     render(<BookingManagementForm booking={{ ...BOOKING, status: "no_show" }} />);
 
     expect(screen.queryByRole("button", { name: /Cancel booking/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /Mark complete/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Confirm booking/i })).toBeNull();
     expect(screen.getByRole("button", { name: /Mark paid/i })).not.toBeNull();
   });
 
@@ -248,5 +251,13 @@ describe("BookingManagementForm — quick actions on terminal statuses", () => {
 
     expect(screen.getByRole("button", { name: /Cancel booking/i })).not.toBeNull();
     expect(screen.getByRole("button", { name: /Mark complete/i })).not.toBeNull();
+  });
+
+  // Over-blocking canary for the Confirm chip: `pending` is the status it exists
+  // for, and widening `isDone` must not reach it.
+  it("keeps the Confirm chip live on a pending booking", () => {
+    render(<BookingManagementForm booking={{ ...BOOKING, status: "pending" }} />);
+
+    expect(screen.getByRole("button", { name: /Confirm booking/i })).not.toBeNull();
   });
 });

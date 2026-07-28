@@ -245,6 +245,11 @@ interface QuickActionDescriptor {
   isDestructive?: boolean;
 }
 
+// `completed`, `cancelled` and `no_show` are terminal for the one-click chips
+// (see `quickUpdateBooking`): leaving any of them needs a reason, or a restore,
+// that the chip cannot capture, so the affordance disappears rather than
+// offering a call the server will refuse. All three status chips carry that
+// same shape; `mark_paid` keys on payment status and is unaffected.
 const QUICK_ACTIONS: QuickActionDescriptor[] = [
   {
     action: "confirm",
@@ -253,7 +258,8 @@ const QUICK_ACTIONS: QuickActionDescriptor[] = [
     isDone: (b) =>
       b.status === "confirmed" ||
       b.status === "completed" ||
-      b.status === "cancelled",
+      b.status === "cancelled" ||
+      b.status === "no_show",
   },
   {
     action: "mark_paid",
@@ -261,10 +267,6 @@ const QUICK_ACTIONS: QuickActionDescriptor[] = [
     doneLabel: "Marked paid",
     isDone: (b) => b.payment_status === "paid",
   },
-  // `completed`, `cancelled` and `no_show` are terminal for the one-click chips
-  // (see `quickUpdateBooking`): reversing any of them needs a reason the chip
-  // cannot capture, so the affordance disappears rather than offering a call
-  // the server will refuse. Same shape `confirm` already uses.
   {
     action: "complete",
     pendingLabel: "Mark complete",

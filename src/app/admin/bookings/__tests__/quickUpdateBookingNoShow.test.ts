@@ -308,10 +308,12 @@ describe("quickUpdateBooking — terminal-state guards", () => {
     expect(sendAssignedStaffBookingChangeEmails).not.toHaveBeenCalled();
   });
 
-  // The third source status, closed in the same shape. `cancel` is the one that
-  // matters most: on a no-show booking the chip was live and one click fired a
-  // real customer cancellation email.
-  it.each(["cancel", "complete"])(
+  // The third source status, closed in the same shape as `completed`: every
+  // move out of it is refused. `cancel` fired a real customer cancellation
+  // email from a live chip; `confirm` silently un-did the no-show, bypassing
+  // `restoreBooking` — its past-moment guard, its `booking_restored` audit
+  // action and its "your booking is back on" client email.
+  it.each(["cancel", "complete", "confirm"])(
     "refuses %s on a no-show booking without writing or sending anything",
     async (action) => {
       const stub = stubAdminClient({
@@ -321,7 +323,7 @@ describe("quickUpdateBooking — terminal-state guards", () => {
 
       expect(await quickUpdateBooking(quickFormData(action))).toEqual({
         error:
-          "This booking is marked no-show. Reopen it from the Status & payment form before cancelling or completing it.",
+          "This booking is marked no-show. Use Restore on the next-action strip to put it back, or the Status & payment form to change it any other way.",
       });
 
       expect(stub.find("bookings", "update")).toHaveLength(0);

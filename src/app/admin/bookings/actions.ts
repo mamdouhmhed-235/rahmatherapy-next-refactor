@@ -499,14 +499,17 @@ export async function quickUpdateBooking(formData: FormData) {
   // therefore untouched.
   //
   // Three branches rather than one expression because the rules genuinely
-  // differ: `completed` refuses every target, while the inert pair refuses only
-  // a move into ANOTHER terminal state — `restoreBooking`, not a chip, owns the
-  // way back to `confirmed`. Each refusal also names its own source status.
+  // differ: `completed` and `no_show` refuse every move out of themselves —
+  // `restoreBooking`, not a chip, owns the way back to `confirmed` — while
+  // `cancelled` is closed here only against `completed`. Each refusal names its
+  // own source status.
   //
   // Owner-approved 2026-07-28 as a deviation from plan §2's UNCHANGED list:
   // `cancel` on a completed booking was one click from a real customer
-  // cancellation email, `complete` on a cancelled one bypassed restore, and
-  // `cancel` on a no-show booking fired that customer email too.
+  // cancellation email, `complete` on a cancelled one bypassed restore,
+  // `cancel` on a no-show booking fired that customer email too, and `confirm`
+  // on a no-show booking silently un-did it — skipping restore's past-moment
+  // guard, its `booking_restored` audit action and its client email.
   const nextStatus = "status" in payload ? payload.status : null;
 
   if (nextStatus && isCompletedReversal(beforeState.status, nextStatus)) {
@@ -523,13 +526,10 @@ export async function quickUpdateBooking(formData: FormData) {
     };
   }
 
-  if (
-    beforeState.status === "no_show" &&
-    (nextStatus === "cancelled" || nextStatus === "completed")
-  ) {
+  if (nextStatus && beforeState.status === "no_show" && nextStatus !== "no_show") {
     return {
       error:
-        "This booking is marked no-show. Reopen it from the Status & payment form before cancelling or completing it.",
+        "This booking is marked no-show. Use Restore on the next-action strip to put it back, or the Status & payment form to change it any other way.",
     };
   }
 
