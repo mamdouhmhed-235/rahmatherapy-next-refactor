@@ -5,8 +5,42 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phases A–E of 8 landed, **all five independently verified (PASS)**. Phases F, G, H outstanding.
-> **Last good commit:** `065d522` · **Next action:** **Phase F — the ⛔ migration and the ⛔ Cloudflare deploy.** Both Zone-2, orchestrator-only.
+> ## ⏸ STATUS: Phases A–F of 8 landed. A–E independently verified (PASS); **F's MIGRATION IS APPLIED**, F awaits its verifier. Phases G, H outstanding.
+> **Last good commit:** `80c8ee4` · **Next action:** Phase F's verifier, then Phase G. The ⛔ **Cloudflare deploy is still outstanding** — the cron is inert until it happens.
+
+---
+
+## 0e — ⛔ MIGRATION APPLIED (2026-07-28) — Owner-approved in chat
+
+Applied to production `twzutkfgqclqurvkmvqz` via `mcp__supabase__apply_migration` by the orchestrator (never a subagent — protocol §1.2). File: `supabase/migrations/20260728073903_c04a_scheduled_emails.sql`.
+
+**Rollback artefact captured first:** `redesign/evidence/C-04a/delivery_status_check-BEFORE.sql` — the live `pg_get_constraintdef` verbatim, plus the exact restore SQL and its precondition (`SELECT DISTINCT delivery_status` must return only accepted/failed/skipped, or the re-ADD fails). That bounds the one destructive statement.
+
+### Post-apply verification — all pass
+| Check | Result |
+|---|---|
+| 5 new `email_delivery_events` columns | **5** |
+| `idx_email_delivery_events_scheduled_pending` | present |
+| CHECK definition | `accepted, failed, skipped, **queued, sent, cancelled_by_restore, cancelled_manual**` |
+| `bookings.cancelled_at` | exists |
+| Backfill | **stamped 1 / unstamped 1** — exactly as projected |
+| **Badar `9d55ce2a`** | **`cancelled_at IS NULL` — untouched, §1.7 held** |
+| Fixture `eaafbb1a` | stamped `2026-05-20 19:24:17+00` |
+| Existing rows | 42, unaffected |
+
+**The `unstamped = 1` is Badar's excluded row, not a backfill miss** — projected before applying, confirmed after.
+
+### Corrections carried into the applied SQL
+- **Backfill 2's action types** (Owner decision 2): `booking_quick_cancel` and `customer_booking_cancelled` added alongside the plan's `booking_management_updated`. As the plan wrote it, it would have stamped **0 of 2** — both live cancelled bookings were cancelled via the quick action.
+- **Idempotency** (orchestrator decision 5): `IF NOT EXISTS` throughout, `DROP CONSTRAINT IF EXISTS` before the re-add, both backfills guarded on `cancelled_at IS NULL`. The plan's bare `ADD COLUMN` would not have survived a re-apply.
+- **DO-NOT-TOUCH exclusion** on **both** backfills, with the §1.7 rationale written into the file. Backfill 1 stamps 0 rows today, but the zero is a property of current data, not of the statement — carrying the clause makes "this migration never writes to `9d55ce2a`" a property of the file.
+
+### Still outstanding after this migration
+- **⛔ The Cloudflare deploy has NOT happened.** `wrangler.jsonc` carries `"* * * * *"` but the cron is **inert** until deployed; queued rows must be drained by manual curl in the interim. **That deploy will also silently apply C-22's `RateLimiter` Durable Object migration** — its approval text must say so.
+- **F-1 is NOT resolved.** Both cancelled bookings remain S6-past and S7-expired, so **no production booking shows a Restore button** even now. Do not expect one at the closeout sweep.
+- Phase F code found that the plan's cron route imports `{ resend, senderAddress } from "@/lib/email/resend"` — **a module that does not exist**. The repo's wrapper is `sendEmail` from `@/lib/email/client`. The plan's code would not have compiled.
+- The cron marks a row `failed` **terminally** on any send throw, including `EmailConfigurationError` or a transient Resend 429/5xx — up to 50 queued cancellation emails burned with no retry. Plan-specified and matching `booking-reminders`' existing shape, so pattern-level rather than new. Cron-sent rows also record no `provider_message_id`, and failures no `error_message` and no `recordOperationalEvent`, so a failed scheduled send is invisible on `/admin/operations`.
+- `tsconfig.json` **excludes `worker-entrypoint.ts`**, so the plan's Step 12 claim that it is covered by the tsc pass is false. eslint does cover it.
 >
 > **Baseline: 5 failed / 706 passed / 711** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
 >
