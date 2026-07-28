@@ -107,12 +107,12 @@ Still lacking `service_role` UPDATE: `blocked_dates`, `insight_dismissals`, `sta
 
 ## 5 — Model routing (Owner-locked, 2026-07-28)
 
-**Session model: Opus 5** (the Owner sets it via `/model` before issuing the goal). Rationale: the orchestrator is the one node with no independent check — judgment lives at the top; the token bulk lives in the workers, which run Sonnet. **Because the session model is Opus, inheritance means Opus — therefore EVERY dispatched agent MUST carry an explicit `model` parameter; never rely on inheritance.** Belt-and-braces: the Owner may also set `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` so any accidentally-unpinned agent defaults to Sonnet, with the routing table's explicit `opus` pins overriding it.
+**Session model: Sonnet 5** (Owner-locked 2026-07-28; the Owner sets it via `/model` before issuing the goal). Rationale: the protocol + refined plans make orchestration prescriptive — the orchestrator's default under any ambiguity is STOP-and-ask, which is safe; correctness rides on the layered checks (independent phase verification, adversarial closeout review, Opus drift checkpoints, escalation, HARD-STOPs, the Owner's end review), not on the coordinator's brilliance. Agents inherit Sonnet unless the table below pins `opus`.
 
-**Routing table (explicit `model` on every dispatch):**
+**Routing table:**
 - **Implementer agents `model: opus`** for exactly these plans: **C-06** (RPC rewrite + highest-blast-radius migration), **C-04a** (largest plan; cron/delayed-email infrastructure), **C-11** (system-wide theming; public-flip risk lives here), **C-02** (greenfield schema + 2 RPCs + horizon cron), **C-23** (live public availability engine), **C-14** (live engine + atomic co-deploy migration).
-- **Implementer agents `model: sonnet`** for all other plans: C-21, C-22, C-05, C-01, C-FIELDWORK, C-08, C-15, C-13, C-09, C-03, C-07, C-16, C-17, C-18, C-19, C-20, C-10.
-- **All phase verifiers and closeout adversarial reviewers: `model: sonnet`, high effort** (they judge against plan text, not from taste — Sonnet keeps the check cheap and independent).
+- **Implementer agents inherit Sonnet** for all other plans: C-21, C-22, C-05, C-01, C-FIELDWORK, C-08, C-15, C-13, C-09, C-03, C-07, C-16, C-17, C-18, C-19, C-20, C-10.
+- **All phase verifiers and closeout adversarial reviewers: Sonnet, high effort** (they judge against plan text, not from taste — Sonnet keeps the check cheap and independent).
 - **The 4 programme drift checkpoints (§2.6): `model: opus`** — programme-wide judgment, 4 total, worth the spend.
 
 **Escalation rule (self-healing):** if a Sonnet-implemented phase fails its verify round twice, re-dispatch that ONE phase's implementer on `opus` with both failure reports attached, re-verify; still failing → STOP. Log every escalation in the progress file (plan, phase, reason).
