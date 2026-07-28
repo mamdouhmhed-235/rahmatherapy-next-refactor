@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
+  Clock,
   Info,
   Mail,
   PoundSterling,
@@ -52,10 +53,12 @@ import {
 } from "../assignment-eligibility";
 import {
   getCancellationMoment,
+  isBookingDateFutureLondon,
   isBookingMomentPastLondon,
   isRestoreWindowExpired,
 } from "../_helpers";
 import {
+  MarkNoShowButton,
   NextActionButton,
   type RestoreContext,
 } from "./NextActionButton";
@@ -1093,6 +1096,7 @@ const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   booking_quick_mark_paid: "Marked paid",
   booking_quick_cancel: "Cancelled",
   booking_quick_complete: "Marked complete",
+  booking_quick_no_show: "Marked no-show",
   booking_assignment_claimed: "Claimed by therapist",
   booking_assignment_unassigned: "Therapist removed",
   booking_assignment_reassigned: "Reassigned",
@@ -1222,11 +1226,9 @@ function shortRef(id: string) {
 
 type NextActionTone = "info" | "warning" | "success" | "default" | "danger";
 
-interface NextActionTrigger {
-  kind: "restore_booking";
-  label: string;
-  targetStatus: BookingStatus;
-}
+type NextActionTrigger =
+  | { kind: "restore_booking"; label: string; targetStatus: BookingStatus }
+  | { kind: "mark_no_show"; label: string };
 
 interface NextAction {
   tone: NextActionTone;
@@ -1357,6 +1359,26 @@ function deriveNextAction(booking: BookingRecord): NextAction | null {
   }
 
   const outstanding = computeOutstanding(booking);
+
+  // C-04a Phase C (B-117) — once the booking's day has arrived, the operative
+  // next step is recording what happened, so the strip carries the no-show
+  // shortcut. Date-only, matching `quickUpdateBooking`'s server guard exactly:
+  // the button never offers a call the action would refuse.
+  if (!isBookingDateFutureLondon(booking)) {
+    const startedAlready = isBookingMomentPastLondon(booking);
+    return {
+      tone: "info",
+      icon: Clock,
+      headline: "Ready to mark complete.",
+      hint: `${startedAlready ? "The booking was at" : "The booking starts at"} ${formatTime(booking.start_time)}. Mark it complete in Status & payment, or record a no-show.`,
+      numeral:
+        outstanding > 0
+          ? { value: formatMoney(outstanding), suffix: "outstanding" }
+          : undefined,
+      action: { kind: "mark_no_show", label: "Mark no-show" },
+    };
+  }
+
   if (fullyAssigned && outstanding > 0) {
     return {
       tone: "info",
@@ -1505,19 +1527,23 @@ function NextActionStrip({
       ) : null}
       {action.action ? (
         <div className="min-w-0 sm:shrink-0">
-          <NextActionButton
-            bookingId={bookingId}
-            fromStatus={fromStatus}
-            targetStatus={action.action.targetStatus}
-            label={action.action.label}
-            context={
-              restoreContext ?? {
-                customerNote: null,
-                cancelledByName: null,
-                cancelledAtLabel: null,
+          {action.action.kind === "mark_no_show" ? (
+            <MarkNoShowButton bookingId={bookingId} label={action.action.label} />
+          ) : (
+            <NextActionButton
+              bookingId={bookingId}
+              fromStatus={fromStatus}
+              targetStatus={action.action.targetStatus}
+              label={action.action.label}
+              context={
+                restoreContext ?? {
+                  customerNote: null,
+                  cancelledByName: null,
+                  cancelledAtLabel: null,
+                }
               }
-            }
-          />
+            />
+          )}
         </div>
       ) : null}
     </section>

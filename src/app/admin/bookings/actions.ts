@@ -31,6 +31,7 @@ import {
 } from "./assignment-eligibility";
 import {
   COMPLETED_REVERSAL_MIN_REASON_LENGTH,
+  isBookingDateFutureLondon,
   isBookingMomentPastLondon,
   isCompletedReversal,
   isRestoreWindowExpired,
@@ -452,6 +453,23 @@ export async function quickUpdateBooking(formData: FormData) {
 
   if (!beforeState) return { error: "Booking not found." };
 
+  // A no-show records what happened on the day; it is not a back door out of
+  // `completed`. Leaving `completed` is the mistake-correction path Phase B put
+  // behind an explicit force flag plus a reason, and a one-click chip has
+  // nowhere to capture either — so the new action refuses and names the form
+  // that does. Scoped to `no_show` deliberately: plan §2 freezes the existing
+  // confirm/cancel/complete/mark_paid actions, whose own completed-source gap
+  // is logged for the Owner rather than closed here.
+  if (action === "no_show" && isCompletedReversal(beforeState.status, "no_show")) {
+    return {
+      error:
+        "This booking is completed. Reopen it from the Status & payment form, which records a reason.",
+    };
+  }
+
+  // W03-E-2 — an outcome cannot be recorded before the day it happens on.
+  const isFutureDated = isBookingDateFutureLondon(beforeState);
+
   const amountDue = Number(beforeState.amount_due ?? beforeState.total_price ?? 0);
   const payload =
     action === "confirm"
@@ -466,10 +484,24 @@ export async function quickUpdateBooking(formData: FormData) {
         : action === "cancel"
           ? { status: "cancelled" as BookingStatus }
           : action === "complete"
-            ? { status: "completed" as BookingStatus }
-            : null;
+            ? isFutureDated
+              ? null
+              : { status: "completed" as BookingStatus }
+            : action === "no_show"
+              ? isFutureDated
+                ? null
+                : { status: "no_show" as BookingStatus }
+              : null;
 
-  if (!payload) return { error: "Unsupported booking action." };
+  if (!payload) {
+    if (isFutureDated && (action === "complete" || action === "no_show")) {
+      return {
+        error:
+          "This booking is in the future. Mark complete or no-show after the appointment time.",
+      };
+    }
+    return { error: "Unsupported booking action." };
+  }
 
   const { data: updatedBooking, error } = await adminClient
     .from("bookings")

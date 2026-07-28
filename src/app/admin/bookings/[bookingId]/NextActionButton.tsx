@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { AdminButton } from "../../components/admin-ui";
 import { ConfirmActionModal } from "../../components/admin-ui-interactions";
-import { restoreBooking } from "../actions";
+import { quickUpdateBooking, restoreBooking } from "../actions";
 import type { BookingStatus } from "../types";
 
 const STATUS_WORDS: Record<BookingStatus, string> = {
@@ -109,6 +109,87 @@ export function NextActionButton({
           <li>The client will be emailed to say the booking is back on.</li>
           <li>Assigned staff will be notified.</li>
           <li>Audit log records the restore.</li>
+        </ul>
+        {error ? (
+          <div
+            role="alert"
+            aria-live="polite"
+            aria-atomic="true"
+            className="rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-2 text-sm text-[oklch(26%_0.14_25)]"
+          >
+            {error}
+          </div>
+        ) : null}
+      </div>
+    </ConfirmActionModal>
+  );
+}
+
+/**
+ * C-04a Phase C (B-117) — the day-of shortcut. The therapist rings in, the
+ * client never showed, and the admin should not have to open the full Status &
+ * payment form to record it. The server's own date guard is the authority; the
+ * strip only offers the button once the booking's day has arrived.
+ */
+export function MarkNoShowButton({
+  bookingId,
+  label,
+}: {
+  bookingId: string;
+  label: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function runMarkNoShow() {
+    setError(null);
+    const formData = new FormData();
+    formData.set("booking_id", bookingId);
+    formData.set("action", "no_show");
+
+    return new Promise<void>((resolve) => {
+      startTransition(async () => {
+        const result = await quickUpdateBooking(formData);
+
+        if (result.error) {
+          setError(result.error);
+          toast.error(result.error);
+          resolve();
+          return;
+        }
+
+        toast.success("Marked as no-show.");
+        router.refresh();
+        resolve();
+      });
+    });
+  }
+
+  return (
+    <ConfirmActionModal
+      title="Mark this booking as no-show?"
+      confirmLabel="Mark no-show"
+      cancelLabel="Cancel"
+      destructive={false}
+      onConfirm={runMarkNoShow}
+      trigger={
+        <AdminButton
+          variant="outline"
+          icon={<UserX className="size-4" aria-hidden="true" />}
+          loading={isPending}
+          className="min-h-11 w-full sm:min-h-10 sm:w-auto"
+        >
+          {label}
+        </AdminButton>
+      }
+    >
+      <div className="space-y-3">
+        <ul className="list-disc space-y-1 pl-5 text-sm leading-6 text-[var(--admin-text-muted)]">
+          <li>Status changes to no-show.</li>
+          <li>Recorded for your records and reports.</li>
+          <li>Assigned staff are notified.</li>
+          <li>The client is not emailed.</li>
         </ul>
         {error ? (
           <div

@@ -1,4 +1,4 @@
-import { toBusinessDateTime } from "@/lib/time/london";
+import { getBusinessDate, toBusinessDateTime } from "@/lib/time/london";
 
 /**
  * Shared booking predicates. Deliberately free of server-only imports so the
@@ -37,6 +37,21 @@ export function isBookingMomentPastLondon(booking: {
     Date.now() >
     computeBookingMomentLondon(booking.booking_date, booking.start_time).getTime()
   );
+}
+
+/**
+ * C-04a Phase C (W03-E-2) — `complete` and `no_show` record what happened, so
+ * they only make sense once the booking's DAY has arrived. Date-only on
+ * purpose, looser than S6's moment check: an admin must be able to mark today's
+ * 18:00 visit a no-show at 17:55 when the therapist rings in. London's date,
+ * not UTC's — `getBusinessDate` is the same source the availability and
+ * reporting date guards use. The server action and the detail-page button read
+ * this one predicate so the button can never offer what the action refuses.
+ */
+export function isBookingDateFutureLondon(booking: {
+  booking_date: string | null;
+}): boolean {
+  return String(booking.booking_date ?? "").slice(0, 10) > getBusinessDate();
 }
 
 /**

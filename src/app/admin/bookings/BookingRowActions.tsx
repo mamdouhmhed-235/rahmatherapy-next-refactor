@@ -19,6 +19,7 @@ export type BookingRowAction =
   | "mark_paid"
   | "cancel"
   | "complete"
+  | "no_show"
   | "send_reminder";
 
 type Props = {
@@ -145,6 +146,7 @@ export function BookingRowActions({
       else if (action === "cancel")
         toast.success("Booking cancelled. The client has been notified.");
       else if (action === "complete") toast.success("Booking marked complete.");
+      else if (action === "no_show") toast.success("Booking marked no-show.");
       router.refresh();
     } catch (error) {
       console.error("[bookings] quick action failed", { action, bookingId, error });
