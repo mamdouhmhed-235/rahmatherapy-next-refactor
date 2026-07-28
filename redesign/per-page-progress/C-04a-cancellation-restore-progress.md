@@ -5,8 +5,40 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phases A, B, C of 8 landed, **all three independently verified (PASS)**. Phases D–H outstanding.
-> **Last good commit:** `7e368e0` · **Next action:** Phase D (auto-promote) — **read D-1 below first; the plan's Step 6 has a hole.**
+> ## ⏸ STATUS: Phases A, B, C, D of 8 landed. A, B, C independently verified (PASS); **D awaits its verifier.** Phases E–H outstanding.
+> **Last good commit:** `b5a052a` · **Next action:** Phase D's verifier, then Phase E (hygiene tail).
+>
+> **Baseline: 5 failed / 702 passed / 707** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
+
+---
+
+## 0d — Phase D (`ba9afe3`) + two temporal guards (`1a71433`, `b5a052a`)
+
+Auto-promote on all-assignments-terminal, its hook in `updateOwnAssignmentStatus`, and the "Auto-completed" banner.
+
+**D-1 was fixed structurally, not patched.** `TERMINAL_BOOKING_STATUSES` in `_helpers.ts` now derives **both** the predicate and the `.not("status","in", …)` filter, so plan `:661` and `:670` are incapable of disagreeing. The implementer deliberately did **not** fold `quickUpdateBooking`'s four guards into it — they are not set-membership tests; each names its own source status so the refusal copy points at the right way back, and `cancelled` is closed there only against `completed`, leaving `cancelled → confirmed` for C-05. A doc comment records this so nobody "unifies" them later.
+
+### The temporal-guard sweep — now closed across all three write paths
+Two further instances surfaced, each found by the agent working on the previous fix:
+
+| # | Path | Hole | Fixed |
+|---|---|---|---|
+| 5 | `autoPromoteBookingFromAssignments` | No date guard. `updateOwnAssignmentStatus` is gated on `isOwn` (assignment ownership only, never the booking's status or date), so a therapist could mark their assignment complete on a **next-week** booking and auto-promote it to `completed` — the exact write the admin chip refuses. | `1a71433` |
+| 6 | `updateBookingManagement` (Status form) | No date guard; the `<Select>` offers `completed`/`no_show` unconditionally. An admin could set next week's booking to completed — the same write refused ~200 lines away in the same file. | `b5a052a` |
+
+All three now share `isBookingDateFutureLondon` and the identical W03-E-2 copy.
+
+**Closure verified, not asserted.** Exactly three paths can write `completed`/`no_show` and all three are guarded. `restoreBooking` targets only `confirmed`/`pending`; the customer-manage flow and the client-delete cascade write only `cancelled`; every other `bookings` UPDATE touches `assignment_status`, `reschedule_status` or manage-token columns. Checked outside the app too: the only trigger on `bookings` is `bookings_updated_at`, the only function is `create_booking_request`, and the reminders cron writes no status.
+
+**Guard-width proven on both axes** (this is what makes the specs worth having): dropping the target check breaks *cancelling a future booking*; dropping the date check breaks *completing a past one*. Both canaries exist and both were demonstrated failing.
+
+**Declared edge, verified unreachable:** the Status-form guard keys on the status being written, so a Notes save would be refused on a future-dated booking already sitting at `completed`/`no_show`. Production has zero such rows, nothing creates a booking in those statuses, and no path rewrites `booking_date` after creation. Recorded in a code comment.
+
+### Outstanding from Phase D
+- **UI-only remnant, Phase G's:** `BookingRowActions.tsx:201-204` still shows "Mark complete" on any `confirmed` + `fully_assigned` row including future-dated ones. The server refuses with W03-E-2, so no write escapes — but the row offers a button the server declines. `_helpers.ts` already names the row menu as Phase G work.
+- **`isOwn` ignores booking status entirely**, so the therapist's "Mark complete"/"Mark as no-show" stay live on cancelled, completed and no-show bookings. Phase D correctly refuses to *promote*, but the assignment write still lands and renders **"Visit completed"** in a cancelled booking's activity timeline. Record integrity only. Owner scoped the UI half to **C-05**.
+- **Banner visibility:** `auditLogs` is `[]` unless `fullScope`, so the "Auto-completed" notice shows to Owner/Admin/Coord but **not** to the therapist who triggered it — though brief §4.4 frames it around the practitioner. Needs a second audit query for non-fullScope actors; look at it in Phase G.
+- **Change 7 audit phrasing now has three action types outstanding:** `booking_restored` (Phase A), `booking_quick_no_show` (Phase C, detail page only), and `booking_auto_promoted_completed` (Phase D, neither map). Whichever phase claims Change 7 must do all three in both `[bookingId]/page.tsx`'s `ACTIVITY_ACTION_LABELS` and `clients/[clientId]/page.tsx`'s `AUDIT_PHRASING`.
 >
 > **Commits so far:** `3bddb39` A · `057b974` A verified · `49da51e` B · `e83187e` B fix (B-1) · `68fc49a` C · `6aaf540` terminal guards 1–2 · `56cba4d` terminal guard 3 · `f24bc42` terminal guard 4.
 > **Baseline now: 5 failed / 680 passed / 685** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
