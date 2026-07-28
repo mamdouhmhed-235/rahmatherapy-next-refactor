@@ -31,10 +31,12 @@ import {
 } from "./assignment-eligibility";
 import {
   COMPLETED_REVERSAL_MIN_REASON_LENGTH,
+  TERMINAL_BOOKING_STATUS_FILTER,
   isBookingDateFutureLondon,
   isBookingMomentPastLondon,
   isCompletedReversal,
   isRestoreWindowExpired,
+  isTerminalBookingStatus,
 } from "./_helpers";
 import type { AssignmentStatus, BookingStatus, PaymentMethod, PaymentStatus } from "./types";
 
@@ -151,6 +153,89 @@ async function recomputeBookingAssignmentStatus(
     .eq("id", bookingId);
 
   return bookingError ? { error: bookingError.message } : { status: nextStatus };
+}
+
+/**
+ * C-04a Change 6 — once every assignment on a booking has reached a terminal
+ * state, the visit is over and the booking-level status should stop lagging
+ * behind it (B-168). Capability-keyed, not role-keyed (brief §2.4): whoever
+ * finishes the last assignment triggers this, therapist or not.
+ *
+ * Only ever promotes a booking that is not already terminal. `no_show` counts
+ * as terminal — see `TERMINAL_BOOKING_STATUSES`. Both the predicate and the
+ * UPDATE's race guard read that one list.
+ */
+async function autoPromoteBookingFromAssignments(
+  bookingId: string,
+  triggeringActorStaffId: string,
+  adminClient: ReturnType<typeof createSupabaseAdminClient>
+): Promise<{ promoted: boolean; error?: string }> {
+  const [{ data: assignments }, { data: bookingNow }] = await Promise.all([
+    adminClient
+      .from("booking_assignments")
+      .select("assigned_staff_id, status")
+      .eq("booking_id", bookingId)
+      .returns<BookingAssignmentStatusRecord[]>(),
+    adminClient
+      .from("bookings")
+      .select("status")
+      .eq("id", bookingId)
+      .single<{ status: BookingStatus }>(),
+  ]);
+
+  if (!assignments || !bookingNow) return { promoted: false };
+
+  const allTerminal =
+    assignments.length > 0 &&
+    assignments.every(
+      (assignment) =>
+        assignment.assigned_staff_id &&
+        (assignment.status === "completed" || assignment.status === "no_show")
+    );
+  if (!allTerminal) return { promoted: false };
+
+  if (isTerminalBookingStatus(bookingNow.status)) return { promoted: false };
+
+  // The WHERE guard is what makes two practitioners finishing at the same
+  // moment safe: the second UPDATE matches 0 rows, so only one audit row and
+  // one staff email follow (brief §5.4).
+  const { data: promoted, error } = await adminClient
+    .from("bookings")
+    .update({ status: "completed" })
+    .eq("id", bookingId)
+    .not("status", "in", TERMINAL_BOOKING_STATUS_FILTER)
+    .select("status")
+    .single<{ status: BookingStatus }>();
+
+  if (error || !promoted) {
+    // Errored, or the race guard matched nothing — both are "didn't promote".
+    return { promoted: false, error: error?.message };
+  }
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: triggeringActorStaffId,
+    action_type: "booking_auto_promoted_completed",
+    target_type: "bookings",
+    target_id: bookingId,
+    before_state: { status: bookingNow.status },
+    after_state: {
+      status: "completed",
+      trigger: "all_assignments_terminal",
+      assignment_statuses: assignments.map((assignment) => assignment.status),
+    },
+  });
+
+  // Staff awareness only — auto-promote follows a real visit, so the client
+  // already knows how it went (brief §2.4).
+  await sendAssignedStaffBookingChangeEmails(
+    bookingId,
+    adminClient,
+    "Booking auto-completed — all assignments are complete."
+  ).catch((emailError) => {
+    console.error("Unable to send auto-promote staff email.", emailError);
+  });
+
+  return { promoted: true };
 }
 
 export async function updateBookingManagement(
@@ -902,6 +987,22 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
     adminClient
   );
   if (assignmentStatusResult.error) return assignmentStatusResult;
+
+  // C-04a Change 6 — this write may have terminalised the last open assignment.
+  // The condition restates `OWN_ASSIGNMENT_STATUSES`, which today makes it
+  // always true; it stays so the hook keeps its own scope if that list ever
+  // grows a non-terminal member. Failure is non-fatal: the assignment update
+  // has already succeeded and is what the practitioner asked for.
+  if (status === "completed" || status === "no_show") {
+    const autoPromoteResult = await autoPromoteBookingFromAssignments(
+      updatedAssignment.booking_id,
+      actor.id,
+      adminClient
+    );
+    if (autoPromoteResult.error) {
+      console.error("Auto-promote failed.", autoPromoteResult.error);
+    }
+  }
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,

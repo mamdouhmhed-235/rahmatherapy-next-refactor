@@ -115,3 +115,40 @@ export function isCompletedReversal(
 ): boolean {
   return fromStatus === "completed" && toStatus !== "completed";
 }
+
+/**
+ * C-04a Phase D — the three statuses that record a finished outcome. Leaving
+ * any of them is a mistake-correction that owes an audit action, a reason or a
+ * client email, so nothing automatic may do it: `restoreBooking` and the Status
+ * form are the only ways back out.
+ *
+ * `no_show` belongs here as much as `completed` and `cancelled` do. Nothing
+ * cascades a booking-level cancel or no-show down to `booking_assignments`, so
+ * a no-show booking keeps its assignments at `assigned` and the practitioner's
+ * "Mark complete" stays live on it — without this list the auto-promoter would
+ * flip that booking to `completed` and silently un-do the no-show.
+ *
+ * `quickUpdateBooking`'s three chip guards enumerate the same statuses but
+ * deliberately do NOT read this list: each names its own source status so its
+ * refusal can point at the right way back, and `cancelled` is closed there only
+ * against `completed`. A set-membership test cannot say any of that.
+ */
+export const TERMINAL_BOOKING_STATUSES = [
+  "completed",
+  "cancelled",
+  "no_show",
+] as const;
+
+export function isTerminalBookingStatus(status: string): boolean {
+  return (TERMINAL_BOOKING_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * The same list as a PostgREST `in` value, for the race-guarded
+ * `.not("status", "in", …)` on the auto-promote UPDATE. Derived rather than
+ * written out again so the SQL-side filter and the predicate above cannot
+ * disagree about what "terminal" means.
+ */
+export const TERMINAL_BOOKING_STATUS_FILTER = `("${TERMINAL_BOOKING_STATUSES.join(
+  '","'
+)}")`;

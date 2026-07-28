@@ -68,7 +68,9 @@ import {
 } from "../BookingManagementForm";
 import { ClaimAssignmentButton } from "../ClaimAssignmentButton";
 import { formatDate, formatLabel, formatMoney, formatTime } from "../format";
+import { formatRelative } from "../../audit/format";
 import type {
+  AuditLogEvent,
   BookingAssignment,
   BookingParticipant,
   BookingRecord,
@@ -460,6 +462,7 @@ export default async function BookingDetailPage({
     startTime: bookingWithTimeline.start_time,
     claimableOnly,
   });
+  const autoCompletedAt = findRecentAutoPromotion(auditLogs);
   const nextAction = fullScope
     ? deriveNextAction(bookingWithTimeline)
     : null;
@@ -526,6 +529,10 @@ export default async function BookingDetailPage({
           </div>
         }
       />
+
+      {autoCompletedAt ? (
+        <AutoCompletedNotice promotedAt={autoCompletedAt} />
+      ) : null}
 
       {fullScope && !booking.contact_email ? (
         <NoEmailNotice clientId={bookingWithTimeline.client_id ?? null} />
@@ -1547,6 +1554,33 @@ function NextActionStrip({
         </div>
       ) : null}
     </section>
+  );
+}
+
+// ─── Auto-completed acknowledgement (C-04a Change 6) ─────────────────────────
+// The booking promoting itself is otherwise silent: the practitioner sees only
+// their own assignment toast, and the next page load quietly reads "Completed".
+// This says so for a day, off the audit row alone — no DB state, so it ages out
+// on its own (brief §4.4).
+
+const AUTO_PROMOTE_NOTICE_MS = 24 * 60 * 60 * 1000;
+
+function findRecentAutoPromotion(events: AuditLogEvent[]): string | null {
+  const event = events.find(
+    (row) =>
+      row.action_type === "booking_auto_promoted_completed" &&
+      Date.now() - new Date(row.created_at).getTime() < AUTO_PROMOTE_NOTICE_MS
+  );
+  return event?.created_at ?? null;
+}
+
+function AutoCompletedNotice({ promotedAt }: { promotedAt: string }) {
+  return (
+    <p className="mt-1 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] px-3 py-2 text-xs font-medium text-[oklch(22%_0.085_155)]">
+      <CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
+      Auto-completed when all assignments were marked complete
+      <span className="opacity-70">· {formatRelative(promotedAt)}</span>
+    </p>
   );
 }
 
