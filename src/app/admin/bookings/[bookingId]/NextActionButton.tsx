@@ -62,7 +62,10 @@ export function NextActionButton({
           return;
         }
 
-        toast.success("Booking restored. The client has been notified.");
+        // No claim about the client: since Phase H a restore that lands inside a
+        // cancellation's undo window sweeps the queued email and suppresses the
+        // "you're back on" one, so the client may hear nothing at all.
+        toast.success("Booking restored.");
         router.refresh();
         resolve();
       });
@@ -106,7 +109,6 @@ export function NextActionButton({
             Status will change from {STATUS_WORDS[fromStatus]} to{" "}
             {STATUS_WORDS[targetStatus]}.
           </li>
-          <li>The client will be emailed to say the booking is back on.</li>
           <li>Assigned staff will be notified.</li>
           <li>Audit log records the restore.</li>
         </ul>

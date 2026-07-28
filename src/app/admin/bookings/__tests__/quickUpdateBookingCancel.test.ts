@@ -439,3 +439,83 @@ describe("updateBookingManagement — the Status form opens the same window", ()
     expect(sendEmail).not.toHaveBeenCalled();
   });
 });
+
+describe("updateBookingManagement — leaving cancelled kills the queued email", () => {
+  // The blocker this round was opened to close. The Status form is a second way
+  // OUT of `cancelled`, and it had no cancellation logic at all on that
+  // direction: `isCancellationTransition` is false when the booking is already
+  // cancelled, so the queued row was left for the cron. Concrete failure — admin
+  // cancels here, the toast expires, admin changes their mind at T+90s and drives
+  // the same dropdown back to Confirmed; without the sweep the cron then sends
+  // the client a cancellation for a booking that is live.
+  //
+  // Delete the sweep from `updateBookingManagement` and this fails: the queued
+  // row survives.
+  it("sweeps the queued cancellation and clears the cancellation columns", async () => {
+    const stub = stubAdminClient();
+
+    expect(await updateBookingManagement({}, statusFormData())).toEqual({
+      success: true,
+    });
+    expect(stub.queuedCustomerEmails()).toHaveLength(1);
+
+    // Long past the undo window — there is no toast left to press Undo on.
+    vi.setSystemTime(new Date(NOW.getTime() + 90_000));
+
+    expect(
+      await updateBookingManagement({}, statusFormData({ status: "confirmed" }))
+    ).toEqual({ success: true });
+
+    expect(stub.queuedCustomerEmails()).toHaveLength(0);
+    expect(
+      stub.emailEvents.filter(
+        (row) => row.delivery_status === "cancelled_by_restore"
+      )
+    ).toHaveLength(1);
+    expect(sentAddresses()).not.toContain(CUSTOMER_EMAIL);
+
+    // The same three filters `restoreBooking` sweeps with, and no fourth on
+    // `scheduled_for`: a row that is already due but not yet drained is exactly
+    // the one that must still be caught.
+    const sweep = stub.find("email_delivery_events", "update").at(-1)!;
+    expect(sweep.payload).toEqual({ delivery_status: "cancelled_by_restore" });
+    expect(sweep.filters).toEqual([
+      "eq:booking_id=booking-1",
+      "eq:event_type=booking_cancellation_customer",
+      "eq:delivery_status=queued",
+    ]);
+
+    // A live booking must not keep a cancellation moment: `getCancellationMoment`
+    // reads all three columns.
+    expect(stub.find("bookings", "update").at(-1)!.payload).toMatchObject({
+      status: "confirmed",
+      cancelled_at: null,
+      customer_cancelled_at: null,
+      customer_cancellation_note: null,
+    });
+
+    // The audit does not go silent on a path that suppressed a client email.
+    expect(
+      stub.find("audit_logs", "insert").at(-1)!.payload!.after_state
+    ).toMatchObject({ cancelled_queued_email: true });
+  });
+
+  // Over-blocking canary: every other save through this form — including both
+  // Notes forms, which re-post the booking's own status — must leave the queue
+  // and the cancellation columns alone.
+  it("touches neither the queue nor the cancellation columns on an ordinary save", async () => {
+    const stub = stubAdminClient();
+
+    expect(
+      await updateBookingManagement({}, statusFormData({ status: "confirmed" }))
+    ).toEqual({ success: true });
+
+    expect(stub.find("email_delivery_events", "update")).toHaveLength(0);
+    const update = stub.find("bookings", "update").at(-1)!;
+    expect(update.payload).not.toHaveProperty("cancelled_at");
+    expect(update.payload).not.toHaveProperty("customer_cancelled_at");
+    expect(
+      stub.find("audit_logs", "insert").at(-1)!.payload!.after_state
+    ).not.toHaveProperty("cancelled_queued_email");
+  });
+});

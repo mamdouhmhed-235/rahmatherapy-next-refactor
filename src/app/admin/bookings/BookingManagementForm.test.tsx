@@ -1,9 +1,14 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toast } from "sonner";
+import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
 import { BookingManagementForm } from "./BookingManagementForm";
 import { updateBookingManagement } from "./actions";
-import { COMPLETED_REVERSAL_MIN_REASON_LENGTH } from "./_helpers";
+import {
+  CANCELLATION_UNDO_DELAY_SECONDS,
+  COMPLETED_REVERSAL_MIN_REASON_LENGTH,
+} from "./_helpers";
 import type { BookingRecord } from "./types";
 
 vi.mock("./actions", () => ({
@@ -260,5 +265,101 @@ describe("BookingManagementForm — quick actions on terminal statuses", () => {
     render(<BookingManagementForm booking={{ ...BOOKING, status: "pending" }} />);
 
     expect(screen.getByRole("button", { name: /Confirm booking/i })).not.toBeNull();
+  });
+});
+
+// Derived from London's today rather than pinned: S6 compares the appointment
+// moment against the real clock, so a frozen fixture date would rot.
+const TODAY = getBusinessDate();
+const TOMORROW = addBusinessDays(TODAY, 1);
+const YESTERDAY = addBusinessDays(TODAY, -1);
+
+/** The options object of the last `toast.success`, or undefined when omitted. */
+function lastToastOptions() {
+  return vi.mocked(toast.success).mock.calls.at(-1)?.[1] as
+    | { action?: { label: string }; duration?: number }
+    | undefined;
+}
+
+function lastToastMessage() {
+  return String(vi.mocked(toast.success).mock.calls.at(-1)?.[0]);
+}
+
+describe("BookingManagementForm — the cancellation toast's Undo", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(updateBookingManagement).mockResolvedValue({ success: true });
+  });
+
+  afterEach(cleanup);
+
+  /** Drives a live booking to `cancelled` through the Status form. */
+  async function cancelThroughTheForm(bookingDate: string) {
+    const user = userEvent.setup();
+    render(
+      <BookingManagementForm
+        booking={{ ...BOOKING, status: "confirmed", booking_date: bookingDate }}
+      />
+    );
+    await user.selectOptions(screen.getByLabelText(/^Status/), "cancelled");
+    await user.click(
+      screen.getByRole("button", { name: /Save status & payment/i })
+    );
+    await waitFor(() => expect(updateBookingManagement).toHaveBeenCalledTimes(1));
+  }
+
+  // The blocker. The Undo posts `action=restore`, so S6 refuses it outright on a
+  // booking whose appointment moment has gone: the admin gets "Couldn't undo:
+  // …appointment time has already passed…", the queued cancellation still
+  // reaches the client, and the booking is left permanently unrestorable.
+  // Offering the button at all is the defect. Remove the past-moment condition
+  // and this fails.
+  it("offers no Undo once the appointment moment has passed", async () => {
+    await cancelThroughTheForm(YESTERDAY);
+
+    expect(lastToastOptions()?.action).toBeUndefined();
+    // ...and the copy does not promise one either.
+    expect(lastToastMessage()).not.toMatch(/undo/i);
+  });
+
+  it("offers the Undo on a future-dated booking", async () => {
+    await cancelThroughTheForm(TOMORROW);
+
+    expect(lastToastOptions()?.action?.label).toBe("Undo");
+    expect(lastToastMessage()).toMatch(/undo/i);
+  });
+
+  // The toast has to close before the cron may claim the queued row. Equal
+  // values are not enough: the server's delay starts when the row is written,
+  // the toast's when React renders the result, so the toast outlives the window
+  // by the round trip.
+  it("closes the Undo before the server's delay elapses", async () => {
+    await cancelThroughTheForm(TOMORROW);
+
+    expect(lastToastOptions()!.duration).toBeLessThan(
+      CANCELLATION_UNDO_DELAY_SECONDS * 1000
+    );
+  });
+
+  // The queued row is drained by a minute-granular cron, so the real wait is the
+  // delay plus up to another minute. No cancel copy may name a number of seconds.
+  it("never names a number of seconds", async () => {
+    await cancelThroughTheForm(TOMORROW);
+
+    expect(lastToastMessage()).not.toMatch(/\d+\s*seconds?/i);
+  });
+
+  it("says nothing about an Undo on an ordinary save", async () => {
+    const user = userEvent.setup();
+    render(<BookingManagementForm booking={{ ...BOOKING, status: "confirmed" }} />);
+
+    await user.selectOptions(screen.getByLabelText(/Payment status/), "paid");
+    await user.click(
+      screen.getByRole("button", { name: /Save status & payment/i })
+    );
+
+    await waitFor(() => expect(updateBookingManagement).toHaveBeenCalledTimes(1));
+    expect(lastToastMessage()).toBe("Booking updated.");
+    expect(lastToastOptions()).toBeUndefined();
   });
 });

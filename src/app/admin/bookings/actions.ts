@@ -30,6 +30,7 @@ import {
   getStaffAssignmentPreviews,
 } from "./assignment-eligibility";
 import {
+  CANCELLATION_UNDO_DELAY_SECONDS,
   COMPLETED_REVERSAL_MIN_REASON_LENGTH,
   TERMINAL_BOOKING_STATUS_FILTER,
   isBookingDateFutureLondon,
@@ -392,6 +393,21 @@ export async function updateBookingManagement(
   const isCancellationTransition =
     beforeState.status !== "cancelled" && status === "cancelled";
 
+  // The mirror image, and the one this form was missing. The Status dropdown is
+  // a second way OUT of `cancelled`, and until now it left without touching the
+  // email the cancellation queued: admin cancels here, the toast expires after
+  // its undo window, admin changes their mind and drives the same dropdown back
+  // to Confirmed — and the queued row survives, so the cron sends the client a
+  // cancellation for a booking that is live again.
+  //
+  // Deliberately NOT gated on S6 (past appointment moment) or S7 (28-day
+  // window), and deliberately not delegated to `restoreBooking`. Either would
+  // remove the Status form as the admin's escape hatch out of a terminal status,
+  // which is a separate decision the Owner has not made. This closes the email
+  // hole only.
+  const isCancellationExit =
+    beforeState.status === "cancelled" && status !== "cancelled";
+
   const payload = {
     status,
     payment_status: paymentStatus,
@@ -416,6 +432,20 @@ export async function updateBookingManagement(
     ...(isCancellationTransition
       ? { cancelled_at: new Date().toISOString() }
       : {}),
+    // …and cleared on the way back out, mirroring `restoreBooking`'s payload
+    // builder field for field: all three cancellation columns are stale the
+    // moment the booking stops being cancelled, and a live booking still
+    // carrying a cancellation moment is what `getCancellationMoment` reads. No
+    // PGRST204 fallback here, unlike `restoreBooking`: this function already
+    // writes `cancelled_at` unconditionally on the way IN, so the column is a
+    // hard requirement of this path either way.
+    ...(isCancellationExit
+      ? {
+          cancelled_at: null,
+          customer_cancelled_at: null,
+          customer_cancellation_note: null,
+        }
+      : {}),
   };
 
   const { data, error } = await adminClient
@@ -427,6 +457,40 @@ export async function updateBookingManagement(
 
   if (error) return { error: error.message };
 
+  // Kill any cancellation email still sitting in the undo window. Identical
+  // filters to `restoreBooking`'s sweep, and identically free of a
+  // `scheduled_for` condition: `delivery_status = 'queued'` is the whole test
+  // for "not yet sent", because the cron claims a row out of `queued` before it
+  // dispatches. Adding the timestamp back would miss every row that is already
+  // due but not yet drained — up to a minute's worth — which is exactly the
+  // window this sweep exists for.
+  let cancelledQueuedEmail = false;
+  let cancelledQueuedEmailSweepError: string | undefined;
+
+  if (isCancellationExit) {
+    const { count, error: sweepError } = await adminClient
+      .from("email_delivery_events")
+      .update({ delivery_status: "cancelled_by_restore" }, { count: "exact" })
+      .eq("booking_id", bookingId)
+      .eq("event_type", "booking_cancellation_customer")
+      .eq("delivery_status", "queued");
+
+    if (sweepError) {
+      // Fails closed the only way this path can. `restoreBooking` fails closed
+      // by suppressing its client email; there is no client email on this path
+      // to suppress, so the anomaly is recorded as itself — in the audit row
+      // below, which is the durable record, plus this Cloudflare log line. An
+      // errored sweep says nothing about whether the cancellation is still
+      // queued, so it must never be read as "nothing was queued".
+      console.error(
+        "Unable to sweep queued cancellation emails while leaving cancelled.",
+        sweepError
+      );
+      cancelledQueuedEmailSweepError = sweepError.message;
+    }
+    cancelledQueuedEmail = (count ?? 0) > 0;
+  }
+
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
     action_type: "booking_management_updated",
@@ -435,9 +499,24 @@ export async function updateBookingManagement(
     before_state: beforeState,
     // The reopen reason only exists once the guard above has accepted it, so
     // folding it into `after_state` is what makes the audit row explain itself.
-    after_state: completedReversalReason
-      ? { ...data, completed_reversal_reason: completedReversalReason }
-      : data,
+    after_state: {
+      ...data,
+      ...(completedReversalReason
+        ? { completed_reversal_reason: completedReversalReason }
+        : {}),
+      // Same two keys `restoreBooking` writes, so the two paths that can suppress
+      // a client's cancellation are queryable as one. Only attached when the
+      // sweep actually ran: on every other save these keys would be noise.
+      ...(isCancellationExit
+        ? {
+            cancelled_queued_email: cancelledQueuedEmail,
+            // Carried verbatim, never coerced: an error whose message is ""
+            // must still record that the sweep failed, rather than serialising
+            // to a row byte-identical to the healthy "nothing was queued" case.
+            cancelled_queued_email_sweep_error: cancelledQueuedEmailSweepError,
+          }
+        : {}),
+    },
   });
 
   if (isCancellationTransition) {
@@ -448,12 +527,14 @@ export async function updateBookingManagement(
       // assigned-staff legs still go immediately. That gap is exactly the window
       // the Undo toast lives in, and a restore inside it sweeps the queued row
       // to `cancelled_by_restore` so the client never hears about a booking that
-      // is still on. Keep in step with the toast copy and `duration` in
-      // BookingRowActions.tsx and BookingManagementForm.tsx.
+      // is still on. The toast's `duration` in BookingRowActions.tsx and
+      // BookingManagementForm.tsx is derived from this same constant.
       //
       // The queued row is only drained by the scheduled-emails cron, so a
-      // cancellation email now depends on that cron running.
-      delaySeconds: 10,
+      // cancellation email now depends on that cron running — and the cron is
+      // minute-granular, so the real delay is this plus up to another minute.
+      // No user-facing string may name a number of seconds because of it.
+      delaySeconds: CANCELLATION_UNDO_DELAY_SECONDS,
     }).catch((error) => {
       console.error("Unable to send booking cancellation emails.", error);
     });
@@ -747,9 +828,9 @@ export async function quickUpdateBooking(formData: FormData) {
     await sendBookingCancellationEmails(bookingId, adminClient, {
       initiatedBy: "admin",
       // Change 14 — see the matching call in `updateBookingManagement`. The
-      // customer leg queues for 10 seconds so the row menu's Undo can kill it;
-      // the internal legs still go immediately.
-      delaySeconds: 10,
+      // customer leg queues so the row menu's Undo can kill it; the internal
+      // legs still go immediately.
+      delaySeconds: CANCELLATION_UNDO_DELAY_SECONDS,
     }).catch((error) => {
       console.error("Unable to send booking cancellation emails.", error);
     });

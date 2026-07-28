@@ -11,7 +11,11 @@ import {
   claimBookingAssignment,
   quickUpdateBooking,
 } from "./actions";
-import { isBookingMomentPastLondon, isRestoreWindowExpired } from "./_helpers";
+import {
+  CANCELLATION_UNDO_TOAST_MS,
+  isBookingMomentPastLondon,
+  isRestoreWindowExpired,
+} from "./_helpers";
 
 type Role = "full" | "therapist";
 
@@ -134,6 +138,24 @@ export function BookingRowActions({
     }
   }, [menuOpen]);
 
+  // S6, asked before an Undo is offered rather than after it is taken. The Undo
+  // posts `action=restore`, so on a booking whose appointment moment has gone
+  // `restoreBooking` refuses it outright: the admin gets "…appointment time has
+  // already passed…", the queued cancellation email is never swept and goes to
+  // the client, and the booking is left permanently unrestorable. An Undo that
+  // cannot work is worse than no Undo, so this decides whether one is shown at
+  // all — and it decides the confirm copy too, which must not promise a window
+  // that will not exist.
+  //
+  // A function, not a memo: the row was rendered at some earlier instant and the
+  // confirm modal can sit open across the boundary, so each caller re-reads the
+  // clock.
+  const canUndoCancellation = () =>
+    !isBookingMomentPastLondon({
+      booking_date: bookingDate,
+      start_time: startTime,
+    });
+
   async function runQuickAction(action: BookingRowAction) {
     if (action === "send_reminder") {
       toast.message("Manual reminders are coming soon.", {
@@ -173,22 +195,39 @@ export function BookingRowActions({
       }
       if (action === "confirm") toast.success("Booking confirmed.");
       else if (action === "mark_paid") toast.success("Booking marked paid.");
-      else if (action === "cancel")
-        // The client has NOT been notified yet — the customer leg is queued for
-        // 10 seconds (`delaySeconds` in `quickUpdateBooking`). The toast's life
-        // is the same 10 seconds so it never offers an Undo the server would
-        // refuse, and never closes while the window is still open.
+      else if (action === "cancel") {
+        // The client has NOT been notified yet — the customer leg is queued
+        // (`delaySeconds` in `quickUpdateBooking`) for the scheduled-emails cron
+        // to drain. The cron fires on the minute, so the true wait is the delay
+        // plus up to another minute: no number of seconds may appear here.
+        //
+        // The Undo is offered only where `restoreBooking` would accept it, and
+        // the copy promises a window only when there is one.
+        const undoable = canUndoCancellation();
         toast.success(
-          "Booking cancelled. The client will be notified in 10 seconds.",
-          {
-            action: { label: "Undo", onClick: () => void undoCancellation() },
-            duration: 10_000,
-          }
+          undoable
+            ? "Booking cancelled. The client will be emailed shortly — there's a brief window to undo it."
+            : "Booking cancelled. The client will be emailed shortly.",
+          undoable
+            ? {
+                action: {
+                  label: "Undo",
+                  onClick: () => void undoCancellation(),
+                },
+                // Shorter than the server's delay on purpose — see
+                // CANCELLATION_UNDO_TOAST_MS.
+                duration: CANCELLATION_UNDO_TOAST_MS,
+              }
+            : undefined
         );
-      else if (action === "complete") toast.success("Booking marked complete.");
+      } else if (action === "complete") toast.success("Booking marked complete.");
       else if (action === "no_show") toast.success("Booking marked no-show.");
       else if (action === "restore")
-        toast.success("Booking restored. The client has been notified.");
+        // No claim about the client here. Since Phase H a restore inside the
+        // undo window sweeps the queued cancellation and suppresses the
+        // "you're back on" email — which is the normal case for an Undo — so
+        // "the client has been notified" was false more often than it was true.
+        toast.success("Booking restored.");
       router.refresh();
     } catch (error) {
       console.error("[bookings] quick action failed", { action, bookingId, error });
@@ -383,6 +422,17 @@ export function BookingRowActions({
           >
             <MoreHorizontal className="size-4" aria-hidden="true" />
           </button>
+          {/*
+            KNOWN DEFECT, reported not fixed (C-04a fix round): the two
+            ConfirmActionModals below live INSIDE this subtree, so both menu
+            items are dead. Their trigger's `setMenuOpen(false)` unmounts the
+            menu — and the dialog it contains — in the same commit the dialog
+            opens; and even with that removed, the outside-click handler above
+            unmounts the menu on mousedown over the portalled confirm button,
+            before its click fires. Cancel and Restore therefore do nothing from
+            the row menu. Repairing it needs a controlled ConfirmActionModal
+            (admin-ui-interactions.tsx), which is outside this task's file list.
+          */}
           {menuOpen ? (
             <div
               role="menu"
@@ -396,7 +446,12 @@ export function BookingRowActions({
                 ) : (
                   <ConfirmActionModal
                     title="Restore this booking?"
-                    description="The booking goes back to confirmed, the client is emailed to say it's back on, and assigned staff are notified."
+                    // No client-email promise: a restore that lands inside the
+                    // cancellation's undo window sweeps the queued email and
+                    // suppresses the "you're back on" one, so the client hears
+                    // nothing at all. Which of the two happens is not something
+                    // this modal can know before it fires.
+                    description="The booking goes back to confirmed and assigned staff are notified."
                     confirmLabel="Restore booking"
                     cancelLabel="Cancel"
                     destructive={false}
@@ -455,7 +510,14 @@ export function BookingRowActions({
                   {showCancel ? (
                     <ConfirmActionModal
                       title="Cancel this booking?"
-                      description="The client is emailed 10 seconds later, so there is a short window to undo it from the toast."
+                      // Promises the undo window only where S6 leaves one: on a
+                      // booking whose appointment moment has gone, `restoreBooking`
+                      // refuses the Undo, so no toast will offer one.
+                      description={
+                        canUndoCancellation()
+                          ? "The client is emailed shortly afterwards, so there is a brief window to undo it from the toast."
+                          : "The client is emailed shortly afterwards. This booking's appointment time has passed, so the cancellation cannot be undone."
+                      }
                       confirmLabel="Cancel booking"
                       cancelLabel="Keep it"
                       destructive

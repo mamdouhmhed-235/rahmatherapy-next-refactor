@@ -1278,7 +1278,10 @@ function deriveNextAction(booking: BookingRecord): NextAction | null {
           ? cancelledOnLabel
             ? `Cancelled on ${cancelledOnLabel} — the 28-day restore window has passed. The audit log preserves the record.`
             : "The 28-day restore window has passed. The audit log preserves the record."
-          : "Restore it if it was cancelled by mistake — the client will be notified.",
+          : // No client-email promise: a restore inside the cancellation's undo
+            // window sweeps the queued email and suppresses the "you're back on"
+            // one, so the client may hear nothing at all.
+            "Restore it if it was cancelled by mistake.",
       action:
         momentPassed || windowExpired
           ? undefined

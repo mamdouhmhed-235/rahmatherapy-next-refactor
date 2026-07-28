@@ -17,6 +17,33 @@ export const RESTORE_WINDOW_DAYS = 28;
 const RESTORE_WINDOW_MS = RESTORE_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
 /**
+ * C-04a Phase H — an admin cancellation parks the customer's email in
+ * `email_delivery_events` as `queued` with `scheduled_for = now + this`, instead
+ * of sending it. That gap is the undo window: a restore inside it sweeps the row
+ * to `cancelled_by_restore` and the client never hears about a booking that is
+ * still on.
+ *
+ * One binding for the two servers (`delaySeconds` on both admin cancel paths)
+ * and the two clients (the cancel toast's `duration`). It lives here rather than
+ * in `actions.ts` for a hard reason: that module is `"use server"`, so every
+ * export has to be an async function — a plain number cannot be exported from it.
+ */
+export const CANCELLATION_UNDO_DELAY_SECONDS = 10;
+
+/**
+ * How long the cancel toast — and therefore its Undo — stays on screen.
+ *
+ * Deliberately SHORTER than the delay, not equal to it. The delay is measured on
+ * the server when the queued row is written; the toast's clock starts later, once
+ * the action has returned and React has rendered. Equal values therefore leave
+ * the Undo on screen past the instant the cron may claim the row, and the admin
+ * who takes it gets a restore that races a cancellation already going out. The
+ * margin buys back the round trip.
+ */
+export const CANCELLATION_UNDO_TOAST_MS =
+  CANCELLATION_UNDO_DELAY_SECONDS * 1000 - 500;
+
+/**
  * The appointment moment as a real instant. `booking_date` is "YYYY-MM-DD" and
  * `start_time` is "HH:MM[:SS]", both stored as Europe/London wall-clock values,
  * so the BST/GMT offset has to be resolved before they mean anything.

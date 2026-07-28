@@ -24,7 +24,9 @@ import {
   type BookingUpdateState,
 } from "./actions";
 import {
+  CANCELLATION_UNDO_TOAST_MS,
   COMPLETED_REVERSAL_MIN_REASON_LENGTH,
+  isBookingMomentPastLondon,
   isCompletedReversal,
 } from "./_helpers";
 import type { BookingRecord, BookingStatus } from "./types";
@@ -209,14 +211,33 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
         setDirty(false);
         if (isCancellationTransition) {
           // The client has NOT been notified yet — the customer leg is queued
-          // for 10 seconds (`delaySeconds` in `updateBookingManagement`), and
-          // the toast lives exactly as long as that window.
+          // (`delaySeconds` in `updateBookingManagement`) for the
+          // scheduled-emails cron to drain. The cron fires on the minute, so the
+          // true wait is the delay plus up to another minute: no number of
+          // seconds may appear in this copy.
+          //
+          // S6, asked before the Undo is offered. The Undo posts
+          // `action=restore`, so on a booking whose appointment moment has gone
+          // `restoreBooking` refuses it: the admin would get "…appointment time
+          // has already passed…", the queued cancellation would still reach the
+          // client, and the booking would be left unrestorable. Read here rather
+          // than at render because the form can sit open across the boundary.
+          const undoable = !isBookingMomentPastLondon(booking);
           toast.success(
-            "Booking cancelled. The client will be notified in 10 seconds.",
-            {
-              action: { label: "Undo", onClick: () => void undoCancellation() },
-              duration: 10_000,
-            }
+            undoable
+              ? "Booking cancelled. The client will be emailed shortly — there's a brief window to undo it."
+              : "Booking cancelled. The client will be emailed shortly.",
+            undoable
+              ? {
+                  action: {
+                    label: "Undo",
+                    onClick: () => void undoCancellation(),
+                  },
+                  // Shorter than the server's delay on purpose — see
+                  // CANCELLATION_UNDO_TOAST_MS.
+                  duration: CANCELLATION_UNDO_TOAST_MS,
+                }
+              : undefined
           );
         } else {
           toast.success("Booking updated.");
