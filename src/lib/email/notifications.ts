@@ -284,6 +284,13 @@ async function sendTrackedEmail(
     subject: string;
     html: string;
     text: string;
+    /**
+     * C-04a Change 13 — when > 0, nothing is sent now. The rendered email is
+     * parked in `email_delivery_events` with `delivery_status = 'queued'` and a
+     * `scheduled_for` this many seconds out, for the scheduled-emails cron to
+     * pick up. That gap is what the admin's 10-second Undo lives in.
+     */
+    delaySeconds?: number;
   }
 ) {
   if (!input.to) {
@@ -297,6 +304,36 @@ async function sendTrackedEmail(
       errorMessage: "Missing recipient email.",
     }).catch(() => undefined);
     return { status: "skipped" as const };
+  }
+
+  if (input.delaySeconds && input.delaySeconds > 0) {
+    // The queued row IS the delivery event — the cron flips it to sent/failed
+    // rather than writing a second one, so /admin/emails shows one row per
+    // email either way. Unlike the immediate path below, a failure here is
+    // thrown, not swallowed: a queue write that silently no-ops would drop the
+    // customer's cancellation email entirely, with nothing left to retry from.
+    const scheduledFor = new Date(
+      Date.now() + Math.max(0, input.delaySeconds) * 1000
+    ).toISOString();
+    const { error } = await supabase.from("email_delivery_events").insert({
+      booking_id: input.bookingId,
+      event_type: input.eventType,
+      recipient_email: input.to,
+      recipient_role: input.recipientRole,
+      staff_id: input.staffId ?? null,
+      to_email: input.to,
+      subject: input.subject,
+      html_payload: input.html,
+      text_payload: input.text,
+      scheduled_for: scheduledFor,
+      // Requires the extended delivery_status CHECK from C-04a's Phase F
+      // migration; before that lands this insert is rejected by the database.
+      delivery_status: "queued",
+    });
+    if (error) {
+      throw new Error(`Failed to queue scheduled email: ${error.message}`);
+    }
+    return { status: "queued" as const, scheduledFor };
   }
 
   try {
@@ -409,6 +446,12 @@ export async function sendBookingCancellationEmails(
   options: {
     initiatedBy: "customer" | "admin";
     cancellationNote?: string | null;
+    /**
+     * C-04a Change 14 — delays ONLY the customer leg, so an admin misclick can
+     * be undone before the client hears about it. The admin and assigned-staff
+     * legs below stay immediate: internal recipients want real-time notice.
+     */
+    delaySeconds?: number;
   } = { initiatedBy: "admin" }
 ) {
   const { booking, settings, input } = await getBookingTemplateInput(bookingId, supabase);
@@ -426,6 +469,7 @@ export async function sendBookingCancellationEmails(
       subject: `${input.companyName} booking cancelled`,
       html: renderBookingCancellationEmail(input),
       text: renderBookingPlainText("Booking cancelled", input),
+      delaySeconds: options.delaySeconds,
     }),
     sendTrackedEmail(supabase, {
       bookingId,

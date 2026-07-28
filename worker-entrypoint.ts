@@ -87,6 +87,42 @@ async function fireBookingReminders(env: CronEnv): Promise<void> {
   }
 }
 
+// C-04a: drains the delayed-email queue (email_delivery_events rows parked with
+// delivery_status='queued'). Mirrors fireBookingReminders — same self-fetch, same
+// X-Cron-Secret transport, same logging shape.
+async function fireScheduledEmails(env: CronEnv): Promise<void> {
+  if (!env.CRON_SECRET) {
+    console.error(
+      "[scheduled/scheduled-emails] CRON_SECRET not set on the Worker; aborting."
+    );
+    return;
+  }
+  try {
+    const res = await env.WORKER_SELF_REFERENCE.fetch(
+      "https://internal.invalid/api/cron/scheduled-emails",
+      {
+        method: "POST",
+        headers: {
+          "X-Cron-Secret": env.CRON_SECRET,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const bodyText = await res.text().catch(() => "<no body>");
+    if (!res.ok) {
+      console.error(
+        `[scheduled/scheduled-emails] non-ok status=${res.status} body=${bodyText}`
+      );
+      return;
+    }
+    console.log(
+      `[scheduled/scheduled-emails] ok status=${res.status} body=${bodyText}`
+    );
+  } catch (error) {
+    console.error("[scheduled/scheduled-emails] threw:", error);
+  }
+}
+
 const workerEntrypoint = {
   // Re-export OpenNext's fetch handler verbatim.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,9 +133,30 @@ const workerEntrypoint = {
     env: CronEnv,
     ctx: ExecutionCtxLike
   ): Promise<void> {
+    // Cloudflare fires this one handler for EVERY entry in wrangler.jsonc's
+    // triggers.crons, passing the triggering expression verbatim as event.cron.
+    // Dispatch on it, so each cron runs only its own job.
+    //
+    // Adding a cron is two edits and touches no existing case: append the
+    // expression to triggers.crons in wrangler.jsonc, add a matching case here
+    // with its own fireX(env) helper. The two lists must agree exactly — a
+    // wrangler entry with no case here lands in `default` and does nothing but
+    // log, which is the failure this switch is designed to make visible.
+    //
     // The Cloudflare scheduled() invocation context is short-lived; ctx.waitUntil
     // keeps the runtime alive until our async fetch resolves.
-    ctx.waitUntil(fireBookingReminders(env));
+    switch (event.cron) {
+      case "0 8 * * *": // booking-reminders — daily 08:00 UTC
+        ctx.waitUntil(fireBookingReminders(env));
+        break;
+      case "* * * * *": // scheduled-emails — every minute (C-04a)
+        ctx.waitUntil(fireScheduledEmails(env));
+        break;
+      default:
+        // Never throw: an unrecognised cron must not take down the invocation
+        // for the ones that ARE handled.
+        console.error(`[scheduled] no handler for cron "${event.cron}"`);
+    }
   },
 };
 

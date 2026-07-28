@@ -50,11 +50,17 @@
   "observability": {
     "enabled": true
   },
-  // Cloudflare Cron Triggers — 08:00 UTC daily (= 09:00 BST / 08:00 GMT).
-  // Fires scheduled() in worker-entrypoint.ts, which self-fetches
-  // /api/cron/booking-reminders with the X-Cron-Secret header.
+  // Cloudflare Cron Triggers. Every entry here fires the SAME scheduled()
+  // handler in worker-entrypoint.ts, which dispatches on event.cron — so this
+  // array and that switch must stay in step.
+  //   "0 8 * * *"  booking-reminders — daily 08:00 UTC (= 09:00 BST / 08:00 GMT)
+  //   "* * * * *"  scheduled-emails  — every minute, drains the delayed-email
+  //                queue (C-04a). One minute is Cloudflare's finest resolution,
+  //                so an email queued behind a 10s undo window arrives 10-70s
+  //                after the cancel.
+  // Both self-fetch their /api/cron/* route with the X-Cron-Secret header.
   // Activates on the next Cloudflare deploy after this config lands.
   "triggers": {
-    "crons": ["0 8 * * *"]
+    "crons": ["0 8 * * *", "* * * * *"]
   }
 }
