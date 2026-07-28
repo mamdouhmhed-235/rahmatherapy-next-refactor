@@ -5,10 +5,21 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phases A, B, C, D of 8 landed. A, B, C independently verified (PASS); **D awaits its verifier.** Phases E–H outstanding.
-> **Last good commit:** `b5a052a` · **Next action:** Phase D's verifier, then Phase E (hygiene tail).
+> ## ⏸ STATUS: Phases A, B, C, D of 8 landed, **all four independently verified (PASS)**. Phases E–H outstanding.
+> **Last good commit:** `81f0c00` · **Next action:** Phase E (hygiene tail) — the last phase before the ⛔ migration.
 >
-> **Baseline: 5 failed / 702 passed / 707** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
+> **Baseline: 5 failed / 704 passed / 709** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
+>
+> ### Phase D verification outcome + fix round (`81f0c00`)
+> - **Owner decision:** auto-promote now requires all assignments terminal **AND at least one `completed`**. Previously an all-no-show booking promoted to `completed` — recording a visit nobody attended, and the only path writing `completed` without a human choosing that word. Plan Step 6 permitted it; **brief §2.4 did not** ("ALL assignments have status='completed'"), and Step 6d sanctions only a *mix*. The mixed case still promotes. The spec that enshrined the old behaviour was reversed in place.
+>   - Audit `trigger` deliberately **kept** as `all_assignments_terminal` — the condition is now "all terminal AND ≥1 completed", so `all_assignments_completed` would be *less* accurate.
+> - **Race path no longer logs a false error.** `.single()` on a 0-row UPDATE returns `PGRST116`, so the correctly-handled concurrent-promote path emitted `console.error("Auto-promote failed.")` — Sentry noise contradicting brief §5.4. Now `maybeSingle()`, with the error and no-row branches split so a genuine failure still surfaces. Both directions spec'd and demonstrated.
+> - **`TERMINAL_BOOKING_STATUSES` is now `as const satisfies readonly BookingStatus[]`** — a typo is a tsc error rather than a silently-empty exclusion list. Proven: `"no-show"` produces TS2820.
+> - **F-3 declined with reasons, logged in a 10-line comment at `actions.ts:241-250`.** The audit `before_state.status` can be stale if a concurrent write lands between the pre-read and the UPDATE. Both obvious fixes are worse: PostgREST's `.select()` on a PATCH returns the **new** representation (no `RETURNING OLD`, so capturing the prior status needs a DB function → Zone-2), and adding `.eq("status", …)` as optimistic concurrency would trade the stale field for a **lost promotion** — 0 rows matched, booking left un-promoted with all assignments closed and nothing to re-trigger it. Residual harm is one audit row with a wrong prior status in a one-round-trip window; the concurrent writer's own row carries the true transition with an earlier timestamp, so the log stays reconstructable.
+>
+> **Verifier's independent closure re-proof:** it probed production PostgREST with a malformed control (`not.in.[…]` → `PGRST100` parse error) to confirm the derived filter string genuinely parses rather than silently matching nothing, and re-enumerated all 13 `bookings` UPDATE sites plus DB triggers, functions across every non-system schema, rules, scheduled jobs, edge functions and table grants. **Exactly three paths write `completed`/`no_show`; all three guarded. `authenticated` holds SELECT only, so no browser-side PATCH can write status at all.**
+>
+> **⚠️ Unrun and NOT marked done (§1.12):** Phase D's Playwright checkpoint (therapist completes the last assignment → booking flips → audit row → banner). It needs a production booking write plus a real staff email — a §1.2 trigger, orchestrator-owned. Carry to the closeout sweep alongside Phase A's F-1.
 
 ---
 
