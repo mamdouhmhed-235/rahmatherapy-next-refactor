@@ -19,6 +19,15 @@ vi.mock("@/lib/email/client", () => ({
 const SECRET = "test-cron-secret";
 const NOW = new Date("2026-07-28T09:00:00.000Z");
 
+/**
+ * The error C-04a actually shipped against: `service_role` held no UPDATE
+ * privilege on `email_delivery_events`, so every write this route makes was
+ * refused — silently, because none of them looked at `error`.
+ */
+const UPDATE_DENIED = {
+  message: 'permission denied for table "email_delivery_events"',
+};
+
 function queuedRow(id: string, overrides: Record<string, unknown> = {}) {
   return {
     id,
@@ -54,6 +63,14 @@ function stubAdminClient({
   selectError = null as { message: string } | null,
   /** Row ids whose conditional claim matches nothing — the restore sweep won. */
   claimLostFor = [] as string[],
+  /**
+   * Row ids whose conditional claim WRITE fails, mapped to the error PostgREST
+   * hands back. Distinct from `claimLostFor`: nothing was written at all, so
+   * the row is still queued. This is what a missing UPDATE grant looks like.
+   */
+  claimErrorFor = {} as Record<string, { message: string }>,
+  /** Row ids whose corrective flip to 'failed' fails, mapped to its error. */
+  flipErrorFor = {} as Record<string, { message: string }>,
 } = {}) {
   const ops: RecordedOp[] = [];
   const inserts: { table: string; payload: Record<string, unknown> }[] = [];
@@ -70,15 +87,18 @@ function stubAdminClient({
       if (op === "select") {
         return { data: selectError ? null : rows, error: selectError };
       }
-      if (entry.projection === undefined) {
-        // A bare update — PostgREST returns no rows without a projection.
-        return { data: null, error: null };
-      }
-      // The conditional claim. PostgREST returns zero rows when the extra
-      // `delivery_status = 'queued'` filter no longer matches.
       const id = entry.filters
         .find((filter) => filter.startsWith("eq:id="))
         ?.slice("eq:id=".length) ?? "";
+      if (entry.projection === undefined) {
+        // A bare update — the corrective flip. PostgREST returns no rows
+        // without a projection, so its error is the only signal there is.
+        return { data: null, error: flipErrorFor[id] ?? null };
+      }
+      // The conditional claim. PostgREST returns zero rows when the extra
+      // `delivery_status = 'queued'` filter no longer matches — and an error,
+      // with no rows either way, when the write is refused outright.
+      if (claimErrorFor[id]) return { data: null, error: claimErrorFor[id] };
       return { data: claimLostFor.includes(id) ? [] : [{ id }], error: null };
     };
     const chain = {
@@ -225,6 +245,7 @@ describe("POST /api/cron/scheduled-emails", () => {
     expect(await res.json()).toEqual({
       sent: 2,
       skipped: 0,
+      errored: 0,
       total: 2,
       failures: [],
     });
@@ -289,6 +310,7 @@ describe("POST /api/cron/scheduled-emails", () => {
     expect(await res.json()).toEqual({
       sent: 1,
       skipped: 1,
+      errored: 0,
       total: 2,
       failures: [],
     });
@@ -298,6 +320,36 @@ describe("POST /api/cron/scheduled-emails", () => {
     );
     // No follow-up write on the row we lost — its status stays whatever the
     // restore sweep set.
+    expect(stub.updates().filter((entry) => entry.filters.includes("eq:id=a")))
+      .toHaveLength(1);
+  });
+
+  it("reports a claim that errored as a failure rather than a lost race", async () => {
+    const stub = stubAdminClient({
+      rows: [queuedRow("a"), queuedRow("b")],
+      claimErrorFor: { a: UPDATE_DENIED },
+    });
+
+    const res = await post();
+
+    // A claim that was refused and a claim the restore sweep won produce the
+    // same empty row set. Counting them together is how this route answered
+    // 200 { sent: 0, skipped: N, failures: [] } for a whole day of emails that
+    // never left — a body indistinguishable from a healthy tick.
+    expect(await res.json()).toEqual({
+      sent: 1,
+      skipped: 0,
+      errored: 1,
+      total: 2,
+      failures: [`a: claim failed: ${UPDATE_DENIED.message}`],
+    });
+    // Nothing was written, so nothing may be sent: the row is still queued and
+    // the next tick owns it.
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "b@example.test" })
+    );
+    // ...and no corrective write on it either — there is nothing to correct.
     expect(stub.updates().filter((entry) => entry.filters.includes("eq:id=a")))
       .toHaveLength(1);
   });
@@ -314,6 +366,7 @@ describe("POST /api/cron/scheduled-emails", () => {
     expect(await res.json()).toEqual({
       sent: 1,
       skipped: 0,
+      errored: 0,
       total: 2,
       failures: ["a: Resend 422"],
     });
@@ -350,6 +403,34 @@ describe("POST /api/cron/scheduled-emails", () => {
         }),
       },
     ]);
+  });
+
+  it("surfaces a corrective flip that failed without losing the send error", async () => {
+    const stub = stubAdminClient({
+      rows: [queuedRow("a")],
+      flipErrorFor: { a: UPDATE_DENIED },
+    });
+    vi.mocked(sendEmail).mockRejectedValueOnce(new Error("Resend 422"));
+
+    const res = await post();
+
+    // The row was claimed to 'sent' before the send. If the flip back to
+    // 'failed' is also refused, the row reads 'sent' for an email that never
+    // went — the one state /admin/emails cannot be trusted on. So BOTH facts
+    // are reported, and the second never displaces the first.
+    expect(await res.json()).toEqual({
+      sent: 0,
+      skipped: 0,
+      errored: 0,
+      total: 1,
+      failures: [
+        "a: Resend 422",
+        `a: could not mark failed: ${UPDATE_DENIED.message}`,
+      ],
+    });
+    // The operational event still lands, so /admin/operations sees the failed
+    // send whatever the corrective write did.
+    expect(stub.inserts).toHaveLength(1);
   });
 
   it("surfaces a query failure as a 500 without touching any row", async () => {

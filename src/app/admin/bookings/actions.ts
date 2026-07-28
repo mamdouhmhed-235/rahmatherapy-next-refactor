@@ -839,14 +839,30 @@ export async function restoreBooking(
   // drained — the cron only fires on the minute boundary, so that gap is up to
   // 60 seconds wide, and a restore landing inside it would send "restored" while
   // the cron went on to send the cancellation anyway.
-  const { count: cancelledQueuedCount } = await adminClient
+  const { count: cancelledQueuedCount, error: sweepError } = await adminClient
     .from("email_delivery_events")
     .update({ delivery_status: "cancelled_by_restore" }, { count: "exact" })
     .eq("booking_id", bookingId)
     .eq("event_type", "booking_cancellation_customer")
     .eq("delivery_status", "queued");
 
-  const suppressRestoreEmail = (cancelledQueuedCount ?? 0) > 0;
+  if (sweepError) {
+    // Reported the way this file reports every failure it survives — the
+    // caller's console.error, and from there Sentry.
+    console.error(
+      "Unable to sweep queued cancellation emails during restore.",
+      sweepError
+    );
+  }
+
+  const cancelledQueuedEmail = (cancelledQueuedCount ?? 0) > 0;
+  // Fail closed. A sweep that errored says nothing about whether a cancellation
+  // email is still sitting in `queued`, and reading that silence as "nothing was
+  // queued" is the exact shape of the failure this window exists to prevent: the
+  // client gets "your booking is restored" at T, the queued row survives, and the
+  // cron sends the cancellation at T+<=60s — a cancellation for a booking that is
+  // live. A "restored" email that never arrives is something a human can fix.
+  const suppressRestoreEmail = Boolean(sweepError) || cancelledQueuedEmail;
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
@@ -860,7 +876,11 @@ export async function restoreBooking(
       restore_target_status: targetStatus,
       force_completed: forceCompleted || undefined,
       reason: reason || undefined,
-      cancelled_queued_email: suppressRestoreEmail,
+      // Only ever true when the sweep actually cancelled something. The
+      // suppression can also be triggered by the sweep failing, and that is a
+      // different fact about the world, recorded as itself.
+      cancelled_queued_email: cancelledQueuedEmail,
+      cancelled_queued_email_sweep_error: sweepError?.message || undefined,
     },
   });
 

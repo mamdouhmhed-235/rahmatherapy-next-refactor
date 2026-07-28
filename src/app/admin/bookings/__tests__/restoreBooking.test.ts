@@ -94,6 +94,15 @@ const MISSING_SCHEDULED_FOR = {
   message: "column email_delivery_events.scheduled_for does not exist",
 };
 
+/**
+ * The error C-04a actually shipped against: `service_role` held no UPDATE
+ * privilege on `email_delivery_events`, so this sweep was refused every time.
+ */
+const UPDATE_DENIED = {
+  code: "42501",
+  message: 'permission denied for table "email_delivery_events"',
+};
+
 interface RecordedOp {
   table: string;
   op: "select" | "update" | "insert";
@@ -120,7 +129,10 @@ interface StubResult {
 function stubAdminClient({
   booking = BOOKING_ROW as Record<string, unknown>,
   bookingsHaveCancelledAt = false,
-  queuedEmail = { count: null, error: MISSING_SCHEDULED_FOR } as StubResult,
+  // Default: the sweep ran and found nothing queued. It cannot default to an
+  // error any more — the suppression fails closed, so an erroring default would
+  // silently put every unrelated spec on the suppression path.
+  queuedEmail = { count: 0, error: null } as StubResult,
   /**
    * One queued cancellation row for the sweep to match, and the `scheduled_for`
    * it carries. When set, the count is derived by applying the sweep's OWN
@@ -676,17 +688,50 @@ describe("restoreBooking", () => {
       expect(sendBookingRestoredClientEmail).toHaveBeenCalled();
     });
 
-    // Pre-Phase-F the queue columns do not exist: the sweep 400s, nothing is
-    // suppressed, and the restore proceeds exactly as it always did.
-    it("treats the missing queue columns as nothing to cancel", async () => {
-      const stub = stubAdminClient();
+    // Fail closed. A sweep that errored says nothing about whether the
+    // cancellation is still queued, and `(count ?? 0) > 0` read that silence as
+    // "nothing queued": the client got "your booking is restored" at T and the
+    // cancellation the cron drained at T+<=60s — for a booking that is live.
+    // Suppressing instead costs a "restored" email a human can resend.
+    it("suppresses the restore email when the sweep itself fails", async () => {
+      const stub = stubAdminClient({
+        queuedEmail: { count: null, error: UPDATE_DENIED },
+      });
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
 
       expect(await restoreBooking(restoreFormData())).toEqual({ success: true });
 
+      expect(sendBookingRestoredClientEmail).not.toHaveBeenCalled();
+      // ...and the audit row stays honest: nothing was actually swept, so the
+      // suppression is recorded as the anomaly it is, not as a cancellation.
       expect(stub.audit()!.after_state).toMatchObject({
         cancelled_queued_email: false,
+        cancelled_queued_email_sweep_error: UPDATE_DENIED.message,
       });
-      expect(sendBookingRestoredClientEmail).toHaveBeenCalled();
+      expect(logged).toHaveBeenCalled();
+      logged.mockRestore();
+      // The restore itself is unaffected — the booking is confirmed either way.
+      expect(stub.find("bookings", "update")).not.toHaveLength(0);
+      expect(sendAssignedStaffBookingChangeEmails).toHaveBeenCalled();
+    });
+
+    // Same rule for the pre-Phase-F 400, which used to fall through to "nothing
+    // to cancel". Phase F's migration is applied, so a missing column here is
+    // now just another sweep that did not run.
+    it("no longer fails open when the queue columns are missing", async () => {
+      const stub = stubAdminClient({
+        queuedEmail: { count: null, error: MISSING_SCHEDULED_FOR },
+      });
+      const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      expect(await restoreBooking(restoreFormData())).toEqual({ success: true });
+
+      expect(sendBookingRestoredClientEmail).not.toHaveBeenCalled();
+      expect(stub.audit()!.after_state).toMatchObject({
+        cancelled_queued_email: false,
+        cancelled_queued_email_sweep_error: MISSING_SCHEDULED_FOR.message,
+      });
+      logged.mockRestore();
     });
   });
 

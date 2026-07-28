@@ -81,6 +81,9 @@ export async function POST(request: Request): Promise<Response> {
 
   let sent = 0;
   let skipped = 0;
+  // Claim writes that failed outright, kept separate from `skipped` so a broken
+  // UPDATE can never read as a healthy lost race in the log stream.
+  let errored = 0;
   const failures: string[] = [];
 
   for (const row of queued) {
@@ -96,16 +99,37 @@ export async function POST(request: Request): Promise<Response> {
     // would need another migration. The trade: if this worker dies between the
     // claim and the send, that row reads 'sent' but never went. Accepted at this
     // volume (~1-5 cancellations/day).
-    const { data: claimed } = await supabase
+    //
+    // The claim has three outcomes, and they are NOT interchangeable:
+    //   1. it errors           — the write never happened (a missing grant, a
+    //                            dropped connection, a constraint). Nothing is
+    //                            known about the row and nothing may be sent.
+    //   2. it matches no rows  — another writer moved the row out of 'queued'
+    //                            first: restoreBooking's suppression sweep, or
+    //                            an overlapping tick of this same cron.
+    //   3. it matches the row  — ours to send.
+    // Collapsing 1 into 2 is how this route shipped a version that answered
+    // 200 {sent: 0, skipped: N, failures: []} while service_role held no UPDATE
+    // privilege and not one email ever left.
+    const { data: claimed, error: claimError } = await supabase
       .from("email_delivery_events")
       .update({ delivery_status: "sent" })
       .eq("id", row.id)
       .eq("delivery_status", "queued")
       .select("id");
 
+    if (claimError) {
+      // Outcome 1. The row is still 'queued', so the next tick retries it; what
+      // must not happen is that this failure passes for a healthy skip.
+      Sentry.captureException(claimError);
+      failures.push(`${row.id}: claim failed: ${claimError.message}`);
+      errored++;
+      continue;
+    }
+
     if (!claimed?.length) {
-      // The restore sweep won the row — this email is meant to die. Not a
-      // failure, but counted so a lost claim is visible in the log stream.
+      // Outcome 2. Either writer winning is the mechanism working, not a
+      // failure — but counted so a lost claim is visible in the log stream.
       skipped++;
       continue;
     }
@@ -121,10 +145,18 @@ export async function POST(request: Request): Promise<Response> {
     } catch (err) {
       const reason = (err as Error).message;
       failures.push(`${row.id}: ${reason}`);
-      await supabase
+      // Corrective flip. The row was claimed to 'sent' BEFORE the send, so if
+      // this write fails the row stays 'sent' for an email that never went —
+      // /admin/emails would show a success that is a lie. Reported alongside
+      // the send failure above, never instead of it.
+      const { error: flipError } = await supabase
         .from("email_delivery_events")
         .update({ delivery_status: "failed", error_message: reason })
         .eq("id", row.id);
+      if (flipError) {
+        Sentry.captureException(flipError);
+        failures.push(`${row.id}: could not mark failed: ${flipError.message}`);
+      }
       // Same operational event the immediate-send path records via
       // recordEmailDeliveryEvent, so a failed scheduled send reaches
       // /admin/operations and the nav failure counter like any other.
@@ -143,7 +175,8 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  // The worker logs this body verbatim, so `failures` is how a bad send surfaces
-  // in Cloudflare's log stream, and `skipped` is how a lost claim does.
-  return NextResponse.json({ sent, skipped, total: queued.length, failures });
+  // The worker logs this body verbatim, so `failures` is how a bad send or a
+  // broken write surfaces in Cloudflare's log stream, `skipped` is how a lost
+  // race does, and `errored` is what keeps those two apart.
+  return NextResponse.json({ sent, skipped, errored, total: queued.length, failures });
 }
