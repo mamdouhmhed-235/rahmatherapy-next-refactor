@@ -5,8 +5,48 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phases A–F of 8 landed. A–E independently verified (PASS). F verified FAIL → fix round `502824a` → re-verified across 3 lenses → **second blocker found (missing GRANT), grant migration applied**; F's code fix round #2 outstanding. Phases G, H outstanding.
-> **Last good commit:** `502824a` · **Next action:** Phase F fix round #2 (error handling). The ⛔ **Cloudflare deploy is still outstanding** — the cron is inert until it happens.
+> ## ⏸ STATUS: Phases A–F of 8 **COMPLETE and independently verified**. Phases G, H outstanding.
+> **Last good commit:** `2730d70` · **Next action:** Phase G (Steps 13/13b/13c/13d — row-level Restore + status-aware row menu). The ⛔ **Cloudflare deploy is still outstanding** — the cron is inert until it happens.
+
+---
+
+## 0g — PHASE F CLOSURE LEDGER
+
+Phase F took **three verification passes and two migrations**. Every defect below was invisible to tsc, lint and vitest.
+
+| Commit | What |
+|---|---|
+| `e0fb48f` | Phase F code — delayed-email infra + cron route + migration file (unapplied) |
+| `80c8ee4` | backfill excludes the DO-NOT-TOUCH booking |
+| `9d467ef` | ⛔ migration `c04a_scheduled_emails` applied + verified |
+| `502824a` | fix round #1 — restore-suppression window, claim-before-send, failure observability |
+| `210ab61` | ⛔ migration `c04a_grant_update_email_delivery_events` applied + verified |
+| `baed77b` | fix round #2 — surface UPDATE failures, sweep fails closed |
+| `7dd4ceb` | correct a false comment, harden the audit key (`??` not `||`) |
+| `2730d70` | pin the empty-message audit collapse |
+
+**Final gate state: tsc 0 · vitest 5 failed / 722 passed / 727, the five inherited names by identity · lint 59E/7W across the same six files · `next build` clean, `/api/cron/scheduled-emails` present as ƒ (dynamic).**
+
+### The two defects that mattered
+1. **The plan's core premise was false.** It treated `scheduled_for <= now()` as "already sent". With a 10-second delay and a `* * * * *` cron, a row is **due but undrained for up to 60 seconds** — so for 50 of every 60 seconds the suppression sweep matched nothing and the customer received *restored* then *cancelled* for a live booking. Closed by dropping the timestamp filter (status alone decides) plus claim-before-send.
+2. **`service_role` never had UPDATE on `email_delivery_events`.** See §0f. All three of C-04a's UPDATEs were 42501s, silently.
+
+### Verification notes worth keeping
+- **Direction of travel matters.** Fix round #1, assessed alone, was *worse* than what it replaced under the real grant state: send-then-update failed loudly (customer got the email, then duplicates), claim-then-send failed silently (no email, ever, reported as healthy). The design was right; the grant is what made it correct. A fix can be locally correct and globally regressive — check the environment the code actually runs in.
+- **A stub-default change removed a false guard.** `"still succeeds when the client email fails"` would have gone green while never exercising a client-email failure — its `mockRejectedValueOnce` unconsumed, satisfied instead by the *sweep's* `console.error`. Verified by probe.
+- **The 42703 carve-out was guarding an unreachable input.** The sweep references only `booking_id`, `event_type`, `delivery_status` — all created 2026-05-03, none of the five columns C-04a added. The realistic pre-migration failure was 23514, not 42703.
+
+### ACCEPTED GAPS (Owner-decided or logged — do NOT re-litigate)
+- **The cron claim's `.eq("delivery_status","queued")` predicate is pinned by query-*shape* assertions only, never behaviourally** — the route stub does not consult the status filter. Owner explicitly declined to fix. So "exactly one of cron/restore wins" is asserted nowhere as behaviour; a rewrite preserving the chain shape but breaking conditionality passes every spec.
+- **No Sentry alert on a sweep failure.** `actions.ts` imports no Sentry; the server/edge configs register no console-capture integration, and the default console integration is breadcrumbs-only (a breadcrumb needs a captured event in the same scope, and this path returns `{success:true}` without throwing). The durable record is `audit_logs.after_state.cancelled_queued_email_sweep_error` plus a Cloudflare log line. The false comment claiming otherwise was corrected in `7dd4ceb`; **the identical pre-existing false claim at `actions.ts:226` was deliberately left untouched** (§1.6(a)).
+- **Fix 2 (queue-insert failure recording) ships untested** — no spec file exists for `notifications.ts`, and `sendTrackedEmail` is not exported. Owner accepted.
+- `{count: null, error: null}` from the sweep (PostgREST omitting `Content-Range`) still fails open. Harm is mild: a "restored" email the customer didn't need, never a cancellation for a live booking.
+- Cron counters are mutually exclusive but **not exhaustive** — a send that throws increments none of `sent`/`skipped`/`errored`, and `failures.length` is not a row count (a claim error contributes 1 entry, a send-plus-failed-flip contributes 2 for the same row).
+- `errored`/`skipped`/`failures` are absent from four of the cron's five return paths, including the common "nothing due" 200.
+- Two further silent-discard sites in this path: `recordOperationalEvent(...).catch(() => undefined)` in `route.ts`, and `restoreBooking`'s `audit_logs` insert, whose error is never read — a restore's audit row can fail to land with nothing reported.
+- `bookings.cancelled_at`'s `MISSING_COLUMN_CODES` fallback in `actions.ts` is now **dead code** (migration statement 4 added the column). Pre-existing shape, out of scope.
+- `types.ts:71` still types `delivery_status` as `accepted|failed|skipped` — a lie for `queued`/`sent`/`cancelled_by_restore`. Cosmetic (rendering degrades safely); **fold into Phase G**, which already touches that file.
+- Plan line 1421's curl verification is stale: the route is **POST + `X-Cron-Secret`**, not GET + Bearer, so the plan's command returns 405.
 
 ---
 
