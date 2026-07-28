@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sendAssignedStaffBookingChangeEmails } from "@/lib/email/notifications";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
 import { updateOwnAssignmentStatus } from "../actions";
 import { TERMINAL_BOOKING_STATUSES } from "../_helpers";
 
@@ -59,6 +60,12 @@ function staff(name: string, permissions: string[]): StaffProfile {
 
 const therapist = staff("Therapist", [PERMISSIONS.MANAGE_BOOKINGS_ASSIGNED]);
 
+// Derived from London's today, never hardcoded: the guard compares against
+// `getBusinessDate()`, so a frozen fixture date would rot.
+const TODAY = getBusinessDate();
+const YESTERDAY = addBusinessDays(TODAY, -1);
+const TOMORROW = addBusinessDays(TODAY, 1);
+
 /** The assignment the actor is finishing. */
 const OWN_ASSIGNMENT = {
   id: "assignment-1",
@@ -94,9 +101,13 @@ interface StubResult {
  * assignment-status recompute and the auto-promoter read it back by
  * `booking_id`. `promoteMatchesRow: false` models the concurrent-promote race:
  * the WHERE guard finds nothing, so `.single()` comes back empty.
+ *
+ * `bookingDate` defaults to a past visit — the ordinary case for a practitioner
+ * finishing their work — so only the temporal specs need to name it.
  */
 function stubAdminClient({
   bookingStatus = "confirmed",
+  bookingDate = YESTERDAY,
   assignments = [
     { assigned_staff_id: therapist.id, status: "completed" },
     { assigned_staff_id: "staff-Other", status: "no_show" },
@@ -117,7 +128,9 @@ function stubAdminClient({
     }
 
     if (entry.table === "bookings") {
-      if (entry.op === "select") return { data: { status: bookingStatus }, error: null };
+      if (entry.op === "select") {
+        return { data: { status: bookingStatus, booking_date: bookingDate }, error: null };
+      }
       // The recompute's `assignment_status` write is awaited for its error only.
       if (!Object.hasOwn(entry.payload ?? {}, "status")) {
         return { data: null, error: null };
@@ -288,6 +301,40 @@ describe("autoPromoteBookingFromAssignments", () => {
     await updateOwnAssignmentStatus(assignmentFormData("completed"));
 
     expectNoPromotion(stub);
+  });
+
+  // W03-E-2 reached through the back door. Nothing stops a practitioner
+  // finishing next week's assignment today — `updateOwnAssignmentStatus` has no
+  // date guard and the own-work check only asks who holds the assignment — so
+  // the promoter is where the booking-level write is refused, exactly as
+  // `quickUpdateBooking`'s `complete` chip refuses it.
+  it("does not promote a future-dated booking", async () => {
+    const stub = stubAdminClient({ bookingDate: TOMORROW });
+
+    expect(await updateOwnAssignmentStatus(assignmentFormData("completed"))).toEqual({
+      success: true,
+    });
+
+    expectNoPromotion(stub);
+    // Only the promotion is suppressed: the practitioner's own write lands.
+    expect(
+      stub.ops.filter(
+        (entry) => entry.table === "booking_assignments" && entry.op === "update"
+      )
+    ).toEqual([
+      expect.objectContaining({ payload: { status: "completed" } }),
+    ]);
+  });
+
+  // The over-blocking canary. The guard is date-only, like the chip's: a visit
+  // on today's date is finishable however late in the day it was booked for.
+  it("still promotes a booking dated today", async () => {
+    const stub = stubAdminClient({ bookingDate: TODAY });
+
+    await updateOwnAssignmentStatus(assignmentFormData("completed"));
+
+    expect(stub.promoteUpdates()).toHaveLength(1);
+    expect(stub.auditRows("booking_auto_promoted_completed")).toHaveLength(1);
   });
 
   it("waits while any assignment is still open", async () => {

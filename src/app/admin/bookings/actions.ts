@@ -161,9 +161,9 @@ async function recomputeBookingAssignmentStatus(
  * behind it (B-168). Capability-keyed, not role-keyed (brief §2.4): whoever
  * finishes the last assignment triggers this, therapist or not.
  *
- * Only ever promotes a booking that is not already terminal. `no_show` counts
- * as terminal — see `TERMINAL_BOOKING_STATUSES`. Both the predicate and the
- * UPDATE's race guard read that one list.
+ * Only ever promotes a booking that is neither already terminal nor still in
+ * the future. `no_show` counts as terminal — see `TERMINAL_BOOKING_STATUSES`.
+ * Both the predicate and the UPDATE's race guard read that one list.
  */
 async function autoPromoteBookingFromAssignments(
   bookingId: string,
@@ -178,9 +178,9 @@ async function autoPromoteBookingFromAssignments(
       .returns<BookingAssignmentStatusRecord[]>(),
     adminClient
       .from("bookings")
-      .select("status")
+      .select("status, booking_date")
       .eq("id", bookingId)
-      .single<{ status: BookingStatus }>(),
+      .single<{ status: BookingStatus; booking_date: string | null }>(),
   ]);
 
   if (!assignments || !bookingNow) return { promoted: false };
@@ -194,7 +194,18 @@ async function autoPromoteBookingFromAssignments(
     );
   if (!allTerminal) return { promoted: false };
 
+  // Two preconditions on the booking itself, refused the same way: silently,
+  // because the assignment write that got us here is legitimate and has already
+  // landed. Terminal — leaving `completed`, `cancelled` or `no_show` owes an
+  // audit action, a reason or a client email. Future-dated — W03-E-2, an
+  // outcome cannot be recorded before the day it happens on. Neither
+  // `updateOwnAssignmentStatus` nor the practitioner's own-work check looks at
+  // the date, so without this a practitioner finishing next week's last
+  // assignment today would complete the booking through a door
+  // `quickUpdateBooking`'s `complete` chip holds shut. Same predicate as that
+  // chip and the detail page's Mark-no-show button, deliberately.
   if (isTerminalBookingStatus(bookingNow.status)) return { promoted: false };
+  if (isBookingDateFutureLondon(bookingNow)) return { promoted: false };
 
   // The WHERE guard is what makes two practitioners finishing at the same
   // moment safe: the second UPDATE matches 0 rows, so only one audit row and
