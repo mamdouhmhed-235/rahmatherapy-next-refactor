@@ -5,6 +5,7 @@ import {
 } from "@/lib/email/notifications";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
 import { updateBookingManagement } from "../actions";
 
 vi.mock("next/cache", () => ({
@@ -280,5 +281,91 @@ describe("updateBookingManagement — completed-reversal guard", () => {
     expect(stub.find("bookings", "update").at(-1)!.payload).toMatchObject({
       status: "cancelled",
     });
+  });
+});
+
+// Derived from London's today, never hardcoded: the guard compares against
+// `getBusinessDate()`, so a frozen fixture date would rot.
+const TODAY = getBusinessDate();
+const YESTERDAY = addBusinessDays(TODAY, -1);
+const TOMORROW = addBusinessDays(TODAY, 1);
+
+/** A live booking, dated by the spec that uses it. */
+function confirmedBooking(bookingDate: string) {
+  return { ...COMPLETED_BOOKING, status: "confirmed", booking_date: bookingDate };
+}
+
+describe("updateBookingManagement — future-date guard (W03-E-2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getStaffProfile).mockResolvedValue(owner);
+    vi.mocked(sendAssignedStaffBookingChangeEmails).mockReset().mockResolvedValue();
+    vi.mocked(sendBookingCancellationEmails).mockReset().mockResolvedValue();
+  });
+
+  // The Status dropdown offers both on every booking, so the form was the one
+  // door left open after the chips and the auto-promoter were shut. Revert the
+  // guard and these two fail: the UPDATE lands and the audit row follows.
+  it.each(["completed", "no_show"])(
+    "refuses %s on a future-dated booking",
+    async (status) => {
+      const stub = stubAdminClient(confirmedBooking(TOMORROW));
+
+      expect(await updateBookingManagement({}, statusFormData({ status }))).toEqual({
+        error:
+          "This booking is in the future. Mark complete or no-show after the appointment time.",
+      });
+
+      expect(stub.find("bookings", "update")).toHaveLength(0);
+      expect(stub.find("audit_logs", "insert")).toHaveLength(0);
+      expect(sendAssignedStaffBookingChangeEmails).not.toHaveBeenCalled();
+      expect(sendBookingCancellationEmails).not.toHaveBeenCalled();
+    }
+  );
+
+  // The over-blocking canary that matters most: cancelling a booking before it
+  // happens is the commonest edit this form sees, and it owes the client an
+  // email. A guard keyed on the date alone rather than on the status being
+  // written would break it.
+  it("still cancels a future-dated booking, and still emails the client", async () => {
+    const stub = stubAdminClient(confirmedBooking(TOMORROW));
+
+    expect(
+      await updateBookingManagement({}, statusFormData({ status: "cancelled" }))
+    ).toEqual({ success: true });
+
+    expect(stub.find("bookings", "update").at(-1)!.payload).toMatchObject({
+      status: "cancelled",
+    });
+    expect(sendBookingCancellationEmails).toHaveBeenCalledWith(
+      "booking-1",
+      stub.client,
+      { initiatedBy: "admin" }
+    );
+  });
+
+  it("still completes a past-dated booking", async () => {
+    const stub = stubAdminClient(confirmedBooking(YESTERDAY));
+
+    expect(
+      await updateBookingManagement({}, statusFormData({ status: "completed" }))
+    ).toEqual({ success: true });
+
+    expect(stub.find("bookings", "update").at(-1)!.payload).toMatchObject({
+      status: "completed",
+    });
+    expect(stub.find("audit_logs", "insert")).toHaveLength(1);
+  });
+
+  // Date-only, like the chip's: today's 18:00 visit is markable at 17:55 when
+  // the therapist rings in.
+  it("still completes a booking dated today", async () => {
+    const stub = stubAdminClient(confirmedBooking(TODAY));
+
+    expect(
+      await updateBookingManagement({}, statusFormData({ status: "completed" }))
+    ).toEqual({ success: true });
+
+    expect(stub.find("bookings", "update")).toHaveLength(1);
   });
 });

@@ -336,6 +336,27 @@ export async function updateBookingManagement(
     }
   }
 
+  // W03-E-2 (C-04a) — an outcome cannot be recorded before the day it happens
+  // on. The Status dropdown offers `completed` and `no_show` on every booking,
+  // so without this the form is the way round a refusal `quickUpdateBooking`'s
+  // chips and the auto-promoter both carry: same predicate, same words, so the
+  // three paths cannot drift. Keyed on the status being written, not on the
+  // transition — `pending`, `confirmed` and `cancelled` stay settable on a
+  // future-dated booking, and cancelling one ahead of time (the ordinary case)
+  // still emails the client. The Notes forms re-post the booking's own status,
+  // but a future-dated booking cannot be sitting at `completed` or `no_show`
+  // for them to re-post: nothing creates one there and, with this guard, no
+  // write path can move one there either.
+  if (
+    (status === "completed" || status === "no_show") &&
+    isBookingDateFutureLondon(beforeState)
+  ) {
+    return {
+      error:
+        "This booking is in the future. Mark complete or no-show after the appointment time.",
+    };
+  }
+
   const payload = {
     status,
     payment_status: paymentStatus,
