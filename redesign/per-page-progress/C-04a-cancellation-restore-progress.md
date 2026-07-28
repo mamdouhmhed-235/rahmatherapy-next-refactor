@@ -5,8 +5,54 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phase A of 8 landed + independently verified (PASS). Phases B–H outstanding.
-> **Last good commit:** `3bddb39` · **Next action:** Phase B (state-machine guard + Status-form confirm modal).
+> ## ⏸ STATUS: Phases A, B, C of 8 landed. A and B independently verified (PASS). Phases D–H outstanding.
+> **Last good commit:** `f24bc42` · **Next action:** Phase C's verifier, then Phase D (auto-promote).
+>
+> **Commits so far:** `3bddb39` A · `057b974` A verified · `49da51e` B · `e83187e` B fix (B-1) · `68fc49a` C · `6aaf540` terminal guards 1–2 · `56cba4d` terminal guard 3 · `f24bc42` terminal guard 4.
+> **Baseline now: 5 failed / 680 passed / 685** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
+
+---
+
+## 0b — Phase B (`49da51e` + `e83187e`) — verified PASS
+
+Completed-reversal guard on `updateBookingManagement` + the Status-form confirm modal.
+
+**A first dispatch HALTED before writing code** under rule 6(b) and was right to: the plan's §2 attributes the modal to `[bookingId]/page.tsx`, which has **zero** `updateBookingManagement` consumers — all three live in `BookingManagementForm.tsx`. **Owner extended the files-touched list** to that file. It also refused to ship the server guard alone, because that would reject every `completed → *` transition while its error copy pointed at a modal that did not exist.
+
+**Fix round (B-1):** the too-short-reason path was a dead end — `ConfirmActionModal` closes on the next microtask, before the server answers, so `fieldErrors.completed_reversal_reason` had **no render site** and the admin got an `Infinity`-duration "Retry" toast that could never succeed. Closed at the submit boundary (the primitive exposes no way to disable its confirm button, and editing a shared primitive was forbidden), plus a render site for the server's message.
+**Logged for the Owner:** a one-line `confirmDisabled?: boolean` on `ConfirmActionModal` would let this be enforced at the control instead.
+
+**C-1 (carry to Phase G):** the completed-reversal rule now exists twice — `restoreBooking` keeps its own inline predicate, its own hardcoded `5` and its own copy, while Phase B reads `COMPLETED_REVERSAL_MIN_REASON_LENGTH` from `_helpers.ts`. Editing the constant would silently leave restore behind.
+
+---
+
+## 0c — Phase C (`68fc49a`) + four terminal-state guards (`6aaf540`, `56cba4d`, `f24bc42`)
+
+No-show quick action + Mark no-show button. `completed → no_show` deliberately unreachable through it.
+
+**Then four live one-click holes were found and closed, all Owner-approved as deviations from plan §2's UNCHANGED list**, which freezes `confirm`/`cancel`/`complete`/`mark_paid`:
+
+| # | Hole | Severity |
+|---|---|---|
+| 1 | `cancel` chip live on a **completed** booking → **fires a real customer cancellation email** | high |
+| 2 | `complete` chip live on a **cancelled** booking → `cancelled → completed`, bypassing Phase B | high |
+| 3 | `cancel` + `complete` chips live on a **no_show** booking → cancel **fires a real customer email** | high |
+| 4 | `confirm` chip live on a **no_show** booking → silently un-does it, **bypassing `restoreBooking` entirely** — no S6 past-moment guard, no `booking_restored` audit action, no "booking is back on" client email | medium |
+
+The final guard **simplified** to `beforeState.status === "no_show" && nextStatus !== "no_show"`, structurally identical to `isCompletedReversal`. All guards read the computed payload's target status, not the action name, so `mark_paid` self-excludes without special-casing.
+
+**Sweep completed:** every caller of `quickUpdateBooking` and every importer of those components was enumerated and each affordance's render condition cross-checked against the server's refusal set. **No live control renders on a completed, cancelled or no-show booking for any status-writing action.**
+
+**Also resolved:** plan Step 5 guards `complete` against future dates while §2's UNCHANGED list freezes it. **Owner: Step 5 wins** — §2's line is stale (it also claims only `no_show` is added to that switch, when Phase G adds `restore`). The implementer also replaced the plan's `new Date().toISOString().slice(0,10)` with `getBusinessDate()`, fixing a real BST false-negative where between 00:00 and 01:00 London a same-day booking read as future-dated.
+
+### Left for C-05 (no live affordance — hand-crafted POST only)
+`cancelled → confirmed`, `cancelled → no_show`, and the `X → X` no-ops remain permitted server-side. C-05's remit is exactly this, with a shared helper across all seven edit points.
+
+### Left for C-06's record
+`deleteClient`'s cascade filter is `.not("status","in","(cancelled,completed)")`, which **includes `no_show`** — deleting a client silently reclassifies a no-show booking as cancelled. Record-integrity only; no email fires.
+
+### Still outstanding from Phase C
+Change 7's audit phrasing: `booking_quick_no_show` was added to the detail page's `ACTIVITY_ACTION_LABELS`, but neither it nor Phase A's `booking_restored` is in `clients/[clientId]/page.tsx`'s `AUDIT_PHRASING`. Whichever phase claims Change 7 must do both.
 > **The drift checkpoint for plans #1–#5 falls due after this plan** (protocol §2.6).
 
 ---
