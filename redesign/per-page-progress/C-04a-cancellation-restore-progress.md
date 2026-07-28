@@ -5,8 +5,8 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Phases A, B, C of 8 landed. A and B independently verified (PASS). Phases D–H outstanding.
-> **Last good commit:** `f24bc42` · **Next action:** Phase C's verifier, then Phase D (auto-promote).
+> ## ⏸ STATUS: Phases A, B, C of 8 landed, **all three independently verified (PASS)**. Phases D–H outstanding.
+> **Last good commit:** `7e368e0` · **Next action:** Phase D (auto-promote) — **read D-1 below first; the plan's Step 6 has a hole.**
 >
 > **Commits so far:** `3bddb39` A · `057b974` A verified · `49da51e` B · `e83187e` B fix (B-1) · `68fc49a` C · `6aaf540` terminal guards 1–2 · `56cba4d` terminal guard 3 · `f24bc42` terminal guard 4.
 > **Baseline now: 5 failed / 680 passed / 685** — the five inherited (admin-access ×2, ManualBookingForm ×3); tsc 0; lint 59E/7W identity.
@@ -50,6 +50,37 @@ The final guard **simplified** to `beforeState.status === "no_show" && nextStatu
 
 ### Left for C-06's record
 `deleteClient`'s cascade filter is `.not("status","in","(cancelled,completed)")`, which **includes `no_show`** — deleting a client silently reclassifies a no-show booking as cancelled. Record-integrity only; no email fires.
+
+### 🔴 D-1 — PHASE D'S PLAN WILL OPEN A FIFTH HOLE. READ BEFORE IMPLEMENTING STEP 6.
+
+Found by the Phase C verifier, before Phase D was written. Same damage as hole #4, reached through a door the four guards cannot watch — because they all live inside `quickUpdateBooking`.
+
+**The chain:**
+1. `SessionNotePromptSheet.tsx:61` and `[bookingId]/page.tsx:941,950` dispatch `assignment_completed` / `assignment_no_show` → **`updateOwnAssignmentStatus`**, not `quickUpdateBooking`. Today they write only assignment state, so they are correctly outside the four guards.
+2. Their gate is `isOwn = isAssignedToActor && assignment.status === "assigned"` (`page.tsx:870`) — **it never checks the booking's status.**
+3. **Nothing cascades a cancel or no-show to `booking_assignments`.** All four `.from("booking_assignments").update(...)` sites were checked; none is reached from `quickUpdateBooking` or `updateBookingManagement`. So a no-show booking keeps its assignments at `"assigned"` and the therapist's "Mark complete" stays **live** on it.
+4. Plan Step 6 hooks `autoPromoteBookingFromAssignments` into `updateOwnAssignmentStatus` (Step 6b, plan `:713`). The helper's terminal bail-out is `if (bookingNow.status === "completed" || bookingNow.status === "cancelled")` (plan `:661`) plus `.not("status","in",'("completed","cancelled")')` (plan `:670`). **`no_show` is in neither.**
+
+**Result the moment Phase D lands:** therapist opens a **no-show** booking → marks their own assignment complete → all assignments terminal → booking status `no_show` passes both exclusions → **booking auto-promoted to `completed`**, with an audit row and a staff email. A no-show silently un-done, bypassing `restoreBooking`, its S6 past-moment guard, its `booking_restored` audit action and its client email — exactly hole #4.
+
+Plan Step 6d's three listed cases cover booking-`completed` and booking-`cancelled` but **not** booking-`no_show`. Brief §3:659 independently confirms the trigger.
+
+**Required at Phase D:** add `no_show` to the predicate at plan `:661` **and** the `.not("status","in", …)` list at `:670`, and add a Step 6d case "all assignments terminal, booking no_show → no-op". **Better:** move the terminal-status rule into `_helpers.ts` so `quickUpdateBooking` and the auto-promoter cannot drift — the same drift C-1 already flags for `restoreBooking`.
+
+### C-1 (material, for Phase G) — the strip now asserts things that are false
+`isDone` means "don't offer", but the branch it drives renders a **✓ checkmark plus `doneLabel`**. On a **no-show** booking the panel shows `✓ Confirmed · Mark paid · ✓ Completed · ✓ Cancelled` — three false claims, and none says "no-show". On a cancelled booking, two are false.
+
+The pattern **pre-dates this work** (`confirm.isDone` already covered `completed || cancelled`), so extending it matched the file's existing style per §1.11 — but it is now three-wide on the most confusing status. The correct shape is a separate `isUnavailable` predicate rendering nothing, or a muted "Not available". **Phase G rewrites exactly this surface** (status-aware menu, Step 13c) — fix it there. The current specs cannot catch it: they use `queryByRole("button", …)`, which passes while a `<span>` renders.
+
+### Spec gaps closed (`7e368e0`)
+- **F-1:** the BST fix was unpinned — fixtures derived from the implementation's own clock, so reverting it left the suite green for 23 hours a day. `isBookingDateFutureLondon` now takes a defaulted `now`, and a spec injects `2026-07-27T23:30:00Z` (00:30 London, BST). Proven to redden against **both** plausible revert shapes.
+- **F-2:** no spec asserted a legal `pending → confirmed` or `confirmed → completed` succeeded — every `confirm` spec in the file asserted a *refusal*. Dropping guard 2's second conjunct would have broken **every** quick "Mark complete" with the suite green. Both canaries added and proven to be the only genuine detectors.
+
+### Log-only from the Phase C verification
+- `complete` is **not** date-gated in either `BookingRowActions.tsx:201` or the `complete` chip, so on a future-dated confirmed booking both render live and the server now refuses them with the W03-E-2 message. Plan-sanctioned (brief §2.3 says it "surfaces as" an error), but it contradicts the invariant the new no-show button holds to — a button should not offer what the action refuses.
+- `BookingRowActions.tsx:22` gained `no_show` in the union but no menu item dispatches it — dead until Phase G. Intentional groundwork.
+- `complete` from `completed` (and `no_show → no_show`) still writes a spurious audit row; crafted-POST only, pre-existing.
+- `_helpers.ts` `booking_date: string | null` → `String(null ?? "")` fails **open**. Unreachable per schema; the optional type invites it.
 
 ### Still outstanding from Phase C
 Change 7's audit phrasing: `booking_quick_no_show` was added to the detail page's `ACTIVITY_ACTION_LABELS`, but neither it nor Phase A's `booking_restored` is in `clients/[clientId]/page.tsx`'s `AUDIT_PHRASING`. Whichever phase claims Change 7 must do both.
