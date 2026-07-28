@@ -584,6 +584,16 @@ export async function quickUpdateBooking(formData: FormData) {
 
   const bookingId = String(formData.get("booking_id") ?? "").trim();
   const action = String(formData.get("action") ?? "").trim();
+
+  // C-04a Phase G (Change 11) — `restore` is not a chip-shaped status write.
+  // It owns the S6 past-moment and S7 window guards, the deleted-client refusal,
+  // the `booking_restored` audit action, the queued-cancellation-email sweep and
+  // the "your booking is back on" client email. Delegating rather than adding a
+  // branch to the payload switch below is what stops the row menu from becoming
+  // a second, weaker way out of a terminal status — the exact hole the four
+  // terminal-state guards were added to close.
+  if (action === "restore") return restoreBooking(formData);
+
   if (!bookingId) return { error: "Booking is required." };
 
   const adminClient = createSupabaseAdminClient();

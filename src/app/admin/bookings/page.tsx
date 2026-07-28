@@ -40,6 +40,12 @@ export const metadata = {
   title: "Bookings - Rahma Therapy Admin",
 };
 
+// C-04a Phase G — `cancelled_at` is named here in the SAME change that adds it
+// to `BookingRecord` (./types.ts). Splitting them leaves the field `undefined`
+// at runtime while tsc stays green (the admin client carries no `Database`
+// generic and the row is an unchecked `.returns<BookingRecord[]>()` cast),
+// which makes `isRestoreWindowExpired` fail closed on every cancelled booking
+// and hides the row menu's Restore item everywhere.
 const BOOKING_SELECT = `
   id,
   booking_date,
@@ -69,6 +75,7 @@ const BOOKING_SELECT = `
   customer_notes,
   health_notes,
   customer_manage_notes,
+  cancelled_at,
   customer_cancelled_at,
   customer_cancellation_note,
   last_customer_manage_action_at,
@@ -97,6 +104,7 @@ const CLAIMABLE_BOOKING_SELECT = `
   group_booking,
   booking_source,
   reschedule_status,
+  cancelled_at,
   customer_cancelled_at,
   created_at,
   booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, consent_acknowledged),
@@ -287,6 +295,7 @@ function normalizeClaimableBooking(booking: Partial<BookingRecord>): BookingReco
     customer_notes: null,
     health_notes: null,
     customer_manage_notes: null,
+    cancelled_at: booking.cancelled_at ?? null,
     customer_cancelled_at: booking.customer_cancelled_at ?? null,
     customer_cancellation_note: null,
     last_customer_manage_action_at: null,
@@ -922,6 +931,10 @@ function BookingListCard({
           assignmentStatus={booking.assignment_status}
           mapUrl={showSensitiveDetails ? mapUrl : null}
           claimableAssignmentId={claimableAssignment?.id ?? null}
+          bookingDate={booking.booking_date}
+          startTime={booking.start_time}
+          cancelledAt={booking.cancelled_at ?? null}
+          customerCancelledAt={booking.customer_cancelled_at}
         />
       </div>
     </article>

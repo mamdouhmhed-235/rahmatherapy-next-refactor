@@ -68,7 +68,22 @@ export interface EmailDeliveryEvent {
   event_type: string;
   recipient_email: string | null;
   recipient_role: string | null;
-  delivery_status: "accepted" | "failed" | "skipped";
+  /**
+   * Mirrors the live `email_delivery_events_delivery_status_check` constraint as
+   * extended by C-04a's Phase F migration. The first three are the original
+   * send-site outcomes; `queued`/`sent` are the delayed-send lifecycle, and the
+   * two `cancelled_*` values are queued rows killed before they went out.
+   * Rendering falls through to a muted badge for anything it has no case for, so
+   * the narrower union was a lie rather than a guard.
+   */
+  delivery_status:
+    | "accepted"
+    | "failed"
+    | "skipped"
+    | "queued"
+    | "sent"
+    | "cancelled_by_restore"
+    | "cancelled_manual";
   provider_message_id: string | null;
   error_message: string | null;
   created_at: string;
@@ -103,6 +118,19 @@ export interface BookingRecord {
   customer_notes: string | null;
   health_notes: string | null;
   customer_manage_notes: string | null;
+  /**
+   * C-04a — the unified admin+customer cancellation stamp (Phase F migration).
+   *
+   * Optional because `BOOKING_DETAIL_SELECT` (./[bookingId]/page.tsx) does not
+   * name it yet and that file is outside Phase G's authorised scope; a required
+   * field there is a compile error. The consequence is that declaring it here
+   * buys NO protection against the C-bis trap — the rows arrive through an
+   * unchecked `.returns<BookingRecord[]>()` cast, so a column missing from the
+   * projection reads `undefined` with every gate green. The projection strings
+   * are the only real guard: `BOOKING_SELECT` and `CLAIMABLE_BOOKING_SELECT`
+   * (./page.tsx) both name it; the detail select still does not.
+   */
+  cancelled_at?: string | null;
   customer_cancelled_at: string | null;
   customer_cancellation_note: string | null;
   last_customer_manage_action_at: string | null;
