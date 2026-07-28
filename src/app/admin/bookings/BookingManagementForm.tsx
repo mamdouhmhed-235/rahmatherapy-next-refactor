@@ -69,7 +69,8 @@ interface StatusFormState {
   setPaymentMethod: (value: string) => void;
   paymentNote: string;
   setPaymentNote: (value: string) => void;
-  submit: (formData: FormData) => void;
+  submit: (formData: FormData) => Promise<void>;
+  setReasonError: (message: string) => void;
   handleSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   recomputeDirty: (
     overrides?: Partial<{
@@ -134,27 +135,42 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
     );
   }
 
+  // The promise matters: the reopen-confirm modal awaits this before it closes,
+  // so the dialog outlives the request instead of dismissing on the next
+  // microtask. Same shape as the Restore control's `runRestore`.
   function submit(formData: FormData) {
-    startTransition(async () => {
-      const result = await updateBookingManagement({}, formData);
-      if (result.error || result.fieldErrors) {
-        setState(result);
-        if (result.error) {
-          toast.error("Couldn't save changes. Try again.", {
-            duration: Infinity,
-            action: {
-              label: "Retry",
-              onClick: () => submit(formData),
-            },
-          });
+    return new Promise<void>((resolve) => {
+      startTransition(async () => {
+        const result = await updateBookingManagement({}, formData);
+        if (result.error || result.fieldErrors) {
+          setState(result);
+          if (result.error) {
+            toast.error("Couldn't save changes. Try again.", {
+              duration: Infinity,
+              action: {
+                label: "Retry",
+                onClick: () => void submit(formData),
+              },
+            });
+          }
+          resolve();
+          return;
         }
-        return;
-      }
-      setState({});
-      setDirty(false);
-      toast.success("Booking updated.");
-      router.refresh();
+        setState({});
+        setDirty(false);
+        toast.success("Booking updated.");
+        router.refresh();
+        resolve();
+      });
     });
+  }
+
+  /**
+   * Refuses a reopen client-side, under the same field key the server uses, so
+   * the message lands in the one render site both paths share.
+   */
+  function setReasonError(message: string) {
+    setState({ fieldErrors: { completed_reversal_reason: message } });
   }
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -191,6 +207,7 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
     paymentNote,
     setPaymentNote,
     submit,
+    setReasonError,
     handleSubmit,
     recomputeDirty,
     initial,
@@ -506,10 +523,17 @@ function ReopenCompletedModal({
   targetStatus: BookingStatus;
   dirty: boolean;
   isPending: boolean;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string) => Promise<void>;
 }) {
   const reasonId = useId();
+  const hintId = useId();
   const [reason, setReason] = useState("");
+  // Flagged only once something has been typed — an untouched field isn't an
+  // error yet. `confirmReopen` re-checks the same rule before posting, so a
+  // confirm on a short reason is refused rather than sent to be rejected.
+  const reasonTooShort =
+    reason.trim().length < COMPLETED_REVERSAL_MIN_REASON_LENGTH;
+  const showReasonError = reason.length > 0 && reasonTooShort;
 
   return (
     <ConfirmActionModal
@@ -536,9 +560,18 @@ function ReopenCompletedModal({
           value={reason}
           onChange={(event) => setReason(event.currentTarget.value)}
           placeholder="e.g. client returned for retreat"
-          className={textareaClass(false)}
+          aria-describedby={hintId}
+          aria-invalid={showReasonError ? "true" : undefined}
+          className={textareaClass(showReasonError)}
         />
-        <p className="text-xs text-[var(--admin-text-muted)]">
+        <p
+          id={hintId}
+          className={`text-xs ${
+            showReasonError
+              ? "text-[oklch(26%_0.14_25)]"
+              : "text-[var(--admin-text-muted)]"
+          }`}
+        >
           Min {COMPLETED_REVERSAL_MIN_REASON_LENGTH} characters. Status will
           change from Completed to {STATUS_LABELS[targetStatus]}.
         </p>
@@ -574,12 +607,23 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
     paymentStatusValue === "paid" && Number(form.amountPaid) === 0;
   const reopeningCompleted = isCompletedReversal(booking.status, statusValue);
 
-  function confirmReopen(reason: string) {
+  // Awaited by the confirm modal, so it stays open until the server answers.
+  // The length check is the client half of the same rule
+  // `updateBookingManagement` enforces: without it a too-short reason posts a
+  // request that can only ever come back rejected.
+  async function confirmReopen(reason: string) {
     if (!formRef.current) return;
+    const trimmedReason = reason.trim();
+    if (trimmedReason.length < COMPLETED_REVERSAL_MIN_REASON_LENGTH) {
+      form.setReasonError(
+        `Provide a reason (min ${COMPLETED_REVERSAL_MIN_REASON_LENGTH} chars).`
+      );
+      return;
+    }
     const formData = new FormData(formRef.current);
     formData.set("force_completed_reversal", "on");
-    formData.set("completed_reversal_reason", reason);
-    form.submit(formData);
+    formData.set("completed_reversal_reason", trimmedReason);
+    await form.submit(formData);
   }
 
   const stepIndex = LIFECYCLE_STEPS.findIndex(
@@ -768,6 +812,18 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
             form.recomputeDirty({ payment_note: v });
           }}
         />
+
+        {/*
+          The reopen reason's only render site. The confirm modal dismisses
+          itself once `onConfirm` settles, so a rejection — client-side or the
+          server's `completed_reversal_reason` — has to surface out here, beside
+          the control that reopens the dialog.
+        */}
+        {form.state.fieldErrors?.completed_reversal_reason ? (
+          <FormError
+            message={form.state.fieldErrors.completed_reversal_reason}
+          />
+        ) : null}
 
         <div className="mt-1 flex flex-wrap justify-end gap-2 border-t border-[var(--admin-border)] pt-4">
           {reopeningCompleted ? (

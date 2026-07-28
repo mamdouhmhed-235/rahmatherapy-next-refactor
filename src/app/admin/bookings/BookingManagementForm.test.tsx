@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BookingManagementForm } from "./BookingManagementForm";
 import { updateBookingManagement } from "./actions";
+import { COMPLETED_REVERSAL_MIN_REASON_LENGTH } from "./_helpers";
 import type { BookingRecord } from "./types";
 
 vi.mock("./actions", () => ({
@@ -69,6 +70,17 @@ const BOOKING: BookingRecord = {
 function lastPayload() {
   const call = vi.mocked(updateBookingManagement).mock.calls.at(-1);
   return Object.fromEntries((call![1] as FormData).entries());
+}
+
+const REASON_REQUIRED = `Provide a reason (min ${COMPLETED_REVERSAL_MIN_REASON_LENGTH} chars).`;
+
+/** Moves the status off `completed` and opens the confirm modal. */
+async function openReopenModal(user: ReturnType<typeof userEvent.setup>) {
+  await user.selectOptions(screen.getByLabelText(/^Status/), "confirmed");
+  await user.click(
+    screen.getByRole("button", { name: /Save status & payment/i })
+  );
+  return screen.findByLabelText(/Reason for reopening/i);
 }
 
 describe("BookingManagementForm — reopen-completed confirm modal", () => {
@@ -143,5 +155,61 @@ describe("BookingManagementForm — reopen-completed confirm modal", () => {
     await waitFor(() => expect(updateBookingManagement).toHaveBeenCalledTimes(1));
     expect(screen.queryByText("Reopen this completed booking?")).toBeNull();
     expect(lastPayload()).toMatchObject({ status: "cancelled" });
+  });
+
+  it("refuses the confirm when no reason has been given", async () => {
+    const user = userEvent.setup();
+    render(<BookingManagementForm booking={BOOKING} />);
+
+    await openReopenModal(user);
+    await user.click(screen.getByRole("button", { name: /Reopen booking/i }));
+
+    expect(await screen.findByText(REASON_REQUIRED)).not.toBeNull();
+    expect(updateBookingManagement).not.toHaveBeenCalled();
+  });
+
+  it("refuses the confirm when the reason is shorter than the minimum", async () => {
+    const user = userEvent.setup();
+    render(<BookingManagementForm booking={BOOKING} />);
+
+    const reason = await openReopenModal(user);
+    await user.type(reason, "ok ");
+    await user.click(screen.getByRole("button", { name: /Reopen booking/i }));
+
+    expect(await screen.findByText(REASON_REQUIRED)).not.toBeNull();
+    expect(updateBookingManagement).not.toHaveBeenCalled();
+  });
+
+  it("submits the trimmed reason once it meets the minimum", async () => {
+    const user = userEvent.setup();
+    render(<BookingManagementForm booking={BOOKING} />);
+
+    const reason = await openReopenModal(user);
+    await user.type(reason, "  booked in error  ");
+    await user.click(screen.getByRole("button", { name: /Reopen booking/i }));
+
+    await waitFor(() => expect(updateBookingManagement).toHaveBeenCalledTimes(1));
+    expect(lastPayload()).toMatchObject({
+      force_completed_reversal: "on",
+      completed_reversal_reason: "booked in error",
+    });
+    expect(screen.queryByText(REASON_REQUIRED)).toBeNull();
+  });
+
+  it("renders the server's completed_reversal_reason rejection", async () => {
+    vi.mocked(updateBookingManagement).mockResolvedValue({
+      error: "Reopening a completed booking requires a reason.",
+      fieldErrors: { completed_reversal_reason: "Reason rejected by the server." },
+    });
+    const user = userEvent.setup();
+    render(<BookingManagementForm booking={BOOKING} />);
+
+    const reason = await openReopenModal(user);
+    await user.type(reason, "booked in error");
+    await user.click(screen.getByRole("button", { name: /Reopen booking/i }));
+
+    expect(
+      await screen.findByText("Reason rejected by the server.")
+    ).not.toBeNull();
   });
 });
