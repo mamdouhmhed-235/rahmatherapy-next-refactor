@@ -382,6 +382,16 @@ export async function updateBookingManagement(
     };
   }
 
+  // C-04a Phase H — one predicate for the two things that must never disagree:
+  // the `cancelled_at` stamp the S7 restore window is measured from, and the
+  // delayed customer email the admin's Undo cancels. Read from the status being
+  // written, not from the returned row, so the stamp and the send are decided
+  // by the same expression. Only the way IN to `cancelled` counts: both Notes
+  // forms re-post the booking's own status through `HiddenStatusPayload`, and a
+  // notes save on an already-cancelled booking must not restart the window.
+  const isCancellationTransition =
+    beforeState.status !== "cancelled" && status === "cancelled";
+
   const payload = {
     status,
     payment_status: paymentStatus,
@@ -398,6 +408,14 @@ export async function updateBookingManagement(
     admin_notes: adminNotes || null,
     treatment_notes: treatmentNotes || null,
     customer_manage_notes: customerManageNotes || null,
+    // S7 — stamped in the SAME UPDATE that writes `status = 'cancelled'`. A
+    // second round trip could leave a cancelled booking with no cancellation
+    // moment, and `isRestoreWindowExpired` fails closed on that: the Restore
+    // affordance would vanish from a booking cancelled seconds ago. Cancelling
+    // again after a restore re-stamps, which restarts the 28 days.
+    ...(isCancellationTransition
+      ? { cancelled_at: new Date().toISOString() }
+      : {}),
   };
 
   const { data, error } = await adminClient
@@ -422,9 +440,20 @@ export async function updateBookingManagement(
       : data,
   });
 
-  if (beforeState.status !== "cancelled" && data.status === "cancelled") {
+  if (isCancellationTransition) {
     await sendBookingCancellationEmails(bookingId, adminClient, {
       initiatedBy: "admin",
+      // Change 14 — the customer leg is parked in `email_delivery_events` as
+      // `queued` for this many seconds instead of being sent now; the admin and
+      // assigned-staff legs still go immediately. That gap is exactly the window
+      // the Undo toast lives in, and a restore inside it sweeps the queued row
+      // to `cancelled_by_restore` so the client never hears about a booking that
+      // is still on. Keep in step with the toast copy and `duration` in
+      // BookingRowActions.tsx and BookingManagementForm.tsx.
+      //
+      // The queued row is only drained by the scheduled-emails cron, so a
+      // cancellation email now depends on that cron running.
+      delaySeconds: 10,
     }).catch((error) => {
       console.error("Unable to send booking cancellation emails.", error);
     });
@@ -609,6 +638,17 @@ export async function quickUpdateBooking(formData: FormData) {
   const isFutureDated = isBookingDateFutureLondon(beforeState);
 
   const amountDue = Number(beforeState.amount_due ?? beforeState.total_price ?? 0);
+  // S7 (C-04a Phase H) — the cancellation moment the 28-day restore window is
+  // measured from, written in the same UPDATE as the status so a cancelled
+  // booking can never exist without one (`isRestoreWindowExpired` fails closed
+  // on a missing stamp, which would hide Restore on a booking cancelled a moment
+  // ago). Empty when the booking is already cancelled: a second `cancel` post
+  // must not silently extend the window. Cancelling again after a restore does
+  // re-stamp, which is the intended restart.
+  const cancelledAtStamp: { cancelled_at?: string } =
+    beforeState.status === "cancelled"
+      ? {}
+      : { cancelled_at: new Date().toISOString() };
   const payload =
     action === "confirm"
       ? { status: "confirmed" as BookingStatus }
@@ -620,7 +660,7 @@ export async function quickUpdateBooking(formData: FormData) {
             paid_at: beforeState.paid_at ?? new Date().toISOString(),
           }
         : action === "cancel"
-          ? { status: "cancelled" as BookingStatus }
+          ? { status: "cancelled" as BookingStatus, ...cancelledAtStamp }
           : action === "complete"
             ? isFutureDated
               ? null
@@ -706,6 +746,10 @@ export async function quickUpdateBooking(formData: FormData) {
   if (beforeState.status !== "cancelled" && updatedBooking.status === "cancelled") {
     await sendBookingCancellationEmails(bookingId, adminClient, {
       initiatedBy: "admin",
+      // Change 14 — see the matching call in `updateBookingManagement`. The
+      // customer leg queues for 10 seconds so the row menu's Undo can kill it;
+      // the internal legs still go immediately.
+      delaySeconds: 10,
     }).catch((error) => {
       console.error("Unable to send booking cancellation emails.", error);
     });

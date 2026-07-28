@@ -19,6 +19,7 @@ import {
 import { ConfirmActionModal } from "../components/admin-ui-interactions";
 import { BookingActionButton } from "./BookingActionButton";
 import {
+  quickUpdateBooking,
   updateBookingManagement,
   type BookingUpdateState,
 } from "./actions";
@@ -135,10 +136,58 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
     );
   }
 
+  // C-04a Phase H (Change 14) — the Undo behind the cancellation toast. Posted
+  // through `quickUpdateBooking`'s `action=restore` so it lands in
+  // `restoreBooking`, which owns the S6 past-moment guard, the deleted-client
+  // refusal, the `booking_restored` audit action and the sweep that kills the
+  // still-queued cancellation email. Re-selecting a status in this form would
+  // be an unguarded way back out of a terminal state.
+  //
+  // `target_status` restores what the booking actually was; `restoreBooking`
+  // accepts only `confirmed`/`pending`, so a completed booking reopened and then
+  // cancelled comes back as `confirmed`.
+  async function undoCancellation() {
+    const undoFormData = new FormData();
+    undoFormData.set("booking_id", booking.id);
+    undoFormData.set("action", "restore");
+    undoFormData.set(
+      "target_status",
+      booking.status === "pending" ? "pending" : "confirmed"
+    );
+    try {
+      const undoResult = await quickUpdateBooking(undoFormData);
+      if (undoResult.error) {
+        toast.error(`Couldn't undo: ${undoResult.error}`);
+      } else {
+        // No follow-up toast when the cron beat the undo (brief §5.9) — the
+        // client gets an honest "your booking is back on" email in that case.
+        toast.success("Cancellation undone.");
+      }
+    } catch (error) {
+      console.error("[bookings] undo cancel failed", { bookingId: booking.id, error });
+      toast.error("Couldn't undo that cancellation. Try again.");
+    }
+    router.refresh();
+  }
+
   // The promise matters: the reopen-confirm modal awaits this before it closes,
   // so the dialog outlives the request instead of dismissing on the next
   // microtask. Same shape as the Restore control's `runRestore`.
   function submit(formData: FormData) {
+    // The Status dropdown can write any status, so the cancellation toast has
+    // to be told apart from an ordinary save. Read the same way the
+    // completed-reversal interception in `handleSubmit` reads it: the rendered
+    // booking's status against the status this submit is posting.
+    //
+    // The plan's `cancelledWithUndoWindow` flag on the server response exists
+    // only because it assumed a `useActionState` consumer, where the submitted
+    // FormData is out of reach in the effect. This form awaits the action
+    // directly and still holds the FormData, so the flag would be a server
+    // round trip for something already in hand.
+    const isCancellationTransition =
+      booking.status !== "cancelled" &&
+      String(formData.get("status") ?? "") === "cancelled";
+
     return new Promise<void>((resolve) => {
       startTransition(async () => {
         const result = await updateBookingManagement({}, formData);
@@ -158,7 +207,20 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
         }
         setState({});
         setDirty(false);
-        toast.success("Booking updated.");
+        if (isCancellationTransition) {
+          // The client has NOT been notified yet — the customer leg is queued
+          // for 10 seconds (`delaySeconds` in `updateBookingManagement`), and
+          // the toast lives exactly as long as that window.
+          toast.success(
+            "Booking cancelled. The client will be notified in 10 seconds.",
+            {
+              action: { label: "Undo", onClick: () => void undoCancellation() },
+              duration: 10_000,
+            }
+          );
+        } else {
+          toast.success("Booking updated.");
+        }
         router.refresh();
         resolve();
       });

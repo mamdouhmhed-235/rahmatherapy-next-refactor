@@ -243,8 +243,12 @@ describe("quickUpdateBooking — no-show quick action", () => {
     expect(await quickUpdateBooking(quickFormData("cancel"))).toEqual({
       success: true,
     });
+    // `cancelled_at` joined this payload in Phase H (S7). Still `toEqual`, so a
+    // stray column would fail — only the stamp is admitted, and only as a value
+    // the clock decides.
     expect(stub.find("bookings", "update").at(-1)!.payload).toEqual({
       status: "cancelled",
+      cancelled_at: expect.any(String),
     });
   });
 
@@ -345,12 +349,15 @@ describe("quickUpdateBooking — terminal-state guards", () => {
 
     expect(stub.find("bookings", "update").at(-1)!.payload).toEqual({
       status: "cancelled",
+      cancelled_at: expect.any(String),
     });
     expect(stub.audit()).toMatchObject({ action_type: "booking_quick_cancel" });
+    // Phase H — the customer leg is queued for 10 seconds rather than sent now.
+    // Full coverage of the undo window lives in `quickUpdateBookingCancel.test.ts`.
     expect(sendBookingCancellationEmails).toHaveBeenCalledWith(
       "booking-1",
       stub.client,
-      { initiatedBy: "admin" }
+      { initiatedBy: "admin", delaySeconds: 10 }
     );
   });
 

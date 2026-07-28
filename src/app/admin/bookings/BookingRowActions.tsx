@@ -174,7 +174,17 @@ export function BookingRowActions({
       if (action === "confirm") toast.success("Booking confirmed.");
       else if (action === "mark_paid") toast.success("Booking marked paid.");
       else if (action === "cancel")
-        toast.success("Booking cancelled. The client has been notified.");
+        // The client has NOT been notified yet — the customer leg is queued for
+        // 10 seconds (`delaySeconds` in `quickUpdateBooking`). The toast's life
+        // is the same 10 seconds so it never offers an Undo the server would
+        // refuse, and never closes while the window is still open.
+        toast.success(
+          "Booking cancelled. The client will be notified in 10 seconds.",
+          {
+            action: { label: "Undo", onClick: () => void undoCancellation() },
+            duration: 10_000,
+          }
+        );
       else if (action === "complete") toast.success("Booking marked complete.");
       else if (action === "no_show") toast.success("Booking marked no-show.");
       else if (action === "restore")
@@ -186,6 +196,46 @@ export function BookingRowActions({
     } finally {
       setPendingAction(null);
     }
+  }
+
+  // C-04a Phase H (Change 14) — the Undo behind the cancellation toast. It posts
+  // `action=restore`, i.e. `restoreBooking`, so it inherits the S6 past-moment
+  // guard, the deleted-client refusal, the `booking_restored` audit action and
+  // the sweep that kills the still-queued cancellation email. A direct status
+  // write back to `confirmed` would be a second, weaker way out of a terminal
+  // status — the exact hole the terminal-state guards were added to close.
+  //
+  // `target_status` puts the booking back where it was: undoing the cancellation
+  // of a booking that was only *pending* must not quietly confirm it. `status`
+  // is read from the render the toast was created in, so it is the pre-cancel
+  // value even after `router.refresh()`.
+  //
+  // No `pendingAction` gate: the cancel that raised this toast has already
+  // finished, and the toast dismisses itself when the undo window closes.
+  async function undoCancellation() {
+    const undoFormData = new FormData();
+    undoFormData.set("booking_id", bookingId);
+    undoFormData.set("action", "restore");
+    undoFormData.set(
+      "target_status",
+      status === "pending" ? "pending" : "confirmed"
+    );
+    try {
+      const undoResult = await quickUpdateBooking(undoFormData);
+      if (undoResult.error) {
+        toast.error(`Couldn't undo: ${friendlyError(undoResult.error, "quick")}`);
+      } else {
+        // Deliberately not chained with a "the client got the email anyway"
+        // follow-up (brief §5.9): if the cron drained the row inside the gap,
+        // `restoreBooking` sends the client an honest "your booking is back on"
+        // email instead, and the admin does not need to arbitrate that.
+        toast.success("Cancellation undone.");
+      }
+    } catch (error) {
+      console.error("[bookings] undo cancel failed", { bookingId, error });
+      toast.error("Couldn't undo that cancellation. Try again.");
+    }
+    router.refresh();
   }
 
   async function runClaim() {
@@ -405,7 +455,7 @@ export function BookingRowActions({
                   {showCancel ? (
                     <ConfirmActionModal
                       title="Cancel this booking?"
-                      description="The client will be notified by email. This cannot be undone from the booking page."
+                      description="The client is emailed 10 seconds later, so there is a short window to undo it from the toast."
                       confirmLabel="Cancel booking"
                       cancelLabel="Keep it"
                       destructive

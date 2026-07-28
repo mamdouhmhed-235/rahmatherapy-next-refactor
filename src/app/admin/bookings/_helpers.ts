@@ -64,15 +64,23 @@ export function isBookingDateFutureLondon(
 
 /**
  * The cancellation moment the S7 window is keyed to. `cancelled_at` is the
- * unified admin+customer stamp added by this plan's Phase F migration;
- * `customer_cancelled_at` is the customer-flow column that already exists.
+ * unified admin+customer stamp: added by Phase F's migration, written by both
+ * admin cancel paths since Phase H. `customer_cancelled_at` is the older
+ * customer-flow column, kept as the fallback for rows cancelled before that.
  *
- * TODO(C-04a Phase F/G): `cancelled_at` is optional here only because the
- * column, `BookingRecord` and the `.select(...)` column strings all gain it
- * later. Until Phase G adds it to `BOOKING_SELECT` (`bookings/page.tsx`) and
- * `BOOKING_DETAIL_SELECT` (`bookings/[bookingId]/page.tsx`) *in the same change
- * as `types.ts`*, this reads `undefined` on every UI surface and the window
- * falls back to `customer_cancelled_at`.
+ * INVARIANT — load-bearing, not tidiness. `cancelled_at` is REQUIRED on
+ * `BookingRecord` (./types.ts) and named in all four projections that build one:
+ * `BOOKING_SELECT` and `CLAIMABLE_BOOKING_SELECT` in `bookings/page.tsx`, and
+ * `BOOKING_DETAIL_SELECT` and `CLAIMABLE_BOOKING_DETAIL_SELECT` in
+ * `bookings/[bookingId]/page.tsx`. Those rows arrive through unchecked
+ * `.returns<BookingRecord[]>()` / `.single<BookingRecord>()` casts against an
+ * untyped admin client, so the type cannot police the column strings: drop
+ * `cancelled_at` from any ONE of the four and it reads `undefined` at runtime
+ * with tsc, lint and vitest all green. `isRestoreWindowExpired` below then fails
+ * closed, and every cancelled booking renders "the 28-day restore window has
+ * passed" — silently removing Restore for whichever role that projection serves.
+ * The RBAC pair matters as much as the type: the two `CLAIMABLE_*` strings serve
+ * the therapist scope, the other two the full scope.
  */
 export function getCancellationMoment(booking: {
   cancelled_at?: string | null;

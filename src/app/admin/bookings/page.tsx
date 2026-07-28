@@ -933,7 +933,7 @@ function BookingListCard({
           claimableAssignmentId={claimableAssignment?.id ?? null}
           bookingDate={booking.booking_date}
           startTime={booking.start_time}
-          cancelledAt={booking.cancelled_at ?? null}
+          cancelledAt={booking.cancelled_at}
           customerCancelledAt={booking.customer_cancelled_at}
         />
       </div>

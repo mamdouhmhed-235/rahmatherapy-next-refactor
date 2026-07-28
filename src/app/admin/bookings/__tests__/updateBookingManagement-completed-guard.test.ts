@@ -337,10 +337,12 @@ describe("updateBookingManagement — future-date guard (W03-E-2)", () => {
     expect(stub.find("bookings", "update").at(-1)!.payload).toMatchObject({
       status: "cancelled",
     });
+    // Phase H — the customer leg is queued for 10 seconds rather than sent now.
+    // Full coverage of the undo window lives in `quickUpdateBookingCancel.test.ts`.
     expect(sendBookingCancellationEmails).toHaveBeenCalledWith(
       "booking-1",
       stub.client,
-      { initiatedBy: "admin" }
+      { initiatedBy: "admin", delaySeconds: 10 }
     );
   });
 
