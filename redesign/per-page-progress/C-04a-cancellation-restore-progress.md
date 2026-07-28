@@ -5,9 +5,42 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: PRE-FLIGHT COMPLETE + OWNER DECISIONS TAKEN. No implementation yet.
-> **Next action:** Phase A (Step 1 `restoreBooking` + guards). Everything below is settled — do not re-litigate it.
+> ## ⏸ STATUS: Phase A of 8 landed + independently verified (PASS). Phases B–H outstanding.
+> **Last good commit:** `3bddb39` · **Next action:** Phase B (state-machine guard + Status-form confirm modal).
 > **The drift checkpoint for plans #1–#5 falls due after this plan** (protocol §2.6).
+
+---
+
+## 0a — Phase A (`3bddb39`) — verified PASS
+
+`restoreBooking` with the S6 past-datetime and S7 28-day guards, the Restore next-action button, the restore email + template, the S3 prior-reason modal, and the shared `_helpers.ts`. 30 new specs; baseline **5 failed / 642 passed / 647**, identity intact.
+
+**Both pre-flight fixes landed and were proven, not asserted:**
+- `.select("*, clients(deleted_at)")` — the verifier re-derived the mutation proof from the stub source and confirmed the stub models PostgREST correctly (it returns `clients` **only** when the select names it), so the guard spec is genuinely non-vacuous. Reverting to `.select("*")` fails exactly 2 specs.
+- Refusal copy is now *"This booking's client has been deleted, so it can no longer be restored."* — no instruction to un-delete.
+
+**All five adaptations ruled justified.** The strongest: adding `booking_quick_cancel` to the S3 audit lookup. Production has **zero** `booking_management_updated` cancel rows — both live cancelled bookings carry exactly one `booking_quick_cancel` audit row each — so the plan's single-action-type version would have returned no context for **100%** of real admin cancellations. Consistent with Owner decision 2.
+
+Guards all run before any write (first UPDATE at `actions.ts:584`); S7 fail-closes on an unknown **or unparseable** cancellation moment, which is hardening beyond the plan in the safe direction.
+
+### ⚠️ F-1 — MATERIAL: Phase A's verify checkpoint is unsatisfiable today, and it changes Owner decision 1
+
+Plan `:509` wants: navigate to a cancelled booking → Restore button visible → status flips. **No booking in production can currently show that button:**
+- Both live cancelled bookings are dated 2026-05-20, so **S6** hides it (the strip reads "The appointment time has already passed…").
+- A **new** future-dated fixture cancelled through the **admin UI** stamps no cancellation moment at all — `cancelled_at` does not exist until Phase F, and the only writer of `customer_cancelled_at` in the codebase is the **customer-facing** `/booking/manage` path (`booking/manage/actions.ts:143-144`). So `isRestoreWindowExpired` fail-closes → button hidden → "The 28-day restore window has passed."
+
+So Phase A ships a correct restore primitive with **no visible affordance anywhere** until Phase F's migration + backfill. Designed fail-closed behaviour plus plan sequencing — not a defect — but §1.12 forbids marking the checkpoint done.
+
+**This supersedes Owner decision 1's "create it via the admin UI".** Cancelling via the admin UI produces a fixture that still cannot demonstrate restore. Two viable routes:
+- **(a)** cancel the fixture through the **customer manage link**, which stamps `customer_cancelled_at` → the button renders → the checkpoint is satisfiable now; or
+- **(b)** defer the Phase A runtime checkpoint to the Phase F/G closeout, recorded as deferred.
+**Owner input required before the fixture is created.**
+
+### Log-only findings
+- **F-2:** the London zoning is correct (it delegates to `toBusinessDateTime`, no duplicated BST maths) but **unpinned** — both S6 boundary specs give the same verdict under naive UTC parsing, so a future "simplification" would stay green. One spec at 10:30-vs-11:00 London would close it.
+- **F-3:** `notifications.ts:465-467`'s `if (!customerEmail) throw` is unreachable — `getBookingTemplateInput` defaults to `requireCustomerEmail = true` and throws first. Harmless, plan-specified, matches the sibling.
+- **F-4:** contradiction **H** confirmed still open — `booking_restored_client` is registered in neither `templates-data.ts` nor the preview route, so the template's `overrides` parameter is dead until someone registers it.
+- Tighten `isRestoreWindowExpired`'s `customer_cancelled_at` from optional to required when Phase G lands — optional is gratuitous there and is exactly the shape that lets the §2 C-bis silent-`undefined` trap type-check.
 
 ---
 
