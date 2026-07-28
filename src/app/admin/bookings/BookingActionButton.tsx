@@ -36,7 +36,17 @@ interface BookingActionButtonProps {
 const SUCCESS_TOAST: Record<BookingAction, string> = {
   confirm: "Booking confirmed.",
   mark_paid: "Marked paid.",
-  cancel: "Booking cancelled. The client has been notified.",
+  // C-04a Phase H — the client's cancellation email is queued for 10 seconds,
+  // not sent, so "has been notified" was false the moment `delaySeconds` landed.
+  //
+  // This chip is deliberately the one cancel control WITHOUT an Undo action: the
+  // row menu and the Status form both offer one, this component does not. It is
+  // generic over six actions and has neither the booking's pre-cancel status nor
+  // a place to put an action-specific toast option, so threading Undo through it
+  // is a wider change than the Owner judged the inconsistency to be worth
+  // (authorised 2026-07-28, copy only). Do not "fix" the asymmetry by guessing —
+  // it is a decision, not an oversight.
+  cancel: "Booking cancelled. The client will be notified in 10 seconds.",
   complete: "Marked complete.",
   assignment_completed: "Marked complete.",
   assignment_no_show: "Marked as no-show.",
@@ -47,8 +57,10 @@ const CONFIRM_COPY: Partial<
 > = {
   cancel: {
     title: "Cancel this booking?",
+    // The "cannot be undone" half was made false by Phase H — a cancellation is
+    // undoable through Restore. See the note on SUCCESS_TOAST.cancel above.
     description:
-      "The client will be notified by email. This cannot be undone from the booking page.",
+      "The client will be notified by email 10 seconds after you confirm.",
     confirmLabel: "Cancel booking",
     cancelLabel: "Keep it",
   },
