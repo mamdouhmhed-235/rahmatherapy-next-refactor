@@ -16,6 +16,11 @@
 // restoreBooking has already flipped to 'cancelled_by_restore', which this query
 // no longer matches: the email simply never goes out.
 //
+// That query is only half the guarantee, though — it is a snapshot, and a restore
+// can land after it. What actually settles the race is the conditional claim in
+// the loop below: each row is moved out of 'queued' BEFORE it is sent, so the
+// cron and restoreBooking contend on one UPDATE and exactly one of them wins.
+//
 // The queued row IS the delivery event. This handler UPDATEs it in place to
 // 'sent' or 'failed' rather than writing a second row, so /admin/emails shows one
 // row per email whichever path it took.
@@ -24,6 +29,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/client";
+import { recordOperationalEvent } from "@/lib/ops/operational-events";
 
 // One tick's worth. At the ~1-5 cancellations/day this queue is sized for, the
 // cap is only ever reached if the cron has been down; the next tick takes the
@@ -74,9 +80,36 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   let sent = 0;
+  let skipped = 0;
   const failures: string[] = [];
 
   for (const row of queued) {
+    // Claim before sending, not after. restoreBooking's suppression sweep flips
+    // queued rows to 'cancelled_by_restore'; if we sent first and wrote the
+    // status after, a restore landing mid-send would be overwritten by 'sent'
+    // and the customer would get a cancellation for a booking that is confirmed
+    // again. Claiming first turns that into one conditional UPDATE the two
+    // writers race on, and the loser does nothing.
+    //
+    // The claim writes the terminal 'sent' rather than an intermediate 'sending'
+    // because the applied CHECK constraint has no such value and adding one
+    // would need another migration. The trade: if this worker dies between the
+    // claim and the send, that row reads 'sent' but never went. Accepted at this
+    // volume (~1-5 cancellations/day).
+    const { data: claimed } = await supabase
+      .from("email_delivery_events")
+      .update({ delivery_status: "sent" })
+      .eq("id", row.id)
+      .eq("delivery_status", "queued")
+      .select("id");
+
+    if (!claimed?.length) {
+      // The restore sweep won the row — this email is meant to die. Not a
+      // failure, but counted so a lost claim is visible in the log stream.
+      skipped++;
+      continue;
+    }
+
     try {
       await sendEmail({
         to: row.to_email,
@@ -84,21 +117,33 @@ export async function POST(request: Request): Promise<Response> {
         html: row.html_payload,
         text: row.text_payload,
       });
-      await supabase
-        .from("email_delivery_events")
-        .update({ delivery_status: "sent" })
-        .eq("id", row.id);
       sent++;
     } catch (err) {
-      failures.push(`${row.id}: ${(err as Error).message}`);
+      const reason = (err as Error).message;
+      failures.push(`${row.id}: ${reason}`);
       await supabase
         .from("email_delivery_events")
-        .update({ delivery_status: "failed" })
+        .update({ delivery_status: "failed", error_message: reason })
         .eq("id", row.id);
+      // Same operational event the immediate-send path records via
+      // recordEmailDeliveryEvent, so a failed scheduled send reaches
+      // /admin/operations and the nav failure counter like any other.
+      await recordOperationalEvent(supabase, {
+        eventType: "failed_email_send",
+        severity: "error",
+        summary: `Email ${row.event_type} failed for ${row.recipient_role}.`,
+        bookingId: row.booking_id,
+        staffId: row.staff_id ?? null,
+        safeContext: {
+          event_type: row.event_type,
+          recipient_role: row.recipient_role,
+          delivery_status: "failed",
+        },
+      }).catch(() => undefined);
     }
   }
 
   // The worker logs this body verbatim, so `failures` is how a bad send surfaces
-  // in Cloudflare's log stream.
-  return NextResponse.json({ sent, total: queued.length, failures });
+  // in Cloudflare's log stream, and `skipped` is how a lost claim does.
+  return NextResponse.json({ sent, skipped, total: queued.length, failures });
 }

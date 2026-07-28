@@ -829,16 +829,22 @@ export async function restoreBooking(
   if (restored.error) return { error: restored.error.message };
   const updatedBooking = restored.data;
 
-  // Cancel any cancellation email still sitting in the undo window. Inert until
-  // Phase F adds `scheduled_for` and the `queued` delivery status — the filter
-  // matches nothing until then, so the count stays 0 and nothing is suppressed.
+  // Cancel any cancellation email still sitting in the undo window.
+  //
+  // `delivery_status = 'queued'` is the whole test: a row still in `queued` has
+  // not been sent, whatever its `scheduled_for`. The cron claims each row by
+  // flipping it out of `queued` before it dispatches, so anything this sweep
+  // still finds queued is genuinely unsent. Filtering on `scheduled_for` as well
+  // would be a false negative for every row that is already due but not yet
+  // drained — the cron only fires on the minute boundary, so that gap is up to
+  // 60 seconds wide, and a restore landing inside it would send "restored" while
+  // the cron went on to send the cancellation anyway.
   const { count: cancelledQueuedCount } = await adminClient
     .from("email_delivery_events")
     .update({ delivery_status: "cancelled_by_restore" }, { count: "exact" })
     .eq("booking_id", bookingId)
     .eq("event_type", "booking_cancellation_customer")
-    .eq("delivery_status", "queued")
-    .gt("scheduled_for", new Date().toISOString());
+    .eq("delivery_status", "queued");
 
   const suppressRestoreEmail = (cancelledQueuedCount ?? 0) > 0;
 

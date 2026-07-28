@@ -331,7 +331,26 @@ async function sendTrackedEmail(
       delivery_status: "queued",
     });
     if (error) {
-      throw new Error(`Failed to queue scheduled email: ${error.message}`);
+      const reason = `Failed to queue scheduled email: ${error.message}`;
+      // Record before throwing. Every caller wraps this function in a bare
+      // `.catch(console.error)`, so a rejected queue insert used to leave no
+      // trace at all — no delivery-events row, no operational event, nothing on
+      // /admin/emails, /admin/operations or the nav failure counter. Same
+      // recorder and same shape as the immediate-send failure path below.
+      //
+      // Swallowed on its own account: the likeliest reason the queue insert
+      // failed is that this very table is unreachable, in which case this write
+      // fails too — and its error must not mask the original.
+      await recordEmailDeliveryEvent(supabase, {
+        bookingId: input.bookingId,
+        eventType: input.eventType,
+        recipientEmail: input.to,
+        recipientRole: input.recipientRole,
+        deliveryStatus: "failed",
+        staffId: input.staffId ?? null,
+        errorMessage: reason,
+      }).catch(() => undefined);
+      throw new Error(reason);
     }
     return { status: "queued" as const, scheduledFor };
   }

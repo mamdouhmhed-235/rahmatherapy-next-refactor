@@ -121,6 +121,13 @@ function stubAdminClient({
   booking = BOOKING_ROW as Record<string, unknown>,
   bookingsHaveCancelledAt = false,
   queuedEmail = { count: null, error: MISSING_SCHEDULED_FOR } as StubResult,
+  /**
+   * One queued cancellation row for the sweep to match, and the `scheduled_for`
+   * it carries. When set, the count is derived by applying the sweep's OWN
+   * filters to that row instead of being handed back verbatim — so a filter that
+   * wrongly excludes it shows up here as a real miss.
+   */
+  queuedRowScheduledFor = null as string | null,
   bookingUpdateError = null as { code?: string; message: string } | null,
 } = {}) {
   const ops: RecordedOp[] = [];
@@ -147,7 +154,17 @@ function stubAdminClient({
       }
       return { data: { ...bookingColumns, ...entry.payload }, error: null };
     }
-    if (entry.table === "email_delivery_events") return queuedEmail;
+    if (entry.table === "email_delivery_events") {
+      if (queuedRowScheduledFor === null) return queuedEmail;
+      // A `scheduled_for > now` filter excludes a row that is already due, which
+      // is precisely the row the cron has not drained yet.
+      const missedByTimestampFilter = entry.filters.some(
+        (filter) =>
+          filter.startsWith("gt:scheduled_for=") &&
+          queuedRowScheduledFor <= filter.slice("gt:scheduled_for=".length)
+      );
+      return { count: missedByTimestampFilter ? 0 : 1, error: null };
+    }
     return { data: null, error: null };
   }
 
@@ -613,7 +630,6 @@ describe("restoreBooking", () => {
         "eq:booking_id=booking-1",
         "eq:event_type=booking_cancellation_customer",
         "eq:delivery_status=queued",
-        `gt:scheduled_for=${NOW.toISOString()}`,
       ]);
 
       // The client never saw the cancellation, so there is no round trip to
@@ -623,6 +639,30 @@ describe("restoreBooking", () => {
       });
       expect(sendBookingRestoredClientEmail).not.toHaveBeenCalled();
       expect(sendAssignedStaffBookingChangeEmails).toHaveBeenCalled();
+    });
+
+    // The Phase F regression. The cron only fires on the minute boundary, so a
+    // row stays `queued` for up to 60 seconds after it falls due. A sweep that
+    // also filtered on `scheduled_for > now` matched none of those rows, so the
+    // restore counted as "nothing queued": the client got the restored email,
+    // and then the cancellation the cron went on to send anyway. Cancel at
+    // 10:00:00 -> queued for 10:00:10 -> restore at 10:00:25 is the concrete case.
+    it("suppresses a cancellation that is already due but not yet drained", async () => {
+      const stub = stubAdminClient({
+        queuedRowScheduledFor: new Date(NOW.getTime() - 15_000).toISOString(),
+      });
+
+      expect(await restoreBooking(restoreFormData())).toEqual({ success: true });
+
+      // `delivery_status = 'queued'` is the whole test for "not yet sent": the
+      // cron claims a row out of `queued` before it dispatches, so anything still
+      // queued is genuinely unsent however old its scheduled_for.
+      const sweep = stub.find("email_delivery_events", "update")[0];
+      expect(sweep.payload).toEqual({ delivery_status: "cancelled_by_restore" });
+      expect(stub.audit()!.after_state).toMatchObject({
+        cancelled_queued_email: true,
+      });
+      expect(sendBookingRestoredClientEmail).not.toHaveBeenCalled();
     });
 
     it("sends the restore email when the cron already fired the cancellation", async () => {

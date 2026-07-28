@@ -40,25 +40,47 @@ interface RecordedOp {
   op: "select" | "update";
   payload?: Record<string, unknown>;
   filters: string[];
+  /** Columns the route asked for, so narrowing a projection is visible here. */
+  projection?: string;
 }
 
 /**
- * Stand-in for the Supabase admin client covering exactly the two chains the
- * route builds: the candidate sweep and the per-row status flip.
+ * Stand-in for the Supabase admin client covering the chains the route builds:
+ * the candidate sweep, the conditional per-row claim (an update carrying a
+ * `.select()`), the failure flip, and the operational-event insert.
  */
 function stubAdminClient({
   rows = [] as Record<string, unknown>[],
   selectError = null as { message: string } | null,
+  /** Row ids whose conditional claim matches nothing — the restore sweep won. */
+  claimLostFor = [] as string[],
 } = {}) {
   const ops: RecordedOp[] = [];
+  const inserts: { table: string; payload: Record<string, unknown> }[] = [];
 
-  function startOp(op: RecordedOp["op"], payload?: Record<string, unknown>) {
-    const entry: RecordedOp = { op, payload, filters: [] };
+  function startOp(
+    op: RecordedOp["op"],
+    payload?: Record<string, unknown>,
+    projection?: string
+  ) {
+    const entry: RecordedOp = { op, payload, filters: [], projection };
     ops.push(entry);
-    const result =
-      op === "select"
-        ? { data: selectError ? null : rows, error: selectError }
-        : { data: null, error: null };
+    // Resolved lazily: an update's result depends on filters applied after this.
+    const resolve = () => {
+      if (op === "select") {
+        return { data: selectError ? null : rows, error: selectError };
+      }
+      if (entry.projection === undefined) {
+        // A bare update — PostgREST returns no rows without a projection.
+        return { data: null, error: null };
+      }
+      // The conditional claim. PostgREST returns zero rows when the extra
+      // `delivery_status = 'queued'` filter no longer matches.
+      const id = entry.filters
+        .find((filter) => filter.startsWith("eq:id="))
+        ?.slice("eq:id=".length) ?? "";
+      return { data: claimLostFor.includes(id) ? [] : [{ id }], error: null };
+    };
     const chain = {
       eq: (column: string, value: unknown) => {
         entry.filters.push(`eq:${column}=${String(value)}`);
@@ -76,17 +98,25 @@ function stubAdminClient({
         entry.filters.push(`limit:${count}`);
         return chain;
       },
+      select: (columns?: string) => {
+        entry.projection = columns;
+        return chain;
+      },
       then: (
         onFulfilled: (value: unknown) => unknown,
         onRejected?: (reason: unknown) => unknown
-      ) => Promise.resolve(result).then(onFulfilled, onRejected),
+      ) => Promise.resolve(resolve()).then(onFulfilled, onRejected),
     };
     return chain;
   }
 
-  const from = vi.fn(() => ({
-    select: () => startOp("select"),
+  const from = vi.fn((table: string) => ({
+    select: (columns?: string) => startOp("select", undefined, columns),
     update: (payload: Record<string, unknown>) => startOp("update", payload),
+    insert: (payload: Record<string, unknown>) => {
+      inserts.push({ table, payload });
+      return Promise.resolve({ data: null, error: null });
+    },
   }));
 
   vi.mocked(createSupabaseAdminClient).mockReturnValue(
@@ -96,6 +126,7 @@ function stubAdminClient({
   return {
     ops,
     from,
+    inserts,
     selects: () => ops.filter((entry) => entry.op === "select"),
     updates: () => ops.filter((entry) => entry.op === "update"),
   };
@@ -174,12 +205,29 @@ describe("POST /api/cron/scheduled-emails", () => {
     ]);
   });
 
-  it("sends each queued row's stored payload and flips it to sent", async () => {
+  it("selects the whole row, because the send reads the stored payload off it", async () => {
+    const stub = stubAdminClient({ rows: [] });
+
+    await post();
+
+    // Narrowing this projection (to `id`, say) would leave every other spec here
+    // green — the rows are handed straight back by the stub — while production
+    // read `undefined` for to_email/subject/html_payload/text_payload and sent
+    // empty emails. So the projection itself is asserted.
+    expect(stub.selects()[0].projection).toBe("*");
+  });
+
+  it("sends each queued row's stored payload after claiming it", async () => {
     const stub = stubAdminClient({ rows: [queuedRow("a"), queuedRow("b")] });
 
     const res = await post();
 
-    expect(await res.json()).toEqual({ sent: 2, total: 2, failures: [] });
+    expect(await res.json()).toEqual({
+      sent: 2,
+      skipped: 0,
+      total: 2,
+      failures: [],
+    });
     // The payload comes off the row — the route never re-renders a template.
     expect(sendEmail).toHaveBeenCalledTimes(2);
     expect(sendEmail).toHaveBeenNthCalledWith(1, {
@@ -188,13 +236,73 @@ describe("POST /api/cron/scheduled-emails", () => {
       html: "<p>a</p>",
       text: "a plain",
     });
+    // One write per row: the claim is the flip to sent.
     expect(stub.updates()).toEqual([
-      { op: "update", payload: { delivery_status: "sent" }, filters: ["eq:id=a"] },
-      { op: "update", payload: { delivery_status: "sent" }, filters: ["eq:id=b"] },
+      {
+        op: "update",
+        payload: { delivery_status: "sent" },
+        filters: ["eq:id=a", "eq:delivery_status=queued"],
+        projection: "id",
+      },
+      {
+        op: "update",
+        payload: { delivery_status: "sent" },
+        filters: ["eq:id=b", "eq:delivery_status=queued"],
+        projection: "id",
+      },
     ]);
   });
 
-  it("marks only the failing row failed and still sends the rest", async () => {
+  it("claims a row conditionally, and before sending it", async () => {
+    const stub = stubAdminClient({ rows: [queuedRow("a")] });
+    let updatesWhenSent = -1;
+    vi.mocked(sendEmail).mockImplementation(async () => {
+      updatesWhenSent = stub.updates().length;
+      return { id: "resend-id" };
+    });
+
+    await post();
+
+    // The claim must already be written when the send happens — sending first
+    // and writing after is what lets a mid-send restore be overwritten by 'sent'.
+    expect(updatesWhenSent).toBe(1);
+    const claim = stub.updates()[0];
+    // Filtered on the status as well as the id: without that predicate the
+    // update always matches, the restore sweep can never win the race, and the
+    // customer gets a cancellation for a booking that is confirmed again.
+    expect(claim.filters).toEqual(["eq:id=a", "eq:delivery_status=queued"]);
+    // ...and the projection is what makes the outcome of the race legible.
+    expect(claim.projection).toBe("id");
+  });
+
+  it("does not send a row whose claim matched nothing, and reports it skipped", async () => {
+    const stub = stubAdminClient({
+      rows: [queuedRow("a"), queuedRow("b")],
+      claimLostFor: ["a"],
+    });
+
+    const res = await post();
+
+    // Row a was flipped to 'cancelled_by_restore' between the sweep and the
+    // claim. Losing that race is the mechanism working, not a failure.
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      sent: 1,
+      skipped: 1,
+      total: 2,
+      failures: [],
+    });
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "b@example.test" })
+    );
+    // No follow-up write on the row we lost — its status stays whatever the
+    // restore sweep set.
+    expect(stub.updates().filter((entry) => entry.filters.includes("eq:id=a")))
+      .toHaveLength(1);
+  });
+
+  it("records the reason when a send fails, and still sends the rest", async () => {
     const stub = stubAdminClient({ rows: [queuedRow("a"), queuedRow("b")] });
     vi.mocked(sendEmail)
       .mockRejectedValueOnce(new Error("Resend 422"))
@@ -205,12 +313,42 @@ describe("POST /api/cron/scheduled-emails", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       sent: 1,
+      skipped: 0,
       total: 2,
       failures: ["a: Resend 422"],
     });
     expect(stub.updates()).toEqual([
-      { op: "update", payload: { delivery_status: "failed" }, filters: ["eq:id=a"] },
-      { op: "update", payload: { delivery_status: "sent" }, filters: ["eq:id=b"] },
+      {
+        op: "update",
+        payload: { delivery_status: "sent" },
+        filters: ["eq:id=a", "eq:delivery_status=queued"],
+        projection: "id",
+      },
+      // A bare `{ delivery_status: 'failed' }` leaves /admin/emails showing a
+      // failure with no reason — the error text belongs on the row.
+      {
+        op: "update",
+        payload: { delivery_status: "failed", error_message: "Resend 422" },
+        filters: ["eq:id=a"],
+      },
+      {
+        op: "update",
+        payload: { delivery_status: "sent" },
+        filters: ["eq:id=b", "eq:delivery_status=queued"],
+        projection: "id",
+      },
+    ]);
+    // ...and the same operational event the immediate-send path records, so the
+    // nav failure counter and /admin/operations see it too.
+    expect(stub.inserts).toEqual([
+      {
+        table: "operational_events",
+        payload: expect.objectContaining({
+          event_type: "failed_email_send",
+          severity: "error",
+          booking_id: "booking-a",
+        }),
+      },
     ]);
   });
 
