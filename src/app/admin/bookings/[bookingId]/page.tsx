@@ -99,12 +99,14 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
   no_show: "No-show",
 };
 
-// TODO(C-04a Phase F/G): add `cancelled_at` to this select in the SAME change
-// that adds it to `BookingRecord` (../types.ts). Splitting them leaves the
-// field `undefined` at runtime while tsc stays green, which makes
-// `isRestoreWindowExpired` fail closed on every cancelled booking and hides the
-// Restore button everywhere. The list's `BOOKING_SELECT` (../page.tsx) needs
-// the same pairing.
+// `cancelled_at` is named here because `BookingRecord` (../types.ts) declares
+// it. That pairing is load-bearing, not tidiness: the row arrives through an
+// unchecked `.single<BookingRecordWithClientId>()` cast against an untyped
+// admin client, so a column present on the type but absent from this string
+// reads `undefined` at runtime with tsc, lint and vitest all green —
+// `isRestoreWindowExpired` then fails closed and the Restore button disappears
+// from this page while the list row (../page.tsx) still offers it. Never split
+// the two.
 const BOOKING_DETAIL_SELECT = `
   id,
   client_id,
@@ -135,6 +137,7 @@ const BOOKING_DETAIL_SELECT = `
   customer_notes,
   health_notes,
   customer_manage_notes,
+  cancelled_at,
   customer_cancelled_at,
   customer_cancellation_note,
   last_customer_manage_action_at,
@@ -165,6 +168,7 @@ const CLAIMABLE_BOOKING_DETAIL_SELECT = `
   group_booking,
   booking_source,
   reschedule_status,
+  cancelled_at,
   customer_cancelled_at,
   created_at,
   booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, consent_acknowledged),
@@ -246,6 +250,7 @@ function normalizeClaimableBooking(
     customer_notes: null,
     health_notes: null,
     customer_manage_notes: null,
+    cancelled_at: booking.cancelled_at ?? null,
     customer_cancelled_at: booking.customer_cancelled_at ?? null,
     customer_cancellation_note: null,
     last_customer_manage_action_at: null,

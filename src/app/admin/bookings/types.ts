@@ -119,18 +119,21 @@ export interface BookingRecord {
   health_notes: string | null;
   customer_manage_notes: string | null;
   /**
-   * C-04a — the unified admin+customer cancellation stamp (Phase F migration).
+   * C-04a — the unified admin+customer cancellation stamp (Phase F migration),
+   * and the key the S7 restore window is measured from.
    *
-   * Optional because `BOOKING_DETAIL_SELECT` (./[bookingId]/page.tsx) does not
-   * name it yet and that file is outside Phase G's authorised scope; a required
-   * field there is a compile error. The consequence is that declaring it here
-   * buys NO protection against the C-bis trap — the rows arrive through an
-   * unchecked `.returns<BookingRecord[]>()` cast, so a column missing from the
-   * projection reads `undefined` with every gate green. The projection strings
-   * are the only real guard: `BOOKING_SELECT` and `CLAIMABLE_BOOKING_SELECT`
-   * (./page.tsx) both name it; the detail select still does not.
+   * Required, not optional, and that is the point. Rows arrive through unchecked
+   * `.returns<BookingRecord[]>()` / `.single<>()` casts, so the type cannot
+   * police the `.select(...)` strings — but it CAN police the places a record is
+   * built by hand. Every projection that produces a `BookingRecord` names this
+   * column (`BOOKING_SELECT`, `CLAIMABLE_BOOKING_SELECT` in ./page.tsx;
+   * `BOOKING_DETAIL_SELECT`, `CLAIMABLE_BOOKING_DETAIL_SELECT` in
+   * ./[bookingId]/page.tsx), and making the field required means the next
+   * omission at a construction site is a compile error rather than an
+   * `undefined` that quietly fails `isRestoreWindowExpired` closed and removes
+   * the Restore affordance from every surface.
    */
-  cancelled_at?: string | null;
+  cancelled_at: string | null;
   customer_cancelled_at: string | null;
   customer_cancellation_note: string | null;
   last_customer_manage_action_at: string | null;

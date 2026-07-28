@@ -49,6 +49,7 @@ const BOOKING: BookingRecord = {
   customer_notes: null,
   health_notes: null,
   customer_manage_notes: null,
+  cancelled_at: null,
   customer_cancelled_at: null,
   customer_cancellation_note: null,
   last_customer_manage_action_at: null,
