@@ -1109,6 +1109,8 @@ const ACTIVITY_ACTION_LABELS: Record<string, string> = {
   booking_quick_cancel: "Cancelled",
   booking_quick_complete: "Marked complete",
   booking_quick_no_show: "Marked no-show",
+  booking_restored: "Restored",
+  booking_auto_promoted_completed: "Auto-completed",
   booking_assignment_claimed: "Claimed by therapist",
   booking_assignment_unassigned: "Therapist removed",
   booking_assignment_reassigned: "Reassigned",
