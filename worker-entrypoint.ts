@@ -123,6 +123,42 @@ async function fireScheduledEmails(env: CronEnv): Promise<void> {
   }
 }
 
+// C-01: fires the "leave us a review" cron, 2h+ after a booking completes.
+// Mirrors fireBookingReminders/fireScheduledEmails — same self-fetch, same
+// X-Cron-Secret transport, same logging shape.
+async function fireReviewEmails(env: CronEnv): Promise<void> {
+  if (!env.CRON_SECRET) {
+    console.error(
+      "[scheduled/review-emails] CRON_SECRET not set on the Worker; aborting."
+    );
+    return;
+  }
+  try {
+    const res = await env.WORKER_SELF_REFERENCE.fetch(
+      "https://internal.invalid/api/cron/review-emails",
+      {
+        method: "POST",
+        headers: {
+          "X-Cron-Secret": env.CRON_SECRET,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const bodyText = await res.text().catch(() => "<no body>");
+    if (!res.ok) {
+      console.error(
+        `[scheduled/review-emails] non-ok status=${res.status} body=${bodyText}`
+      );
+      return;
+    }
+    console.log(
+      `[scheduled/review-emails] ok status=${res.status} body=${bodyText}`
+    );
+  } catch (error) {
+    console.error("[scheduled/review-emails] threw:", error);
+  }
+}
+
 const workerEntrypoint = {
   // Re-export OpenNext's fetch handler verbatim.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -151,6 +187,9 @@ const workerEntrypoint = {
         break;
       case "* * * * *": // scheduled-emails — every minute (C-04a)
         ctx.waitUntil(fireScheduledEmails(env));
+        break;
+      case "*/15 * * * *": // review-emails — every 15 min (C-01)
+        ctx.waitUntil(fireReviewEmails(env));
         break;
       default:
         // Never throw: an unrecognised cron must not take down the invocation

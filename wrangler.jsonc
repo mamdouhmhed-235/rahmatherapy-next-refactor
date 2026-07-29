@@ -58,9 +58,13 @@
   //                queue (C-04a). One minute is Cloudflare's finest resolution,
   //                so an email queued behind a 10s undo window arrives 10-70s
   //                after the cancel.
-  // Both self-fetch their /api/cron/* route with the X-Cron-Secret header.
+  //   "*/15 * * * *" review-emails  — every 15 min, sends "leave us a review"
+  //                emails 2h+ after a booking completes (C-01). Quiet-hours
+  //                guard (21:00-08:00 Europe/London) lives in the route, not
+  //                the cron expression.
+  // All three self-fetch their /api/cron/* route with the X-Cron-Secret header.
   // Activates on the next Cloudflare deploy after this config lands.
   "triggers": {
-    "crons": ["0 8 * * *", "* * * * *"]
+    "crons": ["0 8 * * *", "* * * * *", "*/15 * * * *"]
   }
 }
