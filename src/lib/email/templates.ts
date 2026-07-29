@@ -502,6 +502,156 @@ export async function getAllTemplateOverrides(): Promise<
   }
 }
 
+// ─── Review request email (C-01) ──────────────────────────────────────────
+
+export interface ReviewRequestEmailInput extends BookingEmailTemplateInput {
+  groupCategory: "massage" | "cupping" | null; // null for mixed-category bookings
+  city: string | null;
+}
+
+export interface ReviewMessageVariant {
+  text: string;
+  source: "override" | "default";
+}
+
+interface PickReviewMessagesArgs {
+  groupCategory: "massage" | "cupping" | null;
+  city: string | null;
+  overrides: Record<string, string>;
+  random?: () => number;
+}
+
+const DEFAULT_REVIEW_VARIANTS = {
+  massage: [
+    "I had a brilliant home massage in {city} today — really professional setup, felt completely relaxed by the end.",
+    "Booked a home massage with Rahma Therapy in {city}. The therapist was excellent, the experience felt like a proper clinic but in the comfort of home.",
+    "Just had a fantastic massage at home in {city}. Highly skilled, deeply relaxing, and so easy not having to travel.",
+    "Tried Rahma Therapy for a mobile massage in {city} — top quality. Will definitely book again.",
+    "Excellent home massage experience in {city}. Calm, professional, and exactly what I needed.",
+  ],
+  cupping: [
+    "Had a hijama session at home in {city} with Rahma Therapy. Very clean, hygienic, and the practitioner was knowledgeable and respectful.",
+    "Booked hijama at home in {city} — proper Sunnah practice, sterile equipment, and a calming atmosphere. Highly recommend.",
+    "Excellent home hijama appointment in {city}. Felt looked after from start to finish, the setup was spotless and professional.",
+    "Tried Rahma Therapy for hijama in {city} and couldn't be happier. Knowledgeable practitioner, careful technique, and great aftercare.",
+    "First hijama session in {city} and it was a brilliant experience. Clean, professional, and the practitioner explained every step.",
+  ],
+} as const;
+
+// Picks 3 of the 5 pooled sample review sentences for the booking's service
+// category, substituting an operator-configured override where present, then
+// substituting {city}. Mixed-category bookings (groupCategory null) fall back
+// to the massage pool (C-01 brief §5.3 — impl-time decision).
+export function pickReviewMessages(
+  args: PickReviewMessagesArgs
+): ReviewMessageVariant[] {
+  const { groupCategory, city, overrides, random = Math.random } = args;
+  const category = groupCategory ?? "massage";
+
+  const pool: ReviewMessageVariant[] = [];
+  for (let i = 1; i <= 5; i++) {
+    const key = `${category}_variant_${i}`;
+    const overrideValue = overrides[key];
+    if (overrideValue) {
+      pool.push({ text: overrideValue, source: "override" });
+    } else {
+      pool.push({ text: DEFAULT_REVIEW_VARIANTS[category][i - 1], source: "default" });
+    }
+  }
+
+  // Shuffle and pick 3.
+  const shuffled = [...pool].sort(() => random() - 0.5);
+  const picked = shuffled.slice(0, 3);
+
+  return picked.map((variant) => ({
+    ...variant,
+    text: substituteCity(variant.text, city),
+  }));
+}
+
+// Replaces {city}; if city is null, strips the surrounding " in {city}"
+// phrasing cleanly rather than leaving a dangling placeholder.
+function substituteCity(text: string, city: string | null): string {
+  if (city) return text.replace(/\{city\}/g, city);
+  return text.replace(/\s+in\s+\{city\}/g, "").replace(/\{city\}/g, "");
+}
+
+export async function renderReviewRequestEmail(
+  input: ReviewRequestEmailInput
+): Promise<string> {
+  const overrides = await resolveTemplateOverrides("review_request_client");
+  const variants = pickReviewMessages({
+    groupCategory: input.groupCategory,
+    city: input.city,
+    overrides,
+  });
+
+  const fields = {
+    subject: overrides.subject ?? "Thank you for visiting Rahma Therapy",
+    body_intro:
+      overrides.body_intro ??
+      "Thank you for choosing Rahma Therapy for your {service_name}. We hope you felt looked after from start to finish.",
+    body_ask:
+      overrides.body_ask ??
+      "If you have a moment, we'd be grateful for an honest review on Google. It helps other people in {city} find us.",
+    body_cta_label: overrides.body_cta_label ?? "Leave a Google review",
+    body_cta_url:
+      overrides.body_cta_url ?? "https://g.page/r/Ccfwk27JycKDEBM/review",
+    body_signoff: overrides.body_signoff ?? "Thank you again,\nThe Rahma Therapy team",
+  };
+
+  const vars = buildVarMap(input, {
+    city: input.city ?? "",
+    service_name: input.participants[0]?.services?.[0] ?? "appointment",
+  });
+
+  const intro = substituteVars(fields.body_intro, vars);
+  const ask = substituteVars(fields.body_ask, vars);
+  const signoff = substituteVars(fields.body_signoff, vars);
+
+  return renderLayout(
+    fields.subject,
+    `<p>${escapeHtml(intro)}</p>
+      <p>${escapeHtml(ask)}</p>
+
+      <p style="margin-top:24px;font-weight:600;">Here are a few example reviews if you'd like a starting point — or write your own, whatever feels honest:</p>
+      <ul style="padding-left:18px;">
+        ${variants.map((v) => `<li style="margin-bottom:8px;">${escapeHtml(v.text)}</li>`).join("")}
+      </ul>
+
+      <p style="margin:24px 0;">
+        <a href="${escapeHtml(fields.body_cta_url)}" style="display:inline-block;background:#0f5e8e;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">
+          ${escapeHtml(fields.body_cta_label)}
+        </a>
+      </p>
+
+      <p style="white-space:pre-line;">${escapeHtml(signoff)}</p>`
+  );
+}
+
+// Plain-text equivalent of renderReviewRequestEmail. Kept as a separate
+// function rather than folded into renderBookingPlainText (C-01 plan Step 8
+// decision (b) — cleaner separation since the review email's shape doesn't
+// match the generic booking-summary layout the shared plain-text renderer
+// produces). CTA URL matches renderReviewRequestEmail's default body_cta_url.
+export function renderReviewRequestPlainText(
+  input: ReviewRequestEmailInput,
+  variants: ReviewMessageVariant[]
+): string {
+  return `Thank you for choosing Rahma Therapy
+
+If you have a moment, we'd be grateful for an honest review on Google${input.city ? ` — it helps other people in ${input.city} find us.` : "."}
+
+Here are a few examples if you'd like a starting point, or write your own:
+${variants.map((v) => `- ${v.text}`).join("\n")}
+
+Leave a review: https://g.page/r/Ccfwk27JycKDEBM/review
+
+Thank you again,
+The Rahma Therapy team
+`;
+}
+
 // ─── Password-reset email templates ──────────────────────────────────────────
 // FAKE: structure only. Real Resend send wiring lands with
 // BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).
