@@ -10,7 +10,7 @@ Consolidated tracking of every item across the programme that only the Owner can
 
 | Item | From | Status | Detail |
 |---|---|---|---|
-| ⬜ Cloudflare Workers deploy | C-22, C-04a | **Presented in chat 2026-07-29, awaiting Owner answer.** | Three-in-one: applies C-22's `RateLimiter` Durable Object migration, activates the `* * * * *` scheduled-emails cron, and is the only thing that drains C-04a's cancellation-email queue. Growing — C-01 (plan #6, next) adds more cron work before this is applied. |
+| ⬜ Cloudflare Workers deploy | C-22, C-04a, C-01 | **Presented in chat 2026-07-29, awaiting Owner answer.** | Now three-in-one: applies C-22's `RateLimiter` Durable Object migration, activates C-04a's `* * * * *` scheduled-emails cron (the only thing draining its cancellation-email queue), and activates C-01's `*/15 * * * *` review-email cron. C-01's cron infra is code-complete and locally proven (§3.2 E2E via curl) but inert in production until this deploy happens. |
 | ⬜ `src/lib/maintenance.ts` restore to `MAINTENANCE_MODE = true` | Standing (protocol §3b) | Not yet — deliberately left `false` all programme, Owner-authorized. | **Must happen before any deploy**, including the Cloudflare deploy above. Never staged/committed mid-programme by design. |
 
 ## Playwright role sweeps + screenshots (agent cannot authenticate)
@@ -21,6 +21,7 @@ Consolidated tracking of every item across the programme that only the Owner can
 | ⬜ C-22 | §3.2 + §3.7 (need production writes + real emails) · §3.5/§3.5a (structurally impossible pre-deploy — limiter fails open under `next dev`; must run post-deploy) | n/a (rate-limit/honeypot live checks) | `C-22-booking-form-abuse-protection-progress.md` |
 | ⬜ C-04a | §3.2 (4-role × 4-viewport sweep, 14 steps) + §3.3 (5 screenshots) | `d8a61721` (both email fields NULL — zero email risk) | `C-04a-cancellation-restore-progress.md` §0k |
 | ⬜ C-05 | §3.2 (16-step sweep) + §3.4 (screenshots) | `eaafbb1a` (cancelled), `1d503d3b` (past-dated, B-171 repro) | `C-05-cancelled-bookings-inert-progress.md` §3 |
+| ⬜ C-01 | §3.5 (4-role sweep — Templates tab visibility, 16-field editor UX, override round-trip) + §3.6 (screenshots) + §3.3 (Resend dashboard spot-check). **Pipeline mechanism itself already proved live** (§3 of the progress file) — this sweep is RBAC/UX verification only, not correctness-critical. | `77f90d24`, `ae9bb5bd` (both example.test, both currently "handled") | `C-01-review-request-email-progress.md` §4 |
 
 **Never use in any sweep:** booking `9d55ce2a-7a76-42ed-9166-a33fa66ee7fe` (Badar — real customer, real email) or the Owner's own `rahmatherapy@outlook.com` in any email-test path.
 
