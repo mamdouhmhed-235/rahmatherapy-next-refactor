@@ -73,6 +73,7 @@ export type BookingActivityCheck =
         status: string;
         booking_date: string;
         start_time: string;
+        end_time: string;
       };
     }
   | {
@@ -100,7 +101,12 @@ export async function ensureBookingActive(
   // SELECT shape: unconditional — pre-flight Step 6 hard-gates on C-06's migration
   // having landed (2026-07-26, Checkpoint D4 / finding F4), so deleted_at and
   // clients(deleted_at) always exist by the time this helper runs.
-  const selectColumns = "id, status, booking_date, start_time, deleted_at, clients(deleted_at)";
+  // end_time (Phase B, Step 4): claimBookingAssignment/updateBookingAssignment both
+  // need it downstream for getClaimAssignmentEligibility/getStaffAssignmentPreviews
+  // (assignment-eligibility.ts's AssignmentEligibilityBooking), so it's folded into
+  // this shared SELECT rather than re-fetched separately at each call site.
+  const selectColumns =
+    "id, status, booking_date, start_time, end_time, deleted_at, clients(deleted_at)";
 
   const { data: booking, error } = await supabase
     .from("bookings")
@@ -164,6 +170,7 @@ export async function ensureBookingActive(
       status: booking.status,
       booking_date: booking.booking_date,
       start_time: booking.start_time,
+      end_time: booking.end_time,
     },
   };
 }

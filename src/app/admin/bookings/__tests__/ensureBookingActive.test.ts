@@ -10,6 +10,7 @@ const ACTIVE_BOOKING = {
   status: "confirmed",
   booking_date: "2026-08-01",
   start_time: "14:00:00",
+  end_time: "15:00:00",
   deleted_at: null,
   clients: { deleted_at: null } as { deleted_at: string | null } | null,
 };
@@ -52,6 +53,7 @@ describe("ensureBookingActive", () => {
         status: "confirmed",
         booking_date: "2026-08-01",
         start_time: "14:00:00",
+        end_time: "15:00:00",
       },
     });
   });

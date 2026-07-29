@@ -24,6 +24,7 @@ import {
   canClaimAssignments,
   canManageAllBookings,
   canManageBookings,
+  ensureBookingActive,
 } from "./access";
 import {
   getClaimAssignmentEligibility,
@@ -588,13 +589,13 @@ export async function claimBookingAssignment(formData: FormData) {
     return { error: "You cannot claim an assignment for another therapist gender." };
   }
 
-  const { data: booking } = await adminClient
-    .from("bookings")
-    .select("id, booking_date, start_time, end_time")
-    .eq("id", assignment.booking_id)
-    .single();
-
-  if (!booking) return { error: "Booking not found." };
+  // C-05 Phase B, Step 4 — cancelled / no_show / past-dated bookings are inert;
+  // this replaces the old status-blind SELECT with the shared active-booking gate.
+  const activityCheck = await ensureBookingActive(assignment.booking_id, adminClient);
+  if (!activityCheck.active) {
+    return { error: activityCheck.message };
+  }
+  const booking = activityCheck.booking;
 
   const eligibility = await getClaimAssignmentEligibility({
     actor,
@@ -1079,13 +1080,13 @@ export async function updateBookingAssignment(formData: FormData) {
 
   if (!assignment) return { error: "Assignment not found." };
 
-  const { data: booking } = await adminClient
-    .from("bookings")
-    .select("id, booking_date, start_time, end_time")
-    .eq("id", assignment.booking_id)
-    .single();
-
-  if (!booking) return { error: "Booking not found." };
+  // C-05 Phase B, Step 5 — same active-booking gate as claimBookingAssignment,
+  // before any UPDATE runs (assign or unassign).
+  const activityCheck = await ensureBookingActive(assignment.booking_id, adminClient);
+  if (!activityCheck.active) {
+    return { error: activityCheck.message };
+  }
+  const booking = activityCheck.booking;
 
   const beforeState = assignment;
   let nextPayload: {
@@ -1172,6 +1173,12 @@ export async function updateBookingAssignment(formData: FormData) {
   return { success: true };
 }
 
+// C-05 design: this server action is INTENTIONALLY NOT gated by ensureBookingActive.
+// Practitioners can mark their own assignment complete/no_show on a cancelled
+// booking — forensic edge case (visit happened before cancellation propagated).
+// Auto-promote (C-04a's autoPromoteBookingFromAssignments) is conditional on
+// booking.status NOT IN ('cancelled', 'completed', 'no_show'), so the parent
+// booking stays cancelled. See brief §5.1.
 export async function updateOwnAssignmentStatus(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const actor = await getStaffProfile(supabase);
