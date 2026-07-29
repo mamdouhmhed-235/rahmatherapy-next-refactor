@@ -65,6 +65,9 @@ import { PullToRefresh } from "./PullToRefresh";
 import { LegacyDisclosureCleanup } from "./LegacyDisclosureCleanup";
 import { TherapistDashboard } from "./TherapistDashboard";
 import { resolveAdminShellVariant } from "../shell-variant";
+import { PractitionerTodaySection } from "./PractitionerTodaySection";
+import { buildServiceLookup, type ServiceMeta } from "./shared-helpers";
+import { getScopedBookingIds } from "../bookings/page";
 
 export const metadata = {
   title: "Dashboard - Rahma Therapy Admin",
@@ -684,6 +687,67 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     );
   }
 
+  // C-FIELDWORK Phase D — practitioner-mode "today" data for Business/
+  // Coordinator viewers who also hold can_take_bookings (e.g. an Owner or
+  // Coordinator who personally takes appointments). This is deliberately NOT
+  // the practice-wide `nextAppointment`/`findNextAppointment` used by the KPI
+  // tile above — it's this viewer's OWN active assignments, derived from
+  // data already fetched (data.assignments/data.bookings/data.bookingItems).
+  // The only new query is the gender-scoped claimable count below, and it
+  // only fires when the capability gate is true — non-practitioners pay no
+  // cost (brief §9.4 + plan's risk-table gating).
+  const myAssignedBookingIds = profile.can_take_bookings
+    ? new Set(
+        data.assignments
+          .filter(
+            (a) =>
+              a.assigned_staff_id === profile.id &&
+              a.status !== "unassigned" &&
+              a.status !== "cancelled"
+          )
+          .map((a) => a.booking_id)
+      )
+    : new Set<string>();
+  const myTodayAppointments = profile.can_take_bookings
+    ? data.bookings.filter(
+        (b) =>
+          myAssignedBookingIds.has(b.id) &&
+          b.booking_date === today &&
+          !["cancelled", "no_show"].includes(b.status)
+      )
+    : [];
+  const myUpcoming = profile.can_take_bookings
+    ? [...data.bookings]
+        .filter(
+          (b) =>
+            myAssignedBookingIds.has(b.id) &&
+            b.booking_date >= today &&
+            !["cancelled", "no_show"].includes(b.status)
+        )
+        .sort(
+          (a, b) =>
+            a.booking_date.localeCompare(b.booking_date) ||
+            a.start_time.localeCompare(b.start_time)
+        )
+    : [];
+  const myNextAppointment = myUpcoming[0] ?? null;
+  const myNextAppointmentAssignmentId = myNextAppointment
+    ? (data.assignments.find(
+        (a) =>
+          a.booking_id === myNextAppointment.id &&
+          a.assigned_staff_id === profile.id
+      )?.id ?? null)
+    : null;
+  const myServiceLookup = profile.can_take_bookings
+    ? buildServiceLookup(data.bookingItems)
+    : new Map<string, ServiceMeta>();
+  // Gender-matched, same scoping the Therapist variant already gets from
+  // dashboard-data.ts (brief §9.4 locked decision) — one extra DB round trip,
+  // gated behind the capability check.
+  const myClaimableCount = profile.can_take_bookings
+    ? (await getScopedBookingIds(profile)).claimableIds.length
+    : 0;
+
   const failedEmails = data.emailEvents.filter((event) => event.delivery_status === "failed");
   const openOperationalErrors = data.operationalEvents.filter((event) => event.status === "open");
   const staffAvailabilityGaps = data.staff.filter(
@@ -932,6 +996,26 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
         />
         <UrgentAttentionPanel rows={attentionSummaryRows} groups={attentionGroups} filterQuery={filterQuery} />
       </section>
+
+      {/*
+       * C-FIELDWORK Phase D — practitioner-mode mount for Business/
+       * Coordinator viewers who also hold can_take_bookings. Brief §4.3
+       * locked rule: wrap the mount itself in this condition rather than
+       * relying on the component's own empty-state, so nothing renders at
+       * all when there's truly nothing to show (avoids visual noise for the
+       * common case of a non-practitioner Owner/Coordinator).
+       */}
+      {profile.can_take_bookings &&
+      (myTodayAppointments.length > 0 || myNextAppointment || myClaimableCount > 0) ? (
+        <PractitionerTodaySection
+          staffName={profile.name}
+          todayAppointments={myTodayAppointments}
+          nextAppointment={myNextAppointment}
+          claimableCount={myClaimableCount}
+          nextAppointmentAssignmentId={myNextAppointmentAssignmentId}
+          serviceLookup={myServiceLookup}
+        />
+      ) : null}
 
       {isCoordinatorVariant ? (
         <BusinessOverviewDisclosure

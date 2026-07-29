@@ -9,20 +9,16 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  CalendarDays,
   CheckCircle2,
   CircleCheck,
   Clock,
   Lock,
-  MapPin,
-  Phone,
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AdminPageScaffold, AdminStatusBadge } from "../components/admin-ui";
 import { BusinessOverviewDisclosure } from "./dashboard-filters-client";
 import { DashboardHeader } from "./dashboard-header";
-import { EmptyState } from "../components/EmptyState";
 import { ProfileCompletionNudge } from "./ProfileCompletionNudge";
 import { ClaimAssignmentButton } from "../bookings/ClaimAssignmentButton";
 import type { ReportData, StaffScorecard } from "../reports/reporting";
@@ -44,10 +40,11 @@ import {
   getGreeting,
   getFirstName,
   formatHours,
-  buildAddressLines,
-  buildMapsHref,
+  buildServiceLookup,
   FORMATTERS,
+  type ServiceMeta,
 } from "./shared-helpers";
+import { PractitionerTodaySection } from "./PractitionerTodaySection";
 
 interface TherapistDashboardProps {
   staffId: string;
@@ -79,30 +76,6 @@ interface TherapistDashboardProps {
   stripeScorecard?: StaffScorecard;
   stripePriorScorecard?: StaffScorecard;
   quickHelpPermissions?: QuickHelpPermissions;
-}
-
-function formatHeroTime(start: string | null, durationMinutes: number | null) {
-  const time = start?.slice(0, 5) ?? "—";
-  const duration =
-    durationMinutes && durationMinutes > 0 ? `${durationMinutes} min` : null;
-  return duration ? `${time} · ${duration}` : time;
-}
-
-type ServiceMeta = { name: string; duration: number };
-
-function buildServiceLookup(
-  items: ReportData["bookingItems"]
-): Map<string, ServiceMeta> {
-  const map = new Map<string, ServiceMeta>();
-  for (const item of items) {
-    if (!item.booking_id) continue;
-    if (map.has(item.booking_id)) continue;
-    map.set(item.booking_id, {
-      name: item.service_name_snapshot ?? "",
-      duration: item.service_duration_snapshot ?? 0,
-    });
-  }
-  return map;
 }
 
 export function TherapistDashboard({
@@ -223,6 +196,16 @@ export function TherapistDashboard({
     }
   }
 
+  // C-FIELDWORK Phase D — this viewer's own assignment id on nextAppointment,
+  // for PractitionerTodaySection's Mark-complete control (new in Phase C;
+  // TherapistDashboard's previous NextVisitHero had no such button).
+  const nextAppointmentAssignmentId = nextAppointment
+    ? (data.assignments.find(
+        (a) =>
+          a.booking_id === nextAppointment.id && a.assigned_staff_id === staffId
+      )?.id ?? null)
+    : null;
+
   // Compute tomorrow's date (UTC-safe) for the "fully quiet" forward-anchor.
   const tomorrowDate = new Date(todayDate);
   tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
@@ -254,21 +237,6 @@ export function TherapistDashboard({
     remainingToday.length === 0 &&
     claimable.length > 0;
 
-  const heroIsToday = nextAppointment?.booking_date === today;
-  const todayWeekday = todayDate.getUTCDay();
-  const isMondayMorning = todayWeekday === 1;
-  const lastCompletedVisit = completedThisWeek[completedThisWeek.length - 1];
-  const lastVisitWasFriday =
-    lastCompletedVisit?.booking_date &&
-    new Date(`${lastCompletedVisit.booking_date}T12:00:00Z`).getUTCDay() === 5;
-  const heroEyebrow = nextAppointment
-    ? heroIsToday
-      ? isMondayMorning && lastVisitWasFriday
-        ? "First visit back"
-        : "Next visit"
-      : "Tomorrow's first visit"
-    : "Next visit";
-
   // ── Day-at-a-glance computations ───────────────────────────────────────────
   // Working window = earliest start to latest end across today's assigned visits
   const assignedToday = todayAppointments.filter(
@@ -289,29 +257,6 @@ export function TherapistDashboard({
     pending: assignedToday.filter((b) => b.status === "pending").length,
     completed: assignedToday.filter((b) => b.status === "completed").length,
   };
-
-  // Average travel gap = mean of (next_start - prev_end) across consecutive visits
-  function minutesOf(hhmm: string | null | undefined): number | null {
-    if (!hhmm) return null;
-    const [h, m] = hhmm.split(":").map(Number);
-    return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
-  }
-  // The visit AFTER nextAppointment, for hero "Then" preview
-  const nextAfterNext = nextAppointment
-    ? sortedToday.find((b) => {
-        const aStart = minutesOf(nextAppointment.start_time);
-        const bStart = minutesOf(b.start_time);
-        return (
-          b.id !== nextAppointment.id &&
-          aStart != null &&
-          bStart != null &&
-          bStart > aStart
-        );
-      })
-    : null;
-  const nextAfterNextService = nextAfterNext
-    ? serviceLookup.get(nextAfterNext.id)
-    : null;
 
   // ── Tier 2 "My week" data ──────────────────────────────────────────────────
   const weekHoursLabel = formatHours(minutesThisWeek);
@@ -430,27 +375,30 @@ export function TherapistDashboard({
         />
       ) : null}
 
-      {nextAppointment ? (
-        <NextVisitHero
-          appointment={nextAppointment}
-          eyebrow={heroEyebrow}
-          service={serviceLookup.get(nextAppointment.id)}
-          thenVisit={
-            nextAfterNext
-              ? {
-                  time: nextAfterNext.start_time?.slice(0, 5) ?? "",
-                  clientName: getFirstName(
-                    nextAfterNext.contact_full_name ?? "Client"
-                  ),
-                  serviceName:
-                    nextAfterNextService?.name?.trim() || "Visit",
-                }
-              : null
-          }
-        />
-      ) : (
-        <HeroEmptyState hasClaimable={claimable.length > 0} />
-      )}
+      {/*
+       * C-FIELDWORK Phase D — consumes the Phase C shared component in place
+       * of this file's former local NextVisitHero / HeroEmptyState /
+       * TodayVisitsList trio. `assignedToday` already excludes unassigned
+       * bookings (those live in ClaimableStrip below, unchanged); the
+       * component derives its own "remaining today" list by excluding
+       * nextAppointment's id, which is the same set the old `remainingToday`
+       * computed. claimableCount is intentionally 0 here — this file keeps
+       * its own richer per-card ClaimableStrip (claim buttons included)
+       * rather than the shared component's simpler link-only strip, so both
+       * must not render at once. Documented trade-off (see report): this
+       * loses the dynamic hero eyebrow ("Tomorrow's first visit" / "First
+       * visit back"), the "Then" next-visit preview, and the
+       * hasClaimable-aware empty-state copy — those lived only in the
+       * removed local components and the shared component's interface
+       * (Phase C, not to be edited here) has no equivalent props.
+       */}
+      <PractitionerTodaySection
+        staffName={staffName}
+        todayAppointments={assignedToday}
+        nextAppointment={nextAppointment}
+        nextAppointmentAssignmentId={nextAppointmentAssignmentId}
+        serviceLookup={serviceLookup}
+      />
 
       {fullyQuiet && tomorrowVisitCount > 0 ? (
         <Link
@@ -464,19 +412,6 @@ export function TherapistDashboard({
           <ArrowRight className="size-4" aria-hidden="true" />
         </Link>
       ) : null}
-
-      {/*
-       * Today's visits list: hidden entirely when the Next Visit is the only
-       * one of the day (brief §5 point 3); also hidden when fully quiet (the
-       * "That's all for today." line would duplicate the hero empty state).
-       */}
-      {nextAppointment && remainingToday.length === 0 ? null : fullyQuiet ? null : (
-        <TodayVisitsList
-          visits={remainingToday}
-          allDoneAfterNext={Boolean(nextAppointment) && remainingToday.length === 0}
-          serviceLookup={serviceLookup}
-        />
-      )}
 
       {claimablePromoted ? null : (
         <ClaimableStrip
@@ -553,291 +488,6 @@ function DateRangeChips({ activeRange }: { activeRange: string }) {
       })}
     </nav>
   );
-}
-
-function NextVisitHero({
-  appointment,
-  eyebrow,
-  service,
-  thenVisit,
-}: {
-  appointment: ReportData["bookings"][number];
-  eyebrow: string;
-  service?: ServiceMeta;
-  thenVisit?: {
-    time: string;
-    clientName: string;
-    serviceName: string;
-  } | null;
-}) {
-  const heroTime = formatHeroTime(
-    appointment.start_time ?? null,
-    service?.duration ?? null
-  );
-  const addressLines = buildAddressLines(appointment);
-  const mapsHref = buildMapsHref(appointment);
-  const phone = appointment.contact_phone ?? null;
-  const serviceName = service?.name?.trim() ? service.name : "Visit";
-  const clientFirstName = getFirstName(
-    appointment.contact_full_name ?? "Client"
-  );
-
-  return (
-    <section
-      aria-labelledby="next-visit-heading"
-      className="flex flex-col gap-6 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-6 sm:p-8 md:gap-7 md:p-10"
-    >
-      <p className="inline-flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em]"
-         style={{ backgroundColor: "var(--status-confirmed-bg)", color: "var(--status-confirmed-text)" }}
-      >
-        <ArrowRight className="size-3.5" aria-hidden="true" />
-        {eyebrow}
-      </p>
-
-      <div className="flex flex-col gap-3 md:gap-4">
-        <h2
-          id="next-visit-heading"
-          style={{ fontFamily: "var(--font-urbanist), var(--font-work-sans), Arial, sans-serif" }} className="line-clamp-2 text-[1.333rem] font-semibold leading-[1.2] tracking-[-0.015em] text-[var(--admin-heading)] md:text-[1.778rem]"
-        >
-          {clientFirstName} · {serviceName}
-        </h2>
-        <p
-          className="font-serif text-[2.369rem] font-bold leading-[0.95] tracking-[-0.03em] text-[var(--admin-heading)] md:text-[3.157rem]"
-          style={{ fontFamily: "var(--admin-font-serif, 'Cormorant Garamond', Georgia, serif)" }}
-          title={
-            appointment.end_time
-              ? `${appointment.start_time?.slice(0, 5)} – ${appointment.end_time.slice(0, 5)} BST`
-              : undefined
-          }
-        >
-          {heroTime}
-        </p>
-      </div>
-
-      {addressLines.length > 0 ? (
-        <address className="not-italic">
-          <ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm leading-6 text-[var(--admin-body)]">
-            {addressLines.map((line, idx) => (
-              <li key={`${line}-${idx}`} className="flex items-start gap-2">
-                {idx === 0 ? (
-                  <MapPin
-                    className="mt-1 size-4 shrink-0 text-[var(--admin-text-muted)]"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <span aria-hidden="true" className="inline-block w-4 shrink-0" />
-                )}
-                <span>{line}</span>
-              </li>
-            ))}
-          </ul>
-        </address>
-      ) : null}
-
-      <div className="flex flex-row flex-wrap gap-3">
-        {mapsHref ? (
-          <a
-            href={mapsHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open this address in Google Maps"
-            title="Open this address in Google Maps"
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-panel-muted)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
-          >
-            <MapPin className="size-4" aria-hidden="true" />
-            Open in Maps
-          </a>
-        ) : null}
-        {phone ? (
-          <a
-            href={`tel:${phone}`}
-            aria-label={`Call ${clientFirstName}`}
-            title={`Call ${clientFirstName} (${phone})`}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-panel-muted)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
-          >
-            <Phone className="size-4" aria-hidden="true" />
-            Call client
-          </a>
-        ) : null}
-      </div>
-
-      {thenVisit ? (
-        <p className="flex items-center gap-2 border-t border-[var(--admin-border)] pt-4 text-sm text-[var(--admin-text-muted)]">
-          <span className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em]">
-            Then
-          </span>
-          <span className="text-[var(--admin-body)]">
-            {thenVisit.time} · {thenVisit.clientName} · {thenVisit.serviceName}
-          </span>
-        </p>
-      ) : null}
-
-      <Link
-        href={`/admin/bookings/${appointment.id}`}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-primary-hover)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
-      >
-        Open booking
-        <ArrowRight className="size-4" aria-hidden="true" />
-      </Link>
-    </section>
-  );
-}
-
-function HeroEmptyState({ hasClaimable }: { hasClaimable: boolean }) {
-  return (
-    <section
-      aria-labelledby="hero-empty-heading"
-      className="flex min-h-[280px] flex-col items-center justify-center rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] p-6 sm:p-8"
-      style={
-        hasClaimable
-          ? { backgroundColor: "var(--admin-panel)" }
-          : { backgroundColor: "var(--status-confirmed-bg)" }
-      }
-    >
-      <h2 id="hero-empty-heading" className="sr-only">
-        No upcoming visit
-      </h2>
-      <EmptyState
-        icon={CalendarDays}
-        illustrationSrc="/images/admin/empty-states/all-caught-up.svg"
-        title="Nothing scheduled"
-        message={
-          hasClaimable
-            ? "Your day is clear. Anything to claim?"
-            : "Quiet day. Take care of yourself."
-        }
-        action={
-          hasClaimable
-            ? {
-                label: "Browse claimable work",
-                href: "/admin/bookings?view=claimable",
-              }
-            : undefined
-        }
-        compact
-      />
-    </section>
-  );
-}
-
-function TodayVisitsList({
-  visits,
-  allDoneAfterNext,
-  serviceLookup,
-}: {
-  visits: ReportData["bookings"];
-  allDoneAfterNext?: boolean;
-  serviceLookup: Map<string, ServiceMeta>;
-}) {
-  return (
-    <section
-      aria-labelledby="today-visits-heading"
-      className="flex flex-col gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h2
-          id="today-visits-heading"
-          style={{ fontFamily: "var(--font-urbanist), var(--font-work-sans), Arial, sans-serif" }} className=" text-[1.333rem] font-semibold tracking-[-0.01em] text-[var(--admin-heading)]"
-        >
-          {allDoneAfterNext ? "No more visits today" : "Today's visits"}
-        </h2>
-        {!allDoneAfterNext && visits.length > 0 ? (
-          <AdminStatusBadge value={visits.length} tone="success" compact />
-        ) : null}
-      </div>
-      {visits.length === 0 ? (
-        <p className="text-sm leading-6 text-[var(--admin-text-muted)]">
-          That&apos;s all for today.
-        </p>
-      ) : (
-        <ul className="m-0 flex list-none flex-col gap-2 p-0">
-          {visits.map((booking) => (
-            <li key={booking.id}>
-              <TodayVisitRow
-                booking={booking}
-                service={serviceLookup.get(booking.id)}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function TodayVisitRow({
-  booking,
-  service,
-}: {
-  booking: ReportData["bookings"][number];
-  service?: ServiceMeta;
-}) {
-  const time = booking.start_time?.slice(0, 5) ?? "—";
-  const clientName = booking.contact_full_name ?? "Client";
-  const initials = clientName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => Array.from(part)[0] ?? "")
-    .join("")
-    .toUpperCase();
-  const serviceName = service?.name?.trim() ? service.name : "Visit";
-  const statusFamily =
-    booking.status === "confirmed"
-      ? "confirmed"
-      : booking.status === "completed"
-        ? "completed"
-        : booking.status === "cancelled"
-          ? "cancelled"
-          : "pending";
-
-  return (
-    <Link
-      href={`/admin/bookings/${booking.id}`}
-      className="flex items-center gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3 outline-none transition-colors duration-150 ease-out hover:bg-[var(--admin-panel-muted)] focus-visible:ring-[3px] focus-visible:ring-offset-2 focus-visible:ring-[var(--admin-focus)]/55 motion-reduce:transition-none"
-    >
-      <span
-        aria-hidden="true"
-        className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
-        style={{
-          backgroundColor: "var(--status-confirmed-bg)",
-          color: "var(--status-confirmed-text)",
-        }}
-      >
-        {initials || "—"}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">
-          {getFirstName(clientName)} · {serviceName}
-        </p>
-        <p className="mt-0.5 truncate text-xs text-[var(--admin-text-muted)]">
-          {time}
-        </p>
-      </div>
-      <StatusPill family={statusFamily} label={statusLabel(booking.status)} />
-      <ArrowRight
-        className="size-4 shrink-0 text-[var(--admin-text-muted)]"
-        aria-hidden="true"
-      />
-    </Link>
-  );
-}
-
-function statusLabel(status: string | null | undefined) {
-  switch (status) {
-    case "confirmed":
-      return "Confirmed";
-    case "completed":
-      return "Done";
-    case "cancelled":
-      return "Cancelled";
-    case "pending":
-      return "Pending";
-    case "no_show":
-      return "No show";
-    default:
-      return status ? status.replace(/_/g, " ") : "Pending";
-  }
 }
 
 function StatusPill({

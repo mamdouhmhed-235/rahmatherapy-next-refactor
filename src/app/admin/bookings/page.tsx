@@ -118,7 +118,10 @@ const CLAIMABLE_BOOKING_SELECT = `
   booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
 `;
 
-async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
+// Exported (C-FIELDWORK Phase D, brief §9.4 locked decision) — dashboard/page.tsx
+// reuses this exact gender-matched claimable-scoping logic for the
+// practitioner-mode Owner/Coordinator's claimableCount. Behaviour unchanged.
+export async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
   const adminClient = createSupabaseAdminClient();
   const { data: assignedRows } = await adminClient
     .from("booking_assignments")
