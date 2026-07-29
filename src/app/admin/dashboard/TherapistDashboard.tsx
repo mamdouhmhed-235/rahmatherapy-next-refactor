@@ -382,20 +382,27 @@ export function TherapistDashboard({
        * bookings (those live in ClaimableStrip below, unchanged); the
        * component derives its own "remaining today" list by excluding
        * nextAppointment's id, which is the same set the old `remainingToday`
-       * computed. claimableCount is intentionally 0 here — this file keeps
-       * its own richer per-card ClaimableStrip (claim buttons included)
-       * rather than the shared component's simpler link-only strip, so both
-       * must not render at once. Documented trade-off (see report): this
-       * loses the dynamic hero eyebrow ("Tomorrow's first visit" / "First
-       * visit back"), the "Then" next-visit preview, and the
-       * hasClaimable-aware empty-state copy — those lived only in the
-       * removed local components and the shared component's interface
-       * (Phase C, not to be edited here) has no equivalent props.
+       * computed. Fix round (dual-claimable-UI bug): claimableCount is now
+       * the real `claimable.length` so the component's own EmptyDayCard
+       * branch correctly recognizes claimable work exists (it no longer
+       * shows "Quiet day" copy when this file's own ClaimableStrip below
+       * has real claimable bookings). showClaimableStrip={false} suppresses
+       * the component's internal simple link-only strip, since this file
+       * keeps its own richer per-card ClaimableStrip (claim buttons
+       * included) rendered separately — both must not render at once.
+       * Documented trade-off (see report): this loses the dynamic hero
+       * eyebrow ("Tomorrow's first visit" / "First visit back"), the "Then"
+       * next-visit preview, and the hasClaimable-aware empty-state copy —
+       * those lived only in the removed local components and the shared
+       * component's interface (Phase C, not to be edited here) has no
+       * equivalent props.
        */}
       <PractitionerTodaySection
         staffName={staffName}
         todayAppointments={assignedToday}
         nextAppointment={nextAppointment}
+        claimableCount={claimable.length}
+        showClaimableStrip={false}
         nextAppointmentAssignmentId={nextAppointmentAssignmentId}
         serviceLookup={serviceLookup}
       />

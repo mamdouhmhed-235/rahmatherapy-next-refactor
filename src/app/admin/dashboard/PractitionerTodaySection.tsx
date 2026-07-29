@@ -53,6 +53,14 @@ interface PractitionerTodaySectionProps {
   // booking id -> service name/duration, built via buildServiceLookup(data.bookingItems).
   // Defaults to an empty Map; missing entries fall back to "Visit" (existing pattern).
   serviceLookup?: Map<string, ServiceMeta>;
+  // Whether this component's own internal (simple, link-only) ClaimableStrip
+  // should render when claimableCount > 0. Defaults to true. Callers that
+  // already show their own richer claimable UI elsewhere on the page (e.g.
+  // TherapistDashboard.tsx's per-card ClaimableStrip/ClaimableCard) pass
+  // false here to avoid rendering two claimable strips at once, while still
+  // passing the real claimableCount so the EmptyDayCard branch below
+  // correctly recognizes that claimable work exists.
+  showClaimableStrip?: boolean;
 }
 
 export function PractitionerTodaySection({
@@ -61,6 +69,7 @@ export function PractitionerTodaySection({
   claimableCount = 0,
   nextAppointmentAssignmentId = null,
   serviceLookup = new Map(),
+  showClaimableStrip = true,
 }: PractitionerTodaySectionProps) {
   const hasAnyAppt = todayAppointments.length > 0 || Boolean(nextAppointment);
 
@@ -90,7 +99,9 @@ export function PractitionerTodaySection({
           serviceLookup={serviceLookup}
         />
       ) : null}
-      {claimableCount > 0 ? <ClaimableStrip count={claimableCount} /> : null}
+      {showClaimableStrip && claimableCount > 0 ? (
+        <ClaimableStrip count={claimableCount} />
+      ) : null}
     </>
   );
 }

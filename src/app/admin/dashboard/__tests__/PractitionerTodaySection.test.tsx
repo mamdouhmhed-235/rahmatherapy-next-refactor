@@ -147,6 +147,24 @@ describe("PractitionerTodaySection", () => {
     expect(screen.getByText(/Browse claimable work/)).toBeTruthy();
   });
 
+  it("suppresses the internal claimable strip when showClaimableStrip is false, without falling back to the empty-day copy", () => {
+    render(
+      <PractitionerTodaySection
+        staffName="Sara"
+        todayAppointments={[]}
+        nextAppointment={null}
+        claimableCount={3}
+        showClaimableStrip={false}
+      />
+    );
+    expect(screen.queryByText(/Open to claim — 3 available/)).toBeNull();
+    expect(screen.queryByText(/Browse claimable work/)).toBeNull();
+    expect(screen.queryByText("Nothing scheduled")).toBeNull();
+    expect(
+      screen.queryByText("Quiet day. Take care of yourself.")
+    ).toBeNull();
+  });
+
   describe("Mark complete temporal guard", () => {
     beforeEach(() => {
       vi.useFakeTimers();
