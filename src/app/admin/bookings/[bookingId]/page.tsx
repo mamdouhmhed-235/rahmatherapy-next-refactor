@@ -53,6 +53,7 @@ import {
 } from "../assignment-eligibility";
 import {
   getCancellationMoment,
+  getTodayIsoDate,
   isBookingDateFutureLondon,
   isBookingMomentPastLondon,
   isRestoreWindowExpired,
@@ -380,10 +381,54 @@ export default async function BookingDetailPage({
     return <BookingAccessDenied />;
   }
 
+  // C-05 Phase C — mirrors `ensureBookingActive`'s server-side gate (Phase A/B)
+  // so the UI can't offer an action the server would refuse. Date-level only,
+  // same as the helper: `isBookingMomentPastLondon` (S6, above) is a stricter,
+  // moment-level check used only for the Restore affordance.
+  const today = getTodayIsoDate();
+  const isBookingActive =
+    booking.status !== "cancelled" &&
+    booking.status !== "no_show" &&
+    booking.booking_date >= today;
+  const inactivityReason: "cancelled" | "no_show" | "past_dated" | null =
+    isBookingActive
+      ? null
+      : booking.status === "cancelled"
+        ? "cancelled"
+        : booking.status === "no_show"
+          ? "no_show"
+          : "past_dated";
+
   const ownBooking = isOwnBooking(booking, profile);
   const claimableOnly = !canManageAllBookings(profile) && !ownBooking;
   const fullScope = canManageAllBookings(profile);
-  const canReassignBookings = fullScope && canAssignBookings(profile);
+  // Role-only signal (no booking-state factor) — kept separate from
+  // `canReassignBookings` below so the inline-notice visibility check can ask
+  // "would this actor be able to reassign if the booking were active?".
+  const canReassignBookingsRole = fullScope && canAssignBookings(profile);
+  const canReassignBookings = canReassignBookingsRole && isBookingActive;
+
+  // C-05 Phase C, Step 11 — gates the inline lockdown notice (below). Scoped to
+  // non-fullScope actors: `fullScope` actors already get an equivalent
+  // explanation (incl. the S7 restore-window-expired copy) from the
+  // next-action strip's `deriveNextAction` (~line 1261), rendered only when
+  // `fullScope` is true — showing the notice to them too would just repeat it.
+  // `hasClaimableSlotIfActive` is a light proxy for "canClaim would be true if
+  // the booking were active": it checks gender + unassigned status only, not
+  // the fuller busy/blocked-window eligibility `claimPreview` carries, so it
+  // can occasionally show the notice to a therapist who is claim-blocked for
+  // an unrelated reason too — acceptable, since the cost of that miss is a
+  // slightly-too-eager notice, not a hidden one.
+  const hasClaimableSlotIfActive =
+    canClaimAssignments(profile) &&
+    booking.booking_assignments.some(
+      (assignment) =>
+        assignment.status === "unassigned" &&
+        !assignment.assigned_staff_id &&
+        assignment.required_therapist_gender === profile.gender
+    );
+  const showInertAssignmentsNotice =
+    !isBookingActive && !fullScope && (ownBooking || hasClaimableSlotIfActive);
 
   const assignmentPreviews = canReassignBookings
     ? Object.fromEntries(
@@ -571,6 +616,9 @@ export default async function BookingDetailPage({
             canReassignBookings={canReassignBookings}
             assignmentPreviews={assignmentPreviews}
             claimEligibility={claimEligibility}
+            isBookingActive={isBookingActive}
+            inactivityReason={inactivityReason}
+            showInertNotice={showInertAssignmentsNotice}
           />
 
           {!fullScope && !claimableOnly ? (
@@ -805,12 +853,18 @@ function AssignmentPanel({
   canReassignBookings,
   assignmentPreviews,
   claimEligibility,
+  isBookingActive,
+  inactivityReason,
+  showInertNotice,
 }: {
   booking: BookingRecordWithClientId;
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
   canReassignBookings: boolean;
   assignmentPreviews: Record<string, StaffAssignmentPreview[]>;
   claimEligibility: Record<string, StaffAssignmentPreview | null>;
+  isBookingActive: boolean;
+  inactivityReason: "cancelled" | "no_show" | "past_dated" | null;
+  showInertNotice: boolean;
 }) {
   if (booking.booking_assignments.length === 0) {
     return (
@@ -827,6 +881,14 @@ function AssignmentPanel({
 
   return (
     <AdminPanel title="Assignment">
+      {showInertNotice ? (
+        <InertBookingNotice
+          reason={inactivityReason}
+          restoreWindowExpired={
+            inactivityReason === "cancelled" ? isRestoreWindowExpired(booking) : false
+          }
+        />
+      ) : null}
       <ul className="grid gap-3">
         {booking.booking_assignments.map((assignment) => (
           <AssignmentRow
@@ -837,10 +899,52 @@ function AssignmentPanel({
             canReassignBookings={canReassignBookings}
             previews={assignmentPreviews[assignment.id] ?? []}
             claimPreview={claimEligibility[assignment.id] ?? null}
+            isBookingActive={isBookingActive}
           />
         ))}
       </ul>
     </AdminPanel>
+  );
+}
+
+// C-05 Phase C, Step 11 — explains why the row-level affordances below are
+// gone. Copy per brief §4.2; the cancelled variant reads the S7 "permanent"
+// wording once the 28-day restore window (`isRestoreWindowExpired`, C-04a)
+// has passed, so it never tells the actor to restore a booking the server
+// would refuse to restore.
+function InertBookingNotice({
+  reason,
+  restoreWindowExpired,
+}: {
+  reason: "cancelled" | "no_show" | "past_dated" | null;
+  restoreWindowExpired: boolean;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="rahma-pop-in mb-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-sm"
+    >
+      <div className="flex gap-2.5">
+        <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <div className="min-w-0">
+          <p className="font-medium text-[var(--admin-body)]">
+            {reason === "cancelled" && "This booking is cancelled."}
+            {reason === "no_show" && "This booking is marked no-show."}
+            {reason === "past_dated" && "This booking is in the past."}
+          </p>
+          <p className="mt-1 leading-6 text-[var(--admin-text-muted)]">
+            {reason === "cancelled" &&
+              (restoreWindowExpired
+                ? "The 28-day restore window has passed — this cancellation is permanent."
+                : "Restore it before claiming, reassigning, or marking work complete.")}
+            {reason === "no_show" && "Restore it if the client did attend."}
+            {reason === "past_dated" &&
+              "Editing past bookings should go through support."}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -851,6 +955,7 @@ function AssignmentRow({
   canReassignBookings,
   previews,
   claimPreview,
+  isBookingActive,
 }: {
   assignment: BookingAssignment;
   booking: BookingRecordWithClientId;
@@ -858,6 +963,7 @@ function AssignmentRow({
   canReassignBookings: boolean;
   previews: StaffAssignmentPreview[];
   claimPreview: StaffAssignmentPreview | null;
+  isBookingActive: boolean;
 }) {
   const isUnassigned =
     assignment.status === "unassigned" && !assignment.assigned_staff_id;
@@ -873,6 +979,7 @@ function AssignmentRow({
       : "Therapist";
 
   const canClaim =
+    isBookingActive &&
     isUnassigned &&
     canClaimAssignments(profile) &&
     assignment.required_therapist_gender === profile.gender &&
@@ -884,6 +991,7 @@ function AssignmentRow({
   // Keep the prompt mounted across the status flip from "assigned" →
   // "completed" so the dialog state set by onSuccess survives the refresh.
   const canPromptForSessionNote =
+    isBookingActive &&
     isAssignedToActor &&
     canCreateSessionNotes(profile) &&
     Boolean(booking.client_id);
@@ -949,7 +1057,7 @@ function AssignmentRow({
             clientName={clientDisplayName}
             showButton={isOwn}
           />
-        ) : isOwn ? (
+        ) : isOwn && isBookingActive ? (
           <BookingActionButton
             assignmentId={assignment.id}
             action="assignment_completed"
@@ -958,7 +1066,7 @@ function AssignmentRow({
             Mark complete
           </BookingActionButton>
         ) : null}
-        {isOwn ? (
+        {isOwn && isBookingActive ? (
           <BookingActionButton
             assignmentId={assignment.id}
             action="assignment_no_show"

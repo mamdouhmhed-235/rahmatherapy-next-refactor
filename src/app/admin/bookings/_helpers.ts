@@ -188,3 +188,18 @@ export function isTerminalBookingStatus(status: string): boolean {
 export const TERMINAL_BOOKING_STATUS_FILTER = `("${TERMINAL_BOOKING_STATUSES.join(
   '","'
 )}")`;
+
+/**
+ * C-05 Phase C — lifted from `bookings/page.tsx` (was private there) so the
+ * detail page's `isBookingActive` derivation and the list page's claimable
+ * queries read "today" the same way. `page.tsx` re-exports this name so any
+ * existing import of it from that module keeps working.
+ */
+export function getTodayIsoDate(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}

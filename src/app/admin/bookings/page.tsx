@@ -33,8 +33,14 @@ import {
   hasClaimableAssignment,
   isOwnBooking,
 } from "./access";
+import { getTodayIsoDate } from "./_helpers";
 import { formatDate, formatLabel, formatMoney, formatTime } from "./format";
 import type { BookingRecord } from "./types";
+
+// Re-exported for any existing caller that imported this from here (Step 8,
+// C-05 Phase C) — the implementation now lives in ./_helpers, shared with
+// [bookingId]/page.tsx.
+export { getTodayIsoDate };
 
 export const metadata = {
   title: "Bookings - Rahma Therapy Admin",
@@ -119,14 +125,21 @@ async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnType<typeo
     .select("booking_id")
     .eq("assigned_staff_id", profile.id);
 
+  // C-05 Phase C (edit point 5) — the `bookings!inner` join + status/date
+  // filters keep cancelled, no_show, and past-dated bookings out of
+  // `claimableIds` at the source, rather than relying solely on the
+  // in-memory `filterBookings` pass below for defense-in-depth.
+  const todayISO = getTodayIsoDate();
   const claimableRows = canClaimAssignments(profile)
     ? (
         await adminClient
           .from("booking_assignments")
-          .select("booking_id")
+          .select("booking_id, bookings!inner(status, booking_date)")
           .eq("status", "unassigned")
           .is("assigned_staff_id", null)
           .eq("required_therapist_gender", profile.gender)
+          .not("bookings.status", "in", '("cancelled","no_show")')
+          .gte("bookings.booking_date", todayISO)
       ).data ?? []
     : [];
 
@@ -142,15 +155,6 @@ async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnType<typeo
 
 function getQueryValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function getTodayIsoDate() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
 }
 
 function filterBookings(
@@ -182,7 +186,8 @@ function filterBookings(
       (view === "assigned" && isOwnBooking(booking, profile)) ||
       (view === "claimable" &&
         !["cancelled", "no_show"].includes(booking.status) &&
-        hasClaimableAssignment(booking, profile)) ||
+        booking.booking_date >= today &&
+        hasClaimableAssignment(booking, profile, today)) ||
       (view === "today" &&
         booking.booking_date === today &&
         !["cancelled", "no_show"].includes(booking.status)) ||
