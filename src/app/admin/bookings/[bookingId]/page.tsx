@@ -37,6 +37,7 @@ import {
   canCreateSessionNotes,
   getStaffProfile,
 } from "@/lib/auth/rbac";
+import { isViewerAssignedPractitioner } from "@/app/admin/dashboard/shared-helpers";
 import { AssignmentManager } from "../AssignmentManager";
 import { BookingActionButton } from "../BookingActionButton";
 import { SessionNotePromptSheet } from "../SessionNotePromptSheet";
@@ -381,6 +382,15 @@ export default async function BookingDetailPage({
     return <BookingAccessDenied />;
   }
 
+  // C-FIELDWORK: is the viewer an actively-assigned practitioner on this
+  // booking? Drives the mobile sidebar reorder below (see the grid comment
+  // at the render site).
+  const viewerIsPractitioner = isViewerAssignedPractitioner(
+    booking,
+    profile.id,
+    profile.can_take_bookings
+  );
+
   // C-05 Phase C — mirrors `ensureBookingActive`'s server-side gate (Phase A/B)
   // so the UI can't offer an action the server would refuse. Date-level only,
   // same as the helper: `isBookingMomentPastLondon` (S6, above) is a stricter,
@@ -612,8 +622,18 @@ export default async function BookingDetailPage({
         />
       ) : null}
 
+      {/* C-FIELDWORK: assigned-practitioner view reorders the sidebar (client
+          phone, address, maps) ABOVE the main panels on mobile so the
+          on-the-road practitioner gets the critical info first. Admin-curator
+          view (Coord triaging, Owner reviewing) keeps the default order.
+          Predicate excludes cancelled/unassigned assignment statuses but
+          includes completed/no_show — retrospective viewing of own work
+          still gets the field layout. At md+ the grid columns fix the
+          sidebar in column 2 regardless. */}
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_20rem] lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="grid min-w-0 gap-6">
+        <div
+          className={`grid min-w-0 gap-6 ${viewerIsPractitioner ? "order-2 md:order-1" : "md:order-1"}`}
+        >
           {fullScope && booking.reschedule_status === "requested" ? (
             <RescheduleRequestPanel booking={booking} />
           ) : null}
@@ -651,12 +671,16 @@ export default async function BookingDetailPage({
           ) : null}
         </div>
 
-        <BookingDetailSidebar
-          booking={bookingWithTimeline}
-          clientId={bookingWithTimeline.client_id ?? null}
-          showFinancials={fullScope}
-          showClientLink={fullScope && Boolean(bookingWithTimeline.client_id)}
-        />
+        <div
+          className={viewerIsPractitioner ? "order-1 md:order-2" : "md:order-2"}
+        >
+          <BookingDetailSidebar
+            booking={bookingWithTimeline}
+            clientId={bookingWithTimeline.client_id ?? null}
+            showFinancials={fullScope}
+            showClientLink={fullScope && Boolean(bookingWithTimeline.client_id)}
+          />
+        </div>
       </div>
     </AdminPageScaffold>
   );
