@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/client";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { pickReviewMessages } from "../templates";
 import { sendReviewRequestEmail } from "../notifications";
 
@@ -308,5 +309,48 @@ describe("sendReviewRequestEmail", () => {
     expect(pickReviewMessages).toHaveBeenCalledWith(
       expect.objectContaining({ groupCategory: null, city: "Luton" })
     );
+  });
+
+  it("propagates admin-configured override text into the plain-text leg, not just the HTML leg", async () => {
+    const overrideRows = [
+      { field_key: "massage_variant_1", value: "Admin override sample review number 1." },
+      { field_key: "massage_variant_2", value: "Admin override sample review number 2." },
+      { field_key: "massage_variant_3", value: "Admin override sample review number 3." },
+      { field_key: "massage_variant_4", value: "Admin override sample review number 4." },
+      { field_key: "massage_variant_5", value: "Admin override sample review number 5." },
+    ];
+    const overrideAdminClient = {
+      from: () => ({
+        select: () => ({
+          eq: () => Promise.resolve({ data: overrideRows, error: null }),
+        }),
+      }),
+    };
+    // resolveTemplateOverrides is called twice per send: once inside the real
+    // renderReviewRequestEmail (HTML leg), once directly by
+    // sendReviewRequestEmail for the plain-text leg (the fix under test).
+    vi.mocked(createSupabaseAdminClient)
+      .mockReturnValueOnce(overrideAdminClient as never)
+      .mockReturnValueOnce(overrideAdminClient as never);
+
+    const stub = stubClient({ booking: baseBooking() });
+
+    const result = await sendReviewRequestEmail("booking-1", stub.client);
+
+    expect(result).toEqual({ sent: true });
+    // The text-leg pickReviewMessages call must receive the real overrides,
+    // not the previously hardcoded {}.
+    expect(pickReviewMessages).toHaveBeenCalledWith(
+      expect.objectContaining({
+        overrides: expect.objectContaining({
+          massage_variant_2: "Admin override sample review number 2.",
+        }),
+      })
+    );
+    // All 5 pool entries are overridden, so whichever 3 the shuffle picks,
+    // the sent plain-text body must show override text, never a default.
+    const sentText = vi.mocked(sendEmail).mock.calls[0][0].text as string;
+    expect(sentText).toMatch(/Admin override sample review number \d\./);
+    expect(sentText).not.toContain("brilliant home massage");
   });
 });

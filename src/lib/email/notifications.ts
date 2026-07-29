@@ -20,6 +20,7 @@ import {
   renderStaffAssignmentEmail,
   renderStaffBookingChangeEmail,
   pickReviewMessages,
+  resolveTemplateOverrides,
   type BookingEmailTemplateInput,
   type EmailParticipant,
   type ReviewRequestEmailInput,
@@ -716,7 +717,8 @@ export async function sendReviewRequestEmail(
   };
 
   const html = await renderReviewRequestEmail(reviewInput);
-  const variants = pickReviewMessages({ groupCategory, city, overrides: {} });
+  const overrides = await resolveTemplateOverrides("review_request_client");
+  const variants = pickReviewMessages({ groupCategory, city, overrides });
   const text = renderReviewRequestPlainText(reviewInput, variants);
 
   await sendTrackedEmail(supabase, {
