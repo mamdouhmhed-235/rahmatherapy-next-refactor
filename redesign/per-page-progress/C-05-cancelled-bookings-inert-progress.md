@@ -79,7 +79,14 @@ Per plan §3.2 (16-item, 4 roles × 4 viewports) and §3.4 (screenshot evidence)
 
 ## 5 — Log-only (noticed, not this plan's to fix)
 
-- `redesign/evidence/C-21/` PNGs are untracked even though `redesign/evidence/` is a committed convention elsewhere (C-04a, C-06) and C-21 shows shipped in git log — looks like leftover evidence from plan #1 that was never staged. Predates C-05, outside its files-touched list, not actioned.
+- `redesign/evidence/C-21/` PNGs are untracked even though `redesign/evidence/` is a committed convention elsewhere (C-04a, C-06) and C-21 shows shipped in git log. **Correction (drift checkpoint #1, 2026-07-29):** this is NOT an accident — C-21's own progress file §5.6 records it as a deliberate, reasoned decision (15 PNGs, ~25 MB; committing at that rate compounds to ~0.5 GB across 22 plans). Struck from "noticed" status; the earlier framing above was itself a mis-diagnosis of a previous plan's documented call. Not actioned, correctly.
+- **Two orphaned cross-plan hand-off items, surfaced by drift checkpoint #1 (2026-07-29), NOT in C-05's actual Owner-approved plan scope — logged for a future plan, not fixed here:**
+  1. C-04a's progress file §0c speculated *"C-05's remit is exactly this, with a shared helper across all seven edit points"* re: the residual `cancelled → confirmed` / `cancelled → no_show` / `X → X` server-side transitions (reachable only via a hand-crafted POST, no live UI affordance). C-05's actual Owner-approved plan+brief (read in full at this plan's start, verified against by the adversarial closeout reviewer) never scoped this — it's a stale forward-reference in a sibling plan's notes, not a requirement C-05 dropped. `ensureBookingActive` covers 2 of the informally-implied 7 sites (the ones actually reachable through claim/reassign). The other 5 direct-POST paths remain unguarded server-side, same as before C-05.
+  2. C-06's progress file §8 assigned a "soft-deleted booking stays mutable" sweep (11 `bookings/actions.ts` sites) to C-05. `ensureBookingActive` reached the 2 sites its own plan named (`claimBookingAssignment`, `updateBookingAssignment`); `updateBookingManagement`, `quickUpdateBooking`, and `respondToCustomerReschedule` never consult `bookings.deleted_at`. **Currently unreachable in practice** — C-06's cascade forces every soft-deleted booking's status to `cancelled`/`completed`, both already inert via `ensureBookingActive`'s status check — but the assignment was narrowed silently across the hand-off, not re-scoped by decision.
+
+## 6 — Baseline identity AFTER (added retroactively by drift checkpoint #1, 2026-07-29 — independently re-run, not copied from §0/§1)
+
+`npx tsc --noEmit` → **0 errors**. `pnpm lint` → **59 errors / 7 warnings**, same six files, per-file exact: `area-page.jsx` 48E/1W · `shared.jsx` 2E/5W · `site-chrome.jsx` 5E/0W · `BookingExperience.tsx` 3E/0W · `BookingExperienceLoader.tsx` 1E/0W · `returning-customer.ts` 0E/1W. `pnpm vitest run` → **5 failed / 773 passed / 778**, the five inherited names unchanged. **This is the baseline C-01 (plan #6) inherits.**
 
 ---
 
