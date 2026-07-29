@@ -22,6 +22,7 @@ Consolidated tracking of every item across the programme that only the Owner can
 | ⬜ C-04a | §3.2 (4-role × 4-viewport sweep, 14 steps) + §3.3 (5 screenshots) | `d8a61721` (both email fields NULL — zero email risk) | `C-04a-cancellation-restore-progress.md` §0k |
 | ⬜ C-05 | §3.2 (16-step sweep) + §3.4 (screenshots) | `eaafbb1a` (cancelled), `1d503d3b` (past-dated, B-171 repro) | `C-05-cancelled-bookings-inert-progress.md` §3 |
 | ⬜ C-01 | §3.5 (4-role sweep — Templates tab visibility, 16-field editor UX, override round-trip) + §3.6 (screenshots) + §3.3 (Resend dashboard spot-check). **Pipeline mechanism itself already proved live** (§3 of the progress file) — this sweep is RBAC/UX verification only, not correctness-critical. | `77f90d24`, `ae9bb5bd` (both example.test, both currently "handled") | `C-01-review-request-email-progress.md` §4 |
+| ⬜ C-FIELDWORK | §3.2/§3.4 (4-role sweep + screenshots) — booking-detail dual-view, dashboard mounts, Mark-complete temporal guard. **No safe fixture currently exists** — needs a fresh test booking assigned to a test staff account created via the admin UI first (recommended: `test.therapist@rahmatherapy.example.test`), since production has none assigned to any test/Owner practitioner account today. | none currently — Owner creates one first | `C-FIELDWORK-EXPERIENCE-progress.md` §4 |
 
 **Never use in any sweep:** booking `9d55ce2a-7a76-42ed-9166-a33fa66ee7fe` (Badar — real customer, real email) or the Owner's own `rahmatherapy@outlook.com` in any email-test path.
 
