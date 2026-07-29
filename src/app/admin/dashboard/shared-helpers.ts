@@ -98,3 +98,35 @@ export function isViewerAssignedPractitioner(
       a.status !== "cancelled"
   );
 }
+
+// C-FIELDWORK Phase C — lifted verbatim from TherapistDashboard.tsx (lines
+// 84-106 at time of lift). The local copies in TherapistDashboard.tsx are
+// left in place unchanged for now; Phase D refactors that file to consume
+// PractitionerTodaySection and removes its now-duplicate locals.
+
+export function formatHeroTime(
+  start: string | null,
+  durationMinutes: number | null
+) {
+  const time = start?.slice(0, 5) ?? "—";
+  const duration =
+    durationMinutes && durationMinutes > 0 ? `${durationMinutes} min` : null;
+  return duration ? `${time} · ${duration}` : time;
+}
+
+export type ServiceMeta = { name: string; duration: number };
+
+export function buildServiceLookup(
+  items: ReportData["bookingItems"]
+): Map<string, ServiceMeta> {
+  const map = new Map<string, ServiceMeta>();
+  for (const item of items) {
+    if (!item.booking_id) continue;
+    if (map.has(item.booking_id)) continue;
+    map.set(item.booking_id, {
+      name: item.service_name_snapshot ?? "",
+      duration: item.service_duration_snapshot ?? 0,
+    });
+  }
+  return map;
+}
