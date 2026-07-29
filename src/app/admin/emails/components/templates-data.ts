@@ -11,7 +11,24 @@ export type SafeFieldKind =
   | "group_copy"
   | "intro"
   | "wrapper_change_summary"
-  | "plain_text_intro";
+  | "plain_text_intro"
+  // C-01 — review request email (customer, 2h post-completion)
+  | "subject"
+  | "body_intro"
+  | "body_ask"
+  | "body_cta_label"
+  | "body_cta_url"
+  | "body_signoff"
+  | "massage_variant_1"
+  | "massage_variant_2"
+  | "massage_variant_3"
+  | "massage_variant_4"
+  | "massage_variant_5"
+  | "cupping_variant_1"
+  | "cupping_variant_2"
+  | "cupping_variant_3"
+  | "cupping_variant_4"
+  | "cupping_variant_5";
 
 export interface SafeField {
   kind: SafeFieldKind;
@@ -70,6 +87,161 @@ const CHANGE_WRAPPER: SafeField = {
   placeholder: "Here's what changed for the booking on {date}:",
   helper: "Sits above the auto-generated change summary.",
   maxLength: 200,
+};
+
+// C-01 — review request email fields. All single-use (this template only),
+// but declared as named consts to match the file's existing convention
+// (STAFF_INTRO, CHANGE_WRAPPER are also single-use).
+const REVIEW_SUBJECT: SafeField = {
+  kind: "subject",
+  label: "Subject line",
+  placeholder: "Thank you for visiting Rahma Therapy",
+  helper: "Shown in the recipient's inbox. Keep it short and recognisable.",
+  maxLength: 100,
+};
+
+const REVIEW_BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder:
+    "Thank you for choosing Rahma Therapy for your {service_name}. We hope you felt looked after from start to finish.",
+  helper: "Opens the email. {service_name} fills in automatically from the booking.",
+  maxLength: 500,
+  multiline: true,
+};
+
+const REVIEW_BODY_ASK: SafeField = {
+  kind: "body_ask",
+  label: "Ask paragraph",
+  placeholder:
+    "If you have a moment, we'd be grateful for an honest review on Google. It helps other people in {city} find us.",
+  helper: "The review request itself. {city} fills in automatically when known.",
+  maxLength: 500,
+  multiline: true,
+};
+
+const REVIEW_BODY_CTA_LABEL: SafeField = {
+  kind: "body_cta_label",
+  label: "CTA button label",
+  placeholder: "Leave a Google review",
+  helper: "Text shown on the button. Keep it short and action-focused.",
+  maxLength: 80,
+};
+
+const REVIEW_BODY_CTA_URL: SafeField = {
+  kind: "body_cta_url",
+  label: "CTA button URL",
+  placeholder: "https://g.page/r/Ccfwk27JycKDEBM/review",
+  helper: "Where the button links to — your Google review page.",
+  maxLength: 500,
+};
+
+const REVIEW_BODY_SIGNOFF: SafeField = {
+  kind: "body_signoff",
+  label: "Signoff",
+  placeholder: "Thank you again,\nThe Rahma Therapy team",
+  helper: "Closing line, shown under the sample reviews and button.",
+  maxLength: 200,
+  multiline: true,
+};
+
+const REVIEW_MASSAGE_VARIANT_1: SafeField = {
+  kind: "massage_variant_1",
+  label: "Massage review sample 1",
+  placeholder:
+    "I had a brilliant home massage in {city} today — really professional setup, felt completely relaxed by the end.",
+  helper: "One of 5 sample reviews shown to massage clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_MASSAGE_VARIANT_2: SafeField = {
+  kind: "massage_variant_2",
+  label: "Massage review sample 2",
+  placeholder:
+    "Booked a home massage with Rahma Therapy in {city}. The therapist was excellent, the experience felt like a proper clinic but in the comfort of home.",
+  helper: "One of 5 sample reviews shown to massage clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_MASSAGE_VARIANT_3: SafeField = {
+  kind: "massage_variant_3",
+  label: "Massage review sample 3",
+  placeholder:
+    "Just had a fantastic massage at home in {city}. Highly skilled, deeply relaxing, and so easy not having to travel.",
+  helper: "One of 5 sample reviews shown to massage clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_MASSAGE_VARIANT_4: SafeField = {
+  kind: "massage_variant_4",
+  label: "Massage review sample 4",
+  placeholder:
+    "Tried Rahma Therapy for a mobile massage in {city} — top quality. Will definitely book again.",
+  helper: "One of 5 sample reviews shown to massage clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_MASSAGE_VARIANT_5: SafeField = {
+  kind: "massage_variant_5",
+  label: "Massage review sample 5",
+  placeholder: "Excellent home massage experience in {city}. Calm, professional, and exactly what I needed.",
+  helper: "One of 5 sample reviews shown to massage clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_CUPPING_VARIANT_1: SafeField = {
+  kind: "cupping_variant_1",
+  label: "Cupping review sample 1",
+  placeholder:
+    "Had a hijama session at home in {city} with Rahma Therapy. Very clean, hygienic, and the practitioner was knowledgeable and respectful.",
+  helper: "One of 5 sample reviews shown to cupping/hijama clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_CUPPING_VARIANT_2: SafeField = {
+  kind: "cupping_variant_2",
+  label: "Cupping review sample 2",
+  placeholder:
+    "Booked hijama at home in {city} — proper Sunnah practice, sterile equipment, and a calming atmosphere. Highly recommend.",
+  helper: "One of 5 sample reviews shown to cupping/hijama clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_CUPPING_VARIANT_3: SafeField = {
+  kind: "cupping_variant_3",
+  label: "Cupping review sample 3",
+  placeholder:
+    "Excellent home hijama appointment in {city}. Felt looked after from start to finish, the setup was spotless and professional.",
+  helper: "One of 5 sample reviews shown to cupping/hijama clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_CUPPING_VARIANT_4: SafeField = {
+  kind: "cupping_variant_4",
+  label: "Cupping review sample 4",
+  placeholder:
+    "Tried Rahma Therapy for hijama in {city} and couldn't be happier. Knowledgeable practitioner, careful technique, and great aftercare.",
+  helper: "One of 5 sample reviews shown to cupping/hijama clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
+};
+
+const REVIEW_CUPPING_VARIANT_5: SafeField = {
+  kind: "cupping_variant_5",
+  label: "Cupping review sample 5",
+  placeholder:
+    "First hijama session in {city} and it was a brilliant experience. Clean, professional, and the practitioner explained every step.",
+  helper: "One of 5 sample reviews shown to cupping/hijama clients; 3 are picked at random. {city} fills in automatically.",
+  maxLength: 400,
+  multiline: true,
 };
 
 export const TEMPLATES: TemplateMeta[] = [
@@ -150,6 +322,31 @@ export const TEMPLATES: TemplateMeta[] = [
     trigger: "Sent to the owner when a client requests a reschedule",
     rendersAs: "html",
     fields: [FOOTER_CONTACT],
+  },
+  {
+    id: "review_request_client",
+    audience: "customer",
+    cardName: "Review request (2h post-completion)",
+    trigger: "Sent automatically 2 hours after a booking is marked completed",
+    rendersAs: "html",
+    fields: [
+      REVIEW_SUBJECT,
+      REVIEW_BODY_INTRO,
+      REVIEW_BODY_ASK,
+      REVIEW_BODY_CTA_LABEL,
+      REVIEW_BODY_CTA_URL,
+      REVIEW_BODY_SIGNOFF,
+      REVIEW_MASSAGE_VARIANT_1,
+      REVIEW_MASSAGE_VARIANT_2,
+      REVIEW_MASSAGE_VARIANT_3,
+      REVIEW_MASSAGE_VARIANT_4,
+      REVIEW_MASSAGE_VARIANT_5,
+      REVIEW_CUPPING_VARIANT_1,
+      REVIEW_CUPPING_VARIANT_2,
+      REVIEW_CUPPING_VARIANT_3,
+      REVIEW_CUPPING_VARIANT_4,
+      REVIEW_CUPPING_VARIANT_5,
+    ],
   },
 ];
 

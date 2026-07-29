@@ -15,10 +15,14 @@ import {
   renderBookingPlainText,
   renderBookingReminderEmail,
   renderBookingRestoredEmail,
+  renderReviewRequestEmail,
+  renderReviewRequestPlainText,
   renderStaffAssignmentEmail,
   renderStaffBookingChangeEmail,
+  pickReviewMessages,
   type BookingEmailTemplateInput,
   type EmailParticipant,
+  type ReviewRequestEmailInput,
 } from "./templates";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
 
@@ -648,4 +652,121 @@ export async function sendBookingReminderEmail(
     html: renderBookingReminderEmail(input),
     text: renderBookingPlainText("Booking reminder", input),
   });
+}
+
+interface ReviewEmailBookingRow {
+  id: string;
+  contact_email: string | null;
+  completed_at: string | null;
+  review_email_sent_at: string | null;
+  status: string;
+  clients: { email: string | null; city: string | null } | null;
+}
+
+interface BookingItemGroupCategoryRow {
+  services: { group_category: string | null } | null;
+}
+
+/**
+ * C-01 — sends the "leave us a review" email once a booking has sat
+ * `completed` for 2+ hours (the cron route enforces the delay; this function
+ * only renders, sends and marks the sentinel). Idempotent via
+ * `review_email_sent_at`: a no-email booking is marked as handled so the cron
+ * never retries it forever, and the closing UPDATE is guarded by
+ * `.is("review_email_sent_at", null)` to survive a parallel cron tick.
+ */
+export async function sendReviewRequestEmail(
+  bookingId: string,
+  supabase: SupabaseClient
+): Promise<{ sent: boolean; reason?: "no_email" | "already_sent" | "send_failed" }> {
+  const { data: booking, error: bookingErr } = await supabase
+    .from("bookings")
+    .select("id, contact_email, completed_at, review_email_sent_at, status, clients(email, city)")
+    .eq("id", bookingId)
+    .maybeSingle<ReviewEmailBookingRow>();
+
+  if (bookingErr || !booking) {
+    throw new Error(`sendReviewRequestEmail: booking ${bookingId} not found.`);
+  }
+  if (booking.status !== "completed") {
+    return { sent: false, reason: "send_failed" }; // status flipped between cron read and now
+  }
+  if (booking.review_email_sent_at) {
+    return { sent: false, reason: "already_sent" };
+  }
+
+  const customerEmail = booking.contact_email || booking.clients?.email;
+  if (!customerEmail) {
+    // Mark as "handled" — don't keep retrying a no-email booking.
+    await supabase
+      .from("bookings")
+      .update({ review_email_sent_at: new Date().toISOString() })
+      .eq("id", bookingId);
+    return { sent: false, reason: "no_email" };
+  }
+
+  const { input } = await getBookingTemplateInput(bookingId, supabase);
+  const groupCategory = await deriveGroupCategoryForBooking(bookingId, supabase);
+  const city = booking.clients?.city ?? null;
+
+  const reviewInput: ReviewRequestEmailInput = {
+    ...input,
+    groupCategory,
+    city,
+  };
+
+  const html = await renderReviewRequestEmail(reviewInput);
+  const variants = pickReviewMessages({ groupCategory, city, overrides: {} });
+  const text = renderReviewRequestPlainText(reviewInput, variants);
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "review_request_client",
+    recipientRole: "customer",
+    to: customerEmail,
+    subject: "Thank you for visiting Rahma Therapy", // SUBJECTS map authoritative
+    html,
+    text,
+  });
+
+  // Mark sentinel — guarded by WHERE review_email_sent_at IS NULL as defense
+  // against a parallel cron tick sending twice.
+  const { data: marked } = await supabase
+    .from("bookings")
+    .update({ review_email_sent_at: new Date().toISOString() })
+    .eq("id", bookingId)
+    .is("review_email_sent_at", null)
+    .select("id")
+    .maybeSingle();
+
+  if (!marked) {
+    // Parallel cron tick already marked the sentinel first. The email may
+    // have been double-sent; log for monitoring but don't fail the request.
+    console.warn(`sendReviewRequestEmail: sentinel race for booking ${bookingId}`);
+  }
+
+  return { sent: true };
+}
+
+async function deriveGroupCategoryForBooking(
+  bookingId: string,
+  supabase: SupabaseClient
+): Promise<"massage" | "cupping" | null> {
+  const { data: items } = await supabase
+    .from("booking_items")
+    .select("services(group_category)")
+    .eq("booking_id", bookingId)
+    .returns<BookingItemGroupCategoryRow[]>();
+
+  const categories = new Set(
+    (items ?? [])
+      .map((item) => item.services?.group_category)
+      .filter((cat): cat is string => cat === "massage" || cat === "cupping")
+  );
+
+  if (categories.size === 1) {
+    return categories.has("massage") ? "massage" : "cupping";
+  }
+  // Mixed or unknown → null (variant picker falls back to massage pool).
+  return null;
 }
