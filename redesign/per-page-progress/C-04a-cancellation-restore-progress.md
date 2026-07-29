@@ -5,8 +5,13 @@
 **Programme:** Band C, C-C implementation — plan **#4 of 22** (§4 order).
 **Predecessor closed at:** `e0d4b19` (C-06)
 
-> ## ⏸ STATUS: Closeout gate run (2026-07-29). **§3.1 static gates independently re-verified PASS.** Adversarial closeout review of the full `e0d4b19..c40adee` diff found ONE gap (Change 7 incomplete) — fixed in `ad0c50b`, independently re-verified PASS. **§3.2/§3.3 still require admin sign-in and are OWNER-PERFORMED — see §0k.** ⛔ Cloudflare deploy still outstanding. Master-plan checklist row NOT YET flipped to ✅ — awaiting Owner decision, presented in chat 2026-07-29 (see §0l).
-> **Last good commit:** `ad0c50b` · **NEXT ACTION:** Owner decides how to handle §3.2/§3.3 (perform personally, or explicitly defer/accept-gap per the C-06/C-22 precedent) and approves (or declines, for now) the ⛔ Cloudflare deploy.
+> ## ✅ STATUS: SHIPPED — all 8 phases implemented + independently verified, closeout gate passed (with one fix round), master-plan checklist flipped.
+> **Final commit:** `ad0c50b` · bookkeeping in `7de4d9d` (this update) + the checklist-flip commit.
+>
+> **Owner decision on §3.2/§3.3 (2026-07-29, in chat) — DEFERRED, same pattern as C-06/C-22.**
+> §3.2 (4-role × 4-viewport Playwright sweep) and §3.3 (screenshot evidence) are NOT RUN. Both require admin sign-in, which no agent may perform (password entry prohibited by the harness's own safety rules, independently corroborated by protocol §3b's standing note). The §0k checklist below (5 items, zero-email-risk fixture `d8a61721`) remains valid and ready whenever the Owner chooses to run it personally. Recorded as an explicit deferral, not a silent skip — same convention as C-06's §3.2e/f/g and C-22's §3.2/§3.7.
+>
+> **⛔ Cloudflare deploy: still outstanding, presented to the Owner separately (Zone-2, per-action approval) — not a precondition for this plan's ✅.** Applies C-22's `RateLimiter` DO migration, activates the `* * * * *` cron, and is the only thing that drains the cancellation-email queue.
 
 ---
 
