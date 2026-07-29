@@ -33,7 +33,7 @@ import {
   hasClaimableAssignment,
   isOwnBooking,
 } from "./access";
-import { getTodayIsoDate } from "./_helpers";
+import { getTodayIsoDate, inertRowClassNames } from "./_helpers";
 import { formatDate, formatLabel, formatMoney, formatTime } from "./format";
 import type { BookingRecord } from "./types";
 
@@ -157,7 +157,7 @@ function getQueryValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function filterBookings(
+export function filterBookings(
   bookings: BookingRecord[],
   query: Record<string, string | string[] | undefined>,
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
@@ -175,7 +175,24 @@ function filterBookings(
   const to = getQueryValue(query.to) ?? "";
   const today = getTodayIsoDate();
 
+  // C-05 Phase D (Edit Point 8, brief §1.5/§2.7) — most views unconditionally
+  // excluded cancelled/no_show before the status filter below ever ran, so
+  // picking Status = Cancelled/No show on any view but the dedicated
+  // "Cancelled / No-show" tab or "All" returned 0 rows. An explicit pick of
+  // one of those two statuses suspends that view-level exclusion; "Any
+  // status" (no filter) still hides them everywhere else (S1(b), locked).
+  const userWantsInertStatus = status === "cancelled" || status === "no_show";
+
   return bookings.filter((booking) => {
+    const viewIsArchive = view === "cancelled" || view === "all";
+    if (
+      !viewIsArchive &&
+      !userWantsInertStatus &&
+      ["cancelled", "no_show"].includes(booking.status)
+    ) {
+      return false;
+    }
+
     const matchesView =
       view === "all" ||
       (view === "attention" &&
@@ -184,21 +201,21 @@ function filterBookings(
           booking.reschedule_status === "requested" ||
           Boolean(booking.customer_cancelled_at))) ||
       (view === "assigned" && isOwnBooking(booking, profile)) ||
+      // CLAIMABLE stays unconditionally strict — cancelled/no_show are never
+      // claimable regardless of the status filter (C-05 lockdown invariant).
       (view === "claimable" &&
         !["cancelled", "no_show"].includes(booking.status) &&
         booking.booking_date >= today &&
         hasClaimableAssignment(booking, profile, today)) ||
-      (view === "today" &&
-        booking.booking_date === today &&
-        !["cancelled", "no_show"].includes(booking.status)) ||
+      // TODAY / UPCOMING / UNASSIGNED / PARTIALLY_ASSIGNED: the inert-status
+      // exclusion is handled by the early return above, so these branches
+      // only need to check view membership now.
+      (view === "today" && booking.booking_date === today) ||
       (view === "upcoming" &&
         booking.booking_date >= today &&
-        !["completed", "cancelled", "no_show"].includes(booking.status)) ||
-      (view === "unassigned" &&
-        !["cancelled", "no_show"].includes(booking.status) &&
-        booking.assignment_status === "unassigned") ||
+        booking.status !== "completed") ||
+      (view === "unassigned" && booking.assignment_status === "unassigned") ||
       (view === "partially_assigned" &&
-        !["cancelled", "no_show"].includes(booking.status) &&
         booking.assignment_status === "partially_assigned") ||
       (view === "completed" && booking.status === "completed") ||
       (view === "cancelled" &&
@@ -434,6 +451,10 @@ async function BookingListSection({
   canViewAll: boolean;
   currentView: BookingViewKey;
 }) {
+  // C-05 Phase D (Edit Point 9) — computed once and threaded down to each
+  // row card so `isInertRow` doesn't reconstruct an Intl.DateTimeFormat per row.
+  const today = getTodayIsoDate();
+
   // Reconstruct the "try again" URL from the current query params.
   const retryParams = new URLSearchParams();
   for (const [key, raw] of Object.entries(query)) {
@@ -595,6 +616,7 @@ async function BookingListSection({
                   booking={booking}
                   profile={profile}
                   canViewAll={canViewAll}
+                  today={today}
                   animationDelay={delay}
                 />
               );
@@ -762,17 +784,24 @@ function BookingListCard({
   booking,
   profile,
   canViewAll,
+  today,
   animationDelay = 0,
 }: {
   booking: BookingRecord;
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
   canViewAll: boolean;
+  today: string;
   animationDelay?: number;
 }) {
   const ownBooking = isOwnBooking(booking, profile);
   const claimableBooking = hasClaimableAssignment(booking, profile);
   const showSensitiveDetails = canViewAll || ownBooking;
   const role = canViewAll ? "full" : "therapist";
+  // C-05 Phase D (Edit Point 9) — cancelled / no_show / past-dated rows get a
+  // strikethrough on the date+service line plus a muted overall opacity, so
+  // they read as inert at a glance once Edit Point 8 makes them reachable via
+  // the status filter.
+  const { rowClass, titleClass } = inertRowClassNames(booking, today);
 
   const clientName =
     booking.contact_full_name || booking.clients?.full_name || "Unknown client";
@@ -818,7 +847,10 @@ function BookingListCard({
   return (
     <article
       style={{ animationDelay: `${animationDelay}ms` }}
-      className="rahma-row-enter grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] hover:shadow-[var(--admin-shadow-subtle)] sm:p-5"
+      className={cn(
+        "rahma-row-enter grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] hover:shadow-[var(--admin-shadow-subtle)] sm:p-5",
+        rowClass
+      )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -829,7 +861,7 @@ function BookingListCard({
             <p className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] break-words sm:text-lg">
               {clientName}
             </p>
-            <p className="mt-1 text-sm text-[var(--admin-text-muted)] break-words">
+            <p className={cn("mt-1 text-sm text-[var(--admin-text-muted)] break-words", titleClass)}>
               {formatDate(booking.booking_date)} · {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
               {serviceNames.length > 0 ? ` · ${serviceNames.join(", ")}` : ""}
             </p>

@@ -28,6 +28,8 @@ import {
   type AdminTone,
 } from "../../components/admin-ui";
 import { EmptyState } from "../../components/EmptyState";
+import { cn } from "@/lib/utils";
+import { getTodayIsoDate, inertRowClassNames } from "../../bookings/_helpers";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
@@ -568,6 +570,9 @@ export default async function ClientDetailPage({
   const visibleBookings = bookingsForTab.filter(
     (booking) => matchesStatus(booking) && matchesService(booking)
   );
+  // C-05 Phase D (Edit Point 9) — computed once and threaded down to each
+  // BookingHistoryCard, mirroring bookings/page.tsx's BookingListSection.
+  const today = getTodayIsoDate();
   const filtersApplied = statusFilter !== "all" || Boolean(serviceFilter);
   const showFilterStrip = bookingsForTab.length >= FILTER_THRESHOLD || filtersApplied;
   const nextVisit = upcomingBookings[upcomingBookings.length - 1];
@@ -812,7 +817,7 @@ export default async function ClientDetailPage({
                 >
                   {visibleBookings.map((booking) => (
                     <li key={booking.id} className="list-none">
-                      <BookingHistoryCard booking={booking} />
+                      <BookingHistoryCard booking={booking} today={today} />
                     </li>
                   ))}
                 </ul>
@@ -1453,8 +1458,10 @@ function privacyStatusTone(status: string): AdminTone {
 
 function BookingHistoryCard({
   booking,
+  today,
 }: {
   booking: ClientBookingRecord;
+  today: string;
 }) {
   const serviceNames = Array.from(
     new Set(booking.booking_items.map((item) => item.service_name_snapshot))
@@ -1472,22 +1479,30 @@ function BookingHistoryCard({
   ]
     .filter(Boolean)
     .join(", ");
+  // C-05 Phase D (Edit Point 9, brief §2.8's cross-surface note) — same
+  // treatment as the bookings list row card, via the shared helper.
+  const { rowClass, titleClass } = inertRowClassNames(booking, today);
 
   return (
     <Link
       href={`/admin/bookings/${booking.id}`}
-      className="block rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors hover:border-[var(--admin-primary)]/40 hover:shadow-[var(--admin-shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
+      className={cn(
+        "block rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors hover:border-[var(--admin-primary)]/40 hover:shadow-[var(--admin-shadow-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]",
+        rowClass
+      )}
     >
       <div className="flex flex-wrap items-start gap-4 sm:flex-nowrap">
         <div className="min-w-0 flex-1">
-          <p className="text-base font-semibold leading-tight text-[var(--admin-heading)]">
-            {formatDate(booking.booking_date)}
-            <span className="text-[var(--admin-text-muted)]"> · </span>
-            <span className="font-normal">{formatTime(booking.start_time)}</span>
-          </p>
-          <p className="mt-1 text-sm text-[var(--admin-body)]">
-            {serviceNames.join(", ") || "No service recorded"}
-          </p>
+          <div className={cn(titleClass)}>
+            <p className="text-base font-semibold leading-tight text-[var(--admin-heading)]">
+              {formatDate(booking.booking_date)}
+              <span className="text-[var(--admin-text-muted)]"> · </span>
+              <span className="font-normal">{formatTime(booking.start_time)}</span>
+            </p>
+            <p className="mt-1 text-sm text-[var(--admin-body)]">
+              {serviceNames.join(", ") || "No service recorded"}
+            </p>
+          </div>
           {locationLine ? (
             <p className="mt-1 truncate text-xs text-[var(--admin-text-muted)]">
               {locationLine}

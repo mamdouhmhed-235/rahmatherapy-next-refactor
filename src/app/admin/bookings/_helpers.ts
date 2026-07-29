@@ -203,3 +203,27 @@ export function getTodayIsoDate(): string {
     day: "2-digit",
   }).format(new Date());
 }
+
+/**
+ * C-05 Phase D (Edit Point 9, brief §2.8/§4.6) — shared between the bookings
+ * list row card (`page.tsx`) and the client detail page's `BookingHistoryCard`
+ * (`clients/[clientId]/page.tsx`). Both row shapes converged on the same two
+ * classes, so the derivation is lifted here rather than duplicated. `today`
+ * is the caller's responsibility (from `getTodayIsoDate()`), not recomputed
+ * per row.
+ */
+export function inertRowClassNames(
+  booking: { status: string; booking_date: string },
+  today: string
+) {
+  const isInert =
+    ["cancelled", "no_show"].includes(booking.status) ||
+    booking.booking_date < today;
+  return {
+    isInert,
+    rowClass: isInert ? "opacity-75" : undefined,
+    titleClass: isInert
+      ? "line-through decoration-[var(--admin-text-muted)] decoration-1"
+      : undefined,
+  };
+}
