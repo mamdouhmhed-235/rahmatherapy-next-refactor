@@ -40,6 +40,14 @@ import {
   quickHelpLinksForTherapist,
   type QuickHelpPermissions,
 } from "./therapist-fullness";
+import {
+  getGreeting,
+  getFirstName,
+  formatHours,
+  buildAddressLines,
+  buildMapsHref,
+  FORMATTERS,
+} from "./shared-helpers";
 
 interface TherapistDashboardProps {
   staffId: string;
@@ -73,65 +81,11 @@ interface TherapistDashboardProps {
   quickHelpPermissions?: QuickHelpPermissions;
 }
 
-const FORMATTERS = {
-  weekday: new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    timeZone: "Europe/London",
-  }),
-  longDate: new Intl.DateTimeFormat("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "Europe/London",
-  }),
-};
-
-function getGreeting(): string {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-GB", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: "Europe/London",
-    }).format(new Date())
-  );
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-function getFirstName(name: string): string {
-  return name.trim().split(/\s+/)[0] ?? name;
-}
-
-function formatHours(minutes: number): string {
-  const hours = minutes / 60;
-  if (hours >= 10) return `${Math.round(hours)}h`;
-  return `${hours.toFixed(1).replace(/\.0$/, "")}h`;
-}
-
 function formatHeroTime(start: string | null, durationMinutes: number | null) {
   const time = start?.slice(0, 5) ?? "—";
   const duration =
     durationMinutes && durationMinutes > 0 ? `${durationMinutes} min` : null;
   return duration ? `${time} · ${duration}` : time;
-}
-
-function buildAddressLines(
-  booking: ReportData["bookings"][number]
-): string[] {
-  const lines = [
-    booking.service_address_line1,
-    booking.service_postcode,
-    booking.service_city,
-  ];
-  return lines.filter((line): line is string => Boolean(line && line.trim()));
-}
-
-function buildMapsHref(booking: ReportData["bookings"][number]): string | null {
-  const parts = buildAddressLines(booking);
-  if (parts.length === 0) return null;
-  const query = encodeURIComponent(parts.join(", "));
-  return `https://www.google.com/maps/search/?api=1&query=${query}`;
 }
 
 type ServiceMeta = { name: string; duration: number };
