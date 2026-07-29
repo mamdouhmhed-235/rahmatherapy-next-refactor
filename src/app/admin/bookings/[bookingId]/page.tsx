@@ -408,17 +408,23 @@ export default async function BookingDetailPage({
   const canReassignBookingsRole = fullScope && canAssignBookings(profile);
   const canReassignBookings = canReassignBookingsRole && isBookingActive;
 
-  // C-05 Phase C, Step 11 — gates the inline lockdown notice (below). Scoped to
-  // non-fullScope actors: `fullScope` actors already get an equivalent
-  // explanation (incl. the S7 restore-window-expired copy) from the
-  // next-action strip's `deriveNextAction` (~line 1261), rendered only when
-  // `fullScope` is true — showing the notice to them too would just repeat it.
-  // `hasClaimableSlotIfActive` is a light proxy for "canClaim would be true if
-  // the booking were active": it checks gender + unassigned status only, not
-  // the fuller busy/blocked-window eligibility `claimPreview` carries, so it
-  // can occasionally show the notice to a therapist who is claim-blocked for
-  // an unrelated reason too — acceptable, since the cost of that miss is a
-  // slightly-too-eager notice, not a hidden one.
+  // C-05 Phase C, Step 11 (fix round) — gates the inline lockdown notice
+  // (below). For `cancelled`/`no_show`, `fullScope` actors stay suppressed:
+  // `deriveNextAction` (~line 1369) already gives them an equivalent,
+  // reason-complete explanation there (incl. the S7 restore-window-expired
+  // copy for cancelled, and the moment-aware copy for no_show) — showing the
+  // notice too would just repeat it. `past_dated` is different: the
+  // `deriveNextAction` "confirmed"/"pending" branches have no date-awareness
+  // on `anyUnassigned` (they just say "pick from the Assignment panel"),
+  // which is actively misleading once `AssignmentManager` is hidden for an
+  // inert booking — so `past_dated` must show for ANY actor (fullScope or
+  // not) who has, or would have, a practitioner-role relationship to the
+  // booking. `hasClaimableSlotIfActive` is a light proxy for "canClaim would
+  // be true if the booking were active": it checks gender + unassigned status
+  // only, not the fuller busy/blocked-window eligibility `claimPreview`
+  // carries, so it can occasionally show the notice to a therapist who is
+  // claim-blocked for an unrelated reason too — acceptable, since the cost of
+  // that miss is a slightly-too-eager notice, not a hidden one.
   const hasClaimableSlotIfActive =
     canClaimAssignments(profile) &&
     booking.booking_assignments.some(
@@ -428,7 +434,10 @@ export default async function BookingDetailPage({
         assignment.required_therapist_gender === profile.gender
     );
   const showInertAssignmentsNotice =
-    !isBookingActive && !fullScope && (ownBooking || hasClaimableSlotIfActive);
+    !isBookingActive &&
+    (inactivityReason === "past_dated"
+      ? ownBooking || hasClaimableSlotIfActive || canReassignBookingsRole
+      : !fullScope && (ownBooking || hasClaimableSlotIfActive));
 
   const assignmentPreviews = canReassignBookings
     ? Object.fromEntries(
@@ -445,8 +454,14 @@ export default async function BookingDetailPage({
       )
     : {};
 
+  // `isBookingActive` gate here (fix round, side note): `AssignmentRow`'s
+  // `canClaim` already requires `isBookingActive`, so these previews are
+  // unused on an inert booking — skip the round-trip. Before Phase C added
+  // `isBookingActive` to `canReassignBookings`, `!canReassignBookings` was
+  // already false for fullScope actors here regardless of booking state, so
+  // this branch never fired for them; the split reopened it.
   const claimEligibility =
-    !canReassignBookings && canClaimAssignments(profile)
+    !canReassignBookings && isBookingActive && canClaimAssignments(profile)
       ? Object.fromEntries(
           await Promise.all(
             booking.booking_assignments.map(async (assignment) => {
