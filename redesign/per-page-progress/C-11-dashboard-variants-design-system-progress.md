@@ -63,7 +63,7 @@ The pre-flight briefing told the agent to expect a real hit for `prefers-color-s
 |---|---|---|---|
 | A | `4e18fa9` | Shared building-blocks library — 10 blocks + `index.ts` barrel + 10 co-located specs (31 tests) under `src/app/admin/dashboard/blocks/`. 21 files created, **0 edited** — blocks are dormant, `page.tsx`/`TherapistDashboard.tsx` provably untouched. | **PASS first time**, zero blocking findings. Model: `sonnet` (logged §5 downgrade, see §1.1). |
 | B | `bdbe64f` (3a) + `93c3f08` (3b) | **3a** verbatim extraction of the Business+Coordinator branch into `BusinessDashboard.tsx` — `page.tsx` **1101 → 401 lines**. **3b** composes from `blocks/` + V-01 reconciliation. | **PASS / PASS**, both sub-steps first time, no fix round. Model: `opus` (routed model kept, see §1.1). |
-| C | — | `CoordinatorDashboard.tsx` extraction + B-01 parens fix | not started |
+| C | `b95e2ea` (6a) + `5ffcbba` (6b) | **6a** verbatim split of the Coordinator variant out of `BusinessDashboard.tsx` into `CoordinatorDashboard.tsx` + new `dashboard-variant-shared.tsx`; `page.tsx` becomes the variant router. **6b** composes from `blocks/` + B-01 fix. Final sizes: `page.tsx` 410, `BusinessDashboard` 376, `CoordinatorDashboard` 514, shared 437. | **PASS / PASS**, both first time, no fix round. Model: `opus`. **B-01's root cause was NOT what the plan said — see §1.4.** |
 | D | — | `TherapistDashboard.tsx` refactor onto shared blocks | not started |
 | E | — | Dark-mode infrastructure (⛔ Zone-2 migration at Step 10) | not started |
 | F | — | Motion-reduce sweep (VERIFY-ALREADY-IMPLEMENTED wrapper; optional per D8) | not started |
@@ -106,6 +106,31 @@ Consequence: the blocks are theme-clean *themselves* but render **through** shar
 
 **⚠️ Outstanding, Owner-performed:** plan Phase B's checkpoint "Playwright sweep: Owner + Admin → BusinessDashboard renders identically" **was NOT run and is not recorded as done** — it needs admin sign-in, which no agent may perform (protocol §3b). Substitute evidence only: dev server up, and an unauthenticated GET of `/admin/dashboard/` returns `307 → /admin/login/?redirectTo=…`, proving the new module graph compiles and loads without a render-time crash. **The authenticated identical-render check for Owner / Admin / Coordinator at 375 and 1280 remains outstanding** — folded into Phase G's role sweep and the Owner backlog. This matters more than usual: 3a claims byte-identical rendering, and only a human-eye pass can close that claim.
 
+### 1.4 — ⚠️ B-01 was never a code bug. The plan's prescribed fix targets a mechanism that does not exist.
+
+**This is a plan-vs-reality contradiction and was surfaced to the Owner in chat.**
+
+Plan §1 Phase C Step 6 says: *"the literal '()' rendering bug per audit #01. Find the source in the lifted JSX — likely a parenthetical wrapping a falsy value"*, and prescribes `{secondaryValue ? <span>({secondaryValue})</span> : null}`. **No such parenthetical exists anywhere in the render path.** Two hypotheses were disproved with evidence before the real cause was found:
+
+- **`TodayCoordinatorSubLine`** — read and ruled out by the orchestrator during scouting.
+- **`formatRangeLabel` (`page.tsx:61-64`)** — the orchestrator's own scouting lead, since it wraps formatted dates in literal parens (`` `Today (${formatWeekday(from)})` ``), which would collapse to `Today ()` on an empty formatter. **Disproved:** `parseReportFilters` (`reports/reporting.ts:259`) does `customFrom || defaults.from`, and `getRangeDefaults('today')` returns `{from: today, to: today}` — `from` can never be empty, so that string can never collapse. The orchestrator's lead was wrong; recorded so nobody re-runs it.
+
+**The real mechanism is typographic, not logical.** `dashboard-cards.tsx:279-283` is the only branch that drops the hero marquee to `clamp(1.5rem, 2.5vw, 1.875rem)` (24–30px), and it fires exactly when `useCoordinatorHeading && heroCount === 0` — Coordinator, range=today, zero bookings, which is precisely the state the audit screenshot captured. The rendered value (`dashboard-cards.tsx:321`, `{heroCount}`) is a correct `0`. But that `<p>` carries `.admin-display` = **Cormorant Garamond 600**, an extreme-contrast serif. At 24–30px its `0` loses the hairline apex and base to antialiasing, leaving only the two thick side stems — **which read as `()`**.
+
+Evidence gathered (not asserted): in-browser canvas raster of the actually-loaded webfont measured centre-column darkness of the apex/base at **169/255 and 84/255 at 30px, 130/255 at 24px**, versus **255/255 at 50px** and 226–255 at 72px; Work Sans at 30px measures 255/255. That matches the audit's own observation that Owner/Admin — whose marquee runs 44–72px — show no parens. A pixel-level re-crop of the original audit screenshot at 14× zoom confirms **one glyph, not two**: the bowl IS closed, in pale grey.
+
+**Fix applied (`dashboard-cards.tsx:294` + `:312-316`):** keep the deliberate V-1 zero-state downsize, but render that single state in the UI sans face — `const marqueeUsesDisplayFace = !(useCoordinatorHeading && heroCount === 0)`. Business/Admin is provably unaffected: `marqueeUsesDisplayFace` is statically true whenever `unassignedFirst` is falsy, and `cn()` emits a byte-identical class string on that path.
+
+**Owner-reversible.** This is a visible typographic change to one admin state that no plan authorised — the plan assumed a different defect entirely. If the Owner prefers the serif everywhere, the alternatives are (a) revert and accept the illusion at the zero state, (b) raise the zero-state floor size so the serif `0` stays legible, or (c) keep the sans swap as shipped.
+
+### 1.5 — Phase C method + logged deviations
+
+**Verbatim proof exceeded Phase B's standard.** Two scratchpad scripts (outside the repo): the splice generator sourced the original from the *committed blob* `2112f3b:…/BusinessDashboard.tsx` (not the working tree, making it idempotently re-runnable) and asserted **140 exact-text anchors at exact line numbers**; the independent proof script re-extracted every declared region from that same blob, applied only the declared normalisations, and required each to appear contiguously with strictly increasing offsets. Result: **56 regions OK, 787 / 951 original lines relocated verbatim, declared-not-moved 164 == actual-not-moved 164.**
+
+Deviations, all declared and mechanically re-checked: file-header comments updated (they claimed to own the Coordinator path); import blocks rewritten (unavoidable when splitting one module into three — no cycle, confirmed by tsc + build); `BusinessDashboardProps` renamed `DashboardVariantProps` and moved to the shared module with all 32 member lines byte-verbatim; eight declarations gained an `export` prefix; four comments naming the *other* variant shortened; `unassignedFirst={isCoordinatorVariant}` → bare `unassignedFirst` (statically true there; bare boolean is the repo convention — only 5 `={true}` occurrences exist in all of `src/`); uniform whitespace dedent on un-nested regions; `page.tsx` now spreads one `variantProps` object, which is the shape plan §1 Step 7 and brief §2.5 actually specify.
+
+**Deliberately NOT done, flagged forward:** `CoordinatorDashboard` still carries `showPaymentsReadiness = plan.variant !== "coordinator"` (statically false there) and `showOperationsHealth = plan.variant !== "therapist"` (statically true there). Both are still *used*, so protocol rule 3 does not orphan them, and collapsing them would have exceeded the pure-split brief. Safe, but they read oddly in a variant-specific file — worth collapsing in a later tidy if one occurs.
+
 ---
 
-*Pre-flight recorded 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f` + `93c3f08`. Next: Phase C (CoordinatorDashboard extraction + B-01 parens fix, `opus`).*
+*Pre-flight 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f`+`93c3f08`; Phase C `b95e2ea`+`5ffcbba`. Next: Phase D (TherapistDashboard refactor) — paused pending Owner decisions on §1.4 and §1.2(a).*
