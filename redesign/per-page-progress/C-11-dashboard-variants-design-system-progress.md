@@ -61,7 +61,7 @@ The pre-flight briefing told the agent to expect a real hit for `prefers-color-s
 
 | Phase | Commit(s) | What | Verify result |
 |---|---|---|---|
-| A | — | Shared building-blocks library + specs | not started |
+| A | `4e18fa9` | Shared building-blocks library — 10 blocks + `index.ts` barrel + 10 co-located specs (31 tests) under `src/app/admin/dashboard/blocks/`. 21 files created, **0 edited** — blocks are dormant, `page.tsx`/`TherapistDashboard.tsx` provably untouched. | **PASS first time**, zero blocking findings. Model: `sonnet` (logged §5 downgrade, see §1.1). |
 | B | — | `BusinessDashboard.tsx` extraction (3a verbatim → 3b compose) + V-01 | not started |
 | C | — | `CoordinatorDashboard.tsx` extraction + B-01 parens fix | not started |
 | D | — | `TherapistDashboard.tsx` refactor onto shared blocks | not started |
@@ -69,6 +69,31 @@ The pre-flight briefing told the agent to expect a real hit for `prefers-color-s
 | F | — | Motion-reduce sweep (VERIFY-ALREADY-IMPLEMENTED wrapper; optional per D8) | not started |
 | G | — | End-to-end verification | not started |
 
+### 1.1 — Model-routing log (protocol §5)
+
+C-11 is an **`opus`-routed** plan ("system-wide theming; public-flip risk lives here").
+
+| Phase | Model | Reason |
+|---|---|---|
+| A | `sonnet` — **DOWNGRADE, logged** | §5's phase-level granularity names "file extractions" and "test-file authoring" as legitimately Sonnet-able. Phase A creates new render-only files that stay dormant; touches no migration, no live surface, no schema, and is not the plan's headline complexity. |
+| B | `opus` — routed model kept | Not purely mechanical: mutates `dashboard/page.tsx` (~400 lines out) — the most-used admin surface, where a bad extraction is a live render regression — AND carries the V-01 information-architecture reconciliation, which is a design judgement, not a move. "When in doubt, keep the routed model." |
+| E | `opus` — **never downgrade** | Migration + the public-flip risk. De-escalation ban applies. |
+
+### 1.2 — Phase A findings that no per-phase verifier could catch
+
+Phase A's verifier correctly confirmed **zero new colour literals in the files Phase A created**. Both findings below are about files Phase A did *not* touch, so they were structurally outside its remit. The orchestrator found them by re-deriving the reuse graph after the phase closed.
+
+**(a) ⚠️ CARRY INTO PHASE E — `components/admin-ui.tsx` is a theme hole the D9 trim does not cover.**
+Six of the ten blocks are deliberate **re-exports** rather than re-lifts (correct per the plan's own C11-F8 note, and better than duplicating ~130 lines): `DashboardHeader` → `dashboard-header.tsx`; `EmptyState` → `components/EmptyState.tsx` (26 consumers admin-wide, moving it was rightly out of scope); `QuickHelpPanel` → existing, already had the `links` prop; `MobileStickyActionBar` → existing; `PendingBookingsStripe` → `dashboard-cards.tsx`'s `UrgentAttentionPanel` renamed per brief Q9.1; `EnquiriesTodoStripe` → `dashboard-cards.tsx`'s `ActiveEnquiriesCard`.
+
+Consequence: the blocks are theme-clean *themselves* but render **through** shared primitives that are not. Verified by the orchestrator:
+- `src/app/admin/components/admin-ui.tsx` → **46 `oklch(` literals**, imported by 4 new blocks (`ClaimQueueStripe`, `RecentActivityStripe`, `RevenueStripe`, `ScheduleGapStripe`) for their `AdminIconBadge`/`AdminPanelHeader`/`AdminStatusBadge` tone maps.
+- `src/app/admin/dashboard/dashboard-cards.tsx` → 5 `oklch(` literals. **This file IS in D9's trimmed list.**
+
+**`admin-ui.tsx` is NOT named in D9's trimmed Phase E sweep** (which enumerates `dashboard/page.tsx`, `TherapistDashboard.tsx`, the new `blocks/` + variant files, `dashboard-cards.tsx`, `dashboard-filters-client.tsx`, chart-fill/LTV helpers). Left as-is, the entire new blocks library renders stuck-light in dark mode despite containing no literals of its own. **This needs an Owner scope decision at Phase E** — it is a change to a file outside the plan's enumerated list that Phase E genuinely requires (protocol rule 6(b)). Raised in chat at Phase A closeout; formal ⏸ at Phase E.
+
+**(b) LOG-ONLY — two "Recent activity" idioms will coexist.** The implementer built `RecentActivityStripe` fresh after grepping and confirming no Recent Activity panel exists in `dashboard/page.tsx` — **claim independently verified as accurate**. But a pre-existing `src/app/admin/components/ActivityTimeline.tsx` renders a panel titled "Recent activity" (consumed by `clients/[clientId]` and `PerformanceSurface`). Different data shape (client/staff activity events vs. dashboard `NotificationItem`/`buildNotifications()`) and a different shell (`AdminPanel` vs. `AdminDashboardPanel` + `AdminPanelHeader`), so this is not duplication of the same thing — but Phase B should eyeball the two side by side when it wires the stripe, to avoid shipping two visually divergent "Recent activity" looks in one product. Same applies to `RevenueStripe`, also built fresh: the plan's cited "revenue tile cluster" does not exist verbatim in `dashboard-cards.tsx` (closest relative `PaymentHealthCard` has a different Booked/Collected/Outstanding shape and was correctly left alone).
+
 ---
 
-*Pre-flight recorded 2026-07-30. Implementation begins once the Owner resolves the item-2 dev-server stop.*
+*Pre-flight recorded 2026-07-30; Phase A shipped `4e18fa9`. Next: Phase B (BusinessDashboard extraction, `opus`, two sub-steps 3a verbatim → 3b compose).*
