@@ -9,19 +9,32 @@
 // in `dashboard-variant-shared.tsx`, which also owns the shared props
 // contract; `page.tsx` still performs every data fetch.
 //
-// Step 6a is a pure split — composing from `blocks/` and the B-01 parens fix
-// are step 6b. Nothing rendered by either variant changes here.
+// Step 6b composes the coordinator surface from `blocks/` per brief §4.2:
+// `PendingBookingsStripe` and `EnquiriesTodoStripe` were already re-pointed
+// re-exports (of `dashboard-cards.tsx`'s `UrgentAttentionPanel` /
+// `ActiveEnquiriesCard`), so this step adds the three blocks §4.2 names that
+// the coordinator arm never had — `ClaimQueueStripe`, `ScheduleGapStripe` and
+// a coordinator-tailored `QuickHelpPanel` — and fixes B-01 (in
+// `dashboard-cards.tsx`, where the mechanism actually lives).
 
 import { AdminPageScaffold } from "../components/admin-ui";
 import { findNextAppointment, formatNumber } from "../reports/reporting";
 import { OperationsHealthCard, TodayAtAGlanceCard } from "./dashboard-cards";
 import {
+  ClaimQueueStripe,
   DashboardHeader,
   EnquiriesTodoStripe,
   MobileStickyActionBar,
   PendingBookingsStripe,
+  QuickHelpPanel,
+  ScheduleGapStripe,
 } from "./blocks";
-import type { ActiveEnquiryRow, AttentionSummaryRow } from "./blocks";
+import type {
+  ActiveEnquiryRow,
+  AttentionSummaryRow,
+  ClaimQueueBooking,
+  ScheduleGap,
+} from "./blocks";
 import {
   BusinessOverviewDisclosure,
   DashboardFiltersClient,
@@ -38,11 +51,59 @@ import {
   statusOptions,
   uniqueStrings,
   type DashboardVariantProps,
+  type PermissionAccess,
 } from "./dashboard-variant-shared";
 import { PersonalContributionStripe } from "./PersonalContributionStripe";
 import { PullToRefresh } from "./PullToRefresh";
 import { LegacyDisclosureCleanup } from "./LegacyDisclosureCleanup";
 import { PractitionerTodaySection } from "./PractitionerTodaySection";
+import type { QuickHelpLink } from "./therapist-fullness";
+
+// Same shape as `formatRowDate` in `dashboard-cards.tsx` (module-private
+// there), for the pre-formatted day labels `ClaimQueueStripe` and
+// `ScheduleGapStripe` expect.
+const DAY_LABEL_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  timeZone: "Europe/London",
+});
+
+function formatDayLabel(iso: string) {
+  const date = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return DAY_LABEL_FORMATTER.format(date);
+}
+
+function formatPeriodLabel(startTime: string) {
+  const hour = Number(startTime.slice(0, 2));
+  if (Number.isNaN(hour)) return "All day";
+  if (hour < 12) return "Morning";
+  if (hour < 17) return "Afternoon";
+  return "Evening";
+}
+
+// Coordinator-tailored "Need help?" links (brief §4.2). Mirrors
+// `quickHelpLinksForBusiness` in `BusinessDashboard.tsx` — permission-gated,
+// so a link never points at a surface the viewer would be bounced from.
+function quickHelpLinksForCoordinator(access: PermissionAccess): QuickHelpLink[] {
+  const links: QuickHelpLink[] = [];
+  if (access.bookings) {
+    links.push({
+      key: "pending-bookings",
+      label: "Triage pending bookings",
+      href: "/admin/bookings?view=unassigned",
+    });
+  }
+  if (access.enquiries) {
+    links.push({
+      key: "enquiries",
+      label: "Follow up on enquiries",
+      href: "/admin/enquiries?tab=new",
+    });
+  }
+  return links;
+}
 
 export function CoordinatorDashboard({
   profile,
@@ -226,6 +287,49 @@ export function CoordinatorDashboard({
     (e) => e.status !== "new" && e.status !== "contacted"
   );
 
+  // brief §4.2 `ClaimQueueStripe` — the row-level view of the same unassigned
+  // bookings the attention stripe counts, so a coordinator can open one
+  // straight from the dashboard instead of pivoting through /admin/bookings.
+  // Deliberately fed from `unassignedOnly` (not a re-derivation) so the two
+  // surfaces can never disagree on what "unassigned" means.
+  const claimQueueBookings: ClaimQueueBooking[] = unassignedOnly.map((booking) => ({
+    id: booking.id,
+    contactName: booking.contact_full_name ?? null,
+    bookingDate: formatDayLabel(booking.booking_date),
+    time: booking.start_time.slice(0, 5),
+    city: booking.service_city ?? null,
+    requiredGender: requiredGenderByBooking.get(booking.id) ?? null,
+  }));
+
+  // brief §4.2 `ScheduleGapStripe` — the pattern behind the claim queue: which
+  // day / part of day / city the uncovered work clusters in. One entry per
+  // distinct (day, period, city) that still has work nobody is covering.
+  // `nextSevenDays` is itself bounded by the active filter range (page.tsx
+  // derives it from `data.bookings`, which the query limits to
+  // `filters.from..filters.to`), so the stripe is labelled for the selected
+  // range rather than claiming a 7-day horizon it may not have.
+  const scheduleGapsByKey = new Map<string, ScheduleGap>();
+  for (const booking of nextSevenDays) {
+    if (
+      booking.assignment_status !== "unassigned" &&
+      booking.assignment_status !== "partially_assigned"
+    ) {
+      continue;
+    }
+    const periodLabel = formatPeriodLabel(booking.start_time);
+    const city = booking.service_city ?? null;
+    const key = `${booking.booking_date}|${periodLabel}|${city ?? ""}`;
+    if (scheduleGapsByKey.has(key)) continue;
+    scheduleGapsByKey.set(key, {
+      dateLabel: formatDayLabel(booking.booking_date),
+      periodLabel,
+      city,
+    });
+  }
+  const scheduleGaps = [...scheduleGapsByKey.values()];
+
+  const coordinatorQuickHelpLinks = quickHelpLinksForCoordinator(permissionAccess);
+
   return (
     <>
     <PullToRefresh>
@@ -320,6 +424,18 @@ export function CoordinatorDashboard({
       </section>
 
       {/*
+       * brief §4.2 — the two coordinator-only queues, directly under the
+       * attention stripe: what needs claiming, and where the coverage holes
+       * cluster. Only mounted for viewers who can actually work bookings.
+       */}
+      {permissionAccess.bookings ? (
+        <section className="grid min-w-0 items-start gap-4 md:grid-cols-2">
+          <ClaimQueueStripe bookings={claimQueueBookings} />
+          <ScheduleGapStripe gaps={scheduleGaps} rangeLabel="Selected range" />
+        </section>
+      ) : null}
+
+      {/*
        * C-FIELDWORK Phase D — practitioner-mode mount for Business/
        * Coordinator viewers who also hold can_take_bookings. Brief §4.3
        * locked rule: wrap the mount itself in this condition rather than
@@ -384,6 +500,11 @@ export function CoordinatorDashboard({
           ) : null}
         </section>
       </BusinessOverviewDisclosure>
+
+      {/*
+       * brief §4.2 — the R05 "Need help?" pattern, Coordinator-tailored.
+       */}
+      <QuickHelpPanel links={coordinatorQuickHelpLinks} />
 
     </AdminPageScaffold>
     </PullToRefresh>

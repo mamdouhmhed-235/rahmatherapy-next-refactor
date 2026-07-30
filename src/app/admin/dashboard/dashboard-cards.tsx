@@ -281,6 +281,17 @@ export function TodayAtAGlanceCard({
       ? "clamp(1.5rem, 2.5vw, 1.875rem)"
       : "clamp(2rem, 3.5vw, 3.157rem)"
     : "clamp(2.75rem, 6vw, 4.5rem)";
+  // B-01 (audit #01) — the Coordinator "Snapshot" marquee appeared to render a
+  // literal "()" between the "Today" heading and the value. Nothing in the DOM
+  // is parenthesised: the branch above is the only place the marquee drops to
+  // ~24-30px, and at that size `.admin-display` (Cormorant Garamond) renders
+  // its `0` with the hairline apex/base washed out by antialiasing — measured
+  // at 33-66% of the side-stem darkness, against ~100% at the 44-72px sizes
+  // every other variant uses. What survives is the two thick side stems, which
+  // read as "()". The digit is right; the display face is not legible at this
+  // size. Keep the deliberate 0-state downsize and render that one state in the
+  // UI sans face, whose `0` is unambiguous at any size.
+  const marqueeUsesDisplayFace = !(useCoordinatorHeading && heroCount === 0);
 
   return (
     <AdminDashboardPanel className="min-h-[22rem]">
@@ -299,7 +310,10 @@ export function TodayAtAGlanceCard({
                 </h2>
               )}
               <p
-                className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums [font-variant-numeric:tabular-nums_lining-nums]"
+                className={cn(
+                  marqueeUsesDisplayFace ? "admin-display" : "font-sans",
+                  "font-semibold leading-none text-[var(--admin-heading)] tabular-nums [font-variant-numeric:tabular-nums_lining-nums]"
+                )}
                 style={{ fontSize: marqueeFontSize }}
                 aria-label={heroAriaLabel}
                 title={isToday ? `${heroCount} booking${heroCount === 1 ? "" : "s"} today` : heroAriaLabel}
