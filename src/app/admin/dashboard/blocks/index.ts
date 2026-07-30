@@ -1,10 +1,10 @@
 // Barrel export — C-11 Phase A shared dashboard blocks library.
 //
 // All blocks are render-only (data via props, no data fetching, no side
-// effects, no server actions). Phase B (3b) wires the Business composition
-// from this barrel; Phase C wires CoordinatorDashboard.tsx and Phase D
-// re-points TherapistDashboard.tsx — do not import this barrel from
-// page.tsx or TherapistDashboard.tsx yet.
+// effects, no server actions). Phase B (3b) wired the Business composition
+// from this barrel, Phase C wired CoordinatorDashboard.tsx, and Phase D
+// re-pointed TherapistDashboard.tsx — all three variants now compose from
+// here.
 
 export { DashboardHeader } from "./DashboardHeader";
 

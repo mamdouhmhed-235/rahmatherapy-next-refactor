@@ -18,7 +18,12 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { AdminPageScaffold, AdminStatusBadge } from "../components/admin-ui";
 import { BusinessOverviewDisclosure } from "./dashboard-filters-client";
-import { DashboardHeader } from "./dashboard-header";
+// C-11 Phase D — the shared blocks library is the composition surface for
+// all three variants. `DashboardHeader` and `QuickHelpPanel` are re-exports
+// of the canonical implementations (`dashboard-header.tsx` and
+// `QuickHelpPanel.tsx`), so this is a re-point rather than a duplicate
+// rendering — the Therapist surface renders exactly what it rendered before.
+import { DashboardHeader, QuickHelpPanel } from "./blocks";
 import { ProfileCompletionNudge } from "./ProfileCompletionNudge";
 import { ClaimAssignmentButton } from "../bookings/ClaimAssignmentButton";
 import type { ReportData, StaffScorecard } from "../reports/reporting";
@@ -29,7 +34,6 @@ import type {
 import { PersonalContributionStripe } from "./PersonalContributionStripe";
 import { HighlightOrTipStrip } from "./HighlightOrTipStrip";
 import { RecentClientsStrip } from "./RecentClientsStrip";
-import { QuickHelpPanel } from "./QuickHelpPanel";
 import {
   getRecentClientsForTherapist,
   getTherapistHighlightOrTip,
@@ -967,6 +971,3 @@ function ServiceMixCard({
     </section>
   );
 }
-
-// Re-export helpers so the component module's contract matches RECON expectations.
-export { getGreeting, getFirstName, formatHours, FORMATTERS };

@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Activity } from "lucide-react";
 import type { StaffProfile } from "@/lib/auth/rbac";
 import { cn } from "@/lib/utils";
-import { getGreeting, getFirstName } from "@/app/admin/dashboard/TherapistDashboard";
+import { getGreeting, getFirstName } from "@/app/admin/dashboard/shared-helpers";
 import { CustomDateRangeForm } from "./CustomDateRangeForm";
 
 export interface RangeChip {
