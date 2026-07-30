@@ -576,6 +576,33 @@ function substituteCity(text: string, city: string | null): string {
   return text.replace(/\s+in\s+\{city\}/g, "").replace(/\{city\}/g, "");
 }
 
+// The six review_request_client fields an admin can override, with their
+// hardcoded fallback defaults. Single source of truth for both
+// renderReviewRequestEmail (HTML) and renderReviewRequestPlainText — the two
+// legs previously hand-copied these and drifted (C-01 seam-review fix).
+const REVIEW_REQUEST_DEFAULT_FIELDS = {
+  subject: "Thank you for visiting Rahma Therapy",
+  body_intro:
+    "Thank you for choosing Rahma Therapy for your {service_name}. We hope you felt looked after from start to finish.",
+  body_ask:
+    "If you have a moment, we'd be grateful for an honest review on Google. It helps other people in {city} find us.",
+  body_cta_label: "Leave a Google review",
+  body_cta_url: "https://g.page/r/Ccfwk27JycKDEBM/review",
+  body_signoff: "Thank you again,\nThe Rahma Therapy team",
+} as const;
+
+function resolveReviewRequestFields(overrides: Record<string, string>) {
+  return {
+    subject: overrides.subject ?? REVIEW_REQUEST_DEFAULT_FIELDS.subject,
+    body_intro: overrides.body_intro ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_intro,
+    body_ask: overrides.body_ask ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_ask,
+    body_cta_label:
+      overrides.body_cta_label ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_cta_label,
+    body_cta_url: overrides.body_cta_url ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_cta_url,
+    body_signoff: overrides.body_signoff ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_signoff,
+  };
+}
+
 export async function renderReviewRequestEmail(
   input: ReviewRequestEmailInput
 ): Promise<string> {
@@ -586,19 +613,7 @@ export async function renderReviewRequestEmail(
     overrides,
   });
 
-  const fields = {
-    subject: overrides.subject ?? "Thank you for visiting Rahma Therapy",
-    body_intro:
-      overrides.body_intro ??
-      "Thank you for choosing Rahma Therapy for your {service_name}. We hope you felt looked after from start to finish.",
-    body_ask:
-      overrides.body_ask ??
-      "If you have a moment, we'd be grateful for an honest review on Google. It helps other people in {city} find us.",
-    body_cta_label: overrides.body_cta_label ?? "Leave a Google review",
-    body_cta_url:
-      overrides.body_cta_url ?? "https://g.page/r/Ccfwk27JycKDEBM/review",
-    body_signoff: overrides.body_signoff ?? "Thank you again,\nThe Rahma Therapy team",
-  };
+  const fields = resolveReviewRequestFields(overrides);
 
   const vars = buildVarMap(input, {
     city: input.city ?? "",
@@ -633,22 +648,44 @@ export async function renderReviewRequestEmail(
 // function rather than folded into renderBookingPlainText (C-01 plan Step 8
 // decision (b) — cleaner separation since the review email's shape doesn't
 // match the generic booking-summary layout the shared plain-text renderer
-// produces). CTA URL matches renderReviewRequestEmail's default body_cta_url.
+// produces). Resolves the same six admin-editable fields as
+// renderReviewRequestEmail via resolveReviewRequestFields, so the two legs
+// share one source of truth for overrides and defaults (C-01 seam-review fix
+// — this leg previously hardcoded intro/ask/CTA/signoff as string literals).
 export function renderReviewRequestPlainText(
   input: ReviewRequestEmailInput,
-  variants: ReviewMessageVariant[]
+  variants: ReviewMessageVariant[],
+  overrides: Record<string, string> = {}
 ): string {
-  return `Thank you for choosing Rahma Therapy
+  const fields = resolveReviewRequestFields(overrides);
 
-If you have a moment, we'd be grateful for an honest review on Google${input.city ? ` — it helps other people in ${input.city} find us.` : "."}
+  const vars = buildVarMap(input, {
+    city: input.city ?? "",
+    service_name: input.participants[0]?.services?.[0] ?? "appointment",
+  });
+
+  // substituteCity first so an "in {city}" clause (default body_ask, or an
+  // admin override that follows the same convention) drops gracefully when
+  // there's no city, rather than leaving a blank gap; substituteVars then
+  // fills the rest (service_name, and city itself when present) so no
+  // {varName} placeholder can survive into the sent plain-text body.
+  const resolveField = (template: string) =>
+    substituteVars(substituteCity(template, input.city), vars);
+
+  const intro = resolveField(fields.body_intro);
+  const ask = resolveField(fields.body_ask);
+  const signoff = resolveField(fields.body_signoff);
+
+  return `${intro}
+
+${ask}
 
 Here are a few examples if you'd like a starting point, or write your own:
 ${variants.map((v) => `- ${v.text}`).join("\n")}
 
-Leave a review: https://g.page/r/Ccfwk27JycKDEBM/review
+${fields.body_cta_label}: ${fields.body_cta_url}
 
-Thank you again,
-The Rahma Therapy team
+${signoff}
 `;
 }
 

@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/client";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { pickReviewMessages } from "../templates";
+import {
+  pickReviewMessages,
+  renderReviewRequestPlainText,
+  type ReviewMessageVariant,
+  type ReviewRequestEmailInput,
+} from "../templates";
 import { sendReviewRequestEmail } from "../notifications";
 
 /**
@@ -318,6 +323,7 @@ describe("sendReviewRequestEmail", () => {
       { field_key: "massage_variant_3", value: "Admin override sample review number 3." },
       { field_key: "massage_variant_4", value: "Admin override sample review number 4." },
       { field_key: "massage_variant_5", value: "Admin override sample review number 5." },
+      { field_key: "body_cta_url", value: "https://example.test/admin-configured-review-url" },
     ];
     const overrideAdminClient = {
       from: () => ({
@@ -352,5 +358,118 @@ describe("sendReviewRequestEmail", () => {
     const sentText = vi.mocked(sendEmail).mock.calls[0][0].text as string;
     expect(sentText).toMatch(/Admin override sample review number \d\./);
     expect(sentText).not.toContain("brilliant home massage");
+    // The gap this whole fix closes: a body_cta_url override set through the
+    // normal override path must reach the *sent* plain-text body, and the
+    // hardcoded default CTA URL must not.
+    expect(sentText).toContain("https://example.test/admin-configured-review-url");
+    expect(sentText).not.toContain("g.page/r/Ccfwk27JycKDEBM");
+  });
+});
+
+/**
+ * C-01 seam-review fix. `renderReviewRequestPlainText` used to hardcode its
+ * intro/ask/CTA/signoff as string literals, so an admin override to any of
+ * those five review_request_client fields reached the HTML leg but not this
+ * one. These tests call the real (unmocked) function directly with an
+ * explicit `overrides` argument to verify it now resolves all five fields
+ * through the same defaults renderReviewRequestEmail uses.
+ */
+describe("renderReviewRequestPlainText", () => {
+  const VARIANTS: ReviewMessageVariant[] = [
+    { text: "Sample pooled review sentence.", source: "default" },
+  ];
+
+  function reviewInput(
+    overrides: Partial<ReviewRequestEmailInput> = {}
+  ): ReviewRequestEmailInput {
+    return {
+      companyName: "Rahma Therapy Test",
+      clientName: "Aisha Khan",
+      bookingDate: "2026-07-20",
+      startTime: "14:00",
+      endTime: "15:00",
+      addressLines: ["10 Test Street"],
+      totalPrice: 55,
+      participantCount: 1,
+      participants: [
+        {
+          label: "Aisha Khan",
+          participantGender: "female",
+          requiredTherapistGender: "female",
+          services: ["Swedish Massage"],
+        },
+      ],
+      groupCategory: "massage",
+      city: "Luton",
+      ...overrides,
+    };
+  }
+
+  it("falls back to the same shared defaults the HTML leg uses when no overrides exist", () => {
+    const text = renderReviewRequestPlainText(reviewInput(), VARIANTS);
+
+    expect(text).toContain(
+      "Thank you for choosing Rahma Therapy for your Swedish Massage. We hope you felt looked after from start to finish."
+    );
+    expect(text).toContain("It helps other people in Luton find us.");
+    expect(text).toContain(
+      "Leave a Google review: https://g.page/r/Ccfwk27JycKDEBM/review"
+    );
+    expect(text).toContain("Thank you again,\nThe Rahma Therapy team");
+  });
+
+  it("honours all five admin-configured body fields, not the hardcoded defaults", () => {
+    const overrides = {
+      body_intro: "OVERRIDE intro for {service_name}.",
+      body_ask: "OVERRIDE ask text.",
+      body_cta_label: "OVERRIDE cta label",
+      body_cta_url: "https://example.test/override-review-url",
+      body_signoff: "OVERRIDE signoff line.",
+    };
+
+    const text = renderReviewRequestPlainText(reviewInput(), VARIANTS, overrides);
+
+    expect(text).toContain("OVERRIDE intro for Swedish Massage.");
+    expect(text).toContain("OVERRIDE ask text.");
+    expect(text).toContain(
+      "OVERRIDE cta label: https://example.test/override-review-url"
+    );
+    expect(text).toContain("OVERRIDE signoff line.");
+
+    // The hardcoded defaults this fix removes must not leak through.
+    expect(text).not.toContain("We hope you felt looked after from start to finish");
+    expect(text).not.toContain("helps other people in");
+    expect(text).not.toContain("Leave a Google review");
+    expect(text).not.toContain("g.page/r/Ccfwk27JycKDEBM");
+    expect(text).not.toContain("Thank you again,\nThe Rahma Therapy team");
+  });
+
+  it("never leaks a {city} or {service_name} placeholder into the sent body", () => {
+    const overrides = {
+      body_ask: "It really helps people in {city} out, for your {service_name}.",
+    };
+
+    const withCity = renderReviewRequestPlainText(
+      reviewInput({ city: "Luton" }),
+      VARIANTS,
+      overrides
+    );
+    const withoutCity = renderReviewRequestPlainText(
+      reviewInput({ city: null }),
+      VARIANTS,
+      overrides
+    );
+
+    expect(withCity).not.toMatch(/\{city\}|\{service_name\}/);
+    expect(withCity).toContain(
+      "It really helps people in Luton out, for your Swedish Massage."
+    );
+
+    // No city: the "in {city}" clause drops gracefully rather than leaving a
+    // dangling placeholder or an awkward blank gap.
+    expect(withoutCity).not.toMatch(/\{city\}|\{service_name\}/);
+    expect(withoutCity).toContain(
+      "It really helps people out, for your Swedish Massage."
+    );
   });
 });

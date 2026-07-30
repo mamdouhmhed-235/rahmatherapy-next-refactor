@@ -719,7 +719,7 @@ export async function sendReviewRequestEmail(
   const html = await renderReviewRequestEmail(reviewInput);
   const overrides = await resolveTemplateOverrides("review_request_client");
   const variants = pickReviewMessages({ groupCategory, city, overrides });
-  const text = renderReviewRequestPlainText(reviewInput, variants);
+  const text = renderReviewRequestPlainText(reviewInput, variants, overrides);
 
   await sendTrackedEmail(supabase, {
     bookingId,
