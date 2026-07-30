@@ -115,6 +115,8 @@ Still lacking `service_role` UPDATE: `blocked_dates`, `insight_dismissals`, `sta
 - **All phase verifiers and closeout adversarial reviewers: `model: sonnet`, high effort** (they judge against plan text, not from taste — Sonnet keeps the check cheap and independent).
 - **The 4 programme drift checkpoints (§2.6): `model: opus`** — programme-wide judgment, 4 total, worth the spend.
 
+**Phase-level granularity (2026-07-30 — "each model gets its relevant tasks"):** Sonnet is the DEFAULT worker everywhere; Opus is the exception, never the habit. Within an `opus`-routed plan, phases that are purely mechanical — sweeps, file extractions, evidence collection, test-file authoring, copy application — MAY be dispatched on `sonnet`; any phase touching a migration, a live surface (availability engine, public routes, email sends), schema/RPC work, shared-surface edits, or the plan's headline complexity STAYS on `opus`. When in doubt, keep the routed model. Log every within-plan downgrade in the progress file (phase, reason). The inverse is not discretionary: a Sonnet-routed plan's phases stay Sonnet — hard cases are handled by the escalation rule below, not by pre-emptive upgrades.
+
 **Escalation rule (self-healing):** if a Sonnet-implemented phase fails its verify round twice, re-dispatch that ONE phase's implementer on `opus` with both failure reports attached, re-verify; still failing → STOP. Log every escalation in the progress file (plan, phase, reason).
 
 **De-escalation ban:** never downgrade a routed-`opus` plan to Sonnet to conserve usage — the routing is Owner-locked; usage pressure is handled by §3 (checkpoint + resume), never by weakening the model on a hard plan.
