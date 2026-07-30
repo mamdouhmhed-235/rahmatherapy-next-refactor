@@ -1,45 +1,31 @@
-// SERVER COMPONENT — Owner/Admin (business) dashboard variant.
+// SERVER COMPONENT — Coordinator dashboard variant.
 //
-// C-11 Phase B step 3a extracted the inline Business + Coordinator branch
-// verbatim out of the tail of `dashboard/page.tsx`, together with the
-// module-level helpers only that branch used. `page.tsx` keeps every data
-// fetch (including the awaited claimable-count lookup) and passes the
-// results in as props; this component derives + renders only.
+// C-11 Phase C step 6a split this out of `BusinessDashboard.tsx`, which had
+// served both variants behind `plan.variant === "coordinator"` gates since
+// Phase B. What follows is the coordinator arm of those gates, moved
+// verbatim: the two-column Today panel + attention stripe grid, the
+// practitioner-mode mount, and the "Active queues" disclosure carrying the
+// enquiries stripe and Operations Health. Helpers used by both variants live
+// in `dashboard-variant-shared.tsx`, which also owns the shared props
+// contract; `page.tsx` still performs every data fetch.
 //
-// Step 3b composes the Business path from `blocks/` and applies the V-01
-// reconciliation of the three overlapping urgency representations
-// (brief §4.1 + Q9.1):
-//   1. "Snapshot · Today" (TodayAtAGlanceCard) collapses into the header —
-//      DashboardHeader's `scopeLabel` now carries today's + next-7-days
-//      counts, so the marquee card is no longer a third urgency surface.
-//   2. "Needs your attention" is promoted to the primary actionable stripe,
-//      full-width directly under the filters, as `PendingBookingsStripe`.
-//   3. "Operations Health" is demoted into a collapsed-by-default native
-//      <details> "Health check" disclosure below the fold.
-//
-// Phase C step 6a moved the Coordinator arm into `CoordinatorDashboard.tsx`
-// and the declarations both variants share into
-// `dashboard-variant-shared.tsx`. What remains here renders the
-// Business/Admin variant only; every `isCoordinatorVariant` gate is gone
-// because it is now statically false.
+// Step 6a is a pure split — composing from `blocks/` and the B-01 parens fix
+// are step 6b. Nothing rendered by either variant changes here.
 
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { AdminPageScaffold } from "../components/admin-ui";
-import { OperationsHealthCard } from "./dashboard-cards";
-// C-11 Phase B step 3b — the shared blocks library is the composition
-// surface. `DashboardHeader`, `MobileStickyActionBar`, `PendingBookingsStripe`
-// (= `UrgentAttentionPanel`), `EnquiriesTodoStripe` (= `ActiveEnquiriesCard`)
-// and `QuickHelpPanel` are re-exports of the canonical implementations, so
-// this is a re-point rather than a duplicate rendering.
+import { findNextAppointment, formatNumber } from "../reports/reporting";
+import { OperationsHealthCard, TodayAtAGlanceCard } from "./dashboard-cards";
 import {
   DashboardHeader,
   EnquiriesTodoStripe,
   MobileStickyActionBar,
   PendingBookingsStripe,
-  QuickHelpPanel,
 } from "./blocks";
 import type { ActiveEnquiryRow, AttentionSummaryRow } from "./blocks";
-import { DashboardFiltersClient } from "./dashboard-filters-client";
+import {
+  BusinessOverviewDisclosure,
+  DashboardFiltersClient,
+} from "./dashboard-filters-client";
 import { AdminErrorBoundary } from "../components/admin-error-boundary";
 import type { DashboardVariant } from "./dashboard-data";
 import {
@@ -52,48 +38,13 @@ import {
   statusOptions,
   uniqueStrings,
   type DashboardVariantProps,
-  type PermissionAccess,
 } from "./dashboard-variant-shared";
 import { PersonalContributionStripe } from "./PersonalContributionStripe";
 import { PullToRefresh } from "./PullToRefresh";
 import { LegacyDisclosureCleanup } from "./LegacyDisclosureCleanup";
 import { PractitionerTodaySection } from "./PractitionerTodaySection";
-import type { QuickHelpLink } from "./therapist-fullness";
 
-// V-01 step 1 — the one payload the collapsed "Snapshot · Today" card owned
-// that no other surface carries: today's count (and the rolling next-7-day
-// count that sat beside it). The filter strip's scope bar shows the
-// RANGE-scoped booking total, which is a different number whenever the range
-// isn't "today", so this line is additive rather than a fourth repetition.
-function formatTodayScopeLabel(todayCount: number, weekCount: number) {
-  return `${todayCount} booking${todayCount === 1 ? "" : "s"} today · ${weekCount} in the next 7 days`;
-}
-
-// Business-tailored "Need help?" links (brief §4.1). Mirrors the shape of
-// `quickHelpLinksForTherapist` — permission-gated, so a link never points at
-// a surface the viewer would be bounced from.
-function quickHelpLinksForBusiness(access: PermissionAccess): QuickHelpLink[] {
-  const links: QuickHelpLink[] = [];
-  if (access.reports) {
-    links.push({ key: "reports", label: "Review weekly numbers", href: "/admin/reports" });
-  }
-  if (access.staff) {
-    links.push({ key: "staff", label: "Manage staff", href: "/admin/staff" });
-  }
-  if (access.emails) {
-    links.push({ key: "emails", label: "Configure emails", href: "/admin/emails" });
-  }
-  if (access.bookings) {
-    links.push({
-      key: "pending-bookings",
-      label: "Check pending bookings",
-      href: "/admin/bookings?view=attention",
-    });
-  }
-  return links;
-}
-
-export function BusinessDashboard({
+export function CoordinatorDashboard({
   profile,
   plan,
   data,
@@ -101,8 +52,11 @@ export function BusinessDashboard({
   today,
   summary,
   attentionItems,
+  dailySeries,
   rangeLabel,
+  todayView,
   todayAppointments,
+  upcomingInRange,
   nextSevenDays,
   needsAssignment,
   unassignedOnly,
@@ -142,7 +96,7 @@ export function BusinessDashboard({
     getRoleLabel(profile as unknown as { roles?: { name?: string | null }[]; role?: string }) ??
     variantRoleLabelFallback[plan.variant];
   const showOperationsHealth = plan.variant !== "therapist";
-  const newEnquiries = data.enquiries.filter((enquiry) => enquiry.status === "new");
+  const nextAppointment = findNextAppointment(data.bookings, today);
   const serviceOptions = uniqueStrings(data.bookingItems.map((item) => item.service_name_snapshot));
   const lastChecked = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
@@ -223,8 +177,42 @@ export function BusinessDashboard({
   if (filters.paymentStatus) filterQueryParams.set("paymentStatus", filters.paymentStatus);
   const filterQuery = filterQueryParams.toString();
 
-  // Active (new + contacted) enquiries, surfaced as the `EnquiriesTodoStripe`
-  // per brief §4.1.
+  // Coordinator never sees revenue surface per brief Section 11; suppress payment string entirely
+  // (RBAC + voice — Coordinator lacks view_reports_revenue, so this row should not synthesise
+  // anything related to money, even copy).
+  const showPaymentsReadiness = plan.variant !== "coordinator";
+  const readiness = {
+    confirmations: failedEmails.length > 0 ? `${formatNumber(failedEmails.length)} to review` : "All clear",
+    staffCoverage: needsAssignment.length > 0 ? `${formatNumber(needsAssignment.length)} need assignment` : "Well covered",
+    paymentCollection: !showPaymentsReadiness
+      ? ""
+      : plan.variant === "therapist"
+        ? "Assigned work only"
+        : unpaidBookings.length > 0
+          ? `${formatNumber(unpaidBookings.length)} to collect`
+          : "No activity yet",
+  };
+
+  // Coordinator-emphasis Today panel data: per-booking required gender
+  // (derived from assignments), plus today inline count breakdown.
+  const requiredGenderByBooking = new Map<string, string>();
+  for (const assignment of data.assignments) {
+    if (
+      assignment.required_therapist_gender &&
+      assignment.required_therapist_gender !== "any" &&
+      !requiredGenderByBooking.has(assignment.booking_id)
+    ) {
+      requiredGenderByBooking.set(assignment.booking_id, assignment.required_therapist_gender);
+    }
+  }
+  const coordinatorTodayCounts = {
+    unassigned: todayAppointments.filter((b) => b.assignment_status === "unassigned").length,
+    confirmed: todayAppointments.filter((b) => b.status === "confirmed").length,
+    pending: todayAppointments.filter((b) => b.status === "pending").length,
+  };
+
+  // Active (new + contacted) enquiries, surfaced inside the Tier 2 "Active
+  // queues" disclosure below.
   const activeEnquiries: ActiveEnquiryRow[] = data.enquiries
     .filter((e) => e.status === "new" || e.status === "contacted")
     .map((e) => ({
@@ -238,8 +226,6 @@ export function BusinessDashboard({
     (e) => e.status !== "new" && e.status !== "contacted"
   );
 
-  const businessQuickHelpLinks = quickHelpLinksForBusiness(permissionAccess);
-
   return (
     <>
     <PullToRefresh>
@@ -251,7 +237,7 @@ export function BusinessDashboard({
         roleLabel={roleLabel}
         rangeLabel={rangeLabel}
         updatedAtIso={new Date().toISOString()}
-        scopeLabel={formatTodayScopeLabel(todayAppointments.length, nextSevenDays.length)}
+        scopeLabel={null}
       />
 
       <LegacyDisclosureCleanup staffId={profile.id} />
@@ -279,24 +265,59 @@ export function BusinessDashboard({
       </AdminErrorBoundary>
 
       {/*
-       * V-01 step 2 — "Needs your attention" is the primary actionable
-       * stripe: Business drops the "Snapshot · Today" card (its count now
-       * rides in the header, step 1) and gives the stripe the full width.
+       * Coordinator's primary surface is the Today panel, with the attention
+       * stripe beside it in a two-column grid.
        */}
-      <PendingBookingsStripe rows={attentionSummaryRows} groups={attentionGroups} filterQuery={filterQuery} />
-
-      {/*
-       * Brief §4.1 — enquiries triage sits directly under the attention
-       * stripe, and only when the viewer can actually work the queue.
-       */}
-      {permissionAccess.enquiries ? (
-        <EnquiriesTodoStripe
-          enquiries={activeEnquiries}
-          totalActive={activeEnquiries.length}
-          canManageEnquiries={permissionAccess.enquiries}
-          hasAnyHandled={hasAnyHandledEnquiries}
+      <section className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.95fr)]">
+        <TodayAtAGlanceCard
+          appointments={todayAppointments.map((booking) => ({
+            id: booking.id,
+            time: booking.start_time.slice(0, 5),
+            endTime: booking.end_time?.slice(0, 5),
+            title: booking.contact_full_name ?? "Unknown contact",
+            detail: booking.service_city ?? "No city recorded",
+            status: booking.assignment_status,
+            href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
+            assignmentStatus: booking.assignment_status,
+            bookingStatus: booking.status,
+            requiredGender: requiredGenderByBooking.get(booking.id) ?? null,
+          }))}
+          upcomingAppointments={upcomingInRange.map((booking) => ({
+            id: booking.id,
+            date: booking.booking_date,
+            time: booking.start_time.slice(0, 5),
+            endTime: booking.end_time?.slice(0, 5),
+            title: booking.contact_full_name ?? "Unknown contact",
+            detail: booking.service_city ?? "No city recorded",
+            status: booking.assignment_status,
+            href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
+          }))}
+          rangeKind={filters.range}
+          rangeLabel={rangeLabel}
+          dailySeries={dailySeries.map((d) => d.bookings)}
+          filterQuery={filterQuery}
+          scopeCount={data.bookings.length}
+          todayView={todayView}
+          todayCount={todayAppointments.length}
+          weekCount={nextSevenDays.length}
+          nextAppointment={
+            nextAppointment
+              ? {
+                  date: nextAppointment.booking_date,
+                  time: nextAppointment.start_time.slice(0, 5),
+                  title: nextAppointment.contact_full_name ?? "Unknown contact",
+                }
+              : null
+          }
+          permissionAccess={permissionAccess}
+          readiness={readiness}
+          unassignedFirst
+          coordinatorCounts={coordinatorTodayCounts}
+          revenueAllowed={revenueAllowed}
+          showPaymentsReadiness={showPaymentsReadiness}
         />
-      ) : null}
+        <PendingBookingsStripe rows={attentionSummaryRows} groups={attentionGroups} filterQuery={filterQuery} />
+      </section>
 
       {/*
        * C-FIELDWORK Phase D — practitioner-mode mount for Business/
@@ -318,55 +339,51 @@ export function BusinessDashboard({
         />
       ) : null}
 
-      {
-        /*
-         * V-01 step 3 — Operations Health is demoted from the full-width
-         * primary panel B-5 promoted it to, into a collapsed-by-default
-         * disclosure below the fold (brief §4.1 + Q9.1, which locks
-         * "collapsed"). Nothing is hidden that isn't already represented:
-         * every row here — failed emails, open operations, staff gaps,
-         * new enquiries — also surfaces in the attention stripe above, which
-         * is exactly the overlap V-01 flagged. Native <details> so the
-         * disclosure is keyboard-accessible with no client JS.
-         */
-        showOperationsHealth ? (
-          <details className="group">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-canvas)] motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
-              <span>Health check</span>
-              <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-[var(--admin-text-muted)]">
-                <span className="group-open:hidden">
-                  <span className="sr-only">Show health check. </span>
-                  Show
-                </span>
-                <span className="hidden group-open:inline">
-                  <span className="sr-only">Hide health check. </span>
-                  Hide
-                </span>
-                <span aria-hidden="true" className="inline-flex group-open:hidden">
-                  <ChevronDown className="size-4" />
-                </span>
-                <span aria-hidden="true" className="hidden group-open:inline-flex">
-                  <ChevronUp className="size-4" />
-                </span>
-              </span>
-            </summary>
-            <div className="mt-3">
-              <OperationsHealthCard
-                failedEmails={failedEmails.length}
-                openEnquiries={newEnquiries.length}
-                openOperations={openOperationalErrors.length}
-                availabilityGaps={staffAvailabilityGaps.length}
-                permissionAccess={permissionAccess}
-              />
-            </div>
-          </details>
-        ) : null
-      }
-
-      {/*
-       * Brief §4.1 — the R05 "Need help?" pattern, Business-tailored.
-       */}
-      <QuickHelpPanel links={businessQuickHelpLinks} />
+      <BusinessOverviewDisclosure
+        staffId={profile.id}
+        variantKey="coordinator-"
+        labelActive="Active queues"
+        labelQuiet="Active queues (nothing right now)"
+        hint={
+          activeEnquiries.length > 0 || openOperationalErrors.length > 0 || failedEmails.length > 0
+            ? [
+                activeEnquiries.length > 0
+                  ? `${activeEnquiries.length} enquir${activeEnquiries.length === 1 ? "y" : "ies"}`
+                  : null,
+                openOperationalErrors.length + failedEmails.length > 0
+                  ? `${openOperationalErrors.length + failedEmails.length} ops issue${openOperationalErrors.length + failedEmails.length === 1 ? "" : "s"}`
+                  : null,
+              ].filter(Boolean).join(" · ")
+            : "Active enquiries and operational signals."
+        }
+        emptyHint="New enquiries and operational signals will appear here when they land."
+        showAriaLabel="Show active queues"
+        hideAriaLabel="Hide active queues"
+        hasActivity={
+          activeEnquiries.length > 0 ||
+          failedEmails.length > 0 ||
+          openOperationalErrors.length > 0 ||
+          staffAvailabilityGaps.length > 0
+        }
+      >
+        <section className="grid min-w-0 items-start gap-4 md:grid-cols-2">
+          <EnquiriesTodoStripe
+            enquiries={activeEnquiries}
+            totalActive={activeEnquiries.length}
+            canManageEnquiries={permissionAccess.enquiries}
+            hasAnyHandled={hasAnyHandledEnquiries}
+          />
+          {showOperationsHealth ? (
+            <OperationsHealthCard
+              failedEmails={failedEmails.length}
+              openEnquiries={0}
+              openOperations={openOperationalErrors.length}
+              availabilityGaps={staffAvailabilityGaps.length}
+              permissionAccess={permissionAccess}
+            />
+          ) : null}
+        </section>
+      </BusinessOverviewDisclosure>
 
     </AdminPageScaffold>
     </PullToRefresh>

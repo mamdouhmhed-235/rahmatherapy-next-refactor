@@ -30,6 +30,8 @@ import { PullToRefresh } from "./PullToRefresh";
 import { LegacyDisclosureCleanup } from "./LegacyDisclosureCleanup";
 import { TherapistDashboard } from "./TherapistDashboard";
 import { BusinessDashboard } from "./BusinessDashboard";
+import { CoordinatorDashboard } from "./CoordinatorDashboard";
+import type { DashboardVariantProps } from "./dashboard-variant-shared";
 import { resolveAdminShellVariant } from "../shell-variant";
 import { buildServiceLookup, type ServiceMeta } from "./shared-helpers";
 import { getScopedBookingIds } from "../bookings/page";
@@ -357,36 +359,43 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     ? (await getScopedBookingIds(profile)).claimableIds.length
     : 0;
 
-  return (
-    <BusinessDashboard
-      profile={profile}
-      plan={plan}
-      data={data}
-      filters={filters}
-      today={today}
-      summary={summary}
-      attentionItems={attentionItems}
-      dailySeries={dailySeries}
-      rangeLabel={rangeLabel}
-      todayView={todayView}
-      todayAppointments={todayAppointments}
-      upcomingInRange={upcomingInRange}
-      nextSevenDays={nextSevenDays}
-      needsAssignment={needsAssignment}
-      unassignedOnly={unassignedOnly}
-      unpaidBookings={unpaidBookings}
-      stripeVariant={stripeVariant}
-      stripeTiles={stripeTiles}
-      contribStripeRange={contribStripeRange}
-      stripeStickyAction={stripeStickyAction}
-      preservedSearchParams={preservedSearchParams}
-      myTodayAppointments={myTodayAppointments}
-      myNextAppointment={myNextAppointment}
-      myNextAppointmentAssignmentId={myNextAppointmentAssignmentId}
-      myClaimableCount={myClaimableCount}
-      myServiceLookup={myServiceLookup}
-    />
-  );
+  // C-11 Phase C step 7 — thin variant router. The Therapist path returned
+  // above (its props contract is entirely different; Phase D owns it).
+  // Business/Admin and Coordinator share one contract, so all that is left
+  // is picking which component renders it.
+  const variantProps: DashboardVariantProps = {
+    profile,
+    plan,
+    data,
+    filters,
+    today,
+    summary,
+    attentionItems,
+    dailySeries,
+    rangeLabel,
+    todayView,
+    todayAppointments,
+    upcomingInRange,
+    nextSevenDays,
+    needsAssignment,
+    unassignedOnly,
+    unpaidBookings,
+    stripeVariant,
+    stripeTiles,
+    contribStripeRange,
+    stripeStickyAction,
+    preservedSearchParams,
+    myTodayAppointments,
+    myNextAppointment,
+    myNextAppointmentAssignmentId,
+    myClaimableCount,
+    myServiceLookup,
+  };
+
+  const Variant =
+    plan.variant === "coordinator" ? CoordinatorDashboard : BusinessDashboard;
+
+  return <Variant {...variantProps} />;
 }
 
 function InsufficientPermissions() {
