@@ -1,15 +1,26 @@
 // SERVER COMPONENT — Owner/Admin (business) + Coordinator dashboard variant.
 //
-// C-11 Phase B step 3a: a VERBATIM extraction of the inline Business +
-// Coordinator branch that previously lived at the tail of
-// `dashboard/page.tsx`, together with the module-level helpers only that
-// branch used. Nothing is renamed, reordered or restyled — the rendered
-// output is identical for Owner, Admin and Coordinator. `page.tsx` keeps
-// every data fetch (including the awaited claimable-count lookup) and passes
-// the results in as props; this component derives + renders only.
-// Step 3b composes it from `blocks/`; Phase C splits the Coordinator branch
-// into its own file.
+// C-11 Phase B step 3a extracted the inline Business + Coordinator branch
+// verbatim out of the tail of `dashboard/page.tsx`, together with the
+// module-level helpers only that branch used. `page.tsx` keeps every data
+// fetch (including the awaited claimable-count lookup) and passes the
+// results in as props; this component derives + renders only.
+//
+// Step 3b (this revision) composes the Business path from `blocks/` and
+// applies the V-01 reconciliation of the three overlapping urgency
+// representations (brief §4.1 + Q9.1):
+//   1. "Snapshot · Today" (TodayAtAGlanceCard) collapses into the header —
+//      DashboardHeader's `scopeLabel` now carries today's + next-7-days
+//      counts, so the marquee card is no longer a third urgency surface.
+//   2. "Needs your attention" is promoted to the primary actionable stripe,
+//      full-width directly under the filters, as `PendingBookingsStripe`.
+//   3. "Operations Health" is demoted into a collapsed-by-default native
+//      <details> "Health check" disclosure below the fold.
+// The Coordinator path is deliberately UNCHANGED here — it keeps its Today
+// panel, its two-column grid and its existing "Active queues" disclosure
+// until Phase C splits it into its own file.
 
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   canManageOperations,
   canOpenReports,
@@ -34,24 +45,33 @@ import {
   type ReportFilters,
 } from "../reports/reporting";
 import {
-  ActiveEnquiriesCard,
   AttentionItemCard,
   OperationsHealthCard,
   TodayAtAGlanceCard,
-  UrgentAttentionPanel,
 } from "./dashboard-cards";
+// C-11 Phase B step 3b — the shared blocks library is the composition
+// surface. `DashboardHeader`, `MobileStickyActionBar`, `PendingBookingsStripe`
+// (= `UrgentAttentionPanel`), `EnquiriesTodoStripe` (= `ActiveEnquiriesCard`)
+// and `QuickHelpPanel` are re-exports of the canonical implementations, so
+// this is a re-point rather than a duplicate rendering.
+import {
+  DashboardHeader,
+  EnquiriesTodoStripe,
+  MobileStickyActionBar,
+  PendingBookingsStripe,
+  QuickHelpPanel,
+} from "./blocks";
 import type {
   ActiveEnquiryRow,
   AttentionGroup,
   AttentionSeverity,
   AttentionSummaryRow,
-} from "./dashboard-cards";
+} from "./blocks";
 import {
   BusinessOverviewDisclosure,
   DashboardFiltersClient,
 } from "./dashboard-filters-client";
 import { AdminErrorBoundary } from "../components/admin-error-boundary";
-import { DashboardHeader } from "./dashboard-header";
 import type { DashboardQueryPlan, DashboardVariant } from "./dashboard-data";
 import { buildDemandTrendData } from "./dashboard-helpers";
 import type {
@@ -61,11 +81,11 @@ import type {
   StripeVariant,
 } from "./dashboard-helpers-b5";
 import { PersonalContributionStripe } from "./PersonalContributionStripe";
-import { MobileStickyActionBar } from "./MobileStickyActionBar";
 import { PullToRefresh } from "./PullToRefresh";
 import { LegacyDisclosureCleanup } from "./LegacyDisclosureCleanup";
 import { PractitionerTodaySection } from "./PractitionerTodaySection";
 import type { ServiceMeta } from "./shared-helpers";
+import type { QuickHelpLink } from "./therapist-fullness";
 
 type AttentionItem = ReturnType<typeof getAttentionItems>[number];
 
@@ -408,6 +428,39 @@ function getDashboardCopy(variant: DashboardVariant, today: string) {
   };
 }
 
+// V-01 step 1 — the one payload the collapsed "Snapshot · Today" card owned
+// that no other surface carries: today's count (and the rolling next-7-day
+// count that sat beside it). The filter strip's scope bar shows the
+// RANGE-scoped booking total, which is a different number whenever the range
+// isn't "today", so this line is additive rather than a fourth repetition.
+function formatTodayScopeLabel(todayCount: number, weekCount: number) {
+  return `${todayCount} booking${todayCount === 1 ? "" : "s"} today · ${weekCount} in the next 7 days`;
+}
+
+// Business-tailored "Need help?" links (brief §4.1). Mirrors the shape of
+// `quickHelpLinksForTherapist` — permission-gated, so a link never points at
+// a surface the viewer would be bounced from.
+function quickHelpLinksForBusiness(access: PermissionAccess): QuickHelpLink[] {
+  const links: QuickHelpLink[] = [];
+  if (access.reports) {
+    links.push({ key: "reports", label: "Review weekly numbers", href: "/admin/reports" });
+  }
+  if (access.staff) {
+    links.push({ key: "staff", label: "Manage staff", href: "/admin/staff" });
+  }
+  if (access.emails) {
+    links.push({ key: "emails", label: "Configure emails", href: "/admin/emails" });
+  }
+  if (access.bookings) {
+    links.push({
+      key: "pending-bookings",
+      label: "Check pending bookings",
+      href: "/admin/bookings?view=attention",
+    });
+  }
+  return links;
+}
+
 function getRoleLabel(profile: { roles?: { name?: string | null }[] | null; role?: string | null }) {
   type RoleLike = { name?: string | null };
   const rolesArr = (profile as { roles?: RoleLike[] | null }).roles;
@@ -633,21 +686,24 @@ export function BusinessDashboard({
       }
     : undefined;
 
-  // Coordinator-variant Tier 2 data: active (new + contacted) enquiries.
-  const activeEnquiries: ActiveEnquiryRow[] = isCoordinatorVariant
-    ? data.enquiries
-        .filter((e) => e.status === "new" || e.status === "contacted")
-        .map((e) => ({
-          id: e.id,
-          fullName: e.full_name,
-          source: e.source,
-          status: e.status,
-          createdAt: e.created_at,
-        }))
-    : [];
-  const coordinatorHasAnyHandledEnquiries = isCoordinatorVariant
-    ? data.enquiries.some((e) => e.status !== "new" && e.status !== "contacted")
-    : false;
+  // Active (new + contacted) enquiries. Coordinator surfaces these inside its
+  // Tier 2 "Active queues" disclosure; Business surfaces them as the
+  // `EnquiriesTodoStripe` per brief §4.1. Same derivation for both, so it is
+  // no longer gated on the variant.
+  const activeEnquiries: ActiveEnquiryRow[] = data.enquiries
+    .filter((e) => e.status === "new" || e.status === "contacted")
+    .map((e) => ({
+      id: e.id,
+      fullName: e.full_name,
+      source: e.source,
+      status: e.status,
+      createdAt: e.created_at,
+    }));
+  const hasAnyHandledEnquiries = data.enquiries.some(
+    (e) => e.status !== "new" && e.status !== "contacted"
+  );
+
+  const businessQuickHelpLinks = quickHelpLinksForBusiness(permissionAccess);
 
   return (
     <>
@@ -660,6 +716,11 @@ export function BusinessDashboard({
         roleLabel={roleLabel}
         rangeLabel={rangeLabel}
         updatedAtIso={new Date().toISOString()}
+        scopeLabel={
+          isCoordinatorVariant
+            ? null
+            : formatTodayScopeLabel(todayAppointments.length, nextSevenDays.length)
+        }
       />
 
       <LegacyDisclosureCleanup staffId={profile.id} />
@@ -686,56 +747,82 @@ export function BusinessDashboard({
         />
       </AdminErrorBoundary>
 
-      <section className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.95fr)]">
-        <TodayAtAGlanceCard
-          appointments={todayAppointments.map((booking) => ({
-            id: booking.id,
-            time: booking.start_time.slice(0, 5),
-            endTime: booking.end_time?.slice(0, 5),
-            title: booking.contact_full_name ?? "Unknown contact",
-            detail: booking.service_city ?? "No city recorded",
-            status: booking.assignment_status,
-            href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
-            assignmentStatus: booking.assignment_status,
-            bookingStatus: booking.status,
-            requiredGender: requiredGenderByBooking.get(booking.id) ?? null,
-          }))}
-          upcomingAppointments={upcomingInRange.map((booking) => ({
-            id: booking.id,
-            date: booking.booking_date,
-            time: booking.start_time.slice(0, 5),
-            endTime: booking.end_time?.slice(0, 5),
-            title: booking.contact_full_name ?? "Unknown contact",
-            detail: booking.service_city ?? "No city recorded",
-            status: booking.assignment_status,
-            href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
-          }))}
-          rangeKind={filters.range}
-          rangeLabel={rangeLabel}
-          dailySeries={dailySeries.map((d) => d.bookings)}
-          filterQuery={filterQuery}
-          scopeCount={data.bookings.length}
-          todayView={todayView}
-          todayCount={todayAppointments.length}
-          weekCount={nextSevenDays.length}
-          nextAppointment={
-            nextAppointment
-              ? {
-                  date: nextAppointment.booking_date,
-                  time: nextAppointment.start_time.slice(0, 5),
-                  title: nextAppointment.contact_full_name ?? "Unknown contact",
-                }
-              : null
-          }
-          permissionAccess={permissionAccess}
-          readiness={readiness}
-          unassignedFirst={isCoordinatorVariant}
-          coordinatorCounts={coordinatorTodayCounts}
-          revenueAllowed={revenueAllowed}
-          showPaymentsReadiness={showPaymentsReadiness}
+      {/*
+       * V-01 step 2 — "Needs your attention" is the primary actionable
+       * stripe. Coordinator keeps the existing two-column Today + attention
+       * grid untouched (Phase C owns that composition); Business drops the
+       * "Snapshot · Today" card (its count now rides in the header, step 1)
+       * and gives the stripe the full width.
+       */}
+      {isCoordinatorVariant ? (
+        <section className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(20rem,0.95fr)]">
+          <TodayAtAGlanceCard
+            appointments={todayAppointments.map((booking) => ({
+              id: booking.id,
+              time: booking.start_time.slice(0, 5),
+              endTime: booking.end_time?.slice(0, 5),
+              title: booking.contact_full_name ?? "Unknown contact",
+              detail: booking.service_city ?? "No city recorded",
+              status: booking.assignment_status,
+              href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
+              assignmentStatus: booking.assignment_status,
+              bookingStatus: booking.status,
+              requiredGender: requiredGenderByBooking.get(booking.id) ?? null,
+            }))}
+            upcomingAppointments={upcomingInRange.map((booking) => ({
+              id: booking.id,
+              date: booking.booking_date,
+              time: booking.start_time.slice(0, 5),
+              endTime: booking.end_time?.slice(0, 5),
+              title: booking.contact_full_name ?? "Unknown contact",
+              detail: booking.service_city ?? "No city recorded",
+              status: booking.assignment_status,
+              href: permissionAccess.bookings ? `/admin/bookings/${booking.id}` : null,
+            }))}
+            rangeKind={filters.range}
+            rangeLabel={rangeLabel}
+            dailySeries={dailySeries.map((d) => d.bookings)}
+            filterQuery={filterQuery}
+            scopeCount={data.bookings.length}
+            todayView={todayView}
+            todayCount={todayAppointments.length}
+            weekCount={nextSevenDays.length}
+            nextAppointment={
+              nextAppointment
+                ? {
+                    date: nextAppointment.booking_date,
+                    time: nextAppointment.start_time.slice(0, 5),
+                    title: nextAppointment.contact_full_name ?? "Unknown contact",
+                  }
+                : null
+            }
+            permissionAccess={permissionAccess}
+            readiness={readiness}
+            unassignedFirst={isCoordinatorVariant}
+            coordinatorCounts={coordinatorTodayCounts}
+            revenueAllowed={revenueAllowed}
+            showPaymentsReadiness={showPaymentsReadiness}
+          />
+          <PendingBookingsStripe rows={attentionSummaryRows} groups={attentionGroups} filterQuery={filterQuery} />
+        </section>
+      ) : (
+        <PendingBookingsStripe rows={attentionSummaryRows} groups={attentionGroups} filterQuery={filterQuery} />
+      )}
+
+      {/*
+       * Brief §4.1 — enquiries triage sits directly under the attention
+       * stripe for Business. Coordinator keeps its copy inside the "Active
+       * queues" disclosure below, so this only mounts for Business and only
+       * when the viewer can actually work the queue.
+       */}
+      {!isCoordinatorVariant && permissionAccess.enquiries ? (
+        <EnquiriesTodoStripe
+          enquiries={activeEnquiries}
+          totalActive={activeEnquiries.length}
+          canManageEnquiries={permissionAccess.enquiries}
+          hasAnyHandled={hasAnyHandledEnquiries}
         />
-        <UrgentAttentionPanel rows={attentionSummaryRows} groups={attentionGroups} filterQuery={filterQuery} />
-      </section>
+      ) : null}
 
       {/*
        * C-FIELDWORK Phase D — practitioner-mode mount for Business/
@@ -786,11 +873,11 @@ export function BusinessDashboard({
           }
         >
           <section className="grid min-w-0 items-start gap-4 md:grid-cols-2">
-            <ActiveEnquiriesCard
+            <EnquiriesTodoStripe
               enquiries={activeEnquiries}
               totalActive={activeEnquiries.length}
               canManageEnquiries={permissionAccess.enquiries}
-              hasAnyHandled={coordinatorHasAnyHandledEnquiries}
+              hasAnyHandled={hasAnyHandledEnquiries}
             />
             {showOperationsHealth ? (
               <OperationsHealthCard
@@ -805,22 +892,56 @@ export function BusinessDashboard({
         </BusinessOverviewDisclosure>
       ) : (
         /*
-         * B-5 Tier 1.5: OperationsHealth promoted from buried-inside-Tier-2
-         * disclosure to a full-width primary panel (brief §5.5). The
-         * disclosure wrapper + StaffCapacity / PaymentHealth / DemandTrend
-         * / BusinessPulseCard sub-tiles are removed — their data lives in
-         * the Reports B-4 surface now.
+         * V-01 step 3 — Operations Health is demoted from the full-width
+         * primary panel B-5 promoted it to, into a collapsed-by-default
+         * disclosure below the fold (brief §4.1 + Q9.1, which locks
+         * "collapsed"). Nothing is hidden that isn't already represented:
+         * every row here — failed emails, open operations, staff gaps,
+         * new enquiries — also surfaces in the attention stripe above, which
+         * is exactly the overlap V-01 flagged. Native <details> so the
+         * disclosure is keyboard-accessible with no client JS.
          */
         showOperationsHealth ? (
-          <OperationsHealthCard
-            failedEmails={failedEmails.length}
-            openEnquiries={newEnquiries.length}
-            openOperations={openOperationalErrors.length}
-            availabilityGaps={staffAvailabilityGaps.length}
-            permissionAccess={permissionAccess}
-          />
+          <details className="group">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel)] focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-canvas)] motion-reduce:transition-none [&::-webkit-details-marker]:hidden">
+              <span>Health check</span>
+              <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-[var(--admin-text-muted)]">
+                <span className="group-open:hidden">
+                  <span className="sr-only">Show health check. </span>
+                  Show
+                </span>
+                <span className="hidden group-open:inline">
+                  <span className="sr-only">Hide health check. </span>
+                  Hide
+                </span>
+                <span aria-hidden="true" className="inline-flex group-open:hidden">
+                  <ChevronDown className="size-4" />
+                </span>
+                <span aria-hidden="true" className="hidden group-open:inline-flex">
+                  <ChevronUp className="size-4" />
+                </span>
+              </span>
+            </summary>
+            <div className="mt-3">
+              <OperationsHealthCard
+                failedEmails={failedEmails.length}
+                openEnquiries={newEnquiries.length}
+                openOperations={openOperationalErrors.length}
+                availabilityGaps={staffAvailabilityGaps.length}
+                permissionAccess={permissionAccess}
+              />
+            </div>
+          </details>
         ) : null
       )}
+
+      {/*
+       * Brief §4.1 — the R05 "Need help?" pattern, Business-tailored. Phase C
+       * wires the Coordinator-tailored link set when that variant splits out.
+       */}
+      {!isCoordinatorVariant ? (
+        <QuickHelpPanel links={businessQuickHelpLinks} />
+      ) : null}
 
     </AdminPageScaffold>
     </PullToRefresh>
