@@ -62,7 +62,7 @@ The pre-flight briefing told the agent to expect a real hit for `prefers-color-s
 | Phase | Commit(s) | What | Verify result |
 |---|---|---|---|
 | A | `4e18fa9` | Shared building-blocks library — 10 blocks + `index.ts` barrel + 10 co-located specs (31 tests) under `src/app/admin/dashboard/blocks/`. 21 files created, **0 edited** — blocks are dormant, `page.tsx`/`TherapistDashboard.tsx` provably untouched. | **PASS first time**, zero blocking findings. Model: `sonnet` (logged §5 downgrade, see §1.1). |
-| B | — | `BusinessDashboard.tsx` extraction (3a verbatim → 3b compose) + V-01 | not started |
+| B | `bdbe64f` (3a) + `93c3f08` (3b) | **3a** verbatim extraction of the Business+Coordinator branch into `BusinessDashboard.tsx` — `page.tsx` **1101 → 401 lines**. **3b** composes from `blocks/` + V-01 reconciliation. | **PASS / PASS**, both sub-steps first time, no fix round. Model: `opus` (routed model kept, see §1.1). |
 | C | — | `CoordinatorDashboard.tsx` extraction + B-01 parens fix | not started |
 | D | — | `TherapistDashboard.tsx` refactor onto shared blocks | not started |
 | E | — | Dark-mode infrastructure (⛔ Zone-2 migration at Step 10) | not started |
@@ -94,6 +94,18 @@ Consequence: the blocks are theme-clean *themselves* but render **through** shar
 
 **(b) LOG-ONLY — two "Recent activity" idioms will coexist.** The implementer built `RecentActivityStripe` fresh after grepping and confirming no Recent Activity panel exists in `dashboard/page.tsx` — **claim independently verified as accurate**. But a pre-existing `src/app/admin/components/ActivityTimeline.tsx` renders a panel titled "Recent activity" (consumed by `clients/[clientId]` and `PerformanceSurface`). Different data shape (client/staff activity events vs. dashboard `NotificationItem`/`buildNotifications()`) and a different shell (`AdminPanel` vs. `AdminDashboardPanel` + `AdminPanelHeader`), so this is not duplication of the same thing — but Phase B should eyeball the two side by side when it wires the stripe, to avoid shipping two visually divergent "Recent activity" looks in one product. Same applies to `RevenueStripe`, also built fresh: the plan's cited "revenue tile cluster" does not exist verbatim in `dashboard-cards.tsx` (closest relative `PaymentHealthCard` has a different Booked/Collected/Outstanding shape and was correctly left alone).
 
+### 1.3 — Phase B notes
+
+**The verbatim proof is the reason 3a is trustworthy.** Rather than retyping ~700 lines, the implementer applied line-range splices guarded by 10 exact-text anchor assertions, then ran a second script that re-extracts each moved region from the *committed blob* (`a633d3b:…/page.tsx`) and requires it to appear contiguously and in order in `BusinessDashboard.tsx` — plus the reverse check that every non-moved original line is still present in `page.tsx`, in order. Seven regions verified OK. The independent verifier re-derived this itself and confirmed byte-identical text. This is the standard later extraction phases should meet.
+
+**One logged deviation in 3a, accepted.** `page.tsx`'s local `type StaffProfile = NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>` became `import type { StaffProfile } from "@/lib/auth/rbac"`. Provably the identical type (`rbac.ts:324` declares `getStaffProfile(): Promise<StaffProfile | null>`), and it avoids importing a server-auth function into a render-only component. It is the only non-byte-identical line in the entire move.
+
+**Boundary decision (3a).** The split point is exactly the last data fetch: `getScopedBookingIds(profile)` and all three `getDashboardData` calls stay in `page.tsx`; the pure-derivation block and the return JSX moved. Module-level helpers used *exclusively* by the moved branch moved with it (verified one call site each) — leaving them behind would have forced `BusinessDashboard` to import from a route module, creating a cycle. `formatRangeLabel` correctly stayed, since it is called before the Therapist early-return.
+
+**V-01 shipped, all three parts** — Snapshot folded into `DashboardHeader`; "Needs your attention" promoted to `PendingBookingsStripe`; Operations Health demoted into a native `<details>` "Health check", **collapsed by default** (no `open` attribute), keyboard-operable, with `focus-visible` ring and `motion-reduce:transition-none`, styled entirely from `--admin-*` variables.
+
+**⚠️ Outstanding, Owner-performed:** plan Phase B's checkpoint "Playwright sweep: Owner + Admin → BusinessDashboard renders identically" **was NOT run and is not recorded as done** — it needs admin sign-in, which no agent may perform (protocol §3b). Substitute evidence only: dev server up, and an unauthenticated GET of `/admin/dashboard/` returns `307 → /admin/login/?redirectTo=…`, proving the new module graph compiles and loads without a render-time crash. **The authenticated identical-render check for Owner / Admin / Coordinator at 375 and 1280 remains outstanding** — folded into Phase G's role sweep and the Owner backlog. This matters more than usual: 3a claims byte-identical rendering, and only a human-eye pass can close that claim.
+
 ---
 
-*Pre-flight recorded 2026-07-30; Phase A shipped `4e18fa9`. Next: Phase B (BusinessDashboard extraction, `opus`, two sub-steps 3a verbatim → 3b compose).*
+*Pre-flight recorded 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f` + `93c3f08`. Next: Phase C (CoordinatorDashboard extraction + B-01 parens fix, `opus`).*
