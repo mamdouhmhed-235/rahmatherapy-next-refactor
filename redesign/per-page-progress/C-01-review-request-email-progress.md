@@ -108,4 +108,23 @@ WHERE id = 'ae9bb5bd-23c0-4a6e-91af-42307ed4419f';
 
 ---
 
-*C-01 shipped. Next in §4 order: C-FIELDWORK (before C-11).*
+## 8 — Second fix round, post-closeout (2026-07-30) — orchestrator-takeover seam review
+
+C-01 shipped on 2026-07-29 and this file was marked SHIPPED. A later **orchestrator-takeover seam review** (2026-07-30, at the handover to the Opus 5 orchestrator) re-examined C-01's whole diff range `40eccc6..9ce16e0` — the two plans shipped after drift checkpoint #1 had never been seen by any cross-plan reviewer. It found a **second, separate defect** that this plan's own per-phase verifiers missed. Owner approved the fix in chat before plan #8 (C-11) started.
+
+**The defect:** `renderReviewRequestPlainText` hardcoded FIVE of the six admin-editable body fields as string literals — `body_intro`, `body_ask`, `body_cta_label`, `body_cta_url` (`https://g.page/r/Ccfwk27JycKDEBM/review`) and `body_signoff` — while `renderReviewRequestEmail` resolved all six from `resolveTemplateOverrides("review_request_client")`. An admin editing the Google review URL in the Templates tab got the new link in the HTML leg and the **stale hardcoded one in the plain-text leg of the same email**.
+
+**Why §2's fix round did not close this.** §2 fixed the *sibling* gap — review **variants** not reaching the text leg (`588d0b2`). The regression test it added is titled generically ("propagates admin-configured override text into the plain-text leg, not just the HTML leg") but asserted only on `massage_variant_*`. Confident closeout language plus a same-shaped-but-narrower test produced a **false completeness signal**: the whole override-propagation class read as closed when only one member of it was. This is the transferable lesson — a generically-titled test that covers one specific case is worse than a narrowly-titled one, because it suppresses the next reviewer's suspicion.
+
+**Fixed in `69c4e01`** (`fix(redesign): C-01 seam review — plain-text leg must respect all five editable body fields`), 3 files:
+- `templates.ts` — the six defaults extracted into a single `REVIEW_REQUEST_DEFAULT_FIELDS` + `resolveReviewRequestFields(overrides)`, consumed by BOTH renderers, so the two legs can no longer drift apart. `renderReviewRequestPlainText(input, variants, overrides = {})` resolves via `substituteCity` → `substituteVars`, matching the HTML leg's substitution semantics exactly.
+- `notifications.ts` — one line at the real call site inside `sendReviewRequestEmail`: the already-in-scope `overrides` is now passed through. **This line is the actual fix**; without it the renderer change would be inert while every test still passed.
+- `sendReviewRequestEmail.test.ts` — 3 new direct-renderer tests (defaults apply, all five honoured, no `{city}`/`{service_name}` placeholder leak with and without a city) PLUS the assertion that would have caught this originally: an overridden `body_cta_url` reaching the **sent** email's plain-text body, and the hardcoded default absent from it.
+
+**Independently verified** (read-only verifier, 9-point checklist, all PASS, all four gates re-run directly): the runtime path from the cron route through `fireReviewEmails` → `sendReviewRequestEmail` genuinely carries the overrides; no duplicated defaults remain; substitution parity confirmed on both the city and no-city paths; `subject` correctly left alone (its HTML-`<title>`-only reach is a pre-existing codebase-wide pattern, explicitly out of scope); scope held to exactly 3 files with the `sendBookingCancellationEmails` region untouched.
+
+**Baseline identity after `69c4e01`:** tsc 0 · lint 59E/7W same six files · vitest **5 failed / 829 passed (834)**, the same five inherited names · build clean. Totals moved 831→834 and 826→829 — exactly the 3 added tests, no swapped-in failures.
+
+---
+
+*C-01 shipped 2026-07-29; second fix round `69c4e01` landed 2026-07-30 post-closeout. Next in §4 order: C-FIELDWORK (before C-11).*
