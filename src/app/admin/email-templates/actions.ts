@@ -25,6 +25,7 @@ import {
   EmailConfigurationError,
 } from "@/lib/email/client";
 import {
+  isHttpsUrl,
   renderAdminBookingCancellationEmail,
   renderAdminBookingNotificationEmail,
   renderAdminRescheduleRequestEmail,
@@ -115,6 +116,16 @@ export async function saveTemplateOverride(
       return {
         ok: false,
         error: `Trim "${field.label}" to ${field.maxLength} characters or fewer.`,
+      };
+    }
+    // C-08 Phase B (security review) — body_cta_url lands in a real <a href>
+    // (templates.ts). escapeHtml blocks attribute breakout but not scheme, so
+    // reject anything that isn't https:// here; empty is still allowed
+    // through (clears the override, reverting to the hardcoded https default).
+    if (field.kind === "body_cta_url" && cleaned !== "" && !isHttpsUrl(cleaned)) {
+      return {
+        ok: false,
+        error: `"${field.label}" must be a valid https:// URL.`,
       };
     }
     cleanedFields.push({ field, value: cleaned });

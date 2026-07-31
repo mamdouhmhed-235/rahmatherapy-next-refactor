@@ -31,6 +31,21 @@ export interface RescheduleRequestEmailInput extends BookingEmailTemplateInput {
   requestNote: string | null;
 }
 
+// C-08 Phase B (security review) — `body_cta_url` is the one admin-editable
+// field that lands in a real `<a href>`. escapeHtml blocks attribute
+// breakout but does not constrain the scheme, so an unvalidated override
+// could point a transactional email's button at `javascript:` or any other
+// destination. Used both here as render-time defence-in-depth (a value
+// already in the DB cannot bypass this) and by saveTemplateOverride as the
+// save-time gate.
+export function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, "&amp;")
@@ -598,7 +613,14 @@ function resolveReviewRequestFields(overrides: Record<string, string>) {
     body_ask: overrides.body_ask ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_ask,
     body_cta_label:
       overrides.body_cta_label ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_cta_label,
-    body_cta_url: overrides.body_cta_url ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_cta_url,
+    // Defence-in-depth: saveTemplateOverride already rejects non-https values
+    // at save time, but a row already in the DB (pre-dating that guard) must
+    // not reach the href either — fall back to the default rather than trust
+    // stored data.
+    body_cta_url:
+      overrides.body_cta_url && isHttpsUrl(overrides.body_cta_url)
+        ? overrides.body_cta_url
+        : REVIEW_REQUEST_DEFAULT_FIELDS.body_cta_url,
     body_signoff: overrides.body_signoff ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_signoff,
   };
 }

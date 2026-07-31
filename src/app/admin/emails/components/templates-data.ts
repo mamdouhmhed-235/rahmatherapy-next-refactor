@@ -95,8 +95,12 @@ const CHANGE_WRAPPER: SafeField = {
 const REVIEW_SUBJECT: SafeField = {
   kind: "subject",
   label: "Subject line",
+  // C-08 Phase B (security review) — corrected. This field only reaches the
+  // invisible <title> tag inside the email's HTML source (renderLayout); the
+  // actual "Subject:" header the recipient sees is a hardcoded literal in
+  // notifications.ts / the SUBJECTS map and is unaffected by this value.
   placeholder: "Thank you for visiting Rahma Therapy",
-  helper: "Shown in the recipient's inbox. Keep it short and recognisable.",
+  helper: "Not shown in the recipient's inbox — the real subject line is fixed in code. This only sets the hidden page title inside the email's HTML source.",
   maxLength: 100,
 };
 

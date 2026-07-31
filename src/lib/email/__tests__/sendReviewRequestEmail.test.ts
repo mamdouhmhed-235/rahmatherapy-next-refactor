@@ -444,6 +444,18 @@ describe("renderReviewRequestPlainText", () => {
     expect(text).not.toContain("Thank you again,\nThe Rahma Therapy team");
   });
 
+  it("falls back to the default CTA URL when the stored override isn't https:// (defence-in-depth)", () => {
+    // saveTemplateOverride rejects a non-https body_cta_url at save time, but
+    // a row already in the database (pre-dating that guard) must not reach
+    // the sent link either.
+    const text = renderReviewRequestPlainText(reviewInput(), VARIANTS, {
+      body_cta_url: "javascript:alert(1)",
+    });
+
+    expect(text).toContain("https://g.page/r/Ccfwk27JycKDEBM/review");
+    expect(text).not.toContain("javascript:alert(1)");
+  });
+
   it("never leaks a {city} or {service_name} placeholder into the sent body", () => {
     const overrides = {
       body_ask: "It really helps people in {city} out, for your {service_name}.",
