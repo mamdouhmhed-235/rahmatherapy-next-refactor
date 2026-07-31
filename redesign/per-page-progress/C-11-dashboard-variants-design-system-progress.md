@@ -65,7 +65,7 @@ The pre-flight briefing told the agent to expect a real hit for `prefers-color-s
 | B | `bdbe64f` (3a) + `93c3f08` (3b) | **3a** verbatim extraction of the Business+Coordinator branch into `BusinessDashboard.tsx` — `page.tsx` **1101 → 401 lines**. **3b** composes from `blocks/` + V-01 reconciliation. | **PASS / PASS**, both sub-steps first time, no fix round. Model: `opus` (routed model kept, see §1.1). |
 | C | `b95e2ea` (6a) + `5ffcbba` (6b) | **6a** verbatim split of the Coordinator variant out of `BusinessDashboard.tsx` into `CoordinatorDashboard.tsx` + new `dashboard-variant-shared.tsx`; `page.tsx` becomes the variant router. **6b** composes from `blocks/` + B-01 fix. Final sizes: `page.tsx` 410, `BusinessDashboard` 376, `CoordinatorDashboard` 514, shared 437. | **PASS / PASS**, both first time, no fix round. Model: `opus`. **B-01's root cause was NOT what the plan said — see §1.4.** |
 | D | `75d42c4` | `TherapistDashboard.tsx` re-pointed at the `blocks/` barrel (`DashboardHeader`, `QuickHelpPanel`); C-FIELDWORK's backward-compat helper re-export retired and its one external consumer re-pointed at `shared-helpers.ts`. Diff is **6 insertions / 5 deletions, entirely in the import block + trailing re-export** — not one line of JSX or derivation touched. | **PASS first time**, no fix round. Model: `opus`. See §1.6. |
-| E | — | Dark-mode infrastructure (⛔ Zone-2 migration at Step 10) | not started |
+| E | migration `f95c828` · E1 `faaedc2` + `e2031de` | **Migration APPLIED + verified** (Owner-approved). **E1 (Step 11a token scoping) implemented but FAILED verification TWICE → protocol §2.3 STOP.** See §1.9. E2 (sweep) and E3 (provider/toggle/FOUC) NOT started. | ⛔ **STOPPED — awaiting Owner decision.** |
 | F | — | Motion-reduce sweep (VERIFY-ALREADY-IMPLEMENTED wrapper; optional per D8) | not started |
 | G | — | End-to-end verification | not started |
 
@@ -171,6 +171,32 @@ Baseline after: **5 failed / 868 passed (873)** — +5 new specs, same five inhe
 
 Honest test-quality note recorded by the implementer rather than dressed up: the "default is Next visit when omitted" spec **cannot** fail against pre-change code (the literal was already `"Next visit"`) — it is a backward-compat guard, not a red-first test. The other three were verified genuinely failing at `75be734` before implementation (3 failed / 16 passed), all 19 green after.
 
+## 2 — ⛔ PHASE E1 STOP (protocol §2.3: failed verify → one fix round → still failing → STOP)
+
+### 2.1 — Migration: APPLIED and verified (`f95c828`)
+Owner approved in chat 2026-07-31. Remote version `20260731095039`. Post-apply: column present (`text`, nullable); `staff_profiles_theme_preference_check` present with clause `((theme_preference IS NULL) OR (theme_preference = ANY (ARRAY['dark','light','system'])))`; 12 rows / 0 non-null preferences (no backfill, as designed); **`has_table_privilege('service_role','staff_profiles','UPDATE')` → TRUE**, so the C-04a class of silent 42501 failure does not apply and no companion GRANT migration is needed.
+
+### 2.2 — E1's implementation is strong. Its *claim* is what failed.
+`faaedc2` added 255 lines to `tokens.css`: `[data-theme="dark"]`, `[data-theme="light"]` and an `@media print` arm, each 63 declarations, **all `--admin-*`-prefixed, zero non-admin tokens** — verified five independent ways including a headless-Chrome computed-style diff across no-attribute/dark/light × screen/print showing zero movement in 28 sampled public/shadcn/shared tokens. All 76 `--admin-*` declarations accounted for (63 themed + 8 `var()` aliases that track automatically + 5 theme-neutral radii). **34 contrast pairs computed, 0 dark failures** — heading-on-bg 17.03, body-on-bg 14.19, muted-on-panel 7.51, primary-on-panel 8.17, all status tones ≥ 6.53, focus-vs-canvas 8.55. The calculator was validated against this repo's own documented figures first.
+
+### 2.3 — ⛔ The BLOCKING finding, independently confirmed by the orchestrator
+**"Only admin surfaces can respond to `data-theme`" is FALSE.** Shared shadcn primitives consume `--admin-*` tokens directly and are rendered on customer-facing routes:
+
+- `src/components/ui/input.tsx:25-38` styles **every** `<Input>` in the codebase with `--admin-radius-control`, `--admin-surface-input`, `--admin-border-form`, `--admin-body`, `--admin-text-muted`, `--admin-focus`. The `var()` fallbacks never fire, because those properties are always defined in `:root`.
+- `src/app/booking/manage/ManageBookingForms.tsx:89-105` renders two such `<Input>`s (`preferred_date`, `preferred_time`) with **no className override**.
+- `src/app/booking/manage/page.tsx:47` resolves the booking purely from a URL token via `getCustomerManageBooking(token)` — **no staff session**. It sits outside `src/app/admin/**` and outside the `(public)` route group, inheriting the single root `<html>` — the same element the theme attribute is planned to live on.
+- Companion (SHOULD-FIX): `src/components/ui/badge.tsx:55-60`'s `default`/`secondary`/`outline` variants use `--admin-primary`/`--admin-panel-muted`/`--admin-body`/`--admin-border`. `/booking/manage` renders one, safe **only incidentally** because `twMerge` drops the earlier conflicting utilities in favour of the `--rahma-*` overrides passed via `className`. Any future bare `<Badge>` on a public page inherits admin theming.
+
+**Not a regression introduced by E1** — the coupling predates C-11. E1 converts it from dormant to live by making those tokens theme-variable. It is currently inert (nothing sets `data-theme` yet) and **detonates when E3 ships**.
+
+**Blast radius, stated honestly:** a customer never has `data-theme` set — only the admin layout will set it. The realistic path is a staff member client-side-navigating from `/admin/*` to `/booking/manage` in one SPA session, where the attribute persists on `<html>`. So this is staff-visible breakage on a customer page, not customer-visible breakage. That narrows severity but does not make the phase's safety claim true.
+
+### 2.4 — The fix round did not fix it
+`e2031de` ("correct overclaimed public-safety guarantee") is **comment-only**. `git diff faaedc2^..HEAD --stat -- src/` shows exactly one file changed across the whole Phase E range: `src/styles/tokens.css`. `input.tsx` and `badge.tsx` were last touched pre-C-11. The re-verifier caught this rather than accepting the claim — correct behaviour.
+
+### 2.5 — Orchestrator note: dev server was down
+The E1 dispatch asserted the dev server was running (it was, at pre-flight and again at the Phase A/B/C dispatches) but it had stopped by E1; the implementer measured `000` and said so instead of quietly skipping the check, substituting a headless-Chrome computed-style diff that is strictly stronger than the prescribed "load a public page and eyeball it". Good call, recorded so the substitution is not mistaken for the original check having run.
+
 ---
 
-*Pre-flight 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f`+`93c3f08`; Phase C `b95e2ea`+`5ffcbba`; Phase D `75d42c4` + eyebrow `4d09e45`. Next: **Phase E — dark mode, opening with a ⛔ Zone-2 migration HARD-STOP.***
+*Pre-flight 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f`+`93c3f08`; Phase C `b95e2ea`+`5ffcbba`; Phase D `75d42c4` + eyebrow `4d09e45`; Phase E migration `f95c828`, E1 `faaedc2`+`e2031de`. **STOPPED at E1 pending an Owner decision on how to scope `data-theme` (see §2.3).***
