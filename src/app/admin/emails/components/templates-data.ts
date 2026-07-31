@@ -297,6 +297,26 @@ const CLAIM_BODY_INTRO: SafeField = {
   multiline: true,
 };
 
+// C-08 — client_assigned_therapist fields. Has a CTA (manage-booking link),
+// unlike claim/staff_unassignment.
+const CLIENT_ASSIGNED_THERAPIST_BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder:
+    "Hi {clientName}, your appointment on {bookingDate} at {startTime} will be with {therapistName}. They'll arrive at {addressLines}. If anything changes, we'll let you know.",
+  helper: "Variables in curly braces are filled automatically.",
+  maxLength: 500,
+  multiline: true,
+};
+
+const CLIENT_ASSIGNED_THERAPIST_BODY_CTA_LABEL: SafeField = {
+  kind: "body_cta_label",
+  label: "CTA button label",
+  placeholder: "Manage your booking",
+  helper: "Text on the action button linking to the manage-booking page.",
+  maxLength: 80,
+};
+
 export const TEMPLATES: TemplateMeta[] = [
   {
     id: "booking_confirmation",
@@ -429,6 +449,18 @@ export const TEMPLATES: TemplateMeta[] = [
     trigger: "Sent to the admin recipient when a practitioner claims an unassigned slot. Fires from claimBookingAssignment. Interim single-recipient send — Phase D reroutes it through the business-notification resolver.",
     rendersAs: "html",
     fields: [CLAIM_BODY_INTRO, FOOTER_CONTACT],
+  },
+  {
+    id: "client_assigned_therapist",
+    audience: "customer",
+    cardName: "Therapist assigned (client)",
+    trigger: "Sent to the client whenever their assignment changes (assign, reassign, or claim), so they always know who is coming. Fires from claimBookingAssignment and updateBookingAssignment.",
+    rendersAs: "html",
+    fields: [
+      CLIENT_ASSIGNED_THERAPIST_BODY_INTRO,
+      CLIENT_ASSIGNED_THERAPIST_BODY_CTA_LABEL,
+      FOOTER_CONTACT,
+    ],
   },
 ];
 

@@ -11,6 +11,7 @@ import {
   sendBookingConfirmedClientEmail,
   sendBookingRestoredClientEmail,
   sendClaimNotificationEmail,
+  sendClientAssignedTherapistEmail,
   sendStaffAssignmentEmail,
   sendStaffUnassignmentEmail,
 } from "@/lib/email/notifications";
@@ -697,6 +698,16 @@ export async function claimBookingAssignment(formData: FormData) {
     console.error("Unable to send claim notification email.", error);
   });
 
+  // C-08: client_assigned_therapist — a claim IS a new assignment, so the
+  // client is told who they got.
+  await sendClientAssignedTherapistEmail(
+    claimedAssignment.booking_id,
+    actor.id,
+    adminClient
+  ).catch((error) => {
+    console.error("Unable to send client_assigned_therapist email.", error);
+  });
+
   updateTag("report-data");
   updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
@@ -1201,6 +1212,21 @@ export async function updateBookingAssignment(formData: FormData) {
       adminClient
     ).catch((error) => {
       console.error("Unable to send staff_unassignment email.", error);
+    });
+  }
+
+  // C-08: client_assigned_therapist on a new assignment (initial assign, or
+  // reassign to a different therapist than before).
+  if (
+    updatedAssignment.assigned_staff_id &&
+    updatedAssignment.assigned_staff_id !== previousStaffId
+  ) {
+    await sendClientAssignedTherapistEmail(
+      updatedAssignment.booking_id,
+      updatedAssignment.assigned_staff_id,
+      adminClient
+    ).catch((error) => {
+      console.error("Unable to send client_assigned_therapist email.", error);
     });
   }
 

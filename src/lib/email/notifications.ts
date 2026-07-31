@@ -19,6 +19,8 @@ import {
   renderBookingRestoredEmail,
   renderClaimNotificationEmail,
   renderClaimNotificationPlainText,
+  renderClientAssignedTherapistEmail,
+  renderClientAssignedTherapistPlainText,
   renderReviewRequestEmail,
   renderReviewRequestPlainText,
   renderStaffAssignmentEmail,
@@ -777,6 +779,46 @@ export async function sendClaimNotificationEmail(
     subject: `Slot claimed: ${therapistName} → ${input.bookingDate}`,
     html,
     text: renderClaimNotificationPlainText(claimInput, overrides),
+  });
+}
+
+/**
+ * C-08 — sent to the client whenever their assignment changes (assign,
+ * reassign, or claim), so they always know who is coming. Wired into
+ * claimBookingAssignment and updateBookingAssignment.
+ */
+export async function sendClientAssignedTherapistEmail(
+  bookingId: string,
+  assignedStaffId: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const { booking, input } = await getBookingTemplateInput(bookingId, supabase, {
+    includeManageUrl: true,
+  });
+  const customerEmail = booking.contact_email || booking.clients?.email;
+  if (!customerEmail) {
+    throw new Error("Booking client has no email address.");
+  }
+
+  const { data: assignedStaff } = await supabase
+    .from("staff_profiles")
+    .select("name")
+    .eq("id", assignedStaffId)
+    .maybeSingle<{ name: string }>();
+  const therapistName = assignedStaff?.name ?? "your therapist";
+
+  const assignedInput = { ...input, therapistName };
+  const html = await renderClientAssignedTherapistEmail(assignedInput);
+  const overrides = await resolveTemplateOverrides("client_assigned_therapist");
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "client_assigned_therapist",
+    recipientRole: "customer",
+    to: customerEmail,
+    subject: `Your therapist for ${input.bookingDate}`,
+    html,
+    text: renderClientAssignedTherapistPlainText(assignedInput, overrides),
   });
 }
 

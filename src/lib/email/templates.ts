@@ -881,6 +881,75 @@ ${intro}
 ${footerLine}`;
 }
 
+// ─── Client assigned therapist email (C-08) ──────────────────────────────
+// Sent to the client whenever their assignment changes (assign, reassign, or
+// claim), so they always know who is coming. Fires from
+// claimBookingAssignment and updateBookingAssignment. Same shared-defaults
+// shape as the templates above.
+
+const CLIENT_ASSIGNED_THERAPIST_DEFAULT_FIELDS = {
+  body_intro:
+    "Hi {clientName}, your appointment on {bookingDate} at {startTime} will be with {therapistName}. They'll arrive at {addressLines}. If anything changes, we'll let you know.",
+  body_cta_label: "Manage your booking",
+} as const;
+
+function resolveClientAssignedTherapistFields(overrides: Record<string, string>) {
+  return {
+    body_intro:
+      overrides.body_intro ?? CLIENT_ASSIGNED_THERAPIST_DEFAULT_FIELDS.body_intro,
+    body_cta_label:
+      overrides.body_cta_label ?? CLIENT_ASSIGNED_THERAPIST_DEFAULT_FIELDS.body_cta_label,
+  };
+}
+
+export async function renderClientAssignedTherapistEmail(
+  input: BookingEmailTemplateInput & { therapistName: string }
+): Promise<string> {
+  const overrides = await resolveTemplateOverrides("client_assigned_therapist");
+  const fields = resolveClientAssignedTherapistFields(overrides);
+  const vars = buildVarMap(input, { therapistName: input.therapistName });
+
+  const introHtml = escapeHtml(substituteVars(fields.body_intro, vars));
+  const manageLink = input.manageUrl
+    ? `<p style="margin:24px 0;"><a href="${escapeHtml(
+        input.manageUrl
+      )}" style="display:inline-block;background:#0f5e8e;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">${escapeHtml(
+        fields.body_cta_label
+      )}</a></p>`
+    : "";
+
+  return renderLayout(
+    "Your therapist is confirmed",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Your therapist is confirmed</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
+    ${renderSummary(input)}
+    ${manageLink}
+    ${renderFooter(input, overrides)}`
+  );
+}
+
+// Plain-text equivalent of renderClientAssignedTherapistEmail. Resolves the
+// same fields via resolveClientAssignedTherapistFields, so an admin override
+// applies identically to both legs (see the C-01 lesson above).
+export function renderClientAssignedTherapistPlainText(
+  input: BookingEmailTemplateInput & { therapistName: string },
+  overrides: Record<string, string> = {}
+): string {
+  const fields = resolveClientAssignedTherapistFields(overrides);
+  const vars = buildVarMap(input, { therapistName: input.therapistName });
+
+  const intro = substituteVars(fields.body_intro, vars);
+  const footerLine = overrides.footer_contact
+    ? substituteVars(overrides.footer_contact, vars)
+    : `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
+
+  return `Your therapist is confirmed
+
+${intro}
+
+${input.manageUrl ? `${fields.body_cta_label}: ${input.manageUrl}\n\n` : ""}${footerLine}`;
+}
+
 // ─── Password-reset email templates ──────────────────────────────────────────
 // FAKE: structure only. Real Resend send wiring lands with
 // BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).
