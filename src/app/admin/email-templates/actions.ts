@@ -78,6 +78,7 @@ const SUBJECTS: Record<string, string> = {
   review_request_client: "Thank you for visiting Rahma Therapy",
   booking_confirmed_client: "Your booking is confirmed",
   staff_unassignment: "Booking assignment removed",
+  claim: "Slot claimed",
 };
 
 export async function saveTemplateOverride(

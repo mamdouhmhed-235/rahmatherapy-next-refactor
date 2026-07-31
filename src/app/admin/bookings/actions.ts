@@ -10,6 +10,7 @@ import {
   sendBookingCancellationEmails,
   sendBookingConfirmedClientEmail,
   sendBookingRestoredClientEmail,
+  sendClaimNotificationEmail,
   sendStaffAssignmentEmail,
   sendStaffUnassignmentEmail,
 } from "@/lib/email/notifications";
@@ -684,6 +685,16 @@ export async function claimBookingAssignment(formData: FormData) {
     actor.id
   ).catch((error) => {
     console.error("Unable to send staff assignment email.", error);
+  });
+
+  // C-08: claim notification to the admin recipient (Phase-A interim — see
+  // sendClaimNotificationEmail in notifications.ts for the Phase D reroute).
+  await sendClaimNotificationEmail(
+    claimedAssignment.booking_id,
+    actor.id,
+    adminClient
+  ).catch((error) => {
+    console.error("Unable to send claim notification email.", error);
   });
 
   updateTag("report-data");

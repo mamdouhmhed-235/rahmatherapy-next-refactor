@@ -17,6 +17,8 @@ import {
   renderBookingPlainText,
   renderBookingReminderEmail,
   renderBookingRestoredEmail,
+  renderClaimNotificationEmail,
+  renderClaimNotificationPlainText,
   renderReviewRequestEmail,
   renderReviewRequestPlainText,
   renderStaffAssignmentEmail,
@@ -731,6 +733,50 @@ export async function sendStaffUnassignmentEmail(
     subject: "Booking assignment removed", // SUBJECTS map authoritative
     html,
     text: renderStaffUnassignmentPlainText(unassignInput, overrides),
+  });
+}
+
+/**
+ * C-08 — sent to the admin recipient when a practitioner claims an
+ * unassigned slot, wired into claimBookingAssignment.
+ *
+ * NOTE (2026-07-16): `getAdminRecipient` here is Phase-A-interim only.
+ * Phase D Step 15 reroutes this send through
+ * `resolveBusinessNotificationRecipients` (multi-recipient, per-type prefs
+ * keyed `slot_claimed`, skip-self via the claiming staff id) — this
+ * single-admin-recipient call is a placeholder until then.
+ */
+export async function sendClaimNotificationEmail(
+  bookingId: string,
+  claimingStaffId: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const { settings, input } = await getBookingTemplateInput(bookingId, supabase, {
+    requireCustomerEmail: false,
+  });
+
+  const adminRecipient = getAdminRecipient(settings);
+  if (!adminRecipient) return; // no admin email configured — opted out
+
+  const { data: claimingStaff } = await supabase
+    .from("staff_profiles")
+    .select("name")
+    .eq("id", claimingStaffId)
+    .maybeSingle<{ name: string }>();
+  const therapistName = claimingStaff?.name ?? "(unknown)";
+
+  const claimInput = { ...input, therapistName };
+  const html = await renderClaimNotificationEmail(claimInput);
+  const overrides = await resolveTemplateOverrides("claim");
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "claim",
+    recipientRole: "admin",
+    to: adminRecipient,
+    subject: `Slot claimed: ${therapistName} → ${input.bookingDate}`,
+    html,
+    text: renderClaimNotificationPlainText(claimInput, overrides),
   });
 }
 

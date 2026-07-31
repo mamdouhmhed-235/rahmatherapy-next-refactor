@@ -824,6 +824,63 @@ ${intro}
 ${footerLine}`;
 }
 
+// ─── Claim notification email — admin (C-08) ─────────────────────────────
+// Sent to the admin recipient when a practitioner claims an unassigned slot
+// (claimBookingAssignment). Same shared-defaults shape as the templates
+// above. The recipient itself is Phase-A-interim — see sendClaimNotificationEmail
+// in notifications.ts for the Phase D reroute note.
+
+const CLAIM_DEFAULT_FIELDS = {
+  body_intro:
+    "{therapistName} just claimed the {bookingDate} {startTime} slot for {clientName}.",
+} as const;
+
+function resolveClaimFields(overrides: Record<string, string>) {
+  return {
+    body_intro: overrides.body_intro ?? CLAIM_DEFAULT_FIELDS.body_intro,
+  };
+}
+
+export async function renderClaimNotificationEmail(
+  input: BookingEmailTemplateInput & { therapistName: string }
+): Promise<string> {
+  const overrides = await resolveTemplateOverrides("claim");
+  const fields = resolveClaimFields(overrides);
+  const vars = buildVarMap(input, { therapistName: input.therapistName });
+
+  const introHtml = escapeHtml(substituteVars(fields.body_intro, vars));
+
+  return renderLayout(
+    "Slot claimed",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Slot claimed</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
+    ${renderSummary(input)}
+    ${renderFooter(input, overrides)}`
+  );
+}
+
+// Plain-text equivalent of renderClaimNotificationEmail. Resolves the same
+// field via resolveClaimFields, so an admin override applies identically to
+// both legs (see the C-01 lesson above).
+export function renderClaimNotificationPlainText(
+  input: BookingEmailTemplateInput & { therapistName: string },
+  overrides: Record<string, string> = {}
+): string {
+  const fields = resolveClaimFields(overrides);
+  const vars = buildVarMap(input, { therapistName: input.therapistName });
+
+  const intro = substituteVars(fields.body_intro, vars);
+  const footerLine = overrides.footer_contact
+    ? substituteVars(overrides.footer_contact, vars)
+    : `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
+
+  return `Slot claimed
+
+${intro}
+
+${footerLine}`;
+}
+
 // ─── Password-reset email templates ──────────────────────────────────────────
 // FAKE: structure only. Real Resend send wiring lands with
 // BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).

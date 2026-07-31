@@ -286,6 +286,17 @@ const STAFF_UNASSIGNMENT_BODY_INTRO: SafeField = {
   multiline: true,
 };
 
+// C-08 — claim field. No CTA (internal ops notice, no action link).
+const CLAIM_BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder:
+    "{therapistName} just claimed the {bookingDate} {startTime} slot for {clientName}.",
+  helper: "Variables in curly braces are filled automatically.",
+  maxLength: 500,
+  multiline: true,
+};
+
 export const TEMPLATES: TemplateMeta[] = [
   {
     id: "booking_confirmation",
@@ -410,6 +421,14 @@ export const TEMPLATES: TemplateMeta[] = [
     trigger: "Sent to the previously assigned therapist when they are unassigned or reassigned away from a booking. Fires from updateBookingAssignment.",
     rendersAs: "html",
     fields: [STAFF_UNASSIGNMENT_BODY_INTRO, FOOTER_CONTACT],
+  },
+  {
+    id: "claim",
+    audience: "admin_internal",
+    cardName: "Slot claimed (internal)",
+    trigger: "Sent to the admin recipient when a practitioner claims an unassigned slot. Fires from claimBookingAssignment. Interim single-recipient send — Phase D reroutes it through the business-notification resolver.",
+    rendersAs: "html",
+    fields: [CLAIM_BODY_INTRO, FOOTER_CONTACT],
   },
 ];
 
