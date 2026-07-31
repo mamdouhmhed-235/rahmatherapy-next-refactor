@@ -157,6 +157,20 @@ C-FIELDWORK's progress §3 flagged two dropped elements for C-11, while C-11 pla
 
 The original derivation is recoverable verbatim from `git show 29ab66e:src/app/admin/dashboard/TherapistDashboard.tsx:257-270` — `heroIsToday` / `isMondayMorning` (UTC day 1) / `lastVisitWasFriday` (last `completedThisWeek` entry, UTC day 5) → `"First visit back"` on a Monday following a Friday visit, `"Tomorrow's first visit"` when the next appointment is not today, else `"Next visit"`. Its render site was a badge `<p>` at `:594` using `--status-confirmed-bg`/`--status-confirmed-text`.
 
+### 1.8 — Phase D follow-up: eyebrow restored (`4d09e45`), and two pre-existing quirks it exposed
+
+**Restored verbatim, not reinvented.** All seven derivation lines are byte-identical to `29ab66e:…/TherapistDashboard.tsx:257-270`. Each of the four inputs was re-verified to still exist and still mean the same thing at HEAD — `nextAppointment` (:92), `today` (:88), `todayDate` (:105, identical `T12:00:00Z` construction), `completedThisWeek` (:163, diffed against `29ab66e:186` and confirmed character-identical including the weekStart/weekEnd IIFEs). Zero substitutions invented. `eyebrow?: string` defaults to `"Next visit"`, so every other caller — including the Business/Coordinator mount — is untouched. The **"Then …" preview was NOT restored**, per the Owner's decision: no `thenVisit` prop, no `nextAfterNext`, no "Then" JSX, verified absent.
+
+Baseline after: **5 failed / 868 passed (873)** — +5 new specs, same five inherited failures.
+
+**Quirk 1 — the "Tomorrow's first visit" label is wrong for most of its range.** The label says tomorrow, but the guard is only `!heroIsToday`, so it fires for ANY non-today next appointment — three weeks out included. Restored as-is per instruction, and deliberately *pinned* by a test assertion using a ~3-weeks-out booking, so the quirk is visible in the test record rather than silently preserved. Also flagged in a code comment above the derivation.
+
+**Quirk 2 — "First visit back" is effectively dead code, and was equally dead before C-FIELDWORK. Independently confirmed by the orchestrator.** `lastVisitWasFriday` reads the last entry of `completedThisWeek`, which is bounded below by `weekStartDate`. `weekStartDate` (TherapistDashboard.tsx:151-157) computes `daysFromMonday = dow === 0 ? 6 : dow - 1` — so **on a Monday, `daysFromMonday` is 0 and `weekStartDate` IS that Monday**, while `completedThisWeek` filters `booking_date >= weekStartDate` (:166). The *previous* Friday therefore falls outside the window. The branch can only fire when a booking dated the **coming** Friday already carries status `completed` — a future-dated completed booking, which does not occur in normal operation. The spec that covers this branch has to use the same-week Friday (2026-05-29) to reach it at all, and says so in a comment.
+
+**Neither quirk was "fixed"** — both are pre-existing original behaviour and fixing them is a behaviour change outside this task's authorisation. **For the Owner:** if the intent was "first visit after the weekend", the fix is to look at the previous calendar week rather than `completedThisWeek`.
+
+Honest test-quality note recorded by the implementer rather than dressed up: the "default is Next visit when omitted" spec **cannot** fail against pre-change code (the literal was already `"Next visit"`) — it is a backward-compat guard, not a red-first test. The other three were verified genuinely failing at `75be734` before implementation (3 failed / 16 passed), all 19 green after.
+
 ---
 
-*Pre-flight 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f`+`93c3f08`; Phase C `b95e2ea`+`5ffcbba`; Phase D `75d42c4`. Next: Phase D follow-up (eyebrow restore), then Phase E (dark mode, ⛔ Zone-2 migration).*
+*Pre-flight 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f`+`93c3f08`; Phase C `b95e2ea`+`5ffcbba`; Phase D `75d42c4` + eyebrow `4d09e45`. Next: **Phase E — dark mode, opening with a ⛔ Zone-2 migration HARD-STOP.***
