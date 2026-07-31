@@ -21,14 +21,26 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle, ChevronLeft, Lock, Loader2, RefreshCcw, XCircle } from "lucide-react";
+import {
+  CheckCircle,
+  ChevronLeft,
+  Lock,
+  Loader2,
+  RefreshCcw,
+  Send,
+  XCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AdminStatusBadge } from "@/app/admin/components/admin-ui";
 import { cn } from "@/lib/utils";
 import type { TemplateMeta } from "@/app/admin/emails/components/templates-data";
 import {
+  resetTemplateToDefault,
   saveTemplateOverride,
+  sendTestEmail,
+  type ResetTemplateToDefaultResult,
   type SaveTemplateOverrideResult,
+  type SendTestEmailResult,
 } from "@/app/admin/email-templates/actions";
 import { TokenTextField } from "./TokenTextField";
 import { LivePreview } from "./LivePreview";
@@ -62,11 +74,31 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
   });
   const [initial, setInitial] = useState<Record<string, string>>(values);
 
+  // Which fields currently have a SAVED override row (brief §5.4 — Reset is
+  // disabled when this is empty). Seeded from initialValues (exactly the
+  // keys resolveTemplateOverrides returned for this template) and kept in
+  // sync after each successful save/reset below — never re-derived from the
+  // draft `values`, since an unsaved edit doesn't create an override row.
+  const [overriddenKeys, setOverriddenKeys] = useState<Set<string>>(
+    () => new Set(Object.keys(initialValues))
+  );
+  const hasOverrides = overriddenKeys.size > 0;
+
   const [state, formAction, isPending] = useActionState<
     SaveTemplateOverrideResult | null,
     FormData
   >(saveTemplateOverride, null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+
+  const [resetState, resetFormAction, isResetPending] = useActionState<
+    ResetTemplateToDefaultResult | null,
+    FormData
+  >(resetTemplateToDefault, null);
+
+  const [testState, testFormAction, isTestPending] = useActionState<
+    SendTestEmailResult | null,
+    FormData
+  >(sendTestEmail, null);
 
   const dirty = template.fields.some(
     (f) => (values[f.kind] ?? "") !== (initial[f.kind] ?? "")
@@ -88,6 +120,9 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
   }, [template.fields, values]);
 
   const canSubmit = canEdit && dirty && Object.keys(fieldErrors).length === 0 && !isPending;
+  const canReset = canEdit && hasOverrides && !isResetPending && !isPending && !isTestPending;
+  const canTestSend =
+    canEdit && Object.keys(fieldErrors).length === 0 && !isTestPending && !isPending && !isResetPending;
   const formId = `tpl-editor-${template.id}`;
 
   useEffect(() => {
@@ -99,6 +134,14 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setValues(merged);
         setInitial(merged);
+        setOverriddenKeys((prev) => {
+          const next = new Set(prev);
+          for (const [key, value] of Object.entries(state.cleanedValues!)) {
+            if (value === "") next.delete(key);
+            else next.add(key);
+          }
+          return next;
+        });
       } else {
         setInitial(values);
       }
@@ -117,6 +160,48 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  // C-15 Phase D, Step 13 — reset result. Success means every override row
+  // for this template is gone server-side, so the draft/saved baseline here
+  // collapses to "" (use-default) for every field, and the Reset button's
+  // own disabled gate (hasOverrides) goes false until something is saved
+  // again.
+  useEffect(() => {
+    if (!resetState) return;
+    if (resetState.ok) {
+      toast.success(`"${template.cardName}" reset to its default wording.`);
+      const cleared: Record<string, string> = {};
+      for (const f of template.fields) cleared[f.kind] = "";
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setValues(cleared);
+      setInitial(cleared);
+      setOverriddenKeys(new Set());
+      setLastSavedAt(new Date());
+    } else if (resetState.error) {
+      toast.error(resetState.error);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetState]);
+
+  // C-15 Phase D, Step 14 — test-send result. Purely informational: a test
+  // send never changes any saved/draft state, so this effect only toasts.
+  useEffect(() => {
+    if (!testState) return;
+    if (testState.ok) {
+      toast.success("Test email sent — check your inbox.");
+    } else if (testState.error) {
+      toast.error(testState.error, { duration: Infinity });
+    }
+  }, [testState]);
+
+  function handleResetClick(event: React.MouseEvent<HTMLButtonElement>) {
+    const confirmed = window.confirm(
+      `Reset '${template.cardName}' to its default wording? Your customisations to this template will be removed. Emails already sent are not affected.`
+    );
+    if (!confirmed) {
+      event.preventDefault();
+    }
+  }
 
   // Unsaved-changes guard (brief §5.1). Draft lives in component state only
   // — no localStorage/sessionStorage persistence (deliberate, matches the
@@ -168,6 +253,43 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
             {template.trigger}
           </p>
         </div>
+
+        {canEdit ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="submit"
+              form={formId}
+              formAction={resetFormAction}
+              onClick={handleResetClick}
+              disabled={!canReset}
+              aria-busy={isResetPending || undefined}
+              title={hasOverrides ? undefined : "This template is already using its defaults."}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-3.5 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isResetPending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RefreshCcw className="size-4" aria-hidden="true" />
+              )}
+              Reset to default
+            </button>
+            <button
+              type="submit"
+              form={formId}
+              formAction={testFormAction}
+              disabled={!canTestSend}
+              aria-busy={isTestPending || undefined}
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-3.5 text-sm font-medium text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isTestPending ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Send className="size-4" aria-hidden="true" />
+              )}
+              Send me a test
+            </button>
+          </div>
+        ) : null}
       </header>
 
       {!canEdit ? (

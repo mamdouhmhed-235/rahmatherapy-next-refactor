@@ -39,7 +39,8 @@ import {
   resolveTemplateOverrides,
   type BookingEmailTemplateInput,
 } from "@/lib/email/templates";
-import { findTemplate, type TemplateMeta } from "../emails/components/templates-data";
+import { SAMPLE_RENDERERS } from "@/lib/email/sample-data";
+import { findTemplate, type SafeField, type TemplateMeta } from "../emails/components/templates-data";
 
 export interface SaveTemplateOverrideResult {
   ok: boolean;
@@ -51,6 +52,16 @@ export interface SaveTemplateOverrideResult {
 }
 
 export interface SendTemplateManuallyResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface ResetTemplateToDefaultResult {
+  ok: boolean;
+  error?: string;
+}
+
+export interface SendTestEmailResult {
   ok: boolean;
   error?: string;
 }
@@ -70,31 +81,24 @@ function stripHtmlTags(value: string): string {
 // default subject now lives in the registry (`TemplateMeta.subjectDefault`),
 // read at the one call site below.
 
-export async function saveTemplateOverride(
-  _previousState: SaveTemplateOverrideResult | null,
+interface CleanedField {
+  field: SafeField;
+  value: string;
+}
+
+// C-15 Phase D — shared by saveTemplateOverride AND sendTestEmail (dispatch
+// item 5: "reuse saveTemplateOverride's validation rather than writing a
+// parallel copy that can drift"). Extracted verbatim from the loop that used
+// to live inline in saveTemplateOverride — same order, same guards, same
+// error strings — so a test send can never accept something save would
+// reject, or vice versa. Validates every submitted field BEFORE either
+// caller touches the DB or sends anything, so a single bad field never
+// leaves half-applied work behind.
+function validateTemplateFields(
+  template: TemplateMeta,
   formData: FormData
-): Promise<SaveTemplateOverrideResult> {
-  // Permission gate — throws on unauthenticated / inactive / forbidden.
-  const supabase = await createSupabaseServerClient();
-  let actor;
-  try {
-    actor = await requirePermission(PERMISSIONS.MANAGE_EMAIL_TEMPLATES, supabase);
-  } catch (error) {
-    if (error instanceof PermissionError) {
-      return { ok: false, error: "Insufficient permissions." };
-    }
-    throw error;
-  }
-
-  const templateId = String(formData.get("template_id") ?? "");
-  const template = findTemplate(templateId);
-  if (!template) {
-    return { ok: false, error: "Unknown template." };
-  }
-
-  // Validate every submitted field before touching the DB so a single bad
-  // field doesn't leave the table in a half-saved state.
-  const cleanedFields: { field: (typeof template.fields)[number]; value: string }[] = [];
+): { ok: true; cleanedFields: CleanedField[] } | { ok: false; error: string } {
+  const cleanedFields: CleanedField[] = [];
   for (const field of template.fields) {
     const raw = formData.get(`field:${field.kind}`);
     if (raw == null) continue;
@@ -131,6 +135,38 @@ export async function saveTemplateOverride(
     }
     cleanedFields.push({ field, value: cleaned });
   }
+  return { ok: true, cleanedFields };
+}
+
+export async function saveTemplateOverride(
+  _previousState: SaveTemplateOverrideResult | null,
+  formData: FormData
+): Promise<SaveTemplateOverrideResult> {
+  // Permission gate — throws on unauthenticated / inactive / forbidden.
+  const supabase = await createSupabaseServerClient();
+  let actor;
+  try {
+    actor = await requirePermission(PERMISSIONS.MANAGE_EMAIL_TEMPLATES, supabase);
+  } catch (error) {
+    if (error instanceof PermissionError) {
+      return { ok: false, error: "Insufficient permissions." };
+    }
+    throw error;
+  }
+
+  const templateId = String(formData.get("template_id") ?? "");
+  const template = findTemplate(templateId);
+  if (!template) {
+    return { ok: false, error: "Unknown template." };
+  }
+
+  // Validate every submitted field before touching the DB so a single bad
+  // field doesn't leave the table in a half-saved state.
+  const validation = validateTemplateFields(template, formData);
+  if (!validation.ok) {
+    return { ok: false, error: validation.error };
+  }
+  const { cleanedFields } = validation;
 
   if (cleanedFields.length === 0) {
     // Nothing to do — treat as success (idempotent no-op).
@@ -224,6 +260,274 @@ export async function saveTemplateOverride(
   // Refresh the emails page so a navigation back finds the updated values.
   revalidatePath("/admin/emails");
   return { ok: true, cleanedValues };
+}
+
+// ─── C-15 Phase D — reset to default (brief §2.5, plan Step 13) ───────────
+
+export async function resetTemplateToDefault(
+  _previousState: ResetTemplateToDefaultResult | null,
+  formData: FormData
+): Promise<ResetTemplateToDefaultResult> {
+  const supabase = await createSupabaseServerClient();
+  let actor;
+  try {
+    actor = await requirePermission(PERMISSIONS.MANAGE_EMAIL_TEMPLATES, supabase);
+  } catch (error) {
+    if (error instanceof PermissionError) {
+      return { ok: false, error: "Insufficient permissions." };
+    }
+    throw error;
+  }
+
+  const templateId = String(formData.get("template_id") ?? "");
+  const template = findTemplate(templateId);
+  if (!template) {
+    return { ok: false, error: "Unknown template." };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  // Capture every override row for this template BEFORE deleting anything —
+  // this is the audit's before_state, and (field_key + value, plus who/when)
+  // per row is enough for a human to reconstruct the customisation by hand
+  // if the reset ever needs undoing.
+  const { data: existingRows, error: fetchError } = await adminClient
+    .from("email_template_overrides")
+    .select("id, field_key, value, updated_by, updated_at")
+    .eq("template_id", templateId);
+
+  if (fetchError) {
+    return { ok: false, error: fetchError.message };
+  }
+
+  if (!existingRows || existingRows.length === 0) {
+    // Server-side mirror of the client's disabled button (brief §5.4) — a
+    // bypassed client or a stale page can't reset a template that's already
+    // at its defaults and produce a misleading "reset" audit row.
+    return { ok: false, error: "This template is already using its defaults." };
+  }
+
+  const { error: deleteError } = await adminClient
+    .from("email_template_overrides")
+    .delete()
+    .eq("template_id", templateId);
+
+  if (deleteError) {
+    return { ok: false, error: deleteError.message };
+  }
+
+  const auditResult = await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "email_template_reset",
+    target_type: "email_templates",
+    target_id: null,
+    before_state: {
+      template_id: templateId,
+      overrides: existingRows.map((row) => ({
+        field_key: row.field_key,
+        value: row.value,
+        updated_by: row.updated_by,
+        updated_at: row.updated_at,
+      })),
+    },
+    after_state: { template_id: templateId, deleted: true },
+  });
+  if (auditResult.error) {
+    console.error("email_template_reset audit write failed:", auditResult.error.message);
+  }
+
+  revalidatePath("/admin/emails");
+  revalidatePath(`/admin/emails/templates/${templateId}`);
+  return { ok: true };
+}
+
+// ─── C-15 Phase D — send me a test (brief §2.6, plan Step 14) ─────────────
+
+const TEST_SEND_RATE_LIMIT_SECONDS = 60;
+
+// Mirrors templates.ts's private resolveSubject() (not exported — kept
+// server-internal to that file). Duplicated here deliberately rather than
+// widening templates.ts's export surface for one caller: same "" -> default
+// fallback semantics (C-15 Phase B's `||`, not `??`) and the same
+// render-time control-character guard, so a test send's Subject: header can
+// never disagree with what the live preview's <title> would show for the
+// same draft.
+function resolveTestSubject(template: TemplateMeta, overrides: Record<string, string>): string {
+  const value = overrides.subject;
+  if (value && !hasControlChars(value)) return value;
+  return template.subjectDefault;
+}
+
+// Same envelope literal already used by sendTemplateManually's
+// renderForTemplate() for the booking_plain_text case below — Resend's
+// `sendEmail` always wants both an html and a text body, and the one
+// plain_text-rendering template needs an html leg synthesized from its text.
+function plainTextEnvelope(text: string): string {
+  return `<!doctype html><html><body style="font-family:'IBM Plex Mono',Menlo,monospace;white-space:pre-wrap;">${text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")}</body></html>`;
+}
+
+/**
+ * 60s-per-template rate limit, checked against the latest
+ * `email_template_test_sent` audit row for this template (in-action
+ * timestamp check, not a DB-side window filter) — audit rows for this action
+ * are written on success only (see sendTestEmail below), so a failed send
+ * never consumes the window.
+ */
+async function checkTestSendRateLimit(
+  adminClient: ReturnType<typeof createSupabaseAdminClient>,
+  templateId: string
+): Promise<{ limited: true; error: string } | { limited: false }> {
+  const { data: latest } = await adminClient
+    .from("audit_logs")
+    .select("created_at")
+    .eq("action_type", "email_template_test_sent")
+    .eq("after_state->>template_id", templateId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!latest) return { limited: false };
+
+  const elapsedMs = Date.now() - new Date((latest as { created_at: string }).created_at).getTime();
+  if (elapsedMs < TEST_SEND_RATE_LIMIT_SECONDS * 1000) {
+    return {
+      limited: true,
+      error: `A test email for this template was sent recently. Wait ${TEST_SEND_RATE_LIMIT_SECONDS} seconds and try again.`,
+    };
+  }
+  return { limited: false };
+}
+
+export async function sendTestEmail(
+  _previousState: SendTestEmailResult | null,
+  formData: FormData
+): Promise<SendTestEmailResult> {
+  const supabase = await createSupabaseServerClient();
+  let actor;
+  try {
+    actor = await requirePermission(PERMISSIONS.MANAGE_EMAIL_TEMPLATES, supabase);
+  } catch (error) {
+    if (error instanceof PermissionError) {
+      return { ok: false, error: "Insufficient permissions." };
+    }
+    throw error;
+  }
+
+  const templateId = String(formData.get("template_id") ?? "");
+  const template = findTemplate(templateId);
+  if (!template) {
+    return { ok: false, error: "Unknown template." };
+  }
+
+  // Same validation rules as save (brief §5.5) — reused, not re-implemented,
+  // so a test send can never accept something save would reject.
+  const validation = validateTemplateFields(template, formData);
+  if (!validation.ok) {
+    return { ok: false, error: validation.error };
+  }
+  const draftValues: Record<string, string> = {};
+  for (const { field, value } of validation.cleanedFields) {
+    draftValues[field.kind] = value;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const rateLimit = await checkTestSendRateLimit(adminClient, templateId);
+  if (rateLimit.limited) {
+    return { ok: false, error: rateLimit.error };
+  }
+
+  // Recipient is derived server-side from the AUTHENTICATED actor's own
+  // profile only — the `requirePermission` result above, never a form
+  // value (brief §3 RBAC matrix: "to own address only"; brief §4's
+  // highest-severity risk row). notification_email is C-08 Phase D's
+  // personal-alert address; falls back to the login email when unset (or
+  // pre-C-08-Phase-D).
+  const recipient = actor.notification_email ?? actor.email;
+  if (!recipient) {
+    return { ok: false, error: "Your account has no email address on file." };
+  }
+
+  // Same Phase B merge path the live preview uses (draft over saved,
+  // rendered through the exact same dispatch table as a real send) — so a
+  // test send can never drift from what the preview already showed.
+  let savedOverrides: Record<string, string>;
+  try {
+    savedOverrides = await resolveTemplateOverrides(templateId);
+  } catch (error) {
+    console.error("resolveTemplateOverrides threw inside sendTestEmail:", error);
+    savedOverrides = {};
+  }
+  const merged = { ...savedOverrides, ...draftValues };
+
+  const renderer = SAMPLE_RENDERERS[templateId];
+  if (!renderer) {
+    return { ok: false, error: "No preview renderer registered for this template." };
+  }
+
+  let html: string;
+  let text: string;
+  try {
+    const rendered = await renderer(merged);
+    if (rendered.rendersAs === "plain_text") {
+      text = rendered.content;
+      html = plainTextEnvelope(text);
+    } else {
+      html = rendered.content;
+      text = plainTextFallback(html);
+    }
+  } catch (error) {
+    console.error("SAMPLE_RENDERERS render threw inside sendTestEmail:", error);
+    return { ok: false, error: "Couldn't render the template." };
+  }
+
+  const subject = `[Test] ${resolveTestSubject(template, merged)}`;
+
+  // Resend send. `sendEmail` DIRECTLY — never `sendTrackedEmail` — a test
+  // send must not write an `email_delivery_events` row (brief §2.6: "test
+  // sends don't pollute the delivery log"; C-08's Resend tooling and the
+  // delivery-log event-type histogram would otherwise treat a test send as
+  // a real one). Failure → return error, no audit row written (audit is
+  // success-only, see below).
+  let messageId: string | null = null;
+  try {
+    getFromEmail();
+    const result = await sendEmail({ to: recipient, subject, html, text });
+    messageId = result?.id ?? null;
+  } catch (error) {
+    if (error instanceof EmailConfigurationError) {
+      return { ok: false, error: `Email configuration: ${error.message}` };
+    }
+    if (error instanceof EmailDeliveryError) {
+      return { ok: false, error: `Email delivery failed: ${error.message}` };
+    }
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Email send failed.",
+    };
+  }
+
+  // Audit on success ONLY — this is also what the rate limit above reads,
+  // so a failed send never consumes the 60s window.
+  const auditResult = await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "email_template_test_sent",
+    target_type: "email_templates",
+    target_id: null,
+    after_state: {
+      template_id: templateId,
+      recipient_email: recipient,
+      resend_message_id: messageId,
+    },
+  });
+  if (auditResult.error) {
+    console.error("email_template_test_sent audit write failed:", auditResult.error.message);
+  }
+
+  return { ok: true };
 }
 
 export async function sendTemplateManually(

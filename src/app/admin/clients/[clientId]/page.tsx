@@ -156,6 +156,8 @@ const AUDIT_PHRASING: Record<string, string> = {
   review_email_sent: "Review request email sent",
   email_resent: "Email resent",
   notification_settings_updated: "Notification settings updated",
+  email_template_reset: "Email template reset to default",
+  email_template_test_sent: "Test email sent",
 };
 
 function auditActionPhrase(actionType: string): string {

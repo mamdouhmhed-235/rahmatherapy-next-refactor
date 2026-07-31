@@ -12,7 +12,7 @@
 // actions.ts's job, not testable from this client component in isolation —
 // see the C-15 progress file / dispatch report for how that's verified.
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TemplateEditor } from "../components/TemplateEditor";
@@ -32,8 +32,12 @@ vi.mock("../components/LivePreview", () => ({
 }));
 
 const saveTemplateOverrideMock = vi.fn();
+const resetTemplateToDefaultMock = vi.fn();
+const sendTestEmailMock = vi.fn();
 vi.mock("@/app/admin/email-templates/actions", () => ({
   saveTemplateOverride: (...args: unknown[]) => saveTemplateOverrideMock(...args),
+  resetTemplateToDefault: (...args: unknown[]) => resetTemplateToDefaultMock(...args),
+  sendTestEmail: (...args: unknown[]) => sendTestEmailMock(...args),
 }));
 
 const TEMPLATE: TemplateMeta = {
@@ -74,6 +78,8 @@ const TEMPLATE: TemplateMeta = {
 beforeEach(() => {
   vi.clearAllMocks();
   saveTemplateOverrideMock.mockResolvedValue({ ok: true, cleanedValues: {} });
+  resetTemplateToDefaultMock.mockResolvedValue({ ok: true });
+  sendTestEmailMock.mockResolvedValue({ ok: true });
 });
 
 afterEach(() => {
@@ -156,6 +162,95 @@ describe("TemplateEditor — per-field default reveal wiring", () => {
   });
 });
 
+describe("TemplateEditor — reset to default (C-15 Phase D, Step 13)", () => {
+  it("is disabled when the template has zero saved overrides", () => {
+    render(<TemplateEditor template={TEMPLATE} canEdit initialValues={{}} />);
+    const resetButton = screen.getByRole("button", { name: /Reset to default/i }) as HTMLButtonElement;
+    expect(resetButton.disabled).toBe(true);
+  });
+
+  it("is enabled when the template has a saved override, and asks for confirmation with the exact brief §2.5 copy before calling the action", async () => {
+    const user = userEvent.setup();
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(
+      <TemplateEditor
+        template={TEMPLATE}
+        canEdit
+        initialValues={{ greeting_intro: "Salaam {clientName}, saved override." }}
+      />
+    );
+
+    const resetButton = screen.getByRole("button", { name: /Reset to default/i }) as HTMLButtonElement;
+    expect(resetButton.disabled).toBe(false);
+
+    await user.click(resetButton);
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      `Reset '${TEMPLATE.cardName}' to its default wording? Your customisations to this template will be removed. Emails already sent are not affected.`
+    );
+    // Cancelled — the destructive action must not have run.
+    expect(resetTemplateToDefaultMock).not.toHaveBeenCalled();
+  });
+
+  it("calls resetTemplateToDefault and clears every field back to its default once confirmed", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(
+      <TemplateEditor
+        template={TEMPLATE}
+        canEdit
+        initialValues={{ greeting_intro: "Salaam {clientName}, saved override." }}
+      />
+    );
+
+    const field = screen.getByLabelText("Greeting intro sentence") as HTMLTextAreaElement;
+    expect(field.value).toBe("Salaam {clientName}, saved override.");
+
+    await user.click(screen.getByRole("button", { name: /Reset to default/i }));
+
+    expect(resetTemplateToDefaultMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(field.value).toBe(""));
+    // The reset button is disabled again — no overrides left to reset.
+    expect(
+      (screen.getByRole("button", { name: /Reset to default/i }) as HTMLButtonElement).disabled
+    ).toBe(true);
+  });
+});
+
+describe("TemplateEditor — send me a test (C-15 Phase D, Step 14)", () => {
+  it("calls sendTestEmail when clicked", async () => {
+    const user = userEvent.setup();
+    render(<TemplateEditor template={TEMPLATE} canEdit initialValues={{}} />);
+
+    const testButton = screen.getByRole("button", { name: /Send me a test/i }) as HTMLButtonElement;
+    expect(testButton.disabled).toBe(false);
+
+    await user.click(testButton);
+    expect(sendTestEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("is disabled while a field is over its length limit, same gate as Save (fieldErrors)", () => {
+    // TokenTextField clamps every onChange to maxLength (Phase C — even a
+    // simulated paste never lands an over-limit value through user input),
+    // so the only way this component's own fieldErrors can be non-empty is
+    // a value that was already over-limit before the user touched anything
+    // — seeded here via initialValues, exactly like Save's own disabled
+    // gate is proven in this same file's dirty-state tests.
+    render(
+      <TemplateEditor
+        template={TEMPLATE}
+        canEdit
+        initialValues={{ subject: "x".repeat(150) }}
+      />
+    );
+
+    const testButton = screen.getByRole("button", { name: /Send me a test/i }) as HTMLButtonElement;
+    const saveButton = screen.getByRole("button", { name: "Save changes" }) as HTMLButtonElement;
+    expect(testButton.disabled).toBe(true);
+    expect(saveButton.disabled).toBe(true);
+  });
+});
+
 describe("TemplateEditor — read-only rendering", () => {
   it("renders no save control and no editable inputs when canEdit is false", () => {
     render(
@@ -167,6 +262,8 @@ describe("TemplateEditor — read-only rendering", () => {
     );
 
     expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Reset to default/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Send me a test/i })).toBeNull();
     expect(
       screen.getByText("You can view but not edit this template. Contact the owner to make changes.")
     ).toBeTruthy();
