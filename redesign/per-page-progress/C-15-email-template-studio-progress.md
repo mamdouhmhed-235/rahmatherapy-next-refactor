@@ -5,7 +5,9 @@
 **Programme:** Band C, C-C implementation — plan **#10 of 22** (§4 order).
 **Model routing:** `sonnet` — §5 routes C-15 to Sonnet. Opus only via the §5 twice-failed-phase escalation.
 
-> ## 🟡 STATUS: Phase A shipped (commit below). Phases B–F not started.
+> ## 🟡 STATUS: Phase A shipped + independently verified PASS (`0d0a26d`). Phases B–F not started.
+>
+> **⚠️ Phase B MUST open by fixing the empty-string fallback drift the Phase A verifier found — see §1.9 below. It is latent today but becomes reachable the moment the draft-merge path exists.**
 >
 > §0 below is the original read-ahead pre-flight, preserved as captured (HEAD `5e8fa2f`, pre-C-08-Phase-D). See §1 for what actually happened at Phase A implementation time (re-verified pre-flight, the render-parity fixture capture, the registry expansion, and the classification table).
 
@@ -194,4 +196,23 @@ No deviations beyond these eight items (six assigned + two logged judgment calls
 
 ---
 
-*Phase A shipped. Next: Phase B (sample-data module + POST draft-preview handler) — not started, not scoped into this dispatch.*
+## 1.9 — Phase A verify: PASS, with one finding Phase B must close first
+
+Independent verifier (`sonnet`, read-only) — **PASS**. It reconstructed `git show 9215cf1:src/lib/email/templates.ts` and compared **every** lifted `defaultValue` against its pre-change literal by hand, plus all 16 `subjectDefault`s against the deleted `SUBJECTS` map. Copy-lift confirmed byte-neutral. The `enquiry_logged` subject divergence was confirmed **correct**: the map's `"New enquiry: {clientName}"` was dead code (`renderForTemplate` had no case for it, so it always threw), while the renderer's real `<title>` has always been `"New enquiry logged"`. Real inbox subjects are untouched — every `Subject:` header still lives as a hardcoded literal in `notifications.ts`, which this diff does not modify at all.
+
+**FINDING (non-blocking at Phase A, but it must not survive Phase B) — empty-string override no longer falls back to the default.**
+
+Five sync-renderer override reads were rewritten from `overrides.x ? f(overrides.x) : hardcoded` to `f(overrides.x ?? fieldDefault(...))`:
+`templates.ts:257` (`booking_confirmation.greeting_intro`) · `:321` (`booking_cancellation_client.greeting_intro`) · `:417` (`staff_assignment.intro`) · `:439` (`staff_booking_change.wrapper_change_summary`) · `:458` (`booking_reminder.intro`).
+
+`??` only falls back on `null`/`undefined`, so an override of `""` now **wins** and renders a blank paragraph where the sentence should be. The old ternary treated `""` as falsy and fell back. The DB `CHECK` permits `''` (it caps length; it does not forbid empty).
+
+**Why it is latent today:** `email_template_overrides` has 0 rows, and the only write path — `saveTemplateOverride` — *deletes* the row on an empty value rather than storing `""`. So "empty means default" is the established semantic everywhere else in this system.
+
+**Why Phase B makes it live:** Step 7's POST draft-preview merges `draftValues` that have never been through `saveTemplateOverride`. The instant a user clears a field in the editor, the draft carries `""` — and the preview would render blank while a real send renders the default. That is precisely the "draft preview drifts from real sends" failure the plan's own risk table calls high-severity, arriving through a side door.
+
+**Directed fix, first task of Phase B:** restore the empty-means-default semantic at all five sites and cover it with a spec that asserts `""` falls back — for both the direct render path and the draft-merge path.
+
+---
+
+*Phase A shipped and verified. Next: Phase B (empty-string fix + sample-data module + POST draft-preview handler).*
