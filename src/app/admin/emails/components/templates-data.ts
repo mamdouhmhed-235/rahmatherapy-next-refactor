@@ -275,6 +275,17 @@ const BOOKING_CONFIRMED_BODY_SIGNOFF: SafeField = {
   multiline: true,
 };
 
+// C-08 — staff_unassignment field. No CTA (no action link in this template).
+const STAFF_UNASSIGNMENT_BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder:
+    "Hi {therapistName}, you've been unassigned from the {bookingDate} {startTime} booking ({clientName}). Reach out to admin if you have questions.",
+  helper: "Variables in curly braces are filled automatically.",
+  maxLength: 500,
+  multiline: true,
+};
+
 export const TEMPLATES: TemplateMeta[] = [
   {
     id: "booking_confirmation",
@@ -391,6 +402,14 @@ export const TEMPLATES: TemplateMeta[] = [
       BOOKING_CONFIRMED_BODY_SIGNOFF,
       FOOTER_CONTACT,
     ],
+  },
+  {
+    id: "staff_unassignment",
+    audience: "staff",
+    cardName: "Assignment removed",
+    trigger: "Sent to the previously assigned therapist when they are unassigned or reassigned away from a booking. Fires from updateBookingAssignment.",
+    rendersAs: "html",
+    fields: [STAFF_UNASSIGNMENT_BODY_INTRO, FOOTER_CONTACT],
   },
 ];
 

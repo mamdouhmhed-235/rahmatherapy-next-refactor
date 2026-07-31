@@ -11,6 +11,7 @@ import {
   sendBookingConfirmedClientEmail,
   sendBookingRestoredClientEmail,
   sendStaffAssignmentEmail,
+  sendStaffUnassignmentEmail,
 } from "@/lib/email/notifications";
 import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
 import { canAssignBookings, getStaffProfile } from "@/lib/auth/rbac";
@@ -1176,6 +1177,20 @@ export async function updateBookingAssignment(formData: FormData) {
         console.error("Unable to send staff assignment email.", error);
       });
     }
+  }
+
+  // C-08: staff_unassignment when the previously assigned therapist was
+  // removed or reassigned away (unassign, or assign to someone different).
+  // `beforeState` is the pre-UPDATE assignment row captured above.
+  const previousStaffId = beforeState.assigned_staff_id;
+  if (previousStaffId && previousStaffId !== updatedAssignment.assigned_staff_id) {
+    await sendStaffUnassignmentEmail(
+      updatedAssignment.booking_id,
+      previousStaffId,
+      adminClient
+    ).catch((error) => {
+      console.error("Unable to send staff_unassignment email.", error);
+    });
   }
 
   updateTag("report-data");

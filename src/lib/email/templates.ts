@@ -767,6 +767,63 @@ ${input.manageUrl ? `${fields.body_cta_label}: ${input.manageUrl}\n\n` : ""}${si
 ${footerLine}`;
 }
 
+// ─── Staff unassignment email (C-08) ─────────────────────────────────────
+// Sent to the therapist previously assigned to a booking when that
+// assignment is removed — either unassigned outright, or reassigned to a
+// different therapist (updateBookingAssignment). Same shared-defaults shape
+// as the template above.
+
+const STAFF_UNASSIGNMENT_DEFAULT_FIELDS = {
+  body_intro:
+    "Hi {therapistName}, you've been unassigned from the {bookingDate} {startTime} booking ({clientName}). Reach out to admin if you have questions.",
+} as const;
+
+function resolveStaffUnassignmentFields(overrides: Record<string, string>) {
+  return {
+    body_intro: overrides.body_intro ?? STAFF_UNASSIGNMENT_DEFAULT_FIELDS.body_intro,
+  };
+}
+
+export async function renderStaffUnassignmentEmail(
+  input: BookingEmailTemplateInput & { therapistName: string }
+): Promise<string> {
+  const overrides = await resolveTemplateOverrides("staff_unassignment");
+  const fields = resolveStaffUnassignmentFields(overrides);
+  const vars = buildVarMap(input, { therapistName: input.therapistName });
+
+  const introHtml = escapeHtml(substituteVars(fields.body_intro, vars));
+
+  return renderLayout(
+    "Booking assignment removed",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking assignment removed</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
+    ${renderSummary(input)}
+    ${renderFooter(input, overrides)}`
+  );
+}
+
+// Plain-text equivalent of renderStaffUnassignmentEmail. Resolves the same
+// field via resolveStaffUnassignmentFields, so an admin override applies
+// identically to both legs (see the C-01 lesson above).
+export function renderStaffUnassignmentPlainText(
+  input: BookingEmailTemplateInput & { therapistName: string },
+  overrides: Record<string, string> = {}
+): string {
+  const fields = resolveStaffUnassignmentFields(overrides);
+  const vars = buildVarMap(input, { therapistName: input.therapistName });
+
+  const intro = substituteVars(fields.body_intro, vars);
+  const footerLine = overrides.footer_contact
+    ? substituteVars(overrides.footer_contact, vars)
+    : `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
+
+  return `Booking assignment removed
+
+${intro}
+
+${footerLine}`;
+}
+
 // ─── Password-reset email templates ──────────────────────────────────────────
 // FAKE: structure only. Real Resend send wiring lands with
 // BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).

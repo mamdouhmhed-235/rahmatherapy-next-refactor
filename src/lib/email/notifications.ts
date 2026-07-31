@@ -21,6 +21,8 @@ import {
   renderReviewRequestPlainText,
   renderStaffAssignmentEmail,
   renderStaffBookingChangeEmail,
+  renderStaffUnassignmentEmail,
+  renderStaffUnassignmentPlainText,
   pickReviewMessages,
   resolveTemplateOverrides,
   type BookingEmailTemplateInput,
@@ -684,6 +686,51 @@ export async function sendBookingConfirmedClientEmail(
     subject: "Your booking is confirmed", // SUBJECTS map authoritative
     html,
     text: renderBookingConfirmedClientPlainText(input, overrides),
+  });
+}
+
+/**
+ * C-08 — sent to the therapist previously assigned to a booking when that
+ * assignment is removed (unassigned, or reassigned to someone else) via
+ * updateBookingAssignment. A staff row with no email is a valid state (not
+ * every practitioner has one on file) — skip and log rather than throw, so a
+ * missing staff email can never break the reassignment it's reporting on.
+ */
+export async function sendStaffUnassignmentEmail(
+  bookingId: string,
+  previousStaffId: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const { input } = await getBookingTemplateInput(bookingId, supabase, {
+    requireCustomerEmail: false,
+  });
+
+  const { data: staff } = await supabase
+    .from("staff_profiles")
+    .select("email, name")
+    .eq("id", previousStaffId)
+    .maybeSingle<{ email: string | null; name: string }>();
+
+  if (!staff?.email) {
+    console.warn(
+      `sendStaffUnassignmentEmail: staff ${previousStaffId} has no email; skipping notification.`
+    );
+    return;
+  }
+
+  const unassignInput = { ...input, therapistName: staff.name };
+  const html = await renderStaffUnassignmentEmail(unassignInput);
+  const overrides = await resolveTemplateOverrides("staff_unassignment");
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "staff_unassignment",
+    recipientRole: "staff",
+    staffId: previousStaffId,
+    to: staff.email,
+    subject: "Booking assignment removed", // SUBJECTS map authoritative
+    html,
+    text: renderStaffUnassignmentPlainText(unassignInput, overrides),
   });
 }
 
