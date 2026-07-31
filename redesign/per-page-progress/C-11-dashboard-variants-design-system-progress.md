@@ -64,7 +64,7 @@ The pre-flight briefing told the agent to expect a real hit for `prefers-color-s
 | A | `4e18fa9` | Shared building-blocks library — 10 blocks + `index.ts` barrel + 10 co-located specs (31 tests) under `src/app/admin/dashboard/blocks/`. 21 files created, **0 edited** — blocks are dormant, `page.tsx`/`TherapistDashboard.tsx` provably untouched. | **PASS first time**, zero blocking findings. Model: `sonnet` (logged §5 downgrade, see §1.1). |
 | B | `bdbe64f` (3a) + `93c3f08` (3b) | **3a** verbatim extraction of the Business+Coordinator branch into `BusinessDashboard.tsx` — `page.tsx` **1101 → 401 lines**. **3b** composes from `blocks/` + V-01 reconciliation. | **PASS / PASS**, both sub-steps first time, no fix round. Model: `opus` (routed model kept, see §1.1). |
 | C | `b95e2ea` (6a) + `5ffcbba` (6b) | **6a** verbatim split of the Coordinator variant out of `BusinessDashboard.tsx` into `CoordinatorDashboard.tsx` + new `dashboard-variant-shared.tsx`; `page.tsx` becomes the variant router. **6b** composes from `blocks/` + B-01 fix. Final sizes: `page.tsx` 410, `BusinessDashboard` 376, `CoordinatorDashboard` 514, shared 437. | **PASS / PASS**, both first time, no fix round. Model: `opus`. **B-01's root cause was NOT what the plan said — see §1.4.** |
-| D | — | `TherapistDashboard.tsx` refactor onto shared blocks | not started |
+| D | `75d42c4` | `TherapistDashboard.tsx` re-pointed at the `blocks/` barrel (`DashboardHeader`, `QuickHelpPanel`); C-FIELDWORK's backward-compat helper re-export retired and its one external consumer re-pointed at `shared-helpers.ts`. Diff is **6 insertions / 5 deletions, entirely in the import block + trailing re-export** — not one line of JSX or derivation touched. | **PASS first time**, no fix round. Model: `opus`. See §1.6. |
 | E | — | Dark-mode infrastructure (⛔ Zone-2 migration at Step 10) | not started |
 | F | — | Motion-reduce sweep (VERIFY-ALREADY-IMPLEMENTED wrapper; optional per D8) | not started |
 | G | — | End-to-end verification | not started |
@@ -133,6 +133,30 @@ Deviations, all declared and mechanically re-checked: file-header comments updat
 
 **Deliberately NOT done, flagged forward:** `CoordinatorDashboard` still carries `showPaymentsReadiness = plan.variant !== "coordinator"` (statically false there) and `showOperationsHealth = plan.variant !== "therapist"` (statically true there). Both are still *used*, so protocol rule 3 does not orphan them, and collapsing them would have exceeded the pure-split brief. Safe, but they read oddly in a variant-specific file — worth collapsing in a later tidy if one occurs.
 
+### 1.6 — Phase D: the plan's text was stale, and the real surface was smaller still
+
+Plan Step 8 lists four components to extract from `TherapistDashboard.tsx`. Re-grepping by symbol found it imported only **two** of them directly (`DashboardHeader`, `QuickHelpPanel`). It does **not** import `components/EmptyState` at all — C-FIELDWORK removed the local `HeroEmptyState` when `PractitionerTodaySection` took over — and it does **not** render `MobileStickyActionBar`; `page.tsx:296` owns that for the Therapist branch, outside `PullToRefresh`. So the honest remaining work was two import re-points plus the re-export retirement.
+
+**Plan Step 8's "~250-400 lines after" target was deliberately NOT met** (file is 973 lines, +1). Everything still inline is Therapist-specific with no `blocks/` analogue — `ProfileCompletionNudge`, `PersonalContributionStripe`, `HighlightOrTipStrip`, `DateRangeChips`, `ClaimableStrip`, `RecentClientsStrip`, `MyWeekDisclosure`. Hoisting single-consumer Therapist UI into a *shared* library to hit a line-count estimate would have been actively wrong, and the verifier was specifically instructed to treat that as a finding if it happened.
+
+**Helper re-export retired safely.** `export { getGreeting, getFirstName, formatHours, FORMATTERS }` removed after grep found exactly one external importer — `components/PerformanceHeader.tsx:10` — re-pointed at `shared-helpers.ts`, the canonical definition site the re-export was forwarding to anyway (identical function objects, zero behaviour change). Side benefit: `PerformanceHeader` no longer drags the whole `TherapistDashboard` module graph into its own. All four symbols remain used inside `TherapistDashboard`, so no orphan imports were created.
+
+**⚠️ Files-touched widening, declared (protocol rule 6):** `src/app/admin/components/PerformanceHeader.tsx` is **not** on plan §2's EDITED list. Retiring the re-export is impossible without re-pointing it, and the orchestrator's dispatch explicitly directed that re-point. One-line import-path change, zero behaviour change — recorded here rather than passing silently.
+
+**Also comment-only:** `blocks/index.ts` and `blocks/QuickHelpPanel.tsx` headers carried directives this phase falsified ("do not import this barrel from … TherapistDashboard.tsx yet"; "its sole consumer … keeps importing the original path"). Corrected per rule 3 — statements the change itself invalidated. Noted-not-fixed: `blocks/DashboardHeader.tsx`'s header comment is also stale (`page.tsx` stopped importing it in Phase B/C), but that staleness is pre-existing, so it was left alone.
+
+**⚠️ Outstanding, Owner-performed:** plan Step 9's Playwright sweep at 375/768/1280/1440 as the Therapist **was not run and is not recorded as done** — admin sign-in is prohibited for agents (protocol §3b). Substitute evidence supplied: a component-by-component render trace re-read at HEAD confirming all 13 render sites keep identical guarding conditions, plus the fact that the diff contains no JSX at all. Queued for Phase G / the Owner backlog.
+
+### 1.7 — ✅ OWNER DECISION 2026-07-30: restore the hero eyebrow, NOT the "Then …" preview
+
+C-FIELDWORK's progress §3 flagged two dropped elements for C-11, while C-11 plan §2's UNCHANGED list says `PractitionerTodaySection.tsx` must not be modified. Those directly conflict; the Owner resolved it in chat.
+
+**Decision: restore the dynamic eyebrow only.** Add an optional `eyebrow?` prop to `PractitionerTodaySection` and re-derive the label in `TherapistDashboard`. The **"Then [next visit after this one]" preview stays dropped** — not restored, and no `thenVisit?` prop is to be added. Business/Coordinator omit the prop and fall back to the static "Next visit", so they are unaffected.
+
+**This authorises modifying `PractitionerTodaySection.tsx`, overriding plan §2's UNCHANGED entry for this one additive prop.** Record in the closeout — plan §2's text still reads as do-not-modify.
+
+The original derivation is recoverable verbatim from `git show 29ab66e:src/app/admin/dashboard/TherapistDashboard.tsx:257-270` — `heroIsToday` / `isMondayMorning` (UTC day 1) / `lastVisitWasFriday` (last `completedThisWeek` entry, UTC day 5) → `"First visit back"` on a Monday following a Friday visit, `"Tomorrow's first visit"` when the next appointment is not today, else `"Next visit"`. Its render site was a badge `<p>` at `:594` using `--status-confirmed-bg`/`--status-confirmed-text`.
+
 ---
 
-*Pre-flight 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f`+`93c3f08`; Phase C `b95e2ea`+`5ffcbba`. Next: Phase D (TherapistDashboard refactor) — paused pending Owner decisions on §1.4 and §1.2(a).*
+*Pre-flight 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f`+`93c3f08`; Phase C `b95e2ea`+`5ffcbba`; Phase D `75d42c4`. Next: Phase D follow-up (eyebrow restore), then Phase E (dark mode, ⛔ Zone-2 migration).*
