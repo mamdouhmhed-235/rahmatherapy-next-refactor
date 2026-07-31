@@ -84,8 +84,8 @@ WHERE id = '2a15d56f-6da6-4beb-8cdf-e0e48dac8be7';
 | A | `80a8bc2` · `547c018` · `9f200ba` · `e522bdd` | 4 new templates, one commit each: `booking_confirmed_client`, `staff_unassignment`, `claim`, `client_assigned_therapist`. Registry now holds **14** templates. | **PASS / PASS** — both batches first time, no fix round, no §5 escalation. See §2.1. |
 | B (extended) | `e018d67` · `40a0202` | `staff_assignment` audit (done read-only, §1) **+ Owner-approved override wiring across the 8 legacy senders** + `body_cta_url` scheme guard + dead subject-helper-text fix. 8 new spec files, 37 new tests. | **PASS first time**, no fix round, no escalation. See §2.3. |
 | — | `e91c09c` | **⛔ Zone-2 migration `c08_tighten_email_delivery_events_rls`** — security remediation from the Phase-B-gate review (§2.5) | applied + verified |
-| C | — | Resend tooling — **must preserve the existing H11 scoped-resend behaviour for Coord/Therapist** (§0.1) **and MUST add the `booking_assignments` scope check the plan's sketch omits** (§2.5) | **NOT STARTED — resume here** |
-| D | — | Business-notification bundle — ⛔ Zone-2 migration at Step 13 | not started |
+| C | `dc742d0` | Steps 8–12: `resendEmail` action + `dispatchResend` + `ResendButton` + delivery-row wiring + 25 specs + `AUDIT_PHRASING`. H11 scoped-resend preserved; `booking_assignments` scope check added; metadata write deferred. | **PASS first time**, no fix round, no escalation. See §2.6. |
+| D | — | Business-notification bundle — ⛔ Zone-2 migration at Step 13 | **NOT STARTED — resume here** |
 
 ---
 
@@ -176,27 +176,65 @@ Owner approved in chat with the SQL verbatim. Post-apply verification: policy no
 
 ---
 
-## 3 — ▶ RESUME HERE (interrupt checkpoint, protocol §3)
+## 2.6 — Phase C: per-row Resend tooling (`dc742d0`)
 
-**Plan:** C-08, plan **#9 of 22**. **Phase A ✅ · Phase B ✅ · Phase C NOT STARTED · Phase D NOT STARTED.**
-**Last-good commit:** `e91c09c` (`chore(supabase): C-08 migration applied c08_tighten_email_delivery_events_rls`). Working tree clean except the standing deliberate `src/lib/maintenance.ts`.
+Implemented on `sonnet` (§5 routing), verified independently on `sonnet` — **PASS first time**, no fix round, no §5 escalation. Baseline after: **5 failed / 948 passed (953)**, same five inherited names. tsc 0 · lint 59E/7W same six files · build clean.
 
-**Inherited baseline — independently re-measured at `e91c09c`, use THIS not the plan's text:**
-- `npx tsc --noEmit` → **0 errors**
-- `pnpm lint` → **59 errors / 7 warnings** (55 in untracked `design_handoff_area_pages/prototype/*.jsx`, 4 in `src/features/booking/`)
-- `pnpm vitest run` → **5 failed / 923 passed (928)**, failures EXACTLY: `src/lib/auth/admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `src/app/admin/bookings/new/ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent")
-- `pnpm build` → clean
+**Five orchestrator-directed deviations from the plan's own text**, all authorised before dispatch and all confirmed present by the verifier:
 
-**Exact next action:** C-08 **Phase C, Step 8** — build the `resendEmail` server action in `src/app/admin/emails/actions.ts`, then Steps 9–12 (`ResendButton.tsx`, page wiring, spec, `AUDIT_PHRASING`). Model **`sonnet`** (§5 routes C-08 to Sonnet; pre-emptive upgrades are banned — Opus only via the §5 twice-failed escalation).
+1. **The `booking_assignments` scope check the plan omits.** Plan Step 8's sketch gates on `requirePermission(RESEND_BOOKING_EMAILS)` alone — a flat permission bit with no concept of *which* booking, while `resend_booking_emails` is held by Therapist, who has only `view_bookings_assigned`. The implementation mirrors `sendManualBookingReminder`'s existing idiom in the same file (`getStaffProfile` + `canResendBookingEmails` + `canViewAllBookings || canManageAllBookings`, else require a matching `booking_assignments` row, else refuse + `recordOperationalEvent`) rather than the sketch's `requirePermission`/`PermissionError` shape — file style over plan sketch. **This is load-bearing now that `e91c09c` tightened the RLS policy: application-level scoping is the only remaining gate.** Verifier traced the hole end to end and confirmed it is closed.
+2. **Null `booking_id` → deny by default.** A scoped actor can never prove ownership of a non-booking-linked event, so the assignment query is skipped and the actor is refused outright rather than falling through.
+3. **Coordinator/Therapist Resend visibility PRESERVED** (§0.1). Plan §3.3's "hidden for Coord/Therapist" expectation is wrong; `page.tsx:124`'s `canResend` gate is untouched by the diff — only prop-threading was added.
+4. **`metadata` linkage write DEFERRED, not stubbed.** The column ships in Phase D Step 13's unapplied Zone-2 migration. The plan itself sanctions this ("or defer Resend-linkage writes until Step 13 lands"). No placeholder, no TODO, no column probe — a spec explicitly asserts no `metadata` key is present. **The `audit_logs` row (`action_type: 'email_resent'`, `after_state.resent_from`) is the sole linkage record until Phase D lands it.** → **Phase D owes this write.**
+5. **Null-safe rate limit.** `.eq(col, null)` compiles to `= NULL` and never matches in Postgres, so both the rate-limit probe and the newest-row lookup branch to `.is("booking_id", null)`. Two dedicated specs prove both branches.
 
-**Three things Phase C MUST carry, none of which are in the plan's own text:**
-1. **The `booking_assignments` scope check.** Plan Step 8's sketch calls `requirePermission(RESEND_BOOKING_EMAILS)` and nothing else. `requirePermission` (`rbac.ts:386-401`) is a flat permission-bit check with no concept of *which booking*. `resend_booking_emails` is held by Therapist, who has only `view_bookings_assigned`. **Copy the pattern from `sendManualBookingReminder` (`admin/emails/actions.ts:21-57`)**, which handles this exact case: if `!canViewAllBookings(profile) && !canManageAllBookings(profile)`, require a `booking_assignments` row matching `profile.id`, else refuse and `recordOperationalEvent`. Without it a Therapist holding a delivery-event id could resend mail for a booking they cannot see. **This matters more now that RLS is tightened — application-level scoping is the only remaining gate.**
-2. **Do NOT hide the Resend button from Coordinator/Therapist.** Plan §3.3 says to; production grants say otherwise and `emails/page.tsx:158-175` already implements the intended scoped behaviour (§0.1).
-3. **Rate limit on a nullable `booking_id`.** `enquiry_logged` (Phase D) has no booking, and the plan's rate-limit query filters on `booking_id` — `.eq("booking_id", null)` does not behave as the sketch assumes. Verify before relying on it.
+**A sixth, implementer-originated and verifier-confirmed:** the plan's `ResendButton` sketch calls `toast.success`/`toast.error` **synchronously during render**, so it would fire on every re-render. Replaced with the `useTransition` + `ConfirmActionModal` + toast-on-resolution pattern already established in `BookingActionButton.tsx`. The verifier read the cited file and confirmed the pattern is real and genuinely matched.
 
-**Then Phase D**, which opens with ⛔ Zone-2 migration Step 13 (`staff_profiles.notification_email` + `business_notification_prefs` + Owner seed + `email_delivery_events.metadata`). Premises verified: all three columns absent; `service_role` holds UPDATE on both tables; the seed targets **2 active Owner rows**, one of which is the real `rahmatherapy@outlook.com`. **Present the SQL verbatim and wait — approval never carries forward.**
-Phase D's resolver has one trap worth pre-empting: the seed writes `{"enabled": true}` with **no `types` key**, so `prefs.types[type] === false` must not evaluate to "all types off" — getting that inverted silently disables every alert for the only opted-in user.
+**`dispatchResend` ships an honest subset, not the sketch's silent `return;` placeholders.** Real resend: `booking_confirmation`, `booking_cancellation_customer`/`_admin`, `booking_reminder`, `staff_assignment`, `staff_booking_change`, `booking_confirmed_client`, `staff_unassignment`. Structured user-visible error: `claim` and `client_assigned_therapist` — verified against the schema that neither event type writes `staffId` on its `sendTrackedEmail` call, so their staff context genuinely is not reconstructable from the delivery row. Every `case` was grounded in the **current** signature in `notifications.ts` (Phases A/B moved that file substantially) and each was re-checked by the verifier.
+
+### 2.6a — Logged, not fixed (rule 6a)
+
+- **Resend of a `booking_confirmation` row also re-sends the admin notification.** `sendBookingCreatedEmails` fires both legs; `sendBookingCancellationEmails` likewise re-notifies all currently-assigned staff. So an Owner resending a confirmation "because the customer never got it" also drops a fresh *New booking request* into the admin inbox, which the confirm-modal copy ("will be sent to {recipientEmail}") does not mention. **This is byte-for-byte the dispatch target the plan's own Step 8 sketch specifies** for these two cases — not introduced here. Worth a copy fix or a per-leg dispatch in a later plan; flagged in the Owner checklist so it is not mistaken for a bug in the field.
+- **`EMAIL_EVENT_TYPES` in `src/app/admin/emails/format.ts`** (the Delivery-tab filter dropdown) still lists only the original 9 event types — never updated for Phase A's 4 new ones, `review_request_client` (C-01) or `booking_restored_client` (C-04a). Not on Phase C's files-touched list; pre-existing gap from earlier phases.
+
+### 2.6b — Owner-performed verification (agent cannot authenticate)
+
+Phase C's verify checkpoint is browser + sign-in work. Appended to `OWNER-ACTION-BACKLOG.md`.
+
+1. Owner → `/admin/emails` → Delivery tab → Resend buttons appear on non-skipped rows.
+2. Resend a `booking_confirmation` row → modal opens with the "uses current template settings" copy → confirm → success toast + a new delivery row. **Expect a duplicate admin notification too (§2.6a) — that is current behaviour, not a defect.**
+3. Re-click within 60 s → rate-limit toast.
+4. Coordinator and Therapist → Resend buttons ARE visible (intended, H11 — not a bug); for Therapist they act only on their own assigned bookings.
+5. Edit a template's copy, then resend an older event of that type → the new send reflects the edit (proves the Phase B wiring reaches the resend path).
+6. Resend a `claim` or `client_assigned_therapist` row if one exists → a clear "isn't supported" error, never a false-success toast.
 
 ---
 
-*C-08 in progress. Pre-flight `f3a0434`; Zone-2 override deletion + RLS migration 2026-07-31; Phase A `80a8bc2`→`e522bdd`; Phase B `e018d67`+`40a0202`; RLS `e91c09c`. **Resume at Phase C Step 8 — see §3.***
+## 3 — ▶ RESUME HERE (interrupt checkpoint, protocol §3)
+
+**Plan:** C-08, plan **#9 of 22**. **Phase A ✅ · Phase B ✅ · Phase C ✅ · Phase D NOT STARTED.**
+**Last-good commit:** `dc742d0` (`feat(redesign): C-08 Phase C — per-row resend tooling`). Working tree clean except the standing deliberate `src/lib/maintenance.ts`.
+
+**Inherited baseline — independently re-measured at `dc742d0` by the Phase C verifier, use THIS not the plan's text:**
+- `npx tsc --noEmit` → **0 errors**
+- `pnpm lint` → **59 errors / 7 warnings**, in exactly six files: `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` (55) + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}` (4)
+- `pnpm vitest run` → **5 failed / 948 passed (953)**, failures EXACTLY: `src/lib/auth/admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `src/app/admin/bookings/new/ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent")
+- `pnpm build` → clean
+
+**Exact next action:** C-08 **Phase D, Step 13** — the ⛔ Zone-2 migration. Model **`sonnet`** for Steps 14–18 (§5 routes C-08 to Sonnet; pre-emptive upgrades are banned — Opus only via the §5 twice-failed escalation). Step 13 itself is **orchestrator-only** under per-action Owner approval; a subagent must never apply it.
+
+**Migration premises re-verified read-only at `dc742d0` (2026-07-31), all HOLD:**
+- `staff_profiles.notification_email`, `staff_profiles.business_notification_prefs`, `email_delivery_events.metadata` — **all three absent** (0 rows returned).
+- `has_table_privilege('service_role', …, 'UPDATE')` → **true** for both `staff_profiles` and `email_delivery_events`. The C-04a silent-42501 trap does not apply (protocol §3b check performed before the write, as required).
+- The seed targets **exactly 2 active Owner rows** out of 12 staff rows: `phase10.owner@example.test` (`b0f79294…`, fixture) and `rahmatherapy@outlook.com` (`01582c5d…`, **the real Owner**). Schema seeding, not an email path.
+
+**Five things Phase D MUST carry:**
+1. **The deferred `metadata` linkage write from Phase C** (§2.6 item 4). Once Step 13's column exists, `resendEmail` writes `metadata: { resent_from_event_id }` on the newest event row, and its spec gains the matching assertion. This is plan-sanctioned deferred work, not scope creep.
+2. **The `prefs.types` trap.** The seed writes `{"enabled": true}` with **no `types` key**, so `prefs.types[type] === false` must not evaluate to "all types off" — getting that inverted silently disables every alert for the only opted-in user.
+3. **Zero-opt-in fallback is NOT the same as opted-out.** Per Step 14: fall back to `getAdminRecipient(settings)` only when nobody anywhere is opted in; when prefs or skip-self emptied a *non-empty* opt-in list, write `skipped` delivery rows with reasons `all_recipients_opted_out` / `actor_excluded` instead.
+4. **Re-grep `notifications.ts` by symbol before Step 15.** C-04a and Phases A/B both reshaped `sendBookingCancellationEmails`; the plan's cited line numbers (`:366-379`, `:409-422`) are stale. Thread `actorStaffId` into whatever shape the function is actually in.
+5. **`enquiry_logged` has a null `booking_id`** — Step 16's delivery rows and any query filtering on `booking_id` must use `.is(…, null)`, the same trap Phase C handled.
+
+---
+
+*C-08 in progress. Pre-flight `f3a0434`; Zone-2 override deletion + RLS migration 2026-07-31; Phase A `80a8bc2`→`e522bdd`; Phase B `e018d67`+`40a0202`; RLS `e91c09c`; Phase C `dc742d0`. **Resume at Phase D Step 13 — see §3.***
