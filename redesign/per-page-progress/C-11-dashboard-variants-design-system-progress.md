@@ -5,7 +5,17 @@
 **Programme:** Band C, C-C implementation — plan **#8 of 22** (§4 order).
 **Predecessor closed at:** `229b29b` (C-01 second fix round + Cloudflare decision bookkeeping)
 
-> ## ⏳ STATUS: PRE-FLIGHT COMPLETE — GO-WITH-CAVEATS. Implementation not yet started.
+> ## ✅ STATUS: SHIPPED — all 7 phases implemented + independently verified, 5 closeout gates PASS, master-plan checklist flipped.
+> **Final commit:** `3c54e94` · **Migration:** `c11_theme_preference` applied + verified (`f95c828`, remote version `20260731095039`).
+>
+> **Baseline this plan hands to plan #9 (C-08):** tsc **0** · lint **59E/7W** (same six files) · vitest **5 failed / 881 passed (886)** — `admin-access.test.ts` ×2, `ManualBookingForm.test.tsx` ×3 · build clean.
+> ⚠️ **The passing total DROPPED from 888 to 881 deliberately.** That is `-7` tests / `-2` files, exactly the specs of the two unwired blocks removed under Owner decision §1.9a — predicted before deletion and matched exactly on measurement. **This is an approved reduction, NOT baseline erosion.** The next plan must not read it as a regression.
+>
+> **Bundle:** `/admin/dashboard` **+0.11 kB JS / +2.65 kB CSS** gzip vs the pre-flight baseline — far inside the plan's +20 kB / +5 kB ceilings. Dark mode roughly doubles the `--admin-*` declarations, and the entire cost landed in a shared CSS chunk (+2.65 kB), uniform across all six measured routes.
+>
+> **§3.2 / §3.5 / §3.6 / §3.7 / §3.8 (role×theme sweep, WCAG, print, FOUC, ~35 screenshots) NOT RUN — Owner-performed by necessity**, same standing policy as every prior plan: no agent may authenticate. The full pack is §4 below and in `OWNER-ACTION-BACKLOG.md`.
+
+## ⏳ (superseded) PRE-FLIGHT RECORD
 > Pre-flight run read-only at HEAD `229b29b` on 2026-07-30 by a single delegated read-only agent (protocol §2.1), plus two orchestrator-run SELECTs to close a gap the plan's own item-10 query could not answer.
 >
 > **One pre-flight item FAILED: item 2, dev server unreachable** (`curl http://localhost:3000/admin/login/` → `000`). Plan §0 closes with "If any pre-flight check fails, **stop** and surface to user" — surfaced in chat, awaiting Owner.
@@ -66,8 +76,10 @@ The pre-flight briefing told the agent to expect a real hit for `prefers-color-s
 | C | `b95e2ea` (6a) + `5ffcbba` (6b) | **6a** verbatim split of the Coordinator variant out of `BusinessDashboard.tsx` into `CoordinatorDashboard.tsx` + new `dashboard-variant-shared.tsx`; `page.tsx` becomes the variant router. **6b** composes from `blocks/` + B-01 fix. Final sizes: `page.tsx` 410, `BusinessDashboard` 376, `CoordinatorDashboard` 514, shared 437. | **PASS / PASS**, both first time, no fix round. Model: `opus`. **B-01's root cause was NOT what the plan said — see §1.4.** |
 | D | `75d42c4` | `TherapistDashboard.tsx` re-pointed at the `blocks/` barrel (`DashboardHeader`, `QuickHelpPanel`); C-FIELDWORK's backward-compat helper re-export retired and its one external consumer re-pointed at `shared-helpers.ts`. Diff is **6 insertions / 5 deletions, entirely in the import block + trailing re-export** — not one line of JSX or derivation touched. | **PASS first time**, no fix round. Model: `opus`. See §1.6. |
 | E | migration `f95c828` · E1 `faaedc2` + `e2031de` | **Migration APPLIED + verified** (Owner-approved). **E1 (Step 11a token scoping) implemented but FAILED verification TWICE → protocol §2.3 STOP.** See §1.9. E2 (sweep) and E3 (provider/toggle/FOUC) NOT started. | ⛔ **STOPPED — awaiting Owner decision.** |
-| F | — | Motion-reduce sweep (VERIFY-ALREADY-IMPLEMENTED wrapper; optional per D8) | not started |
-| G | — | End-to-end verification | not started |
+| E (cont.) | `ad6a780` + fix `0160eef` (E2 sweep) · `0bb110c` (E3 runtime) | **E2** hardcoded-colour sweep across the D9-trimmed list + `globals.css` admin selectors + the Owner-approved `admin-ui.tsx` (46 literals) + §4.3's `ReportsCharts.tsx` / `ClientLtvRibbon.tsx`. **E3** wrapper-scoped `ThemeProvider`, `theme-actions`, `ThemeToggle` in `AdminTopNav`, server-rendered attribute, portal theming. | **PASS** (E2 after one fix round; E3 first time). |
+| — | `3c54e94` | Removed the two unwired blocks + specs per Owner decision §1.9a; barrel trimmed with a comment recording recoverability at `4e18fa9`. | **PASS** — verified no live consumer existed at `2a169ab`; `ClaimQueueStripe`/`ScheduleGapStripe` confirmed still mounted. |
+| F | (verify-only) | **VERIFY-ALREADY-IMPLEMENTED wrapper, decision D8** — no sweep performed. | **PASS / SATISFIED.** See §3.1. |
+| G | (5 parallel gates) | Closeout: Phase-F verification, bundle delta, 16-criterion acceptance re-audit, adversarial whole-plan diff review, Owner verification pack. | **ALL PASS**, zero blocking findings. See §3. |
 
 ### 1.1 — Model-routing log (protocol §5)
 
@@ -247,4 +259,55 @@ The E1 dispatch asserted the dev server was running (it was, at pre-flight and a
 
 ---
 
-*Pre-flight 2026-07-30; Phase A `4e18fa9`; Phase B `bdbe64f`+`93c3f08`; Phase C `b95e2ea`+`5ffcbba`; Phase D `75d42c4` + eyebrow `4d09e45`; Phase E migration `f95c828`, E1 `faaedc2`+`e2031de`. **STOPPED at E1 pending an Owner decision on how to scope `data-theme` (see §2.3).***
+## 3 — Closeout gates (2026-07-31, five parallel read-only agents, protocol §2.5)
+
+### 3.1 — Phase F: satisfied as a verify-only wrapper
+`src/app/globals.css:436-446` carries an app-wide `@media (prefers-reduced-motion: reduce)` rule (`animation-duration: 0.01ms !important`, `animation-iteration-count: 1 !important`). Verified it genuinely freezes `animate-spin`: Tailwind's utility resolves to `animation: spin 1s linear infinite` **without** `!important`, and the reduce rule is **unlayered + `!important`**, which beats layered non-`!important` utilities unconditionally. It reaches admin surfaces because `globals.css` is imported once in the single root layout and `admin/layout.tsx` is nested. Confirmed pre-existing (commit `e13b212`, predates C-11) — so it is genuinely inherited infrastructure, not this phase's work relabelled. Competing rules checked and cleared (`site-parity.css` equivalent; `tokens.css`/`AdminTopNav` reduced-motion rules target unrelated classes).
+**Current Step-20 re-grep: 62 `animate-spin` occurrences / 40 files / 61 lacking `motion-reduce`** (only `AuditPageActions.tsx:80` guarded). The optional per-instance sweep was NOT run — correctly, per D8. **A passing B-03 check is not evidence the sweep ran; the plan says so explicitly and the two must not be conflated.**
+
+### 3.2 — Bundle delta: PASS, comfortably
+`/admin/dashboard` **480.95 kB JS / 42.5 kB CSS** gzip vs the pre-flight baseline 480.84 / 39.85 → **+0.11 kB JS, +2.65 kB CSS**. Ceilings were +20 kB dashboard / +5 kB theme-infra. The CSS delta is structurally uniform admin-wide (identical shared chunk, confirmed by hash). Honest limits: the five non-dashboard routes have no pre-C-11 baseline (captured only for the dashboard at pre-flight), so their JS delta cannot be attributed to C-11 specifically; and `/admin/bookings/[bookingId]` is outside `measure-admin-bundles.mjs` entirely — the same pre-existing tooling gap already logged against C-04a, C-05 and C-FIELDWORK.
+
+### 3.3 — Acceptance re-audit: MET except the structurally Owner-only items
+Verified against committed code and the live DB, not against this file's narrative. Notable non-MET / PARTIAL:
+- **#1 variant sizes — PARTIAL.** `BusinessDashboard` 376 ✅, `CoordinatorDashboard` 514 (14 over), `TherapistDashboard` 994 (≈2× target). The overshoot is the deliberate, reasoned judgement in §1.6 — everything still inline is Therapist-specific with no `blocks/` analogue, and hitting the number would have meant polluting a *shared* library with single-consumer components.
+- **#3 block count** is now **8**, not ~10, following the Owner-approved deletion (§1.9a).
+- **#11 / #13 / #16 (WCAG, admin-wide theme coverage, Playwright role×theme sweep) — OWNER-DEFERRED, never marked MET.** They require sign-in.
+- Any criterion resting on brief §4.1's revenue row is **superseded by Owner decision** (§1.9a), not silently claimed.
+
+### 3.4 — Adversarial whole-plan review: CLEAN
+Full range `e636c2a..HEAD`, 25 commits / 45 files, with E2 and E3 seen by a whole-range reviewer for the first time.
+- **E2 light theme byte-identical** — >20 literal→`var()` migrations traced against their `:root` values across `admin-ui.tsx`'s five tone-map families, `dashboard-cards.tsx`, `ReportsCharts.tsx`, `ClientLtvRibbon.tsx` and `globals.css`. Every one matches verbatim. No drift.
+- **E3 clean** — `data-theme`/`data-admin-theme-root` appear in exactly ONE non-test source location (`ThemeProvider.tsx:105`, the provider's own `<div>`), pinned by a regression spec that spies `Element.prototype.setAttribute` and asserts **zero** writes to `documentElement`/`body`. `theme-actions.ts` calls `createSupabaseAdminClient()` only after `getStaffProfile()` resolves, and returns the Supabase `error` rather than discarding it. `rbac.ts` is additive only — permission matrix untouched.
+- **Portal sibling-selector verified, not merely accepted.** Both load-bearing assumptions checked against the root layout: `<body>` renders `<SentryProvider/>` (returns `null`, no DOM) then `{children}`, so on admin routes the `ThemeProvider` wrapper genuinely is `<body>`'s only element child, and React appends portal containers after it. The empirical premise-check was also worth having: **Sonner does not portal at all** (zero `createPortal` in v2.0.7; `<Toaster>` mounts inside `.admin-shell`), so the real portalled surfaces are Radix Popover and base-ui `Dialog.Portal` across 13 admin files. **Leak-on-unmount is impossible by construction** — there is no marker to clean up; the rule is keyed on the wrapper's presence, so unmounting stops it matching. Fails safe: if the root layout ever wraps `{children}`, portals render light rather than leaking dark.
+
+## 4 — Owner-performed verification pack (structurally Owner-only, protocol §3b)
+
+**Start the dev server first** (`pnpm dev`; confirm `http://localhost:3000/admin/login/` → 200). It was measured DOWN during closeout.
+Use ONLY the Part 0 credentials — never invent accounts. **All 12 `staff_profiles` rows currently have `theme_preference = NULL`**, so every account should render **DARK on first sign-in** — that is itself the dark-default test, not a setup step.
+
+**Tier 1 — only a human eye can close these. If one fails, stop and report before the broad sweeps.**
+1. **Byte-identical dashboard render** — Owner / Admin / Coordinator at 375 and 1280. Phase B's extraction claims byte-identical output, proven only by a text-splice proof against the old blob. *Failure means* the extraction silently dropped or reordered something on the most-used admin page.
+2. **B-01 zero-state marquee** — Coordinator, range=today, zero bookings: the figure must read as an unmistakable `0`, not `()`.
+3. **Therapist dashboard** — all render sites intact after the Phase D refactor; hero eyebrow shows the dynamic label again.
+4. **Theme toggle** — dark on first load; switch to light and system; persists across navigation AND across sign-out/sign-in (DB-backed); no FOUC on 5–10 hard refreshes.
+5. **Portalled UI in dark mode** — open a dropdown, open a dialog, trigger a toast: each must be themed, not stuck light.
+6. **Print preview** — renders light regardless of active theme.
+
+Persistence check: `SELECT email, theme_preference FROM staff_profiles WHERE email = '<account>';`
+
+**Tiers 2+ —** the §3.2 role × theme × viewport matrix, §3.5 WCAG per admin section, §3.8 screenshots into `redesign/evidence/C-11/`.
+
+**DO-NOT-TOUCH:** booking `9d55ce2a-7a76-42ed-9166-a33fa66ee7fe` (Badar, real customer) · `rahmatherapy@outlook.com` in any email path · any client whose email is not `*.example.test`.
+
+## 5 — Deferred to C-12+ (recorded, not dropped)
+
+1. **`RevenueStripe` + `RecentActivityStripe`** — deleted at `3c54e94`, recoverable at `4e18fa9`. Any revival must FIRST resolve brief §4.1-vs-§8 (four fixed-period tiles vs "no new fetches") and decide whether an unbounded lifetime query on every dashboard load is acceptable. Note `view_reports_revenue` does **not** distinguish Owner from Admin.
+2. **~85 lines of variant duplication** — consolidation bundled with C-09 (§1.9b), per-declaration scope recorded.
+3. **The ~90-file hardcoded-colour remainder** outside D9's trim — the highest-impact surfaces are the ones a user sees most (bookings list, client detail, calendar); genuinely theme-neutral literals (dynamic avatar tints, brand gold on Cormorant) must NOT be blindly migrated.
+4. **Optional per-instance `motion-reduce` sweep** — 61 unguarded occurrences across 40 files. Cosmetic only; the app-wide rule already satisfies the accessibility requirement.
+5. **`measure-admin-bundles.mjs` route-coverage gap** — pre-existing, now logged against a fourth plan.
+
+---
+
+*C-11 SHIPPED 2026-07-31 — plan #8 of 22. Pre-flight `e636c2a`; A `4e18fa9`; B `bdbe64f`+`93c3f08`; C `b95e2ea`+`5ffcbba`; D `75d42c4`+`4d09e45`; migration `f95c828`; E `faaedc2`→`0bb110c`; cleanup `3c54e94`. Next in §4 order: **C-08** (run the `resend_booking_emails` permission spot-check first — orchestrator already confirmed all four permission rows exist in production, closing the migration ledger's last open item).*
