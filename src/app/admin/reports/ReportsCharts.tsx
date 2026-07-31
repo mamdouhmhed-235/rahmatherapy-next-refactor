@@ -39,14 +39,22 @@ import { StackedBarChart } from "../components/charts/StackedBarChart";
 //   Completed → ocean blue   (230° — done/neutral-positive)
 //   Cancelled → coral red    (25°  — negative)
 //   NoShow    → magenta      (330° — negative variant, kept distinct from cancelled)
+//
+// C-11 Phase E (Step 11b / plan §4.3): the palette moved to --admin-chart-status-*
+// in tokens.css so it gains dark-theme counterparts. The :root values are the
+// literals that used to sit here verbatim, so the light rendering is unchanged;
+// the dark arm lifts each hue into the 68-82% band to keep the same "pop"
+// against a dark panel that the originals had against cream. Passing var()
+// through Recharts' fill/stroke props is this codebase's established idiom
+// (components/charts/theme.ts does it for every axis, grid and slice).
 const STATUS_CHART_FILL: Record<string, string> = {
-  Confirmed: "oklch(58% 0.18 155)",
-  Pending: "oklch(70% 0.16 70)",
-  Completed: "oklch(55% 0.15 230)",
-  Cancelled: "oklch(55% 0.22 25)",
-  NoShow: "oklch(50% 0.18 330)",
+  Confirmed: "var(--admin-chart-status-confirmed)",
+  Pending: "var(--admin-chart-status-pending)",
+  Completed: "var(--admin-chart-status-completed)",
+  Cancelled: "var(--admin-chart-status-cancelled)",
+  NoShow: "var(--admin-chart-status-noshow)",
 };
-const UNKNOWN_CHART_FILL = "oklch(60% 0.05 280)"; // soft mauve-grey for unrecognised status
+const UNKNOWN_CHART_FILL = "var(--admin-chart-status-unknown)"; // soft mauve-grey for unrecognised status
 
 /**
  * Bright chart-fill colour for a booking-status key. Bypasses theme's

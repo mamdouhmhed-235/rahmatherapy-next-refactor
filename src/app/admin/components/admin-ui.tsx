@@ -27,68 +27,68 @@ type AdminDensity = "compact" | "comfortable";
 // ─── Status family token maps ────────────────────────────────────────────────
 
 const statusBgClasses: Record<AdminTone, string> = {
-  default: "bg-[oklch(93.5%_0.038_155)]",
+  default: "bg-[var(--admin-status-confirmed-bg)]",
   muted: "bg-[var(--admin-panel-muted)]",
-  warning: "bg-[oklch(95%_0.05_65)]",
-  danger: "bg-[oklch(95.5%_0.028_20)]",
-  success: "bg-[oklch(93.5%_0.038_155)]",
-  info: "bg-[oklch(96%_0.038_75)]",
-  restricted: "bg-[oklch(94%_0.008_280)]",
+  warning: "bg-[var(--admin-status-attention-bg)]",
+  danger: "bg-[var(--admin-status-cancelled-bg)]",
+  success: "bg-[var(--admin-status-confirmed-bg)]",
+  info: "bg-[var(--admin-status-pending-bg)]",
+  restricted: "bg-[var(--admin-status-restricted-bg)]",
   gold: "bg-[var(--rahma-gold)]/15",
 };
 
 const statusTextClasses: Record<AdminTone, string> = {
-  default: "text-[oklch(22%_0.085_155)]",
+  default: "text-[var(--admin-status-confirmed-text)]",
   muted: "text-[var(--admin-text-muted)]",
-  warning: "text-[oklch(26%_0.13_55)]",
-  danger: "text-[oklch(26%_0.14_25)]",
-  success: "text-[oklch(22%_0.085_155)]",
-  info: "text-[oklch(28%_0.12_55)]",
-  restricted: "text-[oklch(30%_0.02_280)]",
+  warning: "text-[var(--admin-status-attention-text)]",
+  danger: "text-[var(--admin-status-cancelled-text)]",
+  success: "text-[var(--admin-status-confirmed-text)]",
+  info: "text-[var(--admin-status-pending-text)]",
+  restricted: "text-[var(--admin-status-restricted-text)]",
   gold: "text-[var(--admin-heading)]",
 };
 
 const panelBorderClasses: Record<AdminTone, string> = {
   default: "border-[var(--admin-border)]",
   muted: "border-[var(--admin-border)]",
-  warning: "border-[oklch(88%_0.06_65)]",
-  danger: "border-[oklch(88%_0.045_20)]",
-  success: "border-[oklch(88%_0.055_155)]",
-  info: "border-[oklch(88%_0.055_75)]",
-  restricted: "border-[oklch(88%_0.012_280)]",
+  warning: "border-[var(--admin-status-attention-border)]",
+  danger: "border-[var(--admin-status-cancelled-border)]",
+  success: "border-[var(--admin-status-confirmed-border)]",
+  info: "border-[var(--admin-status-pending-border)]",
+  restricted: "border-[var(--admin-status-restricted-border)]",
   gold: "border-[var(--rahma-gold)]/30",
 };
 
 const panelBgClasses: Record<AdminTone, string> = {
   default: "bg-[var(--admin-panel)]",
   muted: "bg-[var(--admin-panel-muted)]",
-  warning: "bg-[oklch(95%_0.05_65)]",
-  danger: "bg-[oklch(95.5%_0.028_20)]",
-  success: "bg-[oklch(93.5%_0.038_155)]",
-  info: "bg-[oklch(96%_0.038_75)]",
-  restricted: "bg-[oklch(94%_0.008_280)]",
+  warning: "bg-[var(--admin-status-attention-bg)]",
+  danger: "bg-[var(--admin-status-cancelled-bg)]",
+  success: "bg-[var(--admin-status-confirmed-bg)]",
+  info: "bg-[var(--admin-status-pending-bg)]",
+  restricted: "bg-[var(--admin-status-restricted-bg)]",
   gold: "bg-[var(--brand-warm-surface)]",
 };
 
 const iconBgClasses: Record<AdminTone, string> = {
-  default: "bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]",
+  default: "bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)]",
   muted: "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]",
-  warning: "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]",
-  danger: "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]",
-  success: "bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]",
-  info: "bg-[oklch(96%_0.038_75)] text-[oklch(28%_0.12_55)]",
-  restricted: "bg-[oklch(94%_0.008_280)] text-[oklch(30%_0.02_280)]",
+  warning: "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]",
+  danger: "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)]",
+  success: "bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)]",
+  info: "bg-[var(--admin-status-pending-bg)] text-[var(--admin-status-pending-text)]",
+  restricted: "bg-[var(--admin-status-restricted-bg)] text-[var(--admin-status-restricted-text)]",
   gold: "bg-[var(--rahma-gold)]/15 text-[var(--admin-heading)]",
 };
 
 const progressFillClasses: Record<AdminTone, string> = {
   default: "bg-[var(--admin-primary)]",
   muted: "bg-[var(--admin-progress-neutral)]",
-  warning: "bg-[oklch(26%_0.13_55)]",
-  danger: "bg-[oklch(26%_0.14_25)]",
+  warning: "bg-[var(--admin-status-attention-text)]",
+  danger: "bg-[var(--admin-status-cancelled-text)]",
   success: "bg-[var(--admin-primary)]",
-  info: "bg-[oklch(28%_0.12_55)]",
-  restricted: "bg-[oklch(30%_0.02_280)]",
+  info: "bg-[var(--admin-status-pending-text)]",
+  restricted: "bg-[var(--admin-status-restricted-text)]",
   gold: "bg-[var(--admin-warning)]",
 };
 
@@ -227,7 +227,7 @@ export function AdminStat({
             className={cn(
               "size-4 shrink-0",
               resolvedTone === "danger"
-                ? "text-[oklch(26%_0.14_25)]"
+                ? "text-[var(--admin-status-cancelled-text)]"
                 : "text-[var(--admin-primary)]"
             )}
             aria-hidden="true"
@@ -337,7 +337,7 @@ export function AdminPanel({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-3 text-sm text-[oklch(26%_0.14_25)]"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-status-cancelled-bg)] px-3 py-3 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{error}</span>
@@ -625,8 +625,19 @@ export function AdminMiniTrend({
       />
       <defs>
         <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="oklch(93.5% 0.038 155)" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="oklch(93.5% 0.038 155)" stopOpacity="0.04" />
+          {/* stop-color goes through `style` rather than the presentation
+              attribute so the var() is parsed as a CSS declaration in every
+              engine. */}
+          <stop
+            offset="0%"
+            style={{ stopColor: "var(--admin-status-confirmed-bg)" }}
+            stopOpacity="0.55"
+          />
+          <stop
+            offset="100%"
+            style={{ stopColor: "var(--admin-status-confirmed-bg)" }}
+            stopOpacity="0.04"
+          />
         </linearGradient>
       </defs>
     </svg>
@@ -660,9 +671,9 @@ export function AdminHealthTile({
           <span
             className={cn(
               "text-xs font-semibold",
-              tone === "danger" && "text-[oklch(26%_0.14_25)]",
-              tone === "warning" && "text-[oklch(26%_0.13_55)]",
-              tone === "success" && "text-[oklch(22%_0.085_155)]",
+              tone === "danger" && "text-[var(--admin-status-cancelled-text)]",
+              tone === "warning" && "text-[var(--admin-status-attention-text)]",
+              tone === "success" && "text-[var(--admin-status-confirmed-text)]",
               tone === "muted" && "text-[var(--admin-text-muted)]"
             )}
           >
@@ -759,7 +770,7 @@ export function AdminInput({
         >
           {label}
           {required ? (
-            <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+            <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
               *
             </span>
           ) : null}
@@ -773,7 +784,7 @@ export function AdminInput({
         className={cn(
           "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-50 read-only:bg-[var(--admin-panel-muted)] read-only:cursor-default read-only:text-[var(--admin-text-muted)] read-only:focus-visible:ring-0",
           error
-            ? "border-[oklch(26%_0.14_25)]"
+            ? "border-[var(--admin-status-cancelled-text)]"
             : "border-[var(--admin-border-form)]"
         )}
         {...props}
@@ -789,7 +800,7 @@ export function AdminInput({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)]"
+          className="flex items-center gap-1.5 text-xs text-[var(--admin-status-cancelled-text)]"
         >
           <XCircle className="size-3.5 shrink-0" aria-hidden="true" />
           {error}
@@ -1247,12 +1258,12 @@ export function AdminAttentionRail({
   return (
     <aside
       className={cn(
-        "rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/35 p-4",
+        "rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)]/35 p-4",
         className
       )}
       aria-label={typeof title === "string" ? title : undefined}
     >
-      <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-[oklch(26%_0.13_55)]">{title}</h2>
+      <h2 className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-status-attention-text)]">{title}</h2>
       <div className="mt-4 grid gap-3">{children}</div>
     </aside>
   );
@@ -1342,11 +1353,11 @@ export function AdminButton({
         size === "default" && "min-h-10 px-4 text-sm",
         size === "sm" && "min-h-8 px-3 text-xs",
         variant === "primary" &&
-          "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)] active:bg-[oklch(28%_0.085_247)]",
+          "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)] active:bg-[var(--admin-primary-active)]",
         variant === "secondary" &&
           "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]",
         variant === "destructive" &&
-          "bg-[oklch(40%_0.14_25)] text-[var(--admin-on-primary)] hover:bg-[oklch(33%_0.14_25)]",
+          "bg-[var(--admin-danger-solid)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-danger-solid-hover)]",
         variant === "ghost" &&
           "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]",
         variant === "outline" &&

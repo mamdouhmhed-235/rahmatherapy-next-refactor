@@ -32,7 +32,7 @@ body {
   z-index: -1;
   background-image: radial-gradient(
     ellipse 90% 55% at 50% -10%,
-    oklch(95% 0.04 60 / 0.45) 0%,
+    var(--admin-shell-ambient) 0%,
     transparent 60%
   );
 }
@@ -263,7 +263,7 @@ a[class*="border-rahma-green/30"] {
   border-radius: var(--admin-radius-control);
   background: var(--admin-primary);
   padding: 0 1rem;
-  color: #ffffff !important;
+  color: var(--admin-action-primary-text) !important;
   font-size: 0.875rem;
   font-weight: 600;
 }
@@ -281,7 +281,7 @@ a[class*="border-rahma-green/30"] {
   justify-content: center;
   border-radius: var(--admin-radius-control);
   border: 1px solid var(--admin-border);
-  background: #ffffff;
+  background: var(--admin-action-outline-bg);
   padding: 0 1rem;
   color: var(--admin-primary) !important;
   font-size: 0.875rem;

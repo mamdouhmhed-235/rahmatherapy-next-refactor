@@ -36,7 +36,11 @@ export interface ClientLtvRibbonProps {
   scopeNarrowed?: boolean;
 }
 
-const SPARKLINE_STROKE = "oklch(42% 0.008 143)";
+// C-11 Phase E (Step 11b / plan §4.3): tokenised so the stroke gains a dark
+// counterpart. The token's :root value is the literal that used to sit here,
+// verbatim, so light rendering is unchanged; left unmigrated this would have
+// been a near-black line on a near-black panel in dark mode.
+const SPARKLINE_STROKE = "var(--admin-sparkline-stroke)";
 const PREFERRED_SERVICE_MAX_CHARS = 20;
 
 const REPEAT_STATUS_LABEL: Record<ClientRepeatStatus, string> = {

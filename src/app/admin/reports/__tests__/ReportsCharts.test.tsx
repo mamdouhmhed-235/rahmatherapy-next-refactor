@@ -106,7 +106,8 @@ describe("normaliseStatusName + statusChartFillForKey bridge", () => {
   // *-text token variants (designed for accessible text-on-light, lightness
   // ~30%) — visually muted on a chart. statusChartFillForKey replaces that
   // with a bright OKLCH palette at L=55-70%, chroma 0.16-0.22, hues spread
-  // around the wheel so each slice POPS.
+  // around the wheel so each slice POPS. C-11 moved that palette into
+  // --admin-chart-status-* (tokens.css) unchanged, to give it a dark arm.
 
   it("maps all 5 booking status DB values to distinct bright fills", () => {
     const fills = ["pending", "confirmed", "no_show", "completed", "cancelled"].map(
@@ -116,7 +117,7 @@ describe("normaliseStatusName + statusChartFillForKey bridge", () => {
   });
 
   it("returns the unrecognised-status fallback for unknown keys", () => {
-    expect(statusChartFillForKey("WeirdState")).toBe("oklch(60% 0.05 280)");
+    expect(statusChartFillForKey("WeirdState")).toBe("var(--admin-chart-status-unknown)");
   });
 
   it("produces human-readable display labels (humanises no_show)", () => {

@@ -1060,10 +1060,10 @@ export function UrgentAttentionPanel({
             <div
               className={cn(
                 "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--admin-radius-card)] border px-4 py-3 transition-[background-color,border-color] duration-150",
-                row.severity === "critical" && "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/30",
-                row.severity === "warning" && "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)]/30",
+                row.severity === "critical" && "border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)]/30",
+                row.severity === "warning" && "border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)]/30",
                 row.severity === "info" && "border-[var(--admin-border)] bg-[var(--admin-panel)]",
-                row.severity === "clear" && "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)]/20",
+                row.severity === "clear" && "border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)]/20",
                 href && "hover:-translate-y-px hover:shadow-[var(--admin-shadow-subtle)]"
               )}
             >

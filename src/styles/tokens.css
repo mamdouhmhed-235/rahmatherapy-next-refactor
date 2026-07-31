@@ -194,6 +194,40 @@
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
   --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
   --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+  /* ─── Sweep tokens (C-11 Phase E, Step 11b) ─────────────────────────────
+   * Each one replaces a hardcoded literal that had NO byte-identical token
+   * already in the family, so every light value here is verbatim the literal
+   * it replaced — the light rendering is unchanged. Anything that did have an
+   * exact token (the whole --admin-status-* family) was pointed at that
+   * instead of growing this list. */
+  /* .admin-shell::before ambient wash. Carries its own alpha: the gradient
+   * stop consumes the token whole. */
+  --admin-shell-ambient: oklch(95% 0.04 60 / 0.45);
+  /* .admin-action-primary's text on the --admin-primary fill, and
+   * .admin-action-outline's fill. Both were literal #ffffff, which is NOT
+   * --admin-on-primary (#fefdfb) nor --admin-panel (#fffefa) — close enough
+   * to look interchangeable, far enough to break a byte-identical claim, so
+   * they get their own pair rather than a silent colour shift. */
+  --admin-action-primary-text: #ffffff;
+  --admin-action-outline-bg: #ffffff;
+  /* AdminButton variant="primary" :active — one step past --admin-primary-hover. */
+  --admin-primary-active: oklch(28% 0.085 247);
+  /* AdminButton variant="destructive" — a solid danger fill, distinct from
+   * both --admin-danger (a text tone) and --admin-danger-bg (a tint). */
+  --admin-danger-solid: oklch(40% 0.14 25);
+  --admin-danger-solid-hover: oklch(33% 0.14 25);
+  /* Donut + stacked-bar status fills (ReportsCharts' statusChartFillForKey).
+   * Deliberately NOT the --admin-status-*-text family: those are tuned for
+   * text legibility at L~30% and read muted as chart slices. Five hues spread
+   * around the wheel so each slice stays separable by hue, not luminance. */
+  --admin-chart-status-confirmed: oklch(58% 0.18 155);
+  --admin-chart-status-pending: oklch(70% 0.16 70);
+  --admin-chart-status-completed: oklch(55% 0.15 230);
+  --admin-chart-status-cancelled: oklch(55% 0.22 25);
+  --admin-chart-status-noshow: oklch(50% 0.18 330);
+  --admin-chart-status-unknown: oklch(60% 0.05 280);
+  /* Client LTV ribbon's inline sparkline — stroke, and its area fill at 0.08. */
+  --admin-sparkline-stroke: oklch(42% 0.008 143);
   --hero-scrim-token: linear-gradient(90deg, rgba(7, 22, 28, 0.86) 0%, rgba(9, 37, 47, 0.62) 38%, rgba(9, 37, 47, 0.2) 70%, rgba(9, 37, 47, 0.34) 100%);
   --site-header-height: 4.875rem;
   --image-card-scrim-token: linear-gradient(180deg, rgba(7, 22, 28, 0.02) 0%, rgba(7, 22, 28, 0.08) 34%, rgba(7, 22, 28, 0.58) 66%, rgba(7, 22, 28, 0.92) 100%);
@@ -355,6 +389,29 @@
   --admin-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.45);
   --admin-shadow-hover: 0 2px 8px oklch(0% 0 0 / 0.5);
   --admin-shadow-overlay: 0 8px 24px oklch(0% 0 0 / 0.6), 0 1px 4px oklch(0% 0 0 / 0.45);
+  /* Sweep tokens (Step 11b). The ambient wash inverts to a low-alpha warm
+   * glow — a 95%-lightness peach over a near-black canvas would read as a
+   * pale band across the top of every admin page. */
+  --admin-shell-ambient: oklch(42% 0.030 60 / 0.30);
+  /* --admin-primary lightens in dark, so its foreground darkens with it;
+   * white-on-fill would land at ~1.5:1. 8.88:1 on the dark primary fill. */
+  --admin-action-primary-text: oklch(18% 0.012 88);
+  --admin-action-outline-bg: oklch(22% 0.008 88);
+  /* Continues the hover direction: 76% → 85% (hover) → 91% (active). */
+  --admin-primary-active: oklch(91% 0.040 240);
+  --admin-danger-solid: oklch(72% 0.145 25);        /* 7.12:1 vs on-primary */
+  --admin-danger-solid-hover: oklch(81% 0.100 25);  /* 10.02:1 vs on-primary */
+  /* Chart fills lift into the 68–82% band so slices keep the "pop" they were
+   * tuned for on cream. All six sit 5.55–9.75:1 against --admin-panel; the
+   * closest luminance pair is 1.04:1 (completed/unknown), which matches the
+   * light set's own closest pair (1.05:1) — hue does the separating in both. */
+  --admin-chart-status-confirmed: oklch(76% 0.160 155);
+  --admin-chart-status-pending: oklch(82% 0.135 75);
+  --admin-chart-status-completed: oklch(70% 0.130 230);
+  --admin-chart-status-cancelled: oklch(68% 0.175 25);
+  --admin-chart-status-noshow: oklch(78% 0.140 330);
+  --admin-chart-status-unknown: oklch(72% 0.040 280);
+  --admin-sparkline-stroke: oklch(75% 0.008 143);   /* 7.80:1 vs --admin-panel */
 }
 
 /* Redundant with :root by value, but explicit: an admin user who picks "light"
@@ -423,6 +480,20 @@
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
   --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
   --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+  /* Sweep tokens (Step 11b) — light values, identical to :root. */
+  --admin-shell-ambient: oklch(95% 0.04 60 / 0.45);
+  --admin-action-primary-text: #ffffff;
+  --admin-action-outline-bg: #ffffff;
+  --admin-primary-active: oklch(28% 0.085 247);
+  --admin-danger-solid: oklch(40% 0.14 25);
+  --admin-danger-solid-hover: oklch(33% 0.14 25);
+  --admin-chart-status-confirmed: oklch(58% 0.18 155);
+  --admin-chart-status-pending: oklch(70% 0.16 70);
+  --admin-chart-status-completed: oklch(55% 0.15 230);
+  --admin-chart-status-cancelled: oklch(55% 0.22 25);
+  --admin-chart-status-noshow: oklch(50% 0.18 330);
+  --admin-chart-status-unknown: oklch(60% 0.05 280);
+  --admin-sparkline-stroke: oklch(42% 0.008 143);
 }
 
 /* Print always renders the light palette — a dark canvas wastes toner and the
@@ -498,6 +569,22 @@
     --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
     --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
     --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+    /* Sweep tokens (Step 11b) — light values. Omitting these would leave a
+     * dark-theme admin printing lifted chart fills and an inverted button
+     * foreground on white paper. */
+    --admin-shell-ambient: oklch(95% 0.04 60 / 0.45);
+    --admin-action-primary-text: #ffffff;
+    --admin-action-outline-bg: #ffffff;
+    --admin-primary-active: oklch(28% 0.085 247);
+    --admin-danger-solid: oklch(40% 0.14 25);
+    --admin-danger-solid-hover: oklch(33% 0.14 25);
+    --admin-chart-status-confirmed: oklch(58% 0.18 155);
+    --admin-chart-status-pending: oklch(70% 0.16 70);
+    --admin-chart-status-completed: oklch(55% 0.15 230);
+    --admin-chart-status-cancelled: oklch(55% 0.22 25);
+    --admin-chart-status-noshow: oklch(50% 0.18 330);
+    --admin-chart-status-unknown: oklch(60% 0.05 280);
+    --admin-sparkline-stroke: oklch(42% 0.008 143);
   }
 }
 
