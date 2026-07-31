@@ -443,6 +443,15 @@ export async function sendBookingCreatedEmails(
     return { manageUrl: input.manageUrl ?? null };
   }
 
+  // C-08 Phase B — each leg reads its own template's overrides (booking_confirmation
+  // for the customer, admin_booking_notification for the admin); the plain-text
+  // fallback shares the same resolved overrides as its HTML sibling so a
+  // footer_contact edit applies identically to both legs.
+  const [customerOverrides, adminOverrides] = await Promise.all([
+    resolveTemplateOverrides("booking_confirmation"),
+    resolveTemplateOverrides("admin_booking_notification"),
+  ]);
+
   await Promise.all([
     sendTrackedEmail(supabase, {
       bookingId,
@@ -450,8 +459,8 @@ export async function sendBookingCreatedEmails(
       recipientRole: "customer",
       to: customerEmail,
       subject: `${input.companyName} booking request received`,
-      html: renderBookingConfirmationEmail(input),
-      text: renderBookingPlainText("Booking request received", input),
+      html: renderBookingConfirmationEmail(input, customerOverrides),
+      text: renderBookingPlainText("Booking request received", input, customerOverrides),
     }),
     sendTrackedEmail(supabase, {
       bookingId,
@@ -464,8 +473,8 @@ export async function sendBookingCreatedEmails(
         bookingId: booking.id,
         clientEmail: booking.contact_email || booking.clients?.email || null,
         clientPhone: booking.contact_phone || booking.clients?.phone || null,
-      }),
-      text: renderBookingPlainText("New booking request", input),
+      }, adminOverrides),
+      text: renderBookingPlainText("New booking request", input, adminOverrides),
     }),
   ]);
 
@@ -492,6 +501,16 @@ export async function sendBookingCancellationEmails(
     throw new Error("Booking client has no email address.");
   }
 
+  // C-08 Phase B — resolved here, at call time, not at drain time: `delaySeconds`
+  // only defers the customer leg's *delivery* inside sendTrackedEmail (the row is
+  // queued and a cron drains it later); the HTML/text below are rendered now, up
+  // front, and the finished payload is what gets parked in the queued row. There
+  // is no later render step for the C-04a delayed-cancellation path to intercept.
+  const [customerOverrides, adminOverrides] = await Promise.all([
+    resolveTemplateOverrides("booking_cancellation_client"),
+    resolveTemplateOverrides("admin_booking_cancellation"),
+  ]);
+
   await Promise.all([
     sendTrackedEmail(supabase, {
       bookingId,
@@ -499,8 +518,8 @@ export async function sendBookingCancellationEmails(
       recipientRole: "customer",
       to: customerEmail,
       subject: `${input.companyName} booking cancelled`,
-      html: renderBookingCancellationEmail(input),
-      text: renderBookingPlainText("Booking cancelled", input),
+      html: renderBookingCancellationEmail(input, customerOverrides),
+      text: renderBookingPlainText("Booking cancelled", input, customerOverrides),
       delaySeconds: options.delaySeconds,
     }),
     sendTrackedEmail(supabase, {
@@ -514,8 +533,8 @@ export async function sendBookingCancellationEmails(
         bookingId,
         initiatedBy: options.initiatedBy,
         cancellationNote: options.cancellationNote,
-      }),
-      text: renderBookingPlainText("Booking cancelled", input),
+      }, adminOverrides),
+      text: renderBookingPlainText("Booking cancelled", input, adminOverrides),
     }),
     sendAssignedStaffBookingChangeEmails(
       bookingId,
@@ -542,14 +561,21 @@ export async function sendBookingRestoredClientEmail(
     throw new Error("Booking client has no email address.");
   }
 
+  // C-08 Phase B — "booking_restored_client" has no templates-data.ts entry
+  // (never was one of the admin-editable templates), so no override row can
+  // exist for it via the UI today; this resolves to {} and is a no-op until a
+  // future plan registers the template. Included for consistency with every
+  // other send fn and so the wiring is already correct if that lands.
+  const overrides = await resolveTemplateOverrides("booking_restored_client");
+
   await sendTrackedEmail(supabase, {
     bookingId,
     eventType: "booking_restored_client",
     recipientRole: "customer",
     to: customerEmail,
     subject: `${input.companyName} — your booking is back on`,
-    html: renderBookingRestoredEmail({ ...input, fromStatus: options.fromStatus }),
-    text: renderBookingPlainText("Booking restored", input),
+    html: renderBookingRestoredEmail({ ...input, fromStatus: options.fromStatus }, overrides),
+    text: renderBookingPlainText("Booking restored", input, overrides),
   });
 }
 
@@ -576,6 +602,8 @@ export async function sendBookingRescheduleRequestEmails(
     supabase
   );
 
+  const overrides = await resolveTemplateOverrides("admin_reschedule_request");
+
   await sendTrackedEmail(supabase, {
     bookingId,
     eventType: "booking_reschedule_request_admin",
@@ -588,8 +616,8 @@ export async function sendBookingRescheduleRequestEmails(
       requestedDate: input.requestedDate,
       requestedTime: input.requestedTime,
       requestNote: input.requestNote,
-    }),
-    text: renderBookingPlainText("Reschedule request", templateInput),
+    }, overrides),
+    text: renderBookingPlainText("Reschedule request", templateInput, overrides),
   });
 }
 
@@ -600,6 +628,7 @@ export async function sendStaffAssignmentEmail(
   staffId?: string | null
 ) {
   const { input } = await getBookingTemplateInput(bookingId, supabase);
+  const overrides = await resolveTemplateOverrides("staff_assignment");
 
   await sendTrackedEmail(supabase, {
     bookingId,
@@ -608,8 +637,8 @@ export async function sendStaffAssignmentEmail(
     staffId: staffId ?? null,
     to: staffEmail,
     subject: `${input.companyName} booking assignment`,
-    html: renderStaffAssignmentEmail(input),
-    text: renderBookingPlainText("Booking assignment", input),
+    html: renderStaffAssignmentEmail(input, overrides),
+    text: renderBookingPlainText("Booking assignment", input, overrides),
   });
 }
 
@@ -618,9 +647,10 @@ export async function sendAssignedStaffBookingChangeEmails(
   supabase: SupabaseClient,
   changeSummary: string
 ) {
-  const [staffEmails, { input }] = await Promise.all([
+  const [staffEmails, { input }, overrides] = await Promise.all([
     getAssignedStaffEmails(bookingId, supabase),
     getBookingTemplateInput(bookingId, supabase),
+    resolveTemplateOverrides("staff_booking_change"),
   ]);
 
   await Promise.all(
@@ -635,8 +665,8 @@ export async function sendAssignedStaffBookingChangeEmails(
         html: renderStaffBookingChangeEmail({
           ...input,
           changeSummary,
-        }),
-        text: renderBookingPlainText("Assigned booking changed", input),
+        }, overrides),
+        text: renderBookingPlainText("Assigned booking changed", input, overrides),
       })
     )
   );
@@ -652,14 +682,16 @@ export async function sendBookingReminderEmail(
     throw new Error("Booking client has no email address.");
   }
 
+  const overrides = await resolveTemplateOverrides("booking_reminder");
+
   await sendTrackedEmail(supabase, {
     bookingId,
     eventType: "booking_reminder",
     recipientRole: "customer",
     to: customerEmail,
     subject: `${input.companyName} booking reminder`,
-    html: renderBookingReminderEmail(input),
-    text: renderBookingPlainText("Booking reminder", input),
+    html: renderBookingReminderEmail(input, overrides),
+    text: renderBookingPlainText("Booking reminder", input, overrides),
   });
 }
 
