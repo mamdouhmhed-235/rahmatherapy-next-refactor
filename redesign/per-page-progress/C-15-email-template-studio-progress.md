@@ -273,4 +273,26 @@ The editor route is reachable by URL and cannot inherit the Templates tab's gate
 
 ---
 
-*Phases A–C shipped and verified. Next: Phase D (reset + test send).*
+---
+
+## 4 — Phase D: reset to default + send me a test (`84f10fc`)
+
+Verified independently — **PASS**, one non-blocking finding. Baseline after: **5 failed / 1079 passed (1084)**, same five names. Parity gate untouched and green.
+
+**The recipient cannot be influenced by user input.** Brief §4 rates "test send reaches a non-self recipient" as this plan's highest-severity risk. `sendTestEmail` derives `to` from `actor.notification_email ?? actor.email`, where `actor` is the profile `requirePermission()` resolved from the session. The verifier actively tried to subvert it — a planted `recipient_email` FormData key, email-like strings in `field:*` draft values, a bogus `template_id` — and found no path reaching `to`. A spec plants `attacker@evil.test` and asserts the actual `sendEmail` call argument.
+
+**Test sends use `sendEmail`, never `sendTrackedEmail`** — so they write no `email_delivery_events` row, keeping the delivery log clean, keeping C-08's Resend tooling from acting on them, and keeping the §3.2 event-type histogram honest. The spec's stub throws on any unexpected table, so a regression fails loudly rather than silently.
+
+**Rate limit and audit interact correctly.** The 60 s limit reads the latest `email_template_test_sent` audit row and is checked *before* rendering and sending; the audit row is written *only* after a successful send. So a failed send writes nothing and cannot consume the window — spec'd both ways.
+
+**Reset is recoverable and correctly scoped.** Rows are captured *before* the DELETE, and `before_state.overrides` stores `field_key` + `value` + `updated_by` + `updated_at` per row — enough for a human to retype the exact prior wording. The delete filters on `.eq("template_id", …)` alone: every row for that template, nothing belonging to another.
+
+**One refactor happened that wasn't asked for**, and it was checked rather than waved through: the field-validation loop was extracted out of `saveTemplateOverride` into a shared `validateTemplateFields` so the test-send path can't drift from the save path. The verifier hand-diffed it against `git show 6c9b8fb:…/actions.ts` — the entire loop body appears as unchanged context lines, only the function boundary moved. Behaviour-preserving, and it removes a real drift risk.
+
+**Finding (non-blocking):** `TemplateEditor.tsx` gained two more `eslint-disable` comments (2 → 4) on the same rules Phase C's verifier already investigated and upheld across ~30 codebase locations. Not vacuous suppression, no correctness impact — but if a future cleanup pass strips them, this file enters the lint-error count and breaks the "no C-15 file in lint output" gate.
+
+**Production untouched, confirmed by SQL:** `email_template_overrides` still 0 rows, and zero `email_template_reset` / `email_template_test_sent` audit rows — no subagent ran either new path against production.
+
+---
+
+*Phases A–D shipped and verified. Next: Phase E (gallery + swap), then Phase F (retirement).*
