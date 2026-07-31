@@ -194,6 +194,17 @@ Owner approved in chat 2026-07-31. Remote version `20260731095039`. Post-apply: 
 ### 2.4 — The fix round did not fix it
 `e2031de` ("correct overclaimed public-safety guarantee") is **comment-only**. `git diff faaedc2^..HEAD --stat -- src/` shows exactly one file changed across the whole Phase E range: `src/styles/tokens.css`. `input.tsx` and `badge.tsx` were last touched pre-C-11. The re-verifier caught this rather than accepting the claim — correct behaviour.
 
+### 2.4a — ✅ OWNER DECISION 2026-07-31: scope `data-theme` to the ADMIN WRAPPER, not `<html>`
+
+Presented in chat with three alternatives (split the shared primitives; keep `<html>` and accept the risk; prepare both diffs first). **Owner chose: set the theme attribute on the admin layout's own wrapper element instead of `document.documentElement`.** Public routes then structurally cannot inherit it, regardless of which tokens they consume — this closes the class of defect, not just the two known instances.
+
+**This overrides plan Steps 12 and 15**, which lock `document.documentElement.dataset.theme`. Record in the closeout: the plan text still says `documentElement`.
+
+Consequences for the remaining work:
+- **`tokens.css` needs no selector change.** `[data-theme="dark"]` is an attribute selector that matches any element, and custom properties inherit to descendants — so declaring them on the admin wrapper themes the admin subtree and nothing else. Only the file's explanatory comments need correcting.
+- **FOUC largely disappears.** The admin layout already fetches `profile.theme_preference`, so it can render `data-theme` **server-side** on its wrapper. For `dark`/`light` there is then no flash at all — strictly better than the plan's inline-script approach. Only `system` still needs client-side resolution, since the server cannot know the OS preference.
+- **⚠️ Portals are the non-obvious hazard.** Radix dropdowns/dialogs and Sonner toasts mount into `document.body`, i.e. OUTSIDE the admin wrapper — they would render with light tokens while the rest of the admin is dark. E3 must handle this deliberately (e.g. the provider also marking the portal container while the admin tree is mounted, with cleanup on unmount so nothing leaks after navigating away) and verify it, rather than discovering it as a visual bug later.
+
 ### 2.5 — Orchestrator note: dev server was down
 The E1 dispatch asserted the dev server was running (it was, at pre-flight and again at the Phase A/B/C dispatches) but it had stopped by E1; the implementer measured `000` and said so instead of quietly skipping the check, substituting a headless-Chrome computed-style diff that is strictly stronger than the prescribed "load a public page and eyeball it". Good call, recorded so the substitution is not mistaken for the original check having run.
 
