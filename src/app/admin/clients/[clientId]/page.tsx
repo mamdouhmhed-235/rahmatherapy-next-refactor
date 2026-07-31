@@ -154,6 +154,7 @@ const AUDIT_PHRASING: Record<string, string> = {
     "Booking auto-completed (all assignments complete)",
   booking_quick_no_show: "Booking marked no-show",
   review_email_sent: "Review request email sent",
+  email_resent: "Email resent",
 };
 
 function auditActionPhrase(actionType: string): string {

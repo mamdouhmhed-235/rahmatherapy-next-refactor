@@ -34,6 +34,7 @@ import { EmptyState } from "../components/EmptyState";
 import { DeliveryFilterStrip } from "./DeliveryFilterStrip";
 import { CopyEventId } from "./CopyEventId";
 import { ReminderResendForm } from "./ReminderResendForm";
+import { ResendButton } from "./components/ResendButton";
 import {
   DELIVERY_STATUSES,
   EMAIL_EVENT_TYPES,
@@ -306,6 +307,7 @@ export default async function EmailsPage({ searchParams }: PageProps) {
           deliveryError={deliveryError}
           allowAdminRecipient={allowAdminRecipient}
           searchAttemptedTooShort={q.length > 0 && q.length < SEARCH_MIN_CHARS}
+          canResend={canResend}
         />
       ) : null}
 
@@ -402,6 +404,7 @@ function DeliveryTab({
   deliveryError,
   allowAdminRecipient,
   searchAttemptedTooShort,
+  canResend,
 }: {
   filters: DeliveryFilters;
   deliveryFilters: DeliveryFilters;
@@ -410,6 +413,7 @@ function DeliveryTab({
   deliveryError: { message: string } | null;
   allowAdminRecipient: boolean;
   searchAttemptedTooShort: boolean;
+  canResend: boolean;
 }) {
   const anyFilter = hasAnyDeliveryFilter(deliveryFilters);
 
@@ -458,7 +462,12 @@ function DeliveryTab({
           searchAttemptedTooShort={searchAttemptedTooShort}
         />
       ) : (
-        <DayGroupedFeed events={events} totalLoaded={totalLoaded} anyFilter={anyFilter} />
+        <DayGroupedFeed
+          events={events}
+          totalLoaded={totalLoaded}
+          anyFilter={anyFilter}
+          canResend={canResend}
+        />
       )}
     </div>
   );
@@ -530,10 +539,12 @@ function DayGroupedFeed({
   events,
   totalLoaded,
   anyFilter,
+  canResend,
 }: {
   events: EmailEvent[];
   totalLoaded: number;
   anyFilter: boolean;
+  canResend: boolean;
 }) {
   const groups: { key: string; label: string; events: EmailEvent[] }[] = [];
   for (const event of events) {
@@ -606,7 +617,7 @@ function DayGroupedFeed({
             <ul className="grid list-none gap-2 [&>li]:list-none">
               {group.events.map((event) => (
                 <li key={event.id}>
-                  <DeliveryEventRow event={event} />
+                  <DeliveryEventRow event={event} canResend={canResend} />
                 </li>
               ))}
             </ul>
@@ -638,12 +649,22 @@ function DayGroupedFeed({
 
 // ─── Delivery event row ───────────────────────────────────────────────────────
 
-function DeliveryEventRow({ event }: { event: EmailEvent }) {
+function DeliveryEventRow({
+  event,
+  canResend,
+}: {
+  event: EmailEvent;
+  canResend: boolean;
+}) {
   const eventIcon = iconForEventType(event.event_type);
   const statusTone = toneForDeliveryStatus(event.delivery_status);
   const isFailed =
     event.delivery_status === "failed" || event.delivery_status === "bounced";
   const isMissingRecipient = !event.recipient_email;
+  // Skipped events have no rendered payload to resend (brief §4.2); a
+  // missing recipient means the row has nothing to resend TO either.
+  const showResend =
+    canResend && event.delivery_status !== "skipped" && event.recipient_email;
 
   return (
     <article
@@ -691,6 +712,15 @@ function DeliveryEventRow({ event }: { event: EmailEvent }) {
               compact
               value={labelForDeliveryStatus(event.delivery_status)}
             />
+            {showResend ? (
+              <span className="ml-auto shrink-0">
+                <ResendButton
+                  deliveryEventId={event.id}
+                  eventTypeLabel={labelForEventType(event.event_type)}
+                  recipientEmail={event.recipient_email as string}
+                />
+              </span>
+            ) : null}
           </div>
 
           <p className="mt-1.5 truncate text-sm font-medium text-[var(--admin-heading)]">
