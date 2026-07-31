@@ -6,6 +6,7 @@ import { AdminTopNav } from "./components/AdminTopNav";
 import { AdminAccessDenied } from "./components/admin-ui";
 import { resolveAdminShellVariant } from "./shell-variant";
 import { getNavNotifications } from "./components/nav-notifications";
+import { ThemeProvider, type Theme } from "./components/ThemeProvider";
 
 export default async function AdminLayout({
   children,
@@ -55,29 +56,38 @@ export default async function AdminLayout({
   // inside each variant helper are retained as defence-in-depth.
   const notifications = await getNavNotifications(profile, variant);
 
+  // Server-resolved so the theme is in the first paint — no FOUC, no inline
+  // script. NULL (every live row today) means the user never chose: dark.
+  // Anything unexpected in the column falls back to dark too.
+  const preference = profile.theme_preference;
+  const initialTheme: Theme =
+    preference === "light" || preference === "system" ? preference : "dark";
+
   return (
-    <AdminTopNav
-      profile={{
-        name: profile.name,
-        roleName: profile.role_name,
-        staffId: profile.id,
-      }}
-      variant={variant}
-      notifications={notifications}
-      pageAccess={Object.fromEntries(
-        ADMIN_PAGE_KEYS.map((pageKey) => {
-          const access = getAdminPageAccess(profile, pageKey);
-          return [
-            pageKey,
-            {
-              access: access.access,
-              dataScope: access.dataScope,
-            },
-          ];
-        })
-      )}
-    >
-      {children}
-    </AdminTopNav>
+    <ThemeProvider initialTheme={initialTheme}>
+      <AdminTopNav
+        profile={{
+          name: profile.name,
+          roleName: profile.role_name,
+          staffId: profile.id,
+        }}
+        variant={variant}
+        notifications={notifications}
+        pageAccess={Object.fromEntries(
+          ADMIN_PAGE_KEYS.map((pageKey) => {
+            const access = getAdminPageAccess(profile, pageKey);
+            return [
+              pageKey,
+              {
+                access: access.access,
+                dataScope: access.dataScope,
+              },
+            ];
+          })
+        )}
+      >
+        {children}
+      </AdminTopNav>
+    </ThemeProvider>
   );
 }

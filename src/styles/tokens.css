@@ -296,9 +296,21 @@
  * badge today is not a guarantee to lean on. Move the attribute up to <html>
  * and that page follows whatever theme the admin last set.
  *
- * Corollary: anything portalled to document.body (Radix menus/dialogs, Sonner
- * toasts) also renders outside the wrapper, so it does not inherit these
- * overrides — E3's provider owns that, not this file.
+ * Corollary — PORTALS. Anything portalled to document.body (the Radix popover
+ * in admin-popover.tsx; the 13 admin files using base-ui's Dialog.Portal,
+ * AdminCommandSearch among them) renders outside the wrapper and so cannot
+ * inherit these overrides. Each theme block therefore carries a second
+ * selector, "<wrapper> ~ *": the admin wrapper is a direct child of <body>
+ * (root layout renders {children} straight into it), and React appends portal
+ * containers after it, so the wrapper's following siblings ARE the portals.
+ * That keeps the guarantee structural — the rule is keyed on the admin wrapper
+ * being in the DOM, so it stops matching the instant React unmounts the admin
+ * tree, and there is no marker on <body>/<html> that could be left behind on a
+ * public route. If the root layout ever wraps {children} in an element, this
+ * arm stops matching and portals simply render light — it fails safe.
+ * (Sonner is NOT in this list: v2.0.7 renders its Toaster in place — verified,
+ * zero createPortal in its dist — and AdminTopNav mounts it inside the shell,
+ * so toasts inherit the wrapper directly.)
  *
  * Light stays the :root default so the public site is untouched; dark is
  * selector-triggered. Equal specificity (0,1,0) means source order decides —
@@ -316,7 +328,8 @@
  * WCAG 2.1 formula (4.5:1 body text, 3:1 large text + UI boundaries) and all
  * dark values are inside the sRGB gamut. */
 
-[data-theme="dark"] {
+[data-theme="dark"],
+[data-admin-theme-root][data-theme="dark"] ~ * {
   /* Surfaces — warm near-black, hue held at :root's 88/75 so the
    * cream character survives the inversion. */
   --admin-canvas: oklch(17% 0.008 88);
@@ -435,7 +448,8 @@
 
 /* Redundant with :root by value, but explicit: an admin user who picks "light"
  * must keep today's palette even if :root is retuned later for the public site. */
-[data-theme="light"] {
+[data-theme="light"],
+[data-admin-theme-root][data-theme="light"] ~ * {
   --admin-canvas: #fbf8f2;
   --admin-sidebar: oklch(94% 0.014 75);
   --admin-sidebar-active: oklch(91% 0.05 247);
@@ -523,11 +537,15 @@
  * exactly, which makes the :root arm a deliberate no-op (it is listed so the
  * rule reads as "light regardless of theme", and so public pages that consume
  * --admin-* through the shared shadcn primitives print byte-identically to
- * today). */
+ * today). The portal arms are repeated here for the same reason they exist at
+ * all: a declaration ON the element beats an inherited one, so without them an
+ * open dialog would print its dark surface. */
 @media print {
   :root,
   [data-theme="dark"],
-  [data-theme="light"] {
+  [data-theme="light"],
+  [data-admin-theme-root][data-theme="dark"] ~ *,
+  [data-admin-theme-root][data-theme="light"] ~ * {
     --admin-canvas: #fbf8f2;
     --admin-sidebar: oklch(94% 0.014 75);
     --admin-sidebar-active: oklch(91% 0.05 247);

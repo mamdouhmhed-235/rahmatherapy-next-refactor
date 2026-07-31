@@ -270,6 +270,9 @@ export interface StaffProfile {
   languages?: string[];
   service_areas?: string[];
   profile_completed_at?: string | null;
+  /** Admin dark-mode choice — 'dark' | 'light' | 'system'. NULL means the user
+   *  never chose, which the admin layout resolves to the dark default. */
+  theme_preference?: string | null;
   permissions: Set<string>;
 }
 
@@ -332,7 +335,7 @@ export async function getStaffProfile(
 
   const { data: profile } = await supabase
     .from("staff_profiles")
-    .select("id, auth_user_id, name, email, role_id, gender, active, can_take_bookings, availability_mode, profile_photo_path, phone, show_phone_on_profile, short_bio, specialties, languages, service_areas, profile_completed_at, roles(name, display_label)")
+    .select("id, auth_user_id, name, email, role_id, gender, active, can_take_bookings, availability_mode, profile_photo_path, phone, show_phone_on_profile, short_bio, specialties, languages, service_areas, profile_completed_at, theme_preference, roles(name, display_label)")
     .eq("auth_user_id", user.id)
     .single();
 
@@ -360,6 +363,7 @@ export async function getStaffProfile(
     languages: profile.languages ?? [],
     service_areas: profile.service_areas ?? [],
     profile_completed_at: profile.profile_completed_at,
+    theme_preference: profile.theme_preference,
     permissions,
   };
 }

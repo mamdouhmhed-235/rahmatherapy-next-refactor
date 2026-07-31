@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AdminCommandSearch } from "./AdminCommandSearch";
 import { NotificationBell, MobileNotificationButton } from "./notification-bell";
+import { ThemeToggle } from "./ThemeToggle";
 import { useCriticalAnnouncer, useNotificationFreshness } from "./use-notification-state";
 import type { AdminShellVariant } from "../shell-variant";
 import type { NotificationItem } from "../reports/reporting";
@@ -307,6 +308,9 @@ export function AdminTopNav({
 
           {/* Right rail */}
           <div className="ml-auto flex items-center gap-1.5">
+            {/* Theme picker — shown at every viewport (the mobile rail keeps the
+                logo + this + search + bell inside 375px). */}
+            <ThemeToggle />
             <div className="hidden md:block">
               <AdminCommandSearch
                 compact
