@@ -527,6 +527,9 @@ export async function updateBookingManagement(
   if (isCancellationTransition) {
     await sendBookingCancellationEmails(bookingId, adminClient, {
       initiatedBy: "admin",
+      // C-08 Phase D — skip-self: the cancelling admin doesn't get a
+      // business alert about their own cancellation.
+      actorStaffId: actor.id,
       // Change 14 — the customer leg is parked in `email_delivery_events` as
       // `queued` for this many seconds instead of being sent now; the admin and
       // assigned-staff legs still go immediately. That gap is exactly the window
@@ -859,6 +862,9 @@ export async function quickUpdateBooking(formData: FormData) {
   if (beforeState.status !== "cancelled" && updatedBooking.status === "cancelled") {
     await sendBookingCancellationEmails(bookingId, adminClient, {
       initiatedBy: "admin",
+      // C-08 Phase D — skip-self, see the matching call in
+      // `updateBookingManagement`.
+      actorStaffId: actor.id,
       // Change 14 — see the matching call in `updateBookingManagement`. The
       // customer leg queues so the row menu's Undo can kill it; the internal
       // legs still go immediately.

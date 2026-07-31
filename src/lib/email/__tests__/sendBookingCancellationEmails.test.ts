@@ -102,9 +102,14 @@ function baseBooking(overrides: Record<string, unknown> = {}): Record<string, un
 function stubClient({
   booking,
   settings = SETTINGS,
+  staffProfiles,
 }: {
   booking: Record<string, unknown> | null;
   settings?: Record<string, unknown> | null;
+  /** C-08 Phase D — rows for `resolveBusinessNotificationRecipients`' bulk
+   *  staff_profiles fetch. Defaults to `[]` (zero opted-in), which is the
+   *  pre-Phase-D "fall back to getAdminRecipient" state. */
+  staffProfiles?: Record<string, unknown>[];
 }) {
   const inserts: { table: string; payload: Record<string, unknown> }[] = [];
 
@@ -118,7 +123,9 @@ function stubClient({
           ? { data: settings, error: null }
           : table === "booking_assignments"
             ? { data: [], error: null }
-            : { data: null, error: null };
+            : table === "staff_profiles"
+              ? { data: staffProfiles ?? [], error: null }
+              : { data: null, error: null };
 
     const chain = {
       eq: () => chain,
@@ -244,5 +251,77 @@ describe("sendBookingCancellationEmails", () => {
     expect(queuedInsert?.payload.html_payload as string).not.toContain(
       "Hi Aisha Khan, your Rahma Therapy Test booking has been cancelled."
     );
+  });
+
+  it("C-08 Phase D — sends the admin leg to every opted-in recipient except the cancelling actor, one row each", async () => {
+    const stub = stubClient({
+      booking: baseBooking(),
+      staffProfiles: [
+        {
+          id: "staff-owner",
+          email: "owner@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Owner" },
+        },
+        {
+          id: "staff-admin",
+          email: "admin@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Admin" },
+        },
+      ],
+    });
+
+    await sendBookingCancellationEmails("booking-1", stub.client, {
+      initiatedBy: "admin",
+      actorStaffId: "staff-admin",
+    });
+
+    // Customer leg + only the non-excluded admin (staff-admin cancelled it,
+    // so skip-self excludes them) = 2 sends.
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+    const calls = vi.mocked(sendEmail).mock.calls.map((c) => c[0]);
+    expect(calls.some((c) => c.to === "owner@rahmatherapy.example.test")).toBe(true);
+    expect(calls.some((c) => c.to === "admin@rahmatherapy.example.test")).toBe(false);
+
+    const adminRows = stub.inserts.filter(
+      (i) => i.table === "email_delivery_events" && i.payload.event_type === "booking_cancellation_admin"
+    );
+    expect(adminRows).toHaveLength(1);
+    expect(adminRows[0].payload.staff_id).toBe("staff-owner");
+  });
+
+  it("C-08 Phase D — writes a skipped row with actor_excluded when skip-self empties a single-recipient opt-in list", async () => {
+    const stub = stubClient({
+      booking: baseBooking(),
+      staffProfiles: [
+        {
+          id: "staff-admin",
+          email: "admin@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Admin" },
+        },
+      ],
+    });
+
+    await sendBookingCancellationEmails("booking-1", stub.client, {
+      initiatedBy: "admin",
+      actorStaffId: "staff-admin",
+    });
+
+    // Only the customer leg sends — the sole opted-in admin cancelled it themselves.
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendEmail).mock.calls[0][0].to).toBe(CUSTOMER_EMAIL);
+
+    const skippedRow = stub.inserts.find(
+      (i) => i.table === "email_delivery_events" && i.payload.event_type === "booking_cancellation_admin"
+    );
+    expect(skippedRow?.payload).toMatchObject({
+      delivery_status: "skipped",
+      error_message: "actor_excluded",
+    });
   });
 });

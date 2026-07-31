@@ -101,10 +101,17 @@ function stubClient({
   booking,
   settings = SETTINGS,
   claimingStaff,
+  staffProfiles,
 }: {
   booking: Record<string, unknown> | null;
   settings?: Record<string, unknown> | null;
   claimingStaff: Record<string, unknown> | null;
+  /** C-08 Phase D — rows for `resolveBusinessNotificationRecipients`' bulk
+   *  staff_profiles fetch (a distinct query from the `claimingStaff`
+   *  `.eq("id", ...).maybeSingle()` lookup below — same table, different
+   *  terminal call). Defaults to `[]` (zero opted-in), which is the
+   *  pre-Phase-D "fall back to getAdminRecipient" state. */
+  staffProfiles?: Record<string, unknown>[];
 }) {
   const inserts: { table: string; payload: Record<string, unknown> }[] = [];
 
@@ -112,6 +119,11 @@ function stubClient({
     const chain = {
       eq: () => chain,
       select: () => chain,
+      returns: () =>
+        Promise.resolve({
+          data: table === "staff_profiles" ? (staffProfiles ?? []) : [],
+          error: null,
+        }),
       single: () =>
         Promise.resolve(
           table === "bookings"
@@ -240,5 +252,67 @@ describe("sendClaimNotificationEmail", () => {
     // regression this test guards against).
     expect(html).not.toContain("just claimed the 2026-07-20 14:00:00 slot");
     expect(text).not.toContain("just claimed the 2026-07-20 14:00:00 slot");
+  });
+
+  it("C-08 Phase D — sends to every opted-in Owner/Admin except the claiming staff member, one row each", async () => {
+    const stub = stubClient({
+      booking: baseBooking(),
+      claimingStaff: { name: "Sara" },
+      staffProfiles: [
+        // Sara herself is also an opted-in Admin here — skip-self must
+        // exclude her from her own claim notification even though she's
+        // in the opted-in list (brief §5.6 supersession).
+        {
+          id: CLAIMING_STAFF_ID,
+          email: "sara@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Admin" },
+        },
+        {
+          id: "staff-owner",
+          email: "owner@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Owner" },
+        },
+      ],
+    });
+
+    await sendClaimNotificationEmail("booking-1", CLAIMING_STAFF_ID, stub.client);
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(sendEmail).mock.calls[0][0];
+    expect(call.to).toBe("owner@rahmatherapy.example.test");
+
+    const trackedInserts = stub.inserts.filter((i) => i.table === "email_delivery_events");
+    expect(trackedInserts).toHaveLength(1);
+    expect(trackedInserts[0].payload.staff_id).toBe("staff-owner");
+  });
+
+  it("C-08 Phase D — writes a skipped row with actor_excluded when the claimant is the only opted-in recipient", async () => {
+    const stub = stubClient({
+      booking: baseBooking(),
+      claimingStaff: { name: "Sara" },
+      staffProfiles: [
+        {
+          id: CLAIMING_STAFF_ID,
+          email: "sara@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Admin" },
+        },
+      ],
+    });
+
+    await sendClaimNotificationEmail("booking-1", CLAIMING_STAFF_ID, stub.client);
+
+    expect(sendEmail).not.toHaveBeenCalled();
+    const skippedRow = stub.inserts.find((i) => i.table === "email_delivery_events");
+    expect(skippedRow?.payload).toMatchObject({
+      event_type: "claim",
+      delivery_status: "skipped",
+      error_message: "actor_excluded",
+    });
   });
 });

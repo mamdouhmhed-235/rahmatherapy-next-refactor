@@ -104,9 +104,14 @@ function baseBooking(overrides: Record<string, unknown> = {}): Record<string, un
 function stubClient({
   booking,
   settings = SETTINGS,
+  staffProfiles,
 }: {
   booking: Record<string, unknown> | null;
   settings?: Record<string, unknown> | null;
+  /** C-08 Phase D — rows for `resolveBusinessNotificationRecipients`' bulk
+   *  staff_profiles fetch. Defaults to `[]` (zero opted-in), which is the
+   *  pre-Phase-D "fall back to getAdminRecipient" state. */
+  staffProfiles?: Record<string, unknown>[];
 }) {
   const inserts: { table: string; payload: Record<string, unknown> }[] = [];
 
@@ -114,6 +119,11 @@ function stubClient({
     const chain = {
       eq: () => chain,
       select: () => chain,
+      returns: () =>
+        Promise.resolve({
+          data: table === "staff_profiles" ? (staffProfiles ?? []) : [],
+          error: null,
+        }),
       single: () =>
         Promise.resolve(
           table === "bookings"
@@ -214,5 +224,45 @@ describe("sendBookingCreatedEmails", () => {
     expect(customerCall.html as string).toContain("OVERRIDE customer greeting Aisha Khan.");
     expect(customerCall.text as string).not.toContain("OVERRIDE customer greeting");
     expect(adminCall.html as string).not.toContain("OVERRIDE customer greeting");
+  });
+
+  it("C-08 Phase D — sends the admin leg to every opted-in Owner/Admin, one delivery row each", async () => {
+    const stub = stubClient({
+      booking: baseBooking(),
+      staffProfiles: [
+        {
+          id: "staff-owner",
+          email: "owner@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Owner" },
+        },
+        {
+          id: "staff-admin",
+          email: "admin@rahmatherapy.example.test",
+          notification_email: "admin-alerts@rahmatherapy.example.test",
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Admin" },
+        },
+      ],
+    });
+
+    await sendBookingCreatedEmails("booking-1", stub.client);
+
+    // Customer leg + 2 opted-in admin recipients = 3 sends, no fallback to
+    // getAdminRecipient's single settings.contact_email.
+    expect(sendEmail).toHaveBeenCalledTimes(3);
+    const calls = vi.mocked(sendEmail).mock.calls.map((c) => c[0]);
+    expect(calls.some((c) => c.to === "owner@rahmatherapy.example.test")).toBe(true);
+    expect(calls.some((c) => c.to === "admin-alerts@rahmatherapy.example.test")).toBe(true);
+    expect(calls.some((c) => c.to === SETTINGS.contact_email)).toBe(false);
+
+    // One tracked email_delivery_events row per recipient (not one for the
+    // whole admin leg).
+    const adminRows = stub.inserts.filter(
+      (i) => i.table === "email_delivery_events" && i.payload.event_type === "admin_booking_notification"
+    );
+    expect(adminRows).toHaveLength(2);
+    expect(adminRows.map((r) => r.payload.staff_id).sort()).toEqual(["staff-admin", "staff-owner"]);
   });
 });

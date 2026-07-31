@@ -342,7 +342,7 @@ describe("updateBookingManagement — future-date guard (W03-E-2)", () => {
     expect(sendBookingCancellationEmails).toHaveBeenCalledWith(
       "booking-1",
       stub.client,
-      { initiatedBy: "admin", delaySeconds: 10 }
+      { initiatedBy: "admin", actorStaffId: "staff-Owner", delaySeconds: 10 }
     );
   });
 

@@ -237,6 +237,154 @@ function getAdminRecipient(settings: BusinessSettings) {
   return settings.contact_email ?? extractEmailAddress(getFromEmail());
 }
 
+// ─── C-08 Phase D — business-notification recipient resolver (brief §2.9) ──
+
+export type BusinessNotificationType =
+  | "new_booking_request"
+  | "booking_cancelled"
+  | "reschedule_request"
+  | "enquiry_logged"
+  | "slot_claimed";
+
+export interface BusinessNotificationQuery {
+  type: BusinessNotificationType;
+  /** Skip-self — the staff member who caused the event, if any (brief §5.6b). */
+  excludeStaffId?: string | null;
+}
+
+export interface BusinessNotificationRecipient {
+  staffId: string | null;
+  email: string;
+}
+
+export type BusinessNotificationSkipReason =
+  | "all_recipients_opted_out"
+  | "actor_excluded";
+
+export interface BusinessNotificationResolution {
+  recipients: BusinessNotificationRecipient[];
+  /**
+   * Set only when `recipients` is empty AND that emptiness is the result of
+   * per-type prefs or skip-self clearing a NON-empty opt-in list (brief
+   * §5.6c). Callers must write a `skipped` delivery row with this reason.
+   * `null` with an empty `recipients` means nobody has ever opted in AND the
+   * zero-opt-in fallback itself had no admin recipient configured — the
+   * pre-existing "opted out of everything" no-op (no row written, matching
+   * `getAdminRecipient` returning falsy today).
+   */
+  skipReason: BusinessNotificationSkipReason | null;
+}
+
+interface BusinessNotificationStaffRow {
+  id: string;
+  email: string;
+  notification_email: string | null;
+  business_notification_prefs: {
+    enabled?: boolean;
+    types?: Record<string, boolean>;
+  } | null;
+  roles: { name: string } | null;
+}
+
+/**
+ * C-08 Phase D (brief §2.9) — resolves who receives an internal
+ * business alert, replacing `getAdminRecipient` for every admin_internal
+ * send except as the zero-opt-in-anywhere fallback below.
+ *
+ * Resolution order: active Owner/Admin profiles opted in
+ * (`business_notification_prefs->>'enabled' = 'true'`) → per-type opt-out
+ * (`prefs.types[type] === false`; a type ABSENT from `types` defaults to ON
+ * — the Step 13 seed writes `{"enabled": true}` with no `types` key at all,
+ * so testing this the other way round would silently disable every alert
+ * for the only opted-in user) → skip-self → `notification_email ?? email`.
+ *
+ * Zero-opt-in-anywhere falls back to `getAdminRecipient(settings)` so an
+ * alert can never silently vanish during rollout. That fallback does NOT
+ * apply when per-type prefs or skip-self emptied an otherwise non-empty
+ * opt-in list — see `BusinessNotificationResolution.skipReason`.
+ */
+export async function resolveBusinessNotificationRecipients(
+  supabase: SupabaseClient,
+  query: BusinessNotificationQuery
+): Promise<BusinessNotificationResolution> {
+  const { data } = await supabase
+    .from("staff_profiles")
+    .select(
+      "id, email, notification_email, business_notification_prefs, roles(name)"
+    )
+    .eq("active", true)
+    .returns<BusinessNotificationStaffRow[]>();
+
+  const optedIn = (data ?? []).filter((row) => {
+    const role = (row.roles as unknown) as { name: string } | null;
+    const isOwnerOrAdmin = role?.name === "Owner" || role?.name === "Admin";
+    return isOwnerOrAdmin && row.business_notification_prefs?.enabled === true;
+  });
+
+  if (optedIn.length === 0) {
+    const settings = await getBusinessSettings(supabase);
+    const fallback = getAdminRecipient(settings);
+    return {
+      recipients: fallback ? [{ staffId: null, email: fallback }] : [],
+      skipReason: null,
+    };
+  }
+
+  const afterTypeFilter = optedIn.filter(
+    (row) => row.business_notification_prefs?.types?.[query.type] !== false
+  );
+  if (afterTypeFilter.length === 0) {
+    return { recipients: [], skipReason: "all_recipients_opted_out" };
+  }
+
+  const afterSkipSelf = query.excludeStaffId
+    ? afterTypeFilter.filter((row) => row.id !== query.excludeStaffId)
+    : afterTypeFilter;
+  if (afterSkipSelf.length === 0) {
+    return { recipients: [], skipReason: "actor_excluded" };
+  }
+
+  return {
+    recipients: afterSkipSelf.map((row) => ({
+      staffId: row.id,
+      email: row.notification_email ?? row.email,
+    })),
+    skipReason: null,
+  };
+}
+
+/**
+ * C-08 Phase D — shared fan-out for the 4 rerouted admin_internal senders.
+ * Sends one tracked email per resolved recipient (one delivery row each,
+ * per plan §1 Phase D). When resolution came back empty for an intentional
+ * reason (per-type opt-out or skip-self emptied a non-empty list), writes a
+ * single `skipped` row carrying that reason; a `skipReason` of `null` with
+ * no recipients means nobody is configured at all, which stays a silent
+ * no-op (matches pre-Phase-D behaviour when no admin email was configured).
+ */
+async function sendToBusinessRecipients(
+  supabase: SupabaseClient,
+  bookingId: string,
+  eventType: string,
+  resolution: BusinessNotificationResolution,
+  buildSend: (recipient: BusinessNotificationRecipient) => Promise<unknown>
+): Promise<void> {
+  if (resolution.recipients.length > 0) {
+    await Promise.all(resolution.recipients.map(buildSend));
+    return;
+  }
+  if (resolution.skipReason) {
+    await recordEmailDeliveryEvent(supabase, {
+      bookingId,
+      eventType,
+      recipientEmail: null,
+      recipientRole: "admin",
+      deliveryStatus: "skipped",
+      errorMessage: resolution.skipReason,
+    });
+  }
+}
+
 function getProviderMessageId(data: unknown) {
   return typeof data === "object" &&
     data !== null &&
@@ -426,7 +574,7 @@ export async function sendBookingCreatedEmails(
   supabase: SupabaseClient,
   options: { manageUrl?: string } = {}
 ) {
-  const { booking, settings, input } = await getBookingTemplateInput(
+  const { booking, input } = await getBookingTemplateInput(
     bookingId,
     supabase,
     {
@@ -447,9 +595,12 @@ export async function sendBookingCreatedEmails(
   // for the customer, admin_booking_notification for the admin); the plain-text
   // fallback shares the same resolved overrides as its HTML sibling so a
   // footer_contact edit applies identically to both legs.
-  const [customerOverrides, adminOverrides] = await Promise.all([
+  const [customerOverrides, adminOverrides, businessRecipients] = await Promise.all([
     resolveTemplateOverrides("booking_confirmation"),
     resolveTemplateOverrides("admin_booking_notification"),
+    // C-08 Phase D — customer-initiated, so no staff actor to exclude
+    // (brief §5.6b).
+    resolveBusinessNotificationRecipients(supabase, { type: "new_booking_request" }),
   ]);
 
   await Promise.all([
@@ -462,20 +613,28 @@ export async function sendBookingCreatedEmails(
       html: renderBookingConfirmationEmail(input, customerOverrides),
       text: renderBookingPlainText("Booking request received", input, customerOverrides),
     }),
-    sendTrackedEmail(supabase, {
+    sendToBusinessRecipients(
+      supabase,
       bookingId,
-      eventType: "admin_booking_notification",
-      recipientRole: "admin",
-      to: getAdminRecipient(settings),
-      subject: `New booking request - ${input.clientName}`,
-      html: renderAdminBookingNotificationEmail({
-        ...input,
-        bookingId: booking.id,
-        clientEmail: booking.contact_email || booking.clients?.email || null,
-        clientPhone: booking.contact_phone || booking.clients?.phone || null,
-      }, adminOverrides),
-      text: renderBookingPlainText("New booking request", input, adminOverrides),
-    }),
+      "admin_booking_notification",
+      businessRecipients,
+      (recipient) =>
+        sendTrackedEmail(supabase, {
+          bookingId,
+          eventType: "admin_booking_notification",
+          recipientRole: "admin",
+          staffId: recipient.staffId,
+          to: recipient.email,
+          subject: `New booking request - ${input.clientName}`,
+          html: renderAdminBookingNotificationEmail({
+            ...input,
+            bookingId: booking.id,
+            clientEmail: booking.contact_email || booking.clients?.email || null,
+            clientPhone: booking.contact_phone || booking.clients?.phone || null,
+          }, adminOverrides),
+          text: renderBookingPlainText("New booking request", input, adminOverrides),
+        })
+    ),
   ]);
 
   return { manageUrl: input.manageUrl ?? null };
@@ -493,9 +652,16 @@ export async function sendBookingCancellationEmails(
      * legs below stay immediate: internal recipients want real-time notice.
      */
     delaySeconds?: number;
+    /**
+     * C-08 Phase D — the staff member who cancelled, when `initiatedBy` is
+     * "admin". Threaded through to `resolveBusinessNotificationRecipients`
+     * as skip-self so the cancelling admin doesn't get an alert about their
+     * own action (brief §5.6b). Customer-initiated cancellations pass none.
+     */
+    actorStaffId?: string | null;
   } = { initiatedBy: "admin" }
 ) {
-  const { booking, settings, input } = await getBookingTemplateInput(bookingId, supabase);
+  const { booking, input } = await getBookingTemplateInput(bookingId, supabase);
   const customerEmail = booking.contact_email || booking.clients?.email;
   if (!customerEmail) {
     throw new Error("Booking client has no email address.");
@@ -506,9 +672,13 @@ export async function sendBookingCancellationEmails(
   // queued and a cron drains it later); the HTML/text below are rendered now, up
   // front, and the finished payload is what gets parked in the queued row. There
   // is no later render step for the C-04a delayed-cancellation path to intercept.
-  const [customerOverrides, adminOverrides] = await Promise.all([
+  const [customerOverrides, adminOverrides, businessRecipients] = await Promise.all([
     resolveTemplateOverrides("booking_cancellation_client"),
     resolveTemplateOverrides("admin_booking_cancellation"),
+    resolveBusinessNotificationRecipients(supabase, {
+      type: "booking_cancelled",
+      excludeStaffId: options.initiatedBy === "admin" ? options.actorStaffId ?? null : null,
+    }),
   ]);
 
   await Promise.all([
@@ -522,20 +692,28 @@ export async function sendBookingCancellationEmails(
       text: renderBookingPlainText("Booking cancelled", input, customerOverrides),
       delaySeconds: options.delaySeconds,
     }),
-    sendTrackedEmail(supabase, {
+    sendToBusinessRecipients(
+      supabase,
       bookingId,
-      eventType: "booking_cancellation_admin",
-      recipientRole: "admin",
-      to: getAdminRecipient(settings),
-      subject: `Booking cancelled - ${input.clientName}`,
-      html: renderAdminBookingCancellationEmail({
-        ...input,
-        bookingId,
-        initiatedBy: options.initiatedBy,
-        cancellationNote: options.cancellationNote,
-      }, adminOverrides),
-      text: renderBookingPlainText("Booking cancelled", input, adminOverrides),
-    }),
+      "booking_cancellation_admin",
+      businessRecipients,
+      (recipient) =>
+        sendTrackedEmail(supabase, {
+          bookingId,
+          eventType: "booking_cancellation_admin",
+          recipientRole: "admin",
+          staffId: recipient.staffId,
+          to: recipient.email,
+          subject: `Booking cancelled - ${input.clientName}`,
+          html: renderAdminBookingCancellationEmail({
+            ...input,
+            bookingId,
+            initiatedBy: options.initiatedBy,
+            cancellationNote: options.cancellationNote,
+          }, adminOverrides),
+          text: renderBookingPlainText("Booking cancelled", input, adminOverrides),
+        })
+    ),
     sendAssignedStaffBookingChangeEmails(
       bookingId,
       supabase,
@@ -597,28 +775,40 @@ export async function sendBookingRescheduleRequestEmails(
     requestNote: string | null;
   }
 ) {
-  const { settings, input: templateInput } = await getBookingTemplateInput(
+  const { input: templateInput } = await getBookingTemplateInput(
     bookingId,
     supabase
   );
 
-  const overrides = await resolveTemplateOverrides("admin_reschedule_request");
+  const [overrides, businessRecipients] = await Promise.all([
+    resolveTemplateOverrides("admin_reschedule_request"),
+    // C-08 Phase D — customer-initiated, so no staff actor to exclude.
+    resolveBusinessNotificationRecipients(supabase, { type: "reschedule_request" }),
+  ]);
 
-  await sendTrackedEmail(supabase, {
+  await sendToBusinessRecipients(
+    supabase,
     bookingId,
-    eventType: "booking_reschedule_request_admin",
-    recipientRole: "admin",
-    to: getAdminRecipient(settings),
-    subject: `Reschedule request - ${templateInput.clientName}`,
-    html: renderAdminRescheduleRequestEmail({
-      ...templateInput,
-      bookingId,
-      requestedDate: input.requestedDate,
-      requestedTime: input.requestedTime,
-      requestNote: input.requestNote,
-    }, overrides),
-    text: renderBookingPlainText("Reschedule request", templateInput, overrides),
-  });
+    "booking_reschedule_request_admin",
+    businessRecipients,
+    (recipient) =>
+      sendTrackedEmail(supabase, {
+        bookingId,
+        eventType: "booking_reschedule_request_admin",
+        recipientRole: "admin",
+        staffId: recipient.staffId,
+        to: recipient.email,
+        subject: `Reschedule request - ${templateInput.clientName}`,
+        html: renderAdminRescheduleRequestEmail({
+          ...templateInput,
+          bookingId,
+          requestedDate: input.requestedDate,
+          requestedTime: input.requestedTime,
+          requestNote: input.requestNote,
+        }, overrides),
+        text: renderBookingPlainText("Reschedule request", templateInput, overrides),
+      })
+  );
 }
 
 export async function sendStaffAssignmentEmail(
@@ -771,26 +961,22 @@ export async function sendStaffUnassignmentEmail(
 }
 
 /**
- * C-08 — sent to the admin recipient when a practitioner claims an
- * unassigned slot, wired into claimBookingAssignment.
+ * C-08 — sent to opted-in Owner/Admin recipients when a practitioner claims
+ * an unassigned slot, wired into claimBookingAssignment.
  *
- * NOTE (2026-07-16): `getAdminRecipient` here is Phase-A-interim only.
- * Phase D Step 15 reroutes this send through
- * `resolveBusinessNotificationRecipients` (multi-recipient, per-type prefs
- * keyed `slot_claimed`, skip-self via the claiming staff id) — this
- * single-admin-recipient call is a placeholder until then.
+ * C-08 Phase D Step 15 — rerouted through `resolveBusinessNotificationRecipients`
+ * (multi-recipient, per-type prefs keyed `slot_claimed`, skip-self via the
+ * claiming staff id — brief §5.6 supersession). Replaces the Phase-A interim
+ * single `getAdminRecipient` call.
  */
 export async function sendClaimNotificationEmail(
   bookingId: string,
   claimingStaffId: string,
   supabase: SupabaseClient
 ): Promise<void> {
-  const { settings, input } = await getBookingTemplateInput(bookingId, supabase, {
+  const { input } = await getBookingTemplateInput(bookingId, supabase, {
     requireCustomerEmail: false,
   });
-
-  const adminRecipient = getAdminRecipient(settings);
-  if (!adminRecipient) return; // no admin email configured — opted out
 
   const { data: claimingStaff } = await supabase
     .from("staff_profiles")
@@ -803,15 +989,28 @@ export async function sendClaimNotificationEmail(
   const html = await renderClaimNotificationEmail(claimInput);
   const overrides = await resolveTemplateOverrides("claim");
 
-  await sendTrackedEmail(supabase, {
-    bookingId,
-    eventType: "claim",
-    recipientRole: "admin",
-    to: adminRecipient,
-    subject: `Slot claimed: ${therapistName} → ${input.bookingDate}`,
-    html,
-    text: renderClaimNotificationPlainText(claimInput, overrides),
+  const businessRecipients = await resolveBusinessNotificationRecipients(supabase, {
+    type: "slot_claimed",
+    excludeStaffId: claimingStaffId,
   });
+
+  await sendToBusinessRecipients(
+    supabase,
+    bookingId,
+    "claim",
+    businessRecipients,
+    (recipient) =>
+      sendTrackedEmail(supabase, {
+        bookingId,
+        eventType: "claim",
+        recipientRole: "admin",
+        staffId: recipient.staffId,
+        to: recipient.email,
+        subject: `Slot claimed: ${therapistName} → ${input.bookingDate}`,
+        html,
+        text: renderClaimNotificationPlainText(claimInput, overrides),
+      })
+  );
 }
 
 /**

@@ -90,9 +90,14 @@ function baseBooking(overrides: Record<string, unknown> = {}): Record<string, un
 function stubClient({
   booking,
   settings = SETTINGS,
+  staffProfiles,
 }: {
   booking: Record<string, unknown> | null;
   settings?: Record<string, unknown> | null;
+  /** C-08 Phase D — rows for `resolveBusinessNotificationRecipients`' bulk
+   *  staff_profiles fetch. Defaults to `[]` (zero opted-in), which is the
+   *  pre-Phase-D "fall back to getAdminRecipient" state. */
+  staffProfiles?: Record<string, unknown>[];
 }) {
   const inserts: { table: string; payload: Record<string, unknown> }[] = [];
 
@@ -100,6 +105,11 @@ function stubClient({
     const chain = {
       eq: () => chain,
       select: () => chain,
+      returns: () =>
+        Promise.resolve({
+          data: table === "staff_profiles" ? (staffProfiles ?? []) : [],
+          error: null,
+        }),
       single: () =>
         Promise.resolve(
           table === "bookings"
@@ -180,5 +190,45 @@ describe("sendBookingRescheduleRequestEmails", () => {
     const call = vi.mocked(sendEmail).mock.calls[0][0];
     expect(call.html as string).toContain("OVERRIDE — reach us on 0000 000000.");
     expect(call.text as string).toContain("OVERRIDE — reach us on 0000 000000.");
+  });
+
+  it("C-08 Phase D — sends to every opted-in Owner/Admin, one delivery row each, no exclusion (customer-initiated)", async () => {
+    const stub = stubClient({
+      booking: baseBooking(),
+      staffProfiles: [
+        {
+          id: "staff-owner",
+          email: "owner@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Owner" },
+        },
+        {
+          id: "staff-admin",
+          email: "admin@rahmatherapy.example.test",
+          notification_email: null,
+          business_notification_prefs: { enabled: true },
+          roles: { name: "Admin" },
+        },
+      ],
+    });
+
+    await sendBookingRescheduleRequestEmails("booking-1", stub.client, {
+      requestedDate: "2026-08-01",
+      requestedTime: "10:00",
+      requestNote: null,
+    });
+
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+    const calls = vi.mocked(sendEmail).mock.calls.map((c) => c[0]);
+    expect(calls.some((c) => c.to === "owner@rahmatherapy.example.test")).toBe(true);
+    expect(calls.some((c) => c.to === "admin@rahmatherapy.example.test")).toBe(true);
+
+    const trackedInserts = stub.inserts.filter((i) => i.table === "email_delivery_events");
+    expect(trackedInserts).toHaveLength(2);
+    expect(trackedInserts.map((i) => i.payload.staff_id).sort()).toEqual([
+      "staff-admin",
+      "staff-owner",
+    ]);
   });
 });
