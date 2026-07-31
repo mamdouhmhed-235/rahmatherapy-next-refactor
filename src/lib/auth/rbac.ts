@@ -273,6 +273,19 @@ export interface StaffProfile {
   /** Admin dark-mode choice — 'dark' | 'light' | 'system'. NULL means the user
    *  never chose, which the admin layout resolves to the dark default. */
   theme_preference?: string | null;
+  /** C-08 Phase D — personal address for business alerts. NULL/empty falls
+   *  back to the login email at send time. Owner/Admin only, self-set via
+   *  /admin/me. */
+  notification_email?: string | null;
+  /** C-08 Phase D — opt-in + per-type alert preferences, consumed by
+   *  `resolveBusinessNotificationRecipients` (lib/email/notifications.ts).
+   *  NULL means never opted in. A `types` key absent for a given alert type
+   *  defaults that type ON — the resolver's rule, reproduced wherever this
+   *  field is read. */
+  business_notification_prefs?: {
+    enabled?: boolean;
+    types?: Record<string, boolean>;
+  } | null;
   permissions: Set<string>;
 }
 
@@ -335,7 +348,7 @@ export async function getStaffProfile(
 
   const { data: profile } = await supabase
     .from("staff_profiles")
-    .select("id, auth_user_id, name, email, role_id, gender, active, can_take_bookings, availability_mode, profile_photo_path, phone, show_phone_on_profile, short_bio, specialties, languages, service_areas, profile_completed_at, theme_preference, roles(name, display_label)")
+    .select("id, auth_user_id, name, email, role_id, gender, active, can_take_bookings, availability_mode, profile_photo_path, phone, show_phone_on_profile, short_bio, specialties, languages, service_areas, profile_completed_at, theme_preference, notification_email, business_notification_prefs, roles(name, display_label)")
     .eq("auth_user_id", user.id)
     .single();
 
@@ -364,6 +377,8 @@ export async function getStaffProfile(
     service_areas: profile.service_areas ?? [],
     profile_completed_at: profile.profile_completed_at,
     theme_preference: profile.theme_preference,
+    notification_email: profile.notification_email,
+    business_notification_prefs: profile.business_notification_prefs,
     permissions,
   };
 }

@@ -155,6 +155,7 @@ const AUDIT_PHRASING: Record<string, string> = {
   booking_quick_no_show: "Booking marked no-show",
   review_email_sent: "Review request email sent",
   email_resent: "Email resent",
+  notification_settings_updated: "Notification settings updated",
 };
 
 function auditActionPhrase(actionType: string): string {

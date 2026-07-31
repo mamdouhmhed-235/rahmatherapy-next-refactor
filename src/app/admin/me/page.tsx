@@ -12,7 +12,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, canOpenReports } from "@/lib/auth/rbac";
+import { canManageEmailTemplates, getStaffProfile, canOpenReports } from "@/lib/auth/rbac";
 import { resolveAdminShellVariant } from "@/app/admin/shell-variant";
 import { parseReportFilters } from "@/app/admin/reports/reporting";
 import { PerformanceSurface } from "@/app/admin/components/PerformanceSurface";
@@ -20,6 +20,7 @@ import {
   buildRangeChips,
   buildRangeWindowLabel,
 } from "@/app/admin/components/performance-surface-helpers";
+import { NotificationSettingsCard } from "./NotificationSettingsCard";
 
 export const metadata = {
   title: "My Performance — Rahma Therapy Admin",
@@ -47,18 +48,37 @@ export default async function MyPerformancePage({ searchParams }: MyPerformanceP
     : undefined;
 
   return (
-    <PerformanceSurface
-      profile={profile}
-      viewer={profile}
-      mode="self"
-      shell={shell}
-      filters={filters}
-      tileOptions={{ showAll: params.show === "all" }}
-      rangeChips={rangeChips}
-      rangeWindowLabel={rangeWindowLabel}
-      viewInReportsHref={viewInReportsHref}
-      customDateRange={{ from: filters.from, to: filters.to }}
-      basePath="/admin/me"
-    />
+    <>
+      <PerformanceSurface
+        profile={profile}
+        viewer={profile}
+        mode="self"
+        shell={shell}
+        filters={filters}
+        tileOptions={{ showAll: params.show === "all" }}
+        rangeChips={rangeChips}
+        rangeWindowLabel={rangeWindowLabel}
+        viewInReportsHref={viewInReportsHref}
+        customDateRange={{ from: filters.from, to: filters.to }}
+        basePath="/admin/me"
+      />
+      {/* C-08 Phase D Step 17 (brief §2.8) — Owner/Admin only. C-07's
+          Quick-links panel mounts on this same page; C-08 ships first, so
+          this simply slots below PerformanceSurface with no accommodation
+          for a sibling that doesn't exist yet. Not inside <main
+          id="admin-main">, which PerformanceSurface itself renders — this
+          wrapper only mirrors its outer spacing so the two read as one
+          column; edited without touching PerformanceSurface.tsx, which is
+          outside this plan's files-touched list. */}
+      {canManageEmailTemplates(profile) ? (
+        <div className="mx-auto w-full max-w-6xl px-4 pb-24 sm:px-6 sm:pb-8">
+          <NotificationSettingsCard
+            loginEmail={profile.email}
+            notificationEmail={profile.notification_email ?? null}
+            prefs={profile.business_notification_prefs}
+          />
+        </div>
+      ) : null}
+    </>
   );
 }
