@@ -228,6 +228,16 @@
   --admin-chart-status-unknown: oklch(60% 0.05 280);
   /* Client LTV ribbon's inline sparkline — stroke, and its area fill at 0.08. */
   --admin-sparkline-stroke: oklch(42% 0.008 143);
+  /* globals.css .admin-nav-surface / .admin-nav-link foregrounds — the last two
+   * of the five admin-scoped literal groups the plan names (C11-F7). These are
+   * ORPHANED rules: no .tsx applies either className anywhere in src/ (the live
+   * chrome is AdminTopNav.tsx, already on --admin-nav-*). Tokenised anyway so
+   * the plan's group list closes honestly; flagged for deletion in C-12+ rather
+   * than deleted here, which would exceed the sweep's remit. Values are verbatim
+   * the literals they replace. */
+  --admin-nav-surface-text: #ffffff;
+  --admin-nav-surface-link: rgba(209, 234, 223, 0.84);
+  --admin-nav-surface-link-icon: rgba(209, 234, 223, 0.72);
   --hero-scrim-token: linear-gradient(90deg, rgba(7, 22, 28, 0.86) 0%, rgba(9, 37, 47, 0.62) 38%, rgba(9, 37, 47, 0.2) 70%, rgba(9, 37, 47, 0.34) 100%);
   --site-header-height: 4.875rem;
   --image-card-scrim-token: linear-gradient(180deg, rgba(7, 22, 28, 0.02) 0%, rgba(7, 22, 28, 0.08) 34%, rgba(7, 22, 28, 0.58) 66%, rgba(7, 22, 28, 0.92) 100%);
@@ -412,6 +422,15 @@
   --admin-chart-status-noshow: oklch(78% 0.140 330);
   --admin-chart-status-unknown: oklch(72% 0.040 280);
   --admin-sparkline-stroke: oklch(75% 0.008 143);   /* 7.80:1 vs --admin-panel */
+  /* .admin-nav-surface foregrounds do NOT invert. Unlike every other token here
+   * they were never light-stuck: they paint light type onto chrome that is dark
+   * in BOTH themes, so the light values are already the dark-mode answer. Held
+   * verbatim rather than "darkened for symmetry", which would make them
+   * unreadable. Measured against dark --admin-nav-bg oklch(24% 0.010 75):
+   * white 16.5:1; the .84 mint 9.74:1; the .72 mint 7.70:1. */
+  --admin-nav-surface-text: #ffffff;
+  --admin-nav-surface-link: rgba(209, 234, 223, 0.84);
+  --admin-nav-surface-link-icon: rgba(209, 234, 223, 0.72);
 }
 
 /* Redundant with :root by value, but explicit: an admin user who picks "light"
@@ -494,6 +513,9 @@
   --admin-chart-status-noshow: oklch(50% 0.18 330);
   --admin-chart-status-unknown: oklch(60% 0.05 280);
   --admin-sparkline-stroke: oklch(42% 0.008 143);
+  --admin-nav-surface-text: #ffffff;
+  --admin-nav-surface-link: rgba(209, 234, 223, 0.84);
+  --admin-nav-surface-link-icon: rgba(209, 234, 223, 0.72);
 }
 
 /* Print always renders the light palette — a dark canvas wastes toner and the
@@ -585,6 +607,11 @@
     --admin-chart-status-noshow: oklch(50% 0.18 330);
     --admin-chart-status-unknown: oklch(60% 0.05 280);
     --admin-sparkline-stroke: oklch(42% 0.008 143);
+    /* Same in every block by design — see the dark block's note. Repeated only
+     * so no reader has to check whether the omission was deliberate. */
+    --admin-nav-surface-text: #ffffff;
+    --admin-nav-surface-link: rgba(209, 234, 223, 0.84);
+    --admin-nav-surface-link-icon: rgba(209, 234, 223, 0.72);
   }
 }
 

@@ -625,19 +625,8 @@ export function AdminMiniTrend({
       />
       <defs>
         <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-          {/* stop-color goes through `style` rather than the presentation
-              attribute so the var() is parsed as a CSS declaration in every
-              engine. */}
-          <stop
-            offset="0%"
-            style={{ stopColor: "var(--admin-status-confirmed-bg)" }}
-            stopOpacity="0.55"
-          />
-          <stop
-            offset="100%"
-            style={{ stopColor: "var(--admin-status-confirmed-bg)" }}
-            stopOpacity="0.04"
-          />
+          <stop offset="0%" stopColor="var(--admin-status-confirmed-bg)" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="var(--admin-status-confirmed-bg)" stopOpacity="0.04" />
         </linearGradient>
       </defs>
     </svg>

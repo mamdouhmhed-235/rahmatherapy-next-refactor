@@ -219,7 +219,7 @@ a[class*="border-rahma-green/30"] {
 }
 
 .admin-nav-surface {
-  color: #ffffff;
+  color: var(--admin-nav-surface-text);
 }
 
 .admin-display {
@@ -335,19 +335,19 @@ a[class*="border-rahma-green/30"] {
 
 .admin-nav-surface h2,
 .admin-nav-surface .admin-nav-link-active {
-  color: #ffffff !important;
+  color: var(--admin-nav-surface-text) !important;
 }
 
 .admin-nav-surface .admin-nav-link {
-  color: rgba(209, 234, 223, 0.84) !important;
+  color: var(--admin-nav-surface-link) !important;
 }
 
 .admin-nav-surface .admin-nav-link svg {
-  color: rgba(209, 234, 223, 0.72) !important;
+  color: var(--admin-nav-surface-link-icon) !important;
 }
 
 .admin-nav-surface .admin-nav-link-active svg {
-  color: #ffffff !important;
+  color: var(--admin-nav-surface-text) !important;
 }
 
 /* Bookings list motion — one hero entrance, a few small reveals.
