@@ -82,7 +82,7 @@ WHERE id = '2a15d56f-6da6-4beb-8cdf-e0e48dac8be7';
 | Phase | Commit(s) | What | Verify result |
 |---|---|---|---|
 | A | `80a8bc2` · `547c018` · `9f200ba` · `e522bdd` | 4 new templates, one commit each: `booking_confirmed_client`, `staff_unassignment`, `claim`, `client_assigned_therapist`. Registry now holds **14** templates. | **PASS / PASS** — both batches first time, no fix round, no §5 escalation. See §2.1. |
-| B (extended) | — | `staff_assignment` audit (done, §1) **+ Owner-approved override-wiring fix across the 8 legacy senders** | not started |
+| B (extended) | `e018d67` · `40a0202` | `staff_assignment` audit (done read-only, §1) **+ Owner-approved override wiring across the 8 legacy senders** + `body_cta_url` scheme guard + dead subject-helper-text fix. 8 new spec files, 37 new tests. | **PASS first time**, no fix round, no escalation. See §2.3. |
 | C | — | Resend tooling — **must preserve the existing H11 scoped-resend behaviour for Coord/Therapist** (§0.1) | not started |
 | D | — | Business-notification bundle — ⛔ Zone-2 migration at Step 13 | not started |
 
@@ -110,4 +110,38 @@ Verified state after Phase A: **5 of 13 senders resolve overrides** (`booking_co
 
 ---
 
-*C-08 in progress. Pre-flight `f3a0434`; Zone-2 override deletion performed 2026-07-31; Phase A shipped `80a8bc2`→`e522bdd`.*
+### 2.3 — Phase B: the template editor now actually works
+
+**`resolveTemplateOverrides` call sites in `notifications.ts`: 5 → 14.** Every sender now resolves. Baseline after: **5 failed / 923 passed**, same five inherited names.
+
+**The catch that mattered most: `eventType` is NOT `template_id`.** The implementer refused to derive template ids from event-type strings and instead read `renderForTemplate`'s switch in `admin/email-templates/actions.ts` as ground truth — the same mapping the "Send test" path uses. That caught a real divergence: eventType `booking_cancellation_customer` maps to template_id **`booking_cancellation_client`**. Guessing from the event type would have resolved a non-existent id, silently applying `{}` forever and reproducing the very bug being fixed — while every test still passed.
+
+**Sender → template_id → override keys** (verified per renderer, not assumed):
+
+| Sender | template_id | keys read |
+|---|---|---|
+| `sendBookingCreatedEmails` (customer leg) | `booking_confirmation` | `greeting_intro`, `group_copy`, `footer_contact` |
+| `sendBookingCreatedEmails` (admin leg) | `admin_booking_notification` | `footer_contact` |
+| `sendBookingCancellationEmails` (customer) | `booking_cancellation_client` | `greeting_intro`, `footer_contact` |
+| `sendBookingCancellationEmails` (admin) | `admin_booking_cancellation` | `footer_contact` |
+| `sendBookingRestoredClientEmail` | `booking_restored_client` | `greeting_intro`, `footer_contact` — **⚠️ id NOT registered, see below** |
+| `sendBookingRescheduleRequestEmails` | `admin_reschedule_request` | `footer_contact` |
+| `sendStaffAssignmentEmail` | `staff_assignment` | `intro`, `footer_contact` |
+| `sendAssignedStaffBookingChangeEmails` | `staff_booking_change` | `wrapper_change_summary`, `footer_contact` |
+| `sendBookingReminderEmail` | `booking_reminder` | `intro`, `footer_contact` |
+
+`sendBookingCancellationEmail` (singular) needed **no change** — it is a pure delegate to the plural and inherits the fix. Left untouched rather than given a no-op edit.
+
+**C-04a's queued path resolved correctly.** Rendering happens **synchronously at queue time** (the HTML/text are built as part of the `sendTrackedEmail` argument regardless of `delaySeconds`); the cron only flips `delivery_status` on the *same* row and never re-renders. So overrides are resolved at queue time, matching render timing exactly. Proven by a test passing `delaySeconds: 5` and asserting the **queued row's `html_payload` already contains the override text** — if resolution had been placed on the drain side it would have been a silent no-op.
+
+**Byte-identical property used as designed:** with `email_template_overrides` empty, each of the 7 new sender specs asserts the exact literal default strings from `templates.ts`, plus a matching override-application test proving the wiring genuinely works. Both halves — no regression, and not a no-op.
+
+**Security guards shipped:** `body_cta_url` scheme validated at save time in `saveTemplateOverride` **and** a render-time fallback so a pre-existing bad row cannot emit an unsafe `href`. The subject-line helper text corrected to stop claiming "Shown in the recipient's inbox"; **the override was deliberately NOT wired into the real subject** — header injection is currently unreachable precisely because subjects are hardcoded literals and Resend is a JSON API, so wiring it would open that surface for no benefit.
+
+### 2.4 — Logged, not fixed: one email has no registry entry
+
+`sendBookingRestoredClientEmail` resolves `booking_restored_client`, but that id is **not among the 14 registered templates** (`booking_confirmation`, `booking_cancellation_client`, `booking_reminder`, `booking_plain_text`, `staff_assignment`, `staff_booking_change`, `admin_booking_notification`, `admin_booking_cancellation`, `admin_reschedule_request`, `review_request_client`, `booking_confirmed_client`, `staff_unassignment`, `claim`, `client_assigned_therapist`). C-04a added the restore email without registering it, so its copy is not admin-editable and `resolveTemplateOverrides` will always return `{}` for it. **Harmless today** — the wiring is correct and simply has nothing to find — but it is the one customer-facing email the Templates tab cannot reach. **Natural fit for C-15 (email template studio)**, which owns the registry; logged rather than fixed here (rule 6a).
+
+---
+
+*C-08 in progress. Pre-flight `f3a0434`; Zone-2 override deletion 2026-07-31; Phase A `80a8bc2`→`e522bdd`; Phase B `e018d67`+`40a0202`. Next: Phase C (Resend tooling — must carry the H11 booking-scope check the plan's sketch omits).*
