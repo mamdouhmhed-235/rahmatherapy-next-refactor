@@ -6,7 +6,7 @@
 **Predecessor closed at:** `f3a0434` (C-11 shipped)
 **Model routing:** `sonnet` — §5 routes C-08 to Sonnet, and pre-emptive upgrades are banned. Opus is reserved for the §5 escalation rule (a phase failing verify twice), which is pre-wired into the phase workflows.
 
-> ## ⏳ STATUS: IN PROGRESS — Phase A running.
+> ## ✅ STATUS: SHIPPED 2026-07-31 — C-C plan #9 of 22. All four phases implemented, each independently verified; closeout gate + adversarial whole-plan review PASS.
 
 ---
 
@@ -85,7 +85,8 @@ WHERE id = '2a15d56f-6da6-4beb-8cdf-e0e48dac8be7';
 | B (extended) | `e018d67` · `40a0202` | `staff_assignment` audit (done read-only, §1) **+ Owner-approved override wiring across the 8 legacy senders** + `body_cta_url` scheme guard + dead subject-helper-text fix. 8 new spec files, 37 new tests. | **PASS first time**, no fix round, no escalation. See §2.3. |
 | — | `e91c09c` | **⛔ Zone-2 migration `c08_tighten_email_delivery_events_rls`** — security remediation from the Phase-B-gate review (§2.5) | applied + verified |
 | C | `dc742d0` | Steps 8–12: `resendEmail` action + `dispatchResend` + `ResendButton` + delivery-row wiring + 25 specs + `AUDIT_PHRASING`. H11 scoped-resend preserved; `booking_assignments` scope check added; metadata write deferred. | **PASS first time**, no fix round, no escalation. See §2.6. |
-| D | — | Business-notification bundle — ⛔ Zone-2 migration at Step 13 | **NOT STARTED — resume here** |
+| — | `c531ea6` | **⛔ Zone-2 migration `c08_notification_email_and_metadata`** (Step 13) — remote `20260731192911`. Owner-approved in chat, applied by the orchestrator. | applied + verified (§2.7a) |
+| D | `459b9a9` · `4f7e904` · `9e8523f` · `302f90e` | Steps 14–18: deferred metadata write · `resolveBusinessNotificationRecipients` + reroute of the 4 admin_internal sends · `enquiry_logged` template + hook · `/admin/me` Notifications card. Registry now holds **15** templates. | **PASS first time**, no fix round, no escalation. See §2.7. |
 
 ---
 
@@ -210,31 +211,95 @@ Phase C's verify checkpoint is browser + sign-in work. Appended to `OWNER-ACTION
 
 ---
 
-## 3 — ▶ RESUME HERE (interrupt checkpoint, protocol §3)
+## 2.7 — Phase D: the business-notification bundle
 
-**Plan:** C-08, plan **#9 of 22**. **Phase A ✅ · Phase B ✅ · Phase C ✅ · Phase D NOT STARTED.**
-**Last-good commit:** `dc742d0` (`feat(redesign): C-08 Phase C — per-row resend tooling`). Working tree clean except the standing deliberate `src/lib/maintenance.ts`.
+Implemented on `sonnet` across three dispatches (serialized, not parallelised — Step 16 re-entered `notifications.ts` right after Step 15, and concurrent git/vitest on a shared tree was not worth the risk). Verified independently on `sonnet` — **PASS first time**, no fix round, no §5 escalation.
 
-**Inherited baseline — independently re-measured at `dc742d0` by the Phase C verifier, use THIS not the plan's text:**
-- `npx tsc --noEmit` → **0 errors**
-- `pnpm lint` → **59 errors / 7 warnings**, in exactly six files: `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` (55) + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}` (4)
-- `pnpm vitest run` → **5 failed / 948 passed (953)**, failures EXACTLY: `src/lib/auth/admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `src/app/admin/bookings/new/ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent")
-- `pnpm build` → clean
+### 2.7a — ⛔ Zone-2 APPLIED: `c08_notification_email_and_metadata` (`c531ea6`, remote `20260731192911`)
 
-**Exact next action:** C-08 **Phase D, Step 13** — the ⛔ Zone-2 migration. Model **`sonnet`** for Steps 14–18 (§5 routes C-08 to Sonnet; pre-emptive upgrades are banned — Opus only via the §5 twice-failed escalation). Step 13 itself is **orchestrator-only** under per-action Owner approval; a subagent must never apply it.
+Presented in chat with the SQL verbatim; **Owner approved 2026-07-31 ("go ahead and apply it")**; the orchestrator applied it (protocol rule 2 — never a subagent).
 
-**Migration premises re-verified read-only at `dc742d0` (2026-07-31), all HOLD:**
-- `staff_profiles.notification_email`, `staff_profiles.business_notification_prefs`, `email_delivery_events.metadata` — **all three absent** (0 rows returned).
-- `has_table_privilege('service_role', …, 'UPDATE')` → **true** for both `staff_profiles` and `email_delivery_events`. The C-04a silent-42501 trap does not apply (protocol §3b check performed before the write, as required).
-- The seed targets **exactly 2 active Owner rows** out of 12 staff rows: `phase10.owner@example.test` (`b0f79294…`, fixture) and `rahmatherapy@outlook.com` (`01582c5d…`, **the real Owner**). Schema seeding, not an email path.
+**Premises verified read-only BEFORE applying:** all three columns absent · `has_table_privilege('service_role', …, 'UPDATE')` **true** for both `staff_profiles` and `email_delivery_events` (the protocol §3b check that C-04a lost a cycle to — the silent-42501 trap does not apply here) · exactly 2 active Owner rows of 12 staff rows.
 
-**Five things Phase D MUST carry:**
-1. **The deferred `metadata` linkage write from Phase C** (§2.6 item 4). Once Step 13's column exists, `resendEmail` writes `metadata: { resent_from_event_id }` on the newest event row, and its spec gains the matching assertion. This is plan-sanctioned deferred work, not scope creep.
-2. **The `prefs.types` trap.** The seed writes `{"enabled": true}` with **no `types` key**, so `prefs.types[type] === false` must not evaluate to "all types off" — getting that inverted silently disables every alert for the only opted-in user.
-3. **Zero-opt-in fallback is NOT the same as opted-out.** Per Step 14: fall back to `getAdminRecipient(settings)` only when nobody anywhere is opted in; when prefs or skip-self emptied a *non-empty* opt-in list, write `skipped` delivery rows with reasons `all_recipients_opted_out` / `actor_excluded` instead.
-4. **Re-grep `notifications.ts` by symbol before Step 15.** C-04a and Phases A/B both reshaped `sendBookingCancellationEmails`; the plan's cited line numbers (`:366-379`, `:409-422`) are stale. Thread `actorStaffId` into whatever shape the function is actually in.
-5. **`enquiry_logged` has a null `booking_id`** — Step 16's delivery rows and any query filtering on `booking_id` must use `.is(…, null)`, the same trap Phase C handled.
+**Post-apply verification:** three columns present with expected types/defaults · seeded rows = **2** = active-Owner count, and they are exactly `b0f79294…` (`phase10.owner@example.test`, fixture) and `01582c5d…` (`rahmatherapy@outlook.com`, **the real Owner**) · `notification_email` NULL on all 12 rows · zero `email_delivery_events` rows with non-default `metadata`. No other row touched. The `AND business_notification_prefs IS NULL` clause makes the seed idempotent, so a re-run cannot clobber a preference the Owner later sets in the UI.
+
+### 2.7b — What Phase D delivered
+
+**The `metadata` linkage write deferred from Phase C is now live** (`459b9a9`). The Phase C spec that asserted *no* `metadata` key was written has been **inverted into a positive assertion**, not deleted — the closeout reviewer confirmed it is a genuine assertion.
+
+**`resolveBusinessNotificationRecipients`** (`4f7e904`) implements brief §2.9's contract with three genuinely distinct outcomes — the distinction is the whole point, and conflating any two of them means an actor who opted out still gets emailed:
+
+| Outcome | Behaviour |
+|---|---|
+| Recipients resolve | one tracked email **and one `email_delivery_events` row per recipient** |
+| Nobody anywhere opted in | fall back to `getAdminRecipient(settings)` |
+| A non-empty opt-in list emptied by per-type opt-out or skip-self | **no fallback** — a `skipped` row with reason `all_recipients_opted_out` / `actor_excluded` |
+
+It returns `{ recipients, skipReason }` rather than brief §2.9's bare-array sketch, because callers must tell those apart. A shared `sendToBusinessRecipients` helper carries the loop and the skip-row write rather than duplicating it four times.
+
+**The `prefs.types` trap was closed, and closed identically on both sides.** The seed writes `{"enabled": true}` with **no `types` key**, so a missing `types` must mean *all types ON*. Resolver: `row.business_notification_prefs?.types?.[query.type] !== false`. Card: `prefs?.types?.[type] !== false`. **The same predicate** — verified by the verifier and again by the closeout reviewer, both quoting the expressions. Had these diverged, both Owners would have seen "alerts off" in the UI while the resolver kept sending — silent, and invisible to tests.
+
+**Four admin_internal sends rerouted** (Step 15), every target re-located by symbol because the plan's line numbers were stale by two plans:
+
+| Sender | Alert type | Exclusion |
+|---|---|---|
+| `sendBookingCreatedEmails` (admin leg) | `new_booking_request` | none — customer-initiated |
+| `sendBookingCancellationEmails` (admin leg) | `booking_cancelled` | the cancelling staff id, **only** when `initiatedBy: "admin"`; threaded from both `updateBookingManagement` and `quickUpdateBooking` |
+| `sendBookingRescheduleRequestEmails` | `reschedule_request` | none |
+| `sendClaimNotificationEmail` | `slot_claimed` | the claiming staff — **and the Phase-A interim `getAdminRecipient` call is gone** |
+
+**Phase B's fix survived the reroute.** The closeout reviewer enumerated all 15 `resolveTemplateOverrides` call sites — not sampled — and confirmed every one resolves a real registered `template_id`, including the four senders Phase D rewrote into recipient loops. The single exception is `booking_restored_client`, C-04a's pre-existing unregistered id (§2.4), which C-08 correctly declined to fix.
+
+**`enquiry_logged`** (`9e8523f`) — registered under `admin_internal`, `body_intro` at `maxLength` 500 (inside the live CHECK), `booking_id` NULL throughout. `sendTrackedEmail` / `recordEmailDeliveryEvent` / `sendToBusinessRecipients` had `bookingId` widened to `string | null` to reuse the shared helper; the verifier traced every existing caller and confirmed C-04a's delayed-cancellation queue path still always passes a real id. The `createEnquiry` hook is **catch-and-continue** with a spec proving a failed alert cannot fail the enquiry.
+
+**`/admin/me` Notifications card** (`302f90e`) — `rbac.ts` extended with the two columns following the C-11 `theme_preference` precedent (a narrow, Step-17-authorised exception to §1.7's protected-surface rule; nothing else in that file moved). Self-only write (`.eq("id", profile.id)`), audit row `notification_settings_updated`, CSS variables only (C-11 dark-mode safe), `min-h-11` targets, clean at 375 px.
+**One addition beyond the plan's text, and it is load-bearing:** when the master toggle is saved off, the per-type `types` map is **preserved from the prior row** rather than rebuilt from FormData — browsers do not submit disabled checkboxes, so rebuilding from their absence would silently zero every type preference on the next save.
 
 ---
 
-*C-08 in progress. Pre-flight `f3a0434`; Zone-2 override deletion + RLS migration 2026-07-31; Phase A `80a8bc2`→`e522bdd`; Phase B `e018d67`+`40a0202`; RLS `e91c09c`; Phase C `dc742d0`. **Resume at Phase D Step 13 — see §3.***
+## 3 — Closeout (2026-07-31)
+
+**Final gate — all re-run independently at `302f90e`, not taken on the implementers' word:**
+- `npx tsc --noEmit` → **0 errors**
+- `pnpm lint` → **59 errors / 7 warnings**, in exactly six files: `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` (55) + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}` (4)
+- `pnpm vitest run` → **5 failed / 991 passed (996)**, failures EXACTLY: `src/lib/auth/admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `src/app/admin/bookings/new/ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent"). **`rbac.ts` was edited and `admin-access.test.ts` asserts over that surface, so both verifier and reviewer checked those two failures are unchanged in CHARACTER, not merely still two in number** — both are the pre-existing `accountRequests` page-visibility mismatch, nothing referencing the new columns.
+- `pnpm build` → clean
+
+### 3.1 — THIS IS THE INHERITED BASELINE FOR THE NEXT PLAN
+
+**tsc 0 · lint 59E/7W in those six files · vitest 5 failed / 991 passed (996) with exactly those five names · build clean.** Use this, never a plan's hardcoded text (protocol §0 precedence rule).
+
+**Expected shrinkage: none applicable.** C-08 named no baseline entry it expected to fix, and none was fixed. The rise from 948 to 991 passing is +43 new specs across Phases C and D.
+
+### 3.2 — Gate items that could NOT run, and why
+
+- **§3.1 bundle budget — PARTIAL, and the gap is in the gate, not the code.** `scripts/measure-admin-bundles.mjs` measures six routes and **`/admin/emails` is not one of them**, so the plan's "+2 kB on `/admin/emails`" ceiling is not covered by its own gate (the identical blind spot C-04a recorded). `/admin/me` measures **448.31 kB** gzip JS; no pre-C-08 figure is stored for that route, but the sibling `/admin/staff/[staffId]/performance` renders the same `PerformanceSurface` **without** the new card at **447.11 kB** — a **1.20 kB** difference, a fair proxy for the card's cost, well inside the +3 kB ceiling.
+- **§3.2 event-type histogram — pre-deploy half captured, post-deploy half deferred by construction.** Live today: 9 active types (`admin_booking_notification` 8, `booking_confirmation` 8, `staff_assignment` 7, `staff_booking_change` 6, `booking_cancellation_admin` 4, `booking_cancellation_customer` 4, `booking_reminder` 4, `booking_reschedule_request_admin` 1, `review_request_client` 1). The plan predicted 7 — it predates C-01. Expect **14** once the five new types flow. This is explicitly a post-deploy delta and stays open until the end-of-programme deploy.
+- **§3.3 role × resend sweep · §3.4 trigger-hook end-to-end · §3.5 screenshots — Owner-performed by necessity.** All require admin sign-in, which no agent may perform (password entry is prohibited). Checklists in §2.6b and §3.3 below, indexed in `OWNER-ACTION-BACKLOG.md`. **These are not "pending" in a sense any agent could later discharge.**
+- **⚠️ §3.3's own RBAC expectation is WRONG** and must never be "corrected" into the code — see §0.1.
+
+### 3.3 — Owner-performed checklist for Phase D
+
+1. Owner → `/admin/me` → the Notifications card renders below the performance surface; master toggle reflects the seeded `{"enabled": true}` (checked); **all five alert types show checked** (this is the `types`-absent case behaving correctly).
+2. Set a notification email, untick "Slot claimed", save → success toast; reload → state persisted.
+3. Admin (`test.admin@…`) → card visible, self-only (no path to edit another profile).
+4. Coordinator and Therapist → card absent entirely.
+5. As Admin, log a test enquiry (`*.example.test` only) → the opted-in Owner receives `enquiry_logged` **at the notification address**; the logging Admin does not (skip-self).
+6. As Owner with "Slot claimed" unticked, have a Therapist claim a test slot → no claim email reaches the Owner; delivery row reason `all_recipients_opted_out` if nobody else is opted in.
+7. Public booking request on a test fixture → every opted-in Owner/Admin gets `admin_booking_notification`, **one delivery row each**.
+
+### 3.4 — Adversarial whole-plan review (`f3a0434..302f90e`) — REVIEW PASS
+
+All 18 steps present; none silently dropped. All 15 override call sites enumerated and correct. Escaping confirmed `escapeHtml(substituteVars(...))` everywhere — substitute *then* escape, the order that matters. `body_cta_url` scheme guard present at both save time and render time. `resendEmail` traced as an unassigned Therapist: refused, with a logged operational event. `/admin/me` save confirmed self-only. Files outside the plan's §2 list were all traced to the Owner-approved Phase B extension, required test coverage, or protocol §2.8(c) next-plan prep.
+
+**Five non-blocking findings, logged not fixed** (all in `OWNER-ACTION-BACKLOG.md`):
+1. **`dispatchResend`'s cancellation case does not thread `actorStaffId`.** Admin A cancels a booking (correctly skip-self'd, no alert), later resends that cancellation's admin-alert row, and now *does* receive a copy of their own alert. **The Phase D verifier and the closeout reviewer reached opposite verdicts here** — the verifier judged it semantically right (resend has a different actor, and the original canceller's identity does not survive to resend time), the reviewer judged it an inconsistency. Left as-is deliberately: it is a design question, not a defect, and "fixing" it means inventing provenance that was never recorded.
+2. **Double `resolveTemplateOverrides` fetch** for the six templates whose HTML renderer resolves internally while the plain-text leg resolves again in `notifications.ts`. Inherited verbatim from C-01's `sendReviewRequestEmail`, not introduced here; the eight Phase-B legacy senders use the cleaner resolve-once-pass-to-both shape. Natural fit for **C-15**, which reworks the registry (see `C-15-…-progress.md` §0.1 — this is the same sync/async split that threatens C-15's live draft preview).
+3. **Stale admin-facing `trigger` copy** in four `templates-data.ts` entries — `claim` still says Phase D "will" reroute it (it has), and the three `admin_*` entries still say "sent to the owner" though they are now multi-recipient. Cosmetic, visible only to Owner/Admin editing templates. **C-15** owns the registry.
+4. **Resend success toast can overstate delivery.** If the recipient named on the original row has since opted out, the resend's `newest` lookup finds nothing yet the toast still says "Resent to {email}". Narrow — requires an opt-in change between original send and resend.
+5. **`EMAIL_EVENT_TYPES` dropdown** missing the seven newer event types (already logged in §2.6a).
+
+---
+
+*C-08 SHIPPED 2026-07-31 — plan #9 of 22. Pre-flight `f3a0434`; Zone-2 override deletion + RLS migration `e91c09c`; Phase A `80a8bc2`→`e522bdd`; Phase B `e018d67`+`40a0202`; Phase C `dc742d0`; Zone-2 migration `c531ea6`; Phase D `459b9a9`→`302f90e`. Two Zone-2 migrations and one Zone-2 data deletion, each Owner-approved in chat and each performed by the orchestrator. Next plan: **C-15** — read-ahead pre-flight already captured in `C-15-email-template-studio-progress.md`.*
+
