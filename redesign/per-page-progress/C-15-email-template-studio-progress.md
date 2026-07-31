@@ -5,9 +5,9 @@
 **Programme:** Band C, C-C implementation — plan **#10 of 22** (§4 order).
 **Model routing:** `sonnet` — §5 routes C-15 to Sonnet. Opus only via the §5 twice-failed-phase escalation.
 
-> ## 🟡 STATUS: Phase A shipped + independently verified PASS (`0d0a26d`). Phases B–F not started.
+> ## 🟡 STATUS: Phases A + B shipped, each independently verified PASS. Phases C–F not started.
 >
-> **⚠️ Phase B MUST open by fixing the empty-string fallback drift the Phase A verifier found — see §1.9 below. It is latent today but becomes reachable the moment the draft-merge path exists.**
+> Phase A `0d0a26d` · empty-string fix `3ab469b` · Phase B `b84dd11`. Baseline after: **5 failed / 1026 passed (1031)**, the five inherited by identity.
 >
 > §0 below is the original read-ahead pre-flight, preserved as captured (HEAD `5e8fa2f`, pre-C-08-Phase-D). See §1 for what actually happened at Phase A implementation time (re-verified pre-flight, the render-parity fixture capture, the registry expansion, and the classification table).
 
@@ -215,4 +215,30 @@ Five sync-renderer override reads were rewritten from `overrides.x ? f(overrides
 
 ---
 
-*Phase A shipped and verified. Next: Phase B (empty-string fix + sample-data module + POST draft-preview handler).*
+---
+
+## 2 — Phase B: sample data + live preview endpoint (`3ab469b` + `b84dd11`)
+
+Verified independently — **PASS, zero findings.** Baseline after: **5 failed / 1026 passed (1031)**, same five names. Phase A's render-parity spec re-run and still green, and the verifier confirmed **the fixture itself was not edited** in this range (`git diff … -- '*render-parity-baseline.json'` empty) — a quietly-regenerated fixture would have voided the plan's load-bearing gate silently.
+
+### 2.1 — The empty-string fix was three times bigger than the finding
+
+§1.9 named five sites. The implementer swept rather than patching the list and found **17**: the 5 direct sync-renderer reads plus 12 more inside the six `resolve*Fields()` helpers Phase A also touched (`review_request_client` ×4, `booking_confirmed_client` ×3, `client_assigned_therapist` ×2, `staff_unassignment`, `claim`, `enquiry_logged`). All now read `overrides.x || fieldDefault(...)`. The verifier independently grepped the repo for `?? fieldDefault(` and every sibling pattern → **0 remaining**.
+
+`||` is safe here because every one of the 17 is a registry `SafeField` typed `string`, so `""` is the only falsy value in play — no `0`/`false` can be wrongly discarded. Two adjacent patterns were correctly left alone because they already handled `""`: `resolveSubject()` (`if (value && !hasControlChars(value))`) and the `body_cta_url` scheme guard.
+
+Covered by two specs that each fail on revert: byte-equality of an `""` override against no override on the direct-render path, and a draft-merge spec that posts a saved override plus an `""` draft and asserts the saved text does **not** appear.
+
+### 2.2 — Two structural problems the plan never mentioned, both fixed here
+
+**The sync/async renderer split.** Six HTML renderers were `async` with overrides resolved *internally* and no parameter to inject a draft into — so Step 7's "merge draft → render through the real render function" was impossible for them as written. Each gained an **optional** `providedOverrides?: Record<string, string>`, falling back to `providedOverrides ?? (await resolveTemplateOverrides(id))`. The verifier specifically checked this is **not** `providedOverrides ?? {}` — that shape would have silently stopped resolving overrides for real sends and regressed C-08 Phase B's entire fix. `git diff` on `notifications.ts` is **empty**: every existing call site passes one argument and is behaviourally unchanged.
+
+**GET covered 9 of 16 ids and ignored saved overrides.** The plan said "GET unchanged", which reads as a scope limiter but is a trap: brief §2.4 relies on GET for LivePreview's initial paint, so seven templates would have shown a placeholder until the debounced POST fired — and GET passed `DUMMY_INPUT` with no overrides, so it never showed saved customisations at all, contradicting brief §1.2. GET now covers all 16 and resolves saved overrides, **sharing one dispatch table (`SAMPLE_RENDERERS`) with POST** rather than two switches that could drift. Auth is byte-identical to before, just factored out. Zero live behaviour change today (the override table is still empty, and GET's only current consumers are the three FAKE-marked components Phase F deletes).
+
+### 2.3 — The POST handler
+
+Auth identical to GET (401 unauthenticated / 403 unpermitted). Validation runs **before** render: unknown template → 404 · unknown field key → 400 · value over **that field's own** `maxLength` → 400, never a truncated render · non-object `draftValues` → 400. Draft values are never persisted — the verifier traced it rather than trusting the spec, and noted the test's stub exposes no write method at all, so an accidental write would 500 rather than pass. `escapeHtml(substituteVars(...))` order untouched. Sample data is fictional throughout (`Aisha Khan`, `aisha.khan@example.test`); grepped clean of `9d55ce2a` and the Owner's real address.
+
+---
+
+*Phases A + B shipped and verified. Next: Phase C (TokenTextField + LivePreview + editor page).*
