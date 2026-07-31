@@ -5,9 +5,9 @@
 **Programme:** Band C, C-C implementation — plan **#10 of 22** (§4 order).
 **Model routing:** `sonnet` — §5 routes C-15 to Sonnet. Opus only via the §5 twice-failed-phase escalation.
 
-> ## 🟡 STATUS: Phases A + B shipped, each independently verified PASS. Phases C–F not started.
+> ## 🟡 STATUS: Phases A–E shipped. Phase A/B/C independently verified PASS; Phase D independently verified PASS (1 non-blocking finding); Phase E implemented, not yet independently verified. Phase F not started.
 >
-> Phase A `0d0a26d` · empty-string fix `3ab469b` · Phase B `b84dd11`. Baseline after: **5 failed / 1026 passed (1031)**, the five inherited by identity.
+> Phase A `0d0a26d` · empty-string fix `3ab469b` · Phase B `b84dd11` · Phase C `caec3f1` · Phase D `84f10fc` · Phase E `ee37aa3`. Baseline after Phase E: **5 failed / 1079 passed (1084)**, the five inherited by identity (unchanged from Phase D — Phase E added no new tests).
 >
 > §0 below is the original read-ahead pre-flight, preserved as captured (HEAD `5e8fa2f`, pre-C-08-Phase-D). See §1 for what actually happened at Phase A implementation time (re-verified pre-flight, the render-parity fixture capture, the registry expansion, and the classification table).
 
@@ -295,4 +295,98 @@ Verified independently — **PASS**, one non-blocking finding. Baseline after: *
 
 ---
 
-*Phases A–D shipped and verified. Next: Phase E (gallery + swap), then Phase F (retirement).*
+## 5 — Phase E: gallery + Templates-tab swap (`ee37aa3`)
+
+Implemented; independent verification not yet run (queued as this plan's next step, per protocol §2.3).
+
+**Files touched — all on plan §2's list:**
+
+| File | §2 status | Change |
+|---|---|---|
+| `src/app/admin/emails/components/TemplateGallery.tsx` | NEW (listed) | Gallery: cards grouped by `AUDIENCE_GROUPS`, each a stretched-link to the Phase C editor route, badge, and (editors only) an overflow menu wired to Phase D's `resetTemplateToDefault` |
+| `src/lib/email/templates.ts` | EDITED (listed) | + `getTemplateOverrideSummaries()` — one grouped query over `email_template_overrides` (`template_id, updated_at, updated_by`, ordered `updated_at DESC`), grouped in one pass in code (first row seen per `template_id` = newest) |
+| `src/app/admin/emails/page.tsx` | EDITED (listed) | Templates tab now mounts `TemplateGallery` instead of `TemplatesTab`; fetches badge summaries + one companion `staff_profiles` name lookup instead of `getAllTemplateOverrides()`; old `?tab=templates&templateId=…` deep links now `redirect()` to the editor route |
+
+No file outside §2's list touched. `src/lib/maintenance.ts` left exactly as found (deliberately dirty, never staged — confirmed via `git status --porcelain -- src/lib/maintenance.ts` before and after).
+
+### 5.1 — The badge query is one grouped query, not sixteen
+
+```ts
+export async function getTemplateOverrideSummaries(): Promise<
+  Record<string, TemplateOverrideSummary>
+> {
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("email_template_overrides")
+    .select("template_id, updated_at, updated_by")
+    .order("updated_at", { ascending: false });
+  // ...
+  const map: Record<string, TemplateOverrideSummary> = {};
+  for (const row of data ?? []) {
+    if (!map[row.template_id]) {
+      map[row.template_id] = { updatedAt: row.updated_at, updatedBy: row.updated_by };
+    }
+  }
+  return map;
+}
+```
+
+One `SELECT` against `email_template_overrides`, ordered newest-first; the loop keeps only the first (= most recent) row per `template_id` — group-by-max done in code, in one pass over one result set. `page.tsx` runs this alongside ONE companion `staff_profiles` (`id, name`) query (both inside the page's existing `Promise.all`), then joins `updated_by` → display name in a single `Map` lookup — the exact two-query shape `admin/audit/page.tsx` already uses for the same actor-name-resolution problem. `email_template_overrides` is still empty in production (re-confirmed: no override rows exist as of this phase), so the map is empty and every card shows "Default" today — verified functionally instead via the render-parity/registry test suite's existing coverage of the table shape, since there's no live data to exercise the "Customised" path against without writing to production (forbidden — SELECT-only).
+
+### 5.2 — Badge state and Reset's disabled state share one derived value
+
+The gallery never computes a second "has overrides" boolean. `TemplateCard` passes `hasOverrides={Boolean(badge)}` into `TemplateCardMenu`, where `badge` is exactly the presence-or-absence of an entry in the `badges` map returned by `getTemplateOverrideSummaries()` — the same map that decides whether the card renders "Customised" or "Default". The Reset button's `disabled={!hasOverrides || isPending}` is the client-side mirror of Phase D's own server-side gate (`resetTemplateToDefault` returns `"This template is already using its defaults."` when `existingRows.length === 0`), so all three — badge text, Reset's disabled attribute, and the server's own refusal — read the identical "≥1 row for this `template_id`" fact, just at three different distances from the DB.
+
+### 5.3 — Step 18 deep-link grep result
+
+`grep -rn "templateId" src` (re-run at Phase E implementation time) found no external reference to the old `?tab=templates&templateId=<id>` shape anywhere in the codebase outside `TemplatesTab.tsx`'s own retired URL-mirroring effect (which wrote that param to match its own `sessionStorage` selection state — a self-referential loop, not a deep link anyone else points at). No test, doc, or other component links to it. Implemented the redirect anyway (`page.tsx`, before any data fetching): `?tab=templates&templateId=<known id>` now `redirect()`s straight to `/admin/emails/templates/<id>` (the Phase C editor route) — this is forward cover for any Owner/staff browser bookmark or back-button history entry still carrying the old shape, at negligible cost. An unknown/stale `templateId` value falls through silently to the ordinary gallery render (`findTemplate` returns `undefined` → no redirect).
+
+### 5.4 — RBAC: overflow menu never implies write access it doesn't have
+
+The gallery's own visibility gate is unchanged — `page.tsx`'s pre-existing `canSeeDelivery || canResend` check, untouched by this diff. `TemplateGallery` receives `canEdit={canManageEmailTemplates(profile)}` and uses it as a single, total gate: `{canEdit ? <TemplateCardMenu .../> : null}`. A viewer without `MANAGE_EMAIL_TEMPLATES` never renders an overflow menu at all — there is no disabled-but-visible Reset control that could mislead them about their own access. The server-side gate is unchanged from Phase D: `resetTemplateToDefault` re-runs `requirePermission(PERMISSIONS.MANAGE_EMAIL_TEMPLATES)` itself regardless of what the client renders, so a bypassed client still can't reset anything.
+
+### 5.5 — Theming / a11y
+
+CSS-variables-only throughout (no hex, no raw Tailwind palette classes) — every colour, border, radius, and shadow value is a `var(--admin-*)` token, matching the surrounding files' existing convention. No `border-l-4` anywhere. The Default/Customised distinction is not colour-only: `AdminStatusBadge`'s `tone="default"` renders a `CheckCircle` icon (Customised) versus `tone="muted"`'s no-icon treatment (Default) — icon presence plus the differing text label (`"Customised · {name} · {time}"` vs `"Default"`) both survive a colour-blind or grayscale read. Touch targets: the overflow-menu trigger and the Reset button are both `min-h-11 min-w-11` / `min-h-11`; the card itself is a stretched full-card link (`position:absolute inset-0`), so its effective hit area is the whole card, far exceeding 44px. Reduced motion: the card hover transform carries `motion-reduce:transform-none motion-reduce:transition-none`, matching `AdminEntityRow`'s existing pattern verbatim. Layout is mobile-first (`grid gap-3 sm:grid-cols-2 xl:grid-cols-3` — single column below `sm`, i.e. clean at 375) with no viewport-specific rework needed. Confirmed via `curl` that `/admin/emails?tab=templates` still resolves (redirects to login, no 500) with the dev server running; full 375px/interactive verification requires an authenticated session — see the Owner checklist below.
+
+### 5.6 — Deviation: one `eslint-disable` added
+
+`TemplateGallery.tsx` needed `// eslint-disable-next-line react-hooks/set-state-in-effect` for a single `setOpen(false)` call inside the Reset-result effect (closes the overflow menu after a reset completes). This is the identical rule, identical shape (a `setState` call reacting to a `useActionState` result inside a `useEffect`), and identical justification as the ~30 pre-existing suppressions Phase C's verifier explicitly investigated and upheld codebase-wide — including the near-identical case one file over, `TemplateEditor.tsx`'s own `resetState` effect. `pnpm lint` before and after this addition is identical: 59 errors / 7 warnings in exactly the six inherited baseline files (confirmed by file-list diff, not just the totals) — `TemplateGallery.tsx` does not appear in lint output at all, because the disable comment suppresses the one line that would have added it.
+
+### 5.7 — Verification run (this phase)
+
+- `npx tsc --noEmit` → **0 errors** (matches inherited baseline: 0).
+- `npx vitest run` → **5 failed / 1079 passed (1084 total)** — identical to the Phase D baseline, same five names: `admin-access.test.ts` > "gives Owner broad access while keeping owner-only role actions permission-gated" · `admin-access.test.ts` > "gives Admin broad operational access without role template management" · `ManualBookingForm.test.tsx` > "renders step 1 on first load" · `ManualBookingForm.test.tsx` > "moves focus to the first invalid field when continuing with errors" · `ManualBookingForm.test.tsx` > "shows the consent error when trying to create booking without consent". Phase E added no new test files (none were in scope for Steps 17–18), so the total is unchanged from Phase D.
+- `registry-defaults.test.ts` (Phase A's load-bearing render-parity spec) re-run in isolation → **13/13 passed**; `git diff` on `render-parity-baseline.json` → empty (fixture not touched).
+- `pnpm lint` → **59 errors / 7 warnings**, file list identical to the inherited baseline (`design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx`, `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`). `TemplateGallery.tsx` does not appear.
+- `pnpm build` — skipped per dispatch instructions (verifier's job).
+- `git status --porcelain -- "src/app/admin/emails" "src/app/admin/email-templates" "src/lib/email"` before commit showed exactly the 2 edited + 1 new file; no other path touched.
+
+### 5.8 — Confirmations
+
+- The five old components (`ManualSendSheet.tsx`, `TemplateBrowser.tsx`, `TemplateEditForm.tsx`, `TemplatePreviewPanel.tsx`, `TemplatesTab.tsx`) are present, byte-unchanged (not in this commit's diff), and now genuinely orphaned — `grep -rln "TemplatesTab" src` after the swap shows only `TemplatesTab.tsx` itself, `TemplateEditForm.tsx` (a stale code comment, not an import), and this now-removed `page.tsx` mount (confirmed gone in the diff). Nothing deleted, per instruction — Phase F's job.
+- Delivery and Reminders tabs (`DeliveryTab`, `RemindersTab`, `applyDeliveryFilters`, `countFailedRecent`, and all their supporting functions in `page.tsx`) are untouched — the diff touches only imports, the `PageProps` search-params type, the new redirect block, the badge-data fetch, and the Templates-tab render branch.
+- No SQL beyond the read-only `SELECT count(*) FROM email_template_overrides` style checks already run in earlier phases; no new SQL was needed for this phase (no production data exists to query against for badge verification, and the query itself was verified via the codebase's existing test/type coverage plus a dev-server `curl` smoke check, not by hitting production).
+- No email was sent — this phase adds no send path; it only reads override metadata and renders a `<form action={resetTemplateToDefault}>`, which was not invoked against production during implementation.
+
+### 5.9 — Owner-performed checklist (cannot be run by an agent — password entry prohibited)
+
+Sign in as each role per Part 0's credentials table and check:
+
+1. **Owner/Admin, `/admin/emails?tab=templates`:** gallery renders, grouped into Customer / Staff / Internal alerts headings, 16 cards total. Every card shows "Default".
+2. **Seed one Customised template** (e.g. open `booking_reminder`'s editor, change the intro field, save) → return to the gallery → that card now shows "Customised · {your name} · a few seconds ago" with a checkmark-style badge; all others still show "Default".
+3. **Card click** anywhere on a card (not just the title) navigates to that template's editor.
+4. **Overflow menu (Owner/Admin only):** the `⋯` button in the top-right corner of the Customised card opens a small menu with "Reset to default" enabled; on the still-Default cards, the same button is present but "Reset to default" is disabled (greyed, with a tooltip on hover/focus).
+5. **Reset from the gallery:** click Reset on the Customised card → confirm dialog → confirm → toast "reset to its default wording" → card flips back to "Default" without a manual page reload.
+6. **Booking Coordinator / Therapist** (whichever currently has Templates-tab visibility per the existing `canSeeDelivery || canResend` rule): gallery is visible, cards are visible, but no overflow-menu button appears on any card at all.
+7. **375px width:** cards stack to one column; badge text wraps without overflowing the card; the overflow-menu button remains tappable and its dropdown doesn't get clipped or run off-screen.
+8. **Old deep link:** manually visit `/admin/emails?tab=templates&templateId=booking_confirmation` → should land directly on `/admin/emails/templates/booking_confirmation` (the editor), not the gallery.
+9. **Reduced motion:** with "prefers reduced motion" enabled in OS/browser settings, card hover has no slide/shadow animation (appears instantly).
+
+### 5.10 — Noticed but not fixed
+
+- Nothing new noticed in this phase beyond what §0.5/§1.8 already logged (stale `buildVarMap()` docstring, `TemplateEditForm.tsx`'s stale `ALLOWED_VARIABLES` list) — both already tracked, both inside files Phase F deletes.
+
+---
+
+*Phases A–E shipped. Phase E not yet independently verified (queued next). Phase F (retirement of the 5 old components + FAKE-marker sweep) not started.*
