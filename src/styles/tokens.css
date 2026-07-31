@@ -215,6 +215,261 @@
   --motion-duration-slow: 360ms;
 }
 
+/* ─── Admin theme scoping (C-11 Phase E, Step 11a) ───────────────────────────
+ * The :root block above is shared by the admin tree AND the public marketing
+ * site — tokens.css is imported once from globals.css and resolves on <html>
+ * for every route. So the theme blocks below redefine ONLY the --admin-*
+ * family. Not one --rahma-*, shadcn (--background/--foreground/--primary/
+ * --border/…) or shared token (--hero-scrim-token, --site-header-height,
+ * spacing/heading scales) may ever appear inside them: a public page never
+ * sets data-theme, and even if the attribute lingers on <html> after a client
+ * navigation out of /admin, only admin surfaces can respond to it.
+ *
+ * Light stays the :root default so the public site is untouched; dark is
+ * selector-triggered. Equal specificity (0,1,0) means source order decides —
+ * these blocks MUST stay after :root, and @media print MUST stay last.
+ *
+ * Aliases (--admin-shell, --admin-surface, --admin-surface-muted,
+ * --admin-text, --admin-nav-text, --admin-nav-text-muted,
+ * --admin-nav-active-text, --admin-cormorant-color) are deliberately NOT
+ * repeated: each is declared as var(<target>) on the same element, so it is
+ * substituted with whichever value won the cascade for its target and tracks
+ * the theme automatically. The five --admin-radius-* tokens are geometry, not
+ * colour, and are genuinely theme-neutral.
+ *
+ * Contrast: every foreground/background pair below was measured against the
+ * WCAG 2.1 formula (4.5:1 body text, 3:1 large text + UI boundaries) and all
+ * dark values are inside the sRGB gamut. */
+
+[data-theme="dark"] {
+  /* Surfaces — warm near-black, hue held at :root's 88/75 so the
+   * cream character survives the inversion. */
+  --admin-canvas: oklch(17% 0.008 88);
+  --admin-sidebar: oklch(22% 0.010 75);
+  --admin-sidebar-active: oklch(34% 0.048 247);
+  --admin-sidebar-muted: oklch(19% 0.006 75);
+  --admin-panel: oklch(22% 0.008 88);
+  --admin-panel-muted: oklch(26% 0.008 88);
+  --admin-border: oklch(33% 0.009 88);
+  /* Type */
+  --admin-heading: oklch(96% 0.010 88);
+  --admin-body: oklch(90% 0.010 88);
+  --admin-text-muted: oklch(74% 0.010 88);
+  /* Action + accent. The inversion is symmetric: --admin-primary lightens so
+   * it clears 4.5:1 as a link/label ON the dark panel, and --admin-on-primary
+   * darkens to stay readable ON the lightened fill. One token cannot serve both
+   * duties at one lightness — white-on-fill and fill-on-panel are mathematically
+   * exclusive here, which is why on-primary flips rather than staying near-white. */
+  --admin-primary: oklch(76% 0.098 240);
+  --admin-primary-hover: oklch(85% 0.075 240);
+  --admin-on-primary: oklch(18% 0.012 88);
+  --admin-accent: oklch(78% 0.145 62);
+  --admin-focus: oklch(76% 0.145 55);
+  /* Semantic status tones — tone lightens, its paired -bg darkens. */
+  --admin-success: oklch(80% 0.135 158);
+  --admin-success-bg: oklch(28% 0.045 158);
+  --admin-warning: oklch(84% 0.135 82);
+  --admin-warning-bg: oklch(29% 0.045 75);
+  --admin-danger: oklch(76% 0.130 25);
+  --admin-danger-bg: oklch(28% 0.060 25);
+  /* Strong-emphasis severity tints */
+  --admin-danger-bg-strong: oklch(32% 0.085 20);
+  --admin-warning-bg-strong: oklch(33% 0.065 70);
+  --admin-success-bg-strong: oklch(32% 0.060 155);
+  --admin-danger-text-strong: oklch(89% 0.052 25);   /* 9.30:1 vs danger-bg-strong */
+  --admin-warning-text-strong: oklch(91% 0.068 75);   /* 9.41:1 vs warning-bg-strong */
+  /* Skeleton shimmer pair */
+  --admin-skeleton-base: oklch(26% 0.008 88);
+  --admin-skeleton-highlight: oklch(32% 0.008 88);
+  /* Info + restricted tones */
+  --admin-info: oklch(79% 0.088 240);
+  --admin-info-bg: oklch(28% 0.045 245);
+  --admin-restricted: oklch(74% 0.008 88);
+  --admin-restricted-bg: oklch(27% 0.006 88);
+  /* Admin chrome */
+  --admin-nav-bg: oklch(24% 0.010 75);
+  --admin-nav-active-bg: oklch(33% 0.045 247);
+  --admin-nav-border: oklch(34% 0.012 75);
+  /* Row fills */
+  --admin-hover-mist: oklch(27% 0.018 247);
+  --admin-selected-sky: oklch(33% 0.048 247);
+  --admin-progress-neutral: oklch(40% 0.006 88);
+  /* Status families */
+  --admin-status-confirmed-bg: oklch(29% 0.052 158);
+  --admin-status-confirmed-text: oklch(89% 0.105 158);
+  --admin-status-confirmed-border: oklch(42% 0.070 158);
+  --admin-status-pending-bg: oklch(30% 0.050 75);
+  --admin-status-pending-text: oklch(91% 0.080 82);
+  --admin-status-pending-border: oklch(43% 0.068 75);
+  --admin-status-cancelled-bg: oklch(29% 0.055 20);
+  --admin-status-cancelled-text: oklch(88% 0.058 25);
+  --admin-status-cancelled-border: oklch(42% 0.075 20);
+  --admin-status-attention-bg: oklch(30% 0.055 65);
+  --admin-status-attention-text: oklch(90% 0.068 70);
+  --admin-status-attention-border: oklch(43% 0.072 65);
+  --admin-status-restricted-bg: oklch(29% 0.010 280);
+  --admin-status-restricted-text: oklch(87% 0.014 280);
+  --admin-status-restricted-border: oklch(42% 0.016 280);
+  --admin-status-completed-bg: oklch(29% 0.010 270);
+  --admin-status-completed-text: oklch(87% 0.014 270);
+  --admin-status-completed-border: oklch(42% 0.016 270);
+  /* Misc */
+  --admin-client-accent: oklch(74% 0.075 275);
+  --admin-border-form: oklch(58% 0.018 80);
+  --admin-surface-input: oklch(25% 0.008 88);
+  /* Shadows drop the brand-blue tint: a blue-tinted shadow is invisible on a
+   * dark canvas, so dark mode leans on near-black at a higher alpha instead.
+   * Geometry is unchanged from the light values. */
+  --admin-shadow-card: 0 12px 36px -34px rgba(0, 0, 0, 0.85);
+  --admin-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --admin-shadow-hover: 0 2px 8px oklch(0% 0 0 / 0.5);
+  --admin-shadow-overlay: 0 8px 24px oklch(0% 0 0 / 0.6), 0 1px 4px oklch(0% 0 0 / 0.45);
+}
+
+/* Redundant with :root by value, but explicit: an admin user who picks "light"
+ * must keep today's palette even if :root is retuned later for the public site. */
+[data-theme="light"] {
+  --admin-canvas: #fbf8f2;
+  --admin-sidebar: oklch(94% 0.014 75);
+  --admin-sidebar-active: oklch(91% 0.05 247);
+  --admin-sidebar-muted: oklch(97% 0.008 75);
+  --admin-panel: #fffefa;
+  --admin-panel-muted: #faf6ef;
+  --admin-border: #e8dfd3;
+  --admin-heading: #151b18;
+  --admin-body: #313731;
+  --admin-text-muted: #5e625e;
+  --admin-primary: #0f5e8e;
+  --admin-primary-hover: #0a4870;
+  --admin-on-primary: oklch(99.5% 0.003 88);
+  --admin-accent: #f7931e;
+  --admin-focus: #a14820;
+  --admin-success: #047857;
+  --admin-success-bg: #dfeee6;
+  --admin-warning: #b77900;
+  --admin-warning-bg: #fff7df;
+  --admin-danger: #c52b28;
+  --admin-danger-bg: #fff0ee;
+  --admin-danger-bg-strong: oklch(92% 0.075 20);
+  --admin-warning-bg-strong: oklch(93% 0.085 70);
+  --admin-success-bg-strong: oklch(93% 0.060 155);
+  --admin-danger-text-strong: oklch(30% 0.18 25);   /* 9.21:1 vs danger-bg-strong */
+  --admin-warning-text-strong: oklch(30% 0.16 55);  /* 10.71:1 vs warning-bg-strong */
+  --admin-skeleton-base: oklch(95% 0.008 88);
+  --admin-skeleton-highlight: oklch(98% 0.008 88);
+  --admin-info: #0f5e8e;
+  --admin-info-bg: #eff8ff;
+  --admin-restricted: #5f625d;
+  --admin-restricted-bg: #f1eee8;
+  --admin-nav-bg: oklch(96% 0.012 75);
+  --admin-nav-active-bg: oklch(93% 0.04 247);
+  --admin-nav-border: oklch(88% 0.014 75);
+  --admin-hover-mist: oklch(95.5% 0.022 247);
+  --admin-selected-sky: oklch(92% 0.05 247);
+  --admin-progress-neutral: #dedbd5;
+  --admin-status-confirmed-bg: oklch(93.5% 0.038 155);
+  --admin-status-confirmed-text: oklch(22% 0.085 155);
+  --admin-status-confirmed-border: oklch(88% 0.055 155);
+  --admin-status-pending-bg: oklch(96% 0.038 75);
+  --admin-status-pending-text: oklch(28% 0.12 55);
+  --admin-status-pending-border: oklch(88% 0.055 75);
+  --admin-status-cancelled-bg: oklch(95.5% 0.028 20);
+  --admin-status-cancelled-text: oklch(26% 0.14 25);
+  --admin-status-cancelled-border: oklch(88% 0.045 20);
+  --admin-status-attention-bg: oklch(95% 0.05 65);
+  --admin-status-attention-text: oklch(26% 0.13 55);
+  --admin-status-attention-border: oklch(88% 0.06 65);
+  --admin-status-restricted-bg: oklch(94% 0.008 280);
+  --admin-status-restricted-text: oklch(30% 0.02 280);
+  --admin-status-restricted-border: oklch(88% 0.012 280);
+  --admin-status-completed-bg: oklch(94% 0.008 270);
+  --admin-status-completed-text: oklch(30% 0.018 270);
+  --admin-status-completed-border: oklch(88% 0.012 270);
+  --admin-client-accent: #9aaadd;
+  --admin-border-form: oklch(55% 0.022 80);
+  --admin-surface-input: oklch(98.5% 0.005 88);
+  --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
+  --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
+  --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
+  --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+}
+
+/* Print always renders the light palette — a dark canvas wastes toner and the
+ * dark type inverts to unreadable on white paper. Values are the light set
+ * exactly, which makes the :root arm a deliberate no-op (it is listed so the
+ * rule reads as "light regardless of theme", and so public pages that consume
+ * --admin-* through the shared shadcn primitives print byte-identically to
+ * today). */
+@media print {
+  :root,
+  [data-theme="dark"],
+  [data-theme="light"] {
+    --admin-canvas: #fbf8f2;
+    --admin-sidebar: oklch(94% 0.014 75);
+    --admin-sidebar-active: oklch(91% 0.05 247);
+    --admin-sidebar-muted: oklch(97% 0.008 75);
+    --admin-panel: #fffefa;
+    --admin-panel-muted: #faf6ef;
+    --admin-border: #e8dfd3;
+    --admin-heading: #151b18;
+    --admin-body: #313731;
+    --admin-text-muted: #5e625e;
+    --admin-primary: #0f5e8e;
+    --admin-primary-hover: #0a4870;
+    --admin-on-primary: oklch(99.5% 0.003 88);
+    --admin-accent: #f7931e;
+    --admin-focus: #a14820;
+    --admin-success: #047857;
+    --admin-success-bg: #dfeee6;
+    --admin-warning: #b77900;
+    --admin-warning-bg: #fff7df;
+    --admin-danger: #c52b28;
+    --admin-danger-bg: #fff0ee;
+    --admin-danger-bg-strong: oklch(92% 0.075 20);
+    --admin-warning-bg-strong: oklch(93% 0.085 70);
+    --admin-success-bg-strong: oklch(93% 0.060 155);
+    --admin-danger-text-strong: oklch(30% 0.18 25);   /* 9.21:1 vs danger-bg-strong */
+    --admin-warning-text-strong: oklch(30% 0.16 55);  /* 10.71:1 vs warning-bg-strong */
+    --admin-skeleton-base: oklch(95% 0.008 88);
+    --admin-skeleton-highlight: oklch(98% 0.008 88);
+    --admin-info: #0f5e8e;
+    --admin-info-bg: #eff8ff;
+    --admin-restricted: #5f625d;
+    --admin-restricted-bg: #f1eee8;
+    --admin-nav-bg: oklch(96% 0.012 75);
+    --admin-nav-active-bg: oklch(93% 0.04 247);
+    --admin-nav-border: oklch(88% 0.014 75);
+    --admin-hover-mist: oklch(95.5% 0.022 247);
+    --admin-selected-sky: oklch(92% 0.05 247);
+    --admin-progress-neutral: #dedbd5;
+    --admin-status-confirmed-bg: oklch(93.5% 0.038 155);
+    --admin-status-confirmed-text: oklch(22% 0.085 155);
+    --admin-status-confirmed-border: oklch(88% 0.055 155);
+    --admin-status-pending-bg: oklch(96% 0.038 75);
+    --admin-status-pending-text: oklch(28% 0.12 55);
+    --admin-status-pending-border: oklch(88% 0.055 75);
+    --admin-status-cancelled-bg: oklch(95.5% 0.028 20);
+    --admin-status-cancelled-text: oklch(26% 0.14 25);
+    --admin-status-cancelled-border: oklch(88% 0.045 20);
+    --admin-status-attention-bg: oklch(95% 0.05 65);
+    --admin-status-attention-text: oklch(26% 0.13 55);
+    --admin-status-attention-border: oklch(88% 0.06 65);
+    --admin-status-restricted-bg: oklch(94% 0.008 280);
+    --admin-status-restricted-text: oklch(30% 0.02 280);
+    --admin-status-restricted-border: oklch(88% 0.012 280);
+    --admin-status-completed-bg: oklch(94% 0.008 270);
+    --admin-status-completed-text: oklch(30% 0.018 270);
+    --admin-status-completed-border: oklch(88% 0.012 270);
+    --admin-client-accent: #9aaadd;
+    --admin-border-form: oklch(55% 0.022 80);
+    --admin-surface-input: oklch(98.5% 0.005 88);
+    --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
+    --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
+    --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
+    --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+  }
+}
+
 @theme {
   --spacing: 0.25rem;
   --font-display: var(--font-urbanist), var(--font-work-sans), Arial, sans-serif;
