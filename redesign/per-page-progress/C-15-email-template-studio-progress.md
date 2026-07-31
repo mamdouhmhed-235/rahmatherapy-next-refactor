@@ -241,4 +241,36 @@ Auth identical to GET (401 unauthenticated / 403 unpermitted). Validation runs *
 
 ---
 
-*Phases A + B shipped and verified. Next: Phase C (TokenTextField + LivePreview + editor page).*
+---
+
+## 3 — Phase C: token fields + live preview + editor page (`caec3f1`)
+
+Verified independently — **PASS**, two non-blocking findings. Baseline after: **5 failed / 1050 passed (1055)**, same five names. +24 specs. Phase A's parity spec re-run green, and `git diff` confirms **`templates.ts`, `sample-data.ts` and the parity fixture were not touched at all** in this phase — the render path is untouched by the entire editor build.
+
+### 3.1 — Q9.1 decided: textarea + chip-insert, not contenteditable
+
+The plan preferred contenteditable pill-spans with the textarea fallback "locked as acceptable". **Directed to the fallback**, deliberately: contenteditable is a known accessibility and mobile-IME liability (caret placement, screen-reader announcement, Android composition events), the plan's own §4 risk table rates that path medium/medium while the fallback carries no such risk, and both persist byte-identical canonical `{token}` strings so nothing downstream can distinguish them.
+
+Built properly rather than grudgingly: caret-aware insertion (reads `selectionStart`/`selectionEnd` at click time, splices, restores focus and caret), `maxLength` enforced natively **and** with a JS clamp that catches paste, chips as real keyboard-operable buttons with `aria-label`s, `min-h-11`, wrapping cleanly at 375. The spec proves insertion lands **at the caret mid-string**, not appended, and a separate spec covers selection-replace.
+
+### 3.2 — Fixed-part outlining is client-side, and that was the right trade
+
+Step 10 wanted renderers to emit `data-fixed-part` spans under a `?annotate=1` flag — i.e. a render-path code branch emitting extra markup, one mistake away from leaking into a real customer email. Implemented instead as `injectFixedPartOutline()`, a pure browser-side string transform over HTML the preview endpoint already returned. It never imports `templates.ts` and never runs server-side, so it is **structurally incapable** of reaching a send rather than merely unlikely to. Verified: zero diff to the render path, and toggling the switch changes the iframe `srcdoc` with **no additional fetch**.
+
+**Finding (non-blocking) — legend and outline disagree on one field.** The transform targets two inline-style signatures (`background:#f7f3ec`, `padding-left:18px`). The verifier cross-referenced every one against the declared `fixedParts`: 5 of 6 categories match exactly, but `admin_booking_cancellation`'s "Cancellation note" (`templates-data.ts:572-578`) renders as a plain `<p style="margin:18px 0 0;…">` (`templates.ts:383-387`) and carries neither signature. So the legend lists it as fixed while the outline never highlights it. Admin-internal template, no data risk, purely inconsistent messaging.
+
+**Finding (non-blocking) — the heuristic has no test coupling to real renderer output.** `LivePreview.test.tsx` exercises the transform against a hand-authored string containing the exact signatures. If a renderer ever changes `#f7f3ec`, the toggle silently stops outlining and **no test fails**. This is the accepted cost of keeping the transform decoupled from the render path (which is what protects the parity gate), but it is a genuine silent-failure mode.
+
+### 3.3 — The eslint-disable was challenged and upheld
+
+Phase C added one `eslint-disable-next-line react-hooks/set-state-in-effect` in `LivePreview.tsx`. Lint stayed at 59/7 — but *because of* the suppression, so the number proved nothing, and suppressing a rule to keep a baseline green is precisely the erosion baseline-by-identity exists to catch. The verifier was asked to judge it on merits and did: it stripped the comment and re-ran the rule to confirm the violation is real (not a stale no-op), read the effect (a reset-then-fetch keyed on `[templateId, reloadTick]` — data-fetching lifecycle, not state derivable during render), and found the **same suppression on the same rule in ~30 other locations**, mostly in files with no deletion scheduled. The implementer's own cited precedent (`TemplateEditForm.tsx`) was weak since Phase F deletes it — but the idiom is the codebase's, not C-15's invention. **Upheld.**
+
+### 3.4 — Read-only enforcement traced, including the direct-URL case
+
+The editor route is reachable by URL and cannot inherit the Templates tab's gate, so it carries its **own** server-side gate: `canViewEmailLogs || canResendBookingEmails`, else `AdminAccessDenied` before any template data renders — byte-identical to `emails/page.tsx`'s tab gate. `canEdit = canManageEmailTemplates` is computed separately and passed down; client-side hiding is the visual half only, and `saveTemplateOverride` re-checks the permission independently. A Therapist without view permission hitting the URL directly is turned away at the server.
+
+**"Use default" never persists an illustrative default.** It clears to `""` — the empty-means-default signal Phase B established — and never writes `defaultValue` back. That matters specifically for the three fields Phase A marked "illustrative only" (`group_copy`, `footer_contact`, `booking_restored_client.greeting_intro`), whose true runtime default is conditional; persisting the illustrative string would have been wrong for one branch. Asserted in two specs.
+
+---
+
+*Phases A–C shipped and verified. Next: Phase D (reset + test send).*
