@@ -241,6 +241,26 @@ export function TherapistDashboard({
     remainingToday.length === 0 &&
     claimable.length > 0;
 
+  // C-11 Phase D follow-up — the dynamic hero eyebrow, restored verbatim from
+  // the pre-C-FIELDWORK local NextVisitHero (`29ab66e` lines 257-270) and fed
+  // to PractitionerTodaySection through its optional `eyebrow` prop. Restored
+  // as-is, quirks included: the "Tomorrow's first visit" branch fires for ANY
+  // non-today next appointment, not only tomorrow's.
+  const heroIsToday = nextAppointment?.booking_date === today;
+  const todayWeekday = todayDate.getUTCDay();
+  const isMondayMorning = todayWeekday === 1;
+  const lastCompletedVisit = completedThisWeek[completedThisWeek.length - 1];
+  const lastVisitWasFriday =
+    lastCompletedVisit?.booking_date &&
+    new Date(`${lastCompletedVisit.booking_date}T12:00:00Z`).getUTCDay() === 5;
+  const heroEyebrow = nextAppointment
+    ? heroIsToday
+      ? isMondayMorning && lastVisitWasFriday
+        ? "First visit back"
+        : "Next visit"
+      : "Tomorrow's first visit"
+    : "Next visit";
+
   // ── Day-at-a-glance computations ───────────────────────────────────────────
   // Working window = earliest start to latest end across today's assigned visits
   const assignedToday = todayAppointments.filter(
@@ -394,12 +414,12 @@ export function TherapistDashboard({
        * the component's internal simple link-only strip, since this file
        * keeps its own richer per-card ClaimableStrip (claim buttons
        * included) rendered separately — both must not render at once.
-       * Documented trade-off (see report): this loses the dynamic hero
-       * eyebrow ("Tomorrow's first visit" / "First visit back"), the "Then"
-       * next-visit preview, and the hasClaimable-aware empty-state copy —
-       * those lived only in the removed local components and the shared
-       * component's interface (Phase C, not to be edited here) has no
-       * equivalent props.
+       * Documented trade-off (see report): this loses the "Then" next-visit
+       * preview and the hasClaimable-aware empty-state copy, which lived only
+       * in the removed local components. The dynamic hero eyebrow
+       * ("Tomorrow's first visit" / "First visit back") was restored in the
+       * C-11 Phase D follow-up via the component's new optional `eyebrow`
+       * prop (Owner-authorised); the "Then" preview stays dropped.
        */}
       <PractitionerTodaySection
         staffName={staffName}
@@ -409,6 +429,7 @@ export function TherapistDashboard({
         showClaimableStrip={false}
         nextAppointmentAssignmentId={nextAppointmentAssignmentId}
         serviceLookup={serviceLookup}
+        eyebrow={heroEyebrow}
       />
 
       {fullyQuiet && tomorrowVisitCount > 0 ? (

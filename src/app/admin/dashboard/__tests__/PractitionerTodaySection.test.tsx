@@ -80,6 +80,32 @@ describe("PractitionerTodaySection", () => {
     expect(screen.getByText(/Aisha · Visit/)).toBeTruthy();
   });
 
+  it("labels the hero 'Next visit' when eyebrow is omitted", () => {
+    const appt = makeBooking();
+    render(
+      <PractitionerTodaySection
+        staffName="Sara"
+        todayAppointments={[appt]}
+        nextAppointment={appt}
+      />
+    );
+    expect(screen.getByText(/Next visit/)).toBeTruthy();
+  });
+
+  it("renders a caller-supplied eyebrow in place of the default label", () => {
+    const appt = makeBooking();
+    render(
+      <PractitionerTodaySection
+        staffName="Sara"
+        todayAppointments={[appt]}
+        nextAppointment={appt}
+        eyebrow="First visit back"
+      />
+    );
+    expect(screen.getByText(/First visit back/)).toBeTruthy();
+    expect(screen.queryByText(/Next visit/)).toBeNull();
+  });
+
   it("renders today's visits list when more than one appointment today", () => {
     const next = makeBooking({ id: "b-1", start_time: "09:00:00" });
     const other = makeBooking({

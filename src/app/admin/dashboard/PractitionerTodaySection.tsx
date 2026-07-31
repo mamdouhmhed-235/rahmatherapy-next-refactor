@@ -31,8 +31,9 @@ import { RelativeTimeDisplay } from "./RelativeTimeDisplay";
 // JSX below is LIFTED from TherapistDashboard.tsx's NextVisitHero (558-684),
 // HeroEmptyState (686-721) and TodayVisitsList (723+) — same styling, same
 // tokens, same icons — adapted to this component's simpler prop-driven
-// interface (no page-level "this week"/eyebrow/"then visit" context) and
-// extended with the Mark-complete control (new — see NextVisitHero).
+// interface (no page-level "this week"/"then visit" context; the hero eyebrow
+// arrived later as the optional `eyebrow` prop below) and extended with the
+// Mark-complete control (new — see NextVisitHero).
 
 interface PractitionerTodaySectionProps {
   // Capability-keyed: parent must check profile.can_take_bookings before
@@ -61,6 +62,11 @@ interface PractitionerTodaySectionProps {
   // passing the real claimableCount so the EmptyDayCard branch below
   // correctly recognizes that claimable work exists.
   showClaimableStrip?: boolean;
+  // Label on the hero's eyebrow badge. Omitted → "Next visit", which is what
+  // every caller rendered before this prop existed. Callers with day-context
+  // to add pass their own framing (TherapistDashboard derives "First visit
+  // back" / "Tomorrow's first visit"); callers without it should omit this.
+  eyebrow?: string;
 }
 
 export function PractitionerTodaySection({
@@ -70,6 +76,7 @@ export function PractitionerTodaySection({
   nextAppointmentAssignmentId = null,
   serviceLookup = new Map(),
   showClaimableStrip = true,
+  eyebrow = "Next visit",
 }: PractitionerTodaySectionProps) {
   const hasAnyAppt = todayAppointments.length > 0 || Boolean(nextAppointment);
 
@@ -91,6 +98,7 @@ export function PractitionerTodaySection({
           appointment={nextAppointment}
           service={serviceLookup.get(nextAppointment.id)}
           assignmentId={nextAppointmentAssignmentId}
+          eyebrow={eyebrow}
         />
       ) : null}
       {remainingToday.length > 0 ? (
@@ -110,10 +118,12 @@ function NextVisitHero({
   appointment,
   service,
   assignmentId,
+  eyebrow,
 }: {
   appointment: ReportData["bookings"][number];
   service?: ServiceMeta;
   assignmentId?: string | null;
+  eyebrow: string;
 }) {
   const heroTime = formatHeroTime(
     appointment.start_time ?? null,
@@ -149,7 +159,7 @@ function NextVisitHero({
         }}
       >
         <ArrowRight className="size-3.5" aria-hidden="true" />
-        Next visit
+        {eyebrow}
         {startISO ? (
           <>
             {" "}
