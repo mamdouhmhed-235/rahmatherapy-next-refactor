@@ -171,6 +171,43 @@ Baseline after: **5 failed / 868 passed (873)** — +5 new specs, same five inhe
 
 Honest test-quality note recorded by the implementer rather than dressed up: the "default is Next visit when omitted" spec **cannot** fail against pre-change code (the literal was already `"Next visit"`) — it is a backward-compat guard, not a red-first test. The other three were verified genuinely failing at `75be734` before implementation (3 failed / 16 passed), all 19 green after.
 
+## 1.9 — Cross-phase review findings + two Owner decisions (2026-07-31)
+
+Found by a **parallel read-only whole-range review** run alongside the E2/E3 write task — neither finding was visible to any single-phase verifier, because both live *between* phases. Orchestrator independently confirmed every load-bearing claim before acting.
+
+### 1.9a — ⚠️ Two blocks were built, tested, exported… and never wired in
+
+`RevenueStripe` and `RecentActivityStripe` are referenced **only** by their own source files and `blocks/index.ts`. Confirmed by grep. (`ClaimQueueStripe` and `ScheduleGapStripe` *were* wired, into `CoordinatorDashboard` — which is what makes the omission look accidental rather than intended.) `PaymentHealthCard` is not mounted either, and was not pre-C-11, so **the Owner/Admin dashboard currently carries no revenue KPI row** — only an "outstanding" figure in the scope bar.
+
+Why no phase caught it: Phase A's verifier confirmed each block renders correctly *in isolation*; Phase B's verifier checked V-01 reconciliation, not full brief-diagram compliance. The gap sits in the seam.
+
+**Not a regression** — that tile row never existed before C-11. It is a piece of C-11's own locked scope that did not land.
+
+**⛔ The brief contradicts itself, and that is what forced the decision:**
+- **§4.1** draws four *fixed-period* tiles (Today / Week / Month / Lifetime).
+- **§8:572** states verbatim: *"C-11 doesn't introduce new fetches."*
+
+These cannot both hold. `getDashboardData` is hard-scoped to one date window (`.gte(booking_date, from).lte(...)`), so `summarizeReports` only ever aggregates that window. `page.tsx` makes exactly **3** such calls, all bound to user-toggled selectors — in the common case one of the four figures is incidentally available, in general **none reliably are**. Building the row needs 3–4 more queries, pushing past SHARED-NOTES §11's **≤6 per cold load** budget *non-deterministically* (the count would vary with the selected filter). The Lifetime tile is worse: `range=lifetime` maps to `2000-01-01`–`2100-12-31`, i.e. an **unbounded full-history query against the live production DB on every Owner/Admin dashboard load**.
+
+**§9.2's stated premise is also factually wrong.** It claims the Owner-vs-Admin split is "aligned with existing RBAC permission VIEW_REPORTS_REVENUE". Orchestrator queried production `role_permissions`: **both Owner AND Admin hold `view_reports_revenue`.** No permission bit distinguishes them. The only available discriminator is `getRoleLabel()`, a *display heuristic* — repurposing it as an access gate would be wrong. Note also that "no lifetime totals for Admin" was never a security boundary: Admin can already read the same figure via `/admin/reports?range=lifetime`.
+
+**✅ OWNER DECISION 2026-07-31: honour §8 — defer, and delete the dead blocks.** Alternatives presented and declined: a range-scoped revenue row fed from the already-fetched window (zero new queries, but deviates from §4.1's mockup), and building §4.1 as specified (accepting the new queries, the budget breach and the unbounded production query).
+
+Actions this authorises:
+1. Remove `RevenueStripe` and `RecentActivityStripe` (and their specs) from `blocks/` and the barrel, so no dead code ships. **The code remains recoverable from git at `4e18fa9`** for whoever picks this up in C-12+ — it was working, tested code, not a failed experiment.
+2. Record both as **C-12+ items**, carrying this analysis: any future revenue-tile work must first resolve the §4.1-vs-§8 contradiction and decide whether a Lifetime query on every dashboard load is acceptable.
+3. **Expect the passing test count to DROP** when the specs are removed. That is a deliberate, Owner-approved reduction, not baseline erosion — record the new identity list explicitly at closeout so the next plan does not read it as a regression.
+
+### 1.9b — ~85 lines duplicated between the two variant files
+
+Phase C's split turned one copy of the per-render derivation into two. §1.5 recorded this as ~2 vestigial booleans; the true consolidatable footprint is **~85 lines** — `attentionSummaryRows` alone is 50, plus `variantRoleLabelFallback`/`roleLabel` (11), the failed-emails/operational-errors/availability-gaps trio (9), `scopeSummary` (8), and the `filterQuery`/`activeEnquiries` derivations (zero variant dependency). Tellingly, the comment *"Coordinator never sees revenue"* appears verbatim inside the **Business** file — evidence one concept was split by accident.
+
+Not everything flagged is real: `revenueAllowed`, `permissionAccess`, `dashboardCopy`, `serviceOptions` and `attentionGroups` are mandatory call sites into helpers that are *already* shared. The honest number is ~85, not the ~120 first reported.
+
+**✅ OWNER DECISION 2026-07-31: consolidate LATER, bundled with C-09** (the next cleanup-shaped plan in the §4 order). Rationale: Phase C's split was verified byte-identical by a 140-anchor proof; re-opening three live dashboards immediately afterwards for a non-functional refactor trades a real regression risk against a drift risk that C-09 can absorb cheaply. The per-declaration CONSOLIDATE/LEAVE breakdown above is the scope for that work.
+
+---
+
 ## 2 — ⛔ PHASE E1 STOP (protocol §2.3: failed verify → one fix round → still failing → STOP)
 
 ### 2.1 — Migration: APPLIED and verified (`f95c828`)
