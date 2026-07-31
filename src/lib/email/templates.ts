@@ -689,6 +689,84 @@ ${signoff}
 `;
 }
 
+// ─── Booking confirmed — client email (C-08) ─────────────────────────────
+// Sent when an admin moves a booking from pending → confirmed
+// (quickUpdateBooking / updateBookingManagement). HTML and plain-text legs
+// resolve the same three admin-editable fields through one shared defaults
+// object — the C-01 seam-review lesson: a plain-text leg that hardcodes copy
+// the HTML leg makes editable silently drops an admin's override on that leg.
+
+const BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS = {
+  body_intro:
+    "Hi {clientName}, your appointment on {bookingDate} at {startTime} is confirmed. We'll send a reminder closer to the day.",
+  body_cta_label: "Manage your booking",
+  body_signoff: "Thank you,\nThe Rahma Therapy team",
+} as const;
+
+function resolveBookingConfirmedClientFields(overrides: Record<string, string>) {
+  return {
+    body_intro:
+      overrides.body_intro ?? BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS.body_intro,
+    body_cta_label:
+      overrides.body_cta_label ?? BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS.body_cta_label,
+    body_signoff:
+      overrides.body_signoff ?? BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS.body_signoff,
+  };
+}
+
+export async function renderBookingConfirmedClientEmail(
+  input: BookingEmailTemplateInput
+): Promise<string> {
+  const overrides = await resolveTemplateOverrides("booking_confirmed_client");
+  const fields = resolveBookingConfirmedClientFields(overrides);
+  const vars = buildVarMap(input);
+
+  const introHtml = escapeHtml(substituteVars(fields.body_intro, vars));
+  const signoffHtml = escapeHtml(substituteVars(fields.body_signoff, vars));
+  const manageLink = input.manageUrl
+    ? `<p style="margin:24px 0;"><a href="${escapeHtml(
+        input.manageUrl
+      )}" style="display:inline-block;background:#0f5e8e;color:#ffffff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">${escapeHtml(
+        fields.body_cta_label
+      )}</a></p>`
+    : "";
+
+  return renderLayout(
+    "Your booking is confirmed",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Your booking is confirmed</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
+    ${renderSummary(input)}
+    ${manageLink}
+    <p style="white-space:pre-line;margin:18px 0 0;font-size:14px;line-height:1.5;color:#53615d;">${signoffHtml}</p>
+    ${renderFooter(input, overrides)}`
+  );
+}
+
+// Plain-text equivalent of renderBookingConfirmedClientEmail. Resolves the
+// same three fields via resolveBookingConfirmedClientFields, so an admin
+// override applies identically to both legs (see the C-01 lesson above).
+export function renderBookingConfirmedClientPlainText(
+  input: BookingEmailTemplateInput,
+  overrides: Record<string, string> = {}
+): string {
+  const fields = resolveBookingConfirmedClientFields(overrides);
+  const vars = buildVarMap(input);
+
+  const intro = substituteVars(fields.body_intro, vars);
+  const signoff = substituteVars(fields.body_signoff, vars);
+  const footerLine = overrides.footer_contact
+    ? substituteVars(overrides.footer_contact, vars)
+    : `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
+
+  return `Your booking is confirmed
+
+${intro}
+
+${input.manageUrl ? `${fields.body_cta_label}: ${input.manageUrl}\n\n` : ""}${signoff}
+
+${footerLine}`;
+}
+
 // ─── Password-reset email templates ──────────────────────────────────────────
 // FAKE: structure only. Real Resend send wiring lands with
 // BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).

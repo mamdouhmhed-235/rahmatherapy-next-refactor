@@ -244,6 +244,37 @@ const REVIEW_CUPPING_VARIANT_5: SafeField = {
   multiline: true,
 };
 
+// C-08 — booking_confirmed_client fields. Reuses the body_intro /
+// body_cta_label / body_signoff kinds C-01 already added to SafeFieldKind
+// (grepped before writing this — see plan §1 Sub-step 3 coordination note)
+// rather than adding a second, incompatible set of kinds.
+const BOOKING_CONFIRMED_BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder:
+    "Hi {clientName}, your appointment on {bookingDate} at {startTime} is confirmed. We'll send a reminder closer to the day.",
+  helper: "Variables in curly braces are filled automatically.",
+  maxLength: 500,
+  multiline: true,
+};
+
+const BOOKING_CONFIRMED_BODY_CTA_LABEL: SafeField = {
+  kind: "body_cta_label",
+  label: "CTA button label",
+  placeholder: "Manage your booking",
+  helper: "Text on the action button linking to the manage-booking page.",
+  maxLength: 80,
+};
+
+const BOOKING_CONFIRMED_BODY_SIGNOFF: SafeField = {
+  kind: "body_signoff",
+  label: "Signoff",
+  placeholder: "Thank you,\nThe Rahma Therapy team",
+  helper: "Closing line above the footer contact line.",
+  maxLength: 200,
+  multiline: true,
+};
+
 export const TEMPLATES: TemplateMeta[] = [
   {
     id: "booking_confirmation",
@@ -346,6 +377,19 @@ export const TEMPLATES: TemplateMeta[] = [
       REVIEW_CUPPING_VARIANT_3,
       REVIEW_CUPPING_VARIANT_4,
       REVIEW_CUPPING_VARIANT_5,
+    ],
+  },
+  {
+    id: "booking_confirmed_client",
+    audience: "customer",
+    cardName: "Booking confirmed (client)",
+    trigger: "Sent when admin confirms a pending booking with the client. Fires on pending→confirmed transitions in quickUpdateBooking and updateBookingManagement.",
+    rendersAs: "html",
+    fields: [
+      BOOKING_CONFIRMED_BODY_INTRO,
+      BOOKING_CONFIRMED_BODY_CTA_LABEL,
+      BOOKING_CONFIRMED_BODY_SIGNOFF,
+      FOOTER_CONTACT,
     ],
   },
 ];

@@ -8,6 +8,7 @@ import {
   sendBookingCreatedEmails,
   sendAssignedStaffBookingChangeEmails,
   sendBookingCancellationEmails,
+  sendBookingConfirmedClientEmail,
   sendBookingRestoredClientEmail,
   sendStaffAssignmentEmail,
 } from "@/lib/email/notifications";
@@ -549,6 +550,13 @@ export async function updateBookingManagement(
     });
   }
 
+  // C-08: booking_confirmed_client on pending → confirmed
+  if (beforeState.status === "pending" && data.status === "confirmed") {
+    await sendBookingConfirmedClientEmail(bookingId, adminClient).catch((error) => {
+      console.error("Unable to send booking_confirmed_client email.", error);
+    });
+  }
+
   updateTag("report-data");
   updateTag("dashboard-data");
   revalidatePath("/admin/bookings");
@@ -842,6 +850,13 @@ export async function quickUpdateBooking(formData: FormData) {
       `Booking status changed from ${beforeState.status} to ${updatedBooking.status}.`
     ).catch((error) => {
       console.error("Unable to send assigned staff change emails.", error);
+    });
+  }
+
+  // C-08: booking_confirmed_client on pending → confirmed
+  if (beforeState.status === "pending" && updatedBooking.status === "confirmed") {
+    await sendBookingConfirmedClientEmail(bookingId, adminClient).catch((error) => {
+      console.error("Unable to send booking_confirmed_client email.", error);
     });
   }
 

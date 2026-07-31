@@ -12,6 +12,8 @@ import {
   renderAdminRescheduleRequestEmail,
   renderBookingCancellationEmail,
   renderBookingConfirmationEmail,
+  renderBookingConfirmedClientEmail,
+  renderBookingConfirmedClientPlainText,
   renderBookingPlainText,
   renderBookingReminderEmail,
   renderBookingRestoredEmail,
@@ -652,6 +654,36 @@ export async function sendBookingReminderEmail(
     subject: `${input.companyName} booking reminder`,
     html: renderBookingReminderEmail(input),
     text: renderBookingPlainText("Booking reminder", input),
+  });
+}
+
+/**
+ * C-08 — sent when an admin moves a booking from pending → confirmed
+ * (quickUpdateBooking / updateBookingManagement).
+ */
+export async function sendBookingConfirmedClientEmail(
+  bookingId: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const { booking, input } = await getBookingTemplateInput(bookingId, supabase, {
+    includeManageUrl: true,
+  });
+  const customerEmail = booking.contact_email || booking.clients?.email;
+  if (!customerEmail) {
+    throw new Error("Booking client has no email address.");
+  }
+
+  const html = await renderBookingConfirmedClientEmail(input);
+  const overrides = await resolveTemplateOverrides("booking_confirmed_client");
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "booking_confirmed_client",
+    recipientRole: "customer",
+    to: customerEmail,
+    subject: "Your booking is confirmed", // SUBJECTS map authoritative
+    html,
+    text: renderBookingConfirmedClientPlainText(input, overrides),
   });
 }
 

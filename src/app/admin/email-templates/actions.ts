@@ -76,6 +76,7 @@ const SUBJECTS: Record<string, string> = {
   admin_booking_cancellation: "Booking cancellation",
   admin_reschedule_request: "Reschedule request",
   review_request_client: "Thank you for visiting Rahma Therapy",
+  booking_confirmed_client: "Your booking is confirmed",
 };
 
 export async function saveTemplateOverride(

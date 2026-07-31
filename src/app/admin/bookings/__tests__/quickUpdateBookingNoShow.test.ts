@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   sendAssignedStaffBookingChangeEmails,
   sendBookingCancellationEmails,
+  sendBookingConfirmedClientEmail,
 } from "@/lib/email/notifications";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -37,6 +38,7 @@ vi.mock("@/lib/email/notifications", () => ({
   sendBookingCreatedEmails: vi.fn(),
   sendAssignedStaffBookingChangeEmails: vi.fn(),
   sendBookingCancellationEmails: vi.fn(),
+  sendBookingConfirmedClientEmail: vi.fn(),
   sendBookingRestoredClientEmail: vi.fn(),
   sendStaffAssignmentEmail: vi.fn(),
 }));
@@ -158,6 +160,7 @@ describe("quickUpdateBooking — no-show quick action", () => {
     // Both sends are awaited with a `.catch` tail, so they have to be thenable.
     vi.mocked(sendAssignedStaffBookingChangeEmails).mockReset().mockResolvedValue();
     vi.mocked(sendBookingCancellationEmails).mockReset().mockResolvedValue();
+    vi.mocked(sendBookingConfirmedClientEmail).mockReset().mockResolvedValue();
   });
 
   it("marks a past-dated confirmed booking as no-show", async () => {
@@ -274,6 +277,7 @@ describe("quickUpdateBooking — terminal-state guards", () => {
     vi.mocked(getStaffProfile).mockResolvedValue(owner);
     vi.mocked(sendAssignedStaffBookingChangeEmails).mockReset().mockResolvedValue();
     vi.mocked(sendBookingCancellationEmails).mockReset().mockResolvedValue();
+    vi.mocked(sendBookingConfirmedClientEmail).mockReset().mockResolvedValue();
   });
 
   it.each(["no_show", "cancel", "confirm"])(
@@ -387,12 +391,17 @@ describe("quickUpdateBooking — terminal-state guards", () => {
     });
     expect(stub.audit()!.after_state).toMatchObject({ status: "confirmed" });
 
-    // Not a customer-facing event: the assigned staff hear about it, the client
-    // does not.
+    // The assigned staff hear about it via the generic status-change email...
     expect(sendAssignedStaffBookingChangeEmails).toHaveBeenCalledWith(
       "booking-1",
       stub.client,
       "Booking status changed from pending to confirmed."
+    );
+    // ...and, since C-08, so does the client — this is the one status change
+    // with a dedicated client-facing template (the pending→confirmed moment).
+    expect(sendBookingConfirmedClientEmail).toHaveBeenCalledWith(
+      "booking-1",
+      stub.client
     );
     expect(sendBookingCancellationEmails).not.toHaveBeenCalled();
   });
