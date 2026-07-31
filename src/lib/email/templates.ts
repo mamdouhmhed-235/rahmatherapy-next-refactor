@@ -662,10 +662,16 @@ function resolveReviewRequestFields(overrides: Record<string, string>) {
   };
 }
 
+// C-15 Phase B — `providedOverrides` is optional so the live-preview
+// draft-merge path (preview/[id]/route.ts) can inject an unsaved draft
+// without a DB round-trip; every existing caller passes nothing and falls
+// back to the original resolveTemplateOverrides(templateId) read, so
+// behaviour at every notifications.ts call site is unchanged.
 export async function renderReviewRequestEmail(
-  input: ReviewRequestEmailInput
+  input: ReviewRequestEmailInput,
+  providedOverrides?: Record<string, string>
 ): Promise<string> {
-  const overrides = await resolveTemplateOverrides("review_request_client");
+  const overrides = providedOverrides ?? (await resolveTemplateOverrides("review_request_client"));
   const variants = pickReviewMessages({
     groupCategory: input.groupCategory,
     city: input.city,
@@ -767,10 +773,13 @@ function resolveBookingConfirmedClientFields(overrides: Record<string, string>) 
   };
 }
 
+// C-15 Phase B — optional providedOverrides, see renderReviewRequestEmail's
+// comment above for the rationale; every existing caller is unaffected.
 export async function renderBookingConfirmedClientEmail(
-  input: BookingEmailTemplateInput
+  input: BookingEmailTemplateInput,
+  providedOverrides?: Record<string, string>
 ): Promise<string> {
-  const overrides = await resolveTemplateOverrides("booking_confirmed_client");
+  const overrides = providedOverrides ?? (await resolveTemplateOverrides("booking_confirmed_client"));
   const fields = resolveBookingConfirmedClientFields(overrides);
   const vars = buildVarMap(input);
 
@@ -836,10 +845,13 @@ function resolveStaffUnassignmentFields(overrides: Record<string, string>) {
   };
 }
 
+// C-15 Phase B — optional providedOverrides, see renderReviewRequestEmail's
+// comment above for the rationale; every existing caller is unaffected.
 export async function renderStaffUnassignmentEmail(
-  input: BookingEmailTemplateInput & { therapistName: string }
+  input: BookingEmailTemplateInput & { therapistName: string },
+  providedOverrides?: Record<string, string>
 ): Promise<string> {
-  const overrides = await resolveTemplateOverrides("staff_unassignment");
+  const overrides = providedOverrides ?? (await resolveTemplateOverrides("staff_unassignment"));
   const fields = resolveStaffUnassignmentFields(overrides);
   const vars = buildVarMap(input, { therapistName: input.therapistName });
 
@@ -892,10 +904,13 @@ function resolveClaimFields(overrides: Record<string, string>) {
   };
 }
 
+// C-15 Phase B — optional providedOverrides, see renderReviewRequestEmail's
+// comment above for the rationale; every existing caller is unaffected.
 export async function renderClaimNotificationEmail(
-  input: BookingEmailTemplateInput & { therapistName: string }
+  input: BookingEmailTemplateInput & { therapistName: string },
+  providedOverrides?: Record<string, string>
 ): Promise<string> {
-  const overrides = await resolveTemplateOverrides("claim");
+  const overrides = providedOverrides ?? (await resolveTemplateOverrides("claim"));
   const fields = resolveClaimFields(overrides);
   const vars = buildVarMap(input, { therapistName: input.therapistName });
 
@@ -949,10 +964,13 @@ function resolveClientAssignedTherapistFields(overrides: Record<string, string>)
   };
 }
 
+// C-15 Phase B — optional providedOverrides, see renderReviewRequestEmail's
+// comment above for the rationale; every existing caller is unaffected.
 export async function renderClientAssignedTherapistEmail(
-  input: BookingEmailTemplateInput & { therapistName: string }
+  input: BookingEmailTemplateInput & { therapistName: string },
+  providedOverrides?: Record<string, string>
 ): Promise<string> {
-  const overrides = await resolveTemplateOverrides("client_assigned_therapist");
+  const overrides = providedOverrides ?? (await resolveTemplateOverrides("client_assigned_therapist"));
   const fields = resolveClientAssignedTherapistFields(overrides);
   const vars = buildVarMap(input, { therapistName: input.therapistName });
 
@@ -1069,10 +1087,13 @@ function renderEnquiryFooter(
   </p>`;
 }
 
+// C-15 Phase B — optional providedOverrides, see renderReviewRequestEmail's
+// comment above for the rationale; every existing caller is unaffected.
 export async function renderEnquiryLoggedEmail(
-  input: EnquiryEmailTemplateInput
+  input: EnquiryEmailTemplateInput,
+  providedOverrides?: Record<string, string>
 ): Promise<string> {
-  const overrides = await resolveTemplateOverrides("enquiry_logged");
+  const overrides = providedOverrides ?? (await resolveTemplateOverrides("enquiry_logged"));
   const fields = resolveEnquiryLoggedFields(overrides);
   const vars = buildEnquiryVarMap(input);
 
