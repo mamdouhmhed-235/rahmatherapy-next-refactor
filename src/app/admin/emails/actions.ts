@@ -258,11 +258,14 @@ export async function resendEmail(formData: FormData): Promise<ResendEmailResult
   const { data: newest } = await newestQuery.maybeSingle<{ id: string }>();
 
   if (newest) {
-    // C-08 Phase D's Step 13 migration (not yet applied) adds
-    // `email_delivery_events.metadata`, where a future resend would also
-    // stamp `resent_from_event_id`. Until that column exists this audit_logs
-    // row is the sole linkage record — deliberately deferred, not stubbed
-    // (orchestrator decision, C-08 progress file §3 item 3).
+    // C-08 Phase D Step 13 landed `email_delivery_events.metadata` — stamp
+    // the resend linkage on the new row now that the column exists (the
+    // audit_logs row below was the sole linkage record until now).
+    await adminClient
+      .from("email_delivery_events")
+      .update({ metadata: { resent_from_event_id: deliveryEventId } })
+      .eq("id", newest.id);
+
     await adminClient.from("audit_logs").insert({
       actor_staff_id: profile.id,
       action_type: "email_resent",

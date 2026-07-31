@@ -119,6 +119,7 @@ function makeChain(
   chain.gte = track("gte");
   chain.order = track("order");
   chain.limit = track("limit");
+  chain.update = track("update");
   chain.maybeSingle = vi.fn(async () => resolve());
   chain.then = (onFulfilled: (v: unknown) => unknown, onRejected?: (e: unknown) => unknown) =>
     Promise.resolve(resolve()).then(onFulfilled, onRejected);
@@ -510,9 +511,16 @@ describe("resendEmail — happy path", () => {
         recipient_email: "client@example.test",
       },
     });
-    // C-08 Phase D's metadata column isn't applied yet — the linkage above
-    // (audit_logs) is deliberately the only record of it for now.
-    expect(audit?.row.after_state).not.toHaveProperty("metadata");
+    // C-08 Phase D Step 13 landed `email_delivery_events.metadata` — the
+    // resend now stamps the linkage on the new delivery-event row itself
+    // (previously this spec asserted the opposite: that no metadata write
+    // happened at all, because the column didn't exist yet).
+    const metadataUpdateCalls = stub.deliveryCalls[3];
+    expect(metadataUpdateCalls).toContainEqual({
+      method: "update",
+      args: [{ metadata: { resent_from_event_id: "event-1" } }],
+    });
+    expect(metadataUpdateCalls).toContainEqual({ method: "eq", args: ["id", "event-2"] });
   });
 
   it("returns ok:true with no newEventId when the resent row can't be found, without throwing", async () => {
