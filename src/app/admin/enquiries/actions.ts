@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { PERMISSIONS, requirePermission } from "@/lib/auth/rbac";
+import { sendEnquiryLoggedEmail } from "@/lib/email/notifications";
 
 const ENQUIRY_SOURCES = [
   "website",
@@ -104,6 +105,13 @@ export async function createEnquiry(
       status: data.status,
       assigned_staff_id: payload.assigned_staff_id,
     },
+  });
+
+  // C-08 Phase D Step 16 — alert opted-in Owner/Admin recipients (skip-self
+  // via actor.id). Catch-and-continue: a failed alert must never fail an
+  // enquiry that was already successfully created.
+  await sendEnquiryLoggedEmail(data.id, actor.id, adminClient).catch((error) => {
+    console.error("Unable to send enquiry_logged email.", error);
   });
 
   updateTag("report-data");

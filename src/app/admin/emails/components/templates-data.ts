@@ -321,6 +321,19 @@ const CLIENT_ASSIGNED_THERAPIST_BODY_CTA_LABEL: SafeField = {
   maxLength: 80,
 };
 
+// C-08 Phase D Step 16 — enquiry_logged field. No CTA (internal ops notice,
+// same shape as claim; {enquiryUrl} is inline text in the intro rather than
+// a button field).
+const ENQUIRY_LOGGED_BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder:
+    "{staffName} logged a new enquiry from {clientName} ({contactDetail}) interested in {serviceInterest}. View it here: {enquiryUrl}.",
+  helper: "Variables in curly braces are filled automatically.",
+  maxLength: 500,
+  multiline: true,
+};
+
 export const TEMPLATES: TemplateMeta[] = [
   {
     id: "booking_confirmation",
@@ -465,6 +478,14 @@ export const TEMPLATES: TemplateMeta[] = [
       CLIENT_ASSIGNED_THERAPIST_BODY_CTA_LABEL,
       FOOTER_CONTACT,
     ],
+  },
+  {
+    id: "enquiry_logged",
+    audience: "admin_internal",
+    cardName: "Enquiry logged (internal)",
+    trigger: "Sent to opted-in Owner/Admin recipients when a staff member logs a new enquiry. Fires from createEnquiry; the logging staff member is excluded (skip-self).",
+    rendersAs: "html",
+    fields: [ENQUIRY_LOGGED_BODY_INTRO, FOOTER_CONTACT],
   },
 ];
 

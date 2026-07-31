@@ -4,6 +4,7 @@ import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
 import {
   extractEmailAddress,
   getFromEmail,
+  getSiteUrl,
   sendEmail,
 } from "./client";
 import {
@@ -21,6 +22,8 @@ import {
   renderClaimNotificationPlainText,
   renderClientAssignedTherapistEmail,
   renderClientAssignedTherapistPlainText,
+  renderEnquiryLoggedEmail,
+  renderEnquiryLoggedPlainText,
   renderReviewRequestEmail,
   renderReviewRequestPlainText,
   renderStaffAssignmentEmail,
@@ -31,6 +34,7 @@ import {
   resolveTemplateOverrides,
   type BookingEmailTemplateInput,
   type EmailParticipant,
+  type EnquiryEmailTemplateInput,
   type ReviewRequestEmailInput,
 } from "./templates";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
@@ -354,17 +358,22 @@ export async function resolveBusinessNotificationRecipients(
 }
 
 /**
- * C-08 Phase D — shared fan-out for the 4 rerouted admin_internal senders.
+ * C-08 Phase D — shared fan-out for the rerouted admin_internal senders.
  * Sends one tracked email per resolved recipient (one delivery row each,
  * per plan §1 Phase D). When resolution came back empty for an intentional
  * reason (per-type opt-out or skip-self emptied a non-empty list), writes a
  * single `skipped` row carrying that reason; a `skipReason` of `null` with
  * no recipients means nobody is configured at all, which stays a silent
  * no-op (matches pre-Phase-D behaviour when no admin email was configured).
+ *
+ * `bookingId` is nullable — Phase D Step 16's `enquiry_logged` has no
+ * booking (enquiries aren't bookings; `email_delivery_events.booking_id` is
+ * nullable, confirmed at pre-flight #11b), so every row it writes carries a
+ * null booking_id.
  */
 async function sendToBusinessRecipients(
   supabase: SupabaseClient,
-  bookingId: string,
+  bookingId: string | null,
   eventType: string,
   resolution: BusinessNotificationResolution,
   buildSend: (recipient: BusinessNotificationRecipient) => Promise<unknown>
@@ -397,7 +406,7 @@ function getProviderMessageId(data: unknown) {
 async function recordEmailDeliveryEvent(
   supabase: SupabaseClient,
   input: {
-    bookingId: string;
+    bookingId: string | null;
     eventType: string;
     recipientEmail: string | null;
     recipientRole: string;
@@ -437,7 +446,7 @@ async function recordEmailDeliveryEvent(
 async function sendTrackedEmail(
   supabase: SupabaseClient,
   input: {
-    bookingId: string;
+    bookingId: string | null;
     eventType: string;
     recipientRole: string;
     staffId?: string | null;
@@ -1051,6 +1060,85 @@ export async function sendClientAssignedTherapistEmail(
     html,
     text: renderClientAssignedTherapistPlainText(assignedInput, overrides),
   });
+}
+
+interface EnquiryEmailRecord {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  service_interest: string | null;
+}
+
+/**
+ * C-08 Phase D Step 16 (brief §2.7) — sent to opted-in Owner/Admin
+ * recipients when a staff member logs a new enquiry, wired into
+ * createEnquiry with skip-self (the logging staff member is excluded via
+ * `excludeStaffId`). Not a booking email — enquiries have no booking_id, so
+ * every delivery row this writes carries `booking_id = null` (nullable,
+ * confirmed at pre-flight #11b); `sendToBusinessRecipients` / `sendTrackedEmail`
+ * / `recordEmailDeliveryEvent` above all accept a null bookingId for
+ * exactly this case.
+ */
+export async function sendEnquiryLoggedEmail(
+  enquiryId: string,
+  actorStaffId: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const [{ data: enquiry }, { data: actor }, settings] = await Promise.all([
+    supabase
+      .from("enquiries")
+      .select("id, full_name, phone, email, service_interest")
+      .eq("id", enquiryId)
+      .maybeSingle<EnquiryEmailRecord>(),
+    supabase
+      .from("staff_profiles")
+      .select("name")
+      .eq("id", actorStaffId)
+      .maybeSingle<{ name: string }>(),
+    getBusinessSettings(supabase),
+  ]);
+
+  if (!enquiry) {
+    throw new Error(`sendEnquiryLoggedEmail: enquiry ${enquiryId} not found.`);
+  }
+
+  const input: EnquiryEmailTemplateInput = {
+    companyName: settings.company_name ?? "Rahma Therapy",
+    staffName: actor?.name ?? "(unknown)",
+    clientName: enquiry.full_name,
+    contactDetail: enquiry.email || enquiry.phone || "no contact details on file",
+    serviceInterest: enquiry.service_interest,
+    enquiryUrl: `${getSiteUrl()}/admin/enquiries`,
+    contactEmail: settings.contact_email,
+    contactPhone: settings.contact_phone,
+  };
+
+  const html = await renderEnquiryLoggedEmail(input);
+  const overrides = await resolveTemplateOverrides("enquiry_logged");
+
+  const businessRecipients = await resolveBusinessNotificationRecipients(supabase, {
+    type: "enquiry_logged",
+    excludeStaffId: actorStaffId,
+  });
+
+  await sendToBusinessRecipients(
+    supabase,
+    null,
+    "enquiry_logged",
+    businessRecipients,
+    (recipient) =>
+      sendTrackedEmail(supabase, {
+        bookingId: null,
+        eventType: "enquiry_logged",
+        recipientRole: "admin",
+        staffId: recipient.staffId,
+        to: recipient.email,
+        subject: `New enquiry: ${input.clientName}`,
+        html,
+        text: renderEnquiryLoggedPlainText(input, overrides),
+      })
+  );
 }
 
 interface ReviewEmailBookingRow {

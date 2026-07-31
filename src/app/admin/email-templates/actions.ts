@@ -81,6 +81,7 @@ const SUBJECTS: Record<string, string> = {
   staff_unassignment: "Booking assignment removed",
   claim: "Slot claimed",
   client_assigned_therapist: "Your therapist is confirmed",
+  enquiry_logged: "New enquiry: {clientName}",
 };
 
 export async function saveTemplateOverride(

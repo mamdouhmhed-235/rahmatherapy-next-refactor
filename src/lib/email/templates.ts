@@ -972,6 +972,118 @@ ${intro}
 ${input.manageUrl ? `${fields.body_cta_label}: ${input.manageUrl}\n\n` : ""}${footerLine}`;
 }
 
+// ─── Enquiry logged email — admin (C-08 Phase D Step 16) ─────────────────
+// Sent to opted-in Owner/Admin recipients when a staff member logs a new
+// enquiry (createEnquiry), skipping the logging staff member (skip-self,
+// brief §2.7). Not a booking email — enquiries have no booking_id, so this
+// template gets its own input shape rather than BookingEmailTemplateInput,
+// and the render skips renderSummary/renderParticipants (no booking to
+// summarise). Same shared-defaults + resolve*Fields() shape as the
+// templates above, so HTML and plain-text legs read one source of truth.
+
+export interface EnquiryEmailTemplateInput {
+  companyName: string;
+  staffName: string;
+  clientName: string;
+  contactDetail: string;
+  serviceInterest: string | null;
+  enquiryUrl: string;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+}
+
+const ENQUIRY_LOGGED_DEFAULT_FIELDS = {
+  body_intro:
+    "{staffName} logged a new enquiry from {clientName} ({contactDetail}) interested in {serviceInterest}. View it here: {enquiryUrl}.",
+} as const;
+
+function resolveEnquiryLoggedFields(overrides: Record<string, string>) {
+  return {
+    body_intro: overrides.body_intro ?? ENQUIRY_LOGGED_DEFAULT_FIELDS.body_intro,
+  };
+}
+
+function buildEnquiryVarMap(input: EnquiryEmailTemplateInput): Record<string, unknown> {
+  return {
+    companyName: input.companyName,
+    staffName: input.staffName,
+    clientName: input.clientName,
+    contactDetail: input.contactDetail,
+    // A blank fallback here would render "...interested in . View it..." —
+    // ungrammatical rather than merely absent — so this one field gets a
+    // words fallback instead of buildVarMap's usual null-to-"" behaviour.
+    serviceInterest: input.serviceInterest ?? "an unspecified service",
+    enquiryUrl: input.enquiryUrl,
+  };
+}
+
+// Small dedicated footer, not a reuse of renderFooter() above — that helper
+// is typed to BookingEmailTemplateInput (requires clientName, bookingDate,
+// etc. that an enquiry doesn't have), so widening it would touch a shared,
+// working function for every other template's sake. Same visual shape and
+// override contract (footer_contact), scoped to this template only.
+function renderEnquiryFooter(
+  input: EnquiryEmailTemplateInput,
+  overrides: Record<string, string>
+) {
+  let footerLine = "";
+  if (overrides.footer_contact) {
+    footerLine = escapeHtml(
+      substituteVars(overrides.footer_contact, buildEnquiryVarMap(input))
+    );
+  } else {
+    const contactParts = [input.contactEmail, input.contactPhone].filter(
+      (value): value is string => Boolean(value)
+    );
+    if (contactParts.length > 0) {
+      footerLine = `Questions? Contact ${escapeHtml(contactParts.join(" or "))}.`;
+    }
+  }
+
+  return `<p style="margin:22px 0 0;font-size:13px;line-height:1.5;color:#53615d;">
+    ${footerLine}
+  </p>`;
+}
+
+export async function renderEnquiryLoggedEmail(
+  input: EnquiryEmailTemplateInput
+): Promise<string> {
+  const overrides = await resolveTemplateOverrides("enquiry_logged");
+  const fields = resolveEnquiryLoggedFields(overrides);
+  const vars = buildEnquiryVarMap(input);
+
+  const introHtml = escapeHtml(substituteVars(fields.body_intro, vars));
+
+  return renderLayout(
+    "New enquiry logged",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">New enquiry logged</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
+    ${renderEnquiryFooter(input, overrides)}`
+  );
+}
+
+// Plain-text equivalent of renderEnquiryLoggedEmail. Resolves the same field
+// via resolveEnquiryLoggedFields, so an admin override applies identically
+// to both legs (see the C-01 lesson above).
+export function renderEnquiryLoggedPlainText(
+  input: EnquiryEmailTemplateInput,
+  overrides: Record<string, string> = {}
+): string {
+  const fields = resolveEnquiryLoggedFields(overrides);
+  const vars = buildEnquiryVarMap(input);
+
+  const intro = substituteVars(fields.body_intro, vars);
+  const footerLine = overrides.footer_contact
+    ? substituteVars(overrides.footer_contact, vars)
+    : `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
+
+  return `New enquiry logged
+
+${intro}
+
+${footerLine}`;
+}
+
 // ─── Password-reset email templates ──────────────────────────────────────────
 // FAKE: structure only. Real Resend send wiring lands with
 // BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).
