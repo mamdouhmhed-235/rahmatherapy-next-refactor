@@ -25,6 +25,7 @@ import {
   EmailConfigurationError,
 } from "@/lib/email/client";
 import {
+  hasControlChars,
   isHttpsUrl,
   renderAdminBookingCancellationEmail,
   renderAdminBookingNotificationEmail,
@@ -65,24 +66,9 @@ function stripHtmlTags(value: string): string {
   return value.replace(/<[^>]*>/g, "").trim();
 }
 
-// Subject lines mirror the existing render*Email() <title> values verbatim.
-const SUBJECTS: Record<string, string> = {
-  booking_confirmation: "Booking request received",
-  booking_cancellation_client: "Booking cancelled",
-  booking_reminder: "Booking reminder",
-  booking_plain_text: "Booking confirmation",
-  staff_assignment: "Booking assignment",
-  staff_booking_change: "Assigned booking changed",
-  admin_booking_notification: "New booking request",
-  admin_booking_cancellation: "Booking cancellation",
-  admin_reschedule_request: "Reschedule request",
-  review_request_client: "Thank you for visiting Rahma Therapy",
-  booking_confirmed_client: "Your booking is confirmed",
-  staff_unassignment: "Booking assignment removed",
-  claim: "Slot claimed",
-  client_assigned_therapist: "Your therapist is confirmed",
-  enquiry_logged: "New enquiry: {clientName}",
-};
+// C-15 Phase A — the hardcoded SUBJECTS map is gone; every template's
+// default subject now lives in the registry (`TemplateMeta.subjectDefault`),
+// read at the one call site below.
 
 export async function saveTemplateOverride(
   _previousState: SaveTemplateOverrideResult | null,
@@ -127,6 +113,20 @@ export async function saveTemplateOverride(
       return {
         ok: false,
         error: `"${field.label}" must be a valid https:// URL.`,
+      };
+    }
+    // C-15 Phase A (item 1, security review) — subjects become editable on
+    // every template, reopening a header-injection surface C-08 Phase B
+    // deliberately left closed (subjects were hardcoded literals, so \r/\n
+    // couldn't reach anything). Reject C0 control characters at save time;
+    // templates.ts's resolveSubject() carries the matching render-time
+    // fallback guard — two-sided, mirroring the body_cta_url precedent
+    // above. stripHtmlTags().trim() above only strips leading/trailing
+    // whitespace, not an embedded \r/\n, so this check is still needed.
+    if (field.kind === "subject" && hasControlChars(cleaned)) {
+      return {
+        ok: false,
+        error: `"${field.label}" can't contain line breaks.`,
       };
     }
     cleanedFields.push({ field, value: cleaned });
@@ -323,7 +323,7 @@ export async function sendTemplateManually(
   }
 
   // Per-template HTML + plain-text bodies + subject.
-  const subject = SUBJECTS[templateId] ?? template.cardName;
+  const subject = template.subjectDefault ?? template.cardName;
   let html: string;
   let text: string;
   try {

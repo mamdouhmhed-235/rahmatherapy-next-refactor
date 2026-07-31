@@ -1,5 +1,9 @@
 // SERVER ONLY - do not import from client components.
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+// templates-data.ts is client-safe (metadata only) — server files may import
+// it freely; the reverse (templates.ts from a client component) is what's
+// forbidden.
+import { findTemplate } from "@/app/admin/emails/components/templates-data";
 
 export interface EmailParticipant {
   label: string;
@@ -94,6 +98,43 @@ function buildVarMap(
     customerNotes: input.customerNotes ?? null,
     ...extras,
   };
+}
+
+// C-15 Phase A — single source of truth for a field's default text. Reads
+// the registry (templates-data.ts) rather than a locally-duplicated literal,
+// so the editor/preview/reset UI (later phases) and real sends can never
+// disagree. Only used where a field's true runtime default is a single
+// deterministic string (see the per-field comments in templates-data.ts for
+// the handful of fields — group_copy, footer_contact, booking_restored's
+// greeting_intro — whose default genuinely branches on data and stays
+// inline instead).
+function fieldDefault(templateId: string, fieldKind: string): string {
+  const field = findTemplate(templateId)?.fields.find((f) => f.kind === fieldKind);
+  if (!field) {
+    throw new Error(
+      `fieldDefault: no registry field '${fieldKind}' on template '${templateId}'`
+    );
+  }
+  return field.defaultValue;
+}
+
+// C-15 Phase A (item 1) — subjects become editable on every template, which
+// reopens a header-injection surface C-08 Phase B deliberately left closed
+// (subjects were hardcoded literals, so \r/\n in an override couldn't reach
+// anything). saveTemplateOverride rejects C0 control characters at save
+// time (mirrors body_cta_url's save-time scheme check); this is the
+// render-time fallback guard so a row already in the DB — pre-dating that
+// guard, or written by any future direct-write path — still can't carry a
+// control character into rendered output. Mirrors isHttpsUrl's
+// defence-in-depth pattern above.
+export function hasControlChars(value: string): boolean {
+  return /[\x00-\x1f]/.test(value);
+}
+
+function resolveSubject(templateId: string, overrides: Record<string, string>): string {
+  const value = overrides.subject;
+  if (value && !hasControlChars(value)) return value;
+  return fieldDefault(templateId, "subject");
 }
 
 function formatLabel(value: string) {
@@ -211,9 +252,12 @@ export function renderBookingConfirmationEmail(
   overrides: Record<string, string> = {}
 ) {
   const vars = buildVarMap(input);
-  const greetingIntroHtml = overrides.greeting_intro
-    ? escapeHtml(substituteVars(overrides.greeting_intro, vars))
-    : `Hi ${escapeHtml(input.clientName)}, we have received your ${escapeHtml(input.companyName)} booking request.`;
+  const greetingIntroHtml = escapeHtml(
+    substituteVars(
+      overrides.greeting_intro ?? fieldDefault("booking_confirmation", "greeting_intro"),
+      vars
+    )
+  );
   const groupCopyHtml = overrides.group_copy
     ? escapeHtml(substituteVars(overrides.group_copy, vars))
     : escapeHtml(
@@ -227,8 +271,9 @@ export function renderBookingConfirmationEmail(
       )}" style="display:inline-block;border-radius:999px;background:#30463f;color:#ffffff;text-decoration:none;padding:12px 18px;font-size:14px;font-weight:700;">Manage this booking</a></p>`
     : "";
 
+  const subject = resolveSubject("booking_confirmation", overrides);
   return renderLayout(
-    "Booking request received",
+    subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking request received</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${greetingIntroHtml} ${groupCopyHtml}</p>
     ${renderSummary(input)}
@@ -252,7 +297,7 @@ export function renderAdminBookingNotificationEmail(
   overrides: Record<string, string> = {}
 ) {
   return renderLayout(
-    "New booking request",
+    resolveSubject("admin_booking_notification", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">New booking request</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
       input.clientName
@@ -271,11 +316,14 @@ export function renderBookingCancellationEmail(
   input: BookingEmailTemplateInput,
   overrides: Record<string, string> = {}
 ) {
-  const greetingIntroHtml = overrides.greeting_intro
-    ? escapeHtml(substituteVars(overrides.greeting_intro, buildVarMap(input)))
-    : `Hi ${escapeHtml(input.clientName)}, your ${escapeHtml(input.companyName)} booking has been cancelled.`;
+  const greetingIntroHtml = escapeHtml(
+    substituteVars(
+      overrides.greeting_intro ?? fieldDefault("booking_cancellation_client", "greeting_intro"),
+      buildVarMap(input)
+    )
+  );
   return renderLayout(
-    "Booking cancelled",
+    resolveSubject("booking_cancellation_client", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking cancelled</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${greetingIntroHtml}</p>
     ${renderSummary(input)}
@@ -298,7 +346,7 @@ export function renderBookingRestoredEmail(
     ? escapeHtml(substituteVars(overrides.greeting_intro, buildVarMap(input)))
     : defaultIntro;
   return renderLayout(
-    "Booking restored",
+    resolveSubject("booking_restored_client", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking restored</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${greetingIntroHtml}</p>
     ${renderSummary(input)}
@@ -316,7 +364,7 @@ export function renderAdminBookingCancellationEmail(
   overrides: Record<string, string> = {}
 ) {
   return renderLayout(
-    "Booking cancellation",
+    resolveSubject("admin_booking_cancellation", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking cancellation</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
       input.clientName
@@ -339,7 +387,7 @@ export function renderAdminRescheduleRequestEmail(
   overrides: Record<string, string> = {}
 ) {
   return renderLayout(
-    "Reschedule request",
+    resolveSubject("admin_reschedule_request", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Reschedule request</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
       input.clientName
@@ -365,11 +413,11 @@ export function renderStaffAssignmentEmail(
   input: BookingEmailTemplateInput,
   overrides: Record<string, string> = {}
 ) {
-  const introHtml = overrides.intro
-    ? escapeHtml(substituteVars(overrides.intro, buildVarMap(input)))
-    : `You have been assigned to a ${escapeHtml(input.companyName)} booking.`;
+  const introHtml = escapeHtml(
+    substituteVars(overrides.intro ?? fieldDefault("staff_assignment", "intro"), buildVarMap(input))
+  );
   return renderLayout(
-    "Booking assignment",
+    resolveSubject("staff_assignment", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking assignment</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
@@ -386,11 +434,14 @@ export function renderStaffBookingChangeEmail(
     changeSummary: input.changeSummary,
     date: input.bookingDate,
   });
-  const wrapperHtml = overrides.wrapper_change_summary
-    ? escapeHtml(substituteVars(overrides.wrapper_change_summary, vars))
-    : escapeHtml(input.changeSummary);
+  const wrapperHtml = escapeHtml(
+    substituteVars(
+      overrides.wrapper_change_summary ?? fieldDefault("staff_booking_change", "wrapper_change_summary"),
+      vars
+    )
+  );
   return renderLayout(
-    "Assigned booking changed",
+    resolveSubject("staff_booking_change", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Assigned booking changed</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${wrapperHtml}</p>
     ${renderSummary(input)}
@@ -403,11 +454,11 @@ export function renderBookingReminderEmail(
   input: BookingEmailTemplateInput,
   overrides: Record<string, string> = {}
 ) {
-  const introHtml = overrides.intro
-    ? escapeHtml(substituteVars(overrides.intro, buildVarMap(input)))
-    : `Hi ${escapeHtml(input.clientName)}, this is a reminder for your upcoming ${escapeHtml(input.companyName)} appointment.`;
+  const introHtml = escapeHtml(
+    substituteVars(overrides.intro ?? fieldDefault("booking_reminder", "intro"), buildVarMap(input))
+  );
   return renderLayout(
-    "Booking reminder",
+    resolveSubject("booking_reminder", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking reminder</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
@@ -536,27 +587,14 @@ interface PickReviewMessagesArgs {
   random?: () => number;
 }
 
-const DEFAULT_REVIEW_VARIANTS = {
-  massage: [
-    "I had a brilliant home massage in {city} today — really professional setup, felt completely relaxed by the end.",
-    "Booked a home massage with Rahma Therapy in {city}. The therapist was excellent, the experience felt like a proper clinic but in the comfort of home.",
-    "Just had a fantastic massage at home in {city}. Highly skilled, deeply relaxing, and so easy not having to travel.",
-    "Tried Rahma Therapy for a mobile massage in {city} — top quality. Will definitely book again.",
-    "Excellent home massage experience in {city}. Calm, professional, and exactly what I needed.",
-  ],
-  cupping: [
-    "Had a hijama session at home in {city} with Rahma Therapy. Very clean, hygienic, and the practitioner was knowledgeable and respectful.",
-    "Booked hijama at home in {city} — proper Sunnah practice, sterile equipment, and a calming atmosphere. Highly recommend.",
-    "Excellent home hijama appointment in {city}. Felt looked after from start to finish, the setup was spotless and professional.",
-    "Tried Rahma Therapy for hijama in {city} and couldn't be happier. Knowledgeable practitioner, careful technique, and great aftercare.",
-    "First hijama session in {city} and it was a brilliant experience. Clean, professional, and the practitioner explained every step.",
-  ],
-} as const;
-
 // Picks 3 of the 5 pooled sample review sentences for the booking's service
 // category, substituting an operator-configured override where present, then
 // substituting {city}. Mixed-category bookings (groupCategory null) fall back
 // to the massage pool (C-01 brief §5.3 — impl-time decision).
+//
+// C-15 Phase A: the 10 pooled defaults now read from the registry
+// (fieldDefault) instead of a locally-duplicated DEFAULT_REVIEW_VARIANTS
+// object — same literal strings, single source of truth.
 export function pickReviewMessages(
   args: PickReviewMessagesArgs
 ): ReviewMessageVariant[] {
@@ -570,7 +608,7 @@ export function pickReviewMessages(
     if (overrideValue) {
       pool.push({ text: overrideValue, source: "override" });
     } else {
-      pool.push({ text: DEFAULT_REVIEW_VARIANTS[category][i - 1], source: "default" });
+      pool.push({ text: fieldDefault("review_request_client", key), source: "default" });
     }
   }
 
@@ -591,28 +629,19 @@ function substituteCity(text: string, city: string | null): string {
   return text.replace(/\s+in\s+\{city\}/g, "").replace(/\{city\}/g, "");
 }
 
-// The six review_request_client fields an admin can override, with their
-// hardcoded fallback defaults. Single source of truth for both
-// renderReviewRequestEmail (HTML) and renderReviewRequestPlainText — the two
-// legs previously hand-copied these and drifted (C-01 seam-review fix).
-const REVIEW_REQUEST_DEFAULT_FIELDS = {
-  subject: "Thank you for visiting Rahma Therapy",
-  body_intro:
-    "Thank you for choosing Rahma Therapy for your {service_name}. We hope you felt looked after from start to finish.",
-  body_ask:
-    "If you have a moment, we'd be grateful for an honest review on Google. It helps other people in {city} find us.",
-  body_cta_label: "Leave a Google review",
-  body_cta_url: "https://g.page/r/Ccfwk27JycKDEBM/review",
-  body_signoff: "Thank you again,\nThe Rahma Therapy team",
-} as const;
-
+// The six review_request_client fields an admin can override. C-15 Phase A:
+// defaults now read from the registry (fieldDefault) instead of a
+// locally-duplicated REVIEW_REQUEST_DEFAULT_FIELDS object — single source of
+// truth for both renderReviewRequestEmail (HTML) and
+// renderReviewRequestPlainText — the two legs previously hand-copied these
+// and drifted (C-01 seam-review fix).
 function resolveReviewRequestFields(overrides: Record<string, string>) {
+  const id = "review_request_client";
   return {
-    subject: overrides.subject ?? REVIEW_REQUEST_DEFAULT_FIELDS.subject,
-    body_intro: overrides.body_intro ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_intro,
-    body_ask: overrides.body_ask ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_ask,
-    body_cta_label:
-      overrides.body_cta_label ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_cta_label,
+    subject: resolveSubject(id, overrides),
+    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
+    body_ask: overrides.body_ask ?? fieldDefault(id, "body_ask"),
+    body_cta_label: overrides.body_cta_label ?? fieldDefault(id, "body_cta_label"),
     // Defence-in-depth: saveTemplateOverride already rejects non-https values
     // at save time, but a row already in the DB (pre-dating that guard) must
     // not reach the href either — fall back to the default rather than trust
@@ -620,8 +649,8 @@ function resolveReviewRequestFields(overrides: Record<string, string>) {
     body_cta_url:
       overrides.body_cta_url && isHttpsUrl(overrides.body_cta_url)
         ? overrides.body_cta_url
-        : REVIEW_REQUEST_DEFAULT_FIELDS.body_cta_url,
-    body_signoff: overrides.body_signoff ?? REVIEW_REQUEST_DEFAULT_FIELDS.body_signoff,
+        : fieldDefault(id, "body_cta_url"),
+    body_signoff: overrides.body_signoff ?? fieldDefault(id, "body_signoff"),
   };
 }
 
@@ -718,21 +747,15 @@ ${signoff}
 // object — the C-01 seam-review lesson: a plain-text leg that hardcodes copy
 // the HTML leg makes editable silently drops an admin's override on that leg.
 
-const BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS = {
-  body_intro:
-    "Hi {clientName}, your appointment on {bookingDate} at {startTime} is confirmed. We'll send a reminder closer to the day.",
-  body_cta_label: "Manage your booking",
-  body_signoff: "Thank you,\nThe Rahma Therapy team",
-} as const;
-
+// C-15 Phase A: defaults read from the registry (fieldDefault) instead of a
+// locally-duplicated BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS object.
 function resolveBookingConfirmedClientFields(overrides: Record<string, string>) {
+  const id = "booking_confirmed_client";
   return {
-    body_intro:
-      overrides.body_intro ?? BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS.body_intro,
-    body_cta_label:
-      overrides.body_cta_label ?? BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS.body_cta_label,
-    body_signoff:
-      overrides.body_signoff ?? BOOKING_CONFIRMED_CLIENT_DEFAULT_FIELDS.body_signoff,
+    subject: resolveSubject(id, overrides),
+    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
+    body_cta_label: overrides.body_cta_label ?? fieldDefault(id, "body_cta_label"),
+    body_signoff: overrides.body_signoff ?? fieldDefault(id, "body_signoff"),
   };
 }
 
@@ -754,7 +777,7 @@ export async function renderBookingConfirmedClientEmail(
     : "";
 
   return renderLayout(
-    "Your booking is confirmed",
+    fields.subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Your booking is confirmed</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
@@ -795,14 +818,13 @@ ${footerLine}`;
 // different therapist (updateBookingAssignment). Same shared-defaults shape
 // as the template above.
 
-const STAFF_UNASSIGNMENT_DEFAULT_FIELDS = {
-  body_intro:
-    "Hi {therapistName}, you've been unassigned from the {bookingDate} {startTime} booking ({clientName}). Reach out to admin if you have questions.",
-} as const;
-
+// C-15 Phase A: defaults read from the registry (fieldDefault) instead of a
+// locally-duplicated STAFF_UNASSIGNMENT_DEFAULT_FIELDS object.
 function resolveStaffUnassignmentFields(overrides: Record<string, string>) {
+  const id = "staff_unassignment";
   return {
-    body_intro: overrides.body_intro ?? STAFF_UNASSIGNMENT_DEFAULT_FIELDS.body_intro,
+    subject: resolveSubject(id, overrides),
+    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
   };
 }
 
@@ -816,7 +838,7 @@ export async function renderStaffUnassignmentEmail(
   const introHtml = escapeHtml(substituteVars(fields.body_intro, vars));
 
   return renderLayout(
-    "Booking assignment removed",
+    fields.subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking assignment removed</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
@@ -852,14 +874,13 @@ ${footerLine}`;
 // above. The recipient itself is Phase-A-interim — see sendClaimNotificationEmail
 // in notifications.ts for the Phase D reroute note.
 
-const CLAIM_DEFAULT_FIELDS = {
-  body_intro:
-    "{therapistName} just claimed the {bookingDate} {startTime} slot for {clientName}.",
-} as const;
-
+// C-15 Phase A: defaults read from the registry (fieldDefault) instead of a
+// locally-duplicated CLAIM_DEFAULT_FIELDS object.
 function resolveClaimFields(overrides: Record<string, string>) {
+  const id = "claim";
   return {
-    body_intro: overrides.body_intro ?? CLAIM_DEFAULT_FIELDS.body_intro,
+    subject: resolveSubject(id, overrides),
+    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
   };
 }
 
@@ -873,7 +894,7 @@ export async function renderClaimNotificationEmail(
   const introHtml = escapeHtml(substituteVars(fields.body_intro, vars));
 
   return renderLayout(
-    "Slot claimed",
+    fields.subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Slot claimed</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
@@ -909,18 +930,14 @@ ${footerLine}`;
 // claimBookingAssignment and updateBookingAssignment. Same shared-defaults
 // shape as the templates above.
 
-const CLIENT_ASSIGNED_THERAPIST_DEFAULT_FIELDS = {
-  body_intro:
-    "Hi {clientName}, your appointment on {bookingDate} at {startTime} will be with {therapistName}. They'll arrive at {addressLines}. If anything changes, we'll let you know.",
-  body_cta_label: "Manage your booking",
-} as const;
-
+// C-15 Phase A: defaults read from the registry (fieldDefault) instead of a
+// locally-duplicated CLIENT_ASSIGNED_THERAPIST_DEFAULT_FIELDS object.
 function resolveClientAssignedTherapistFields(overrides: Record<string, string>) {
+  const id = "client_assigned_therapist";
   return {
-    body_intro:
-      overrides.body_intro ?? CLIENT_ASSIGNED_THERAPIST_DEFAULT_FIELDS.body_intro,
-    body_cta_label:
-      overrides.body_cta_label ?? CLIENT_ASSIGNED_THERAPIST_DEFAULT_FIELDS.body_cta_label,
+    subject: resolveSubject(id, overrides),
+    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
+    body_cta_label: overrides.body_cta_label ?? fieldDefault(id, "body_cta_label"),
   };
 }
 
@@ -941,7 +958,7 @@ export async function renderClientAssignedTherapistEmail(
     : "";
 
   return renderLayout(
-    "Your therapist is confirmed",
+    fields.subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Your therapist is confirmed</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
@@ -992,14 +1009,13 @@ export interface EnquiryEmailTemplateInput {
   contactPhone?: string | null;
 }
 
-const ENQUIRY_LOGGED_DEFAULT_FIELDS = {
-  body_intro:
-    "{staffName} logged a new enquiry from {clientName} ({contactDetail}) interested in {serviceInterest}. View it here: {enquiryUrl}.",
-} as const;
-
+// C-15 Phase A: defaults read from the registry (fieldDefault) instead of a
+// locally-duplicated ENQUIRY_LOGGED_DEFAULT_FIELDS object.
 function resolveEnquiryLoggedFields(overrides: Record<string, string>) {
+  const id = "enquiry_logged";
   return {
-    body_intro: overrides.body_intro ?? ENQUIRY_LOGGED_DEFAULT_FIELDS.body_intro,
+    subject: resolveSubject(id, overrides),
+    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
   };
 }
 
@@ -1055,7 +1071,7 @@ export async function renderEnquiryLoggedEmail(
   const introHtml = escapeHtml(substituteVars(fields.body_intro, vars));
 
   return renderLayout(
-    "New enquiry logged",
+    fields.subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">New enquiry logged</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderEnquiryFooter(input, overrides)}`
