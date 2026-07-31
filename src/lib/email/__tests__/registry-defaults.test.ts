@@ -249,3 +249,122 @@ describe("existing override rows still honoured", () => {
     );
   });
 });
+
+describe("empty-string override falls back to default (C-15 Phase B fix, direct render path)", () => {
+  // Phase A's copy-lift rewrote these sites from `overrides.x ? f(overrides.x) : hardcoded`
+  // to `overrides.x ?? fieldDefault(...)`. `??` only falls back on
+  // null/undefined, so an override of "" used to WIN and render a blank
+  // paragraph. Fixed to `overrides.x || fieldDefault(...)` (templates.ts).
+  // "Empty means default" is the established semantic everywhere else
+  // (saveTemplateOverride deletes the row on an empty value rather than
+  // storing "") — this asserts every site Phase A touched, not just the
+  // five the Phase A verifier happened to enumerate, treats "" identically
+  // to no override at all. The draft-merge path (Step 7's POST preview
+  // handler) gets its own coverage once it exists — see
+  // preview-post.test.ts's "draft merge" describe block.
+  it("every fixed site renders an empty-string override byte-identical to no override", () => {
+    const variants = pickReviewMessages({
+      groupCategory: REVIEW_INPUT.groupCategory,
+      city: REVIEW_INPUT.city,
+      overrides: {},
+    });
+
+    const cases: { name: string; withEmpty: string; withNone: string }[] = [
+      {
+        name: "booking_confirmation.greeting_intro",
+        withEmpty: renderBookingConfirmationEmail(BASE_INPUT, { greeting_intro: "" }),
+        withNone: renderBookingConfirmationEmail(BASE_INPUT, {}),
+      },
+      {
+        name: "booking_cancellation_client.greeting_intro",
+        withEmpty: renderBookingCancellationEmail(BASE_INPUT, { greeting_intro: "" }),
+        withNone: renderBookingCancellationEmail(BASE_INPUT, {}),
+      },
+      {
+        name: "staff_assignment.intro",
+        withEmpty: renderStaffAssignmentEmail(BASE_INPUT, { intro: "" }),
+        withNone: renderStaffAssignmentEmail(BASE_INPUT, {}),
+      },
+      {
+        name: "staff_booking_change.wrapper_change_summary",
+        withEmpty: renderStaffBookingChangeEmail(CHANGE_SUMMARY_INPUT, {
+          wrapper_change_summary: "",
+        }),
+        withNone: renderStaffBookingChangeEmail(CHANGE_SUMMARY_INPUT, {}),
+      },
+      {
+        name: "booking_reminder.intro",
+        withEmpty: renderBookingReminderEmail(BASE_INPUT, { intro: "" }),
+        withNone: renderBookingReminderEmail(BASE_INPUT, {}),
+      },
+      {
+        name: "review_request_client.body_intro",
+        withEmpty: renderReviewRequestPlainText(REVIEW_INPUT, variants, { body_intro: "" }),
+        withNone: renderReviewRequestPlainText(REVIEW_INPUT, variants, {}),
+      },
+      {
+        name: "review_request_client.body_ask",
+        withEmpty: renderReviewRequestPlainText(REVIEW_INPUT, variants, { body_ask: "" }),
+        withNone: renderReviewRequestPlainText(REVIEW_INPUT, variants, {}),
+      },
+      {
+        name: "review_request_client.body_cta_label",
+        withEmpty: renderReviewRequestPlainText(REVIEW_INPUT, variants, { body_cta_label: "" }),
+        withNone: renderReviewRequestPlainText(REVIEW_INPUT, variants, {}),
+      },
+      {
+        name: "review_request_client.body_signoff",
+        withEmpty: renderReviewRequestPlainText(REVIEW_INPUT, variants, { body_signoff: "" }),
+        withNone: renderReviewRequestPlainText(REVIEW_INPUT, variants, {}),
+      },
+      {
+        name: "booking_confirmed_client.body_intro",
+        withEmpty: renderBookingConfirmedClientPlainText(BASE_INPUT, { body_intro: "" }),
+        withNone: renderBookingConfirmedClientPlainText(BASE_INPUT, {}),
+      },
+      {
+        name: "booking_confirmed_client.body_cta_label",
+        withEmpty: renderBookingConfirmedClientPlainText(BASE_INPUT, { body_cta_label: "" }),
+        withNone: renderBookingConfirmedClientPlainText(BASE_INPUT, {}),
+      },
+      {
+        name: "booking_confirmed_client.body_signoff",
+        withEmpty: renderBookingConfirmedClientPlainText(BASE_INPUT, { body_signoff: "" }),
+        withNone: renderBookingConfirmedClientPlainText(BASE_INPUT, {}),
+      },
+      {
+        name: "staff_unassignment.body_intro",
+        withEmpty: renderStaffUnassignmentPlainText(THERAPIST_INPUT, { body_intro: "" }),
+        withNone: renderStaffUnassignmentPlainText(THERAPIST_INPUT, {}),
+      },
+      {
+        name: "claim.body_intro",
+        withEmpty: renderClaimNotificationPlainText(THERAPIST_INPUT, { body_intro: "" }),
+        withNone: renderClaimNotificationPlainText(THERAPIST_INPUT, {}),
+      },
+      {
+        name: "client_assigned_therapist.body_intro",
+        withEmpty: renderClientAssignedTherapistPlainText(THERAPIST_INPUT, { body_intro: "" }),
+        withNone: renderClientAssignedTherapistPlainText(THERAPIST_INPUT, {}),
+      },
+      {
+        name: "client_assigned_therapist.body_cta_label",
+        withEmpty: renderClientAssignedTherapistPlainText(THERAPIST_INPUT, {
+          body_cta_label: "",
+        }),
+        withNone: renderClientAssignedTherapistPlainText(THERAPIST_INPUT, {}),
+      },
+      {
+        name: "enquiry_logged.body_intro",
+        withEmpty: renderEnquiryLoggedPlainText(ENQUIRY_INPUT, { body_intro: "" }),
+        withNone: renderEnquiryLoggedPlainText(ENQUIRY_INPUT, {}),
+      },
+    ];
+
+    for (const { name, withEmpty, withNone } of cases) {
+      expect(withEmpty, name).toBe(withNone);
+      // Guards against a vacuous pass where both sides are empty strings.
+      expect(withEmpty.trim().length, name).toBeGreaterThan(0);
+    }
+  });
+});

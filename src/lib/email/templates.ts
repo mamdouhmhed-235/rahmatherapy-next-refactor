@@ -108,6 +108,14 @@ function buildVarMap(
 // the handful of fields — group_copy, footer_contact, booking_restored's
 // greeting_intro — whose default genuinely branches on data and stays
 // inline instead).
+//
+// C-15 Phase B fix — every call site below reads `overrides.x || fieldDefault(...)`,
+// NOT `??`. `??` only falls back on null/undefined, so a stored/draft override
+// of "" would win and render a blank paragraph. "Empty means default" is the
+// established semantic everywhere else (saveTemplateOverride deletes the row
+// on an empty value rather than storing ""), and the Phase B draft-merge path
+// can hand this function a live "" the moment a user clears a field in the
+// editor — so the fallback here must treat "" the same as missing.
 function fieldDefault(templateId: string, fieldKind: string): string {
   const field = findTemplate(templateId)?.fields.find((f) => f.kind === fieldKind);
   if (!field) {
@@ -254,7 +262,7 @@ export function renderBookingConfirmationEmail(
   const vars = buildVarMap(input);
   const greetingIntroHtml = escapeHtml(
     substituteVars(
-      overrides.greeting_intro ?? fieldDefault("booking_confirmation", "greeting_intro"),
+      overrides.greeting_intro || fieldDefault("booking_confirmation", "greeting_intro"),
       vars
     )
   );
@@ -318,7 +326,7 @@ export function renderBookingCancellationEmail(
 ) {
   const greetingIntroHtml = escapeHtml(
     substituteVars(
-      overrides.greeting_intro ?? fieldDefault("booking_cancellation_client", "greeting_intro"),
+      overrides.greeting_intro || fieldDefault("booking_cancellation_client", "greeting_intro"),
       buildVarMap(input)
     )
   );
@@ -414,7 +422,7 @@ export function renderStaffAssignmentEmail(
   overrides: Record<string, string> = {}
 ) {
   const introHtml = escapeHtml(
-    substituteVars(overrides.intro ?? fieldDefault("staff_assignment", "intro"), buildVarMap(input))
+    substituteVars(overrides.intro || fieldDefault("staff_assignment", "intro"), buildVarMap(input))
   );
   return renderLayout(
     resolveSubject("staff_assignment", overrides),
@@ -436,7 +444,7 @@ export function renderStaffBookingChangeEmail(
   });
   const wrapperHtml = escapeHtml(
     substituteVars(
-      overrides.wrapper_change_summary ?? fieldDefault("staff_booking_change", "wrapper_change_summary"),
+      overrides.wrapper_change_summary || fieldDefault("staff_booking_change", "wrapper_change_summary"),
       vars
     )
   );
@@ -455,7 +463,7 @@ export function renderBookingReminderEmail(
   overrides: Record<string, string> = {}
 ) {
   const introHtml = escapeHtml(
-    substituteVars(overrides.intro ?? fieldDefault("booking_reminder", "intro"), buildVarMap(input))
+    substituteVars(overrides.intro || fieldDefault("booking_reminder", "intro"), buildVarMap(input))
   );
   return renderLayout(
     resolveSubject("booking_reminder", overrides),
@@ -639,9 +647,9 @@ function resolveReviewRequestFields(overrides: Record<string, string>) {
   const id = "review_request_client";
   return {
     subject: resolveSubject(id, overrides),
-    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
-    body_ask: overrides.body_ask ?? fieldDefault(id, "body_ask"),
-    body_cta_label: overrides.body_cta_label ?? fieldDefault(id, "body_cta_label"),
+    body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
+    body_ask: overrides.body_ask || fieldDefault(id, "body_ask"),
+    body_cta_label: overrides.body_cta_label || fieldDefault(id, "body_cta_label"),
     // Defence-in-depth: saveTemplateOverride already rejects non-https values
     // at save time, but a row already in the DB (pre-dating that guard) must
     // not reach the href either — fall back to the default rather than trust
@@ -650,7 +658,7 @@ function resolveReviewRequestFields(overrides: Record<string, string>) {
       overrides.body_cta_url && isHttpsUrl(overrides.body_cta_url)
         ? overrides.body_cta_url
         : fieldDefault(id, "body_cta_url"),
-    body_signoff: overrides.body_signoff ?? fieldDefault(id, "body_signoff"),
+    body_signoff: overrides.body_signoff || fieldDefault(id, "body_signoff"),
   };
 }
 
@@ -753,9 +761,9 @@ function resolveBookingConfirmedClientFields(overrides: Record<string, string>) 
   const id = "booking_confirmed_client";
   return {
     subject: resolveSubject(id, overrides),
-    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
-    body_cta_label: overrides.body_cta_label ?? fieldDefault(id, "body_cta_label"),
-    body_signoff: overrides.body_signoff ?? fieldDefault(id, "body_signoff"),
+    body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
+    body_cta_label: overrides.body_cta_label || fieldDefault(id, "body_cta_label"),
+    body_signoff: overrides.body_signoff || fieldDefault(id, "body_signoff"),
   };
 }
 
@@ -824,7 +832,7 @@ function resolveStaffUnassignmentFields(overrides: Record<string, string>) {
   const id = "staff_unassignment";
   return {
     subject: resolveSubject(id, overrides),
-    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
+    body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
   };
 }
 
@@ -880,7 +888,7 @@ function resolveClaimFields(overrides: Record<string, string>) {
   const id = "claim";
   return {
     subject: resolveSubject(id, overrides),
-    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
+    body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
   };
 }
 
@@ -936,8 +944,8 @@ function resolveClientAssignedTherapistFields(overrides: Record<string, string>)
   const id = "client_assigned_therapist";
   return {
     subject: resolveSubject(id, overrides),
-    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
-    body_cta_label: overrides.body_cta_label ?? fieldDefault(id, "body_cta_label"),
+    body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
+    body_cta_label: overrides.body_cta_label || fieldDefault(id, "body_cta_label"),
   };
 }
 
@@ -1015,7 +1023,7 @@ function resolveEnquiryLoggedFields(overrides: Record<string, string>) {
   const id = "enquiry_logged";
   return {
     subject: resolveSubject(id, overrides),
-    body_intro: overrides.body_intro ?? fieldDefault(id, "body_intro"),
+    body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
   };
 }
 
