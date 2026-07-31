@@ -576,6 +576,52 @@ export async function getAllTemplateOverrides(): Promise<
   }
 }
 
+// C-15 Phase E — gallery badge data (brief §2.2, plan Step 17). ONE grouped
+// query over email_template_overrides, not one lookup per card: reads
+// template_id/updated_at/updated_by for every row, ordered newest-first, and
+// keeps only the first (= most recent) row seen per template_id. A template
+// with zero rows here is "Default"; presence in the returned map is the sole
+// "Customised" signal — the same definition the gallery badge and Phase D's
+// resetTemplateToDefault (its own "already using its defaults" check) both
+// key off, so the two can never visually disagree.
+export interface TemplateOverrideSummary {
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
+export async function getTemplateOverrideSummaries(): Promise<
+  Record<string, TemplateOverrideSummary>
+> {
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("email_template_overrides")
+      .select("template_id, updated_at, updated_by")
+      .order("updated_at", { ascending: false });
+    if (error) {
+      console.error("getTemplateOverrideSummaries lookup failed:", error.message);
+      return {};
+    }
+    const map: Record<string, TemplateOverrideSummary> = {};
+    for (const row of (data ?? []) as {
+      template_id: string;
+      updated_at: string;
+      updated_by: string | null;
+    }[]) {
+      // Rows are ordered updated_at DESC, so the first row seen per
+      // template_id is already its most recent — grouping happens here, in
+      // one pass over one result set, never via a second per-template query.
+      if (!map[row.template_id]) {
+        map[row.template_id] = { updatedAt: row.updated_at, updatedBy: row.updated_by };
+      }
+    }
+    return map;
+  } catch (error) {
+    console.error("getTemplateOverrideSummaries threw:", error);
+    return {};
+  }
+}
+
 // ─── Review request email (C-01) ──────────────────────────────────────────
 
 export interface ReviewRequestEmailInput extends BookingEmailTemplateInput {

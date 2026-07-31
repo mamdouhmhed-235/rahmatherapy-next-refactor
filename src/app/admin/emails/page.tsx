@@ -21,8 +21,9 @@ import {
   canViewEmailLogs,
   getStaffProfile,
 } from "@/lib/auth/rbac";
-import { getAllTemplateOverrides } from "@/lib/email/templates";
-import { TemplatesTab } from "./components/TemplatesTab";
+import { getTemplateOverrideSummaries } from "@/lib/email/templates";
+import { TemplateGallery, type TemplateGalleryBadge } from "./components/TemplateGallery";
+import { findTemplate } from "./components/templates-data";
 import { cn } from "@/lib/utils";
 import {
   AdminAccessDenied,
@@ -112,6 +113,12 @@ interface PageProps {
     range?: string;
     from?: string;
     to?: string;
+    /** C-15 Phase E, Step 18 — old in-tab editor deep link (pre-gallery
+     *  TemplatesTab wrote `?tab=templates&templateId=<id>` to the URL and
+     *  sessionStorage). Redirected to the editor route below rather than
+     *  silently ignored, so an existing bookmark or back-button entry still
+     *  lands somewhere useful. */
+    templateId?: string;
   }>;
 }
 
@@ -134,6 +141,20 @@ export default async function EmailsPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const activeTab = resolveTab(params.tab, canSeeDelivery);
   const allowAdminRecipient = canSeeDelivery; // brief §11: coordinator-resend-only hides Admin recipient
+
+  // C-15 Phase E, Step 18 — old in-tab deep link redirect. Verified by grep
+  // (progress file / dispatch report): no other page or component in the
+  // codebase links to `?tab=templates&templateId=...` — the only source was
+  // the retired TemplatesTab's own URL-mirroring effect. This still handles
+  // any existing bookmark or browser-history entry by sending it straight to
+  // the (already-shipped, Phase C) editor route rather than silently
+  // dropping the templateId.
+  if (activeTab === "templates" && params.templateId) {
+    const deepLinkedTemplate = findTemplate(params.templateId);
+    if (deepLinkedTemplate) {
+      redirect(`/admin/emails/templates/${deepLinkedTemplate.id}`);
+    }
+  }
 
   // ── Data reads ────────────────────────────────────────────────────────────
   const adminClient = createSupabaseAdminClient();
@@ -196,17 +217,43 @@ export default async function EmailsPage({ searchParams }: PageProps) {
     return q.returns<ReminderBooking[]>();
   })();
 
-  const templateOverridesPromise =
+  // C-15 Phase E, Step 17 — gallery badge data. ONE grouped query (inside
+  // getTemplateOverrideSummaries — see templates.ts) rather than one lookup
+  // per card, plus one companion query to resolve `updated_by` staff ids to
+  // display names (same two-query shape the audit log page already uses).
+  const templateOverrideSummariesPromise = activeTab === "templates"
+    ? getTemplateOverrideSummaries()
+    : Promise.resolve({} as Record<string, { updatedAt: string; updatedBy: string | null }>);
+  type StaffNameRow = { id: string; name: string };
+  const templateStaffNamesPromise: Promise<{ data: StaffNameRow[] | null }> =
     activeTab === "templates"
-      ? getAllTemplateOverrides()
-      : Promise.resolve({} as Record<string, Record<string, string>>);
+      ? (adminClient
+          .from("staff_profiles")
+          .select("id, name")
+          .returns<StaffNameRow[]>() as unknown as Promise<{ data: StaffNameRow[] | null }>)
+      : Promise.resolve({ data: [] });
 
-  const [deliveryResult, remindersResult, templateOverrides] = await Promise.all([
-    deliveryPromise,
-    remindersPromise,
-    templateOverridesPromise,
-  ]);
+  const [deliveryResult, remindersResult, templateOverrideSummaries, templateStaffNamesResult] =
+    await Promise.all([
+      deliveryPromise,
+      remindersPromise,
+      templateOverrideSummariesPromise,
+      templateStaffNamesPromise,
+    ]);
   const deliveryError = "error" in deliveryResult ? deliveryResult.error ?? null : null;
+
+  const templateStaffNameById = new Map<string, string>(
+    (templateStaffNamesResult.data ?? []).map((row) => [row.id, row.name])
+  );
+  const templateBadges: Record<string, TemplateGalleryBadge> = {};
+  for (const [templateId, summary] of Object.entries(templateOverrideSummaries)) {
+    templateBadges[templateId] = {
+      updatedAt: summary.updatedAt,
+      updatedByName: summary.updatedBy
+        ? templateStaffNameById.get(summary.updatedBy) ?? "Unknown staff"
+        : "Unknown staff",
+    };
+  }
 
   const allEvents = deliveryResult.data ?? [];
   const upcomingBookings = remindersResult.data ?? [];
@@ -319,11 +366,9 @@ export default async function EmailsPage({ searchParams }: PageProps) {
       ) : null}
 
       {activeTab === "templates" ? (
-        <TemplatesTab
+        <TemplateGallery
           canEdit={canManageEmailTemplates(profile)}
-          canSendAllAudiences={canSeeDelivery || canManageEmailTemplates(profile)}
-          operatorEmail={profile.email}
-          initialOverrides={templateOverrides}
+          badges={templateBadges}
         />
       ) : null}
     </div>
