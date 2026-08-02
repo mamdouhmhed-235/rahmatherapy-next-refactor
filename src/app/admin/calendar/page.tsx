@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Users,
   UserX,
   X,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import {
   parseReportFilters,
   type ReportBooking,
 } from "../reports/reporting";
+import { composeBookingIdentity } from "../bookings/_helpers";
 import { formatLabel } from "../bookings/format";
 import { PrintButton } from "./PrintButton";
 import {
@@ -55,6 +57,26 @@ interface CalendarParams {
   staffId: string;
   paymentStatus: string;
   to: string;
+}
+
+/**
+ * C-13 Phase E (brief §2.5) — minimal `booking_participants` projection for
+ * the group-treatment lookup below. `ReportBooking` (getReportData) doesn't
+ * carry this join and `reporting.ts` is untouchable (RECON §5), so this
+ * shape backs a second, separate, read-only query scoped to just the
+ * booking ids already on screen.
+ */
+interface CalendarParticipantRow {
+  id: string;
+  booking_id: string;
+  display_name: string | null;
+  is_main_contact: boolean | null;
+}
+
+/** Per-booking group summary for calendar tiles — absent key means single. */
+interface CalendarGroupInfo {
+  count: number;
+  identity: string;
 }
 
 const RANGE_SOFT_CAP_DAYS = 31;
@@ -229,6 +251,49 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   const adminClient = createSupabaseAdminClient();
   const data = await getReportData(adminClient, profile, filters);
+
+  // C-13 Phase E (brief §2.5) — group-booking treatment on calendar tiles.
+  // `ReportBooking`/`ReportAssignment` (getReportData, above) don't carry a
+  // `booking_participants` join and `reporting.ts` is on RECON §5's
+  // untouchable list, so this is a second, separate, read-only query — not
+  // an extension of getReportData's selector — scoped to just the booking
+  // ids already on screen. It supplies both the participant count (the
+  // "Group · N" chip) and composite identity (the hover tooltip), reusing
+  // the same tested helper BookingCard uses (`composeBookingIdentity`,
+  // `bookings/_helpers.ts`).
+  const calendarBookingIds = data.bookings.map((b) => b.id);
+  const { data: calendarParticipantRows } =
+    calendarBookingIds.length > 0
+      ? await adminClient
+          .from("booking_participants")
+          .select("id, booking_id, display_name, is_main_contact")
+          .in("booking_id", calendarBookingIds)
+          .returns<CalendarParticipantRow[]>()
+      : { data: [] as CalendarParticipantRow[] };
+
+  const participantsByBooking = new Map<string, CalendarParticipantRow[]>();
+  for (const p of calendarParticipantRows ?? []) {
+    const list = participantsByBooking.get(p.booking_id) ?? [];
+    list.push(p);
+    participantsByBooking.set(p.booking_id, list);
+  }
+
+  // Only group bookings (>1 participant) get an entry — same
+  // "isGroup = participantCount > 1" invariant BookingCard uses (brief
+  // §5.7); absence of a key means the tile renders as a single booking.
+  const groupInfoByBooking = new Map<string, CalendarGroupInfo>();
+  for (const booking of data.bookings) {
+    const participants = participantsByBooking.get(booking.id) ?? [];
+    if (participants.length <= 1) continue;
+    const identity = composeBookingIdentity({
+      contact_full_name: booking.contact_full_name,
+      booking_participants: participants,
+    });
+    groupInfoByBooking.set(booking.id, {
+      count: identity.participantCount,
+      identity: identity.primary,
+    });
+  }
 
   const therapistOnly = access.dataScope === "assigned";
   const canCreate = Boolean(access.actions.create);
@@ -632,6 +697,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         <SidebarDisclosure
           therapistOnly={therapistOnly}
           unassigned={unassigned}
+          groupInfoByBooking={groupInfoByBooking}
         />
       ) : null}
 
@@ -650,6 +716,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               therapistOnly={therapistOnly}
               canCreate={canCreate}
               therapistsByBooking={therapistsByBooking}
+              groupInfoByBooking={groupInfoByBooking}
             />
           ) : view === "month" ? (
             <MonthGrid
@@ -660,6 +727,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               baseParams={baseParams}
               therapistOnly={therapistOnly}
               canCreate={canCreate}
+              groupInfoByBooking={groupInfoByBooking}
             />
           ) : view === "range" ? (
             <WeekAgenda
@@ -671,6 +739,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               today={today}
               baseParams={baseParams}
               therapistsByBooking={therapistsByBooking}
+              groupInfoByBooking={groupInfoByBooking}
               showWeekStrip={false}
             />
           ) : (
@@ -683,6 +752,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               today={today}
               baseParams={baseParams}
               therapistsByBooking={therapistsByBooking}
+              groupInfoByBooking={groupInfoByBooking}
               showWeekStrip={true}
             />
           )}
@@ -692,11 +762,15 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
         {unassigned.length > 0 ? (
           <aside className="hidden min-w-0 gap-4 print:hidden xl:sticky xl:top-[5.5rem] xl:grid xl:self-start">
             {therapistOnly ? (
-              <ClaimableTodayPanel bookings={unassigned.slice(0, 5)} />
+              <ClaimableTodayPanel
+                bookings={unassigned.slice(0, 5)}
+                groupInfoByBooking={groupInfoByBooking}
+              />
             ) : (
               <UnassignedPanel
                 bookings={unassigned.slice(0, 8)}
                 totalCount={unassigned.length}
+                groupInfoByBooking={groupInfoByBooking}
               />
             )}
           </aside>
@@ -756,6 +830,7 @@ function WeekAgenda({
   today,
   baseParams,
   therapistsByBooking,
+  groupInfoByBooking,
   showWeekStrip,
 }: {
   dates: string[];
@@ -766,6 +841,7 @@ function WeekAgenda({
   today: string;
   baseParams: CalendarParams;
   therapistsByBooking: Map<string, string[]>;
+  groupInfoByBooking: Map<string, CalendarGroupInfo>;
   showWeekStrip: boolean;
 }) {
   const hasAny = dates.some((d) => (grouped.get(d) ?? []).length > 0);
@@ -814,6 +890,7 @@ function WeekAgenda({
             canSeePayment={canSeePayment}
             therapistOnly={therapistOnly}
             therapistsByBooking={therapistsByBooking}
+            groupInfoByBooking={groupInfoByBooking}
           />
         );
           })
@@ -832,6 +909,7 @@ function MonthGrid({
   baseParams,
   therapistOnly,
   canCreate,
+  groupInfoByBooking,
 }: {
   monthFirstISO: string;
   gridDates: string[];
@@ -840,6 +918,7 @@ function MonthGrid({
   baseParams: CalendarParams;
   therapistOnly: boolean;
   canCreate: boolean;
+  groupInfoByBooking: Map<string, CalendarGroupInfo>;
 }) {
   const monthLabel = formatMonthLabel(monthFirstISO);
   const monthNum = Number(monthFirstISO.split("-")[1]);
@@ -865,6 +944,7 @@ function MonthGrid({
           grouped={grouped}
           today={today}
           baseParams={baseParams}
+          groupInfoByBooking={groupInfoByBooking}
         />
       </div>
     );
@@ -878,6 +958,7 @@ function MonthGrid({
       grouped={grouped}
       today={today}
       baseParams={baseParams}
+      groupInfoByBooking={groupInfoByBooking}
     />
   );
 }
@@ -889,6 +970,7 @@ function MonthGridShell({
   grouped,
   today,
   baseParams,
+  groupInfoByBooking,
 }: {
   monthLabel: string;
   monthNum: number;
@@ -896,6 +978,7 @@ function MonthGridShell({
   grouped: Map<string, ReportBooking[]>;
   today: string;
   baseParams: CalendarParams;
+  groupInfoByBooking: Map<string, CalendarGroupInfo>;
 }) {
   return (
     <AdminPanel
@@ -970,18 +1053,35 @@ function MonthGridShell({
                   signal, tap drills to day view). Visible from sm: up. */}
               {count > 0 ? (
                 <ol className="mt-auto hidden list-none gap-0.5 pl-0 sm:grid">
-                  {dayBookings.slice(0, 2).map((b) => (
-                    <li
-                      key={b.id}
-                      className="truncate rounded-[3px] bg-[var(--admin-status-confirmed-bg)] px-1 py-[1px] text-[0.625rem] font-medium text-[var(--admin-status-confirmed-text)]"
-                      title={`${b.start_time.slice(0, 5)} ${b.contact_full_name ?? "Unknown"}`}
-                    >
-                      <span className="tabular-nums">
-                        {b.start_time.slice(0, 5)}
-                      </span>{" "}
-                      {b.contact_full_name ?? "Unknown"}
-                    </li>
-                  ))}
+                  {dayBookings.slice(0, 2).map((b) => {
+                    // C-13 Phase E — day cells are too narrow for a "Group · N"
+                    // label (brief §2.5 tight-space constraint), so this tile
+                    // goes icon-only: a small Users glyph prefix, full
+                    // composite identity + count moved into the tooltip.
+                    const groupInfo = groupInfoByBooking.get(b.id);
+                    return (
+                      <li
+                        key={b.id}
+                        className="truncate rounded-[3px] bg-[var(--admin-status-confirmed-bg)] px-1 py-[1px] text-[0.625rem] font-medium text-[var(--admin-status-confirmed-text)]"
+                        title={
+                          groupInfo
+                            ? `${b.start_time.slice(0, 5)} ${groupInfo.identity} — ${groupInfo.count} participants`
+                            : `${b.start_time.slice(0, 5)} ${b.contact_full_name ?? "Unknown"}`
+                        }
+                      >
+                        {groupInfo ? (
+                          <Users
+                            className="mr-0.5 inline size-2.5 shrink-0 align-[-1px]"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        <span className="tabular-nums">
+                          {b.start_time.slice(0, 5)}
+                        </span>{" "}
+                        {b.contact_full_name ?? "Unknown"}
+                      </li>
+                    );
+                  })}
                   {count > 2 ? (
                     <li className="text-[0.625rem] font-medium text-[var(--admin-text-muted)]">
                       +{count - 2} more
@@ -1090,6 +1190,7 @@ function DayAgenda({
   therapistOnly,
   canCreate,
   therapistsByBooking,
+  groupInfoByBooking,
 }: {
   date: string;
   bookings: ReportBooking[];
@@ -1097,6 +1198,7 @@ function DayAgenda({
   therapistOnly: boolean;
   canCreate: boolean;
   therapistsByBooking: Map<string, string[]>;
+  groupInfoByBooking: Map<string, CalendarGroupInfo>;
 }) {
   if (bookings.length === 0) {
     return (
@@ -1229,6 +1331,7 @@ function DayAgenda({
                     canSeePayment={canSeePayment}
                     concurrent={concurrentIds.has(booking.id)}
                     therapists={therapistsByBooking.get(booking.id) ?? []}
+                    groupInfo={groupInfoByBooking.get(booking.id) ?? null}
                   />
                 </li>
               ))}
@@ -1259,6 +1362,7 @@ function DayAgenda({
                     canSeePayment={canSeePayment}
                     concurrent={concurrentIds.has(booking.id)}
                     therapists={therapistsByBooking.get(booking.id) ?? []}
+                    groupInfo={groupInfoByBooking.get(booking.id) ?? null}
                   />
                 </li>
               ))}
@@ -1275,12 +1379,14 @@ function PerDatePanel({
   bookings,
   canSeePayment,
   therapistsByBooking,
+  groupInfoByBooking,
 }: {
   date: string;
   bookings: ReportBooking[];
   canSeePayment: boolean;
   therapistOnly: boolean;
   therapistsByBooking: Map<string, string[]>;
+  groupInfoByBooking: Map<string, CalendarGroupInfo>;
 }) {
   const concurrentGroups = detectConcurrentGroups(bookings);
   const concurrentIds = new Set<string>();
@@ -1327,6 +1433,7 @@ function PerDatePanel({
                   canSeePayment={canSeePayment}
                   concurrent={concurrentIds.has(booking.id)}
                   therapists={therapistsByBooking.get(booking.id) ?? []}
+                  groupInfo={groupInfoByBooking.get(booking.id) ?? null}
                 />
               </li>
             ))}
@@ -1343,13 +1450,19 @@ function CalendarBookingRow({
   canSeePayment,
   concurrent,
   therapists,
+  groupInfo,
 }: {
   booking: ReportBooking;
   canSeePayment: boolean;
   concurrent: boolean;
   therapists: string[];
+  groupInfo: CalendarGroupInfo | null;
 }) {
-  const clientName = booking.contact_full_name || "Unknown client";
+  // C-13 Phase E (brief §2.5/§2.3) — group bookings show composite identity
+  // ("Aisha Khan + 2 others") instead of the plain contact name, same as
+  // BookingCard's list-row headline; single bookings are unchanged.
+  const clientName =
+    groupInfo?.identity || booking.contact_full_name || "Unknown client";
   const startTime = booking.start_time.slice(0, 5);
   const endTime = booking.end_time.slice(0, 5);
   const time = `${startTime}–${endTime}`;
@@ -1370,12 +1483,15 @@ function CalendarBookingRow({
       : therapists.length === 1
         ? therapists[0]!
         : `${therapists[0]} +${therapists.length - 1}`;
-  const accessibleName = `${clientName}, ${time}${locationLabel ? `, ${locationLabel}` : ""}, ${formatLabel(booking.status)}, ${therapistLabel}`;
+  const accessibleName = `${clientName}, ${time}${locationLabel ? `, ${locationLabel}` : ""}, ${formatLabel(booking.status)}, ${therapistLabel}${
+    groupInfo ? `, group of ${groupInfo.count}` : ""
+  }`;
 
   return (
     <Link
       href={`/admin/bookings/${booking.id}`}
       aria-label={accessibleName}
+      title={groupInfo ? `${clientName} — ${groupInfo.count} participants` : undefined}
       className="group block rounded-[var(--admin-radius-card)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
     >
       <article className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:shadow-[0_2px_8px_oklch(23%_0.073_155_/_0.08)] sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:p-5 print:border print:border-[oklch(42%_0.025_80)] print:shadow-none">
@@ -1398,8 +1514,14 @@ function CalendarBookingRow({
 
         {/* Content (middle column) */}
         <div className="min-w-0">
-          <p className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] break-words sm:text-[1.0625rem]">
-            {clientName}
+          <p className="flex items-center gap-1.5 font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] sm:text-[1.0625rem]">
+            {groupInfo ? (
+              <Users
+                className="size-4 shrink-0 text-[var(--admin-text-muted)]"
+                aria-hidden="true"
+              />
+            ) : null}
+            <span className="min-w-0 break-words">{clientName}</span>
           </p>
           {locationLabel || booking.service_address_line1 ? (
             <p className="mt-0.5 text-sm text-[var(--admin-text-muted)] break-words">
@@ -1426,6 +1548,15 @@ function CalendarBookingRow({
               value={formatLabel(booking.status)}
               tone={statusTone(booking.status)}
             />
+            {groupInfo ? (
+              <span
+                title={`${clientName} — ${groupInfo.count} participants`}
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-restricted)]"
+              >
+                <Users className="size-3" aria-hidden="true" />
+                Group · {groupInfo.count}
+              </span>
+            ) : null}
             {booking.assignment_status === "unassigned" ||
             booking.assignment_status === "partially_assigned" ? (
               <ModifierIcon
@@ -1579,9 +1710,11 @@ function AvatarStack({ names }: { names: string[] }) {
 function SidebarDisclosure({
   therapistOnly,
   unassigned,
+  groupInfoByBooking,
 }: {
   therapistOnly: boolean;
   unassigned: ReportBooking[];
+  groupInfoByBooking: Map<string, CalendarGroupInfo>;
 }) {
   if (therapistOnly) {
     const bookings = unassigned.slice(0, 5);
@@ -1612,7 +1745,11 @@ function SidebarDisclosure({
             <ol className="grid list-none gap-2 pl-0">
               {bookings.map((booking) => (
                 <li key={booking.id}>
-                  <SidebarRow booking={booking} cta="Open →" />
+                  <SidebarRow
+                    booking={booking}
+                    cta="Open →"
+                    groupInfo={groupInfoByBooking.get(booking.id) ?? null}
+                  />
                 </li>
               ))}
               <li>
@@ -1662,6 +1799,7 @@ function SidebarDisclosure({
                   booking={booking}
                   cta="Assign →"
                   focusAssignment
+                  groupInfo={groupInfoByBooking.get(booking.id) ?? null}
                 />
               </li>
             ))}
@@ -1685,9 +1823,11 @@ function SidebarDisclosure({
 function UnassignedPanel({
   bookings,
   totalCount,
+  groupInfoByBooking,
 }: {
   bookings: ReportBooking[];
   totalCount: number;
+  groupInfoByBooking: Map<string, CalendarGroupInfo>;
 }) {
   return (
     <AdminPanel
@@ -1706,7 +1846,12 @@ function UnassignedPanel({
         <ol className="grid list-none gap-2 pl-0">
           {bookings.map((booking) => (
             <li key={booking.id}>
-              <SidebarRow booking={booking} cta="Assign →" focusAssignment />
+              <SidebarRow
+                booking={booking}
+                cta="Assign →"
+                focusAssignment
+                groupInfo={groupInfoByBooking.get(booking.id) ?? null}
+              />
             </li>
           ))}
           {totalCount > bookings.length ? (
@@ -1725,7 +1870,13 @@ function UnassignedPanel({
   );
 }
 
-function ClaimableTodayPanel({ bookings }: { bookings: ReportBooking[] }) {
+function ClaimableTodayPanel({
+  bookings,
+  groupInfoByBooking,
+}: {
+  bookings: ReportBooking[];
+  groupInfoByBooking: Map<string, CalendarGroupInfo>;
+}) {
   return (
     <AdminPanel
       title="Claimable today"
@@ -1743,7 +1894,11 @@ function ClaimableTodayPanel({ bookings }: { bookings: ReportBooking[] }) {
         <ol className="grid list-none gap-2 pl-0">
           {bookings.map((booking) => (
             <li key={booking.id}>
-              <SidebarRow booking={booking} cta="Open →" />
+              <SidebarRow
+                booking={booking}
+                cta="Open →"
+                groupInfo={groupInfoByBooking.get(booking.id) ?? null}
+              />
             </li>
           ))}
           <li>
@@ -1764,12 +1919,14 @@ function SidebarRow({
   booking,
   cta,
   focusAssignment = false,
+  groupInfo,
 }: {
   booking: ReportBooking;
   cta: string;
   focusAssignment?: boolean;
+  groupInfo: CalendarGroupInfo | null;
 }) {
-  const clientName = booking.contact_full_name || "Unknown client";
+  const clientName = groupInfo?.identity || booking.contact_full_name || "Unknown client";
   const time = `${booking.start_time.slice(0, 5)}–${booking.end_time.slice(0, 5)}`;
   const cityLabel = [booking.service_city, booking.service_postcode]
     .filter(Boolean)
@@ -1802,6 +1959,15 @@ function SidebarRow({
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--admin-heading)]">
           {clientName}
         </p>
+        {groupInfo ? (
+          <span
+            title={`${clientName} — ${groupInfo.count} participants`}
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--admin-restricted-bg)] px-1.5 py-0.5 text-[0.625rem] font-medium text-[var(--admin-restricted)]"
+          >
+            <Users className="size-3" aria-hidden="true" />
+            {groupInfo.count}
+          </span>
+        ) : null}
       </div>
       <p className="text-xs text-[var(--admin-text-muted)]">
         {formatBusinessDate(booking.booking_date)} · <span className="tabular-nums">{time}</span>
