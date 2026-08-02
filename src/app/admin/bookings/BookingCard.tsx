@@ -5,7 +5,11 @@ import type { StaffProfile } from "@/lib/auth/rbac";
 import { AdminStatusBadge, type AdminTone } from "../components/admin-ui";
 import { BookingRowActions } from "./BookingRowActions";
 import { hasClaimableAssignment, isOwnBooking } from "./access";
-import { composeGenderRequirementChip, inertRowClassNames } from "./_helpers";
+import {
+  composeBookingIdentity,
+  composeGenderRequirementChip,
+  inertRowClassNames,
+} from "./_helpers";
 import { formatDate, formatLabel, formatMoney, formatTime } from "./format";
 import type { BookingAssignment, BookingParticipant, BookingRecord } from "./types";
 
@@ -82,10 +86,15 @@ export function BookingCard({
     : null;
 
   if (isGroup) {
+    // C-13 Phase C (brief §2.3) — the group headline swaps the plain
+    // main-contact name for composite identity ("Aisha Khan + 2 others").
+    // Single bookings are untouched (brief §1.3 "single bookings keep
+    // clientName as today"), so this is computed only on the group branch.
+    const identity = composeBookingIdentity(booking);
     return (
       <GroupBookingCard
         booking={booking}
-        clientName={clientName}
+        clientName={identity.primary}
         serviceNames={serviceNames}
         genderChip={genderChip}
         role={role}
@@ -244,13 +253,16 @@ export function BookingCard({
  * background, and a Users-icon headline. Per-participant sub-rows live in
  * their own inner panel.
  *
- * Headline text is still `clientName` (the main-contact-or-fallback name
- * `BookingCard` already derives) rather than the brief §2.3 composite
- * identity ("Aisha Khan + 2 others") — that string comes from
- * `composeBookingIdentity`, a Change 3 / Phase C helper that has not shipped
- * yet. Change 2 (this phase) is scoped to the nested STRUCTURE (sub-rows,
- * tint, icon, fraction badge); Phase C swaps the headline text in without
- * touching this layout.
+ * `clientName` here is the composite identity string ("Aisha Khan + 2
+ * others") from `composeBookingIdentity` (C-13 Phase C, brief §2.3) — the
+ * caller (`BookingCard`, group branch only) computes it and passes it in
+ * under the same prop name Phase B already used for the plain main-contact
+ * name, so this component's own JSX needed no structural change to pick it
+ * up.
+ *
+ * Per-participant assignment progress (brief §2.4 / plan Phase D —
+ * `assignedCount`/`totalAssignments`/`progressLabel`/`progressTone` below)
+ * shipped fully in Phase B; Phase D added no further UI on top of it.
  *
  * `--admin-group-tint` (brief Q9.3) does not exist in tokens.css yet — C-11
  * shipped without introducing it, and adding a new design token is outside

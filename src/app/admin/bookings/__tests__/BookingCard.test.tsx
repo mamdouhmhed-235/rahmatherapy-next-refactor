@@ -459,4 +459,21 @@ describe("BookingCard - group booking (synthetic data; no group fixture exists i
 
     expect(container.querySelector('[data-group-booking="true"]')).toBeNull();
   });
+
+  it("renders composite identity in the headline instead of the main contact's name alone (Phase C)", () => {
+    render(
+      <BookingCard
+        booking={groupBooking()}
+        profile={profile()}
+        canViewAll
+        today={TODAY}
+      />
+    );
+
+    // groupBooking() is Aisha Khan (main) + Yusuf Khan + Maryam Khan.
+    expect(screen.getByText("Aisha Khan + 2 others")).toBeTruthy();
+    // The bare main-contact name should not appear as the headline text —
+    // it still appears once, inside its own sub-row.
+    expect(screen.queryByText("Aisha Khan", { selector: "p" })).toBeNull();
+  });
 });

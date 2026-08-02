@@ -285,3 +285,63 @@ export function composeGenderRequirementChip(
     visible: true,
   };
 }
+
+/**
+ * C-13 Phase C (brief §2.3, plan Step 8) — composite identity for a group
+ * booking: "Aisha Khan + 2 others" instead of the main contact's name alone,
+ * which otherwise reads as if a 3-person visit were a solo appointment.
+ *
+ * Deliberately does NOT change single-participant output in a way callers
+ * need to guard against — `otherCount === 0` returns `mainContactName` alone,
+ * same shape as the pre-C-13 `clientName` derivations it sits alongside. But
+ * per brief §1.3 ("single bookings keep clientName as today") callers should
+ * still only reach for this helper's output when `booking_participants.length
+ * > 1`; the two derivations differ in lookup order (this one checks the main
+ * participant's `display_name` before `contact_full_name`) and in their empty
+ * fallback (`"Unknown client"` here vs `null` elsewhere), so swapping it in
+ * unconditionally would be a silent behaviour change for solo bookings.
+ *
+ * Edge cases (locked): no participant flagged `is_main_contact` → falls back
+ * to `contact_full_name`/`clients.full_name`/`"Unknown client"`, and
+ * `otherCount` then counts every participant (a data-integrity anomaly, not
+ * this helper's to fix). Empty `booking_participants` → `"Unknown client"`
+ * unless `contact_full_name`/`clients.full_name` is present.
+ */
+export type BookingIdentity = {
+  primary: string;
+  participantCount: number;
+};
+
+export function composeBookingIdentity(booking: {
+  contact_full_name: string | null;
+  clients?: { full_name: string | null } | null;
+  booking_participants: Array<{
+    display_name: string | null;
+    is_main_contact: boolean | null;
+  }>;
+}): BookingIdentity {
+  const mainContactName =
+    booking.booking_participants.find((p) => p.is_main_contact)
+      ?.display_name ||
+    booking.contact_full_name ||
+    booking.clients?.full_name ||
+    "Unknown client";
+
+  const otherCount = booking.booking_participants.filter(
+    (p) => !p.is_main_contact
+  ).length;
+
+  if (otherCount === 0) {
+    return {
+      primary: mainContactName,
+      participantCount: booking.booking_participants.length,
+    };
+  }
+  if (otherCount === 1) {
+    return { primary: `${mainContactName} + 1 other`, participantCount: 2 };
+  }
+  return {
+    primary: `${mainContactName} + ${otherCount} others`,
+    participantCount: 1 + otherCount,
+  };
+}

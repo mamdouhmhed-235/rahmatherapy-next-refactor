@@ -53,6 +53,7 @@ import {
   type StaffAssignmentPreview,
 } from "../assignment-eligibility";
 import {
+  composeBookingIdentity,
   composeGenderRequirementChip,
   getCancellationMoment,
   getTodayIsoDate,
@@ -526,10 +527,16 @@ export default async function BookingDetailPage({
 
   const bookingWithTimeline = { ...booking, audit_logs: auditLogs };
   const reference = shortRef(booking.id);
-  const clientName =
-    bookingWithTimeline.clients?.full_name ||
-    bookingWithTimeline.contact_full_name ||
-    null;
+  // C-13 Phase C (brief §2.3, §1.3 "single bookings keep clientName as
+  // today") — composite identity ("Aisha Khan + 2 others") only replaces the
+  // header's client name when there's genuinely more than one participant;
+  // the single-booking lookup order/fallback below is untouched.
+  const isGroupBooking = bookingWithTimeline.booking_participants.length > 1;
+  const clientName = isGroupBooking
+    ? composeBookingIdentity(bookingWithTimeline).primary
+    : bookingWithTimeline.clients?.full_name ||
+      bookingWithTimeline.contact_full_name ||
+      null;
   const serviceSummary = summariseServices(bookingWithTimeline);
   const headerDescription = composeHeaderDescription({
     clientName,
