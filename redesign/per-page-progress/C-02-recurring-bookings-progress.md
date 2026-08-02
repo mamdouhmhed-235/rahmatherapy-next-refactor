@@ -289,6 +289,30 @@ Implemented instead: **two `useActionState` hooks called unconditionally, one sh
 
 Consent is threaded per §B6: the **existing** step-4 checkbox feeds `recurringSchema`'s `z.literal(true)`, which rejects before the RPC, and `p_consent_acknowledged` is passed explicitly rather than relying on the RPC default. No second checkbox — `RecurringSection` deliberately omits `consent_acknowledged` and `client_id` because `FormData.get` returns the first entry and a duplicate would shadow the real one.
 
+### 3.5 — Phase F (`f473005`) — series view route
+
+New `/admin/bookings/series/[templateId]` route + `SeriesActions.tsx` + a cross-link from booking detail. Verified **PASS**, zero defects.
+
+Queries are bounded per the C-16 coordination note — next 10 upcoming, last 5 past, and two `count: "exact", head: true` queries rather than fetching rows to count. This matters: an `until_cancelled` weekly series reaches ~260 visits in five years. C-16's shared `PaginationBar` was confirmed not to exist yet, so the plan's hard caps are the floor. A dedicated `order(asc).limit(1)` query supplies the first occurrence — the verifier confirmed against the live column list that the template genuinely stores no first-occurrence date (`anchor_day_of_week`/`anchor_day_of_month` are recurrence anchors, not a concrete date), so the extra query is necessary rather than scope.
+
+RBAC gates the route on `canManageAllBookings || canViewAllBookings`, and the booking-detail cross-link uses **the same predicate**, so no user is shown a link into a page that would deny them.
+
+**"Edit series" ships as a disabled button with a visible explanation.** No `updateRecurringSeries` action or edit route exists in any of the plan's nine phases, and the plan's own open question §9.9 defers a dedicated edit route to C-12+. Building one would have been unsanctioned scope; the disabled affordance is the honest minimum. Same root cause suppresses brief §5.5's full "needs attention" reassign banner — a passive "(inactive)" label appears next to a deactivated bound therapist instead.
+
+### 3.6 — Phase Fb (`2d6fed7`) — series-cancellation email (Owner-approved new scope)
+
+Registers an 18th template `recurring_series_cancelled_client` and sends it from `cancelRecurringSeries`, mirroring Phase D's now-proven pattern across the same 10-file footprint. See §B6.4 for the decision and its reasoning.
+
+Two of three verification lenses returned PASS on the code; the third returned **FAIL on bookkeeping, not on the implementation** — `OWNER-ACTION-BACKLOG.md` still asserted cancellation was silent "by design", and no record of the Owner's Q2 reversal existed anywhere in the repo, so Phase Fb appeared to contradict a documented design with no recorded authority. Both were corrected before Phase G was allowed to start. **The workflow gate held: G and H never began.**
+
+Override wiring verified to the same standard as Phase D — one `resolveTemplateOverrides` call feeding `resolveSubject` and both render legs, subject never a hardcoded literal at the send site, `subjectDefault` byte-identical to the zero-override output, `escapeHtml(substituteVars(...))` ordering on the HTML leg and no escaping on the text leg, and specs asserting on the real `sendEmail` argument.
+
+Two divergences from Phase D, both deliberate and both flagged rather than silent:
+- `sendRecurringSeriesCancelledEmail` takes `cancelledOccurrenceCount` as a **parameter** instead of re-deriving it, because the caller already computed that exact figure from the cascade — re-querying could not distinguish rows cancelled by *this* event from rows cancelled earlier.
+- A client with no email address is a **graceful no-op** here (warn and return) where Phase D's created-email throws, so a phone-only walk-in client's series can still be cancelled. A verifier fairly noted the asymmetry is not fully justified — the same walk-in reasoning would apply to creation too. Logged for a future pass; harmless today because both call sites wrap in `.catch()`.
+
+**Stale comment logged, not fixed:** `SeriesActions.tsx` lines ~121–127 still carry the Phase F comment describing the (now-resolved) contradiction. Outside Phase Fb's file list, so correctly left; to be corrected at closeout.
+
 ### 3.4 — Logged, not fixed (rule 6a) — two worth the Owner's attention
 
 - **⚠️ Recurring is only reachable from `/admin/bookings/new?clientId=…`.** `createRecurringSeries` needs an existing `client_id`, which the form emits only when prefilled from a client record. An operator starting a booking from scratch cannot create a client and a series in one pass. Surfaced honestly in-section (disabled toggle with the reason) rather than failing at submit — but it is a real workflow limit that should be seen before the Phase I sweep.
@@ -310,6 +334,11 @@ Consent is threaded per §B6: the **existing** step-4 checkbox feeds `recurringS
 | `src/app/admin/bookings/BookingCard.tsx` | Step 23's row-level recurring icon lives here |
 
 **2. Phase B Step 5 — DEFERRED to the Owner's Phase I sweep** (route (a)). No production writes, no Supabase dev branch. Plan §3.2's critical-path test 1 ("Owner creates weekly until_cancelled series → 12 occurrences materialise") exercises the same RPC through the admin form, covering Phases C and E in the same pass. The RPC's contract is pinned statically meanwhile (24 guards, 6-table write order, exact signature — `redesign/evidence/C-02/phase-b-rpc-verification.md`). **Step 5 is closed as Owner-deferred, not as passed.**
+
+**4. Series cancellation MUST email the client — decision taken 2026-08-02, reversing §B3 Q2.**
+This is the answer to §B3's Q2, which had been left open. It was forced by a contradiction Phase F surfaced: brief §4.3's confirm-modal copy states *"The client will be emailed about the series cancellation"*, while plan Step 7's cascade is a raw bulk `UPDATE` that sends nothing — independently confirmed (no send-fn import on that path, and no DB trigger filling the gap). **The shipped modal was making a false promise to whoever cancelled.**
+Owner was offered three routes — reword the copy, send the email, or ship-and-log — and chose **send the email, making the existing copy true**. Implemented as **Phase Fb** (protocol convention: insert as `Nb`, never renumber), registering an 18th template `recurring_series_cancelled_client`. The modal copy was deliberately left untouched.
+⚠️ **This supersedes every earlier note in this file and in `OWNER-ACTION-BACKLOG.md` saying series cancellation is silent "by design".** That was true of plan Step 7 as written and is no longer true of the code.
 
 **3. Consent — the recurring path MUST be gated.** `createManualBooking` requires an explicit consent tick and rejects without it; the recurring RPC defaults `p_consent_acknowledged` to `true`, so as built a 12-visit series was created with implicit consent while a single visit needed an explicit one. Owner ruled: gate it. **Assigned to Phase E**, where `RecurringSection` mounts inside the same step-4 block as the existing checkbox — the form field and the action wiring land and get tested together. Phase E must add `consent_acknowledged` to `recurringSchema`, reject when false, and pass `p_consent_acknowledged` explicitly rather than relying on the RPC default.
 
