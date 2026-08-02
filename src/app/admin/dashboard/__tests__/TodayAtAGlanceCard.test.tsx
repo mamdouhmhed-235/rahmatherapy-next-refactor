@@ -66,3 +66,61 @@ describe("TodayAtAGlanceCard — B-01 marquee legibility", () => {
     expect(container.textContent).not.toContain("()");
   });
 });
+
+// C-13 Phase H (brief §5.11) — the AssignmentChip label + tooltip built from
+// `appointment.requiredGender`. No group booking exists to fetch this from,
+// so `requiredGender` is set directly on a synthetic appointment — this is
+// exactly the shape `deriveRequiredGenderByBooking` (CoordinatorDashboard.tsx)
+// hands the card once it collapses a group's per-participant assignments.
+describe("TodayAtAGlanceCard — assignment chip required-gender label (C-13 Phase H)", () => {
+  function renderUnassigned(requiredGender: string | null) {
+    const { container } = render(
+      <TodayAtAGlanceCard
+        appointments={[
+          {
+            id: "b-1",
+            time: "10:00",
+            title: "Aisha Khan",
+            detail: "Luton",
+            status: "unassigned",
+            href: null,
+            assignmentStatus: "unassigned",
+            bookingStatus: "confirmed",
+            requiredGender,
+          },
+        ]}
+        rangeKind="today"
+        rangeLabel="Today (Mon 25 May)"
+        todayCount={1}
+        weekCount={0}
+        readiness={readiness}
+        unassignedFirst
+      />
+    );
+    // Chip renders twice (mobile + desktop breakpoint variants) with
+    // identical label/title — either instance proves the derivation.
+    const chip = container.querySelector<HTMLElement>("span[title] > span");
+    if (!chip) throw new Error("assignment chip label not found");
+    const wrapper = chip.closest("span[title]");
+    if (!wrapper) throw new Error("assignment chip wrapper not found");
+    return { label: chip.textContent, title: wrapper.getAttribute("title") };
+  }
+
+  it("single participant needing a specific gender — label and tooltip both name it", () => {
+    const { label, title } = renderUnassigned("female");
+    expect(label).toBe("Unassigned · Needs female therapist");
+    expect(title).toBe("Needs a female therapist");
+  });
+
+  it("mixed-gender group (from deriveRequiredGenderByBooking's 'mixed' marker) — generic label and tooltip, not a false single-gender claim", () => {
+    const { label, title } = renderUnassigned("mixed");
+    expect(label).toBe("Unassigned · Mixed group");
+    expect(title).toBe("This group needs therapists of more than one gender");
+  });
+
+  it("no gender requirement — falls back to the plain Unassigned chip", () => {
+    const { label, title } = renderUnassigned(null);
+    expect(label).toBe("Unassigned");
+    expect(title).toBe("Open the booking to assign a therapist");
+  });
+});

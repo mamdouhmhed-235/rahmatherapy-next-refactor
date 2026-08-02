@@ -594,20 +594,25 @@ function SnapshotListRow({
 }) {
   const isUnconfirmed = appointment.status !== "fully_assigned";
   const isUnassigned = appointment.assignmentStatus === "unassigned";
-  // C-13 Phase A (brief §2.1/§5.11 b) — dashboard data collapses a booking's
-  // participants to one first-match-wins gender (no mixed-group marker yet;
-  // that's Phase H scope), so the rephrase here is a single-axis swap of the
-  // static string for the specific gender rather than a `composeGenderRequirementChip`
-  // call (which needs a participants array this data layer doesn't expose).
-  const requiredGender = isUnassigned ? appointment.requiredGender : null;
-  const sameGenderRequired = Boolean(requiredGender);
+  // C-13 Phase A (brief §2.1) — dashboard data collapses a booking's
+  // participants to one gender value upstream (`deriveRequiredGenderByBooking`
+  // in `CoordinatorDashboard.tsx`, Phase H), so the rephrase here is a
+  // single-axis swap of the static string for the specific gender rather than
+  // a `composeGenderRequirementChip` call (which needs a participants array
+  // this data layer doesn't expose). Phase H (brief §5.11 b) added the
+  // "mixed" marker for groups whose participants don't all need the same
+  // gender — collapsed here to a generic label rather than surfacing a full
+  // per-gender breakdown.
+  const requiredGender = isUnassigned ? (appointment.requiredGender ?? null) : null;
   const timeRange = appointment.endTime ? `${appointment.time}–${appointment.endTime}` : appointment.time;
   const dateChip = withDate && appointment.date ? formatRowDate(appointment.date) : null;
   const initials = getInitials(appointment.title);
   const tintStyle = avatarTintStyle(appointment.title);
-  const assignmentLabel = requiredGender
-    ? `Unassigned · Needs ${requiredGender} therapist`
-    : "Unassigned";
+  const assignmentLabel = !requiredGender
+    ? "Unassigned"
+    : requiredGender === "mixed"
+      ? "Unassigned · Mixed group"
+      : `Unassigned · Needs ${requiredGender} therapist`;
 
   const content = (
     <div
@@ -648,7 +653,7 @@ function SnapshotListRow({
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 sm:hidden">
           {showAssignmentChip && isUnassigned ? (
-            <AssignmentChip label={assignmentLabel} sameGenderRequired={sameGenderRequired} />
+            <AssignmentChip label={assignmentLabel} requiredGender={requiredGender} />
           ) : (
             <AdminStatusBadge
               value={appointment.status}
@@ -661,7 +666,7 @@ function SnapshotListRow({
       {showAssignmentChip && isUnassigned ? (
         <AssignmentChip
           label={assignmentLabel}
-          sameGenderRequired={sameGenderRequired}
+          requiredGender={requiredGender}
           className="hidden shrink-0 sm:inline-flex"
         />
       ) : (
@@ -691,22 +696,31 @@ function formatRowDate(iso: string) {
 
 function AssignmentChip({
   label,
-  sameGenderRequired,
+  requiredGender,
   className,
 }: {
   label: string;
-  sameGenderRequired: boolean;
+  requiredGender: string | null;
   className?: string;
 }) {
   // Brief Section 5.3 calls for Attention family; in this codebase Attention is
   // aliased to --admin-warning (same hue family per tokens.css).
+  // C-13 Phase A logged this tooltip as stale (fixed value "same-gender
+  // therapist" beside a visible label that already names the specific
+  // gender); Phase H closes it and adds the "mixed" case the visible label
+  // gained at the same time.
+  const title = !requiredGender
+    ? "Open the booking to assign a therapist"
+    : requiredGender === "mixed"
+      ? "This group needs therapists of more than one gender"
+      : `Needs a ${requiredGender} therapist`;
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1 rounded-full bg-[var(--admin-warning-bg)] px-2 py-0.5 text-[11px] font-semibold text-[var(--admin-warning)]",
         className
       )}
-      title={sameGenderRequired ? "Needs a same-gender therapist" : "Open the booking to assign a therapist"}
+      title={title}
     >
       <UserX className="size-3" aria-hidden="true" />
       <span>{label}</span>

@@ -19,6 +19,7 @@
 
 import { AdminPageScaffold } from "../components/admin-ui";
 import { findNextAppointment, formatNumber } from "../reports/reporting";
+import type { ReportAssignment } from "../reports/reporting";
 import { OperationsHealthCard, TodayAtAGlanceCard } from "./dashboard-cards";
 import {
   ClaimQueueStripe,
@@ -81,6 +82,33 @@ function formatPeriodLabel(startTime: string) {
   if (hour < 12) return "Morning";
   if (hour < 17) return "Afternoon";
   return "Evening";
+}
+
+// C-13 Phase H (brief §5.11 / plan Step 20) — per-booking required-gender
+// marker for the Coordinator Today panel + claim queue. `booking_assignments`
+// is per-participant, so a group booking can carry more than one distinct
+// `required_therapist_gender`. Locked decision (b): collapse that case to
+// `"mixed"` rather than silently picking whichever assignment happened to be
+// first (the prior behaviour) — full per-participant breakdown is out of
+// scope (§5.11 option (a), deferred to C-12+). `"any"` is excluded — it does
+// not express a requirement.
+export function deriveRequiredGenderByBooking(
+  assignments: ReportAssignment[]
+): Map<string, string> {
+  const gendersByBooking = new Map<string, Set<string>>();
+  for (const assignment of assignments) {
+    if (!assignment.required_therapist_gender || assignment.required_therapist_gender === "any") {
+      continue;
+    }
+    const seen = gendersByBooking.get(assignment.booking_id) ?? new Set<string>();
+    seen.add(assignment.required_therapist_gender);
+    gendersByBooking.set(assignment.booking_id, seen);
+  }
+  const requiredGenderByBooking = new Map<string, string>();
+  for (const [bookingId, genders] of gendersByBooking) {
+    requiredGenderByBooking.set(bookingId, genders.size > 1 ? "mixed" : [...genders][0]);
+  }
+  return requiredGenderByBooking;
 }
 
 // Coordinator-tailored "Need help?" links (brief §4.2). Mirrors
@@ -255,17 +283,10 @@ export function CoordinatorDashboard({
   };
 
   // Coordinator-emphasis Today panel data: per-booking required gender
-  // (derived from assignments), plus today inline count breakdown.
-  const requiredGenderByBooking = new Map<string, string>();
-  for (const assignment of data.assignments) {
-    if (
-      assignment.required_therapist_gender &&
-      assignment.required_therapist_gender !== "any" &&
-      !requiredGenderByBooking.has(assignment.booking_id)
-    ) {
-      requiredGenderByBooking.set(assignment.booking_id, assignment.required_therapist_gender);
-    }
-  }
+  // (derived from assignments — "mixed" when a group's participants don't
+  // all need the same gender, C-13 Phase H), plus today inline count
+  // breakdown.
+  const requiredGenderByBooking = deriveRequiredGenderByBooking(data.assignments);
   const coordinatorTodayCounts = {
     unassigned: todayAppointments.filter((b) => b.assignment_status === "unassigned").length,
     confirmed: todayAppointments.filter((b) => b.status === "confirmed").length,
