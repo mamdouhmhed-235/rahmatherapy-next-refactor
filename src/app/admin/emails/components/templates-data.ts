@@ -62,6 +62,17 @@ export interface TemplateMeta {
   rendersAs: "html" | "plain_text";
   // NEW (C-15 Phase A) — lifts the old hardcoded SUBJECTS map
   // (email-templates/actions.ts) into the registry, one field per template.
+  // C-15 closeout fix round — this is the default real sends
+  // (notifications.ts) and "Send me a test" actually fall back to
+  // (src/lib/email/templates.ts's exported resolveSubject()), corrected to
+  // match each template's live Subject: header byte-for-byte, including the
+  // parts that were already dynamic (e.g. "{companyName} booking request
+  // received", substituted the same way a body field would be). It is
+  // DELIBERATELY independent of the "subject" SafeField's own `defaultValue`
+  // below (which still feeds the <title> tag and the editor's "Use default"
+  // preview, unchanged, to protect the render-parity fixture) — the two
+  // happen to read identically for templates whose subject was already
+  // static.
   subjectDefault: string;
   fields: SafeField[];
   // NEW (C-15 Phase A) — the "Filled automatically" legend: auto-generated
@@ -93,15 +104,28 @@ const SAMPLE = {
 // Subject field factory (C-15 Phase A, item 1 — editable subjects). Shared
 // shape across every template: tight maxLength (D13's blanket 500 is NOT
 // used here — 100 matches the pre-existing REVIEW_SUBJECT convention,
-// chosen because long subjects render badly in inboxes). No `tokens`: none
-// of the current subject defaults reference a variable.
+// chosen because long subjects render badly in inboxes). No `tokens`: this
+// `defaultValue` (the SafeField-level one, passed in by each TEMPLATES
+// entry below) never references a variable — it only ever feeds the
+// <title> tag and the "Use default" preview (see resolveTitleSubject() in
+// templates.ts). The real Subject: header's default is the DIFFERENT,
+// closeout-round-corrected TemplateMeta.subjectDefault (some of which now
+// do reference variables, e.g. "{companyName} booking request received"),
+// resolved via templates.ts's exported resolveSubject(). A hand-typed
+// {clientName} etc. in an admin's subject override still resolves — the
+// same substituteVars() every body field goes through — even without a
+// chip button for it here.
 function subjectField(defaultValue: string): SafeField {
   return {
     kind: "subject",
     label: "Subject line",
     placeholder: defaultValue,
+    // C-15 closeout fix round — corrected. Real sends now read this field's
+    // override (see src/lib/email/templates.ts's exported resolveSubject()),
+    // so it is no longer true that the inbox line is "fixed in code and not
+    // yet editable here".
     helper:
-      "Sets the hidden page title inside the email's HTML source. The line shown as the subject in the recipient's inbox is fixed in code and not yet editable here.",
+      "Sets the subject line shown in the recipient's inbox, and the hidden page title inside the email's HTML source.",
     maxLength: 100,
     defaultValue,
   };
@@ -136,7 +160,7 @@ const GREETING_INTRO: SafeField = {
   kind: "greeting_intro",
   label: "Greeting intro sentence",
   placeholder: "Hi {clientName}, we have received your booking request.",
-  helper: "Variables in curly braces are filled automatically.",
+  helper: "Insert names and dates with the buttons above.",
   maxLength: 300,
   multiline: true,
   defaultValue:
@@ -334,7 +358,7 @@ const BOOKING_CONFIRMED_BODY_INTRO: SafeField = {
   label: "Intro paragraph",
   placeholder:
     "Hi {clientName}, your appointment on {bookingDate} at {startTime} is confirmed. We'll send a reminder closer to the day.",
-  helper: "Variables in curly braces are filled automatically.",
+  helper: "Insert names and dates with the buttons above.",
   maxLength: 500,
   multiline: true,
   defaultValue:
@@ -371,7 +395,7 @@ const STAFF_UNASSIGNMENT_BODY_INTRO: SafeField = {
   label: "Intro paragraph",
   placeholder:
     "Hi {therapistName}, you've been unassigned from the {bookingDate} {startTime} booking ({clientName}). Reach out to admin if you have questions.",
-  helper: "Variables in curly braces are filled automatically.",
+  helper: "Insert names and dates with the buttons above.",
   maxLength: 500,
   multiline: true,
   defaultValue:
@@ -390,7 +414,7 @@ const CLAIM_BODY_INTRO: SafeField = {
   label: "Intro paragraph",
   placeholder:
     "{therapistName} just claimed the {bookingDate} {startTime} slot for {clientName}.",
-  helper: "Variables in curly braces are filled automatically.",
+  helper: "Insert names and dates with the buttons above.",
   maxLength: 500,
   multiline: true,
   defaultValue:
@@ -410,7 +434,7 @@ const CLIENT_ASSIGNED_THERAPIST_BODY_INTRO: SafeField = {
   label: "Intro paragraph",
   placeholder:
     "Hi {clientName}, your appointment on {bookingDate} at {startTime} will be with {therapistName}. They'll arrive at {addressLines}. If anything changes, we'll let you know.",
-  helper: "Variables in curly braces are filled automatically.",
+  helper: "Insert names and dates with the buttons above.",
   maxLength: 500,
   multiline: true,
   defaultValue:
@@ -441,7 +465,7 @@ const ENQUIRY_LOGGED_BODY_INTRO: SafeField = {
   label: "Intro paragraph",
   placeholder:
     "{staffName} logged a new enquiry from {clientName} ({contactDetail}) interested in {serviceInterest}. View it here: {enquiryUrl}.",
-  helper: "Variables in curly braces are filled automatically.",
+  helper: "Insert names and dates with the buttons above.",
   maxLength: 500,
   multiline: true,
   defaultValue:
@@ -462,7 +486,10 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Booking confirmation",
     trigger: "Sent when a booking request is submitted",
     rendersAs: "html",
-    subjectDefault: "Booking request received",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendBookingCreatedEmails (customer leg): the
+    // company name has always been prefixed on the real Subject: header.
+    subjectDefault: "{companyName} booking request received",
     fields: [
       subjectField("Booking request received"),
       GREETING_INTRO,
@@ -477,7 +504,9 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Booking cancelled (client)",
     trigger: "Sent when a booking is cancelled",
     rendersAs: "html",
-    subjectDefault: "Booking cancelled",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendBookingCancellationEmails (customer leg).
+    subjectDefault: "{companyName} booking cancelled",
     fields: [
       subjectField("Booking cancelled"),
       {
@@ -494,7 +523,9 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Booking reminder",
     trigger: "Sent manually from the Reminders tab",
     rendersAs: "html",
-    subjectDefault: "Booking reminder",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendBookingReminderEmail.
+    subjectDefault: "{companyName} booking reminder",
     fields: [
       subjectField("Booking reminder"),
       {
@@ -533,7 +564,9 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Assignment notification",
     trigger: "Sent when a therapist is assigned to a booking",
     rendersAs: "html",
-    subjectDefault: "Booking assignment",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendStaffAssignmentEmail.
+    subjectDefault: "{companyName} booking assignment",
     fields: [subjectField("Booking assignment"), STAFF_INTRO, FOOTER_CONTACT],
     fixedParts: [BOOKING_SUMMARY_FIXED_PART, PARTICIPANT_DETAILS_FIXED_PART],
   },
@@ -543,7 +576,9 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Assignment updated",
     trigger: "Sent when an assigned booking changes",
     rendersAs: "html",
-    subjectDefault: "Assigned booking changed",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendAssignedStaffBookingChangeEmails.
+    subjectDefault: "{companyName} assigned booking changed",
     fields: [subjectField("Assigned booking changed"), CHANGE_WRAPPER, FOOTER_CONTACT],
     fixedParts: [BOOKING_SUMMARY_FIXED_PART, PARTICIPANT_DETAILS_FIXED_PART],
   },
@@ -553,7 +588,9 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "New booking (internal)",
     trigger: "Sent to the owner when a booking is submitted",
     rendersAs: "html",
-    subjectDefault: "New booking request",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendBookingCreatedEmails (admin leg).
+    subjectDefault: "New booking request - {clientName}",
     fields: [subjectField("New booking request"), FOOTER_CONTACT],
     fixedParts: [
       BOOKING_SUMMARY_FIXED_PART,
@@ -567,7 +604,12 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Cancellation (internal)",
     trigger: "Sent to the owner when a booking is cancelled",
     rendersAs: "html",
-    subjectDefault: "Booking cancellation",
+    // C-15 closeout fix round — corrected. The registry previously said
+    // "Booking cancellation"; the live literal in notifications.ts's
+    // sendBookingCancellationEmails (admin leg) has always been "Booking
+    // cancelled - {clientName}" — both wording and the client-name suffix
+    // differed from the registry.
+    subjectDefault: "Booking cancelled - {clientName}",
     fields: [subjectField("Booking cancellation"), FOOTER_CONTACT],
     fixedParts: [
       BOOKING_SUMMARY_FIXED_PART,
@@ -584,7 +626,9 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Reschedule request (internal)",
     trigger: "Sent to the owner when a client requests a reschedule",
     rendersAs: "html",
-    subjectDefault: "Reschedule request",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendBookingRescheduleRequestEmails.
+    subjectDefault: "Reschedule request - {clientName}",
     fields: [subjectField("Reschedule request"), FOOTER_CONTACT],
     fixedParts: [
       BOOKING_SUMMARY_FIXED_PART,
@@ -663,7 +707,9 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Slot claimed (internal)",
     trigger: "Sent to the admin recipient when a practitioner claims an unassigned slot. Fires from claimBookingAssignment. Interim single-recipient send — Phase D reroutes it through the business-notification resolver.",
     rendersAs: "html",
-    subjectDefault: "Slot claimed",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendClaimNotificationEmail.
+    subjectDefault: "Slot claimed: {therapistName} → {bookingDate}",
     fields: [subjectField("Slot claimed"), CLAIM_BODY_INTRO, FOOTER_CONTACT],
     fixedParts: [BOOKING_SUMMARY_FIXED_PART],
   },
@@ -673,7 +719,11 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Therapist assigned (client)",
     trigger: "Sent to the client whenever their assignment changes (assign, reassign, or claim), so they always know who is coming. Fires from claimBookingAssignment and updateBookingAssignment.",
     rendersAs: "html",
-    subjectDefault: "Your therapist is confirmed",
+    // C-15 closeout fix round — corrected. The registry previously said
+    // "Your therapist is confirmed"; the live literal in notifications.ts's
+    // sendClientAssignedTherapistEmail has always been "Your therapist for
+    // {bookingDate}".
+    subjectDefault: "Your therapist for {bookingDate}",
     fields: [
       subjectField("Your therapist is confirmed"),
       CLIENT_ASSIGNED_THERAPIST_BODY_INTRO,
@@ -688,13 +738,17 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Enquiry logged (internal)",
     trigger: "Sent to opted-in Owner/Admin recipients when a staff member logs a new enquiry. Fires from createEnquiry; the logging staff member is excluded (skip-self).",
     rendersAs: "html",
-    // Ground-truth deviation (logged, C-15 Phase A) — the legacy SUBJECTS
-    // map carried "New enquiry: {clientName}" for this id, but the render
-    // function's actual <title> literal has always been the static "New
-    // enquiry logged". The render-parity gate is load-bearing, so the
-    // registry follows the renderer's real behaviour, not the stale map
-    // value. See C-15 progress file §1 for the full note.
-    subjectDefault: "New enquiry logged",
+    // C-15 Phase A set subjectDefault to "New enquiry logged", matching the
+    // <title> tag (renderer's <title> literal — the only place a subject
+    // reached at the time). C-15 closeout fix round — real sends were never
+    // touched by that Phase A pass, and notifications.ts's
+    // sendEnquiryLoggedEmail has always sent "New enquiry: {clientName}" as
+    // the actual Subject: header — the legacy SUBJECTS map value Phase A
+    // set aside as "stale" was in fact what real customers' admin alerts
+    // used all along. subjectDefault is corrected to match it; the SafeField
+    // defaultValue below (which still drives <title>, parity-fixture-frozen)
+    // is untouched.
+    subjectDefault: "New enquiry: {clientName}",
     fields: [subjectField("New enquiry logged"), ENQUIRY_LOGGED_BODY_INTRO, FOOTER_CONTACT],
     fixedParts: [],
   },
@@ -708,7 +762,9 @@ export const TEMPLATES: TemplateMeta[] = [
     cardName: "Booking restored (client)",
     trigger: "Sent when a cancelled, no-show, or reopened booking is restored to an active status. Fires from sendBookingRestoredClientEmail.",
     rendersAs: "html",
-    subjectDefault: "Booking restored",
+    // C-15 closeout fix round — corrected to match the live literal in
+    // notifications.ts's sendBookingRestoredClientEmail.
+    subjectDefault: "{companyName} — your booking is back on",
     fields: [
       subjectField("Booking restored"),
       {

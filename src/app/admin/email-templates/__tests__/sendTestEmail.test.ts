@@ -307,7 +307,15 @@ describe("sendTestEmail — subject prefix", () => {
     await sendTestEmail(null, testFormData({ subject: "" }));
 
     const call = vi.mocked(sendEmail).mock.calls[0][0];
-    expect(call.subject).toBe("[Test] Booking request received");
+    // C-15 closeout fix round — booking_confirmation's subjectDefault was
+    // corrected from "Booking request received" to "{companyName} booking
+    // request received", matching notifications.ts's real Subject: header
+    // byte-for-byte (see templates-data.ts). SAMPLE_TEMPLATE_INPUT.companyName
+    // is "Rahma Therapy" — a test send with no override now shows the admin
+    // exactly what a real customer's email subject looks like, which is the
+    // whole point of resolveTestSubject() being deleted in favour of sharing
+    // templates.ts's resolveSubject() with notifications.ts.
+    expect(call.subject).toBe("[Test] Rahma Therapy booking request received");
   });
 });
 

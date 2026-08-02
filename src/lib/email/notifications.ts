@@ -30,7 +30,10 @@ import {
   renderStaffBookingChangeEmail,
   renderStaffUnassignmentEmail,
   renderStaffUnassignmentPlainText,
+  buildEnquiryVarMap,
+  buildVarMap,
   pickReviewMessages,
+  resolveSubject,
   resolveTemplateOverrides,
   type BookingEmailTemplateInput,
   type EmailParticipant,
@@ -618,7 +621,7 @@ export async function sendBookingCreatedEmails(
       eventType: "booking_confirmation",
       recipientRole: "customer",
       to: customerEmail,
-      subject: `${input.companyName} booking request received`,
+      subject: resolveSubject("booking_confirmation", customerOverrides, buildVarMap(input)),
       html: renderBookingConfirmationEmail(input, customerOverrides),
       text: renderBookingPlainText("Booking request received", input, customerOverrides),
     }),
@@ -634,7 +637,7 @@ export async function sendBookingCreatedEmails(
           recipientRole: "admin",
           staffId: recipient.staffId,
           to: recipient.email,
-          subject: `New booking request - ${input.clientName}`,
+          subject: resolveSubject("admin_booking_notification", adminOverrides, buildVarMap(input)),
           html: renderAdminBookingNotificationEmail({
             ...input,
             bookingId: booking.id,
@@ -696,7 +699,7 @@ export async function sendBookingCancellationEmails(
       eventType: "booking_cancellation_customer",
       recipientRole: "customer",
       to: customerEmail,
-      subject: `${input.companyName} booking cancelled`,
+      subject: resolveSubject("booking_cancellation_client", customerOverrides, buildVarMap(input)),
       html: renderBookingCancellationEmail(input, customerOverrides),
       text: renderBookingPlainText("Booking cancelled", input, customerOverrides),
       delaySeconds: options.delaySeconds,
@@ -713,7 +716,7 @@ export async function sendBookingCancellationEmails(
           recipientRole: "admin",
           staffId: recipient.staffId,
           to: recipient.email,
-          subject: `Booking cancelled - ${input.clientName}`,
+          subject: resolveSubject("admin_booking_cancellation", adminOverrides, buildVarMap(input)),
           html: renderAdminBookingCancellationEmail({
             ...input,
             bookingId,
@@ -760,7 +763,7 @@ export async function sendBookingRestoredClientEmail(
     eventType: "booking_restored_client",
     recipientRole: "customer",
     to: customerEmail,
-    subject: `${input.companyName} — your booking is back on`,
+    subject: resolveSubject("booking_restored_client", overrides, buildVarMap(input)),
     html: renderBookingRestoredEmail({ ...input, fromStatus: options.fromStatus }, overrides),
     text: renderBookingPlainText("Booking restored", input, overrides),
   });
@@ -807,7 +810,7 @@ export async function sendBookingRescheduleRequestEmails(
         recipientRole: "admin",
         staffId: recipient.staffId,
         to: recipient.email,
-        subject: `Reschedule request - ${templateInput.clientName}`,
+        subject: resolveSubject("admin_reschedule_request", overrides, buildVarMap(templateInput)),
         html: renderAdminRescheduleRequestEmail({
           ...templateInput,
           bookingId,
@@ -835,7 +838,7 @@ export async function sendStaffAssignmentEmail(
     recipientRole: "staff",
     staffId: staffId ?? null,
     to: staffEmail,
-    subject: `${input.companyName} booking assignment`,
+    subject: resolveSubject("staff_assignment", overrides, buildVarMap(input)),
     html: renderStaffAssignmentEmail(input, overrides),
     text: renderBookingPlainText("Booking assignment", input, overrides),
   });
@@ -860,7 +863,11 @@ export async function sendAssignedStaffBookingChangeEmails(
         recipientRole: "staff",
         staffId: staff.staffId,
         to: staff.email,
-        subject: `${input.companyName} assigned booking changed`,
+        subject: resolveSubject(
+          "staff_booking_change",
+          overrides,
+          buildVarMap(input, { changeSummary, date: input.bookingDate })
+        ),
         html: renderStaffBookingChangeEmail({
           ...input,
           changeSummary,
@@ -888,7 +895,7 @@ export async function sendBookingReminderEmail(
     eventType: "booking_reminder",
     recipientRole: "customer",
     to: customerEmail,
-    subject: `${input.companyName} booking reminder`,
+    subject: resolveSubject("booking_reminder", overrides, buildVarMap(input)),
     html: renderBookingReminderEmail(input, overrides),
     text: renderBookingPlainText("Booking reminder", input, overrides),
   });
@@ -918,7 +925,7 @@ export async function sendBookingConfirmedClientEmail(
     eventType: "booking_confirmed_client",
     recipientRole: "customer",
     to: customerEmail,
-    subject: "Your booking is confirmed", // SUBJECTS map authoritative
+    subject: resolveSubject("booking_confirmed_client", overrides, buildVarMap(input)),
     html,
     text: renderBookingConfirmedClientPlainText(input, overrides),
   });
@@ -963,7 +970,11 @@ export async function sendStaffUnassignmentEmail(
     recipientRole: "staff",
     staffId: previousStaffId,
     to: staff.email,
-    subject: "Booking assignment removed", // SUBJECTS map authoritative
+    subject: resolveSubject(
+      "staff_unassignment",
+      overrides,
+      buildVarMap(unassignInput, { therapistName: staff.name })
+    ),
     html,
     text: renderStaffUnassignmentPlainText(unassignInput, overrides),
   });
@@ -1015,7 +1026,7 @@ export async function sendClaimNotificationEmail(
         recipientRole: "admin",
         staffId: recipient.staffId,
         to: recipient.email,
-        subject: `Slot claimed: ${therapistName} → ${input.bookingDate}`,
+        subject: resolveSubject("claim", overrides, buildVarMap(claimInput, { therapistName })),
         html,
         text: renderClaimNotificationPlainText(claimInput, overrides),
       })
@@ -1056,7 +1067,11 @@ export async function sendClientAssignedTherapistEmail(
     eventType: "client_assigned_therapist",
     recipientRole: "customer",
     to: customerEmail,
-    subject: `Your therapist for ${input.bookingDate}`,
+    subject: resolveSubject(
+      "client_assigned_therapist",
+      overrides,
+      buildVarMap(assignedInput, { therapistName })
+    ),
     html,
     text: renderClientAssignedTherapistPlainText(assignedInput, overrides),
   });
@@ -1134,7 +1149,7 @@ export async function sendEnquiryLoggedEmail(
         recipientRole: "admin",
         staffId: recipient.staffId,
         to: recipient.email,
-        subject: `New enquiry: ${input.clientName}`,
+        subject: resolveSubject("enquiry_logged", overrides, buildEnquiryVarMap(input)),
         html,
         text: renderEnquiryLoggedPlainText(input, overrides),
       })
@@ -1212,7 +1227,14 @@ export async function sendReviewRequestEmail(
     eventType: "review_request_client",
     recipientRole: "customer",
     to: customerEmail,
-    subject: "Thank you for visiting Rahma Therapy", // SUBJECTS map authoritative
+    subject: resolveSubject(
+      "review_request_client",
+      overrides,
+      buildVarMap(reviewInput, {
+        city: city ?? "",
+        service_name: input.participants[0]?.services?.[0] ?? "appointment",
+      })
+    ),
     html,
     text,
   });

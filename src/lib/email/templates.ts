@@ -77,7 +77,14 @@ function substituteVars(
 // lets per-template callers add fields (changeSummary, bookingId,
 // requestedDate, requestedTime) without inflating the base
 // BookingEmailTemplateInput.
-function buildVarMap(
+//
+// C-15 closeout fix round — exported so notifications.ts can pass
+// resolveSubject() the SAME vars object a template's body fields get,
+// rather than a second, hand-picked subset (brief §10 AC2: "an override
+// should go through the same substituteVars treatment the body fields
+// get"). Each notifications.ts call site passes the identical `extras` its
+// neighbouring render*Email(...) call already builds for that template.
+export function buildVarMap(
   input: BookingEmailTemplateInput,
   extras: Record<string, unknown> = {}
 ): Record<string, unknown> {
@@ -138,10 +145,60 @@ export function hasControlChars(value: string): boolean {
   return /[\x00-\x1f]/.test(value);
 }
 
-function resolveSubject(templateId: string, overrides: Record<string, string>): string {
+// Renamed from `resolveSubject` in the C-15 closeout fix round (see the
+// exported `resolveSubject` below) — this one feeds ONLY `renderLayout()`'s
+// `<title>` argument. Its fallback (`fieldDefault`, i.e. the SafeField-level
+// `defaultValue` a `subjectField()` call sets) is deliberately untouched by
+// the closeout round: that string is captured byte-for-byte in the
+// render-parity fixture (registry-defaults.test.ts), which this fix round
+// must not change. Left exactly as Phase A shipped it.
+function resolveTitleSubject(templateId: string, overrides: Record<string, string>): string {
   const value = overrides.subject;
   if (value && !hasControlChars(value)) return value;
   return fieldDefault(templateId, "subject");
+}
+
+// C-15 closeout fix round (blocking finding — brief §10 AC2) — the subject
+// real sends (notifications.ts) and "Send me a test" (email-templates/
+// actions.ts's sendTestEmail) actually use. Previously both hardcoded their
+// own literal/duplicate logic and ignored the admin's override entirely;
+// see the C-15 progress file for the full audit.
+//
+// Deliberately reads `TemplateMeta.subjectDefault` (the top-level registry
+// field), NOT `fieldDefault(templateId, "subject")` above. The two used to
+// hold identical text by convention (both set from the same string passed
+// to `subjectField(...)` in templates-data.ts) but that was never load-
+// bearing until now — `subjectDefault` was read only by the now-deleted
+// `resolveTestSubject()` duplicate. This closeout round corrects
+// `subjectDefault` ALONE to match each template's live Subject: header
+// (including the parts that were already dynamic, e.g. "{companyName}
+// booking request received") — correcting `fieldDefault`'s SafeField value
+// instead would also change `<title>`'s default text and break the parity
+// fixture. See templates-data.ts's TemplateMeta.subjectDefault doc comment.
+//
+// Same override-or-default + control-character guard as
+// `resolveTitleSubject` above (mirrors `isHttpsUrl`'s defence-in-depth
+// pattern: saveTemplateOverride rejects C0 control characters at save time;
+// this is the render-time fallback so a row already in the DB — pre-dating
+// that guard — still can't carry one into a real Subject: header). The
+// picked raw string then runs through the SAME `substituteVars` treatment
+// body fields get, via the caller-supplied `vars`, so an admin-authored
+// override (or the corrected default) can reference `{clientName}`,
+// `{companyName}`, `{bookingDate}`, `{therapistName}` etc. exactly like any
+// other field. An unrecognised `{token}` — one not present in `vars` — is
+// left literal (brief §5.3), matching every other substituteVars call site.
+export function resolveSubject(
+  templateId: string,
+  overrides: Record<string, string>,
+  vars: Record<string, unknown> = {}
+): string {
+  const template = findTemplate(templateId);
+  if (!template) {
+    throw new Error(`resolveSubject: unknown template '${templateId}'`);
+  }
+  const value = overrides.subject;
+  const raw = value && !hasControlChars(value) ? value : template.subjectDefault;
+  return substituteVars(raw, vars);
 }
 
 function formatLabel(value: string) {
@@ -278,7 +335,7 @@ export function renderBookingConfirmationEmail(
       )}" style="display:inline-block;border-radius:999px;background:#30463f;color:#ffffff;text-decoration:none;padding:12px 18px;font-size:14px;font-weight:700;">Manage this booking</a></p>`
     : "";
 
-  const subject = resolveSubject("booking_confirmation", overrides);
+  const subject = resolveTitleSubject("booking_confirmation", overrides);
   return renderLayout(
     subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking request received</h1>
@@ -304,7 +361,7 @@ export function renderAdminBookingNotificationEmail(
   overrides: Record<string, string> = {}
 ) {
   return renderLayout(
-    resolveSubject("admin_booking_notification", overrides),
+    resolveTitleSubject("admin_booking_notification", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">New booking request</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
       input.clientName
@@ -330,7 +387,7 @@ export function renderBookingCancellationEmail(
     )
   );
   return renderLayout(
-    resolveSubject("booking_cancellation_client", overrides),
+    resolveTitleSubject("booking_cancellation_client", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking cancelled</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${greetingIntroHtml}</p>
     ${renderSummary(input)}
@@ -353,7 +410,7 @@ export function renderBookingRestoredEmail(
     ? escapeHtml(substituteVars(overrides.greeting_intro, buildVarMap(input)))
     : defaultIntro;
   return renderLayout(
-    resolveSubject("booking_restored_client", overrides),
+    resolveTitleSubject("booking_restored_client", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking restored</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${greetingIntroHtml}</p>
     ${renderSummary(input)}
@@ -371,7 +428,7 @@ export function renderAdminBookingCancellationEmail(
   overrides: Record<string, string> = {}
 ) {
   return renderLayout(
-    resolveSubject("admin_booking_cancellation", overrides),
+    resolveTitleSubject("admin_booking_cancellation", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking cancellation</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
       input.clientName
@@ -394,7 +451,7 @@ export function renderAdminRescheduleRequestEmail(
   overrides: Record<string, string> = {}
 ) {
   return renderLayout(
-    resolveSubject("admin_reschedule_request", overrides),
+    resolveTitleSubject("admin_reschedule_request", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Reschedule request</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${escapeHtml(
       input.clientName
@@ -424,7 +481,7 @@ export function renderStaffAssignmentEmail(
     substituteVars(overrides.intro || fieldDefault("staff_assignment", "intro"), buildVarMap(input))
   );
   return renderLayout(
-    resolveSubject("staff_assignment", overrides),
+    resolveTitleSubject("staff_assignment", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking assignment</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
@@ -448,7 +505,7 @@ export function renderStaffBookingChangeEmail(
     )
   );
   return renderLayout(
-    resolveSubject("staff_booking_change", overrides),
+    resolveTitleSubject("staff_booking_change", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Assigned booking changed</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${wrapperHtml}</p>
     ${renderSummary(input)}
@@ -465,7 +522,7 @@ export function renderBookingReminderEmail(
     substituteVars(overrides.intro || fieldDefault("booking_reminder", "intro"), buildVarMap(input))
   );
   return renderLayout(
-    resolveSubject("booking_reminder", overrides),
+    resolveTitleSubject("booking_reminder", overrides),
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking reminder</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
@@ -691,7 +748,7 @@ function substituteCity(text: string, city: string | null): string {
 function resolveReviewRequestFields(overrides: Record<string, string>) {
   const id = "review_request_client";
   return {
-    subject: resolveSubject(id, overrides),
+    subject: resolveTitleSubject(id, overrides),
     body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
     body_ask: overrides.body_ask || fieldDefault(id, "body_ask"),
     body_cta_label: overrides.body_cta_label || fieldDefault(id, "body_cta_label"),
@@ -811,7 +868,7 @@ ${signoff}
 function resolveBookingConfirmedClientFields(overrides: Record<string, string>) {
   const id = "booking_confirmed_client";
   return {
-    subject: resolveSubject(id, overrides),
+    subject: resolveTitleSubject(id, overrides),
     body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
     body_cta_label: overrides.body_cta_label || fieldDefault(id, "body_cta_label"),
     body_signoff: overrides.body_signoff || fieldDefault(id, "body_signoff"),
@@ -885,7 +942,7 @@ ${footerLine}`;
 function resolveStaffUnassignmentFields(overrides: Record<string, string>) {
   const id = "staff_unassignment";
   return {
-    subject: resolveSubject(id, overrides),
+    subject: resolveTitleSubject(id, overrides),
     body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
   };
 }
@@ -944,7 +1001,7 @@ ${footerLine}`;
 function resolveClaimFields(overrides: Record<string, string>) {
   const id = "claim";
   return {
-    subject: resolveSubject(id, overrides),
+    subject: resolveTitleSubject(id, overrides),
     body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
   };
 }
@@ -1003,7 +1060,7 @@ ${footerLine}`;
 function resolveClientAssignedTherapistFields(overrides: Record<string, string>) {
   const id = "client_assigned_therapist";
   return {
-    subject: resolveSubject(id, overrides),
+    subject: resolveTitleSubject(id, overrides),
     body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
     body_cta_label: overrides.body_cta_label || fieldDefault(id, "body_cta_label"),
   };
@@ -1085,12 +1142,15 @@ export interface EnquiryEmailTemplateInput {
 function resolveEnquiryLoggedFields(overrides: Record<string, string>) {
   const id = "enquiry_logged";
   return {
-    subject: resolveSubject(id, overrides),
+    subject: resolveTitleSubject(id, overrides),
     body_intro: overrides.body_intro || fieldDefault(id, "body_intro"),
   };
 }
 
-function buildEnquiryVarMap(input: EnquiryEmailTemplateInput): Record<string, unknown> {
+// C-15 closeout fix round — exported for the same reason as buildVarMap()
+// above: sendEnquiryLoggedEmail (notifications.ts) needs the identical vars
+// object renderEnquiryLoggedEmail's body already uses, for resolveSubject().
+export function buildEnquiryVarMap(input: EnquiryEmailTemplateInput): Record<string, unknown> {
   return {
     companyName: input.companyName,
     staffName: input.staffName,

@@ -226,6 +226,50 @@ describe("sendBookingCreatedEmails", () => {
     expect(adminCall.html as string).not.toContain("OVERRIDE customer greeting");
   });
 
+  it("C-15 closeout fix round — a stored subject override with an embedded CR/LF cannot reach sendEmail's subject", async () => {
+    // Save-time (email-templates/actions.ts's validateTemplateFields)
+    // already rejects a control character in a subject field, but this
+    // proves the render-time fallback (resolveSubject(), in
+    // src/lib/email/templates.ts) independently guards a row already in
+    // the DB — pre-dating that guard, or written by any future direct-write
+    // path — exactly like sendTrackedEmail's subject argument, not just
+    // resolveSubject() in isolation.
+    const overrideRows = [
+      { field_key: "subject", value: "Injected\r\nBcc: attacker@example.test" },
+    ];
+    vi.mocked(createSupabaseAdminClient).mockReturnValueOnce({
+      from: () => ({
+        select: () => ({ eq: () => Promise.resolve({ data: overrideRows, error: null }) }),
+      }),
+    } as never);
+
+    const stub = stubClient({ booking: baseBooking() });
+    await sendBookingCreatedEmails("booking-1", stub.client);
+
+    const calls = vi.mocked(sendEmail).mock.calls.map((c) => c[0]);
+    const customerCall = calls.find((c) => c.to === CUSTOMER_EMAIL)!;
+
+    expect(customerCall.subject).toBe("Rahma Therapy Test booking request received");
+    expect(customerCall.subject).not.toMatch(/[\r\n]/);
+    expect(customerCall.subject).not.toContain("Bcc: attacker");
+  });
+
+  it("C-15 closeout fix round — a valid stored subject override reaches sendEmail's subject (brief §10 AC2)", async () => {
+    const overrideRows = [{ field_key: "subject", value: "We got your booking, {clientName}!" }];
+    vi.mocked(createSupabaseAdminClient).mockReturnValueOnce({
+      from: () => ({
+        select: () => ({ eq: () => Promise.resolve({ data: overrideRows, error: null }) }),
+      }),
+    } as never);
+
+    const stub = stubClient({ booking: baseBooking() });
+    await sendBookingCreatedEmails("booking-1", stub.client);
+
+    const calls = vi.mocked(sendEmail).mock.calls.map((c) => c[0]);
+    const customerCall = calls.find((c) => c.to === CUSTOMER_EMAIL)!;
+    expect(customerCall.subject).toBe("We got your booking, Aisha Khan!");
+  });
+
   it("C-08 Phase D — sends the admin leg to every opted-in Owner/Admin, one delivery row each", async () => {
     const stub = stubClient({
       booking: baseBooking(),

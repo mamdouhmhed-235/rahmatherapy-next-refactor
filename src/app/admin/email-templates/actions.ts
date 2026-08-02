@@ -25,11 +25,18 @@ import {
   EmailConfigurationError,
 } from "@/lib/email/client";
 import {
+  buildEnquiryVarMap,
+  buildVarMap,
   hasControlChars,
   isHttpsUrl,
+  resolveSubject,
   resolveTemplateOverrides,
 } from "@/lib/email/templates";
-import { SAMPLE_RENDERERS } from "@/lib/email/sample-data";
+import {
+  SAMPLE_ENQUIRY_INPUT,
+  SAMPLE_RENDERERS,
+  SAMPLE_TEMPLATE_INPUT,
+} from "@/lib/email/sample-data";
 import { findTemplate, type SafeField, type TemplateMeta } from "../emails/components/templates-data";
 
 export interface SaveTemplateOverrideResult {
@@ -61,8 +68,11 @@ function stripHtmlTags(value: string): string {
 }
 
 // C-15 Phase A — the hardcoded SUBJECTS map is gone; every template's
-// default subject now lives in the registry (`TemplateMeta.subjectDefault`),
-// read at the one call site below.
+// default subject now lives in the registry (`TemplateMeta.subjectDefault`).
+// C-15 closeout fix round — read via templates.ts's exported resolveSubject()
+// (see sendTestEmail below), the same function real sends
+// (src/lib/email/notifications.ts) now use — one shared override-or-default
+// + control-character-guard implementation, not two.
 
 interface CleanedField {
   field: SafeField;
@@ -328,18 +338,43 @@ export async function resetTemplateToDefault(
 
 const TEST_SEND_RATE_LIMIT_SECONDS = 60;
 
-// Mirrors templates.ts's private resolveSubject() (not exported — kept
-// server-internal to that file). Duplicated here deliberately rather than
-// widening templates.ts's export surface for one caller: same "" -> default
-// fallback semantics (C-15 Phase B's `||`, not `??`) and the same
-// render-time control-character guard, so a test send's Subject: header can
-// never disagree with what the live preview's <title> would show for the
-// same draft.
-function resolveTestSubject(template: TemplateMeta, overrides: Record<string, string>): string {
-  const value = overrides.subject;
-  if (value && !hasControlChars(value)) return value;
-  return template.subjectDefault;
-}
+// C-15 closeout fix round — the vars a test send's subject can interpolate
+// (via templates.ts's exported resolveSubject(), called below), keyed by
+// template id. Deliberately the SAME buildVarMap()/buildEnquiryVarMap()
+// every body field's substituteVars() call already resolves against (brief
+// §10 AC2: "the same substituteVars treatment the body fields get") — built
+// from SAMPLE_TEMPLATE_INPUT / SAMPLE_ENQUIRY_INPUT (sample-data.ts), the
+// same sample identities the rendered body already shows, so a test email's
+// subject and body never disagree on "who"/"when". Only templates whose
+// body rendering adds extras beyond the base input (changeSummary,
+// therapistName, city, service_name — mirroring each render*Email()'s own
+// buildVarMap(...) call in templates.ts) need an entry; every other
+// template falls back to DEFAULT_SUBJECT_VARS below.
+const SAMPLE_THERAPIST_SUBJECT_NAME =
+  SAMPLE_TEMPLATE_INPUT.participants[0]?.assignedStaffName ?? "";
+
+const DEFAULT_SUBJECT_VARS = buildVarMap(SAMPLE_TEMPLATE_INPUT);
+
+const SUBJECT_VARS: Record<string, Record<string, unknown>> = {
+  staff_booking_change: buildVarMap(SAMPLE_TEMPLATE_INPUT, {
+    changeSummary: "Time changed from 14:00 to 14:30.",
+    date: SAMPLE_TEMPLATE_INPUT.bookingDate,
+  }),
+  staff_unassignment: buildVarMap(SAMPLE_TEMPLATE_INPUT, {
+    therapistName: SAMPLE_THERAPIST_SUBJECT_NAME,
+  }),
+  claim: buildVarMap(SAMPLE_TEMPLATE_INPUT, {
+    therapistName: SAMPLE_THERAPIST_SUBJECT_NAME,
+  }),
+  client_assigned_therapist: buildVarMap(SAMPLE_TEMPLATE_INPUT, {
+    therapistName: SAMPLE_THERAPIST_SUBJECT_NAME,
+  }),
+  review_request_client: buildVarMap(SAMPLE_TEMPLATE_INPUT, {
+    city: "Luton",
+    service_name: SAMPLE_TEMPLATE_INPUT.participants[0]?.services?.[0] ?? "appointment",
+  }),
+  enquiry_logged: buildEnquiryVarMap(SAMPLE_ENQUIRY_INPUT),
+};
 
 // Resend's `sendEmail` always wants both an html and a text body, and the
 // one plain_text-rendering template needs an html leg synthesized from its
@@ -466,7 +501,11 @@ export async function sendTestEmail(
     return { ok: false, error: "Couldn't render the template." };
   }
 
-  const subject = `[Test] ${resolveTestSubject(template, merged)}`;
+  const subject = `[Test] ${resolveSubject(
+    templateId,
+    merged,
+    SUBJECT_VARS[templateId] ?? DEFAULT_SUBJECT_VARS
+  )}`;
 
   // Resend send. `sendEmail` DIRECTLY — never `sendTrackedEmail` — a test
   // send must not write an `email_delivery_events` row (brief §2.6: "test
