@@ -109,3 +109,40 @@ describe("getOperationsPageData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
   });
 });
+
+// C-09 Phase D Step 10 — filter wiring keys separately, so a caller filtering
+// to severity=error can never be served a cache entry built for another
+// severity (or for the unfiltered queue).
+describe("getOperationsPageData filter-wiring cache behaviour", () => {
+  it("keys the unfiltered call and a fully-empty-filters call identically", async () => {
+    await getOperationsPageData();
+    await getOperationsPageData({
+      severity: undefined,
+      eventType: undefined,
+      status: undefined,
+      fromDate: undefined,
+      toDate: undefined,
+      q: undefined,
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keys separately per severity/eventType/status/date/q filter", async () => {
+    await getOperationsPageData({ severity: "error" });
+    await getOperationsPageData({ severity: "warning" });
+    await getOperationsPageData({ eventType: "email_failed" });
+    await getOperationsPageData({ status: "open" });
+    await getOperationsPageData({ fromDate: "2026-01-01", toDate: "2026-01-31" });
+    await getOperationsPageData({ q: "timeout" });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(6);
+    await getOperationsPageData({ severity: "error" });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(6);
+  });
+
+  it("re-runs a filtered call after the audit tag is invalidated", async () => {
+    await getOperationsPageData({ severity: "error" });
+    cacheHarness.invalidateTag(TAGS.AUDIT);
+    await getOperationsPageData({ severity: "error" });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+});

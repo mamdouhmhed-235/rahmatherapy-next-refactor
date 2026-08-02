@@ -166,7 +166,6 @@ export function EventRow({ event, column, onTransitioned, onTransitionFailed }: 
           <Link
             href={severityFilterUrl()}
             title={`${severity.title}. Click to filter to ${severity.label.toLowerCase()}.`}
-            data-redesign-fake="filter-query"
             className={cn(
               "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
               severity.tone === "danger" && "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)] hover:bg-[oklch(90%_0.05_20)]",

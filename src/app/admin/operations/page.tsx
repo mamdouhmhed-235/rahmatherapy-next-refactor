@@ -54,6 +54,13 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
     );
   }
 
+  // 5-step filter audit (brief §2.4): (1) URL parsed below; (2) passed into
+  // getOperationsPageData's filters; (3) applied server-side in
+  // operations-data.ts (.eq/.gte/.lte/.ilike); (4) filter UI defaults from
+  // these same URL-derived values (the <select>/<input> defaultValues
+  // below); (5) empty-state copy distinguishes "no results for these
+  // filters" from "no events yet" (OperationsBoard's `filtersActive` prop,
+  // now driving a REAL filter rather than a display-only flag).
   const params = await searchParams;
   const severity = readParam(params, "severity");
   const eventTypeFilter = readParam(params, "event_type");
@@ -65,15 +72,43 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
     severity || eventTypeFilter || statusFilter || fromDate || toDate || queryText
   );
 
-  const { events, hasError: error } = await getOperationsPageData();
+  // Unfiltered fetch — the open-errors/warnings/infos stat tiles and the
+  // event-type dropdown always reflect the WHOLE queue, not the current
+  // filter, so they're computed from this call regardless of the URL. When
+  // no filter is active this is the ONLY call (see below): same one query as
+  // before this step.
+  const { events: allEvents, hasError: unfilteredError } = await getOperationsPageData();
 
-  // Severity counts on the OPEN column (clear-the-queue metric).
-  const openErrors = events.filter((e) => e.status === "open" && e.severity === "error").length;
-  const openWarnings = events.filter((e) => e.status === "open" && e.severity === "warning").length;
-  const openInfos = events.filter((e) => e.status === "open" && e.severity === "info").length;
+  // Filtered fetch (C-09 Phase D Step 10) — server-side query, not the
+  // previous no-op filter form. Reuses the unfiltered call's cache entry
+  // when nothing is narrowing the view.
+  const { events, hasError: error } = filtersActive
+    ? await getOperationsPageData({
+        severity: (["info", "warning", "error"] as const).includes(
+          severity as "info" | "warning" | "error"
+        )
+          ? (severity as "info" | "warning" | "error")
+          : undefined,
+        eventType: eventTypeFilter || undefined,
+        status: (["open", "acknowledged", "resolved"] as const).includes(
+          statusFilter as "open" | "acknowledged" | "resolved"
+        )
+          ? (statusFilter as "open" | "acknowledged" | "resolved")
+          : undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        q: queryText || undefined,
+      })
+    : { events: allEvents, hasError: unfilteredError };
 
-  // Build event-type options from current page-load data (distinct values, sorted).
-  const eventTypeOptions = Array.from(new Set(events.map((event) => event.event_type)))
+  // Severity counts on the OPEN column (clear-the-queue metric) — always
+  // from the unfiltered queue, same as the event-type dropdown above.
+  const openErrors = allEvents.filter((e) => e.status === "open" && e.severity === "error").length;
+  const openWarnings = allEvents.filter((e) => e.status === "open" && e.severity === "warning").length;
+  const openInfos = allEvents.filter((e) => e.status === "open" && e.severity === "info").length;
+
+  // Build event-type options from the unfiltered queue (distinct values, sorted).
+  const eventTypeOptions = Array.from(new Set(allEvents.map((event) => event.event_type)))
     .filter(Boolean)
     .sort();
 
@@ -144,7 +179,6 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
             <a
               href="/admin/operations?severity=error&status=open#operations-panel-open"
               title="Filter to open errors"
-              data-redesign-fake="filter-query"
               className="block outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-[var(--admin-radius-card)]"
             >
               <AdminStat
@@ -158,7 +192,6 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
             <a
               href="/admin/operations?severity=warning&status=open#operations-panel-open"
               title="Filter to open warnings"
-              data-redesign-fake="filter-query"
               className="block outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-[var(--admin-radius-card)]"
             >
               <AdminStat
@@ -172,7 +205,6 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
             <a
               href="/admin/operations?severity=info&status=open#operations-panel-open"
               title="Filter to open info"
-              data-redesign-fake="filter-query"
               className="block outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-[var(--admin-radius-card)]"
             >
               <AdminStat
@@ -210,7 +242,6 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
                   key={preset.key}
                   href={presetUrl(preset.from, preset.to)}
                   aria-current={isActive ? "true" : undefined}
-                  data-redesign-fake="filter-query"
                   className={cn(
                     "inline-flex min-h-11 sm:min-h-7 items-center rounded-full px-2.5 py-0.5 font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                     isActive
@@ -236,7 +267,6 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
             method="get"
             action="/admin/operations"
             aria-label="Filter operational events"
-            data-redesign-fake="filter-query"
             className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1.4fr_1.4fr_1fr_auto]"
           >
             <label className="grid gap-1 text-xs font-medium text-[var(--admin-heading)]">
