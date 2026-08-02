@@ -79,8 +79,11 @@ From C-15's closeout at `8851e8c`: **tsc 0 · lint 59E/7W in exactly six files �
 | Phase | Commit | What | Verify |
 |---|---|---|---|
 | A | `af273e8` | Gender-clarity chip helper — `composeGenderRequirementChip` in `_helpers.ts`, wired into the bookings list row, `ParticipantRow`, and the dashboard snapshot row. 10 new specs. | **PASS**, 1 non-blocking (§1.2) |
-| B–F, H | — | not started | — |
-| G | — | **BLOCKED — §0.3** | — |
+| B | `4218bd5` | `BookingCard.tsx` extracted from `page.tsx` + nested `GroupBookingCard` variant. 14 specs. | **PASS** (§1.3) |
+| C | `b418aa0` | `composeBookingIdentity` helper — composite identity on the group card headline and the detail page's header description. 10 specs. | **PASS** (§1.4) |
+| D | `a516bd1` | Verification-only — Phase B already shipped the fraction badge; added the missing tone assertions. **No production code changed.** | **PASS** (§1.4) |
+| E, F, H | — | not started | — |
+| G | — | not started — **unblocked 2026-08-01**, target settled (§0.3) | — |
 
 ### 1.1 — Phase A notes
 
@@ -99,6 +102,28 @@ Independent verifier confirmed all five touched files are on the §2 list; `src/
 **The verifier independently confirmed the schema finding** via its own introspection: `required_therapist_gender` is `is_nullable: NO`, enum `staff_gender_type` with exactly two labels, and `types.ts:32,52` types it as the non-nullable union `"male" | "female"`. Its ruling on the unreachable hide-branch: **acceptable defensive code, not dead code to log** — the `string | null` parameter type is lifted verbatim from brief §2.1's own signature, it is directly exercised by 2 of the 10 specs, and it guards a generic reusable helper against looser future callers. Accepted.
 
 **Finding (non-blocking) — `AssignmentChip`'s tooltip is now stale.** `dashboard-cards.tsx:709` still reads the generic *"Needs a same-gender therapist"* while the visible label built two lines above in the same call site now reads the specific gender (*"Unassigned · Needs female therapist"*). Keeping `sameGenderRequired` was the right call — `AssignmentChip` has a fixed boolean prop contract and sits outside Phase A's render-site list, so dropping it would not have compiled — but the label and its own tooltip now disagree. One-line follow-up (`title={requiredGender ? \`Needs a ${requiredGender} therapist\` : …}`); logged rather than fixed because the component is out of Phase A scope.
+
+---
+
+### 1.3 — Phase B: card extraction + nested group layout (`4218bd5`)
+
+Verified **PASS**. `BookingListCard` — already a named component at `page.tsx:786-982`, contrary to the brief's "~120 lines of inline JSX" — moved wholesale into `src/app/admin/bookings/BookingCard.tsx`, keeping the real call-site prop shape (`booking, profile, canViewAll, today, animationDelay`) rather than the plan's aspirational `BookingCardProps` sketch. Group branch adds a Users-icon headline, an `--admin-panel-muted` tint, a "N of M therapists assigned" fraction badge (warning until fully crewed, then success — Q9.1), and an inner `<ul>` of participant sub-rows ordered **main-contact-first** via a stable sort on `is_main_contact`.
+
+**The single-booking render is byte-identical, proved by diff rather than by assertion.** The verifier compared the pre-extraction return block against the new one line by line: the only difference is the removed `Group · N` chip.
+
+**That chip removal was challenged and cleared.** Removing it looked risky because brief §5.7 documents a `group_booking = true`-with-one-participant anomaly that could have made it live. The verifier read the pre-commit source: `isGroup` was **always** `participantCount > 1` and never consulted the flag — with an in-code comment saying exactly why. So the chip was genuinely unreachable in the single branch. Production confirms **0 of 15** bookings carry the flag. Group-ness is now signalled structurally (icon + sub-rows + fraction badge) rather than by a duplicate chip, which the plan's own risk table prefers.
+
+`profile` was retyped from the inline `NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>` to `StaffProfile` — verified the identical type, erased at compile time.
+
+### 1.4 — Phases C + D: composite identity, and an honest no-op (`b418aa0`, `a516bd1`)
+
+Verified **PASS**. `composeBookingIdentity` returns `{ primary, participantCount }`: 1 → `"Aisha Khan"` · 2 → `"+ 1 other"` · 3 → `"+ 2 others"` · 5 → `"+ 4 others"`. A flagged main contact with a blank `display_name` falls back to `contact_full_name`. Applied **only on the group path** in both the card and the detail page — single bookings keep today's `clientName` lookup order byte-for-byte (brief §1.3).
+
+**Inherited anomaly, logged not fixed:** with **no** participant flagged `is_main_contact`, `otherCount` counts *every* participant, so a 3-participant booking would read "+ 3 others" — four people implied for three. The formula is specified verbatim in both plan (line 483) and brief (line 225), and brief Q9.9 pre-authorises documenting rather than fixing this class of anomaly. Currently unreachable: all 15 live participant rows have `is_main_contact = true`. Carried here so it survives beyond the code comment.
+
+**Phase D changed no production code, and that is the correct outcome.** The plan's own Phase D text says "no standalone phase — verified in Phase B", and the verifier confirmed Phase B's fraction badge already matches brief §2.4 byte-for-byte. Rather than manufacture duplicate UI to make a step look done, the implementer closed the one real gap: Phase B pinned the badge's *text* but never its *tone*, so a warning/success mapping regression would have passed silently. Two tests now assert the actual token classes.
+
+**Browser title correctly deferred** — plan Step 13 sits under Phase F, no `generateMetadata` exists yet, and the visible title is still `shortRef(booking.id)`.
 
 ---
 
