@@ -204,3 +204,56 @@ Model routing: §5 puts C-02 on `opus` for phases touching the schema, the RPCs 
 ---
 
 *C-02 Phase A migration authored, corrected and Owner-approved; **application is the next action**. Nothing applied, nothing committed, no application code touched yet.*
+
+---
+
+# ⏸ INTERRUPT CHECKPOINT — 2026-08-02 (Owner asked to pause)
+
+| Field | Value |
+|---|---|
+| Plan | **C-02**, plan #12 of 22 |
+| Phase / step | **Phase B**, Step 4 complete · Step 5 escalated (not run) |
+| Last-good commit | `8ce98f4` (bookkeeping) — this checkpoint's parent |
+| Files mid-flight | none — no source file touched; only `redesign/evidence/C-02/phase-b-rpc-verification.md` (new) and this progress file |
+| In flight at pause | one read-only Phase-B verifier subagent; its verdict is **not** required to resume (a fresh verifier re-derives everything) |
+| Exact next action | Put the three questions in §B3 below to the Owner, then start **Phase C** (Step 6) |
+
+## B1 — Phase B result
+
+**Step 4 ✅ COMPLETE (exceeded).** `compute_occurrence_dates` verified by exhaustive SELECT-only replay: 366 anchors × 3 cadences with `horizon = first + 83`, **min = max = 12 weekly / 6 fortnightly / 3 monthly**, first date always the anchor; plus 10 end-condition edge cases. Full evidence + queries in `redesign/evidence/C-02/phase-b-rpc-verification.md`.
+
+**Step 5 ⛔ NOT RUN — agent-impossible, not skipped.** See §B3 Q1.
+
+**Drift guard ✅** — applied `create_recurring_booking_series` md5 `2aefd9d4b0b042eafbc5689b1319343f` / length 11855, byte-identical to Phase A's record. **Zero writes**: templates 0 · recurring bookings 0 · bookings 15, unchanged.
+
+**Phase G trap re-proven numerically** (evidence §3): weekly anchor `2026-09-04` → horizon `2026-11-26`, last real occurrence `2026-11-20`, **overshoot 6 days**; resuming from the horizon yields a **Thursday**, walking from the anchor yields the correct **Friday**. Phase G must walk from the series anchor or `max(booking_date)`.
+
+**Why no code:** verified three ways — no vitest spec anywhere touches a real DB or network; vitest never loads `.env` (no `setupFiles`, no dotenv); and Step 4's literal suggestion (call `mcp__supabase__execute_sql` *from inside a spec*) is not implementable, since MCP tools exist only in the agent harness. Plan §9.2 left this open ("decide at impl time"); exhaustive SQL replay is strictly stronger than mocking a TS re-implementation. Phase E was checked for a client-side occurrence preview that might justify a TS mirror — it has none.
+
+## B2 — Phase C pre-read findings (read-only prep, done during Phase B per §2.8c)
+
+1. **⚠️ Plan-vs-reality: Phase C's code sketch omits both gender parameters.** The applied RPC requires `p_participant_gender` and `p_required_therapist_gender` (`staff_gender_type`, NOT NULL, no default). Plan Step 6's `recurringSchema` and RPC call carry no gender at all, and Phase E's `RecurringSectionProps` (plan lines 530–537) likewise. **Not a new question** — §0.4/§1.1 records the Owner's approved Option (a): thread the gender end-to-end (RPC param → action schema → section props) *and* persist it on the template row, because the horizon cron materialises occurrences months later. The implementer follows the recorded approval; the plan's stale sketch does not override it.
+2. **Ordering defect inside the plan.** Phase C Step 6 imports `sendRecurringSeriesCreatedEmail`, which is **Phase D**'s Step 10 deliverable — so Phase C cannot pass its own `tsc` gate as written. **Resolution (no phase reorder): Phase C ships the action without the email call; Phase D lands the send fn and wires it in.** Nothing calls the action until Phase E mounts the form, so there is no window where the email is genuinely missing.
+3. `getLondonTodayISO()` (plan lines 480–485) duplicates the existing `getTodayIsoDate()` in `src/app/admin/bookings/_helpers.ts:198-205` — import, don't redefine.
+4. Plan line 463 has a literal bug: `after_state: { cancelled_at: template.id, … }` writes the template id into a timestamp field, and `template` isn't even selected with that column.
+5. `cancelRecurringSeries` omits the `.active` check that `createRecurringSeries` and every comparable action in `actions.ts` apply. Add it for consistency.
+6. File idiom confirmed: `actions.ts` actions **return** result objects (never throw); cache invalidation is `updateTag("report-data")` + `updateTag("dashboard-data")` + `revalidatePath(...)`; Zod is `zod/v4` with `z.flattenError(...).fieldErrors`.
+
+## B3 — Three questions for the Owner (blocking Phase C only on Q2)
+
+**Q1 — Phase B Step 5 (live integration test).** Needs 1 template + 12 bookings + 12 participants + 12 items + 12 assignments + 1 audit row written to the live DB. Routes: **(a)** defer to the Owner's Phase-I UI sweep, which exercises the same path for real *(recommended — matches programme precedent)*; **(b)** a Supabase dev branch, the only way to run it literally with zero production impact (cost-bearing, Zone-2); **(c)** approve production writes on test fixtures (plan §6 has cleanup SQL, but leaves cancelled rows in a 15-booking table permanently).
+
+**Q2 — Series cancellation sends NO emails at all.** Plan Step 7's cascade is a raw bulk `UPDATE` on `bookings`; it never calls `sendBookingCancellationEmails`, and no later phase adds one. Both single-booking cancel paths (`quickUpdateBooking`, `updateBookingManagement`) notify unconditionally — customer, admin and assigned staff. As written, a client with 6 upcoming occurrences is told nothing when the series is cancelled. Intentional simplification, or a gap to close?
+
+**Q3 — Files needed outside the plan's §2 files-touched list (protocol rule 6b).** Not yet required, so not yet a STOP; will be raised formally when Phase D starts.
+- *Phase D:* `src/lib/email/sample-data.ts` and `src/lib/email/__tests__/resolveSubject.test.ts` both fail on a 17th template (dispatch-table and CASES completeness assertions) — in addition to `registry-defaults.test.ts`, which §0.5 already caught. Optionally the preview-route spec and the render-parity fixture.
+- *Phase H:* the bookings-list filter chip lives in `src/app/admin/bookings/BookingsChrome.tsx` and the row icon in `BookingCard.tsx` — `page.tsx` only mounts them, so Step 23 cannot be done in the listed file alone.
+
+## B4 — Anchor drift re-verified at `8ce98f4`
+
+§0.6's table holds on 7 of 8 rows. One change: `AUDIT_PHRASING` is now **19** entries (not 18) — `email_template_sent_manually` was added by `10ca7db7` after §0.6 was written. Line span `:141-165` is still correct. Step 25 should anchor on literal keys, never the count. Both `ManualBookingForm` submit strips confirmed present (desktop `:1923-1960`, mobile `:2048-2057`) — both need the conditional-action treatment.
+
+## B5 — Security hygiene note for the Owner
+
+A prep agent grepping `.env` for *key names* matched whole lines and pulled **real secret values** (Supabase service-role key, Resend API key, Cloudflare token, Sentry auth token, `CRON_SECRET`) into its own tool output. It did not reproduce them in its report and none reached a commit. No exposure beyond this machine's temp transcript directory, which already sits alongside `.env` itself — but worth knowing, and worth avoiding broad greps against `.env` in future dispatches.
+
