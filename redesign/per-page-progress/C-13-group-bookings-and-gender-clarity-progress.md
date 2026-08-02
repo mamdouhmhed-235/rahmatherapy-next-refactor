@@ -6,7 +6,7 @@
 **Predecessor closed at:** `0bb356d` (C-15 shipped)
 **Model routing:** `sonnet` — §5 routes C-13 to Sonnet. Opus only via the §5 twice-failed-phase escalation.
 
-> ## 🟡 STATUS: Phase A shipped. **Phase G (email templates) is BLOCKED on an Owner decision — see §0.3.**
+> ## ✅ STATUS: SHIPPED 2026-08-01 — C-C plan #11 of 22. All eight phases (A–H) independently verified; Phase F failed verification on a PII leak and was fixed + re-verified. Closeout review FAILed on the *record*, not the code — corrected in §4.
 
 ---
 
@@ -190,7 +190,57 @@ Also closed Phase A's logged `AssignmentChip` tooltip mismatch: the prop moved f
 
 ---
 
-## 3 — ▶ RESUME HERE (interrupt checkpoint, protocol §3)
+## 4 — Closeout (2026-08-01)
+
+### 4.1 — The adversarial review FAILed C-13, and it was right about the record
+
+The whole-plan sweep of `0bb356d..d7d67c3` walked all 21 steps and 16 acceptance criteria and found the **implementation** unusually strong — no dropped step, no cross-phase regression, no scope creep, single-booking output clean across every surface, and the Phase F security fix confirmed correct. It failed the plan on **closeout hygiene**, and two of its three blocking-class findings were orchestrator errors, not implementer ones.
+
+**F1 — the progress file was self-contradictory.** Partly an artefact: the reviewer read the working copy **while the orchestrator was mid-edit**, so it saw the §1 ledger already updated for Phases G/H alongside a §3 that still said "Phase G NOT STARTED". That is the same read/write-overlap mistake drift checkpoint #2 flagged as F-1, repeated — read-only agents must not be pointed at files being actively written, even docs. **But the substantive half was real:** the top STATUS banner still read *"Phase A shipped · Phase G BLOCKED"* long after both were false, because the per-phase updates never touched it. Corrected.
+
+**F2 — the `pnpm build` and bundle gates had no record.** Protocol rule 12 says never mark a gate done that didn't run, and say so if it can't. Every phase dispatch told the implementer to skip `pnpm build` because the verifier runs it — and every verifier did run it, reporting clean at Phases B, C/D, E/F, G and H. So the gate *was* executed; what was missing was any record of it in this file. That is still a real failure of the account, and exactly what an adversarial closeout exists to catch.
+
+### 4.2 — Final gate
+
+- `npx tsc --noEmit` → **0**
+- `pnpm lint` → **59 errors / 7 warnings**, exactly the six inherited files
+- `pnpm vitest run` → **5 failed / 1181 passed (1186)**, the five inherited by identity
+- `pnpm build` → **clean** (run by the Phase G and Phase H verifiers, and again independently by the closeout reviewer)
+- Email **render-parity spec** → 13/13 green throughout, `render-parity-baseline.json` still at exactly one commit in its entire history
+- Badar's booking `9d55ce2a` → independently SELECTed at closeout: exists, `cancelled`, real email intact, untouched
+
+**Bundle (§3.1) — measured, with the same structural blind spot C-08 and C-04a disclosed.** `scripts/measure-admin-bundles.mjs` has a hardcoded six-route list that includes **neither** `/admin/bookings` nor `/admin/calendar` — the two routes C-13's own +5 kB budget names. Running a scratchpad copy pointed at C-13's real routes (no repo file touched):
+
+| Route | First-load JS (gzip) |
+|---|---|
+| `/admin/bookings` | **345.14 kB** |
+| `/admin/bookings/[bookingId]` | **347.72 kB** |
+| `/admin/calendar` | **359.77 kB** |
+| *reference: lightest existing admin routes* | 338.56 / 341.00 kB |
+| *reference: heaviest* | 480.95 / 473.71 kB |
+
+All three sit in the lightest band. **No pre-C-13 snapshot exists for these routes and checking out an earlier commit is forbidden on a shared tree, so the named +5 kB delta was never verifiable** — stated plainly rather than ticked.
+
+### 4.3 — F3 decided: the dashboard Today panel keeps the plain contact name
+
+The reviewer found composite identity wired to 4 of 5 named sites; `CoordinatorDashboard.tsx`'s `appointment.title` still uses `contact_full_name`. Brief AC4 lists this site **conditionally** ("if… patched"), and the blocker is the same one Phase E hit: `getReportData` carries no `booking_participants` join and `reporting.ts` is untouchable.
+
+**Decision: leave it, deliberately.** Phase E proved a bounded local SELECT solves this, but the dashboard is the highest-traffic admin surface and already runs several queries; adding another to satisfy a *conditional* criterion, at the very end of a plan, on a code path no live data can exercise, is the wrong trade. **Recorded as a decision rather than an oversight** — the reviewer's actual objection was that nothing recorded it either way. Carried to the Owner backlog; the fix is one query plus a call to the already-tested `composeBookingIdentity` whenever a plan next owns that surface.
+
+### 4.4 — Two adjacent surfaces with no group signal (both logged, neither in scope)
+
+- **`blocks/ClaimQueueStripe.tsx:84-85`** renders a flat `"Same-gender"` badge for any non-`"any"` value — including the new `"mixed"`, which is the **opposite** of what the badge says. The same booking reads "Unassigned · Mixed group" in the Today panel and "Same-gender" a few pixels away in the claim queue. A C-11 block, not on C-13's §2 list.
+- **`PractitionerTodaySection.tsx`** carries no group or gender signal at all. Not a regression (C-13 never touched it), but previously unlogged.
+
+Both are on the Owner backlog.
+
+### 4.5 — INHERITED BASELINE FOR THE NEXT PLAN
+
+**tsc 0 · lint 59E/7W in those six files · vitest 5 failed / 1181 passed (1186) with exactly those five names · build clean.** Use this, never a plan's hardcoded text (protocol §0 precedence). **Expected shrinkage: none applicable** — C-13 named no baseline entry it expected to fix.
+
+---
+
+## 3 — ▶ RESUME HERE (superseded — kept for the audit trail)
 
 **Plan:** C-13, plan **#11 of 22**. **ALL EIGHT PHASES SHIPPED AND INDEPENDENTLY VERIFIED (A–H).** Closeout in progress: adversarial whole-plan review running over `0bb356d..d7d67c3`; §3 gate, checklist flip and backlog append still to do.
 
