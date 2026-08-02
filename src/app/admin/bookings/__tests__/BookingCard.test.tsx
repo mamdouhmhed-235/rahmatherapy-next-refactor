@@ -403,6 +403,103 @@ describe("BookingCard - group booking (synthetic data; no group fixture exists i
     expect(screen.getByText("3 of 3 therapists assigned")).toBeTruthy();
   });
 
+  it("shows a warning-tone '1 of 2 therapists assigned' badge for a two-participant group not yet fully crewed (Phase D)", () => {
+    const twoPersonGroup = booking({
+      booking_participants: [
+        participant({ id: "p-1", display_name: "Aisha Khan", is_main_contact: true }),
+        participant({
+          id: "p-2",
+          display_name: "Yusuf Khan",
+          is_main_contact: false,
+          participant_gender: "male",
+          required_therapist_gender: "male",
+        }),
+      ],
+      booking_assignments: [
+        assignment({
+          id: "a-1",
+          participant_id: "p-1",
+          assigned_staff_id: "staff-x",
+          status: "assigned",
+          staff_profiles: { name: "Layla Hassan" },
+        }),
+        assignment({
+          id: "a-2",
+          participant_id: "p-2",
+          assigned_staff_id: null,
+          required_therapist_gender: "male",
+          status: "unassigned",
+          staff_profiles: null,
+        }),
+      ],
+      assignment_status: "partially_assigned",
+    });
+
+    render(
+      <BookingCard
+        booking={twoPersonGroup}
+        profile={profile()}
+        canViewAll
+        today={TODAY}
+      />
+    );
+
+    const badgeText = screen.getByText("1 of 2 therapists assigned");
+    // Tone maps to admin-ui.tsx's `statusBgClasses` — warning is the
+    // "attention" background token, distinct from success's "confirmed"
+    // token asserted in the next test.
+    expect(badgeText.parentElement?.className).toContain(
+      "admin-status-attention-bg"
+    );
+  });
+
+  it("colors the fraction badge with success tone (not warning) once the group is fully crewed (Phase D tone check)", () => {
+    const fullyAssignedGroup = groupBooking({
+      assignment_status: "fully_assigned",
+      booking_assignments: [
+        assignment({
+          id: "a-1",
+          participant_id: "p-1",
+          assigned_staff_id: "staff-x",
+          status: "assigned",
+          staff_profiles: { name: "Layla Hassan" },
+        }),
+        assignment({
+          id: "a-2",
+          participant_id: "p-2",
+          assigned_staff_id: "staff-y",
+          required_therapist_gender: "male",
+          status: "assigned",
+          staff_profiles: { name: "Omar Malik" },
+        }),
+        assignment({
+          id: "a-3",
+          participant_id: "p-3",
+          assigned_staff_id: "staff-z",
+          status: "assigned",
+          staff_profiles: { name: "Sara Ahmed" },
+        }),
+      ],
+    });
+
+    render(
+      <BookingCard
+        booking={fullyAssignedGroup}
+        profile={profile()}
+        canViewAll
+        today={TODAY}
+      />
+    );
+
+    const badgeText = screen.getByText("3 of 3 therapists assigned");
+    expect(badgeText.parentElement?.className).toContain(
+      "admin-status-confirmed-bg"
+    );
+    expect(badgeText.parentElement?.className).not.toContain(
+      "admin-status-attention-bg"
+    );
+  });
+
   it("shows per-participant assignment state: assigned name vs. open + required gender", () => {
     const { container } = render(
       <BookingCard
