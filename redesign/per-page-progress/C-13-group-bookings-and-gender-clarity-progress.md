@@ -273,4 +273,4 @@ Both are on the Owner backlog.
 
 ---
 
-*C-13 in progress — Phases A–F shipped and verified, Phase F via one fix round. Pre-flight `0bb356d`; A `af273e8`; B `4218bd5`; C `b418aa0`; D `a516bd1`; E `dbe0208`; F `2fdcadc` + `c64e6ad`. **Resume at Phase G — see §3.***
+*C-13 SHIPPED 2026-08-01 — plan #11 of 22. All eight phases verified; Phase F via one fix round after its verifier found a live PII leak. Pre-flight `0bb356d`; A `af273e8`; B `4218bd5`; C `b418aa0`; D `a516bd1`; E `dbe0208`; F `2fdcadc` + `c64e6ad`; G `c9b77c3`; H `d7d67c3`. Zero migrations, zero Zone-2 actions. **Closeout is §4. §3 above is a superseded mid-plan checkpoint, kept only for the audit trail — do not resume from it.** Next plan: **C-02**.*
