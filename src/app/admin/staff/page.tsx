@@ -108,8 +108,34 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     );
   }
 
+  // ─── Search-param reads ────────────────────────────────────────────────────
+  // 5-step filter audit (brief §2.4): (1) URL parsed below; (2) roleId/gender/
+  // status/bookable pass straight into getStaffListData's `filters`, applied
+  // server-side (staff-list-data.ts's FILTERS note); (3) real `.eq(...)`
+  // predicates in that fetcher; (4) filter UI defaults from these same
+  // URL-derived values (the <select>/<input> `defaultValue`s below); (5)
+  // empty-state copy already distinguished "no results for these filters"
+  // (filtersActive) from "no staff yet" / scope-specific copy before this
+  // step — unchanged here. `q` stays in-memory (see staff-list-data.ts's
+  // FILTERS note — no `.ilike` surface on the FPM-preserved builder type).
+  const params = await searchParams;
+  const q = (params.q ?? "").trim();
+  const roleIdRaw = (params.roleId ?? "").trim();
+  const roleIdParam = roleIdRaw && isUuid(roleIdRaw) ? roleIdRaw : "";
+  const roleIdInvalid = Boolean(roleIdRaw) && !roleIdParam;
+  const genderParam = ["female", "male"].includes(params.gender ?? "")
+    ? (params.gender as "female" | "male")
+    : "";
+  const statusParam = ["active", "inactive"].includes(params.status ?? "")
+    ? (params.status as "active" | "inactive")
+    : "";
+  const workloadParam = params.workload === "zero" ? "zero" : "";
+  const bookableParam = params.bookable === "true" ? "true" : "";
+  const onboardingParam = params.onboarding === "incomplete" ? "incomplete" : "";
+
   const {
     staff,
+    filteredStaff,
     assignments: typedAssignments,
     staffLoadError,
   } = await getStaffListData({
@@ -117,6 +143,12 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     staffSelect: getStaffTeamSelect(teamAccess),
     staffId: profile.id,
     staffGender: profile.gender,
+    filters: {
+      roleId: roleIdParam || undefined,
+      gender: genderParam || undefined,
+      active: statusParam ? statusParam === "active" : undefined,
+      bookable: bookableParam === "true" ? true : undefined,
+    },
   });
 
   // Roles stay on the RLS-bound server client here: cookies() cannot be used
@@ -149,27 +181,6 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             ).values()
           )
       : [];
-
-  // ─── Search-param reads ────────────────────────────────────────────────────
-  // FAKE: BUILD-staff-filter-query — server-side filtering is currently a no-op;
-  // we read the params, render chips, and apply filters client-side from the
-  // page-load data. Server query stays untouched (FPM §5). Phase 7 swap-in lands
-  // the SQL filter on the data-access helpers, then this block reduces to a
-  // pass-through for the chip-render.
-  const params = await searchParams;
-  const q = (params.q ?? "").trim();
-  const roleIdRaw = (params.roleId ?? "").trim();
-  const roleIdParam = roleIdRaw && isUuid(roleIdRaw) ? roleIdRaw : "";
-  const roleIdInvalid = Boolean(roleIdRaw) && !roleIdParam;
-  const genderParam = ["female", "male"].includes(params.gender ?? "")
-    ? (params.gender as "female" | "male")
-    : "";
-  const statusParam = ["active", "inactive"].includes(params.status ?? "")
-    ? (params.status as "active" | "inactive")
-    : "";
-  const workloadParam = params.workload === "zero" ? "zero" : "";
-  const bookableParam = params.bookable === "true" ? "true" : "";
-  const onboardingParam = params.onboarding === "incomplete" ? "incomplete" : "";
 
   const filtersActive = Boolean(
     q ||
@@ -210,7 +221,10 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     ].filter(Boolean).length;
   }
 
-  // Client-side filter pass over the loaded staff array.
+  // In-memory pass over the already server-filtered `filteredStaff` array
+  // (role/gender/status/bookable are real query predicates now — see
+  // staff-list-data.ts's FILTERS note for why q/workload/onboarding stay
+  // here).
   const matchesQ = (member: StaffDirectoryRow) => {
     if (!q) return true;
     if (q.length < 2) return true;
@@ -221,29 +235,14 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     );
   };
 
-  const matchesRole = (member: StaffDirectoryRow) =>
-    !roleIdParam || member.role_id === roleIdParam;
-  const matchesGender = (member: StaffDirectoryRow) =>
-    !genderParam || member.gender === genderParam;
-  const matchesStatus = (member: StaffDirectoryRow) =>
-    !statusParam ||
-    (statusParam === "active" ? member.active : !member.active);
-  const matchesBookable = (member: StaffDirectoryRow) =>
-    !bookableParam || (member.active && member.can_take_bookings);
   const matchesWorkload = (member: StaffDirectoryRow) =>
     !workloadParam || workloadFor(member.id) === 0;
   const matchesOnboarding = (member: StaffDirectoryRow) =>
     !onboardingParam || onboardingComplete(member) < 6;
 
-  const filtered = staff.filter(
+  const filtered = filteredStaff.filter(
     (member) =>
-      matchesQ(member) &&
-      matchesRole(member) &&
-      matchesGender(member) &&
-      matchesStatus(member) &&
-      matchesBookable(member) &&
-      matchesWorkload(member) &&
-      matchesOnboarding(member)
+      matchesQ(member) && matchesWorkload(member) && matchesOnboarding(member)
   );
 
   // Active / inactive split for admin scope (other scopes return only active rows).
@@ -453,8 +452,6 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
         <form
           method="get"
           action="/admin/staff"
-          data-redesign-backend="FAKE"
-          data-redesign-fake="staff-filter-query"
           className="grid w-full min-w-0 gap-3 sm:grid-cols-2 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1fr)_auto]"
         >
           <label className="grid min-w-0 gap-1">

@@ -123,3 +123,50 @@ describe("getStaffListData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
   });
 });
+
+// C-09 Phase D Step 9 — role/gender/status/bookable filter wiring keys
+// separately, so a caller filtering to "inactive" can never be served a
+// cache entry built for "active" (or for no filter at all).
+describe("getStaffListData filter-wiring cache behaviour", () => {
+  it("keys the unfiltered call and an all-undefined filters call identically", async () => {
+    await getStaffListData(ADMIN_PARAMS);
+    await getStaffListData({
+      ...ADMIN_PARAMS,
+      filters: { roleId: undefined, gender: undefined, active: undefined, bookable: undefined },
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keys separately per filter combination", async () => {
+    await getStaffListData({ ...ADMIN_PARAMS, filters: { active: true } });
+    await getStaffListData({ ...ADMIN_PARAMS, filters: { active: false } });
+    await getStaffListData({ ...ADMIN_PARAMS, filters: { gender: "female" } });
+    await getStaffListData({ ...ADMIN_PARAMS, filters: { bookable: true } });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(4);
+    await getStaffListData({ ...ADMIN_PARAMS, filters: { active: true } });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(4);
+  });
+
+  it("returns both `staff` (unfiltered) and `filteredStaff` from a single outer call", async () => {
+    // The fake Supabase client is a passthrough stub (it doesn't evaluate
+    // `.eq()` predicates), so this can't assert the filtered ROWS differ —
+    // that's covered by code review of the real `.eq(...)` calls in
+    // staff-list-data.ts. What it does prove: passing `filters` doesn't
+    // require the caller to make a second round-trip for the aggregate
+    // strip's unfiltered `staff` — one `getStaffListData` call returns both.
+    const data = await getStaffListData({
+      ...ADMIN_PARAMS,
+      filters: { active: true },
+    });
+    expect(data.staff).toHaveLength(1);
+    expect(data.filteredStaff).toHaveLength(1);
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-runs a filtered call after the staff tag is invalidated", async () => {
+    await getStaffListData({ ...ADMIN_PARAMS, filters: { active: true } });
+    cacheHarness.invalidateTag(TAGS.STAFF);
+    await getStaffListData({ ...ADMIN_PARAMS, filters: { active: true } });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+});
