@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { AlertCircle, Info, Search, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
 import { getStaffProfile } from "@/lib/auth/rbac";
@@ -12,7 +11,7 @@ import {
   AdminStat,
 } from "../components/admin-ui";
 import { OperationsBoard } from "./operations-board";
-import type { OperationalEventRow } from "./event-row";
+import { getOperationsPageData } from "./operations-data";
 
 export const metadata = {
   title: "Operational events - Rahma Therapy Admin",
@@ -66,17 +65,7 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
     severity || eventTypeFilter || statusFilter || fromDate || toDate || queryText
   );
 
-  const adminClient = createSupabaseAdminClient();
-  const { data: rawEvents, error } = await adminClient
-    .from("operational_events")
-    .select(
-      "id, event_type, severity, status, summary, safe_context, booking_id, staff_id, created_at"
-    )
-    .order("created_at", { ascending: false })
-    .limit(300)
-    .returns<OperationalEventRow[]>();
-
-  const events: OperationalEventRow[] = rawEvents ?? [];
+  const { events, hasError: error } = await getOperationsPageData();
 
   // Severity counts on the OPEN column (clear-the-queue metric).
   const openErrors = events.filter((e) => e.status === "open" && e.severity === "error").length;

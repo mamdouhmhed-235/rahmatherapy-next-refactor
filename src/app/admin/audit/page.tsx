@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
 import { AdminAccessDenied, AdminPageHeader } from "../components/admin-ui";
@@ -21,10 +20,10 @@ import {
 } from "./format";
 import {
   AUDIT_PAGE_SIZE,
-  fetchAuditPage,
   type AuditEventRow,
   type AuditFilters,
 } from "./queries";
+import { getAuditPageData } from "./audit-data";
 
 interface PageProps {
   searchParams: Promise<{
@@ -95,16 +94,16 @@ export default async function AuditPage({ searchParams }: PageProps) {
     to: params.to || undefined,
   };
 
-  const adminClient = createSupabaseAdminClient();
+  const {
+    events,
+    nextCursor: initialCursor,
+    staff,
+  } = await getAuditPageData({ filters, cursor: null });
 
-  const [{ rows: events, nextCursor: initialCursor }, { data: staff }] =
-    await Promise.all([
-      fetchAuditPage({ filters, cursor: null }),
-      adminClient.from("staff_profiles").select("id, name"),
-    ]);
-
+  // Map rebuilt on THIS side of the cache boundary — audit-data.ts returns a
+  // plain array because a Map would come back as {} (SHARED-NOTES §15).
   const staffById = new Map<string, string>(
-    (staff ?? []).map((member: { id: string; name: string }) => [member.id, member.name])
+    staff.map((member) => [member.id, member.name])
   );
 
   const filteredEvents = events;
