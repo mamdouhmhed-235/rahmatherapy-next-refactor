@@ -62,9 +62,12 @@
   //                emails 2h+ after a booking completes (C-01). Quiet-hours
   //                guard (21:00-08:00 Europe/London) lives in the route, not
   //                the cron expression.
-  // All three self-fetch their /api/cron/* route with the X-Cron-Secret header.
+  //   "0 3 * * *"  extend-recurring-horizons — daily 03:00 UTC (off-peak), rolls
+  //                every active recurring series' materialisation horizon
+  //                forward 12 weeks and creates the newly-covered visits (C-02).
+  // All four self-fetch their /api/cron/* route with the X-Cron-Secret header.
   // Activates on the next Cloudflare deploy after this config lands.
   "triggers": {
-    "crons": ["0 8 * * *", "* * * * *", "*/15 * * * *"]
+    "crons": ["0 8 * * *", "* * * * *", "*/15 * * * *", "0 3 * * *"]
   }
 }

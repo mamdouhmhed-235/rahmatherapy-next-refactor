@@ -159,6 +159,43 @@ async function fireReviewEmails(env: CronEnv): Promise<void> {
   }
 }
 
+// C-02: rolls every active recurring series' materialisation horizon forward and
+// creates the visits that fall into the newly-covered window. Mirrors
+// fireBookingReminders/fireScheduledEmails/fireReviewEmails — same self-fetch,
+// same X-Cron-Secret transport, same logging shape.
+async function fireExtendRecurringHorizons(env: CronEnv): Promise<void> {
+  if (!env.CRON_SECRET) {
+    console.error(
+      "[scheduled/extend-recurring-horizons] CRON_SECRET not set on the Worker; aborting."
+    );
+    return;
+  }
+  try {
+    const res = await env.WORKER_SELF_REFERENCE.fetch(
+      "https://internal.invalid/api/cron/extend-recurring-horizons",
+      {
+        method: "POST",
+        headers: {
+          "X-Cron-Secret": env.CRON_SECRET,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const bodyText = await res.text().catch(() => "<no body>");
+    if (!res.ok) {
+      console.error(
+        `[scheduled/extend-recurring-horizons] non-ok status=${res.status} body=${bodyText}`
+      );
+      return;
+    }
+    console.log(
+      `[scheduled/extend-recurring-horizons] ok status=${res.status} body=${bodyText}`
+    );
+  } catch (error) {
+    console.error("[scheduled/extend-recurring-horizons] threw:", error);
+  }
+}
+
 const workerEntrypoint = {
   // Re-export OpenNext's fetch handler verbatim.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -190,6 +227,9 @@ const workerEntrypoint = {
         break;
       case "*/15 * * * *": // review-emails — every 15 min (C-01)
         ctx.waitUntil(fireReviewEmails(env));
+        break;
+      case "0 3 * * *": // extend-recurring-horizons — daily 03:00 UTC (C-02)
+        ctx.waitUntil(fireExtendRecurringHorizons(env));
         break;
       default:
         // Never throw: an unrecognised cron must not take down the invocation
