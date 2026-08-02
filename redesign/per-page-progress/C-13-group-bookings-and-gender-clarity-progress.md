@@ -50,7 +50,9 @@ Live SELECT-only queries confirm **zero bookings with more than one participant 
 
 C-13 is *entirely* about group-booking rendering, so **every visual/functional check of its headline feature needs fixtures that do not exist**, and only the Owner can create them (via `/admin/bookings/new` — no agent may authenticate). The plan's single ⛔ HARD-STOP is therefore not a contingency branch; it is the only path to any group fixture existing at all.
 
-**Raised in chat 2026-08-01. Awaiting the Owner's choice:** create fixtures, or defer group verification with a checklist per the precedent set by C-06, C-04a, C-05, C-FIELDWORK and C-11. Implementation proceeds either way — the answer changes only *when* the browser checks happen, not what code is written. Unit specs use synthetic multi-participant data throughout.
+**✅ RESOLVED 2026-08-01 — Owner: "if we are in its plan implementation, then go ahead and implement it."** C-13 *is* the plan that needs these fixtures; no other plan creates them. But the creation step remains **Owner-performed by necessity, not by choice**: doing it properly means going through `/admin/bookings/new` so the real RPC writes participants, assignments and snapshots consistently, and no agent may authenticate. Raw-SQL inserts were considered and rejected — they would be a Zone-2 write that bypasses the RPC and risks inconsistent rows.
+
+**Therefore: implementation proceeds in full, verified by unit specs against synthetic multi-participant data; the group-rendering browser checks are handed to the Owner as a checklist** (§3), exactly as C-06, C-04a, C-05, C-FIELDWORK and C-11 did. The answer changed *when* the browser checks happen, not what code is written.
 
 ### 0.3 — ⏸ Plan-vs-reality contradiction blocking Phase G
 
@@ -58,7 +60,7 @@ The brief wants group context added to three email templates, one of them a **st
 
 **No such email exists.** The real template is `claim` (`renderClaimNotificationEmail`), registered `audience: "admin_internal"`, trigger *"sent to the admin recipient when a practitioner claims an unassigned slot"*. It has no `PARTICIPANT_DETAILS_FIXED_PART` and no `renderParticipants()` call. The recipient the brief describes does not exist for this template.
 
-**Raised in chat. Awaiting decision:** (a) add group context to the admin-internal `claim` email as-is, (b) drop that target and ship to the other two only, or (c) Owner's alternative. **Phase G does not start until this is answered — `src/lib/email/**` is off-limits to every C-13 dispatch until then.**
+**✅ RESOLVED 2026-08-01 — Owner chose option (a): extend the admin-internal `claim` email.** Rationale, recorded so a later reader does not re-open it: what the plan *intends* is that whoever receives a claim notification can see the booking is a group and how much of it is now covered. That intent holds for the actual recipient; only the brief's description of *who* receives it is wrong. And the practitioner-facing need the brief describes is already met by target #1 — `staff_assignment` goes to the practitioner and already renders per-participant detail. Dropping the target would have lost real value on the one claim email that exists, over a recipient error rather than a design error. **Phase G proceeds against `claim` (`renderClaimNotificationEmail`, `audience: admin_internal`).**
 
 Two related corrections the orchestrator has already ruled on, no Owner input needed:
 - Plan Step 17's code names `renderBookingConfirmationEmail`, but the prose and brief §2.7 both mean **`renderBookingConfirmedClientEmail`** — a different template. Prose wins; following Step 17 literally would patch the wrong email.
