@@ -119,6 +119,11 @@ export async function createEnquiry(
   updateTag("dashboard-data");
   updateTag(TAGS.ENQUIRIES);
   updateTag(TAGS.AUDIT);
+  // C-09 Phase B fix round: sendEnquiryLoggedEmail routes through
+  // sendTrackedEmail, which writes an email_delivery_events row — this
+  // notification would never appear on /admin/emails once Phase C caches
+  // that page on the emails tag without this.
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/enquiries");
   revalidatePath("/admin/dashboard");
   return { success: true };

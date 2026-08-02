@@ -1,3 +1,4 @@
+import { updateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { saveTemplateOverride } from "../actions";
 
@@ -137,6 +138,12 @@ describe("saveTemplateOverride — body_cta_url scheme validation", () => {
       field_key: "body_cta_url",
       value: "https://g.page/r/example/review",
     });
+    // C-09 Phase B fix round — Step 3 spec coverage: this file mocked
+    // updateTag but never asserted which tags were actually passed.
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
+      "emails",
+      "audit",
+    ]);
   });
 
   it("allows clearing the field back to empty without triggering the scheme check", async () => {

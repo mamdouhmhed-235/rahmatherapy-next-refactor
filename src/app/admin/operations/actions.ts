@@ -4,6 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { canManageOperations, getStaffProfile } from "@/lib/auth/rbac";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 function canManageOperationalEvents(
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
@@ -65,6 +66,14 @@ export async function updateOperationalEventStatus(formData: FormData) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  // Owner-approved scope widening (chat 2026-08-02): Phase C wraps
+  // /admin/operations in unstable_cache tagged audit + bookings + settings
+  // (plan Step 5's table) — this mutation writes operational_events + an
+  // audit_logs row, so it must invalidate that same tag set now or the
+  // operations page would go stale the moment Phase C lands.
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.SETTINGS);
   revalidatePath("/admin/operations");
   revalidatePath("/admin/dashboard");
 }

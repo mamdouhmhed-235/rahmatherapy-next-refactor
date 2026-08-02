@@ -1,3 +1,4 @@
+import { updateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deleteClient } from "../../clients/actions";
 import { updatePrivacyRequestStatus } from "../actions";
@@ -96,6 +97,14 @@ describe("updatePrivacyRequestStatus completion branching", () => {
       "staff-owner"
     );
     expect(stub.updates).toEqual([{ status: "completed" }]);
+    // C-09 Phase B fix round — Step 3 spec coverage: this file mocked
+    // updateTag but never asserted which tags were actually passed.
+    // deleteClient is mocked in this file, so only this action's own two
+    // updateTag calls fire.
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
+      "clients",
+      "audit",
+    ]);
   });
 
   it("treats an already-deleted client as a clean success (brief §5.5)", async () => {
@@ -139,6 +148,9 @@ describe("updatePrivacyRequestStatus completion branching", () => {
       expect(result).toEqual({ success: true });
       expect(deleteClient).not.toHaveBeenCalled();
       expect(stub.updates).toEqual([{ status: "completed" }]);
+      // No CLIENTS tag when no erasure ran — only the audit row this status
+      // change itself wrote.
+      expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual(["audit"]);
     }
   );
 
@@ -152,6 +164,7 @@ describe("updatePrivacyRequestStatus completion branching", () => {
 
       expect(result).toEqual({ success: true });
       expect(deleteClient).not.toHaveBeenCalled();
+      expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual(["audit"]);
     }
   );
 

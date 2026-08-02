@@ -1,3 +1,4 @@
+import { updateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -521,6 +522,13 @@ describe("resendEmail — happy path", () => {
       args: [{ metadata: { resent_from_event_id: "event-1" } }],
     });
     expect(metadataUpdateCalls).toContainEqual({ method: "eq", args: ["id", "event-2"] });
+
+    // C-09 Phase B fix round — Step 3 spec coverage: this file mocked
+    // updateTag but never asserted which tags were actually passed.
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
+      "emails",
+      "audit",
+    ]);
   });
 
   it("returns ok:true with no newEventId when the resent row can't be found, without throwing", async () => {

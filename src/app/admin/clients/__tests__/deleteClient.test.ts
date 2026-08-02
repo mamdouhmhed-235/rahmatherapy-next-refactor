@@ -461,16 +461,32 @@ describe("deleteClient", () => {
 
     await deleteClient("client-1", "admin_delete", stub.client, owner.id);
 
-    // C-09 Phase B — resource tags (clients, bookings, audit, emails) ride
-    // alongside the pre-existing report-data/dashboard-data pair.
+    // C-09 Phase B fix round — resource tags (clients, bookings, audit) ride
+    // alongside the pre-existing report-data/dashboard-data pair. No `emails`
+    // tag: deleteClient sends no email and writes no email_delivery_events
+    // row (the booking cascade is a direct status update, not a call through
+    // sendBookingCancellationEmails), so there is nothing that tag guards.
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "report-data",
       "dashboard-data",
       "clients",
       "bookings",
       "audit",
-      "emails",
     ]);
+  });
+
+  // C-09 Phase B fix round: the idempotent early-return above wrote an audit
+  // row but reached no updateTag call at all — plan Q9.2's rule ("every
+  // action that writes audit_logs tags audit") applies here too.
+  it("tags audit on the idempotent already-deleted early return", async () => {
+    const stub = stubAdminClient({
+      current: { ...CLIENT_ROW, deleted_at: "2026-07-20T09:00:00.000Z" },
+    });
+
+    await deleteClient("client-1", "gdpr_erasure", stub.client, owner.id);
+
+    expect(vi.mocked(updateTag)).toHaveBeenCalledWith("audit");
+    expect(vi.mocked(updateTag)).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the full client snapshot in before_state for an admin_delete", async () => {

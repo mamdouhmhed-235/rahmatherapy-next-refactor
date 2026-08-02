@@ -6,6 +6,7 @@
 // row), and the zero-override server-side disable (mirrors the client's
 // disabled button, brief §5.4).
 
+import { updateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetTemplateToDefault } from "../actions";
 import { PermissionError } from "@/lib/auth/rbac";
@@ -178,6 +179,15 @@ describe("resetTemplateToDefault — delete-all + reconstructable audit row", ()
     expect(before.overrides).toEqual([
       { field_key: "greeting_intro", value: "Salaam {clientName}, saved override.", updated_by: "staff-1", updated_at: "2026-07-01T00:00:00Z" },
       { field_key: "subject", value: "Custom subject line", updated_by: "staff-1", updated_at: "2026-07-02T00:00:00Z" },
+    ]);
+
+    // C-09 Phase B fix round — Step 3 spec coverage: this file mocked
+    // updateTag but never asserted which tags were actually passed.
+    // Tagged the same as saveTemplateOverride since it mutates the same
+    // email_template_overrides resource (C-09 discrepancy note in actions.ts).
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
+      "emails",
+      "audit",
     ]);
   });
 

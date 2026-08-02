@@ -1,3 +1,4 @@
+import { updateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createEnquiry } from "../actions";
 
@@ -115,6 +116,28 @@ describe("createEnquiry — C-08 Phase D Step 16 enquiry_logged hook", () => {
     );
 
     errorSpy.mockRestore();
+  });
+
+  // C-09 Phase B fix round: sendEnquiryLoggedEmail routes through
+  // sendTrackedEmail, which writes an email_delivery_events row — the emails
+  // tag has to be invalidated alongside enquiries + audit, or the newly
+  // logged enquiry's notification won't appear on /admin/emails once Phase C
+  // caches that page on the emails tag.
+  it("invalidates the enquiries, audit, and emails cache tags", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+    vi.mocked(sendEnquiryLoggedEmail).mockResolvedValue(undefined);
+
+    const result = await createEnquiry({}, formData());
+
+    expect(result).toEqual({ success: true });
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
+      "report-data",
+      "dashboard-data",
+      "enquiries",
+      "audit",
+      "emails",
+    ]);
   });
 
   it("never calls the alert send when the enquiry insert itself fails", async () => {

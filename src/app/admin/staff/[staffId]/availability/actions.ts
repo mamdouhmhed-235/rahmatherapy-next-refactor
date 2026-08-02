@@ -94,6 +94,10 @@ export async function addStaffBlockedDate(
   updateTag("report-data");
   updateTag("dashboard-data");
   updateTag(TAGS.STAFF);
+  // C-09 Phase B fix round: per-staff availability affects booking
+  // eligibility, same rationale as the global-scope siblings in
+  // availability/actions.ts.
+  updateTag(TAGS.BOOKINGS);
   updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
@@ -143,6 +147,10 @@ export async function deleteStaffBlockedDate(
   updateTag("report-data");
   updateTag("dashboard-data");
   updateTag(TAGS.STAFF);
+  // C-09 Phase B fix round: per-staff availability affects booking
+  // eligibility, same rationale as the global-scope siblings in
+  // availability/actions.ts.
+  updateTag(TAGS.BOOKINGS);
   updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
@@ -219,6 +227,10 @@ export async function addStaffAvailabilityOverride(
   updateTag("report-data");
   updateTag("dashboard-data");
   updateTag(TAGS.STAFF);
+  // C-09 Phase B fix round: per-staff availability affects booking
+  // eligibility, same rationale as the global-scope siblings in
+  // availability/actions.ts.
+  updateTag(TAGS.BOOKINGS);
   updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
@@ -268,6 +280,10 @@ export async function deleteStaffAvailabilityOverride(
   updateTag("report-data");
   updateTag("dashboard-data");
   updateTag(TAGS.STAFF);
+  // C-09 Phase B fix round: per-staff availability affects booking
+  // eligibility, same rationale as the global-scope siblings in
+  // availability/actions.ts.
+  updateTag(TAGS.BOOKINGS);
   updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};

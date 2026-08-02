@@ -553,6 +553,10 @@ export async function deleteClient(
         already_deleted: true,
       },
     });
+    // C-09 Phase B fix round (plan Q9.2: "every action that writes
+    // audit_logs tags audit") — this early return wrote an audit row above
+    // but reached no updateTag call at all.
+    updateTag(TAGS.AUDIT);
     return { success: true, alreadyDeleted: true };
   }
 
@@ -688,7 +692,11 @@ export async function deleteClient(
   updateTag(TAGS.CLIENTS);
   updateTag(TAGS.BOOKINGS);
   updateTag(TAGS.AUDIT);
-  updateTag(TAGS.EMAILS);
+  // C-09 Phase B fix round: TAGS.EMAILS was dropped here — deleteClient
+  // sends no email and writes no email_delivery_events row (the booking
+  // cascade above is a direct status update, not a call through
+  // sendBookingCancellationEmails or any other notification path), so the
+  // emails tag guarded nothing this action actually touches.
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${clientId}`);
   revalidatePath("/admin/bookings");
