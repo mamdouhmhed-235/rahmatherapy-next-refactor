@@ -251,6 +251,44 @@ describe("TemplateEditor — send me a test (C-15 Phase D, Step 14)", () => {
   });
 });
 
+describe("TemplateEditor — subject field shows the real send default (C-15 closeout, round 2)", () => {
+  // subjectDefault (what resolveSubject / real sends actually use) is
+  // deliberately made to differ here from the subject field's own
+  // defaultValue/placeholder (which still feeds <title> and stays frozen
+  // for the render-parity fixture) — the exact shape of the finding this
+  // fix closes: the editor must surface subjectDefault, never the stale
+  // SafeField-level string, so "Use default" can't hand an admin text a
+  // real send would never emit.
+  const TEMPLATE_WITH_DIVERGENT_SUBJECT: TemplateMeta = {
+    ...TEMPLATE,
+    subjectDefault: "{companyName} booking request received",
+  };
+
+  it("shows subjectDefault, not the subject field's own defaultValue, as the placeholder when unedited", () => {
+    render(
+      <TemplateEditor template={TEMPLATE_WITH_DIVERGENT_SUBJECT} canEdit initialValues={{}} />
+    );
+    const subjectInput = screen.getByLabelText("Subject line") as HTMLInputElement;
+    expect(subjectInput.placeholder).toBe("{companyName} booking request received");
+  });
+
+  it("shows subjectDefault, not the subject field's own defaultValue, in the 'Use default' hover preview", async () => {
+    const user = userEvent.setup();
+    render(
+      <TemplateEditor
+        template={TEMPLATE_WITH_DIVERGENT_SUBJECT}
+        canEdit
+        initialValues={{ subject: "A saved override" }}
+      />
+    );
+
+    await user.click(screen.getByRole("button", { name: /Edited — Use default/i }));
+
+    expect(screen.getByText("{companyName} booking request received")).toBeTruthy();
+    expect(screen.queryByText("Booking request received")).toBeNull();
+  });
+});
+
 describe("TemplateEditor — read-only rendering", () => {
   it("renders no save control and no editable inputs when canEdit is false", () => {
     render(

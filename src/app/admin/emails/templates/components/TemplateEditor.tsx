@@ -302,24 +302,39 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
         <section className="flex min-w-0 flex-col gap-4">
           <form id={formId} action={formAction} className="flex flex-col gap-4" noValidate>
             <input type="hidden" name="template_id" value={template.id} />
-            {template.fields.map((field) => (
-              <TokenTextField
-                key={field.kind}
-                kind={field.kind}
-                label={field.label}
-                helper={field.helper}
-                placeholder={field.placeholder}
-                maxLength={field.maxLength}
-                multiline={field.multiline}
-                tokens={field.tokens}
-                defaultValue={field.defaultValue}
-                value={values[field.kind] ?? ""}
-                onChange={(v) => setValues((prev) => ({ ...prev, [field.kind]: v }))}
-                onUseDefault={() => setValues((prev) => ({ ...prev, [field.kind]: "" }))}
-                readOnly={!canEdit}
-                errorMessage={fieldErrors[field.kind]}
-              />
-            ))}
+            {template.fields.map((field) => {
+              // C-15 closeout fix round (2nd) — the subject field shows
+              // `template.subjectDefault` here, NOT `field.placeholder` /
+              // `field.defaultValue`. Those two SafeField-level strings still
+              // feed the <title> tag (resolveTitleSubject) and are
+              // deliberately frozen by the render-parity fixture — but they
+              // drifted from the real Subject: header for 12/16 templates
+              // once the first closeout round corrected `subjectDefault`
+              // alone. Threading the same `subjectDefault` the editor's
+              // `template` prop already carries (rather than copying a
+              // second string into the registry) keeps a single source of
+              // truth: what real sends use is what the editor shows. Every
+              // other field's placeholder/defaultValue is untouched.
+              const isSubject = field.kind === "subject";
+              return (
+                <TokenTextField
+                  key={field.kind}
+                  kind={field.kind}
+                  label={field.label}
+                  helper={field.helper}
+                  placeholder={isSubject ? template.subjectDefault : field.placeholder}
+                  maxLength={field.maxLength}
+                  multiline={field.multiline}
+                  tokens={field.tokens}
+                  defaultValue={isSubject ? template.subjectDefault : field.defaultValue}
+                  value={values[field.kind] ?? ""}
+                  onChange={(v) => setValues((prev) => ({ ...prev, [field.kind]: v }))}
+                  onUseDefault={() => setValues((prev) => ({ ...prev, [field.kind]: "" }))}
+                  readOnly={!canEdit}
+                  errorMessage={fieldErrors[field.kind]}
+                />
+              );
+            })}
           </form>
 
           {template.fixedParts.length > 0 ? (
