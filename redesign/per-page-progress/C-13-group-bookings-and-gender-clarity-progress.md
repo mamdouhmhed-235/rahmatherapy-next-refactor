@@ -84,7 +84,8 @@ From C-15's closeout at `8851e8c`: **tsc 0 · lint 59E/7W in exactly six files �
 | D | `a516bd1` | Verification-only — Phase B already shipped the fraction badge; added the missing tone assertions. **No production code changed.** | **PASS** (§1.4) |
 | E | `dbe0208` | Calendar group surface — Users icon + composite identity + `Group · N` across 3 tile sites; one bounded local participants query. | **PASS** (§1.5) |
 | F | `2fdcadc` + fix `c64e6ad` | Booking-detail refinement; both group badges resolved; new `generateMetadata`. | **FAIL → fixed → re-verified PASS** (§1.6) |
-| G, H | — | not started — G unblocked 2026-08-01, target settled (§0.3) | — |
+| G | `c9b77c3` | Group-context blocks in `staff_assignment`, the admin-internal `claim`, and `booking_confirmed_client`. 16 specs. | **PASS**, zero findings (§1.7) |
+| H | `d7d67c3` | `deriveRequiredGenderByBooking` — fixes a first-match-wins bug on mixed groups; `AssignmentChip` tooltip closed. 10 specs. | **PASS** (§1.8) |
 
 ### 1.1 — Phase A notes
 
@@ -164,15 +165,42 @@ The fix touches `manage-token.ts` and `notifications.ts` — outside C-13's file
 
 ---
 
+### 1.7 — Phase G: group context in emails (`c9b77c3`)
+
+Verified **PASS, zero findings**. One `deriveGroupContext(input)` feeds all six render functions, so the HTML and plain-text legs of every block are structurally incapable of disagreeing on membership, ordering or counts — the exact class of bug C-15's closeout had to fix on the review email.
+
+Per target:
+- **`staff_assignment`** already rendered a full per-participant block via `renderParticipants()`, including assigned-staff names. Only the missing **"X of Y therapists assigned so far"** sentence was added. Verified: exactly **one** participant enumeration in that email, not two.
+- **`claim`** (admin-internal, per §0.3) gets the full block — participant rows with gender and assigned/open state, plus the summary. Written for the ops reader triaging a claim.
+- **`booking_confirmed_client`** goes to the **customer**, so its block lists **names only**. The verifier confirmed `genderLabel` and `stateLabel` are computed by the shared derivation but **never referenced** by the customer-facing renderers, and specs assert their absence. No participant's gender or assignment state reaches a customer.
+
+**The parity gate held, and the verifier proved why rather than accepting it.** HTML insertions concatenate onto an existing `${expr}` on the same line, so an empty return contributes zero characters. The three plain-text splices replace an existing blank line 1:1 — the verifier traced the exact byte sequence (`...\n\n${next}` before, `...\n${group}\n${next}` after, identical when the group section is empty) rather than trusting the claim. `render-parity-baseline.json` still has exactly one commit in its whole history.
+
+All three blocks registered as **`FixedPart`** legend entries, not editable `SafeField`s — correct, since the content is derived from booking data. `templates-data.ts` remains import-free and client-safe.
+
+### 1.8 — Phase H: integration polish + a real bug (`d7d67c3`)
+
+Verified **PASS**. The plan pointed at `dashboard-data.ts`, its own C13-02 correction pointed at `dashboard/page.tsx`, and the logic is actually in **`CoordinatorDashboard.tsx`** — C-11 Phase C split that file *after* the correction was written. Third recorded location for one anchor; `grep requiredGender dashboard/page.tsx` → 0 hits.
+
+**The dashboard was silently wrong about mixed groups.** The pre-existing derivation was first-match-wins — a `!map.has(bookingId)` guard meant only the first assignment row for a booking was ever recorded, so a booking needing both a female and a male therapist displayed whichever gender happened to come first, with no signal that a second was needed. `deriveRequiredGenderByBooking` now collects a `Set` per booking and collapses `size > 1` to `"mixed"`, excluding `"any"` from the calculation. Brief §5.11's locked decision (b) — generic collapse rather than a full breakdown — is satisfied.
+
+Also closed Phase A's logged `AssignmentChip` tooltip mismatch: the prop moved from `sameGenderRequired: boolean` to `requiredGender: string | null`, so label and tooltip now derive from one value across all three states. Repo-wide grep for `sameGenderRequired` → zero hits, no stale caller.
+
+**Logged, not fixed (rule 6a):** `blocks/ClaimQueueStripe.tsx:85` renders a flat generic `"Same-gender"` badge and reads the *same* map, so a mixed group shows "Same-gender" in the claim queue while the Today panel shows "Unassigned · Mixed group" for the identical booking. It is a C-11 block and not on C-13's §2 files-touched list, so fixing it would have been unsanctioned scope-widening. **Real inconsistency, correctly disclosed — carried to the Owner backlog.**
+
 ---
 
 ## 3 — ▶ RESUME HERE (interrupt checkpoint, protocol §3)
 
-**Plan:** C-13, plan **#11 of 22**. **Phases A ✅ B ✅ C ✅ D ✅ E ✅ F ✅ (all independently verified) · Phase G NOT STARTED · Phase H NOT STARTED · closeout not run.**
+**Plan:** C-13, plan **#11 of 22**. **ALL EIGHT PHASES SHIPPED AND INDEPENDENTLY VERIFIED (A–H).** Closeout in progress: adversarial whole-plan review running over `0bb356d..d7d67c3`; §3 gate, checklist flip and backlog append still to do.
 
-**Last-good commit:** `c64e6ad` (`fix(redesign): C-13 Phase F — generateMetadata must honour claimableOnly redaction`). Nothing mid-flight; every phase is committed and verified. Working tree clean except the standing deliberate `src/lib/maintenance.ts`.
+**Last-good commit:** `d7d67c3` (Phase H). Nothing mid-flight. Working tree clean except the standing deliberate `src/lib/maintenance.ts`.
 
-**Inherited baseline — measured at `c64e6ad`, use THIS not the plan's text:**
+**Inherited baseline — measured at `d7d67c3`, use THIS not the plan's text: tsc 0 · lint 59E/7W in the six known files · vitest 5 failed / 1181 passed (1186), the five inherited by identity · build clean.** The email render-parity spec is green with its fixture untouched.
+
+*(Superseded detail from the earlier mid-plan checkpoint, kept for the audit trail:)*
+
+**Baseline at `c64e6ad`:**
 - `npx tsc --noEmit` → **0 errors**
 - `pnpm lint` → **59 errors / 7 warnings**, in exactly six files: `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`
 - `pnpm vitest run` → **5 failed / 1155 passed (1160)**, failures EXACTLY: `admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent")
