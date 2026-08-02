@@ -119,11 +119,11 @@ export function SeriesActions({
               </li>
               <li>Past occurrences are preserved (audit + tax records).</li>
               {/*
-                C-02 Phase F — brief §4.3's copy literally says this, but the
-                cancel cascade (plan Step 7, Owner-approved) sends NO email to
-                anyone. Rendering the brief's line verbatim per this phase's
-                instruction rather than silently rewording it; flagged as a
-                contradiction in the phase return for the Owner to resolve.
+                C-02 Phase Fb — this line is true. Phase F shipped it while the
+                cascade still sent nothing (plan Step 7 was a bare bulk UPDATE),
+                which made it a false promise; the Owner chose to send the email
+                rather than reword the copy, so cancelRecurringSeries now calls
+                sendRecurringSeriesCancelledEmail. See progress §B6.4.
               */}
               <li>The client will be emailed about the series cancellation.</li>
               <li>You can re-create a new series anytime.</li>

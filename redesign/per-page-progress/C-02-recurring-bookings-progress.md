@@ -6,7 +6,9 @@
 **Predecessor closed at:** `d268659` (C-13 shipped)
 **Model routing:** `opus` — §5 routes C-02 to Opus (greenfield schema + 2 RPCs + horizon cron). Mechanical phases may drop to `sonnet` with the downgrade logged.
 
-> ## ⛔ STATUS: NOT STARTED — **BLOCKED at the Phase A HARD-STOP.** The migration cannot be presented for Owner approval as written; see §0.3 and §0.4. Raised in chat 2026-08-01.
+> ## ✅ STATUS: SHIPPED 2026-08-02 — all nine phases (A · B · C · D · E · F · Fb · G · H) implemented and independently verified. Final SHA in §4.
+>
+> *The original header — "NOT STARTED — BLOCKED at the Phase A HARD-STOP" — described the position on 2026-08-01 and was left stale while the plan ran. Corrected at closeout, where a reviewer caught it. Sections §0–§2 below are preserved as the historical record of the pre-flight and the Phase A blockers; **read §3 and §4 for the shipped state.***
 
 ---
 
@@ -391,4 +393,68 @@ Owner was offered three routes — reword the copy, send the email, or ship-and-
 ## B5 — Security hygiene note for the Owner
 
 A prep agent grepping `.env` for *key names* matched whole lines and pulled **real secret values** (Supabase service-role key, Resend API key, Cloudflare token, Sentry auth token, `CRON_SECRET`) into its own tool output. It did not reproduce them in its report and none reached a commit. No exposure beyond this machine's temp transcript directory, which already sits alongside `.env` itself — but worth knowing, and worth avoiding broad greps against `.env` in future dispatches.
+
+---
+
+# 4 — Phase I: closeout gate and SHIPPED verdict (2026-08-02)
+
+**Range:** `d268659..HEAD` (predecessor = C-13's closeout). Six read-only closeout agents ran in parallel per §2.5, including the mandatory adversarial whole-diff review. **Three returned FAIL — every one on closeout completeness, none on the code.** All resolved below; this section is the record.
+
+## 4.1 — Final §3.1 static gates, re-run independently at HEAD
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | **0 errors** |
+| `npx eslint .` | **59 errors / 7 warnings**, exactly the six inherited files — zero from any C-02 file |
+| `npx vitest run` | **5 failed / 1258 passed (1263)** — failures exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3 |
+| `npx next build` | clean; `/admin/bookings/series/[templateId]` and `/api/cron/extend-recurring-horizons` both present in the route manifest |
+
+**Updated baseline identity list inherited by the next plan (C-09)** — unchanged in character:
+`admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent"). Total moved **1186 → 1263**, purely from C-02's own new specs. **This plan claimed no expected-shrinkage entry.**
+
+*Known intermittent:* under full-suite parallel load a 6th failure appeared once in the same already-failing `ManualBookingForm` file (a 5000 ms `waitFor` timeout on "still rejects a malformed email"). Three later clean runs showed exactly 5. Recorded as a load flake, not an identity change.
+
+## 4.2 — ⚠️ The bundle gate was NOT run. It cannot be.
+
+Plan §3.1 sets a "+8 kB cumulative across `/admin/bookings/*`" ceiling measured by `node scripts/measure-admin-bundles.mjs`. **That script's `ROUTES` array covers none of C-02's routes** — it tracks `/admin/dashboard`, `/admin/reports`, `/admin/clients/[clientId]`, `/admin/staff/[staffId]`, `/admin/me`, `/admin/staff/[staffId]/performance`. And `redesign/baselines/bundle-pre-B1.json`, the only snapshot in the repo, holds no entry for any `/admin/bookings/*` or `/admin/calendar` route, so there is no pre-C-02 figure to diff against even by hand.
+
+**Recorded as NEVER RUN, not as passed** (protocol rule 12). Current absolute first-load JS, captured so a future baseline exists: `/admin/bookings` ≈345.15 kB · `/admin/bookings/new` ≈349.93 kB · `/admin/calendar` ≈359.77 kB · `/admin/bookings/series/[templateId]` ≈336.54 kB · `/admin/bookings/[bookingId]` ≈347.72 kB (gzip).
+
+This is the **third** plan to hit the same tool gap (C-04a and C-08 logged it; C-15 hit it too). Extending the script and capturing a baseline is a standing programme item, not a C-02 one.
+
+## 4.3 — Live DB state at closeout (SELECT-only)
+
+`recurring_booking_templates` **0 rows** · `bookings WHERE recurring_template_id IS NOT NULL` **0** · `bookings` total **15**, unchanged all programme. `bookings_booking_source_check` carries 9 values including `recurring` and is `convalidated`. `service_role` holds every INSERT/UPDATE/SELECT plus both function EXECUTEs; `anon` has no EXECUTE on the series RPC. **`create_recurring_booking_series` md5 `2aefd9d4b0b042eafbc5689b1319343f`, length 11855 — identical to the Phase A drift-guard record.**
+
+**Nothing has exercised this feature end to end.** Every path is verified by unit specs, static analysis and SQL replay against the live schema; the first real series will be the one the Owner creates in the sweep.
+
+## 4.4 — Adversarial whole-diff review (§2.5)
+
+Steps 1–25 walked individually. No lost step, no unrecorded deviation. **No test was skipped, weakened or deleted to keep a gate green** — zero `.skip`/`.todo`/`xit`/`xdescribe` added, no assertion loosened, no spec deleted; the pre-existing specs C-02 touched gained only mechanical fixture fields forced by a newly-required column. Part 0 discipline clean across the range: zero `border-l-4`, zero `revalidateTag`, every `createSupabaseAdminClient()` behind its auth gate, nothing non-JSON through `unstable_cache`.
+
+**One scope-creep finding, now logged rather than left silent:** the submit button reads "Create repeat visits" instead of "Submit booking request" in recurring mode (both strips). No plan step asked for it. Defensible as a consequence of Step 14's conditional dispatch — "Submit booking request" while creating twelve visits is misleading — but rule 6 required it to be logged and it was not. Kept; recorded here.
+
+## 4.5 — Cross-cutting findings: what happens once series exist
+
+All latent — production has zero recurring bookings today.
+
+1. **⚠️ The review-request cron will ask the same client for a review every week, indefinitely.** `review-emails/route.ts` selects on `status='completed'` + `review_email_sent_at IS NULL` with no dedup by client or series, and `review_email_sent_at` lives on the booking, not the template. A weekly `until_cancelled` series therefore produces a review request per completed visit forever, with **no per-client frequency cap anywhere on that path**. Each send is individually correct; the aggregate is not something a standing client would welcome. **The most consequential finding of this closeout.**
+2. **The reminder cron fires per occurrence** — ~52/year for a weekly series. Correct and desired, but the volume is on record.
+3. **The Dashboard's Source filter cannot select "recurring".** `dashboard-variant-shared.tsx`'s `sourceOptions` is a hardcoded eight-value list; the underlying query would work if the value reached it. `/admin/reports` derives its options live and picks `recurring` up automatically — only the Dashboard variant is static.
+4. **The booking-source field is silently discarded for recurring submissions.** Step 1's "Booking source" is required and always rendered, but `recurringSchema` takes no such parameter and the RPC hardcodes `booking_source = 'recurring'`. The operator fills a required field whose value is thrown away, with no UI hint.
+5. **Correction to a long-standing programme belief (D1).** C-06's `deleteClient` does cancel active recurring templates before the client soft-delete, and the FK really is `ON DELETE RESTRICT` (`confdeltype='r'`). **But `deleteClient` never issues a hard `DELETE FROM clients` — it is a soft delete (`UPDATE ... SET deleted_at`), and `ON DELETE RESTRICT` is only evaluated on a real DELETE.** No `.from("clients").delete()` exists anywhere in `src/`. The cascade is correct and harmless but **not load-bearing**: the FK it was written to guard against cannot fire on any path the app has. D1 was sound insurance; its stated mechanism was wrong.
+6. **Four FK columns on `recurring_booking_templates` are unindexed** (`bound_therapist_id`, `cancelled_by`, `created_by`, `service_id`) — a new `unindexed_foreign_keys` advisor finding attributable to C-02. Negligible at one row per active series. The four "unused index" advisories on the same table are expected at zero rows.
+7. No UNIQUE constraint on `bookings` can be tripped by 12 same-client rows. Both the create RPC and the extend cron carry the same `(client, date, start_time, status NOT IN cancelled/no_show)` collision skip — and the RPC additionally serialises per client with `pg_advisory_xact_lock`, so **the create path does hold an advisory lock**; only the extension cron relies on the idempotent existence filter (Owner-approved, §3.7).
+
+## 4.6 — What remains, and who owns it
+
+**Owner-performed by necessity** (no agent may authenticate — §3b): the whole §3.2 role × cadence × end-condition matrix, §3.4 email verification, all eight §3.5 screenshots, and the §3.6 WCAG/responsive pass. Every surface involved sits behind admin sign-in, so none of it is agent-runnable. Full checklist in `OWNER-ACTION-BACKLOG.md`, including the cron-dependent paths that cannot run until the Cloudflare deploy.
+
+**Blocked on deploy:** the `0 3 * * *` horizon-extension cron. Until then a series materialises its first batch (12 weekly / 6 fortnightly / 3 monthly) and stops extending. The pending Cloudflare deploy is now a **four-in-one** activation.
+
+## 4.7 — SHIPPED
+
+All nine phases implemented and independently verified; closeout gate run; three FAIL findings resolved and re-verified. **C-02 is complete.**
+
+`src/lib/maintenance.ts` remains `MAINTENANCE_MODE = false` in the working copy, `true` at HEAD, never staged or committed by this plan — and **must be restored to `true` before any deploy.**
 
