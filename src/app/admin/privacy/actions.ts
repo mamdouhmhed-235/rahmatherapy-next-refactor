@@ -1,11 +1,12 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod/v4";
 import { PERMISSIONS, requirePermission } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { deleteClient } from "../clients/actions";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 const privacyStatusSchema = z.object({
   request_id: z.string().uuid(),
@@ -106,8 +107,10 @@ export async function updatePrivacyRequestStatus(
       erasureError =
         erasure.error ?? "The client record could not be erased.";
     }
+    updateTag(TAGS.CLIENTS);
   }
 
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/privacy");
   revalidatePath(`/admin/clients/${before.client_id}`);
 

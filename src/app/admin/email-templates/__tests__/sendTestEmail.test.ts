@@ -15,6 +15,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sendTestEmail } from "../actions";
 import { PermissionError } from "@/lib/auth/rbac";
 
+// C-09 Phase B — sendTestEmail now calls updateTag(TAGS.AUDIT) after its
+// success-only audit_logs insert (brief Q9.2: every action that writes
+// audit_logs tags "audit"); mock next/cache so that call doesn't reach the
+// real Next.js runtime (which throws outside a Server Action context).
+vi.mock("next/cache", () => ({ updateTag: vi.fn() }));
+
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: vi.fn(),
 }));
@@ -260,6 +266,19 @@ describe("sendTestEmail — 60s per-template rate limit, audit-on-success-only",
       action_type: "email_template_test_sent",
       actor_staff_id: "staff-owner",
     });
+  });
+
+  // C-09 Phase B — the success-only audit_logs insert above now also tags
+  // "audit" (brief Q9.2). No "emails" tag: a test send never touches
+  // email_delivery_events (brief §2.6), so nothing that tag guards changed.
+  it("tags the audit resource on a successful send, and calls updateTag no other way", async () => {
+    const { updateTag } = await import("next/cache");
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    await sendTestEmail(null, testFormData());
+
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual(["audit"]);
   });
 
   it("writes NO audit row when the send fails — a failed attempt must not consume the rate-limit window", async () => {

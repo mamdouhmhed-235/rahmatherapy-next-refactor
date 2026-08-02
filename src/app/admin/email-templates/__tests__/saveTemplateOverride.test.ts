@@ -9,7 +9,7 @@ import { saveTemplateOverride } from "../actions";
  * and a valid `https://` value still saves normally.
  */
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn(), updateTag: vi.fn() }));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: vi.fn(),

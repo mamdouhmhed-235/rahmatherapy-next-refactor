@@ -452,9 +452,14 @@ describe("restoreBooking", () => {
 
     await restoreBooking(restoreFormData());
 
+    // C-09 Phase B — resource tags (bookings, audit, emails) ride alongside
+    // the pre-existing report-data/dashboard-data pair.
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "report-data",
       "dashboard-data",
+      "bookings",
+      "audit",
+      "emails",
     ]);
   });
 

@@ -4,6 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requirePermission, PERMISSIONS } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 export interface AvailabilityActionState {
   error?: string;
@@ -98,6 +99,9 @@ export async function saveAvailabilityRule(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/availability");
   return { success: true };
 }
@@ -136,6 +140,9 @@ export async function deleteAvailabilityRule(ruleId: string) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/availability");
   return {};
 }
@@ -177,6 +184,9 @@ export async function createBlockedDate(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/availability");
   return { success: true };
 }
@@ -215,6 +225,9 @@ export async function deleteBlockedDate(blockedDateId: string) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/availability");
   return {};
 }
@@ -271,6 +284,9 @@ export async function createAvailabilityOverride(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/availability");
   return { success: true };
 }
@@ -309,6 +325,9 @@ export async function deleteAvailabilityOverride(overrideId: string) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/availability");
   return {};
 }

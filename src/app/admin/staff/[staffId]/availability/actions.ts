@@ -8,6 +8,7 @@ import {
   PERMISSIONS,
 } from "@/lib/auth/rbac";
 import { getBusinessDate } from "@/lib/time/london";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 export interface StaffAvailabilityActionState {
   error?: string;
@@ -92,6 +93,8 @@ export async function addStaffBlockedDate(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
 }
@@ -139,6 +142,8 @@ export async function deleteStaffBlockedDate(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
 }
@@ -213,6 +218,8 @@ export async function addStaffAvailabilityOverride(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
 }
@@ -260,6 +267,8 @@ export async function deleteStaffAvailabilityOverride(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   return {};
 }

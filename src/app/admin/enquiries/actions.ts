@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { PERMISSIONS, requirePermission } from "@/lib/auth/rbac";
 import { sendEnquiryLoggedEmail } from "@/lib/email/notifications";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 const ENQUIRY_SOURCES = [
   "website",
@@ -116,6 +117,8 @@ export async function createEnquiry(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.ENQUIRIES);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/enquiries");
   revalidatePath("/admin/dashboard");
   return { success: true };
@@ -174,6 +177,8 @@ export async function updateEnquiryStatus(formData: FormData) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.ENQUIRIES);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/enquiries");
   revalidatePath("/admin/dashboard");
   // Return previous status so client can offer Undo (DESIGN.md Status Communication

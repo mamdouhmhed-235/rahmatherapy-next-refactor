@@ -12,6 +12,7 @@ import {
 } from "@/lib/email/notifications";
 import { canManageAllBookings } from "./access";
 import { getTodayIsoDate } from "./_helpers";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 /**
  * C-02 Phase C — recurring/standing bookings. Kept in their own module rather
@@ -199,6 +200,10 @@ export async function createRecurringSeries(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.CLIENTS);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/bookings");
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/calendar");
@@ -283,6 +288,9 @@ export async function cancelRecurringSeries(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/series/${templateId}`);
   revalidatePath("/admin/calendar");

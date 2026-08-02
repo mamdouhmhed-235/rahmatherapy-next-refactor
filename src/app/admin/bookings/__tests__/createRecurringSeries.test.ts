@@ -435,9 +435,15 @@ describe("createRecurringSeries — happy path", () => {
     await createRecurringSeries({}, recurringFormData());
 
     expect(redirect).toHaveBeenCalledWith(`/admin/bookings/series/${TEMPLATE_ID}?created=1`);
+    // C-09 Phase B — resource tags (bookings, clients, audit, emails) ride
+    // alongside the pre-existing report-data/dashboard-data pair.
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "report-data",
       "dashboard-data",
+      "bookings",
+      "clients",
+      "audit",
+      "emails",
     ]);
     expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual([
       "/admin/bookings",

@@ -198,9 +198,13 @@ describe("updateClient", () => {
 
     await updateClient({}, editFormData({ phone: "07999 888 777" }));
 
+    // C-09 Phase B — resource tags (clients, audit) ride alongside the
+    // pre-existing report-data/dashboard-data pair.
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "report-data",
       "dashboard-data",
+      "clients",
+      "audit",
     ]);
   });
 

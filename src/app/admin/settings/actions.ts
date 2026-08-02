@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requirePermission, PERMISSIONS } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 export interface SettingsActionState {
   error?: string;
@@ -108,6 +109,11 @@ export async function updateBusinessSettings(
     after_state: data,
   });
 
+  updateTag(TAGS.SETTINGS);
+  updateTag(TAGS.AUDIT);
+  // B-149 fix (brief §2.2): resource-tag invalidation is additive — the
+  // comprehensive revalidatePath below stays as defence-in-depth for surfaces
+  // that read business_settings without going through unstable_cache.
   revalidatePath("/admin/settings");
   return { success: true };
 }

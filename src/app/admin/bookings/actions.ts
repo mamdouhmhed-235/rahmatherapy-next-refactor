@@ -34,6 +34,7 @@ import {
   getClaimAssignmentEligibility,
   getStaffAssignmentPreviews,
 } from "./assignment-eligibility";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 import {
   CANCELLATION_UNDO_DELAY_SECONDS,
   COMPLETED_REVERSAL_MIN_REASON_LENGTH,
@@ -565,6 +566,9 @@ export async function updateBookingManagement(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
@@ -713,6 +717,10 @@ export async function claimBookingAssignment(formData: FormData) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${claimedAssignment.booking_id}`);
   revalidatePath("/admin/dashboard");
@@ -891,6 +899,9 @@ export async function quickUpdateBooking(formData: FormData) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
@@ -1094,6 +1105,9 @@ export async function restoreBooking(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
@@ -1238,6 +1252,10 @@ export async function updateBookingAssignment(formData: FormData) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${assignment.booking_id}`);
   revalidatePath("/admin/dashboard");
@@ -1323,6 +1341,9 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${updatedAssignment.booking_id}`);
   revalidatePath("/admin/dashboard");
@@ -1388,6 +1409,8 @@ export async function respondToCustomerReschedule(formData: FormData): Promise<v
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/bookings");
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
@@ -1646,6 +1669,7 @@ export async function createManualBooking(
 
       updateTag("report-data");
       updateTag("dashboard-data");
+      updateTag(TAGS.ENQUIRIES);
       revalidatePath("/admin/enquiries");
     }
 
@@ -1672,6 +1696,10 @@ export async function createManualBooking(
 
     updateTag("report-data");
     updateTag("dashboard-data");
+    updateTag(TAGS.BOOKINGS);
+    updateTag(TAGS.CLIENTS);
+    updateTag(TAGS.AUDIT);
+    updateTag(TAGS.EMAILS);
     revalidatePath("/admin/bookings");
     revalidatePath("/admin/dashboard");
     revalidatePath("/admin/calendar");

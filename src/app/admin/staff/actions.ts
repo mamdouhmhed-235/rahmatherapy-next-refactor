@@ -15,6 +15,7 @@ import {
   type StaffProfileUpdate,
 } from "./profile-access";
 import { getStaffTeamAccess, getStaffTeamSelect, staffProfilesFrom } from "./team-access";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
 type StaffGender = "male" | "female";
@@ -250,6 +251,8 @@ export async function createStaffProfile(input: {
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/staff");
 
   return { data };
@@ -383,9 +386,11 @@ export async function updateStaffProfile(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/staff");
   revalidatePath(`/admin/staff/${staffId}`);
-  
+
   return { data };
 }
 
@@ -437,9 +442,11 @@ export async function updateStaffAvailabilityMode(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
   revalidatePath(`/admin/staff/${staffId}`);
-  
+
   return { data };
 }
 
@@ -491,6 +498,8 @@ export async function createStaffAvailabilityRule(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
 
   return { data };
@@ -536,6 +545,8 @@ export async function deleteStaffAvailabilityRule(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/staff/${staffId}/availability`);
 
   return { success: true };
@@ -638,6 +649,8 @@ export async function updateStaffPermissionOverride(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/staff");
   revalidatePath(`/admin/staff/${staffId}`);
 

@@ -324,9 +324,14 @@ describe("cancelRecurringSeries — cascade", () => {
 
     await cancelRecurringSeries(null, cancelFormData());
 
+    // C-09 Phase B — resource tags (bookings, audit, emails) ride alongside
+    // the pre-existing report-data/dashboard-data pair; neither is replaced.
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "report-data",
       "dashboard-data",
+      "bookings",
+      "audit",
+      "emails",
     ]);
     expect(vi.mocked(revalidatePath).mock.calls.map(([path]) => path)).toEqual([
       "/admin/bookings",

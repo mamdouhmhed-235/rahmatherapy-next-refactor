@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -20,6 +20,7 @@ import {
   sendStaffUnassignmentEmail,
 } from "@/lib/email/notifications";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 function canManageEmails(
   profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
@@ -89,6 +90,8 @@ export async function sendManualBookingReminder(formData: FormData) {
     return;
   }
 
+  updateTag(TAGS.EMAILS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/emails");
   revalidatePath("/admin/dashboard");
 }
@@ -279,6 +282,8 @@ export async function resendEmail(formData: FormData): Promise<ResendEmailResult
     });
   }
 
+  updateTag(TAGS.EMAILS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/emails");
   return { ok: true, newEventId: newest?.id };
 }

@@ -10,7 +10,7 @@
 //   - manage_email_templates permission row      (in migration 20260519120000)
 //   - role grant for manage_email_templates      (TBD via Session 2 role-grant migration)
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -38,6 +38,7 @@ import {
   SAMPLE_TEMPLATE_INPUT,
 } from "@/lib/email/sample-data";
 import { findTemplate, type SafeField, type TemplateMeta } from "../emails/components/templates-data";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 export interface SaveTemplateOverrideResult {
   ok: boolean;
@@ -250,6 +251,8 @@ export async function saveTemplateOverride(
     }
   }
 
+  updateTag(TAGS.EMAILS);
+  updateTag(TAGS.AUDIT);
   // Refresh the emails page so a navigation back finds the updated values.
   revalidatePath("/admin/emails");
   return { ok: true, cleanedValues };
@@ -329,6 +332,12 @@ export async function resetTemplateToDefault(
     console.error("email_template_reset audit write failed:", auditResult.error.message);
   }
 
+  // C-09 discrepancy note: not named in the plan's per-file matrix (this
+  // function is a C-15 Phase D addition, after the plan's 2026-05-26
+  // snapshot) — tagged the same as saveTemplateOverride above since it
+  // mutates the same email_template_overrides resource.
+  updateTag(TAGS.EMAILS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/emails");
   revalidatePath(`/admin/emails/templates/${templateId}`);
   return { ok: true };
@@ -547,6 +556,14 @@ export async function sendTestEmail(
   if (auditResult.error) {
     console.error("email_template_test_sent audit write failed:", auditResult.error.message);
   }
+
+  // C-09 discrepancy note: not named in the plan's per-file matrix (C-15
+  // Phase D addition) — this write's own audit_logs row still gets the
+  // taxonomy's blanket "every action that writes audit_logs" tag (brief
+  // Q9.2). No TAGS.EMAILS here: a test send deliberately never touches
+  // email_delivery_events (brief §2.6 — "test sends don't pollute the
+  // delivery log"), so nothing the emails resource tag guards has changed.
+  updateTag(TAGS.AUDIT);
 
   return { ok: true };
 }

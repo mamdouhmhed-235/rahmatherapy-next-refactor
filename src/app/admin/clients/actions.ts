@@ -14,6 +14,7 @@ import {
   requirePermission,
 } from "@/lib/auth/rbac";
 import { getClientDataAccess } from "./access";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 const CLIENT_SOURCES = [
   "website",
@@ -269,6 +270,8 @@ export async function createClient(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.CLIENTS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/clients");
   revalidatePath("/admin/dashboard");
   redirect(`/admin/clients/${data.id}`);
@@ -406,6 +409,8 @@ export async function updateClient(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.CLIENTS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${clientId}`);
   redirect(`/admin/clients/${clientId}?updated=1`);
@@ -680,6 +685,10 @@ export async function deleteClient(
 
   updateTag("report-data");
   updateTag("dashboard-data");
+  updateTag(TAGS.CLIENTS);
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
+  updateTag(TAGS.EMAILS);
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${clientId}`);
   revalidatePath("/admin/bookings");
@@ -807,6 +816,8 @@ export async function addClientNote(
     after_state: { client_id: clientId, is_sensitive: true },
   });
 
+  updateTag(TAGS.CLIENTS);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/clients/${clientId}`);
   return { success: true };
 }
@@ -857,6 +868,8 @@ export async function createClientPrivacyRequest(
     after_state: data,
   });
 
+  updateTag(TAGS.CLIENTS);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/clients/${clientId}`);
   return { success: true };
 }

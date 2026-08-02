@@ -461,9 +461,15 @@ describe("deleteClient", () => {
 
     await deleteClient("client-1", "admin_delete", stub.client, owner.id);
 
+    // C-09 Phase B — resource tags (clients, bookings, audit, emails) ride
+    // alongside the pre-existing report-data/dashboard-data pair.
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "report-data",
       "dashboard-data",
+      "clients",
+      "bookings",
+      "audit",
+      "emails",
     ]);
   });
 
