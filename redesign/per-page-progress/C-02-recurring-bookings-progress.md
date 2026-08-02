@@ -255,11 +255,19 @@ Model routing: §5 puts C-02 on `opus` for phases touching the schema, the RPCs 
 
 ## 3 — Phases C, D, E — implemented and independently verified
 
-| Phase | Commit | Model | Verify |
+| Phase | Commit | Model + routing justification (§5) | Verify |
 |---|---|---|---|
+| A — migration | `59ccb27` | `opus` — greenfield schema + 2 RPCs | **PASS** |
+| B — RPC verification | `24fbe34` | orchestrator, SELECT-only | **PASS** (independent re-derivation) |
 | C — server actions | `cb0de35` | `opus` — threads a NOT-NULL enum contract into a 20-param RPC whose applied signature disagrees with the plan's sketch, and writes a cascade against a live production table | **PASS**, zero defects |
 | D — email template | `1d2ed98` | `sonnet` — mechanical registration across 10 files against a fully-documented pattern | **PASS**, zero defects |
-| E — form integration | `66afd6b` | `opus` — live-surface edit to the programme's most contended file plus a React state-machine change | pending at time of writing |
+| E — form integration | `66afd6b` | `opus` — live-surface edit to the most contended file in the programme plus a React state-machine change | **PASS** (1 scope-creep note) |
+| F — series view | `f473005` | `sonnet` — new admin route + client component on established patterns | **PASS**, zero defects |
+| Fb — cancellation email | `2d6fed7` | `sonnet` — second pass over the pattern Phase D proved | **PASS** on code; 1 blocking bookkeeping finding, fixed at `667dcc8` and re-verified |
+| G — horizon cron | `5c7e2d6` | `opus` — the only phase whose plan text is actively wrong, plus a production write path | **PASS** on 4 independent lenses |
+| H — surfaces | `ce5ad07` | `sonnet` — routine UI integration across known files | **PASS** on 3 lenses |
+
+Every dispatch carried an explicit `model` parameter (§5 requires it, since the session model is Opus and inheritance would silently mean Opus). All verifiers and reviewers ran `sonnet` at high effort throughout, per §5.
 
 ### 3.1 — Phase C (`cb0de35`)
 
@@ -312,6 +320,44 @@ Two divergences from Phase D, both deliberate and both flagged rather than silen
 - A client with no email address is a **graceful no-op** here (warn and return) where Phase D's created-email throws, so a phone-only walk-in client's series can still be cancelled. A verifier fairly noted the asymmetry is not fully justified — the same walk-in reasoning would apply to creation too. Logged for a future pass; harmless today because both call sites wrap in `.catch()`.
 
 **Stale comment logged, not fixed:** `SeriesActions.tsx` lines ~121–127 still carry the Phase F comment describing the (now-resolved) contradiction. Outside Phase Fb's file list, so correctly left; to be corrected at closeout.
+
+### 3.7 — Phase G (`5c7e2d6`) — horizon-extension cron. **The trap was avoided.**
+
+`opus`, justified: the only phase whose plan text is actively wrong, plus a production write path.
+
+**The walk starts from the series anchor, never `horizon_through_date`:**
+```ts
+const anchorDate = rows[0].booking_date;   // MIN(booking_date) of the series
+p_first_date: anchorDate,                  // NEVER template.horizon_through_date
+p_horizon_end: newHorizonThrough,          // today + 12*7 - 1
+```
+The whole sequence is replayed from the anchor to the new horizon, then dates already materialised (any status — cancelled visits are never recreated) and dates before today are subtracted. Three properties fall out *structurally* rather than from bookkeeping: `after_count` can never overshoot because compute receives the series total and walks from the anchor; `until_date` clamps inside compute; and the run is idempotent, so a partially-failed run is completed by the next one instead of being skipped forever.
+
+Four independent verification lenses passed, including one whose sole job was to hunt the trap — it reproduced the arithmetic with its own SQL and hand-simulated three further anchors across weekly and fortnightly. **A regression spec asserts `p_first_date === ANCHOR` and `p_first_date !== STORED_HORIZON`**, so reintroducing the trap fails the suite rather than silently drifting every client's appointments.
+
+**§3b privilege pre-flight — all green**, run before the write path was designed: `service_role` holds INSERT on `bookings`, `booking_participants`, `booking_items`, `booking_assignments`, `audit_logs`; UPDATE on `recurring_booking_templates`; EXECUTE on `compute_occurrence_dates`. No Zone-2 grant needed. This is the check C-04a lost a full cycle to.
+
+**`create_recurring_booking_series` cannot be reused for extension** — established on evidence, not assumption: it unconditionally inserts a *new* template row (orphaning the series), it raises when the first date is in the past (an existing series' anchor always is), and its horizon is derived from its own parameter with no way to express "extend this template". The route inserts directly, copying the RPC's column lists field-for-field so a cron-created occurrence is indistinguishable from a form-created one.
+
+**⚠️ Deviation — advisory lock omitted (Owner-approved 2026-08-02).** Plan Step 19 calls for a per-template advisory lock. `pg_advisory_lock` is not reachable through PostgREST without a new SQL function, which would be another Zone-2 migration. The implementer substituted the idempotent existence-filter and documented the trade-off in the file header. Offered to the Owner with three routes (accept / true advisory lock / app-level claim guard); **Owner chose to accept the substitute and log it.** Residual risk is a TOCTOU race needing two overlapping invocations of a once-daily 03:00 cron — theoretical at current scale.
+
+### 3.8 — Phase H (`ce5ad07`) — surface integration
+
+Calendar badge at both render sites, Series filter, service toggle, audit phrasings. Three lenses PASS.
+
+**The cross-phase seam holds:** `filterBookings`' new `series` branch narrows by `templateId`, satisfying the exact deep link Phase F emits (`/admin/bookings?view=series&templateId=<id>`) rather than merely filtering "is recurring" — a mismatch there would have silently shown the wrong set. `series` is also folded into `viewIsArchive` so cancelled occurrences stay visible, honouring the "View all N visits" promise.
+
+**Audit strings cross-checked three ways** and all match character-for-character: the RPC writes `recurring_series_created` (read live via `pg_get_functiondef`), `cancelRecurringSeries` writes `recurring_series_cancelled`, the cron writes `recurring_series_extended`. A phrasing keyed to a string nothing emits would be dead; an emitted string with no phrasing renders raw to the operator. Neither occurs. `AUDIT_PHRASING` went 19 → 22, additive only.
+
+**Plan Step 22's tooltip was not literally achievable** — it asks for "cadence + series link", but a native `title` attribute cannot host an anchor, and both call sites are already wrapped in an enclosing `<Link>` so a nested one would be invalid HTML. Cadence-only tooltip shipped, documented in-code, with the real "View series" link one hop away on booking detail (Phase F). Judged adequate by the verifier and consistent with the pre-existing "Group · N" chip, which also carries no link.
+
+### 3.9 — Logged, not fixed, from G and H
+
+- **The cron's audit row is gated on `createdDates.length > 0`.** A template that advances `horizon_through_date` but creates zero new occurrences (all dates already present) leaves no `recurring_series_extended` row. Not a phrasing defect — nothing renders wrong — but the audit trail is silent for a no-op extension.
+- **`rollbackOccurrence()`'s compensating DELETEs are best-effort.** If a child insert fails *and* the compensating delete also fails, the error reaches Sentry but not `outcome.failures`, potentially leaving a ghost booking with no participant/items that permanently occupies that date in `existingDates`. Double-failure scenario, no test coverage, narrow.
+- **`TEMPLATE_LIMIT = 100` per run**, ordered oldest-horizon-first. More than 100 due templates in a day builds a backlog. Starvation-resistant by construction and matches the plan's own §4.1 accepted risk.
+- **`SeriesActions.tsx` lines ~121–127 carry a now-stale Phase F comment** saying the cascade "sends NO email to anyone" — false since Phase Fb. Outside Fb's file list, so correctly left at the time; to be corrected.
+- **No spec covers `filterBookings`' new `series` branch** or the calendar badge. Plan Steps 22–25 name no spec sub-step (unlike Phases B/D/G), so not a plan deviation — but a genuine coverage gap for a moderately intricate predicate.
 
 ### 3.4 — Logged, not fixed (rule 6a) — two worth the Owner's attention
 
