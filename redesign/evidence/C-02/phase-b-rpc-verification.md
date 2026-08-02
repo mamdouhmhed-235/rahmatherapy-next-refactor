@@ -27,7 +27,7 @@ The function is `IMMUTABLE` and pure date arithmetic, so it can be verified exha
 
 ### 1.1 — Occurrence counts are anchor-independent
 
-Replayed across **all 366 first-dates of 2026** × 3 cadences, with the shipped horizon convention (`horizon = first + 12*7 − 1`):
+Replayed across **366 consecutive first-dates starting 2026-01-01** (i.e. all 365 days of 2026 plus 2027-01-01 — 2026 is not a leap year) × 3 cadences, with the shipped horizon convention (`horizon = first + 12*7 − 1`):
 
 | Cadence | Anchors tested | min | max | First date ≠ anchor | Longest span (days) |
 |---|---|---|---|---|---|
@@ -92,9 +92,9 @@ Two consequences, both load-bearing:
 1. **The security control works.** `anon` and `authenticated` cannot reach it, matching Phase A's REVOKE verification.
 2. **`execute_sql` runs as `postgres`, not `service_role`**, so this RPC is *structurally incapable* of writing anything through the orchestrator's SQL path — the guard fires on line 32, before any validation and long before any INSERT. That is what made the probe above safe to run, and it is also why Step 5 cannot be discharged from here (§5).
 
-### 2.2 — Validation surface: 21 guarded failure paths
+### 2.2 — Validation surface: 24 `RAISE EXCEPTION` statements, grouped into 22 failure paths
 
-Enumerated from the applied definition, in execution order:
+Enumerated from the applied definition, in execution order. Row 21 bundles three raises (missing / inactive / gender-mismatched bound therapist), which is why the statement count (24) exceeds the row count (22):
 
 | # | Condition | Errcode |
 |---|---|---|
@@ -147,6 +147,12 @@ Progress file §1.4 warned that Plan Step 19 and brief §2.5 both sketch resumin
 Every extended visit would land on the wrong weekday, permanently, and the duplicate check keyed on `(client, date, start_time)` cannot catch it because the dates genuinely differ. There is no error anywhere — the series simply drifts a day at the first extension and stays drifted.
 
 **Binding instruction for Phase G: walk from the series anchor (or `max(booking_date)` of the series), never from `horizon_through_date`.**
+
+**The trap is structural, not anchor-specific** (established by the independent verifier, which re-ran it at two further weekly anchors — `2026-01-05` Mon, `2026-06-17` Wed — and at fortnightly cadence). It follows directly from the horizon convention: `83 mod 7 = 6` and `83 mod 14 = 13`, so `horizon_through_date` always sits exactly one cadence-step *minus one day* past the last real occurrence. Every weekly series drifts 6 days, every fortnightly series 13, at the very first extension — and then stays drifted. No anchor escapes it.
+
+### 3.1 — Independent verification of this phase
+
+A separate read-only verifier re-derived every claim in this file from its own queries rather than reviewing the prose. **Verdict: PASS.** Both function hashes, all end-condition semantics, the day-of-month drift and the Phase G trap reproduced exactly; row counts confirmed unchanged; the guard table confirmed complete and correctly ordered with no missed guard; and §4/§5's reasoning judged a fair reading of the plan rather than a quiet drop of required work. It caught two documentation errors in this file — an anchor-count label and the guard-count header — both corrected above.
 
 ---
 
