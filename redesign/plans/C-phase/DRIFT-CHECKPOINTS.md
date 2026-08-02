@@ -37,4 +37,56 @@ Zero new `border-l-4`, zero `revalidateTag(`, all `createSupabaseAdminClient()` 
 
 ---
 
-*Checkpoint #2 due after plan #10.*
+## Checkpoint #2 — after plan #10 (C-15), run 2026-08-01 on `opus` — **FAIL**
+
+Range `7fe8b4f..0bb356d`: 162 commits, 239 files, +36,666/−4,036, 7 migrations, 10 plans. Independent gate re-run at HEAD: **lint 59E/7W in exactly the six inherited files · vitest 5 failed / 1107 passed (1112), identity-exact.**
+
+### What held up
+
+**Part 0 conventions: clean.** Zero `border-l-4` repo-wide. Zero `revalidateTag`. Every new `createSupabaseAdminClient()` site gated behind `getStaffProfile()` (or `CRON_SECRET` on the cron routes). Zero new `unstable_cache` usage. No fixed-pixel widths added. C-22's honeypot Tailwind exception is still the *only* one in `src/features/booking` — it did not become a pattern.
+
+**The eslint-accumulation worry was wrong, and measurably so.** Total suppressions in `src/` went **45 → 37** across the programme: +9 added, −17 removed (C-15 Phase F's deletions), net **−8**. Of the 24 files carrying suppressions, 19 pre-date the programme. `exhaustive-deps` already had 13 pre-existing suppressions, so C-15's justification-by-idiom holds for both rules it touched, not just the one its narrative argued.
+
+**Baseline discipline is the strongest part of the run.** The five failures are identity-exact at HEAD, unchanged in character. **No test was skipped, weakened or deleted to keep a gate green** — zero `.skip`/`.todo`/`xit`/`xdescribe` in `src/`, `e2e/` untouched across the whole range. All six modified pre-existing specs were read diff-by-diff: five purely additive; `createBookingTransaction.test.ts` was **strengthened** (its exact-equality assertion gained six keys rather than degrading to `objectContaining`) — that is C-06's expected shrinkage, correctly earned. The two deleted spec files went with the two unwired dashboard blocks C-11 removed under Owner approval.
+
+**Sonnet vs Opus: no substantive divergence.** The likeliest fault line — server-action error handling — turned out to show rule 11 working: C-06 (Opus) throws, C-08 (Sonnet) returns a result object, and *each matches its own file's pre-existing idiom*, with C-08 saying so in-line. Test structure was indistinguishable between C-04a (Opus) and C-08 (Sonnet). Where they differ is narrative confidence in progress files, not code — and that cuts both ways (see F-5 below, and a C-11 Opus-authored grep claim that was not freshly re-run).
+
+**Migrations: 7 applied, 7 committed files, 7 approval records — no orphans in either direction.** `maintenance.ts` exactly as §3b requires: working copy `false`, HEAD `true`, last touched by pre-programme `35bf817`, never staged.
+
+**Email subsystem, audited across the four plans that reshaped it:** no `template_id`/`eventType` mismatch anywhere (all 16 traced); `escapeHtml(substituteVars(...))` ordering intact at all 60 escape sites — no injection vector; no earlier plan's fix undone by a later one; C-15's test-send recipient lock and draft-preview auth both correct.
+
+### Findings
+
+**F-1 — BLOCKING (process, orchestrator-owned).** Plan #11's Phase A was dispatched **while this checkpoint was running**, mutating the shared tree mid-audit. The checkpoint inferred an unauthorised second session; **it was the orchestrator**, over-parallelising after an Owner request to use workflows for speed. Its gate runs predated the writes, so the measurements above are clean-HEAD — by luck, not design. The work is committed under its own plan id (`af273e8`) and independently verified PASS. **Correction adopted: drift checkpoints complete before the next plan's implementation begins. Read-only prep may still run in parallel; writes may not.** §2.8(c) already said this; it was misapplied.
+
+**F-2 — BLOCKING (product).** **Every already-delivered "Manage this booking" link dies when a newer email goes out.** `ensureBookingManageUrl` mints a fresh UUID and overwrites the single `manage_token_hash`; validation is an exact hash match on that one column, so only one token is ever live. Send sites requesting a manage URL went **1 → 3** in range (independently re-counted: `includeManageUrl: true` = 1 at `7fe8b4f`, 3 at HEAD), the two new ones added by C-08 Phase A in `sendBookingConfirmedClientEmail` and `sendClientAssignedTherapistEmail` — the latter firing on *every* assign, reassign and claim. A customer opening the oldest email in the thread gets an invalid-link page for a valid booking, silently. **Invisible from inside C-08**, whose review this passed: C-08 added send sites, while the rotation lives in `manage-token.ts`, a file it never touched. No remaining plan owns that file, so absent a fix it ships at the end-of-programme deploy. Raised with the Owner 2026-08-01.
+
+**F-3 — NON-BLOCKING.** Resend has no status awareness and can resurrect a cancellation that C-04a's Undo deliberately suppressed: the button renders on `cancelled_by_restore` rows, and `dispatchResend` re-sends the customer leg plus the staff fan-out with no booking-status check.
+
+**F-4 — NON-BLOCKING.** C-15 added **9 hardcoded light-only colour literals** to three brand-new admin files (`TokenTextField`, `LivePreview`, `TemplateEditor`) after C-11 made admin dark-capable — including `border-[oklch(40%_0.14_25)]`, verbatim the *light* arm of `--admin-danger-solid`. Dark is the default (all 12 staff rows have `theme_preference = NULL`), so a subject-overrun error renders at roughly 1.2:1 against the panel. Note C-15's own Phase E file is genuinely token-clean, making this an inconsistency *within one plan*. The six literals inside `FIXED_PART_OUTLINE_CSS` are correctly excluded — they target the deliberately-light email iframe.
+
+**F-5 — NON-BLOCKING.** C-15's closeout undercounts its own suppressions: it states four, the true count is **seven** (`LivePreview` 1, `TemplateEditor` 4, `TemplateGallery` 2), and the file contradicts itself two sections apart. The three `exhaustive-deps` suppressions were never individually argued.
+
+**F-6 — NON-BLOCKING but customer-visible.** The double `resolveTemplateOverrides` fetch survives on all six templates — C-15 built the `providedOverrides?` seam and never passed it from a send site. Worse for `review_request_client`: `pickReviewMessages` shuffles 3-of-5 with `Math.random` and runs **twice**, so on ~90% of sends the HTML part and the plain-text part list *different* review samples. And because `resolveTemplateOverrides` swallows errors and returns `{}`, a first-read failure with a second-read success yields an email whose subject and text part carry edited copy while the visible HTML body carries factory defaults.
+
+**F-7 — NON-BLOCKING.** `booking_plain_text` is a fully editable, resettable, "Customised"-badgeable gallery card that reaches **no email** — all nine plain-text legs render with their sibling HTML template's overrides. Edit its footer, watch the preview update and the badge flip, and every real send keeps the old text.
+
+**F-8 — NON-BLOCKING.** Five event types have a Resend button that can never work (`review_request_client`, `booking_restored_client`, `admin_booking_notification`, `booking_reschedule_request_admin`, `enquiry_logged`). Compounded for review requests: `sendReviewRequestEmail` discards the send status and stamps `review_email_sent_at` regardless, so the cron never retries — a hard-bounced review request is unrecoverable, and the only visible affordance is a button that errors.
+
+**F-9 — NON-BLOCKING, conditional.** Four migration files carry filename versions absent from the live ledger (normal `apply_migration` behaviour). Unreachable today — no `supabase/config.toml`, no CI — but the Owner's stated route is a GitHub push at end of programme, where a `db push` would try to re-apply C-06's 698-line DDL.
+
+**F-10 — NON-BLOCKING.** `OWNER-ACTION-BACKLOG.md` is a C-08-era snapshot; ~42 deferred items across ten progress files are missing, C-15 contributed none, three rows are mis-routed at C-15, and one row nominates booking `d8a61721` as a sweep fixture while another asks the Owner to delete that same booking.
+
+### For checkpoint #3 (after plan #15)
+
+1. Whether F-1 recurs — re-run `git status` at checkpoint start *and* end and diff them.
+2. `notifications.ts` shared-surface pressure: +877 lines in range, four plans deep, with C-13/C-02/C-09 still queued behind it.
+3. Whether the F-6 `providedOverrides` seam ever gets used, or whether C-13/C-02 copy the current double-fetch shape — the textbook copied-deviation-becomes-pattern, one plan away.
+4. F-4's trajectory: C-13 touches `dashboard-cards.tsx` and the bookings list, both inside C-11's deferred colour remainder. Tokens or literals decides whether dark mode converges.
+5. Backlog decay rate — measure the delta, don't re-enumerate.
+6. **C-09 is the first genuinely retroactive plan** (its tag sweep covers all prior plans' actions) — the first chance for a plan to undo earlier plans' fixes at scale. No prior checkpoint could see this shape.
+7. Post-deploy-only checks accumulating with no owner: C-22's four limiter checks, C-08's histogram, C-21's Search Console items, the maintenance-flag restore. One un-rehearsed window, now larger than checkpoint #1 flagged, uncosted.
+
+---
+
+*Checkpoint #3 due after plan #15.*
