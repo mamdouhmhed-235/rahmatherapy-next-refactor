@@ -11,7 +11,6 @@ import {
   SearchX,
   UserPlus,
 } from "lucide-react";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import {
@@ -23,7 +22,6 @@ import { BookingCardSkeletonList } from "../components/admin-scalable-lists";
 import { BookingsChrome, type BookingViewKey } from "./BookingsChrome";
 import { BookingCard } from "./BookingCard";
 import {
-  canClaimAssignments,
   canManageAllBookings,
   canManageBookings,
   hasClaimableAssignment,
@@ -31,6 +29,10 @@ import {
 } from "./access";
 import { getTodayIsoDate } from "./_helpers";
 import { formatDate } from "./format";
+import {
+  getBookingsChromeData,
+  getBookingsListData,
+} from "./bookings-list-data";
 import type { BookingRecord } from "./types";
 
 // Re-exported for any existing caller that imported this from here (Step 8,
@@ -42,117 +44,11 @@ export const metadata = {
   title: "Bookings - Rahma Therapy Admin",
 };
 
-// C-04a Phase G — `cancelled_at` is named here in the SAME change that adds it
-// to `BookingRecord` (./types.ts). Splitting them leaves the field `undefined`
-// at runtime while tsc stays green (the admin client carries no `Database`
-// generic and the row is an unchecked `.returns<BookingRecord[]>()` cast),
-// which makes `isRestoreWindowExpired` fail closed on every cancelled booking
-// and hides the row menu's Restore item everywhere.
-const BOOKING_SELECT = `
-  id,
-  booking_date,
-  start_time,
-  end_time,
-  total_duration_mins,
-  total_price,
-  contact_full_name,
-  contact_email,
-  contact_phone,
-  booking_source,
-  amount_due,
-  amount_paid,
-  paid_at,
-  payment_note,
-  status,
-  payment_status,
-  payment_method,
-  assignment_status,
-  group_booking,
-  service_address_line1,
-  service_address_line2,
-  service_city,
-  service_postcode,
-  access_notes,
-  consent_acknowledged,
-  customer_notes,
-  health_notes,
-  customer_manage_notes,
-  cancelled_at,
-  customer_cancelled_at,
-  customer_cancellation_note,
-  last_customer_manage_action_at,
-  reschedule_requested_at,
-  reschedule_preferred_date,
-  reschedule_preferred_time,
-  reschedule_note,
-  reschedule_status,
-  admin_notes,
-  treatment_notes,
-  created_at,
-  recurring_template_id,
-  clients(full_name, phone, email),
-  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, display_name, participant_notes, health_notes, consent_acknowledged),
-  booking_items(id, booking_participant_id, service_name_snapshot, service_price_snapshot, service_duration_snapshot),
-  booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
-`;
-
-const CLAIMABLE_BOOKING_SELECT = `
-  id,
-  booking_date,
-  start_time,
-  end_time,
-  total_duration_mins,
-  status,
-  assignment_status,
-  group_booking,
-  booking_source,
-  reschedule_status,
-  cancelled_at,
-  customer_cancelled_at,
-  created_at,
-  recurring_template_id,
-  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, consent_acknowledged),
-  booking_items(id, booking_participant_id, service_name_snapshot, service_duration_snapshot),
-  booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
-`;
-
-// Exported (C-FIELDWORK Phase D, brief §9.4 locked decision) — dashboard/page.tsx
-// reuses this exact gender-matched claimable-scoping logic for the
-// practitioner-mode Owner/Coordinator's claimableCount. Behaviour unchanged.
-export async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
-  const adminClient = createSupabaseAdminClient();
-  const { data: assignedRows } = await adminClient
-    .from("booking_assignments")
-    .select("booking_id")
-    .eq("assigned_staff_id", profile.id);
-
-  // C-05 Phase C (edit point 5) — the `bookings!inner` join + status/date
-  // filters keep cancelled, no_show, and past-dated bookings out of
-  // `claimableIds` at the source, rather than relying solely on the
-  // in-memory `filterBookings` pass below for defense-in-depth.
-  const todayISO = getTodayIsoDate();
-  const claimableRows = canClaimAssignments(profile)
-    ? (
-        await adminClient
-          .from("booking_assignments")
-          .select("booking_id, bookings!inner(status, booking_date)")
-          .eq("status", "unassigned")
-          .is("assigned_staff_id", null)
-          .eq("required_therapist_gender", profile.gender)
-          .not("bookings.status", "in", '("cancelled","no_show")')
-          .gte("bookings.booking_date", todayISO)
-      ).data ?? []
-    : [];
-
-  return {
-    assignedIds: Array.from(
-      new Set((assignedRows ?? []).map((assignment) => assignment.booking_id as string))
-    ),
-    claimableIds: Array.from(
-      new Set((claimableRows ?? []).map((assignment) => assignment.booking_id as string))
-    ),
-  };
-}
+// BOOKING_SELECT, CLAIMABLE_BOOKING_SELECT, normalizeClaimableBooking and
+// getScopedBookingIds moved to ./bookings-list-data.ts with the fetch
+// (C-09 Phase C Step 5). getScopedBookingIds is re-exported from here so
+// dashboard/page.tsx's existing import path keeps working unchanged.
+export { getScopedBookingIds } from "./bookings-list-data";
 
 function getQueryValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -302,71 +198,6 @@ export function filterBookings(
   });
 }
 
-function normalizeClaimableBooking(booking: Partial<BookingRecord>): BookingRecord {
-  return {
-    id: booking.id ?? "",
-    booking_date: booking.booking_date ?? "",
-    start_time: booking.start_time ?? "",
-    end_time: booking.end_time ?? "",
-    total_duration_mins: booking.total_duration_mins ?? null,
-    total_price: null,
-    contact_full_name: "Claimable booking",
-    contact_email: "",
-    contact_phone: "",
-    booking_source: booking.booking_source ?? "",
-    amount_due: null,
-    amount_paid: null,
-    paid_at: null,
-    payment_note: null,
-    status: booking.status ?? "pending",
-    payment_status: "unpaid",
-    payment_method: null,
-    assignment_status: booking.assignment_status ?? "unassigned",
-    group_booking: booking.group_booking ?? false,
-    service_address_line1: null,
-    service_address_line2: null,
-    service_city: null,
-    service_postcode: null,
-    access_notes: null,
-    consent_acknowledged: false,
-    customer_notes: null,
-    health_notes: null,
-    customer_manage_notes: null,
-    cancelled_at: booking.cancelled_at ?? null,
-    customer_cancelled_at: booking.customer_cancelled_at ?? null,
-    customer_cancellation_note: null,
-    last_customer_manage_action_at: null,
-    reschedule_requested_at: null,
-    reschedule_preferred_date: null,
-    reschedule_preferred_time: null,
-    reschedule_note: null,
-    reschedule_status: booking.reschedule_status ?? "none",
-    admin_notes: null,
-    treatment_notes: null,
-    created_at: booking.created_at ?? "",
-    recurring_template_id: booking.recurring_template_id ?? null,
-    clients: null,
-    booking_participants: (booking.booking_participants ?? []).map((participant) => ({
-      id: participant.id,
-      participant_gender: participant.participant_gender,
-      required_therapist_gender: participant.required_therapist_gender,
-      is_main_contact: participant.is_main_contact,
-      display_name: null,
-      participant_notes: null,
-      health_notes: null,
-      consent_acknowledged: participant.consent_acknowledged,
-    })),
-    booking_items: (booking.booking_items ?? []).map((item) => ({
-      id: item.id,
-      booking_participant_id: item.booking_participant_id,
-      service_name_snapshot: item.service_name_snapshot,
-      service_price_snapshot: 0,
-      service_duration_snapshot: item.service_duration_snapshot,
-    })),
-    booking_assignments: booking.booking_assignments ?? [],
-  };
-}
-
 export default async function BookingsPage({
   searchParams,
 }: {
@@ -390,26 +221,12 @@ export default async function BookingsPage({
     );
   }
 
-  const adminClient = createSupabaseAdminClient();
   const canViewAll = canManageAllBookings(profile);
   const defaultView: BookingViewKey = canViewAll ? "attention" : "today";
   const currentView = (getQueryValue(query.view) ?? defaultView) as BookingViewKey;
 
   // Lightweight chrome data — filter dropdown options only.
-  const [{ data: services }, { data: staff }] = canViewAll
-    ? await Promise.all([
-        adminClient
-          .from("services")
-          .select("slug, name")
-          .eq("is_active", true)
-          .order("name"),
-        adminClient
-          .from("staff_profiles")
-          .select("id, name")
-          .eq("active", true)
-          .order("name"),
-      ])
-    : [{ data: [] }, { data: [] }];
+  const { services, staff } = await getBookingsChromeData(canViewAll);
 
   return (
     <div>
@@ -436,8 +253,8 @@ export default async function BookingsPage({
       <BookingsChrome
         currentView={currentView}
         query={query}
-        services={services ?? []}
-        staff={staff ?? []}
+        services={services}
+        staff={staff}
         canViewAll={canViewAll}
       />
 
@@ -481,51 +298,7 @@ async function BookingListSection({
 
   let bookings: BookingRecord[];
   try {
-    const adminClient = createSupabaseAdminClient();
-    const scopedIds = canViewAll ? null : await getScopedBookingIds(profile);
-    const claimableOnlyIds =
-      scopedIds?.claimableIds.filter((id) => !scopedIds.assignedIds.includes(id)) ?? [];
-
-    bookings = canViewAll
-      ? (
-          await adminClient
-            .from("bookings")
-            .select(BOOKING_SELECT)
-            .order("booking_date", { ascending: false })
-            .order("start_time", { ascending: false })
-            .returns<BookingRecord[]>()
-        ).data ?? []
-      : [
-          ...(
-            scopedIds?.assignedIds.length
-              ? (
-                  await adminClient
-                    .from("bookings")
-                    .select(BOOKING_SELECT)
-                    .in("id", scopedIds.assignedIds)
-                    .order("booking_date", { ascending: false })
-                    .order("start_time", { ascending: false })
-                    .returns<BookingRecord[]>()
-                ).data ?? []
-              : []
-          ),
-          ...(
-            claimableOnlyIds.length
-              ? (
-                  await adminClient
-                    .from("bookings")
-                    .select(CLAIMABLE_BOOKING_SELECT)
-                    .in("id", claimableOnlyIds)
-                    .order("booking_date", { ascending: false })
-                    .order("start_time", { ascending: false })
-                    .returns<Partial<BookingRecord>[]>()
-                ).data?.map(normalizeClaimableBooking) ?? []
-              : []
-          ),
-        ].sort((a, b) => (
-          b.booking_date.localeCompare(a.booking_date) ||
-          b.start_time.localeCompare(a.start_time)
-        ));
+    bookings = await getBookingsListData({ profile, canViewAll });
   } catch (loadError) {
     // Surface to Sentry / dev console; swallowing the error leaves the
     // crash invisible in production telemetry.

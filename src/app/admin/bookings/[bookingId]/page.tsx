@@ -56,6 +56,12 @@ import {
   type StaffAssignmentPreview,
 } from "../assignment-eligibility";
 import {
+  getBookingDetailData,
+  getRestoreContext,
+  getScopedBookingRelation,
+  type BookingRecordWithClientId,
+} from "./booking-detail-data";
+import {
   composeBookingIdentity,
   composeGenderRequirementChip,
   getCancellationMoment,
@@ -181,243 +187,13 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
   no_show: "No-show",
 };
 
-// `cancelled_at` is named here because `BookingRecord` (../types.ts) declares
-// it. That pairing is load-bearing, not tidiness: the row arrives through an
-// unchecked `.single<BookingRecordWithClientId>()` cast against an untyped
-// admin client, so a column present on the type but absent from this string
-// reads `undefined` at runtime with tsc, lint and vitest all green —
-// `isRestoreWindowExpired` then fails closed and the Restore button disappears
-// from this page while the list row (../page.tsx) still offers it. Never split
-// the two.
-const BOOKING_DETAIL_SELECT = `
-  id,
-  client_id,
-  booking_date,
-  start_time,
-  end_time,
-  total_duration_mins,
-  total_price,
-  contact_full_name,
-  contact_email,
-  contact_phone,
-  booking_source,
-  amount_due,
-  amount_paid,
-  paid_at,
-  payment_note,
-  status,
-  payment_status,
-  payment_method,
-  assignment_status,
-  group_booking,
-  service_address_line1,
-  service_address_line2,
-  service_city,
-  service_postcode,
-  access_notes,
-  consent_acknowledged,
-  customer_notes,
-  health_notes,
-  customer_manage_notes,
-  cancelled_at,
-  customer_cancelled_at,
-  customer_cancellation_note,
-  last_customer_manage_action_at,
-  reschedule_requested_at,
-  reschedule_preferred_date,
-  reschedule_preferred_time,
-  reschedule_note,
-  reschedule_status,
-  admin_notes,
-  treatment_notes,
-  created_at,
-  recurring_template_id,
-  clients(full_name, phone, email),
-  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, display_name, participant_notes, health_notes, consent_acknowledged),
-  booking_items(id, booking_participant_id, service_name_snapshot, service_price_snapshot, service_duration_snapshot),
-  booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name)),
-  email_delivery_events(id, event_type, recipient_email, recipient_role, delivery_status, provider_message_id, error_message, created_at)
-`;
-
-const CLAIMABLE_BOOKING_DETAIL_SELECT = `
-  id,
-  client_id,
-  booking_date,
-  start_time,
-  end_time,
-  total_duration_mins,
-  status,
-  assignment_status,
-  group_booking,
-  booking_source,
-  reschedule_status,
-  cancelled_at,
-  customer_cancelled_at,
-  created_at,
-  booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, consent_acknowledged),
-  booking_items(id, booking_participant_id, service_name_snapshot, service_duration_snapshot),
-  booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
-`;
-
-// C-02 Phase F, Step 18 — `recurring_template_id` is local to this file (like
-// `client_id` above) rather than added to the shared `BookingRecord` type in
-// `../types.ts`, which Phase F does not otherwise touch.
-type BookingRecordWithClientId = BookingRecord & {
-  client_id: string | null;
-  recurring_template_id: string | null;
-};
+// BOOKING_DETAIL_SELECT, CLAIMABLE_BOOKING_DETAIL_SELECT,
+// BookingRecordWithClientId, getScopedBookingRelation,
+// normalizeClaimableBooking and getRestoreContext moved to
+// ./booking-detail-data.ts with the fetch (C-09 Phase C Step 5).
 
 interface BookingDetailPageProps {
   params: Promise<{ bookingId: string }>;
-}
-
-async function getScopedBookingRelation(
-  bookingId: string,
-  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>,
-  adminClient: ReturnType<typeof createSupabaseAdminClient>
-) {
-  if (canManageAllBookings(profile)) {
-    return { canOpen: true, claimableOnly: false };
-  }
-
-  const { count: assignedCount } = await adminClient
-    .from("booking_assignments")
-    .select("id", { count: "exact", head: true })
-    .eq("booking_id", bookingId)
-    .eq("assigned_staff_id", profile.id);
-
-  if ((assignedCount ?? 0) > 0) {
-    return { canOpen: true, claimableOnly: false };
-  }
-
-  const { count: claimableCount } = canClaimAssignments(profile)
-    ? await adminClient
-        .from("booking_assignments")
-        .select("id", { count: "exact", head: true })
-        .eq("booking_id", bookingId)
-        .eq("status", "unassigned")
-        .is("assigned_staff_id", null)
-        .eq("required_therapist_gender", profile.gender)
-    : { count: 0 };
-
-  return {
-    canOpen: (claimableCount ?? 0) > 0,
-    claimableOnly: (claimableCount ?? 0) > 0,
-  };
-}
-
-function normalizeClaimableBooking(
-  booking: Partial<BookingRecordWithClientId>
-): BookingRecordWithClientId {
-  return {
-    id: booking.id ?? "",
-    client_id: booking.client_id ?? null,
-    // CLAIMABLE_BOOKING_DETAIL_SELECT never selects this column — a
-    // claimable-only viewer doesn't qualify for the series view either
-    // (F4), so there is no cross-link to point at regardless.
-    recurring_template_id: booking.recurring_template_id ?? null,
-    booking_date: booking.booking_date ?? "",
-    start_time: booking.start_time ?? "",
-    end_time: booking.end_time ?? "",
-    total_duration_mins: booking.total_duration_mins ?? null,
-    total_price: null,
-    contact_full_name: "Claimable booking",
-    contact_email: "",
-    contact_phone: "",
-    booking_source: booking.booking_source ?? "",
-    amount_due: null,
-    amount_paid: null,
-    paid_at: null,
-    payment_note: null,
-    status: booking.status ?? "pending",
-    payment_status: "unpaid",
-    payment_method: null,
-    assignment_status: booking.assignment_status ?? "unassigned",
-    group_booking: booking.group_booking ?? false,
-    service_address_line1: null,
-    service_address_line2: null,
-    service_city: null,
-    service_postcode: null,
-    access_notes: null,
-    consent_acknowledged: false,
-    customer_notes: null,
-    health_notes: null,
-    customer_manage_notes: null,
-    cancelled_at: booking.cancelled_at ?? null,
-    customer_cancelled_at: booking.customer_cancelled_at ?? null,
-    customer_cancellation_note: null,
-    last_customer_manage_action_at: null,
-    reschedule_requested_at: null,
-    reschedule_preferred_date: null,
-    reschedule_preferred_time: null,
-    reschedule_note: null,
-    reschedule_status: booking.reschedule_status ?? "none",
-    admin_notes: null,
-    treatment_notes: null,
-    created_at: booking.created_at ?? "",
-    clients: null,
-    booking_participants: (booking.booking_participants ?? []).map(
-      (participant) => ({
-        id: participant.id,
-        participant_gender: participant.participant_gender,
-        required_therapist_gender: participant.required_therapist_gender,
-        is_main_contact: participant.is_main_contact,
-        display_name: null,
-        participant_notes: null,
-        health_notes: null,
-        consent_acknowledged: participant.consent_acknowledged,
-      })
-    ),
-    booking_items: (booking.booking_items ?? []).map((item) => ({
-      id: item.id,
-      booking_participant_id: item.booking_participant_id,
-      service_name_snapshot: item.service_name_snapshot,
-      service_price_snapshot: 0,
-      service_duration_snapshot: item.service_duration_snapshot,
-    })),
-    booking_assignments: booking.booking_assignments ?? [],
-  };
-}
-
-/**
- * S3 — the Restore confirm modal shows what is being undone. A customer's own
- * cancellation note wins; otherwise the most recent cancel audit row supplies
- * who and when.
- *
- * Both admin cancel paths are queried: the Status form writes
- * `booking_management_updated`, the quick action writes `booking_quick_cancel`
- * (`actions.ts`), and in production every admin cancellation so far has gone
- * through the latter.
- */
-async function getRestoreContext(
-  booking: BookingRecord,
-  adminClient: ReturnType<typeof createSupabaseAdminClient>
-): Promise<RestoreContext> {
-  if (booking.customer_cancellation_note) {
-    return {
-      customerNote: booking.customer_cancellation_note,
-      cancelledByName: null,
-      cancelledAtLabel: null,
-    };
-  }
-
-  const { data } = await adminClient
-    .from("audit_logs")
-    .select("created_at, staff_profiles(name)")
-    .eq("target_id", booking.id)
-    .in("action_type", ["booking_management_updated", "booking_quick_cancel"])
-    .eq("after_state->>status", "cancelled")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<{ created_at: string; staff_profiles: { name: string } | null }>();
-
-  return {
-    customerNote: null,
-    cancelledByName: data?.staff_profiles?.name ?? null,
-    cancelledAtLabel: data
-      ? safeFormatDateTime(data.created_at, { dateStyle: "medium" })
-      : null,
-  };
 }
 
 export default async function BookingDetailPage({
@@ -436,38 +212,18 @@ export default async function BookingDetailPage({
   }
 
   const adminClient = createSupabaseAdminClient();
-  const scopedRelation = await getScopedBookingRelation(
+  const { canOpen, booking, auditLogs } = await getBookingDetailData({
     bookingId,
     profile,
-    adminClient
-  );
-  if (!scopedRelation.canOpen) {
+    fullScope: canManageAllBookings(profile),
+  });
+  if (!canOpen) {
     return <BookingAccessDenied />;
   }
 
-  const bookingResult = scopedRelation.claimableOnly
-    ? (
-        await adminClient
-          .from("bookings")
-          .select(CLAIMABLE_BOOKING_DETAIL_SELECT)
-          .eq("id", bookingId)
-          .single<Partial<BookingRecordWithClientId>>()
-      ).data
-    : (
-        await adminClient
-          .from("bookings")
-          .select(BOOKING_DETAIL_SELECT)
-          .eq("id", bookingId)
-          .single<BookingRecordWithClientId>()
-      ).data;
-
-  if (!bookingResult) {
+  if (!booking) {
     return <BookingNotFound />;
   }
-
-  const booking = scopedRelation.claimableOnly
-    ? normalizeClaimableBooking(bookingResult)
-    : (bookingResult as BookingRecordWithClientId);
 
   if (!canOpenBookingRecord(booking, profile)) {
     return <BookingAccessDenied />;
@@ -585,39 +341,6 @@ export default async function BookingDetailPage({
           )
         )
       : {};
-
-  const auditLogs = fullScope
-    ? (
-        await Promise.all([
-          adminClient
-            .from("audit_logs")
-            .select(
-              "id, action_type, target_type, target_id, created_at, staff_profiles(name)"
-            )
-            .eq("target_id", booking.id)
-            .order("created_at", { ascending: false })
-            .limit(10)
-            .returns<NonNullable<BookingRecord["audit_logs"]>>(),
-          booking.booking_assignments.length > 0
-            ? adminClient
-                .from("audit_logs")
-                .select(
-                  "id, action_type, target_type, target_id, created_at, staff_profiles(name)"
-                )
-                .in(
-                  "target_id",
-                  booking.booking_assignments.map((assignment) => assignment.id)
-                )
-                .order("created_at", { ascending: false })
-                .limit(10)
-                .returns<NonNullable<BookingRecord["audit_logs"]>>()
-            : Promise.resolve({ data: [] }),
-        ])
-      )
-        .flatMap((result) => result.data ?? [])
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .slice(0, 20)
-    : [];
 
   const bookingWithTimeline = { ...booking, audit_logs: auditLogs };
   const reference = shortRef(booking.id);
