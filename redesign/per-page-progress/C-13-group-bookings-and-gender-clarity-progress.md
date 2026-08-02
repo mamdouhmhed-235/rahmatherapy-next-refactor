@@ -161,7 +161,9 @@ Phase F added a new `generateMetadata` export (there was none; the plan's Step 1
 
 Drift checkpoint #2 (protocol §2.6, run after plan #10) returned **FAIL** with a customer-facing product bug that no remaining plan owns — see `redesign/plans/C-phase/DRIFT-CHECKPOINTS.md` F-2. In short: `ensureBookingManageUrl` overwrites the single `manage_token_hash` on every call, and C-08 Phase A took the manage-URL send sites from **1 to 3**, so every already-delivered "Manage this booking" link dies as soon as a newer email goes out. Independently re-counted and confirmed by the orchestrator.
 
-The fix touches `manage-token.ts` and `notifications.ts` — outside C-13's files-touched list, so protocol rule 6b makes it a blocking chat ask rather than something to fold in. **Raised with the Owner 2026-08-01, awaiting direction.** C-13's own phases are unaffected and continue.
+The fix touches `manage-token.ts` and `notifications.ts` — outside C-13's files-touched list, so protocol rule 6b makes it a blocking chat ask rather than something to fold in. Raised with the Owner 2026-08-01. C-13's own phases were unaffected and continued.
+
+> **✅ RESOLVED — fixed 2026-08-01 in `34e45da`** (together with F-6), Owner-authorised in chat, independently verified PASS with zero findings. The pre-C-08 invariant is restored: the manage token is minted **once at booking creation** and no notification send rotates it; the two C-08 Phase A paths now route through a new non-rotating `getExistingBookingManageUrl()`. Stated trade-off: `booking_confirmed_client` and `client_assigned_therapist` lose their "Manage this booking" CTA, which is the correct side of the trade — the alternative was continuing to kill the link in the email customers actually keep. Full detail in `redesign/plans/C-phase/DRIFT-CHECKPOINTS.md` under F-2. **This section is retained for audit trail; it is no longer an open item and no longer awaiting direction.**
 
 ---
 
