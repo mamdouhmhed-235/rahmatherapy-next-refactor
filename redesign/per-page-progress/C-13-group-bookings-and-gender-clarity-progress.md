@@ -82,8 +82,9 @@ From C-15's closeout at `8851e8c`: **tsc 0 · lint 59E/7W in exactly six files �
 | B | `4218bd5` | `BookingCard.tsx` extracted from `page.tsx` + nested `GroupBookingCard` variant. 14 specs. | **PASS** (§1.3) |
 | C | `b418aa0` | `composeBookingIdentity` helper — composite identity on the group card headline and the detail page's header description. 10 specs. | **PASS** (§1.4) |
 | D | `a516bd1` | Verification-only — Phase B already shipped the fraction badge; added the missing tone assertions. **No production code changed.** | **PASS** (§1.4) |
-| E, F, H | — | not started | — |
-| G | — | not started — **unblocked 2026-08-01**, target settled (§0.3) | — |
+| E | `dbe0208` | Calendar group surface — Users icon + composite identity + `Group · N` across 3 tile sites; one bounded local participants query. | **PASS** (§1.5) |
+| F | `2fdcadc` + fix `c64e6ad` | Booking-detail refinement; both group badges resolved; new `generateMetadata`. | **FAIL → fixed → re-verified PASS** (§1.6) |
+| G, H | — | not started — G unblocked 2026-08-01, target settled (§0.3) | — |
 
 ### 1.1 — Phase A notes
 
@@ -127,6 +128,34 @@ Verified **PASS**. `composeBookingIdentity` returns `{ primary, participantCount
 
 ---
 
+### 1.5 — Phase E: calendar (`dbe0208`)
+
+Verified **PASS**. Users icon + composite-identity headline + `Group · N` pill on the main day/week/range row; icon-only prefix on the month-grid pill (too narrow for a label) with full identity in the tooltip; composite name + count pill on the Unassigned/Claimable sidebar rows. Single bookings unchanged at all three sites; tile backgrounds untouched (Q9.4).
+
+**The plan's Step 12 said "extend the query". There was no query to extend** — `calendar/page.tsx`'s only booking source is `getReportData()` from `reporting.ts`, which is a RECON §5 untouchable *and* on C-13's own do-not-touch list, and whose types carry no `booking_participants` join. Following Step 12 literally would have been a rule-7 violation. Instead: **one bounded local SELECT** in `calendar/page.tsx` over `booking_participants`, `.in("booking_id", calendarBookingIds)` where those ids come straight from the already role-scoped `getReportData` output — so it can only ever touch bookings the viewer already sees. Guarded to skip entirely on an empty id list, selecting exactly the four fields `composeBookingIdentity` needs. Not N+1. `reporting.ts` confirmed byte-untouched.
+
+### 1.6 — Phase F: booking detail — FAILED verification on a real PII leak, then fixed (`2fdcadc` + `c64e6ad`)
+
+**Both group badges resolved, not just the one the plan knew about.** The plan's Step 14 removes the header badge; a second lived unmentioned in the Participants-panel header, and **both were gated on the unreliable `group_booking` flag**. The header badge was removed (composite identity already signals group-ness there via Phase C); the panel badge was **kept but re-gated to `participantCount > 1`**. Net result: zero flag-gated group indicators remain on the page, and the codebase-wide `isGroup` invariant now holds uniformly.
+
+**⚠️ The verifier caught a genuine PII exposure — this is the most important thing in C-13 so far.**
+
+Phase F added a new `generateMetadata` export (there was none; the plan's Step 13 assumed one existed to patch). It replicated the page's first two gates and `getScopedBookingRelation`, gating on `canOpen` — **but never checked `scopedRelation.claimableOnly`**, which is the page's entire redaction mechanism. When `claimableOnly` is true the page body deliberately selects a reduced column set, runs `normalizeClaimableBooking` to overwrite `contact_full_name` with `"Claimable booking"`, and hides `ClientCard`/`AddressCard`/`SafetyAndConsent`/`CustomerRequests`.
+
+`generateMetadata` skipped all of it and ran the **full** identity select, putting the real customer's name into `<title>` — server-rendered into the initial HTML.
+
+**No edge case required.** An active Therapist with `MANAGE_BOOKINGS_ASSIGNED` + `CLAIM_ASSIGNMENTS`, not assigned to the booking, opens a claimable slot — including through the "Claimable today" / "Unassigned" Calendar links **Phase E had just added** — and sees "Claimable booking" in the body while the browser tab shows the real client's name.
+
+**Fixed in `c64e6ad` as deny-before-fetch**, not fetch-then-discard: `claimableOnly` now short-circuits to the neutral title *before* the identity SELECT is issued, so the PII never enters the process. Re-verified: the re-verifier traced all four `getScopedBookingRelation` branches and confirmed no path remains where `canOpen && claimableOnly` reaches a name, and confirmed `normalizeClaimableBooking`, both column sets, `getScopedBookingRelation` and the page body's card-hiding are **byte-identical** — nothing was weakened to make it pass.
+
+**The spec that would have caught it now exists** and is a real guard, not a title check: it counts `bookings` select calls and asserts **zero** for a claimable-only viewer, so removing the fix fails it. Seven specs total; only `getStaffProfile` is mocked, with the RBAC helpers running for real.
+
+**Logged, non-blocking:** `generateMetadata` doesn't call `canOpenBookingRecord`, which the page body applies after its fetch. Provably safe today (every role with `view_bookings_all` also has `manage_bookings_all`, and the claimable path now denies outright), but it is an architectural asymmetry — if the two gates ever diverge, metadata is the one that won't notice.
+
+**The zero-new-specs judgement that produced this catch is worth keeping:** the verifier accepted the calendar's untested aggregation as low-risk but refused to accept an untested 40-line authorisation branch, and it was exactly right.
+
+---
+
 ## 2 — ⛔ Programme-level blocker raised during C-13 (not C-13's own defect)
 
 Drift checkpoint #2 (protocol §2.6, run after plan #10) returned **FAIL** with a customer-facing product bug that no remaining plan owns — see `redesign/plans/C-phase/DRIFT-CHECKPOINTS.md` F-2. In short: `ensureBookingManageUrl` overwrites the single `manage_token_hash` on every call, and C-08 Phase A took the manage-URL send sites from **1 to 3**, so every already-delivered "Manage this booking" link dies as soon as a newer email goes out. Independently re-counted and confirmed by the orchestrator.
@@ -135,4 +164,35 @@ The fix touches `manage-token.ts` and `notifications.ts` — outside C-13's file
 
 ---
 
-*C-13 in progress. Pre-flight `0bb356d`; Phase A `af273e8` (verified PASS). **Phase G blocked pending the Owner decision in §0.3; a programme-level email fix round is awaiting Owner direction per §2.***
+---
+
+## 3 — ▶ RESUME HERE (interrupt checkpoint, protocol §3)
+
+**Plan:** C-13, plan **#11 of 22**. **Phases A ✅ B ✅ C ✅ D ✅ E ✅ F ✅ (all independently verified) · Phase G NOT STARTED · Phase H NOT STARTED · closeout not run.**
+
+**Last-good commit:** `c64e6ad` (`fix(redesign): C-13 Phase F — generateMetadata must honour claimableOnly redaction`). Nothing mid-flight; every phase is committed and verified. Working tree clean except the standing deliberate `src/lib/maintenance.ts`.
+
+**Inherited baseline — measured at `c64e6ad`, use THIS not the plan's text:**
+- `npx tsc --noEmit` → **0 errors**
+- `pnpm lint` → **59 errors / 7 warnings**, in exactly six files: `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`
+- `pnpm vitest run` → **5 failed / 1155 passed (1160)**, failures EXACTLY: `admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent")
+- `pnpm build` → clean
+
+**Exact next action: C-13 Phase G**, model `sonnet`. Target settled by the Owner (§0.3): extend the **admin-internal `claim`** template (`renderClaimNotificationEmail`), plus `staff_assignment` and `booking_confirmed_client`.
+
+**Five things Phase G MUST carry:**
+1. **The plan's Step 17 names the wrong renderer.** It says `renderBookingConfirmationEmail`; the prose and brief §2.7 mean **`renderBookingConfirmedClientEmail`** — a different template (`booking_confirmation` is the initial "request received" email). Following Step 17 literally patches the wrong email.
+2. **`staff_assignment` already renders a full per-participant block** via `renderParticipants()`, including assignment state, and already carries `PARTICIPANT_DETAILS_FIXED_PART`. Step 16's block must **extend** that, not add a second participant list to the same email. The genuinely missing piece there is the "X of Y assigned" summary sentence.
+3. **The render-parity gate is absolute.** `src/lib/email/__tests__/registry-defaults.test.ts` freezes every template's zero-override output byte-for-byte, and its fixture has exactly one commit in its history — **never edit it**. A group block gated on `participantCount > 1` returns `""` for all parity fixtures (verified: `BASE_INPUT` has exactly 1 participant), so the gate stays green if the guard is respected. If it goes red, STOP.
+4. Register the new block as a **`FixedPart`** legend entry, not an editable `SafeField` — `PARTICIPANT_DETAILS_FIXED_PART` is the existing precedent.
+5. **`SafeFieldKind` is no longer a closed union** — C-15 Phase A widened it to `string`. The plan's coordination note saying otherwise is stale.
+
+**Then Phase H** (integration polish + dashboard data layer, §5.11). Note its dashboard anchor is at **`CoordinatorDashboard.tsx:259-266`**, not `dashboard/page.tsx` — C-11 Phase C split that file *after* the plan's own C13-02 correction was written, making this the third recorded location for one anchor. `grep requiredGender dashboard/page.tsx` → 0 hits.
+
+**Then C-13 closeout:** §3 gate, adversarial whole-plan review over `0bb356d..HEAD`, progress + checklist, and append the Owner group-fixture checklist to `OWNER-ACTION-BACKLOG.md`.
+
+**Standing constraint for every remaining C-13 dispatch:** no group booking exists anywhere in the database (0 of 15 have >1 participant or the flag), so all group paths are fixture-free — unit tests use synthetic data, and creating a fixture is Owner-only.
+
+---
+
+*C-13 in progress — Phases A–F shipped and verified, Phase F via one fix round. Pre-flight `0bb356d`; A `af273e8`; B `4218bd5`; C `b418aa0`; D `a516bd1`; E `dbe0208`; F `2fdcadc` + `c64e6ad`. **Resume at Phase G — see §3.***
