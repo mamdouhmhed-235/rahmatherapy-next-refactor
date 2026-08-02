@@ -106,6 +106,18 @@ const DEFAULT_BOOKING_METADATA: Metadata = {
  * the short reference hash — composite identity already reaches the page
  * via `headerDescription` (Phase C) and duplicating it into the title
  * block was explicitly out of scope here.
+ *
+ * Fix round (verifier FAIL) — `scopedRelation.claimableOnly` is the same
+ * redaction switch the page body gates on: when true, the body deliberately
+ * runs `CLAIMABLE_BOOKING_DETAIL_SELECT` (no `contact_full_name`/`clients`)
+ * and overwrites identity via `normalizeClaimableBooking`. This function
+ * must refuse just as hard — checked here BEFORE the identity SELECT runs,
+ * so the real name is never fetched for a claimable-only viewer, not merely
+ * fetched-then-discarded. Falls back to `DEFAULT_BOOKING_METADATA`: the page
+ * body itself never surfaces the "Claimable booking" placeholder text for
+ * this viewer (`composeHeaderDescription` drops `clientName` entirely when
+ * `claimableOnly` is true), so the neutral title is the closer match and
+ * needs no new string.
  */
 export async function generateMetadata({
   params,
@@ -124,7 +136,7 @@ export async function generateMetadata({
     profile,
     adminClient
   );
-  if (!scopedRelation.canOpen) {
+  if (!scopedRelation.canOpen || scopedRelation.claimableOnly) {
     return DEFAULT_BOOKING_METADATA;
   }
 
