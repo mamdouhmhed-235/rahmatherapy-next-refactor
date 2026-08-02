@@ -288,6 +288,107 @@ function renderParticipants(input: BookingEmailTemplateInput) {
     </div>`;
 }
 
+// ─── Group-context block (C-13 Phase G) ───────────────────────────────────
+// `isGroup` is `participantCount > 1` everywhere in this codebase and
+// deliberately ignores the `group_booking` flag (brief §5.7) — the same
+// invariant applies here. `deriveGroupContext` is the ONE place that reads
+// participants/counts off `input`; every HTML/plain-text pair below builds
+// off its return value so the "X of Y assigned" figure and the participant
+// rows can never disagree between legs, or between templates. Returns null
+// for participantCount <= 1 (every render-parity fixture is single-
+// participant — this guard is what keeps that gate green untouched).
+interface GroupContextRow {
+  label: string;
+  genderLabel: string;
+  stateLabel: string; // "assigned to {name}" | "open"
+}
+
+function deriveGroupContext(
+  input: BookingEmailTemplateInput
+): { participantCount: number; assignedCount: number; rows: GroupContextRow[] } | null {
+  if (input.participantCount <= 1) return null;
+
+  const rows = input.participants.map((participant) => ({
+    label: participant.label,
+    genderLabel: formatLabel(participant.participantGender),
+    stateLabel: participant.assignedStaffName
+      ? `assigned to ${participant.assignedStaffName}`
+      : "open",
+  }));
+  const assignedCount = input.participants.filter((p) => Boolean(p.assignedStaffName)).length;
+
+  return { participantCount: input.participantCount, assignedCount, rows };
+}
+
+// staff_assignment already renders the full per-participant list via
+// renderParticipants() (name, gender, required gender, services, assigned
+// staff) — this is deliberately just the missing summary sentence, not a
+// second participant list on the same email.
+export function renderGroupProgressSentenceHtml(input: BookingEmailTemplateInput): string {
+  const ctx = deriveGroupContext(input);
+  if (!ctx) return "";
+  return `<p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#53615d;">This is part of a ${ctx.participantCount}-person group booking — ${ctx.assignedCount} of ${ctx.participantCount} therapists assigned so far.</p>`;
+}
+
+export function renderGroupProgressSentenceText(input: BookingEmailTemplateInput): string {
+  const ctx = deriveGroupContext(input);
+  if (!ctx) return "";
+  return `This is part of a ${ctx.participantCount}-person group booking — ${ctx.assignedCount} of ${ctx.participantCount} therapists assigned so far.`;
+}
+
+// `claim` is admin-internal (sent to the admin recipient when a
+// practitioner claims an unassigned slot) — the reader is staff-side ops,
+// not the client, so gender + per-participant assignment state are
+// appropriate detail here.
+export function renderGroupContextBlockHtml(input: BookingEmailTemplateInput): string {
+  const ctx = deriveGroupContext(input);
+  if (!ctx) return "";
+  const rows = ctx.rows
+    .map(
+      (row) =>
+        `<li style="margin:0 0 6px;">${escapeHtml(row.label)} (${escapeHtml(row.genderLabel)}) — ${escapeHtml(row.stateLabel)}</li>`
+    )
+    .join("");
+
+  return `
+    <div style="margin:22px 0;padding:16px;border-left:3px solid #999999;background:#f7f3ec;">
+      <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1f2f2b;">This booking is part of a ${ctx.participantCount}-person group:</p>
+      <ul style="margin:0 0 8px;padding-left:18px;font-size:14px;line-height:1.5;color:#1f2f2b;">${rows}</ul>
+      <p style="margin:0;font-size:13px;color:#53615d;">${ctx.assignedCount} of ${ctx.participantCount} therapists assigned so far.</p>
+    </div>`;
+}
+
+export function renderGroupContextBlockText(input: BookingEmailTemplateInput): string {
+  const ctx = deriveGroupContext(input);
+  if (!ctx) return "";
+  const rows = ctx.rows.map((row) => `  - ${row.label} (${row.genderLabel}) - ${row.stateLabel}`).join("\n");
+  return `This booking is part of a ${ctx.participantCount}-person group:\n${rows}\n\n${ctx.assignedCount} of ${ctx.participantCount} therapists assigned so far.`;
+}
+
+// `booking_confirmed_client` is customer-facing — names only, no gender or
+// assignment-state detail (that belongs to staff-side emails, not a
+// client's own confirmation; per-participant therapist confirmation is a
+// separate later email — client_assigned_therapist).
+export function renderGroupParticipantsListHtml(input: BookingEmailTemplateInput): string {
+  const ctx = deriveGroupContext(input);
+  if (!ctx) return "";
+  const rows = ctx.rows.map((row) => `<li style="margin:0 0 4px;">${escapeHtml(row.label)}</li>`).join("");
+
+  return `
+    <div style="margin:22px 0;padding:16px;border-left:3px solid #999999;background:#f7f3ec;">
+      <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1f2f2b;">This booking includes ${ctx.participantCount} people:</p>
+      <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.5;color:#1f2f2b;">${rows}</ul>
+      <p style="margin:8px 0 0;font-size:13px;color:#53615d;">We'll send a confirmation when each person's therapist is assigned.</p>
+    </div>`;
+}
+
+export function renderGroupParticipantsListText(input: BookingEmailTemplateInput): string {
+  const ctx = deriveGroupContext(input);
+  if (!ctx) return "";
+  const rows = ctx.rows.map((row) => `  - ${row.label}`).join("\n");
+  return `This booking includes ${ctx.participantCount} people:\n${rows}\n\nWe'll send a confirmation when each person's therapist is assigned.`;
+}
+
 function renderFooter(
   input: BookingEmailTemplateInput,
   overrides: Record<string, string> = {}
@@ -485,7 +586,7 @@ export function renderStaffAssignmentEmail(
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Booking assignment</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
     ${renderSummary(input)}
-    ${renderParticipants(input)}
+    ${renderParticipants(input)}${renderGroupProgressSentenceHtml(input)}
     ${renderFooter(input, overrides)}`
   );
 }
@@ -534,7 +635,12 @@ export function renderBookingReminderEmail(
 export function renderBookingPlainText(
   heading: string,
   input: BookingEmailTemplateInput,
-  overrides: Record<string, string> = {}
+  overrides: Record<string, string> = {},
+  // C-13 Phase G — optional group-context line, currently passed only by
+  // sendStaffAssignmentEmail (renderGroupProgressSentenceText). Every other
+  // caller of this shared plain-text renderer omits it, so it stays "" and
+  // this function's output for them is byte-for-byte unchanged.
+  groupSection: string = ""
 ) {
   const address = input.addressLines.join(", ");
   const participants = input.participants
@@ -563,7 +669,7 @@ Total: ${formatMoney(input.totalPrice)}
 Participants: ${input.participantCount}
 
 ${participants}
-
+${groupSection}
 ${input.manageUrl ? `Manage booking: ${input.manageUrl}\n\n` : ""}${footerLine}`;
 }
 
@@ -908,7 +1014,7 @@ export async function renderBookingConfirmedClientEmail(
     fields.subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Your booking is confirmed</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
-    ${renderSummary(input)}
+    ${renderSummary(input)}${renderGroupParticipantsListHtml(input)}
     ${manageLink}
     <p style="white-space:pre-line;margin:18px 0 0;font-size:14px;line-height:1.5;color:#53615d;">${signoffHtml}</p>
     ${renderFooter(input, overrides)}`
@@ -927,6 +1033,7 @@ export function renderBookingConfirmedClientPlainText(
 
   const intro = substituteVars(fields.body_intro, vars);
   const signoff = substituteVars(fields.body_signoff, vars);
+  const groupSection = renderGroupParticipantsListText(input);
   const footerLine = overrides.footer_contact
     ? substituteVars(overrides.footer_contact, vars)
     : `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
@@ -934,7 +1041,7 @@ export function renderBookingConfirmedClientPlainText(
   return `Your booking is confirmed
 
 ${intro}
-
+${groupSection}
 ${input.manageUrl ? `${fields.body_cta_label}: ${input.manageUrl}\n\n` : ""}${signoff}
 
 ${footerLine}`;
@@ -1031,7 +1138,7 @@ export async function renderClaimNotificationEmail(
     fields.subject,
     `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Slot claimed</h1>
     <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${introHtml}</p>
-    ${renderSummary(input)}
+    ${renderSummary(input)}${renderGroupContextBlockHtml(input)}
     ${renderFooter(input, overrides)}`
   );
 }
@@ -1047,6 +1154,7 @@ export function renderClaimNotificationPlainText(
   const vars = buildVarMap(input, { therapistName: input.therapistName });
 
   const intro = substituteVars(fields.body_intro, vars);
+  const groupSection = renderGroupContextBlockText(input);
   const footerLine = overrides.footer_contact
     ? substituteVars(overrides.footer_contact, vars)
     : `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${input.contactPhone ? ` ${input.contactPhone}` : ""}`;
@@ -1054,7 +1162,7 @@ export function renderClaimNotificationPlainText(
   return `Slot claimed
 
 ${intro}
-
+${groupSection}
 ${footerLine}`;
 }
 

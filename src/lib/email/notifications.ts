@@ -27,6 +27,7 @@ import {
   renderClientAssignedTherapistPlainText,
   renderEnquiryLoggedEmail,
   renderEnquiryLoggedPlainText,
+  renderGroupProgressSentenceText,
   renderReviewRequestEmail,
   renderReviewRequestPlainText,
   renderStaffAssignmentEmail,
@@ -855,7 +856,12 @@ export async function sendStaffAssignmentEmail(
     to: staffEmail,
     subject: resolveSubject("staff_assignment", overrides, buildVarMap(input)),
     html: renderStaffAssignmentEmail(input, overrides),
-    text: renderBookingPlainText("Booking assignment", input, overrides),
+    text: renderBookingPlainText(
+      "Booking assignment",
+      input,
+      overrides,
+      renderGroupProgressSentenceText(input)
+    ),
   });
 }
 

@@ -141,6 +141,30 @@ const PARTICIPANT_DETAILS_FIXED_PART: FixedPart = {
   source: "Built from each participant's gender preference and booked services.",
 };
 
+// C-13 Phase G — group-context legend entries. All three render only when
+// the booking has more than one participant (isGroup = participantCount >
+// 1, ignoring the group_booking flag — the codebase-wide invariant, brief
+// §5.7); a single-participant booking sends none of this. Three distinct
+// entries because the three templates show three different levels of
+// detail for three different readers — see src/lib/email/templates.ts's
+// deriveGroupContext for the shared source of truth behind all of them.
+const GROUP_PROGRESS_FIXED_PART: FixedPart = {
+  label: "Group booking progress",
+  source:
+    "Shown for group bookings only — how many of the group's therapists are assigned so far.",
+};
+
+const GROUP_CONTEXT_FIXED_PART: FixedPart = {
+  label: "Group participants",
+  source:
+    "Shown for group bookings only — every participant's gender and assignment state.",
+};
+
+const GROUP_PARTICIPANTS_NAMES_FIXED_PART: FixedPart = {
+  label: "Group participants",
+  source: "Shown for group bookings only — the names of everyone included on this booking.",
+};
+
 const FOOTER_CONTACT: SafeField = {
   kind: "footer_contact",
   label: "Footer contact line",
@@ -568,7 +592,11 @@ export const TEMPLATES: TemplateMeta[] = [
     // notifications.ts's sendStaffAssignmentEmail.
     subjectDefault: "{companyName} booking assignment",
     fields: [subjectField("Booking assignment"), STAFF_INTRO, FOOTER_CONTACT],
-    fixedParts: [BOOKING_SUMMARY_FIXED_PART, PARTICIPANT_DETAILS_FIXED_PART],
+    fixedParts: [
+      BOOKING_SUMMARY_FIXED_PART,
+      PARTICIPANT_DETAILS_FIXED_PART,
+      GROUP_PROGRESS_FIXED_PART,
+    ],
   },
   {
     id: "staff_booking_change",
@@ -685,7 +713,7 @@ export const TEMPLATES: TemplateMeta[] = [
       BOOKING_CONFIRMED_BODY_SIGNOFF,
       FOOTER_CONTACT,
     ],
-    fixedParts: [BOOKING_SUMMARY_FIXED_PART],
+    fixedParts: [BOOKING_SUMMARY_FIXED_PART, GROUP_PARTICIPANTS_NAMES_FIXED_PART],
   },
   {
     id: "staff_unassignment",
@@ -711,7 +739,7 @@ export const TEMPLATES: TemplateMeta[] = [
     // notifications.ts's sendClaimNotificationEmail.
     subjectDefault: "Slot claimed: {therapistName} → {bookingDate}",
     fields: [subjectField("Slot claimed"), CLAIM_BODY_INTRO, FOOTER_CONTACT],
-    fixedParts: [BOOKING_SUMMARY_FIXED_PART],
+    fixedParts: [BOOKING_SUMMARY_FIXED_PART, GROUP_CONTEXT_FIXED_PART],
   },
   {
     id: "client_assigned_therapist",
