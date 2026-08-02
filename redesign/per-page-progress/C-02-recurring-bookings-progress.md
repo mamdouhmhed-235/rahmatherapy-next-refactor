@@ -253,6 +253,49 @@ Model routing: §5 puts C-02 on `opus` for phases touching the schema, the RPCs 
 
 §0.6's table holds on 7 of 8 rows. One change: `AUDIT_PHRASING` is now **19** entries (not 18) — `email_template_sent_manually` was added by `10ca7db7` after §0.6 was written. Line span `:141-165` is still correct. Step 25 should anchor on literal keys, never the count. Both `ManualBookingForm` submit strips confirmed present (desktop `:1923-1960`, mobile `:2048-2057`) — both need the conditional-action treatment.
 
+## 3 — Phases C, D, E — implemented and independently verified
+
+| Phase | Commit | Model | Verify |
+|---|---|---|---|
+| C — server actions | `cb0de35` | `opus` — threads a NOT-NULL enum contract into a 20-param RPC whose applied signature disagrees with the plan's sketch, and writes a cascade against a live production table | **PASS**, zero defects |
+| D — email template | `1d2ed98` | `sonnet` — mechanical registration across 10 files against a fully-documented pattern | **PASS**, zero defects |
+| E — form integration | `66afd6b` | `opus` — live-surface edit to the programme's most contended file plus a React state-machine change | pending at time of writing |
+
+### 3.1 — Phase C (`cb0de35`)
+
+`src/app/admin/bookings/recurring-actions.ts` + two specs (32 tests). Five corrections were applied against the plan's own code text, all instructed rather than improvised:
+
+1. **The RPC signature in the plan is stale.** The applied function takes 20 params (9 required); the plan's sketch omitted **both gender parameters**, which are `staff_gender_type` NOT NULL with no default — the call would have failed at runtime. Threaded per the Owner's recorded Option (a): `p_participant_gender` and `p_required_therapist_gender` both receive the participant's own gender, mirroring exactly what live `create_booking_request` does (it writes one `v_gender` into both columns).
+2. **Result keys are camelCase** — `{ templateId, occurrenceCount, skippedCount, horizonThrough, firstOccurrenceDate, serviceName }`.
+3. **No email call in this phase.** Step 6 imports `sendRecurringSeriesCreatedEmail`, a Phase D deliverable — as written, Phase C could not pass its own tsc gate. Resolved without reordering phases: C ships the action, D lands the fn and wires it.
+4. **No duplicate audit row.** The RPC writes its own `recurring_series_created` row internally; a second one from the action would double-count. (The cancel path has no RPC, so its audit insert stands.)
+5. **Three defects in the plan's own code text**, fixed: `after_state: { cancelled_at: template.id }` wrote a template id into a timestamp field on a column that wasn't even selected; `getLondonTodayISO()` duplicated the existing `getTodayIsoDate()` in `_helpers.ts`; and `cancelRecurringSeries` omitted the `.active` check every comparable action applies.
+
+The verifier additionally confirmed live that `service_role` holds UPDATE on `recurring_booking_templates` and `bookings` — the §3b pre-flight that cost C-04a a full cycle. It does.
+
+### 3.2 — Phase D (`1d2ed98`)
+
+Registers a 17th template, `recurring_series_created_client`, across 10 files. The renderer is **sync with positional `overrides`**, matching `renderBookingRestoredEmail` per §0.8 — not the async `providedOverrides` variant.
+
+**The load-bearing check passed.** One `resolveTemplateOverrides` call feeds `resolveSubject` *and* both render legs, so the HTML and plain-text parts cannot disagree (C-15's F-6 defect) and the subject cannot be a hardcoded literal (C-15's AC2 defect). `subjectDefault` is byte-identical to the literal a zero-override send emits — C-15's fix round found 12 of 16 disagreeing, so this was checked character-for-character. Escaping is `escapeHtml(substituteVars(...))` at every new site, and the specs assert on the real `sendEmail` argument rather than a mock's own return.
+
+A plain-text renderer was added beyond the plan's literal wording; the verifier confirmed `sendTrackedEmail`'s `text` field is non-optional, so tsc would fail without it — necessary, not scope.
+
+### 3.3 — Phase E (`66afd6b`)
+
+**The plan's locked approach did not survive contact with the component.** Step 14 says "conditionally render two different forms", which read literally would fork a ~900-line JSX subtree — a clear rule-3 violation. And it cannot mean swapping one hook's action, because `createRecurringSeries` and `createManualBooking` return **different state types** and `useActionState` binds its state type at the call site (Rules of Hooks also forbid calling it conditionally).
+
+Implemented instead: **two `useActionState` hooks called unconditionally, one shared `<form>` and one shared JSX tree, three derived bindings** (`formAction` / `formPending` / `formState`). Nine former `pending`/`state.` reference sites were repointed. Key-based remount was rejected outright — it would destroy steps 1–3's local state the instant the toggle flipped.
+
+Consent is threaded per §B6: the **existing** step-4 checkbox feeds `recurringSchema`'s `z.literal(true)`, which rejects before the RPC, and `p_consent_acknowledged` is passed explicitly rather than relying on the RPC default. No second checkbox — `RecurringSection` deliberately omits `consent_acknowledged` and `client_id` because `FormData.get` returns the first entry and a duplicate would shadow the real one.
+
+### 3.4 — Logged, not fixed (rule 6a) — two worth the Owner's attention
+
+- **⚠️ Recurring is only reachable from `/admin/bookings/new?clientId=…`.** `createRecurringSeries` needs an existing `client_id`, which the form emits only when prefilled from a client record. An operator starting a booking from scratch cannot create a client and a series in one pass. Surfaced honestly in-section (disabled toggle with the reason) rather than failing at submit — but it is a real workflow limit that should be seen before the Phase I sweep.
+- **End-condition errors are inline-only and do not gate the submit button.** Step 4's `isStepReady` is still just `consentAcknowledged`, so an empty visit count or an end date before the first visit shows an inline error yet can still be submitted, where the action rejects it. Gating would have meant lifting section validity into the parent — deferred rather than widened.
+- `handleFormSubmit` sets the `booking-new-created-toast` key in both modes, so a stale "booking created" toast can fire after a recurring submit redirects to the series view.
+- No client-side occurrence preview exists, so the section's banner is worded cadence-agnostically. Brief §4.1's "the first 12 occurrences" would have been **wrong for two of three cadences** — the real first batch is 12 weekly / 6 fortnightly / 3 monthly.
+
 ## B6 — Owner decisions, taken in chat 2026-08-02 (all three answered)
 
 **1. Files-touched list WIDENED — approved ("approve all").** Protocol rule 6(b) STOP raised before Phase D and answered. The following are now in scope for C-02, because the plan's own steps cannot complete without them:
