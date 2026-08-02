@@ -31,12 +31,14 @@ import {
   renderClaimNotificationEmail,
   renderClientAssignedTherapistEmail,
   renderEnquiryLoggedEmail,
+  renderRecurringSeriesCreatedEmail,
   renderReviewRequestEmail,
   renderStaffAssignmentEmail,
   renderStaffBookingChangeEmail,
   renderStaffUnassignmentEmail,
   type BookingEmailTemplateInput,
   type EnquiryEmailTemplateInput,
+  type RecurringSeriesCreatedEmailInput,
 } from "./templates";
 
 export const SAMPLE_TEMPLATE_INPUT: BookingEmailTemplateInput = {
@@ -123,6 +125,15 @@ export const SAMPLE_ENQUIRY_INPUT: EnquiryEmailTemplateInput = {
   contactPhone: "07000 000000",
 };
 
+export const SAMPLE_RECURRING_SERIES_CREATED_INPUT: RecurringSeriesCreatedEmailInput = {
+  clientName: "Aisha Khan",
+  cadence: "weekly",
+  serviceName: "Swedish massage",
+  firstDate: "2026-06-12",
+  startTime: "14:30",
+  occurrenceCount: 12,
+};
+
 export interface SampleRenderResult {
   rendersAs: "html" | "plain_text";
   content: string;
@@ -199,5 +210,9 @@ export const SAMPLE_RENDERERS: Record<string, SampleRenderer> = {
   booking_restored_client: (overrides) => ({
     rendersAs: "html",
     content: renderBookingRestoredEmail(SAMPLE_RESTORED_INPUT, overrides),
+  }),
+  recurring_series_created_client: (overrides) => ({
+    rendersAs: "html",
+    content: renderRecurringSeriesCreatedEmail(SAMPLE_RECURRING_SERIES_CREATED_INPUT, overrides),
   }),
 };

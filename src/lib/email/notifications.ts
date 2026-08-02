@@ -28,6 +28,8 @@ import {
   renderEnquiryLoggedEmail,
   renderEnquiryLoggedPlainText,
   renderGroupProgressSentenceText,
+  renderRecurringSeriesCreatedEmail,
+  renderRecurringSeriesCreatedPlainText,
   renderReviewRequestEmail,
   renderReviewRequestPlainText,
   renderStaffAssignmentEmail,
@@ -35,6 +37,7 @@ import {
   renderStaffUnassignmentEmail,
   renderStaffUnassignmentPlainText,
   buildEnquiryVarMap,
+  buildRecurringSeriesCreatedVarMap,
   buildVarMap,
   pickReviewMessages,
   resolveSubject,
@@ -42,6 +45,7 @@ import {
   type BookingEmailTemplateInput,
   type EmailParticipant,
   type EnquiryEmailTemplateInput,
+  type RecurringSeriesCreatedEmailInput,
   type ReviewRequestEmailInput,
 } from "./templates";
 import { recordOperationalEvent } from "@/lib/ops/operational-events";
@@ -782,6 +786,75 @@ export async function sendBookingRestoredClientEmail(
     subject: resolveSubject("booking_restored_client", overrides, buildVarMap(input)),
     html: renderBookingRestoredEmail({ ...input, fromStatus: options.fromStatus }, overrides),
     text: renderBookingPlainText("Booking restored", input, overrides),
+  });
+}
+
+interface RecurringSeriesTemplateEmailRow {
+  cadence: "weekly" | "fortnightly" | "monthly";
+  anchor_start_time: string;
+  clients: { full_name: string; email: string | null } | null;
+  services: { name: string } | null;
+}
+
+/**
+ * C-02 Phase D — sent to the client once createRecurringSeries has
+ * materialised the first batch of occurrences. Mirrors
+ * sendBookingRestoredClientEmail's templateId-only signature above and
+ * re-derives everything else from the rows the RPC actually wrote: the first
+ * occurrence date and visit count come from `bookings`, never from the RPC's
+ * own jsonb return value, which createRecurringSeries does not thread
+ * through to this function.
+ */
+export async function sendRecurringSeriesCreatedEmail(
+  templateId: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const [{ data: template, error: templateError }, { data: occurrences }] = await Promise.all([
+    supabase
+      .from("recurring_booking_templates")
+      .select("cadence, anchor_start_time, clients(full_name, email), services(name)")
+      .eq("id", templateId)
+      .single<RecurringSeriesTemplateEmailRow>(),
+    supabase
+      .from("bookings")
+      .select("booking_date")
+      .eq("recurring_template_id", templateId)
+      .order("booking_date", { ascending: true })
+      .returns<{ booking_date: string }[]>(),
+  ]);
+
+  if (templateError || !template) {
+    throw new Error(`sendRecurringSeriesCreatedEmail: template ${templateId} not found.`);
+  }
+
+  const customerEmail = template.clients?.email;
+  if (!customerEmail) {
+    throw new Error("Recurring series client has no email address.");
+  }
+
+  const input: RecurringSeriesCreatedEmailInput = {
+    clientName: template.clients?.full_name || "Client",
+    cadence: template.cadence,
+    serviceName: template.services?.name ?? "appointment",
+    firstDate: occurrences?.[0]?.booking_date ?? "",
+    startTime: template.anchor_start_time,
+    occurrenceCount: occurrences?.length ?? 0,
+  };
+
+  const overrides = await resolveTemplateOverrides("recurring_series_created_client");
+
+  await sendTrackedEmail(supabase, {
+    bookingId: null,
+    eventType: "recurring_series_created_client",
+    recipientRole: "customer",
+    to: customerEmail,
+    subject: resolveSubject(
+      "recurring_series_created_client",
+      overrides,
+      buildRecurringSeriesCreatedVarMap(input)
+    ),
+    html: renderRecurringSeriesCreatedEmail(input, overrides),
+    text: renderRecurringSeriesCreatedPlainText(input, overrides),
   });
 }
 

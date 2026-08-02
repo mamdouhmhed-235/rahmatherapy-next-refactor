@@ -1351,6 +1351,79 @@ ${intro}
 ${footerLine}`;
 }
 
+// ─── Recurring series created email — client (C-02 Phase D) ─────────────────
+// Sent to the client once createRecurringSeries has materialised the first
+// batch of occurrences. A recurring template has none of
+// BookingEmailTemplateInput's booking-specific fields (no single
+// bookingDate/endTime/addressLines/participants — a series is many
+// bookings), so this template gets its own input shape, following the same
+// precedent as EnquiryEmailTemplateInput above. Unlike
+// renderEnquiryLoggedEmail, this render fn is SYNCHRONOUS and takes
+// `overrides` as a positional arg — matching renderBookingRestoredEmail's
+// shape, not the async providedOverrides variant.
+
+export interface RecurringSeriesCreatedEmailInput {
+  clientName: string;
+  cadence: "weekly" | "fortnightly" | "monthly";
+  serviceName: string;
+  firstDate: string;
+  startTime: string;
+  occurrenceCount: number;
+}
+
+// C-02 Phase D — exported for the same reason as buildEnquiryVarMap() above:
+// sendRecurringSeriesCreatedEmail (notifications.ts) needs the identical
+// vars object this template's body already uses, for resolveSubject().
+export function buildRecurringSeriesCreatedVarMap(
+  input: RecurringSeriesCreatedEmailInput
+): Record<string, unknown> {
+  return {
+    clientName: input.clientName,
+    cadence: input.cadence,
+    serviceName: input.serviceName,
+    firstDate: input.firstDate,
+    startTime: input.startTime,
+    occurrenceCount: input.occurrenceCount,
+  };
+}
+
+export function renderRecurringSeriesCreatedEmail(
+  input: RecurringSeriesCreatedEmailInput,
+  overrides: Record<string, string> = {}
+): string {
+  const vars = buildRecurringSeriesCreatedVarMap(input);
+  const bodyHtml = escapeHtml(
+    substituteVars(
+      overrides.body_intro || fieldDefault("recurring_series_created_client", "body_intro"),
+      vars
+    )
+  );
+
+  return renderLayout(
+    resolveTitleSubject("recurring_series_created_client", overrides),
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Your recurring booking is set</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${bodyHtml}</p>`
+  );
+}
+
+// Plain-text equivalent of renderRecurringSeriesCreatedEmail. Resolves the
+// same body_intro field, so an admin override applies identically to both
+// legs (see the C-01 lesson referenced above renderEnquiryLoggedPlainText).
+export function renderRecurringSeriesCreatedPlainText(
+  input: RecurringSeriesCreatedEmailInput,
+  overrides: Record<string, string> = {}
+): string {
+  const vars = buildRecurringSeriesCreatedVarMap(input);
+  const body = substituteVars(
+    overrides.body_intro || fieldDefault("recurring_series_created_client", "body_intro"),
+    vars
+  );
+
+  return `Your recurring booking is set
+
+${body}`;
+}
+
 // ─── Password-reset email templates ──────────────────────────────────────────
 // FAKE: structure only. Real Resend send wiring lands with
 // BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).

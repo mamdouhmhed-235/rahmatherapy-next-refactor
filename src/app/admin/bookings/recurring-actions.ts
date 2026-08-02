@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { sendRecurringSeriesCreatedEmail } from "@/lib/email/notifications";
 import { canManageAllBookings } from "./access";
 import { getTodayIsoDate } from "./_helpers";
 
@@ -173,6 +174,13 @@ export async function createRecurringSeries(
   // No audit insert here: the RPC writes its own `recurring_series_created` row
   // against the template id, with a far richer after_state than this action
   // could assemble. A second row would double-count the event.
+
+  // C-02 Phase D — fire-and-forget with .catch(), matching createManualBooking's
+  // posture (actions.ts): a failed send must never roll back a series that was
+  // already created successfully.
+  await sendRecurringSeriesCreatedEmail(result.templateId, adminClient).catch((error) => {
+    console.error("Unable to send recurring series created email.", error);
+  });
 
   updateTag("report-data");
   updateTag("dashboard-data");

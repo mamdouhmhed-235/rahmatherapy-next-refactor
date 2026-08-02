@@ -1,4 +1,4 @@
-// Static UI catalogue for the 16 templates exposed by src/lib/email/templates.ts.
+// Static UI catalogue for the 17 templates exposed by src/lib/email/templates.ts.
 // SAFE TO IMPORT FROM CLIENT COMPONENTS: metadata only — never re-exports a
 // render*Email() function. The preview route handler reads templates.ts
 // server-side and serves the rendered HTML; the editor reads only this file.
@@ -99,6 +99,8 @@ const SAMPLE = {
   contactDetail: "aisha.khan@example.test",
   serviceInterest: "Hijama (cupping)",
   enquiryUrl: "https://admin.rahmatherapy.example.test/enquiries/example",
+  cadence: "weekly",
+  occurrenceCount: "12",
 } as const;
 
 // Subject field factory (C-15 Phase A, item 1 — editable subjects). Shared
@@ -503,6 +505,29 @@ const ENQUIRY_LOGGED_BODY_INTRO: SafeField = {
   ],
 };
 
+// C-02 Phase D — recurring_series_created_client field. No CTA (informational
+// only, same shape as booking_reminder); every variable named in the plan's
+// default copy gets a token.
+const RECURRING_SERIES_CREATED_BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder:
+    "Hi {clientName}, we've set up your {cadence} {serviceName} starting {firstDate} at {startTime}. The next {occurrenceCount} visits are confirmed. We'll send reminders for each one.",
+  helper: "Insert names and dates with the buttons above.",
+  maxLength: 500,
+  multiline: true,
+  defaultValue:
+    "Hi {clientName}, we've set up your {cadence} {serviceName} starting {firstDate} at {startTime}. The next {occurrenceCount} visits are confirmed. We'll send reminders for each one.",
+  tokens: [
+    { token: "{clientName}", label: "Client name", sample: SAMPLE.clientName },
+    { token: "{cadence}", label: "Cadence", sample: SAMPLE.cadence },
+    { token: "{serviceName}", label: "Service name", sample: SAMPLE.serviceName },
+    { token: "{firstDate}", label: "First visit date", sample: SAMPLE.bookingDate },
+    { token: "{startTime}", label: "Start time", sample: SAMPLE.startTime },
+    { token: "{occurrenceCount}", label: "Visit count", sample: SAMPLE.occurrenceCount },
+  ],
+};
+
 export const TEMPLATES: TemplateMeta[] = [
   {
     id: "booking_confirmation",
@@ -806,6 +831,19 @@ export const TEMPLATES: TemplateMeta[] = [
       FOOTER_CONTACT,
     ],
     fixedParts: [BOOKING_SUMMARY_FIXED_PART, PARTICIPANT_DETAILS_FIXED_PART],
+  },
+  {
+    // C-02 Phase D — sent to the client once createRecurringSeries has
+    // materialised the first batch of occurrences.
+    id: "recurring_series_created_client",
+    audience: "customer",
+    cardName: "Recurring series created (client)",
+    trigger:
+      "Sent when a staff member creates a recurring booking series. Fires from createRecurringSeries.",
+    rendersAs: "html",
+    subjectDefault: "Your recurring booking is set",
+    fields: [subjectField("Your recurring booking is set"), RECURRING_SERIES_CREATED_BODY_INTRO],
+    fixedParts: [],
   },
 ];
 

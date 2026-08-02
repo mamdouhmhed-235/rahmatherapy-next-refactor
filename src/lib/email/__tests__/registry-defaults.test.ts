@@ -90,8 +90,8 @@ describe("registry completeness", () => {
     expect(template?.fields.some((f) => f.kind === "footer_contact")).toBe(true);
   });
 
-  it("has 16 registered templates", () => {
-    expect(TEMPLATES.length).toBe(16);
+  it("has 17 registered templates", () => {
+    expect(TEMPLATES.length).toBe(17);
   });
 });
 

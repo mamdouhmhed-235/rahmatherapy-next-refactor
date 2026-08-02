@@ -127,7 +127,7 @@ describe("GET — extended coverage + saved overrides", () => {
     vi.mocked(getStaffProfile).mockResolvedValue(AUTHORIZED_PROFILE);
   });
 
-  it("renders all 16 registered templates (previously only 9 of 16)", async () => {
+  it("renders all 17 registered templates (previously only 9 of 16)", async () => {
     const ids = [
       "booking_confirmation",
       "booking_cancellation_client",
@@ -145,6 +145,7 @@ describe("GET — extended coverage + saved overrides", () => {
       "client_assigned_therapist",
       "enquiry_logged",
       "booking_restored_client",
+      "recurring_series_created_client",
     ];
     for (const id of ids) {
       const res = await getRequest(id);

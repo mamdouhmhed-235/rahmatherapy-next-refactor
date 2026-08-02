@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath, updateTag } from "next/cache";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { sendRecurringSeriesCreatedEmail } from "@/lib/email/notifications";
 import { createRecurringSeries } from "../recurring-actions";
 
 /**
@@ -31,6 +32,14 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn().mockResolvedValue({}),
+}));
+
+// C-02 Phase D — createRecurringSeries now sends a confirmation email after
+// the RPC succeeds. Mocked wholesale so the happy-path specs below never
+// reach the real render/send pipeline (no template-registry lookups, no
+// network) — only that the action calls it with the new template id.
+vi.mock("@/lib/email/notifications", () => ({
+  sendRecurringSeriesCreatedEmail: vi.fn(),
 }));
 
 // Only the profile lookup is stubbed — the permission helpers stay real so the
@@ -146,6 +155,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getStaffProfile).mockResolvedValue(owner);
   rpc.mockResolvedValue({ data: RPC_RESULT, error: null });
+  vi.mocked(sendRecurringSeriesCreatedEmail).mockResolvedValue(undefined);
 });
 
 describe("createRecurringSeries — RBAC", () => {
@@ -409,6 +419,25 @@ describe("createRecurringSeries — happy path", () => {
     expect(stub.ops.filter((entry) => entry.table === "audit_logs")).toHaveLength(0);
     expect(stub.writes()).toHaveLength(0);
   });
+
+  it("sends the recurring series created email with the new template id", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+
+    await createRecurringSeries({}, recurringFormData());
+
+    expect(sendRecurringSeriesCreatedEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendRecurringSeriesCreatedEmail).mock.calls[0][0]).toBe(TEMPLATE_ID);
+  });
+
+  it("does not let a failed confirmation email roll back the redirect or cache invalidation", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+    vi.mocked(sendRecurringSeriesCreatedEmail).mockRejectedValue(new Error("Resend is down"));
+
+    await createRecurringSeries({}, recurringFormData());
+
+    expect(redirect).toHaveBeenCalledWith(`/admin/bookings/series/${TEMPLATE_ID}?created=1`);
+    expect(updateTag).toHaveBeenCalled();
+  });
 });
 
 describe("createRecurringSeries — RPC failure", () => {
@@ -424,5 +453,6 @@ describe("createRecurringSeries — RPC failure", () => {
     });
     expect(redirect).not.toHaveBeenCalled();
     expect(updateTag).not.toHaveBeenCalled();
+    expect(sendRecurringSeriesCreatedEmail).not.toHaveBeenCalled();
   });
 });
