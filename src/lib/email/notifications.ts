@@ -28,6 +28,8 @@ import {
   renderEnquiryLoggedEmail,
   renderEnquiryLoggedPlainText,
   renderGroupProgressSentenceText,
+  renderRecurringSeriesCancelledEmail,
+  renderRecurringSeriesCancelledPlainText,
   renderRecurringSeriesCreatedEmail,
   renderRecurringSeriesCreatedPlainText,
   renderReviewRequestEmail,
@@ -37,6 +39,7 @@ import {
   renderStaffUnassignmentEmail,
   renderStaffUnassignmentPlainText,
   buildEnquiryVarMap,
+  buildRecurringSeriesCancelledVarMap,
   buildRecurringSeriesCreatedVarMap,
   buildVarMap,
   pickReviewMessages,
@@ -45,6 +48,7 @@ import {
   type BookingEmailTemplateInput,
   type EmailParticipant,
   type EnquiryEmailTemplateInput,
+  type RecurringSeriesCancelledEmailInput,
   type RecurringSeriesCreatedEmailInput,
   type ReviewRequestEmailInput,
 } from "./templates";
@@ -855,6 +859,73 @@ export async function sendRecurringSeriesCreatedEmail(
     ),
     html: renderRecurringSeriesCreatedEmail(input, overrides),
     text: renderRecurringSeriesCreatedPlainText(input, overrides),
+  });
+}
+
+interface RecurringSeriesCancelledTemplateEmailRow {
+  cadence: "weekly" | "fortnightly" | "monthly";
+  clients: { full_name: string; email: string | null } | null;
+  services: { name: string } | null;
+}
+
+/**
+ * C-02 Phase Fb — sent to the client once cancelRecurringSeries has
+ * cascade-cancelled the series' future occurrences. Mirrors
+ * sendRecurringSeriesCreatedEmail's templateId-only query shape above, but
+ * `cancelledOccurrenceCount` is passed in rather than re-derived: the caller
+ * (cancelRecurringSeries) already computed it from the exact cascade UPDATE
+ * that just ran, and re-querying it here would mean guessing which cancelled
+ * rows belong to this cancellation event versus an earlier one.
+ *
+ * Unlike sendRecurringSeriesCreatedEmail, a missing client email is NOT an
+ * error here — mirrors sendStaffUnassignmentEmail's posture above: warn and
+ * return without sending, so a phone-only walk-in client's series can still
+ * be cancelled successfully.
+ */
+export async function sendRecurringSeriesCancelledEmail(
+  templateId: string,
+  cancelledOccurrenceCount: number,
+  supabase: SupabaseClient
+): Promise<void> {
+  const { data: template, error: templateError } = await supabase
+    .from("recurring_booking_templates")
+    .select("cadence, clients(full_name, email), services(name)")
+    .eq("id", templateId)
+    .single<RecurringSeriesCancelledTemplateEmailRow>();
+
+  if (templateError || !template) {
+    throw new Error(`sendRecurringSeriesCancelledEmail: template ${templateId} not found.`);
+  }
+
+  const customerEmail = template.clients?.email;
+  if (!customerEmail) {
+    console.warn(
+      `sendRecurringSeriesCancelledEmail: template ${templateId} client has no email; skipping notification.`
+    );
+    return;
+  }
+
+  const input: RecurringSeriesCancelledEmailInput = {
+    clientName: template.clients?.full_name || "Client",
+    cadence: template.cadence,
+    serviceName: template.services?.name ?? "appointment",
+    cancelledOccurrenceCount,
+  };
+
+  const overrides = await resolveTemplateOverrides("recurring_series_cancelled_client");
+
+  await sendTrackedEmail(supabase, {
+    bookingId: null,
+    eventType: "recurring_series_cancelled_client",
+    recipientRole: "customer",
+    to: customerEmail,
+    subject: resolveSubject(
+      "recurring_series_cancelled_client",
+      overrides,
+      buildRecurringSeriesCancelledVarMap(input)
+    ),
+    html: renderRecurringSeriesCancelledEmail(input, overrides),
+    text: renderRecurringSeriesCancelledPlainText(input, overrides),
   });
 }
 

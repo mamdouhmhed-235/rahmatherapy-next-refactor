@@ -31,6 +31,7 @@ import {
   renderClaimNotificationEmail,
   renderClientAssignedTherapistEmail,
   renderEnquiryLoggedEmail,
+  renderRecurringSeriesCancelledEmail,
   renderRecurringSeriesCreatedEmail,
   renderReviewRequestEmail,
   renderStaffAssignmentEmail,
@@ -38,6 +39,7 @@ import {
   renderStaffUnassignmentEmail,
   type BookingEmailTemplateInput,
   type EnquiryEmailTemplateInput,
+  type RecurringSeriesCancelledEmailInput,
   type RecurringSeriesCreatedEmailInput,
 } from "./templates";
 
@@ -134,6 +136,13 @@ export const SAMPLE_RECURRING_SERIES_CREATED_INPUT: RecurringSeriesCreatedEmailI
   occurrenceCount: 12,
 };
 
+export const SAMPLE_RECURRING_SERIES_CANCELLED_INPUT: RecurringSeriesCancelledEmailInput = {
+  clientName: "Aisha Khan",
+  cadence: "weekly",
+  serviceName: "Swedish massage",
+  cancelledOccurrenceCount: 8,
+};
+
 export interface SampleRenderResult {
   rendersAs: "html" | "plain_text";
   content: string;
@@ -214,5 +223,12 @@ export const SAMPLE_RENDERERS: Record<string, SampleRenderer> = {
   recurring_series_created_client: (overrides) => ({
     rendersAs: "html",
     content: renderRecurringSeriesCreatedEmail(SAMPLE_RECURRING_SERIES_CREATED_INPUT, overrides),
+  }),
+  recurring_series_cancelled_client: (overrides) => ({
+    rendersAs: "html",
+    content: renderRecurringSeriesCancelledEmail(
+      SAMPLE_RECURRING_SERIES_CANCELLED_INPUT,
+      overrides
+    ),
   }),
 };

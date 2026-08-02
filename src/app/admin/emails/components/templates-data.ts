@@ -1,4 +1,4 @@
-// Static UI catalogue for the 17 templates exposed by src/lib/email/templates.ts.
+// Static UI catalogue for the 18 templates exposed by src/lib/email/templates.ts.
 // SAFE TO IMPORT FROM CLIENT COMPONENTS: metadata only — never re-exports a
 // render*Email() function. The preview route handler reads templates.ts
 // server-side and serves the rendered HTML; the editor reads only this file.
@@ -101,6 +101,7 @@ const SAMPLE = {
   enquiryUrl: "https://admin.rahmatherapy.example.test/enquiries/example",
   cadence: "weekly",
   occurrenceCount: "12",
+  cancelledOccurrenceCount: "8",
 } as const;
 
 // Subject field factory (C-15 Phase A, item 1 — editable subjects). Shared
@@ -528,6 +529,31 @@ const RECURRING_SERIES_CREATED_BODY_INTRO: SafeField = {
   ],
 };
 
+// C-02 Phase Fb — recurring_series_cancelled_client field. No CTA
+// (informational only, same shape as recurring_series_created_client above);
+// every variable named in the default copy gets a token.
+const RECURRING_SERIES_CANCELLED_BODY_INTRO: SafeField = {
+  kind: "body_intro",
+  label: "Intro paragraph",
+  placeholder:
+    "Hi {clientName}, your {cadence} {serviceName} series has been cancelled. {cancelledOccurrenceCount} upcoming visits have been cancelled. Get in touch if you'd like to set up a new series.",
+  helper: "Insert names and dates with the buttons above.",
+  maxLength: 500,
+  multiline: true,
+  defaultValue:
+    "Hi {clientName}, your {cadence} {serviceName} series has been cancelled. {cancelledOccurrenceCount} upcoming visits have been cancelled. Get in touch if you'd like to set up a new series.",
+  tokens: [
+    { token: "{clientName}", label: "Client name", sample: SAMPLE.clientName },
+    { token: "{cadence}", label: "Cadence", sample: SAMPLE.cadence },
+    { token: "{serviceName}", label: "Service name", sample: SAMPLE.serviceName },
+    {
+      token: "{cancelledOccurrenceCount}",
+      label: "Cancelled visit count",
+      sample: SAMPLE.cancelledOccurrenceCount,
+    },
+  ],
+};
+
 export const TEMPLATES: TemplateMeta[] = [
   {
     id: "booking_confirmation",
@@ -843,6 +869,22 @@ export const TEMPLATES: TemplateMeta[] = [
     rendersAs: "html",
     subjectDefault: "Your recurring booking is set",
     fields: [subjectField("Your recurring booking is set"), RECURRING_SERIES_CREATED_BODY_INTRO],
+    fixedParts: [],
+  },
+  {
+    // C-02 Phase Fb — sent to the client after cancelRecurringSeries
+    // cascade-cancels the series' future occurrences.
+    id: "recurring_series_cancelled_client",
+    audience: "customer",
+    cardName: "Recurring series cancelled (client)",
+    trigger:
+      "Sent when a staff member cancels a recurring booking series. Fires from cancelRecurringSeries.",
+    rendersAs: "html",
+    subjectDefault: "Your recurring booking has been cancelled",
+    fields: [
+      subjectField("Your recurring booking has been cancelled"),
+      RECURRING_SERIES_CANCELLED_BODY_INTRO,
+    ],
     fixedParts: [],
   },
 ];

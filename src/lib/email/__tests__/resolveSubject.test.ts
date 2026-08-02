@@ -28,7 +28,7 @@ import { describe, expect, it } from "vitest";
 import { resolveSubject } from "../templates";
 import { TEMPLATES } from "@/app/admin/emails/components/templates-data";
 
-// One row per registered template (17 total): the exact vars a real send
+// One row per registered template (18 total): the exact vars a real send
 // passes to resolveSubject() for that template, and the literal subject
 // that must come out with zero overrides.
 const CASES: {
@@ -114,10 +114,17 @@ const CASES: {
     vars: {},
     expected: "Your recurring booking is set",
   },
+  // C-02 Phase Fb — no interpolation in this one; the literal is what
+  // sendRecurringSeriesCancelledEmail (notifications.ts) actually sends.
+  {
+    templateId: "recurring_series_cancelled_client",
+    vars: {},
+    expected: "Your recurring booking has been cancelled",
+  },
 ];
 
 describe("resolveSubject — zero-override subject matches the live sender literal", () => {
-  it("covers every registered template (17)", () => {
+  it("covers every registered template (18)", () => {
     expect(CASES.map((c) => c.templateId).sort()).toEqual(TEMPLATES.map((t) => t.id).sort());
   });
 

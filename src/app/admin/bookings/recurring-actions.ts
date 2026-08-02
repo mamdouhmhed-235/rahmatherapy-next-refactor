@@ -6,7 +6,10 @@ import { z } from "zod/v4";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { sendRecurringSeriesCreatedEmail } from "@/lib/email/notifications";
+import {
+  sendRecurringSeriesCancelledEmail,
+  sendRecurringSeriesCreatedEmail,
+} from "@/lib/email/notifications";
 import { canManageAllBookings } from "./access";
 import { getTodayIsoDate } from "./_helpers";
 
@@ -265,6 +268,17 @@ export async function cancelRecurringSeries(
       reason: reason || null,
       cascaded_occurrence_count: cancelledRows?.length ?? 0,
     },
+  });
+
+  // C-02 Phase Fb — fire-and-forget with .catch(), matching
+  // createRecurringSeries's posture above: a failed send must never roll back
+  // a cancellation that already succeeded.
+  await sendRecurringSeriesCancelledEmail(
+    templateId,
+    cancelledRows?.length ?? 0,
+    adminClient
+  ).catch((error) => {
+    console.error("Unable to send recurring series cancelled email.", error);
   });
 
   updateTag("report-data");

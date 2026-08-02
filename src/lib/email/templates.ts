@@ -1424,6 +1424,72 @@ export function renderRecurringSeriesCreatedPlainText(
 ${body}`;
 }
 
+// ─── Recurring series cancelled email — client (C-02 Phase Fb) ──────────────
+// Sent to the client once cancelRecurringSeries has cascade-cancelled the
+// series' future occurrences. Same non-booking input shape precedent as
+// RecurringSeriesCreatedEmailInput above — a cancelled series has no single
+// booking to summarise, just the template's cadence/service and how many
+// upcoming visits were cancelled. Mirrors that template's shape exactly:
+// synchronous render, positional `overrides`, single body_intro field.
+
+export interface RecurringSeriesCancelledEmailInput {
+  clientName: string;
+  cadence: "weekly" | "fortnightly" | "monthly";
+  serviceName: string;
+  cancelledOccurrenceCount: number;
+}
+
+// Exported for the same reason as buildRecurringSeriesCreatedVarMap() above:
+// sendRecurringSeriesCancelledEmail (notifications.ts) needs the identical
+// vars object this template's body already uses, for resolveSubject().
+export function buildRecurringSeriesCancelledVarMap(
+  input: RecurringSeriesCancelledEmailInput
+): Record<string, unknown> {
+  return {
+    clientName: input.clientName,
+    cadence: input.cadence,
+    serviceName: input.serviceName,
+    cancelledOccurrenceCount: input.cancelledOccurrenceCount,
+  };
+}
+
+export function renderRecurringSeriesCancelledEmail(
+  input: RecurringSeriesCancelledEmailInput,
+  overrides: Record<string, string> = {}
+): string {
+  const vars = buildRecurringSeriesCancelledVarMap(input);
+  const bodyHtml = escapeHtml(
+    substituteVars(
+      overrides.body_intro || fieldDefault("recurring_series_cancelled_client", "body_intro"),
+      vars
+    )
+  );
+
+  return renderLayout(
+    resolveTitleSubject("recurring_series_cancelled_client", overrides),
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Your recurring booking has been cancelled</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">${bodyHtml}</p>`
+  );
+}
+
+// Plain-text equivalent of renderRecurringSeriesCancelledEmail. Resolves the
+// same body_intro field, so an admin override applies identically to both
+// legs (see the C-01 lesson referenced above renderEnquiryLoggedPlainText).
+export function renderRecurringSeriesCancelledPlainText(
+  input: RecurringSeriesCancelledEmailInput,
+  overrides: Record<string, string> = {}
+): string {
+  const vars = buildRecurringSeriesCancelledVarMap(input);
+  const body = substituteVars(
+    overrides.body_intro || fieldDefault("recurring_series_cancelled_client", "body_intro"),
+    vars
+  );
+
+  return `Your recurring booking has been cancelled
+
+${body}`;
+}
+
 // ─── Password-reset email templates ──────────────────────────────────────────
 // FAKE: structure only. Real Resend send wiring lands with
 // BUILD-password-reset-email-templates.md (BLOCKS-REDESIGN, Phase 6 Layer 0 #2).

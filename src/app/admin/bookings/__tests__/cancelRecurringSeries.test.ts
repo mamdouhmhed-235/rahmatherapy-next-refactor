@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { revalidatePath, updateTag } from "next/cache";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { sendRecurringSeriesCancelledEmail } from "@/lib/email/notifications";
 import { cancelRecurringSeries } from "../recurring-actions";
 
 /**
@@ -29,6 +30,15 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn().mockResolvedValue({}),
+}));
+
+// C-02 Phase Fb — cancelRecurringSeries now sends a cancellation-confirmation
+// email after the cascade succeeds. Mocked wholesale so the specs below
+// never reach the real render/send pipeline (no template-registry lookups,
+// no network) — only that the action calls it with the new template id and
+// cascade count.
+vi.mock("@/lib/email/notifications", () => ({
+  sendRecurringSeriesCancelledEmail: vi.fn(),
 }));
 
 // Only the profile lookup is stubbed — the permission helpers stay real so the
@@ -157,6 +167,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   vi.mocked(getStaffProfile).mockResolvedValue(owner);
+  vi.mocked(sendRecurringSeriesCancelledEmail).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -323,5 +334,25 @@ describe("cancelRecurringSeries — cascade", () => {
       "/admin/calendar",
       `/admin/clients/${CLIENT_ID}`,
     ]);
+  });
+
+  it("sends the recurring series cancelled email with the template id and cascade count", async () => {
+    stubAdminClient();
+
+    await cancelRecurringSeries(null, cancelFormData());
+
+    expect(sendRecurringSeriesCancelledEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendRecurringSeriesCancelledEmail).mock.calls[0][0]).toBe(TEMPLATE_ID);
+    expect(vi.mocked(sendRecurringSeriesCancelledEmail).mock.calls[0][1]).toBe(3);
+  });
+
+  it("does not let a rejected cancellation email undo a successful cancellation", async () => {
+    stubAdminClient();
+    vi.mocked(sendRecurringSeriesCancelledEmail).mockRejectedValue(new Error("Resend is down"));
+
+    const result = await cancelRecurringSeries(null, cancelFormData());
+
+    expect(result).toEqual({ ok: true, cancelledOccurrenceCount: 3 });
+    expect(updateTag).toHaveBeenCalled();
   });
 });
