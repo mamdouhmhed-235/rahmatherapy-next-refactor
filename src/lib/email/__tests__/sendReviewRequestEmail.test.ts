@@ -332,12 +332,11 @@ describe("sendReviewRequestEmail", () => {
         }),
       }),
     };
-    // resolveTemplateOverrides is called twice per send: once inside the real
-    // renderReviewRequestEmail (HTML leg), once directly by
-    // sendReviewRequestEmail for the plain-text leg (the fix under test).
-    vi.mocked(createSupabaseAdminClient)
-      .mockReturnValueOnce(overrideAdminClient as never)
-      .mockReturnValueOnce(overrideAdminClient as never);
+    // C-C fix round (F-6) — resolveTemplateOverrides is now called ONCE per
+    // send and the result is threaded into both legs (previously called
+    // twice: once inside renderReviewRequestEmail for the HTML leg, once
+    // directly by sendReviewRequestEmail for the plain-text leg).
+    vi.mocked(createSupabaseAdminClient).mockReturnValueOnce(overrideAdminClient as never);
 
     const stub = stubClient({ booking: baseBooking() });
 
@@ -363,6 +362,40 @@ describe("sendReviewRequestEmail", () => {
     // hardcoded default CTA URL must not.
     expect(sentText).toContain("https://example.test/admin-configured-review-url");
     expect(sentText).not.toContain("g.page/r/Ccfwk27JycKDEBM");
+
+    // F-6: the HTML leg must see the same resolved overrides too — a single
+    // resolveTemplateOverrides read shared by both legs, not a second read
+    // that could silently fail and fall back to {} on just one side.
+    const sentHtml = vi.mocked(sendEmail).mock.calls[0][0].html as string;
+    expect(sentHtml).toMatch(/Admin override sample review number \d\./);
+    expect(sentHtml).toContain("https://example.test/admin-configured-review-url");
+  });
+
+  it("picks the review samples once and shares them identically between the HTML and plain-text legs (F-6 regression guard)", async () => {
+    const stub = stubClient({ booking: baseBooking() });
+
+    const result = await sendReviewRequestEmail("booking-1", stub.client);
+
+    expect(result).toEqual({ sent: true });
+
+    // Previously each leg independently shuffled and picked (Math.random,
+    // uncontrolled), so on ~90% of sends the HTML part listed three review
+    // samples and the plain-text part listed a different three. Picking
+    // once means exactly one call, regardless of which pool entries end up
+    // chosen.
+    expect(pickReviewMessages).toHaveBeenCalledTimes(1);
+
+    const variants = vi.mocked(pickReviewMessages).mock.results[0]!
+      .value as ReviewMessageVariant[];
+    expect(variants).toHaveLength(3);
+
+    const call = vi.mocked(sendEmail).mock.calls[0][0];
+    const html = call.html as string;
+    const text = call.text as string;
+    for (const variant of variants) {
+      expect(html).toContain(variant.text);
+      expect(text).toContain(`- ${variant.text}`);
+    }
   });
 });
 

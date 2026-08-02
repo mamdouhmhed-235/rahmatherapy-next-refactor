@@ -1,6 +1,9 @@
 // SERVER ONLY - do not import from client components.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
+import {
+  ensureBookingManageUrl,
+  getExistingBookingManageUrl,
+} from "@/lib/booking/manage-token";
 import {
   extractEmailAddress,
   getFromEmail,
@@ -206,6 +209,16 @@ async function getBookingTemplateInput(
   supabase: SupabaseClient,
   options: {
     includeManageUrl?: boolean;
+    /**
+     * C-C fix round (F-2) — resolves a manage URL WITHOUT rotating the
+     * single live token (see getExistingBookingManageUrl's doc comment), so
+     * a send on this path can never invalidate a link already emailed to
+     * the customer. Today that means manageUrl always resolves to
+     * undefined and the email simply omits the "Manage this booking" CTA.
+     * Use this for every notification send except the one that owns the
+     * customer's manage link at booking creation.
+     */
+    includeExistingManageUrl?: boolean;
     manageUrl?: string;
     requireCustomerEmail?: boolean;
   } = {}
@@ -219,7 +232,9 @@ async function getBookingTemplateInput(
   const manageUrl = options.manageUrl
     ?? (options.includeManageUrl
       ? await ensureBookingManageUrl(booking, supabase)
-      : undefined);
+      : options.includeExistingManageUrl
+        ? await getExistingBookingManageUrl()
+        : undefined);
 
   const input: BookingEmailTemplateInput = {
     companyName: settings.company_name ?? "Rahma Therapy",
@@ -909,8 +924,13 @@ export async function sendBookingConfirmedClientEmail(
   bookingId: string,
   supabase: SupabaseClient
 ): Promise<void> {
+  // C-C fix round (F-2) — was `includeManageUrl: true`, which rotated the
+  // single live manage token on every pending→confirmed transition and
+  // killed the link in whatever email the customer already had. See
+  // getExistingBookingManageUrl's doc comment: this email now simply omits
+  // the manage-link CTA rather than risk breaking one already sent.
   const { booking, input } = await getBookingTemplateInput(bookingId, supabase, {
-    includeManageUrl: true,
+    includeExistingManageUrl: true,
   });
   const customerEmail = booking.contact_email || booking.clients?.email;
   if (!customerEmail) {
@@ -1043,8 +1063,14 @@ export async function sendClientAssignedTherapistEmail(
   assignedStaffId: string,
   supabase: SupabaseClient
 ): Promise<void> {
+  // C-C fix round (F-2) — was `includeManageUrl: true`, which rotated the
+  // single live manage token on every assign/reassign/claim and killed the
+  // link in whatever email the customer already had (the highest-frequency
+  // offender — this fires on every assignment change). See
+  // getExistingBookingManageUrl's doc comment: this email now simply omits
+  // the manage-link CTA rather than risk breaking one already sent.
   const { booking, input } = await getBookingTemplateInput(bookingId, supabase, {
-    includeManageUrl: true,
+    includeExistingManageUrl: true,
   });
   const customerEmail = booking.contact_email || booking.clients?.email;
   if (!customerEmail) {
@@ -1217,9 +1243,18 @@ export async function sendReviewRequestEmail(
     city,
   };
 
-  const html = await renderReviewRequestEmail(reviewInput);
+  // C-C fix round (F-6) — resolve overrides and pick the 3-of-5 review
+  // samples ONCE, then pass the same selection into both legs. Previously
+  // each leg independently called resolveTemplateOverrides + Math.random-based
+  // pickReviewMessages, so on ~90% of sends the HTML part listed three
+  // review samples and the plain-text part listed a different three in the
+  // same email — and because resolveTemplateOverrides swallows errors and
+  // returns {}, a first-read success paired with a second-read failure (or
+  // vice versa) could show edited copy in one leg but factory defaults in
+  // the other.
   const overrides = await resolveTemplateOverrides("review_request_client");
   const variants = pickReviewMessages({ groupCategory, city, overrides });
+  const html = await renderReviewRequestEmail(reviewInput, overrides, variants);
   const text = renderReviewRequestPlainText(reviewInput, variants, overrides);
 
   await sendTrackedEmail(supabase, {

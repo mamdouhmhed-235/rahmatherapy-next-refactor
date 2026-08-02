@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendEmail } from "@/lib/email/client";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
 import { sendClientAssignedTherapistEmail } from "../notifications";
 
 /**
@@ -12,6 +13,16 @@ import { sendClientAssignedTherapistEmail } from "../notifications";
  * again directly by the send fn for the plain-text leg) creates its own
  * admin client via `createSupabaseAdminClient`, so that factory is mocked
  * separately — by default returning empty overrides.
+ *
+ * C-C fix round (F-2) — this send used to pass `includeManageUrl: true`,
+ * which minted a fresh manage token and overwrote the booking's single live
+ * one on every assign/reassign/claim, killing the link in whatever email
+ * the customer already had — the highest-frequency offender, since this
+ * fires on every assignment change. It now resolves the manage URL via the
+ * non-rotating `getExistingBookingManageUrl`, which never mints, so the
+ * email simply omits the "Manage this booking" CTA. `ensureBookingManageUrl`
+ * is mocked to throw here specifically so a future regression that
+ * reintroduces rotation on this send path fails loudly.
  */
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -35,9 +46,12 @@ vi.mock("@/lib/ops/operational-events", () => ({
 }));
 
 vi.mock("@/lib/booking/manage-token", () => ({
-  ensureBookingManageUrl: vi
-    .fn()
-    .mockResolvedValue("https://rahmatherapy.example.test/manage/token-abc"),
+  ensureBookingManageUrl: vi.fn().mockRejectedValue(
+    new Error(
+      "sendClientAssignedTherapistEmail must not rotate the manage token — use getExistingBookingManageUrl."
+    )
+  ),
+  getExistingBookingManageUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
 const CUSTOMER_EMAIL = "aisha@client.example.test";
@@ -170,11 +184,15 @@ describe("sendClientAssignedTherapistEmail", () => {
     expect(html).toContain(
       "Hi Aisha Khan, your appointment on 2026-07-20 at 14:00:00 will be with Sara."
     );
-    expect(html).toContain("Manage your booking");
     expect(text).toContain(
       "Hi Aisha Khan, your appointment on 2026-07-20 at 14:00:00 will be with Sara."
     );
-    expect(text).toContain("Manage your booking: https://rahmatherapy.example.test/manage/token-abc");
+
+    // F-2 fix: no manage link — getExistingBookingManageUrl never mints, so
+    // the CTA (both legs) is cleanly omitted rather than risk breaking a
+    // link already emailed to this customer.
+    expect(html).not.toContain("Manage your booking");
+    expect(text).not.toContain("Manage your booking");
 
     // One tracked email_delivery_events row, for the right booking + event.
     const trackedInsert = stub.inserts.find((i) => i.table === "email_delivery_events");
@@ -183,6 +201,14 @@ describe("sendClientAssignedTherapistEmail", () => {
       event_type: "client_assigned_therapist",
       recipient_role: "customer",
     });
+  });
+
+  it("never rotates the manage token (F-2 regression guard)", async () => {
+    const stub = stubClient({ booking: baseBooking(), assignedStaff: { name: "Sara" } });
+
+    await sendClientAssignedTherapistEmail("booking-1", ASSIGNED_STAFF_ID, stub.client);
+
+    expect(ensureBookingManageUrl).not.toHaveBeenCalled();
   });
 
   it("throws before sending when the booking has no email anywhere", async () => {
@@ -212,7 +238,6 @@ describe("sendClientAssignedTherapistEmail", () => {
   it("applies admin-configured overrides to the HTML and plain-text legs, per field", async () => {
     const overrideRows = [
       { field_key: "body_intro", value: "OVERRIDE — {clientName}, {therapistName} has you on {bookingDate}." },
-      { field_key: "body_cta_label", value: "OVERRIDE view booking" },
     ];
     const overrideAdminClient = {
       from: () => ({
@@ -240,16 +265,15 @@ describe("sendClientAssignedTherapistEmail", () => {
     expect(html).toContain("OVERRIDE — Aisha Khan, Sara has you on 2026-07-20.");
     expect(text).toContain("OVERRIDE — Aisha Khan, Sara has you on 2026-07-20.");
 
-    // body_cta_label — both legs.
-    expect(html).toContain("OVERRIDE view booking");
-    expect(text).toContain("OVERRIDE view booking");
-
     // Hardcoded defaults must not leak through on either leg (the C-01
     // regression this test guards against — a plain-text leg that ignores
     // the override and keeps sending the hardcoded default).
     expect(html).not.toContain("will be with Sara");
     expect(text).not.toContain("will be with Sara");
+
+    // F-2 fix: no manage link — a body_cta_label override can't resurrect a
+    // CTA that only ever renders when manageUrl is set.
     expect(html).not.toContain("Manage your booking</a>");
-    expect(text).not.toContain("Manage your booking: https://");
+    expect(text).not.toContain("Manage your booking:");
   });
 });

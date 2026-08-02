@@ -769,12 +769,21 @@ function resolveReviewRequestFields(overrides: Record<string, string>) {
 // without a DB round-trip; every existing caller passes nothing and falls
 // back to the original resolveTemplateOverrides(templateId) read, so
 // behaviour at every notifications.ts call site is unchanged.
+//
+// C-C fix round (F-6) — `providedVariants` is optional for the same reason:
+// sendReviewRequestEmail (notifications.ts) picks the 3-of-5 review samples
+// ONCE and threads them into both this render and renderReviewRequestPlainText,
+// so the HTML and plain-text legs of one send can never disagree on which
+// samples they show. Every other caller (registry-defaults parity test,
+// the "Send test" sample path) passes nothing and falls back to the
+// original pickReviewMessages(...) call, so behaviour there is unchanged.
 export async function renderReviewRequestEmail(
   input: ReviewRequestEmailInput,
-  providedOverrides?: Record<string, string>
+  providedOverrides?: Record<string, string>,
+  providedVariants?: ReviewMessageVariant[]
 ): Promise<string> {
   const overrides = providedOverrides ?? (await resolveTemplateOverrides("review_request_client"));
-  const variants = pickReviewMessages({
+  const variants = providedVariants ?? pickReviewMessages({
     groupCategory: input.groupCategory,
     city: input.city,
     overrides,

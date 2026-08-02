@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createManageUrl,
+  getExistingBookingManageUrl,
   getManageTokenExpiry,
   getManageTokenHash,
 } from "./manage-token";
@@ -29,5 +30,16 @@ describe("booking manage tokens", () => {
     expect(createManageUrl("token with spaces")).toBe(
       "https://rahmatherapy.example/booking/manage?token=token%20with%20spaces"
     );
+  });
+});
+
+// C-C fix round (F-2) — the single-live-token model means a previously
+// minted token's plaintext can never be recovered from its hash, so the
+// non-rotating accessor can never hand back a working link. This pins that
+// contract: any notification send using it must treat the manage-link
+// section of its email as optional.
+describe("getExistingBookingManageUrl", () => {
+  it("never mints a token — always resolves to undefined so callers omit the link", async () => {
+    await expect(getExistingBookingManageUrl()).resolves.toBeUndefined();
   });
 });
