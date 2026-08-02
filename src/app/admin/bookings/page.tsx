@@ -4,28 +4,24 @@ import { redirect } from "next/navigation";
 import {
   AlertCircle,
   CalendarCheck,
-  CalendarClock,
   CalendarPlus,
   CalendarX,
   Inbox,
   Plus,
   SearchX,
   UserPlus,
-  UserX,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import {
   AdminAccessDenied,
   AdminPageHeader,
-  AdminStatusBadge,
 } from "../components/admin-ui";
 import { EmptyState } from "../components/EmptyState";
 import { BookingCardSkeletonList } from "../components/admin-scalable-lists";
 import { BookingsChrome, type BookingViewKey } from "./BookingsChrome";
-import { BookingRowActions } from "./BookingRowActions";
+import { BookingCard } from "./BookingCard";
 import {
   canClaimAssignments,
   canManageAllBookings,
@@ -33,12 +29,8 @@ import {
   hasClaimableAssignment,
   isOwnBooking,
 } from "./access";
-import {
-  composeGenderRequirementChip,
-  getTodayIsoDate,
-  inertRowClassNames,
-} from "./_helpers";
-import { formatDate, formatLabel, formatMoney, formatTime } from "./format";
+import { getTodayIsoDate } from "./_helpers";
+import { formatDate } from "./format";
 import type { BookingRecord } from "./types";
 
 // Re-exported for any existing caller that imported this from here (Step 8,
@@ -618,7 +610,7 @@ async function BookingListSection({
               const delay =
                 flatIndex < ROW_STAGGER_MAX ? flatIndex * ROW_STAGGER_MS : 0;
               return (
-                <BookingListCard
+                <BookingCard
                   key={booking.id}
                   booking={booking}
                   profile={profile}
@@ -771,255 +763,3 @@ function BookingsEmptyStateInner({
   }
 }
 
-function statusTone(value: string) {
-  switch (value) {
-    case "pending":
-      return "info" as const;
-    case "confirmed":
-      return "success" as const;
-    case "completed":
-      return "success" as const;
-    case "cancelled":
-    case "no_show":
-      return "danger" as const;
-    default:
-      return "muted" as const;
-  }
-}
-
-function BookingListCard({
-  booking,
-  profile,
-  canViewAll,
-  today,
-  animationDelay = 0,
-}: {
-  booking: BookingRecord;
-  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
-  canViewAll: boolean;
-  today: string;
-  animationDelay?: number;
-}) {
-  const ownBooking = isOwnBooking(booking, profile);
-  const claimableBooking = hasClaimableAssignment(booking, profile);
-  const showSensitiveDetails = canViewAll || ownBooking;
-  const role = canViewAll ? "full" : "therapist";
-  // C-05 Phase D (Edit Point 9) — cancelled / no_show / past-dated rows get a
-  // strikethrough on the date+service line plus a muted overall opacity, so
-  // they read as inert at a glance once Edit Point 8 makes them reachable via
-  // the status filter.
-  const { rowClass, titleClass } = inertRowClassNames(booking, today);
-
-  const clientName =
-    booking.contact_full_name || booking.clients?.full_name || "Unknown client";
-  const serviceNames = Array.from(
-    new Set(booking.booking_items.map((item) => item.service_name_snapshot))
-  );
-
-  const assignedTherapists = booking.booking_assignments
-    .map((assignment) => assignment.staff_profiles?.name ?? null)
-    .filter((name): name is string => Boolean(name));
-  const distinctTherapists = Array.from(new Set(assignedTherapists));
-
-  const genderChip = composeGenderRequirementChip(
-    booking.booking_participants,
-    booking.assignment_status
-  );
-  const participantCount = booking.booking_participants.length;
-  // Only surface the Group chip when there are genuinely multiple participants.
-  // `group_booking` can be true with a single participant during draft states,
-  // and "Group · 0" / "Group · 1" reads as a data bug.
-  const isGroup = participantCount > 1;
-
-  const addressParts = [
-    booking.service_address_line1,
-    booking.service_city,
-    booking.service_postcode,
-  ].filter(Boolean);
-  const mapUrl =
-    addressParts.length > 0
-      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          addressParts.join(" ")
-        )}`
-      : null;
-
-  const claimableAssignment = claimableBooking
-    ? booking.booking_assignments.find(
-        (assignment) =>
-          assignment.status === "unassigned" &&
-          !assignment.assigned_staff_id &&
-          assignment.required_therapist_gender === profile.gender
-      ) ?? null
-    : null;
-
-  return (
-    <article
-      style={{ animationDelay: `${animationDelay}ms` }}
-      className={cn(
-        "rahma-row-enter grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] hover:shadow-[var(--admin-shadow-subtle)] sm:p-5",
-        rowClass
-      )}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <Link
-            href={`/admin/bookings/${booking.id}`}
-            className="block min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-          >
-            <p className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] break-words sm:text-lg">
-              {clientName}
-            </p>
-            <p className={cn("mt-1 text-sm text-[var(--admin-text-muted)] break-words", titleClass)}>
-              {formatDate(booking.booking_date)} · {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
-              {serviceNames.length > 0 ? ` · ${serviceNames.join(", ")}` : ""}
-            </p>
-          </Link>
-          {/* Status hierarchy: one prominent badge anchors the row; everything
-              else demotes to compact text or icon-only so the eye lands on
-              status first. Brief mandates visible text on the same-gender +
-              group chips, so those stay text-labelled but compact. */}
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <AdminStatusBadge
-              value={formatLabel(booking.status)}
-              tone={statusTone(booking.status)}
-            />
-            {booking.assignment_status === "unassigned" ? (
-              <AdminStatusBadge value="Unassigned" tone="warning" compact />
-            ) : booking.assignment_status === "partially_assigned" ? (
-              <AdminStatusBadge value="Partially assigned" tone="warning" compact />
-            ) : null}
-            {genderChip.visible ? (
-              <span
-                title={genderChip.label}
-                className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-restricted)]"
-              >
-                {genderChip.label}
-              </span>
-            ) : null}
-            {isGroup ? (
-              <span
-                title={`Group booking with ${participantCount} participants`}
-                className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-restricted)]"
-              >
-                Group · {participantCount}
-              </span>
-            ) : null}
-            {booking.reschedule_status === "requested" ? (
-              <span
-                title="Reschedule requested by the client"
-                className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]"
-              >
-                <CalendarClock className="size-3.5" aria-hidden="true" />
-                <span className="sr-only">Reschedule requested</span>
-              </span>
-            ) : null}
-            {booking.customer_cancelled_at ? (
-              <span
-                title="The client cancelled this booking"
-                className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
-              >
-                <UserX className="size-3.5" aria-hidden="true" />
-                <span className="sr-only">Client cancelled</span>
-              </span>
-            ) : null}
-            {/* "Claimable" chip removed: redundant with the Claim button,
-                which always renders on the same row for the same condition. */}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2 border-t border-[var(--admin-border)] pt-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {distinctTherapists.length > 0 ? (
-            <div className="flex min-w-0 items-center gap-2">
-              <AvatarStack names={distinctTherapists} />
-              <span className="min-w-0 break-words text-sm text-[var(--admin-body)]">
-                {distinctTherapists.join(", ")}
-              </span>
-            </div>
-          ) : (
-            <span className="inline-flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
-              <span
-                aria-hidden="true"
-                className="inline-flex size-8 items-center justify-center rounded-full bg-[var(--admin-panel-muted)] text-xs text-[var(--admin-text-muted)]"
-              >
-                ?
-              </span>
-              No therapist yet
-            </span>
-          )}
-          {showSensitiveDetails && booking.payment_status ? (
-            <AdminStatusBadge
-              value={`${formatLabel(booking.payment_status)}${
-                showSensitiveDetails && booking.amount_due
-                  ? ` · ${formatMoney(booking.amount_due)}`
-                  : ""
-              }`}
-              tone={
-                booking.payment_status === "paid"
-                  ? "success"
-                  : booking.payment_status === "unpaid"
-                  ? "warning"
-                  : "muted"
-              }
-              compact
-            />
-          ) : null}
-        </div>
-
-        <BookingRowActions
-          bookingId={booking.id}
-          clientName={clientName}
-          role={role}
-          status={booking.status}
-          paymentStatus={booking.payment_status}
-          assignmentStatus={booking.assignment_status}
-          mapUrl={showSensitiveDetails ? mapUrl : null}
-          claimableAssignmentId={claimableAssignment?.id ?? null}
-          bookingDate={booking.booking_date}
-          startTime={booking.start_time}
-          cancelledAt={booking.cancelled_at}
-          customerCancelledAt={booking.customer_cancelled_at}
-        />
-      </div>
-    </article>
-  );
-}
-
-function AvatarStack({ names }: { names: string[] }) {
-  const visible = names.slice(0, 3);
-  const extra = names.length - visible.length;
-  return (
-    <div className="flex -space-x-2">
-      {visible.map((name) => (
-        <span
-          key={name}
-          title={name}
-          aria-hidden="true"
-          className={cn(
-            "inline-flex size-8 items-center justify-center rounded-full border-2 border-[var(--admin-panel)]",
-            "bg-[var(--admin-hover-mist)] text-[0.75rem] font-semibold text-[var(--admin-heading)]"
-          )}
-        >
-          {initials(name)}
-        </span>
-      ))}
-      {extra > 0 ? (
-        <span
-          aria-hidden="true"
-          className="inline-flex size-8 items-center justify-center rounded-full border-2 border-[var(--admin-panel)] bg-[var(--admin-panel-muted)] text-[0.6875rem] font-semibold text-[var(--admin-text-muted)]"
-        >
-          +{extra}
-        </span>
-      ) : null}
-      <span className="sr-only">{names.join(", ")}</span>
-    </div>
-  );
-}
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
