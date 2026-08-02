@@ -22,10 +22,15 @@
 // exactly. `countEnquiries` is the cheap head-count companion for C-16's
 // "Showing X–Y of Z" readout; it is not called by the page today.
 //
-// FILTERS: still fetched unfiltered, as before — the page's tab/source/
-// assigned/date/q filtering stays in memory until C-09 Phase D Step 8 moves it
-// server-side. This step only moves WHERE the fetch happens, never WHAT it
-// returns.
+// FILTERS (C-09 Phase D Step 8): tab/source/assigned/date/q are now applied
+// server-side, inside this fetcher, and flow into the cache key via
+// `cacheKeyPart` — a caller filtering by "converted" can never be served a
+// cache entry built for "new". page.tsx calls this fetcher twice: once with
+// no filters (for the tab badge + at-a-glance stats, which always reflect the
+// whole pipeline regardless of the current filter) and once with the current
+// filters (for the visible list) when any filter is active — the two calls
+// share a cache entry when no filter is active, so the common default view
+// costs exactly one query, same as before this step.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -56,7 +61,21 @@ export interface EnquiryStaffOption {
   name: string;
 }
 
-export interface EnquiriesParams {
+export interface EnquiriesFilters {
+  /** Maps the page's "tab" concept: a plain status, or "converted" for
+   *  `converted_booking_id IS NOT NULL`. "all" is not passed — omit instead. */
+  status?: "new" | "contacted" | "closed" | "converted";
+  source?: string;
+  /** Staff id, or the literal "unassigned" for `assigned_staff_id IS NULL`. */
+  assignedStaff?: string;
+  /** Inclusive UTC day bounds, `YYYY-MM-DD`. */
+  fromDate?: string;
+  toDate?: string;
+  /** Matched against full_name / phone / email / service_interest. */
+  q?: string;
+}
+
+export interface EnquiriesParams extends EnquiriesFilters {
   limit?: number;
   offset?: number;
 }
@@ -66,10 +85,15 @@ export interface EnquiriesPageData {
   staff: EnquiryStaffOption[];
 }
 
+function escapeLike(value: string) {
+  return value.replace(/[\\%_,()]/g, (match) => `\\${match}`);
+}
+
 export async function getEnquiriesPageData(
   params: EnquiriesParams = {}
 ): Promise<EnquiriesPageData> {
-  const { limit, offset } = params;
+  const { limit, offset, status, source, assignedStaff, fromDate, toDate, q } =
+    params;
 
   const cached = unstable_cache(
     async (): Promise<EnquiriesPageData> => {
@@ -79,6 +103,30 @@ export async function getEnquiriesPageData(
         .from("enquiries")
         .select(ENQUIRIES_SELECT)
         .order("created_at", { ascending: false });
+      if (status === "converted") {
+        enquiriesQuery = enquiriesQuery.not("converted_booking_id", "is", null);
+      } else if (status) {
+        enquiriesQuery = enquiriesQuery.eq("status", status);
+      }
+      if (source) enquiriesQuery = enquiriesQuery.eq("source", source);
+      if (assignedStaff === "unassigned") {
+        enquiriesQuery = enquiriesQuery.is("assigned_staff_id", null);
+      } else if (assignedStaff) {
+        enquiriesQuery = enquiriesQuery.eq("assigned_staff_id", assignedStaff);
+      }
+      if (fromDate) enquiriesQuery = enquiriesQuery.gte("created_at", `${fromDate}T00:00:00Z`);
+      if (toDate) enquiriesQuery = enquiriesQuery.lte("created_at", `${toDate}T23:59:59Z`);
+      if (q) {
+        const needle = `%${escapeLike(q)}%`;
+        enquiriesQuery = enquiriesQuery.or(
+          [
+            `full_name.ilike.${needle}`,
+            `phone.ilike.${needle}`,
+            `email.ilike.${needle}`,
+            `service_interest.ilike.${needle}`,
+          ].join(",")
+        );
+      }
       if (limit !== undefined) {
         const start = offset ?? 0;
         enquiriesQuery = enquiriesQuery.range(start, start + limit - 1);
@@ -96,7 +144,19 @@ export async function getEnquiriesPageData(
 
       return { enquiries: enquiriesRaw ?? [], staff: staffRaw ?? [] };
     },
-    ["enquiries-page", cacheKeyPart({ limit, offset })],
+    [
+      "enquiries-page",
+      cacheKeyPart({
+        limit,
+        offset,
+        status,
+        source,
+        assignedStaff,
+        fromDate,
+        toDate,
+        q,
+      }),
+    ],
     { revalidate: 60, tags: [TAGS.ENQUIRIES] }
   );
   return cached();

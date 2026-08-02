@@ -137,69 +137,47 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
   const qFilter = readParam(params.q);
   const sort = toSortKey(readParam(params.sort));
 
-  // FAKE: BUILD-enquiries-filter-query — until the server-side filter query lands,
-  // we read the full list and degrade gracefully. Filtering below is in-memory and
-  // therefore does not scale; the BUILD plan will move tab/source/assigned/date/q
-  // filtering into the Supabase query.
+  // 5-step filter audit (brief §2.4): (1) URL parsed above; (2) passed to the
+  // fetcher below; (3) applied server-side in enquiries-data.ts's Supabase
+  // query; (4) filter UI defaults from these same URL-derived values (see
+  // filterFormFields below); (5) empty-state copy distinguishes "no results
+  // for this filter" from "no data yet" (EnquiryEmptyState).
+  const hasActiveFilters = Boolean(
+    sourceFilter || assignedFilter || fromFilter || toFilter || qFilter
+  );
+  const hasAnyNarrowing = tab !== "all" || hasActiveFilters;
+
+  // Unfiltered fetch — the tab badge (newCount) and the at-a-glance strip
+  // always reflect the whole pipeline, not the currently-applied filter, so
+  // they're computed from this call regardless of what's on the URL. When no
+  // filter is active this is the ONLY call (see below), so the default view
+  // costs exactly one query, same as before this step.
   const { enquiries, staff } = await getEnquiriesPageData();
 
   // Map rebuilt on THIS side of the cache boundary — enquiries-data.ts returns
   // a plain array because a Map would come back as {} (SHARED-NOTES §15).
   const staffNames = new Map(staff.map((member) => [member.id, member.name]));
 
-  // Tab counts (full list).
+  // Tab counts (full, unfiltered list).
   const newCount = enquiries.filter((row) => row.status === "new").length;
 
-  // FAKE: BUILD-enquiries-filter-query — in-memory tab + filter application.
-  const tabFiltered = enquiries.filter((row) => {
-    switch (tab) {
-      case "new":
-        return row.status === "new";
-      case "contacted":
-        return row.status === "contacted";
-      case "converted":
-        return Boolean(row.converted_booking_id);
-      case "closed":
-        return row.status === "closed";
-      default:
-        return true;
-    }
-  });
+  // Filtered fetch (C-09 Phase D Step 8) — server-side query, not in-memory.
+  // Reuses the unfiltered call's cache entry when nothing is narrowing the
+  // view (cacheKeyPart({}) === cacheKeyPart({}) for the no-filter case).
+  const { enquiries: displayedUnsorted } = hasAnyNarrowing
+    ? await getEnquiriesPageData({
+        status: tab === "all" ? undefined : tab,
+        source: sourceFilter || undefined,
+        assignedStaff: assignedFilter || undefined,
+        fromDate: fromFilter || undefined,
+        toDate: toFilter || undefined,
+        q: qFilter || undefined,
+      })
+    : { enquiries };
 
-  const fromTime = fromFilter ? new Date(`${fromFilter}T00:00:00Z`).getTime() : null;
-  const toTime = toFilter ? new Date(`${toFilter}T23:59:59Z`).getTime() : null;
-  const qNeedle = qFilter.toLowerCase();
-
-  const displayedUnsorted = tabFiltered.filter((row) => {
-    if (sourceFilter && row.source !== sourceFilter) return false;
-    if (assignedFilter) {
-      if (assignedFilter === "unassigned") {
-        if (row.assigned_staff_id) return false;
-      } else if (row.assigned_staff_id !== assignedFilter) {
-        return false;
-      }
-    }
-    if (fromTime !== null) {
-      if (new Date(row.created_at).getTime() < fromTime) return false;
-    }
-    if (toTime !== null) {
-      if (new Date(row.created_at).getTime() > toTime) return false;
-    }
-    if (qNeedle) {
-      const haystack = [
-        row.full_name,
-        row.phone ?? "",
-        row.email ?? "",
-        row.service_interest ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      if (!haystack.includes(qNeedle)) return false;
-    }
-    return true;
-  });
-
-  // Apply sort.
+  // Apply sort (client-facing sort order was never part of the filter-FAKE
+  // pattern — it stays a display-only pass over the already server-filtered
+  // rows).
   const displayed = [...displayedUnsorted].sort((a, b) => {
     switch (sort) {
       case "oldest":
@@ -248,10 +226,6 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
   if (toFilter) urlParams.set("to", toFilter);
   if (qFilter) urlParams.set("q", qFilter);
   if (sort !== "newest") urlParams.set("sort", sort);
-
-  const hasActiveFilters = Boolean(
-    sourceFilter || assignedFilter || fromFilter || toFilter || qFilter
-  );
 
   const todayPresetRange = presetRange("today");
   const weekPresetRange = presetRange("week");
@@ -392,7 +366,6 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
             method="get"
             action="/admin/enquiries"
             className="hidden md:block"
-            data-redesign-backend="FAKE"
           >
             {tab !== "all" ? <input type="hidden" name="tab" value={tab} /> : null}
             {sort !== "newest" ? <input type="hidden" name="sort" value={sort} /> : null}
@@ -423,7 +396,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
           </form>
 
           {/* Mobile filter — AdminSheet (focus-trapped, portal-rendered) */}
-          <div className="md:hidden" data-redesign-backend="FAKE">
+          <div className="md:hidden">
             <AdminSheet
               title="Filters"
               description="Refine the current view."

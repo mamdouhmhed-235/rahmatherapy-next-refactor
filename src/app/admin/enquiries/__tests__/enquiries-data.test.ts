@@ -105,3 +105,44 @@ describe("getEnquiriesPageData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
   });
 });
+
+// C-09 Phase D Step 8 — filter wiring keys separately per filter, so a
+// caller filtering by "converted" can never be served a cache entry built
+// for "new" (or for no filter at all).
+describe("getEnquiriesPageData filter-wiring cache behaviour", () => {
+  it("keys the unfiltered call and a fully-empty-filters call identically", async () => {
+    await getEnquiriesPageData();
+    await getEnquiriesPageData({
+      status: undefined,
+      source: undefined,
+      assignedStaff: undefined,
+      fromDate: undefined,
+      toDate: undefined,
+      q: undefined,
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keys separately per status filter", async () => {
+    await getEnquiriesPageData({ status: "new" });
+    await getEnquiriesPageData({ status: "converted" });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+    await getEnquiriesPageData({ status: "new" });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+
+  it("keys separately per source/assignedStaff/date/q filter", async () => {
+    await getEnquiriesPageData({ source: "website" });
+    await getEnquiriesPageData({ assignedStaff: "unassigned" });
+    await getEnquiriesPageData({ fromDate: "2026-01-01", toDate: "2026-01-31" });
+    await getEnquiriesPageData({ q: "jane" });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(4);
+  });
+
+  it("re-runs a filtered call after the enquiries tag is invalidated", async () => {
+    await getEnquiriesPageData({ status: "new" });
+    cacheHarness.invalidateTag(TAGS.ENQUIRIES);
+    await getEnquiriesPageData({ status: "new" });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+});
