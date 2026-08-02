@@ -73,11 +73,10 @@ function substituteVars(
   });
 }
 
-// Build the variable map an override string can reference. Mirrors the
-// ALLOWED_VARIABLES set in TemplateEditForm.tsx — anything in that set should
-// be resolvable here. Extra `extras` lets per-template callers add fields
-// (changeSummary, bookingId, requestedDate, requestedTime) without inflating
-// the base BookingEmailTemplateInput.
+// Build the variable map an override string can reference. Extra `extras`
+// lets per-template callers add fields (changeSummary, bookingId,
+// requestedDate, requestedTime) without inflating the base
+// BookingEmailTemplateInput.
 function buildVarMap(
   input: BookingEmailTemplateInput,
   extras: Record<string, unknown> = {}
