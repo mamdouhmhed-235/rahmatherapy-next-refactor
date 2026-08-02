@@ -117,4 +117,65 @@ Once resolved: author the RPC body against the live `create_booking_request` def
 
 ---
 
-*C-02 pre-flight complete, implementation blocked at the Phase A HARD-STOP. Inherited baseline: tsc 0 · lint 59E/7W six files · vitest 5 failed / 1181 passed (1186) · build clean.*
+---
+
+## 1 — Phase A migration AUTHORED and Owner-APPROVED — ⏸ awaiting application
+
+**File:** `supabase/migrations/20260802122636_c02_recurring_bookings.sql` — **942 lines, untracked, NOT applied, NOT committed.**
+
+The plan's Phase A could not be applied as written. It has been authored properly against the live schema, and **the Owner approved every element in chat on 2026-08-01/02.** The next orchestrator action is to read the file in full, apply it via `mcp__supabase__apply_migration`, run the post-apply privilege re-check, then commit as `chore(supabase): C-02 migration applied c02_recurring_bookings`.
+
+### 1.1 — What the Owner approved, and why each was needed
+
+| Approved | Why the plan's draft was unapplicable without it |
+|---|---|
+| **Option (a) gender — persisted as columns** | `booking_participants.participant_gender`, `.required_therapist_gender` and `booking_assignments.required_therapist_gender` are all `NOT NULL` on an enum with only `male`/`female` — there is no "any" value — and `clients` has no gender column. **A parameter alone does not solve it:** the horizon cron materialises occurrences months later, so gender must live on the template row or every future occurrence fails a not-null check. Mirrors the address snapshot the table already carries for exactly this reason. `open_to_any_therapist` stays orthogonal — it governs *which* therapist, not *what gender*. |
+| **Two table GRANTs** | `pg_default_acl` for `postgres`-owned tables gives `service_role` only `Dxtm` — **no SELECT/INSERT/UPDATE**. Verified live. Without the grant every write is a silent 42501: the exact C-04a failure. |
+| **Function EXECUTE grants** | Same trap, one object type over — `pg_default_acl` for `postgres`-owned **functions** is `{postgres=X/postgres}`, owner only. Every `adminClient.rpc(...)` from Phase C on would 42501. Also REVOKEs from PUBLIC/anon/authenticated so no new advisor findings are introduced. |
+| **`bookings_booking_source_check` widened by one value** | The RPC writes `booking_source = 'recurring'`; the live CHECK allows eight values and that is not one. It is `NOT VALID`, which exempts only *existing* rows — every INSERT is still checked, so all occurrences would 23514 and abort. Re-added **validated** (all 15 live rows pass), which is strictly stronger than the `NOT VALID` constraint it replaces. |
+| **First batch = 12, per the plan** | The plan's own formula yields **13** (days 0…84 inclusive). Owner ruled the code should match the plan and the customer-facing form copy. |
+
+### 1.2 — The occurrence fix, and the trap inside it
+
+Fixed by subtracting 1 from **`v_horizon_through` itself** — a single variable that feeds both the `compute_occurrence_dates` bound and the stored `horizon_through_date`, so the two can never disagree.
+
+Counts confirmed by **read-only replay across 365 consecutive first-dates × 3 cadences**, min = max on every row (so anchor-independent, not a lucky sample): **weekly 12 · fortnightly 6 · monthly 3.**
+
+**The tempting alternative would have silently lost a visit per series.** Tightening the loop bound instead — or passing `horizon − 1` while still storing `horizon` — also yields 12, but stores a horizon *beyond* the last real occurrence. The cron resumes past `horizon_through_date`, so day 84 (a genuine weekly and fortnightly occurrence) would be claimed as covered and never created. No error anywhere.
+
+Also established: the old header's "monthly yields 4" **was never true** — it is 3 both before and after, across all 336 valid anchors. Any Phase B test written against 4 would have been wrong.
+
+### 1.3 — Six defects the author found and fixed without needing the Owner
+
+1. Brief §2.4's parameter list **would not compile** — defaulted parameters before non-defaulted ones. Reordered.
+2. The draft set **both** day-anchors from the first date, so a *weekly* series starting after the 28th tripped `rbt_anchor_day_of_month_in_range` and was rejected. Now exactly one anchor per cadence.
+3. The template stored the **raw** address parameters, which are NULL whenever the operator doesn't override — defeating the snapshot's entire purpose. Now stores resolved values.
+4. `contact_phone` is `NOT NULL` while `clients.phone` is nullable → raises a readable P0001 instead of leaking a bare 23502.
+5. Client lookup had no `deleted_at IS NULL` guard, unlike `create_booking_request` post-C-06. Added.
+6. `booking_items` written from the validated service row rather than re-SELECTed — `create_booking_request`'s `is_visible_on_frontend = true` filter would have silently inserted **zero** line items onto a priced booking.
+
+### 1.4 — ⚠️ Carried forward to Phase G (reported, deliberately not fixed)
+
+**The cron's resume point is wrong in both the plan and the brief.** Plan Step 19 and brief §2.5 sketch `compute_occurrence_dates(current_horizon, cadence, new_horizon, …)` — passing `horizon_through_date` as the *first date*. That only ever appeared to work because the old formula made the horizon coincidentally equal the last weekly/fortnightly occurrence; **it was already wrong for monthly** (the day-of-month drifts off the anchor). After the 12-occurrence fix the horizon is `≡ 6 mod 7` from the anchor, so weekly and fortnightly break the same way — every extended visit lands one weekday early, and the duplicate check keyed on `(client, date, start_time)` will not catch it because the dates genuinely differ.
+
+**Phase G must walk from the series anchor or from `max(booking_date)` of the series, never from `horizon_through_date`.** Written into the migration header as a note for Phase G.
+
+### 1.5 — Also logged, not fixed
+
+- Plan §2.4 and brief §2.4 still carry the **un-corrected** horizon formula. Someone reading the drafts later could "restore" the bug.
+- `idx_recurring_templates_active` indexes a column that is NULL across its entire partial subset — near-useless. Kept (plan text, negligible cost), flagged in a comment.
+- **Pre-existing, unrelated:** `ManualBookingForm`'s `SOURCE_OPTIONS` offers "Facebook" → `'facebook'`, which is absent from the `booking_source` CHECK before *and* after this migration. Choosing it in the admin form fails today.
+
+---
+
+## 2 — ▶ RESUME HERE
+
+**Exact next action:** read `supabase/migrations/20260802122636_c02_recurring_bookings.sql` **in full**, then apply it via `mcp__supabase__apply_migration` (name `c02_recurring_bookings`). **The Owner's approval is already given and recorded in §1.1 — but read the file before executing it; do not apply 942 lines unread.**
+
+Then, in order: run the post-apply verification (the three negative-existence queries from the migration ledger, now expecting 1 row each) · **re-check privileges** — `has_table_privilege('service_role','recurring_booking_templates','INSERT')` and `has_function_privilege('service_role','create_recurring_booking_series(...)','EXECUTE')`, both expecting `true`, since silent 42501s are this plan's headline risk · commit the file as `chore(supabase): C-02 migration applied c02_recurring_bookings` · then Phases B–I.
+
+**Inherited baseline:** tsc 0 · lint 59E/7W six files · vitest **5 failed / 1181 passed (1186)** · build clean. Failures exactly: `admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent").
+
+---
+
+*C-02 Phase A migration authored, corrected and Owner-approved; **application is the next action**. Nothing applied, nothing committed, no application code touched yet.*
