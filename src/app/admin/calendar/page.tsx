@@ -12,7 +12,6 @@ import {
   UserX,
   X,
 } from "lucide-react";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   addBusinessDays,
@@ -30,10 +29,13 @@ import {
 import { EmptyState } from "../components/EmptyState";
 import { cn } from "@/lib/utils";
 import {
-  getReportData,
   parseReportFilters,
   type ReportBooking,
 } from "../reports/reporting";
+import {
+  getCalendarPageData,
+  type CalendarParticipantRow,
+} from "./calendar-data";
 import { composeBookingIdentity } from "../bookings/_helpers";
 import { formatLabel } from "../bookings/format";
 import { PrintButton } from "./PrintButton";
@@ -60,36 +62,13 @@ interface CalendarParams {
   to: string;
 }
 
-/**
- * C-13 Phase E (brief §2.5) — minimal `booking_participants` projection for
- * the group-treatment lookup below. `ReportBooking` (getReportData) doesn't
- * carry this join and `reporting.ts` is untouchable (RECON §5), so this
- * shape backs a second, separate, read-only query scoped to just the
- * booking ids already on screen.
- */
-interface CalendarParticipantRow {
-  id: string;
-  booking_id: string;
-  display_name: string | null;
-  is_main_contact: boolean | null;
-}
+// CalendarParticipantRow / CalendarRecurringRow moved to calendar-data.ts with
+// the two follow-up queries they back (C-09 Phase C Step 5), comments intact.
 
 /** Per-booking group summary for calendar tiles — absent key means single. */
 interface CalendarGroupInfo {
   count: number;
   identity: string;
-}
-
-/**
- * C-02 Phase H (plan Step 22) — same rationale as `CalendarParticipantRow`
- * above: `ReportBooking` carries no `recurring_template_id` join and
- * `reporting.ts` is untouchable (RECON §5), so this backs a second, separate,
- * read-only query scoped to booking ids already on screen.
- */
-interface CalendarRecurringRow {
-  id: string;
-  recurring_template_id: string | null;
-  recurring_booking_templates: { cadence: "weekly" | "fortnightly" | "monthly" } | null;
 }
 
 /** Per-booking recurring summary for calendar tiles — absent key means one-off. */
@@ -274,28 +253,24 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
             : selectedDate,
   });
 
-  const adminClient = createSupabaseAdminClient();
-  const data = await getReportData(adminClient, profile, filters);
-
   // C-13 Phase E (brief §2.5) — group-booking treatment on calendar tiles.
-  // `ReportBooking`/`ReportAssignment` (getReportData, above) don't carry a
+  // `ReportBooking`/`ReportAssignment` (getReportData) don't carry a
   // `booking_participants` join and `reporting.ts` is on RECON §5's
-  // untouchable list, so this is a second, separate, read-only query — not
-  // an extension of getReportData's selector — scoped to just the booking
-  // ids already on screen. It supplies both the participant count (the
+  // untouchable list, so the helper issues a second, separate, read-only
+  // query — not an extension of getReportData's selector — scoped to just the
+  // booking ids already on screen. It supplies both the participant count (the
   // "Group · N" chip) and composite identity (the hover tooltip), reusing
   // the same tested helper BookingCard uses (`composeBookingIdentity`,
   // `bookings/_helpers.ts`).
-  const calendarBookingIds = data.bookings.map((b) => b.id);
-  const { data: calendarParticipantRows } =
-    calendarBookingIds.length > 0
-      ? await adminClient
-          .from("booking_participants")
-          .select("id, booking_id, display_name, is_main_contact")
-          .in("booking_id", calendarBookingIds)
-          .returns<CalendarParticipantRow[]>()
-      : { data: [] as CalendarParticipantRow[] };
+  const {
+    data,
+    participantRows: calendarParticipantRows,
+    recurringRows: calendarRecurringRows,
+  } = await getCalendarPageData({ profile, filters });
 
+  // The three lookup Maps below are built on THIS side of the cache boundary —
+  // calendar-data.ts returns plain row arrays because a Map would come back
+  // as {} (SHARED-NOTES §15).
   const participantsByBooking = new Map<string, CalendarParticipantRow[]>();
   for (const p of calendarParticipantRows ?? []) {
     const list = participantsByBooking.get(p.booking_id) ?? [];
@@ -322,16 +297,6 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
 
   // C-02 Phase H (plan Step 22) — recurring badge treatment, same second-query
   // pattern as the group lookup above (`reporting.ts` untouchable, RECON §5).
-  const { data: calendarRecurringRows } =
-    calendarBookingIds.length > 0
-      ? await adminClient
-          .from("bookings")
-          .select("id, recurring_template_id, recurring_booking_templates(cadence)")
-          .in("id", calendarBookingIds)
-          .not("recurring_template_id", "is", null)
-          .returns<CalendarRecurringRow[]>()
-      : { data: [] as CalendarRecurringRow[] };
-
   const recurringByBooking = new Map<string, CalendarRecurringInfo>();
   for (const row of calendarRecurringRows ?? []) {
     if (!row.recurring_template_id) continue;
