@@ -89,6 +89,7 @@ const BOOKING_SELECT = `
   admin_notes,
   treatment_notes,
   created_at,
+  recurring_template_id,
   clients(full_name, phone, email),
   booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, display_name, participant_notes, health_notes, consent_acknowledged),
   booking_items(id, booking_participant_id, service_name_snapshot, service_price_snapshot, service_duration_snapshot),
@@ -109,6 +110,7 @@ const CLAIMABLE_BOOKING_SELECT = `
   cancelled_at,
   customer_cancelled_at,
   created_at,
+  recurring_template_id,
   booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, consent_acknowledged),
   booking_items(id, booking_participant_id, service_name_snapshot, service_duration_snapshot),
   booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
@@ -172,6 +174,12 @@ export function filterBookings(
   const assignedStaff = getQueryValue(query.assigned_staff) ?? "";
   const from = getQueryValue(query.from) ?? "";
   const to = getQueryValue(query.to) ?? "";
+  // C-02 Phase H (plan Step 23) — narrows the Series view to one template
+  // when present. This is the exact seam Phase F's series-view "View all N
+  // visits" link depends on (`/admin/bookings?view=series&templateId=<id>`);
+  // matching `view === "series"` alone would satisfy the link's URL but not
+  // its promise of showing only that series.
+  const templateId = getQueryValue(query.templateId) ?? "";
   const today = getTodayIsoDate();
 
   // C-05 Phase D (Edit Point 8, brief §1.5/§2.7) — most views unconditionally
@@ -183,7 +191,11 @@ export function filterBookings(
   const userWantsInertStatus = status === "cancelled" || status === "no_show";
 
   return bookings.filter((booking) => {
-    const viewIsArchive = view === "cancelled" || view === "all";
+    // C-02 Phase H — "series" is archive-like: Phase F's "View all N visits"
+    // link promises the FULL series (its own page caps at 10 upcoming + 5
+    // past), so cancelled/no_show occurrences must stay visible here too.
+    const viewIsArchive =
+      view === "cancelled" || view === "all" || view === "series";
     if (
       !viewIsArchive &&
       !userWantsInertStatus &&
@@ -218,7 +230,11 @@ export function filterBookings(
         booking.assignment_status === "partially_assigned") ||
       (view === "completed" && booking.status === "completed") ||
       (view === "cancelled" &&
-        ["cancelled", "no_show"].includes(booking.status));
+        ["cancelled", "no_show"].includes(booking.status)) ||
+      (view === "series" &&
+        (templateId
+          ? booking.recurring_template_id === templateId
+          : booking.recurring_template_id !== null));
 
     if (!matchesView) return false;
     if (status && booking.status !== status) return false;
@@ -328,6 +344,7 @@ function normalizeClaimableBooking(booking: Partial<BookingRecord>): BookingReco
     admin_notes: null,
     treatment_notes: null,
     created_at: booking.created_at ?? "",
+    recurring_template_id: booking.recurring_template_id ?? null,
     clients: null,
     booking_participants: (booking.booking_participants ?? []).map((participant) => ({
       id: participant.id,

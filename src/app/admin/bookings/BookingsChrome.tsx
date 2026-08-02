@@ -22,7 +22,8 @@ export type BookingViewKey =
   | "partially_assigned"
   | "completed"
   | "cancelled"
-  | "all";
+  | "all"
+  | "series";
 
 const ALL_VIEW_LABELS: Record<BookingViewKey, string> = {
   attention: "Needs Attention",
@@ -35,9 +36,14 @@ const ALL_VIEW_LABELS: Record<BookingViewKey, string> = {
   completed: "Completed",
   cancelled: "Cancelled / No-show",
   all: "All",
+  series: "Series",
 };
 
 const FULL_PRIMARY: BookingViewKey[] = ["attention", "today", "upcoming", "claimable"];
+// C-02 Phase H (plan Step 23) — "series" joins the canViewAll-only overflow,
+// same gate as the other operator-wide filters (Payment/Gender/Service/etc.
+// below); the deep link Phase F emits (`?view=series&templateId=<id>`) only
+// ever targets an admin/coordinator audience.
 const FULL_OVERFLOW: BookingViewKey[] = [
   "assigned",
   "unassigned",
@@ -45,6 +51,7 @@ const FULL_OVERFLOW: BookingViewKey[] = [
   "completed",
   "cancelled",
   "all",
+  "series",
 ];
 const THERAPIST_PRIMARY: BookingViewKey[] = ["today", "upcoming", "claimable"];
 const THERAPIST_OVERFLOW: BookingViewKey[] = ["assigned", "completed"];

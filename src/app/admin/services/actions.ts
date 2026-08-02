@@ -25,6 +25,7 @@ interface ServicePayload {
   duration_mins: number;
   is_active: boolean;
   is_visible_on_frontend: boolean;
+  allow_recurrence: boolean;
   display_order: number;
 }
 
@@ -88,6 +89,7 @@ function parseServiceFormData(formData: FormData) {
     duration_mins: durationMins,
     is_active: getBooleanValue(formData, "is_active"),
     is_visible_on_frontend: getBooleanValue(formData, "is_visible_on_frontend"),
+    allow_recurrence: getBooleanValue(formData, "allow_recurrence"),
     display_order: displayOrder,
   };
 

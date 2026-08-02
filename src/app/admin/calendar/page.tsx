@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Repeat,
   Users,
   UserX,
   X,
@@ -78,6 +79,30 @@ interface CalendarGroupInfo {
   count: number;
   identity: string;
 }
+
+/**
+ * C-02 Phase H (plan Step 22) — same rationale as `CalendarParticipantRow`
+ * above: `ReportBooking` carries no `recurring_template_id` join and
+ * `reporting.ts` is untouchable (RECON §5), so this backs a second, separate,
+ * read-only query scoped to booking ids already on screen.
+ */
+interface CalendarRecurringRow {
+  id: string;
+  recurring_template_id: string | null;
+  recurring_booking_templates: { cadence: "weekly" | "fortnightly" | "monthly" } | null;
+}
+
+/** Per-booking recurring summary for calendar tiles — absent key means one-off. */
+interface CalendarRecurringInfo {
+  templateId: string;
+  cadenceLabel: string;
+}
+
+const CALENDAR_CADENCE_LABELS: Record<string, string> = {
+  weekly: "Weekly",
+  fortnightly: "Fortnightly",
+  monthly: "Monthly",
+};
 
 const RANGE_SOFT_CAP_DAYS = 31;
 
@@ -292,6 +317,28 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
     groupInfoByBooking.set(booking.id, {
       count: identity.participantCount,
       identity: identity.primary,
+    });
+  }
+
+  // C-02 Phase H (plan Step 22) — recurring badge treatment, same second-query
+  // pattern as the group lookup above (`reporting.ts` untouchable, RECON §5).
+  const { data: calendarRecurringRows } =
+    calendarBookingIds.length > 0
+      ? await adminClient
+          .from("bookings")
+          .select("id, recurring_template_id, recurring_booking_templates(cadence)")
+          .in("id", calendarBookingIds)
+          .not("recurring_template_id", "is", null)
+          .returns<CalendarRecurringRow[]>()
+      : { data: [] as CalendarRecurringRow[] };
+
+  const recurringByBooking = new Map<string, CalendarRecurringInfo>();
+  for (const row of calendarRecurringRows ?? []) {
+    if (!row.recurring_template_id) continue;
+    const cadence = row.recurring_booking_templates?.cadence;
+    recurringByBooking.set(row.id, {
+      templateId: row.recurring_template_id,
+      cadenceLabel: (cadence && CALENDAR_CADENCE_LABELS[cadence]) || "Recurring",
     });
   }
 
@@ -717,6 +764,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               canCreate={canCreate}
               therapistsByBooking={therapistsByBooking}
               groupInfoByBooking={groupInfoByBooking}
+              recurringByBooking={recurringByBooking}
             />
           ) : view === "month" ? (
             <MonthGrid
@@ -728,6 +776,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               therapistOnly={therapistOnly}
               canCreate={canCreate}
               groupInfoByBooking={groupInfoByBooking}
+              recurringByBooking={recurringByBooking}
             />
           ) : view === "range" ? (
             <WeekAgenda
@@ -740,6 +789,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               baseParams={baseParams}
               therapistsByBooking={therapistsByBooking}
               groupInfoByBooking={groupInfoByBooking}
+              recurringByBooking={recurringByBooking}
               showWeekStrip={false}
             />
           ) : (
@@ -753,6 +803,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
               baseParams={baseParams}
               therapistsByBooking={therapistsByBooking}
               groupInfoByBooking={groupInfoByBooking}
+              recurringByBooking={recurringByBooking}
               showWeekStrip={true}
             />
           )}
@@ -831,6 +882,7 @@ function WeekAgenda({
   baseParams,
   therapistsByBooking,
   groupInfoByBooking,
+  recurringByBooking,
   showWeekStrip,
 }: {
   dates: string[];
@@ -842,6 +894,7 @@ function WeekAgenda({
   baseParams: CalendarParams;
   therapistsByBooking: Map<string, string[]>;
   groupInfoByBooking: Map<string, CalendarGroupInfo>;
+  recurringByBooking: Map<string, CalendarRecurringInfo>;
   showWeekStrip: boolean;
 }) {
   const hasAny = dates.some((d) => (grouped.get(d) ?? []).length > 0);
@@ -891,6 +944,7 @@ function WeekAgenda({
             therapistOnly={therapistOnly}
             therapistsByBooking={therapistsByBooking}
             groupInfoByBooking={groupInfoByBooking}
+            recurringByBooking={recurringByBooking}
           />
         );
           })
@@ -910,6 +964,7 @@ function MonthGrid({
   therapistOnly,
   canCreate,
   groupInfoByBooking,
+  recurringByBooking,
 }: {
   monthFirstISO: string;
   gridDates: string[];
@@ -919,6 +974,7 @@ function MonthGrid({
   therapistOnly: boolean;
   canCreate: boolean;
   groupInfoByBooking: Map<string, CalendarGroupInfo>;
+  recurringByBooking: Map<string, CalendarRecurringInfo>;
 }) {
   const monthLabel = formatMonthLabel(monthFirstISO);
   const monthNum = Number(monthFirstISO.split("-")[1]);
@@ -945,6 +1001,7 @@ function MonthGrid({
           today={today}
           baseParams={baseParams}
           groupInfoByBooking={groupInfoByBooking}
+          recurringByBooking={recurringByBooking}
         />
       </div>
     );
@@ -959,6 +1016,7 @@ function MonthGrid({
       today={today}
       baseParams={baseParams}
       groupInfoByBooking={groupInfoByBooking}
+      recurringByBooking={recurringByBooking}
     />
   );
 }
@@ -971,6 +1029,7 @@ function MonthGridShell({
   today,
   baseParams,
   groupInfoByBooking,
+  recurringByBooking,
 }: {
   monthLabel: string;
   monthNum: number;
@@ -979,6 +1038,7 @@ function MonthGridShell({
   today: string;
   baseParams: CalendarParams;
   groupInfoByBooking: Map<string, CalendarGroupInfo>;
+  recurringByBooking: Map<string, CalendarRecurringInfo>;
 }) {
   return (
     <AdminPanel
@@ -1059,18 +1119,32 @@ function MonthGridShell({
                     // goes icon-only: a small Users glyph prefix, full
                     // composite identity + count moved into the tooltip.
                     const groupInfo = groupInfoByBooking.get(b.id);
+                    // C-02 Phase H (plan Step 22) — same tight-space treatment:
+                    // a small Repeat glyph prefix, cadence moved into the
+                    // tooltip. No in-cell link (the cell itself already links
+                    // to day view; the series link lives on the booking's own
+                    // detail page, shipped in Phase F).
+                    const recurringInfo = recurringByBooking.get(b.id);
                     return (
                       <li
                         key={b.id}
                         className="truncate rounded-[3px] bg-[var(--admin-status-confirmed-bg)] px-1 py-[1px] text-[0.625rem] font-medium text-[var(--admin-status-confirmed-text)]"
                         title={
-                          groupInfo
-                            ? `${b.start_time.slice(0, 5)} ${groupInfo.identity} — ${groupInfo.count} participants`
-                            : `${b.start_time.slice(0, 5)} ${b.contact_full_name ?? "Unknown"}`
+                          `${b.start_time.slice(0, 5)} ${
+                            groupInfo
+                              ? `${groupInfo.identity} — ${groupInfo.count} participants`
+                              : b.contact_full_name ?? "Unknown"
+                          }${recurringInfo ? ` · ${recurringInfo.cadenceLabel} recurring` : ""}`
                         }
                       >
                         {groupInfo ? (
                           <Users
+                            className="mr-0.5 inline size-2.5 shrink-0 align-[-1px]"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                        {recurringInfo ? (
+                          <Repeat
                             className="mr-0.5 inline size-2.5 shrink-0 align-[-1px]"
                             aria-hidden="true"
                           />
@@ -1191,6 +1265,7 @@ function DayAgenda({
   canCreate,
   therapistsByBooking,
   groupInfoByBooking,
+  recurringByBooking,
 }: {
   date: string;
   bookings: ReportBooking[];
@@ -1199,6 +1274,7 @@ function DayAgenda({
   canCreate: boolean;
   therapistsByBooking: Map<string, string[]>;
   groupInfoByBooking: Map<string, CalendarGroupInfo>;
+  recurringByBooking: Map<string, CalendarRecurringInfo>;
 }) {
   if (bookings.length === 0) {
     return (
@@ -1332,6 +1408,7 @@ function DayAgenda({
                     concurrent={concurrentIds.has(booking.id)}
                     therapists={therapistsByBooking.get(booking.id) ?? []}
                     groupInfo={groupInfoByBooking.get(booking.id) ?? null}
+                    recurringInfo={recurringByBooking.get(booking.id) ?? null}
                   />
                 </li>
               ))}
@@ -1363,6 +1440,7 @@ function DayAgenda({
                     concurrent={concurrentIds.has(booking.id)}
                     therapists={therapistsByBooking.get(booking.id) ?? []}
                     groupInfo={groupInfoByBooking.get(booking.id) ?? null}
+                    recurringInfo={recurringByBooking.get(booking.id) ?? null}
                   />
                 </li>
               ))}
@@ -1380,6 +1458,7 @@ function PerDatePanel({
   canSeePayment,
   therapistsByBooking,
   groupInfoByBooking,
+  recurringByBooking,
 }: {
   date: string;
   bookings: ReportBooking[];
@@ -1387,6 +1466,7 @@ function PerDatePanel({
   therapistOnly: boolean;
   therapistsByBooking: Map<string, string[]>;
   groupInfoByBooking: Map<string, CalendarGroupInfo>;
+  recurringByBooking: Map<string, CalendarRecurringInfo>;
 }) {
   const concurrentGroups = detectConcurrentGroups(bookings);
   const concurrentIds = new Set<string>();
@@ -1434,6 +1514,7 @@ function PerDatePanel({
                   concurrent={concurrentIds.has(booking.id)}
                   therapists={therapistsByBooking.get(booking.id) ?? []}
                   groupInfo={groupInfoByBooking.get(booking.id) ?? null}
+                  recurringInfo={recurringByBooking.get(booking.id) ?? null}
                 />
               </li>
             ))}
@@ -1451,12 +1532,14 @@ function CalendarBookingRow({
   concurrent,
   therapists,
   groupInfo,
+  recurringInfo,
 }: {
   booking: ReportBooking;
   canSeePayment: boolean;
   concurrent: boolean;
   therapists: string[];
   groupInfo: CalendarGroupInfo | null;
+  recurringInfo: CalendarRecurringInfo | null;
 }) {
   // C-13 Phase E (brief §2.5/§2.3) — group bookings show composite identity
   // ("Aisha Khan + 2 others") instead of the plain contact name, same as
@@ -1485,7 +1568,7 @@ function CalendarBookingRow({
         : `${therapists[0]} +${therapists.length - 1}`;
   const accessibleName = `${clientName}, ${time}${locationLabel ? `, ${locationLabel}` : ""}, ${formatLabel(booking.status)}, ${therapistLabel}${
     groupInfo ? `, group of ${groupInfo.count}` : ""
-  }`;
+  }${recurringInfo ? `, part of a ${recurringInfo.cadenceLabel.toLowerCase()} recurring series` : ""}`;
 
   return (
     <Link
@@ -1555,6 +1638,19 @@ function CalendarBookingRow({
               >
                 <Users className="size-3" aria-hidden="true" />
                 Group · {groupInfo.count}
+              </span>
+            ) : null}
+            {/* C-02 Phase H (plan Step 22) — "Group · N" chip is the
+                structural template; no in-card link (the row already links to
+                the booking detail page, which carries its own "View series"
+                cross-link, shipped in Phase F). */}
+            {recurringInfo ? (
+              <span
+                title={`${recurringInfo.cadenceLabel} recurring series`}
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-restricted)]"
+              >
+                <Repeat className="size-3" aria-hidden="true" />
+                Recurring
               </span>
             ) : null}
             {booking.assignment_status === "unassigned" ||

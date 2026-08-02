@@ -66,6 +66,7 @@ const BOOKING: BookingRecord = {
   admin_notes: null,
   treatment_notes: null,
   created_at: "2026-07-01T09:00:00.000Z",
+  recurring_template_id: null,
   clients: null,
   booking_participants: [],
   booking_items: [],

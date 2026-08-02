@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarClock, Users, UserX } from "lucide-react";
+import { CalendarClock, Repeat, Users, UserX } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StaffProfile } from "@/lib/auth/rbac";
 import { AdminStatusBadge, type AdminTone } from "../components/admin-ui";
@@ -50,6 +50,9 @@ export function BookingCard({
 
   const clientName =
     booking.contact_full_name || booking.clients?.full_name || "Unknown client";
+  // C-02 Phase H (plan Step 23) — row-level recurring indicator, left of the
+  // contact name (brief §4.5).
+  const isRecurring = booking.recurring_template_id !== null;
   const serviceNames = Array.from(
     new Set(booking.booking_items.map((item) => item.service_name_snapshot))
   );
@@ -127,9 +130,20 @@ export function BookingCard({
             href={`/admin/bookings/${booking.id}`}
             className="block min-w-0 rounded outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
-            <p className="font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] break-words sm:text-lg">
-              {clientName}
-            </p>
+            <div className="flex items-center gap-1.5">
+              {isRecurring ? (
+                <span title="Part of a recurring series">
+                  <Repeat
+                    className="size-4 shrink-0 text-[var(--admin-text-muted)]"
+                    aria-hidden="true"
+                  />
+                  <span className="sr-only">Part of a recurring series</span>
+                </span>
+              ) : null}
+              <p className="min-w-0 font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] break-words sm:text-lg">
+                {clientName}
+              </p>
+            </div>
             <p className={cn("mt-1 text-sm text-[var(--admin-text-muted)] break-words", titleClass)}>
               {formatDate(booking.booking_date)} · {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
               {serviceNames.length > 0 ? ` · ${serviceNames.join(", ")}` : ""}
@@ -321,6 +335,9 @@ function GroupBookingCard({
   const orderedParticipants = [...booking.booking_participants].sort(
     (a, b) => Number(b.is_main_contact) - Number(a.is_main_contact)
   );
+  // C-02 Phase H (plan Step 23) — same row-level recurring indicator as the
+  // single-booking headline above; `booking` already carries the column.
+  const isRecurring = booking.recurring_template_id !== null;
 
   return (
     <article
@@ -342,6 +359,15 @@ function GroupBookingCard({
                 className="size-4 shrink-0 text-[var(--admin-text-muted)]"
                 aria-hidden="true"
               />
+              {isRecurring ? (
+                <span title="Part of a recurring series">
+                  <Repeat
+                    className="size-4 shrink-0 text-[var(--admin-text-muted)]"
+                    aria-hidden="true"
+                  />
+                  <span className="sr-only">Part of a recurring series</span>
+                </span>
+              ) : null}
               <p className="min-w-0 font-display text-base font-semibold tracking-[-0.01em] text-[var(--admin-heading)] break-words sm:text-lg">
                 {clientName}
               </p>

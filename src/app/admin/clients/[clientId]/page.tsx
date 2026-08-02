@@ -159,6 +159,15 @@ const AUDIT_PHRASING: Record<string, string> = {
   email_template_reset: "Email template reset to default",
   email_template_test_sent: "Test email sent",
   email_template_sent_manually: "Email template sent manually",
+  // C-02 Phase H (plan Step 25) — recurring-series audit rows. Anchored on
+  // literal keys, never a count: `recurring_series_created` (written by the
+  // `create_recurring_booking_series` RPC), `recurring_series_cancelled`
+  // (`cancelRecurringSeries`, recurring-actions.ts), `recurring_series_extended`
+  // (the horizon-extension cron, Phase G) — all three verified against what
+  // the code actually emits, not the plan's stale sketch.
+  recurring_series_created: "Recurring series created",
+  recurring_series_cancelled: "Recurring series cancelled",
+  recurring_series_extended: "Recurring series schedule extended",
 };
 
 function auditActionPhrase(actionType: string): string {

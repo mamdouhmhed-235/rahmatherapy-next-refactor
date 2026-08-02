@@ -26,6 +26,7 @@ export interface ServiceRecord {
   duration_mins: number;
   is_active: boolean;
   is_visible_on_frontend: boolean;
+  allow_recurrence: boolean;
   display_order: number;
 }
 
@@ -149,6 +150,7 @@ function ServiceFormBody({
   const orderId = useId();
   const activeId = useId();
   const visibleId = useId();
+  const allowRecurrenceId = useId();
   const shortId = useId();
   const fullId = useId();
   const suitableId = useId();
@@ -362,6 +364,14 @@ function ServiceFormBody({
             label="Show on website"
             hint="Toggle off to hide from the customer-facing site without deactivating."
             defaultChecked={service?.is_visible_on_frontend ?? true}
+            disabled={isPending}
+          />
+          <CheckboxField
+            id={allowRecurrenceId}
+            name="allow_recurrence"
+            label="Allow recurring bookings"
+            hint="Lets staff set up weekly, fortnightly, or monthly standing bookings for this service."
+            defaultChecked={service?.allow_recurrence ?? true}
             disabled={isPending}
           />
         </Fieldset>

@@ -145,6 +145,14 @@ export interface BookingRecord {
   admin_notes: string | null;
   treatment_notes: string | null;
   created_at: string;
+  /**
+   * C-02 Phase H (plan Step 23) — required for the same reason as
+   * `cancelled_at` above: every projection that produces a `BookingRecord`
+   * (`BOOKING_SELECT`, `CLAIMABLE_BOOKING_SELECT` in ./page.tsx) must name
+   * this column, or the Series filter and row icon read `undefined` and
+   * silently render nothing.
+   */
+  recurring_template_id: string | null;
   clients: BookingClient | null;
   booking_participants: BookingParticipant[];
   booking_items: BookingItem[];
