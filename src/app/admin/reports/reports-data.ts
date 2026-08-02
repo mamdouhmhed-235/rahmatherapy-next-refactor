@@ -27,6 +27,7 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import * as Sentry from "@sentry/nextjs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 import type { StaffProfile } from "@/lib/auth/rbac";
 import {
   buildPriorPeriodFilters,
@@ -63,7 +64,13 @@ export const fetchCachedReportData = cache(
           async () => getReportData(adminClient, profile, filters)
         ),
       ["report-data", profile.id, JSON.stringify(filters)],
-      { revalidate: 60, tags: ["report-data"] }
+      // C-09 Step 4: resource tags ADDED alongside the existing output-driven
+      // 'report-data' tag (cache key untouched). ReportData is assembled from
+      // bookings + clients + staff reads.
+      {
+        revalidate: 60,
+        tags: ["report-data", TAGS.BOOKINGS, TAGS.CLIENTS, TAGS.STAFF],
+      }
     );
     return cachedFetcher();
   }

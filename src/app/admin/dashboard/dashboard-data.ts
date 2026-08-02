@@ -28,6 +28,7 @@ import {
   type ReportFilters,
   type ReportStaff,
 } from "../reports/reporting";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 export type DashboardVariant = "business" | "coordinator" | "therapist" | "blocked";
 export type DashboardBookingScope = "all" | "assigned_and_claimable" | "none";
@@ -168,7 +169,20 @@ export async function getDashboardData(
         async () => getDashboardDataInner(adminClient, profile, filters)
       ),
     ["dashboard-data", profile.id, JSON.stringify(filters)],
-    { revalidate: 60, tags: ["dashboard-data", "report-data"] }
+    // C-09 Step 4: resource tags ADDED alongside the existing output-driven
+    // 'dashboard-data' + 'report-data' tags (cache key untouched). The dashboard
+    // assembles bookings + clients + enquiries + staff reads.
+    {
+      revalidate: 60,
+      tags: [
+        "dashboard-data",
+        "report-data",
+        TAGS.BOOKINGS,
+        TAGS.CLIENTS,
+        TAGS.ENQUIRIES,
+        TAGS.STAFF,
+      ],
+    }
   );
   return fetchCached();
 }

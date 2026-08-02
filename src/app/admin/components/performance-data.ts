@@ -9,6 +9,7 @@ import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getBusinessDate } from "@/lib/time/london";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 import type { StaffProfile } from "@/lib/auth/rbac";
 import {
   getReportData,
@@ -66,7 +67,14 @@ export const fetchCachedReportData = cache(
           async () => getReportData(adminClient, profile, filters)
         ),
       ["report-data", profile.id, JSON.stringify(filters)],
-      { revalidate: 60, tags: ["report-data"] }
+      // C-09 Step 4: resource tags ADDED alongside the existing output-driven
+      // 'report-data' tag (cache key untouched). getReportData reads bookings +
+      // staff + audit_logs, so a mutation to any of those now invalidates the
+      // performance surface directly rather than waiting out the 60s window.
+      {
+        revalidate: 60,
+        tags: ["report-data", TAGS.STAFF, TAGS.BOOKINGS, TAGS.AUDIT],
+      }
     );
     return cachedFetcher();
   }
