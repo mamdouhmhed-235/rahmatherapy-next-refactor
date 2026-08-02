@@ -594,13 +594,19 @@ function SnapshotListRow({
 }) {
   const isUnconfirmed = appointment.status !== "fully_assigned";
   const isUnassigned = appointment.assignmentStatus === "unassigned";
-  const sameGenderRequired = isUnassigned && Boolean(appointment.requiredGender);
+  // C-13 Phase A (brief §2.1/§5.11 b) — dashboard data collapses a booking's
+  // participants to one first-match-wins gender (no mixed-group marker yet;
+  // that's Phase H scope), so the rephrase here is a single-axis swap of the
+  // static string for the specific gender rather than a `composeGenderRequirementChip`
+  // call (which needs a participants array this data layer doesn't expose).
+  const requiredGender = isUnassigned ? appointment.requiredGender : null;
+  const sameGenderRequired = Boolean(requiredGender);
   const timeRange = appointment.endTime ? `${appointment.time}–${appointment.endTime}` : appointment.time;
   const dateChip = withDate && appointment.date ? formatRowDate(appointment.date) : null;
   const initials = getInitials(appointment.title);
   const tintStyle = avatarTintStyle(appointment.title);
-  const assignmentLabel = sameGenderRequired
-    ? "Unassigned · same-gender required"
+  const assignmentLabel = requiredGender
+    ? `Unassigned · Needs ${requiredGender} therapist`
     : "Unassigned";
 
   const content = (

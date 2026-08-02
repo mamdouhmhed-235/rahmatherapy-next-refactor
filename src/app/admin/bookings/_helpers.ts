@@ -227,3 +227,61 @@ export function inertRowClassNames(
       : undefined,
   };
 }
+
+/**
+ * C-13 Phase A (brief §2.1) — the generic "Same-gender required" chip loses
+ * the count and the gender itself: a single female participant and a 3-person
+ * all-female group both rendered the same static string. This derives the
+ * specific phrasing from the participants' `required_therapist_gender`
+ * counts instead. Shared between the list row, the detail page's
+ * per-participant chip, and (rephrased, not called directly — dashboard's
+ * data layer collapses to one field) the dashboard attention card.
+ *
+ * Hides once `fully_assigned` — the requirement is met, no action signal
+ * needed (brief §2.1 locked edge case).
+ */
+export type GenderRequirementChip = {
+  label: string;
+  visible: boolean;
+};
+
+export function composeGenderRequirementChip(
+  participants: Array<{ required_therapist_gender: string | null }>,
+  assignmentStatus: "unassigned" | "partially_assigned" | "fully_assigned"
+): GenderRequirementChip {
+  if (assignmentStatus === "fully_assigned") return { label: "", visible: false };
+
+  const female = participants.filter(
+    (p) => p.required_therapist_gender === "female"
+  ).length;
+  const male = participants.filter(
+    (p) => p.required_therapist_gender === "male"
+  ).length;
+
+  if (female === 0 && male === 0) return { label: "", visible: false };
+
+  if (participants.length === 1) {
+    return {
+      label: female === 1 ? "Needs female therapist" : "Needs male therapist",
+      visible: true,
+    };
+  }
+
+  if (female > 0 && male === 0) {
+    return {
+      label: `Needs ${female} female therapist${female > 1 ? "s" : ""}`,
+      visible: true,
+    };
+  }
+  if (male > 0 && female === 0) {
+    return {
+      label: `Needs ${male} male therapist${male > 1 ? "s" : ""}`,
+      visible: true,
+    };
+  }
+
+  return {
+    label: `Needs ${female} female + ${male} male`,
+    visible: true,
+  };
+}

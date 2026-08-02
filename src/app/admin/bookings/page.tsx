@@ -33,7 +33,11 @@ import {
   hasClaimableAssignment,
   isOwnBooking,
 } from "./access";
-import { getTodayIsoDate, inertRowClassNames } from "./_helpers";
+import {
+  composeGenderRequirementChip,
+  getTodayIsoDate,
+  inertRowClassNames,
+} from "./_helpers";
 import { formatDate, formatLabel, formatMoney, formatTime } from "./format";
 import type { BookingRecord } from "./types";
 
@@ -817,8 +821,9 @@ function BookingListCard({
     .filter((name): name is string => Boolean(name));
   const distinctTherapists = Array.from(new Set(assignedTherapists));
 
-  const requiresGenderMatch = booking.booking_participants.some(
-    (participant) => Boolean(participant.required_therapist_gender)
+  const genderChip = composeGenderRequirementChip(
+    booking.booking_participants,
+    booking.assignment_status
   );
   const participantCount = booking.booking_participants.length;
   // Only surface the Group chip when there are genuinely multiple participants.
@@ -883,12 +888,12 @@ function BookingListCard({
             ) : booking.assignment_status === "partially_assigned" ? (
               <AdminStatusBadge value="Partially assigned" tone="warning" compact />
             ) : null}
-            {requiresGenderMatch ? (
+            {genderChip.visible ? (
               <span
-                title="Client asked for a same-gender therapist"
+                title={genderChip.label}
                 className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-restricted)]"
               >
-                Same-gender required
+                {genderChip.label}
               </span>
             ) : null}
             {isGroup ? (

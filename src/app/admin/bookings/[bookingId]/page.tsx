@@ -53,6 +53,7 @@ import {
   type StaffAssignmentPreview,
 } from "../assignment-eligibility";
 import {
+  composeGenderRequirementChip,
   getCancellationMoment,
   getTodayIsoDate,
   isBookingDateFutureLondon,
@@ -811,8 +812,14 @@ function ParticipantRow({
   const items = booking.booking_items.filter(
     (item) => item.booking_participant_id === participant.id
   );
-  const sameGenderRequired =
-    participant.required_therapist_gender === participant.participant_gender;
+  // C-13 Phase A (brief §2.1/§2.6 Step 15) — participant-level chip always
+  // shows (unlike the booking-level chip, which hides once fully_assigned):
+  // an individual participant's own requirement doesn't change just because
+  // the booking as a whole has a therapist for everyone.
+  const genderChip = composeGenderRequirementChip(
+    [{ required_therapist_gender: participant.required_therapist_gender }],
+    "unassigned"
+  );
 
   return (
     <li className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4">
@@ -832,21 +839,13 @@ function ParticipantRow({
               value={formatLabel(participant.participant_gender)}
               compact
             />
-            {sameGenderRequired ? (
+            {genderChip.visible ? (
               <AdminStatusBadge
                 tone="restricted"
-                value="Same-gender required"
+                value={genderChip.label}
                 compact
               />
-            ) : (
-              <AdminStatusBadge
-                tone="muted"
-                value={`Therapist: ${formatLabel(
-                  participant.required_therapist_gender
-                )}`}
-                compact
-              />
-            )}
+            ) : null}
           </div>
         </div>
       </div>
