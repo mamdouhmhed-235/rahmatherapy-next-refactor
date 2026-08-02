@@ -5,9 +5,9 @@
 **Programme:** Band C, C-C implementation — plan **#10 of 22** (§4 order).
 **Model routing:** `sonnet` — §5 routes C-15 to Sonnet. Opus only via the §5 twice-failed-phase escalation.
 
-> ## 🟡 STATUS: Phases A–E shipped. Phase A/B/C independently verified PASS; Phase D independently verified PASS (1 non-blocking finding); Phase E implemented, not yet independently verified. Phase F not started.
+> ## ✅ STATUS: SHIPPED 2026-08-01 — C-C plan #10 of 22. All six phases independently verified; closeout review FAILed on AC2 and two fix rounds closed it, each re-verified.
 >
-> Phase A `0d0a26d` · empty-string fix `3ab469b` · Phase B `b84dd11` · Phase C `caec3f1` · Phase D `84f10fc` · Phase E `ee37aa3`. Baseline after Phase E: **5 failed / 1079 passed (1084)**, the five inherited by identity (unchanged from Phase D — Phase E added no new tests).
+> Phase A `0d0a26d` · empty-string fix `3ab469b` · Phase B `b84dd11` · Phase C `caec3f1` · Phase D `84f10fc` · Phase E `ee37aa3` · Phase F `10ca7db` · closeout fixes `289bdcb` + `8851e8c`. Baseline handed on: **5 failed / 1107 passed (1112)**, the five inherited by identity.
 >
 > §0 below is the original read-ahead pre-flight, preserved as captured (HEAD `5e8fa2f`, pre-C-08-Phase-D). See §1 for what actually happened at Phase A implementation time (re-verified pre-flight, the render-parity fixture capture, the registry expansion, and the classification table).
 
@@ -389,4 +389,90 @@ Sign in as each role per Part 0's credentials table and check:
 
 ---
 
-*Phases A–E shipped. Phase E not yet independently verified (queued next). Phase F (retirement of the 5 old components + FAKE-marker sweep) not started.*
+**Phase E verify: PASS.** Badge query confirmed one grouped `SELECT` plus one companion staff-name query — and the "unbounded fetch" concern is answered by the schema: `email_template_overrides` carries `unique (template_id, field_key)` (migration `20260519120000`), so saves upsert in place and no history accumulates — a fixed ceiling of ~56 rows across all 16 templates, ever. Badge and Reset share one derived value (`hasOverrides={Boolean(badge)}`), and the server action independently re-checks. The deep-link redirect fires only when `templateId` is present, so a bare `?tab=templates` still renders the gallery. Zero new specs is plan-conformant (Steps 17–18 define no test step) but was named as the one coverage gap in an otherwise well-specced plan.
+
+---
+
+## 6 — Phase F: retirement (`10ca7db`)
+
+Verified independently — **PASS**, one non-blocking protocol finding. **2184 lines deleted.** `ManualSendSheet.tsx`, `TemplateBrowser.tsx`, `TemplateEditForm.tsx`, `TemplatePreviewPanel.tsx`, `TemplatesTab.tsx` gone, along with `sendTemplateManually`, `requiredVarsFor`, `addHourClamped` and `renderForTemplate`. `plainTextFallback` correctly **kept** — still used by `sendTestEmail`. Import graph re-run by the verifier: zero real imports remain, only retrospective comments and the known `recurringTemplatesTable` substring false-positive.
+
+All three C-15-owned FAKE markers left with their files. The two still in `src/app/admin/emails/` (`DeliveryFilterStrip.tsx:132`, `page.tsx:676`) belong to the **Delivery tab** — C-08/C-09/C-16 territory, not C-15's.
+
+**Finding (non-blocking, protocol not correctness):** the implementer added an `email_template_sent_manually` AUDIT_PHRASING entry. My dispatch asked them to *confirm it survives*; they found via `git log --all -S` that **it had never existed** — historical rows were rendering through a bare lowercase `formatLabel()` fallback — and added it. Correctly implemented, zero risk, honestly flagged. But the verifier's judgement is right: brief §2.7 already pre-classified those rows as "harmless", nothing in Phase F depended on the label, so under rule 6a this should have been *logged* rather than fixed. **Kept deliberately** — reverting a correct one-line improvement to make a point would be worse than the deviation. Recorded as an Owner-visible scope note.
+
+---
+
+## 7 — Closeout (2026-08-01)
+
+### 7.1 — The adversarial whole-plan review returned REVIEW FAIL, and it was right
+
+Sweeping `9215cf1..10ca7db` against all 20 steps and brief §10's twelve acceptance criteria, the reviewer found every step present, all 15 override call sites correct, escaping intact, no cross-phase regression — **but AC2 unmet.**
+
+Brief §2.1 promises "subject lines become editable everywhere"; AC2 requires **"real sends use it"**. Phase A had built exactly the safety needed — subject `maxLength` 100 plus C0 control-character rejection at *both* save and render time, specifically so C-08's deliberate decision to keep subjects hardcoded could be reversed. **The guard shipped; the wiring never did.** `git diff 9215cf1..10ca7db -- src/lib/email/notifications.ts` was **empty**: all ~17 real `Subject:` headers were still hardcoded literals.
+
+An admin could edit a subject, watch it round-trip through save → preview → reset, and customers would receive the old one forever. The helper text disclosed it, so nobody was actively deceived — but the plan's own definition of done was unmet, and no phase B–F had been assigned to close it. Fix round rather than a checklist flip.
+
+### 7.2 — The fix round found something the review could not have (`289bdcb`)
+
+Wiring subjects turned out to be dangerous in a way nobody anticipated. Phase A had lifted `subjectDefault` from the **`SUBJECTS` map** — which only the now-deleted manual-send path ever used. **Real sends carry their own separate literals, and 12 of 16 disagreed.**
+
+| | registry `subjectDefault` (pre-fix) | what customers actually receive |
+|---|---|---|
+| `booking_confirmation` | "Booking request received" | **"{companyName} booking request received"** |
+| `admin_booking_cancellation` | "Booking cancellation" | **"Booking cancelled - {clientName}"** |
+| `enquiry_logged` | "New enquiry logged" | **"New enquiry: {clientName}"** |
+| `claim` | "Slot claimed" | **"Slot claimed: {therapistName} → {bookingDate}"** |
+
+…and eight more. **A naive wiring would have silently rewritten 12 customer-facing subject lines** on the very commit that made subjects editable. The rule applied: the live literal always wins, the registry is corrected to match — never the reverse.
+
+The re-verifier reconstructed every pre-fix literal from `git show 10ca7db:…` and compared byte-for-byte against the new zero-override output, including `od`-level checks on the em dash in `booking_restored_client` and the arrow in `claim`. **All 15 real-send sites plus the test-send site: byte-identical.** It also traced every token in a corrected default against the var map that site actually passes — an unresolved token renders *literally* (brief §5.3), so one name mismatch would have put a raw `{clientName}` into a real inbox. None found.
+
+Also closed here: `resolveTestSubject` — a hand-duplicated copy the reviewer flagged as a drift risk — deleted, with `notifications.ts` and `sendTestEmail` now sharing one exported helper. And six `SafeField.helper` strings still carried *"Variables in curly braces are filled automatically."* — the exact sentence brief §1.1 quotes as evidence of the broken UX C-15 was funded to fix. Phase A's copy-lift had rewritten those field objects and left that string on all six.
+
+**Security:** the render-time `hasControlChars` guard sits on the path every real subject now takes, with an end-to-end spec planting `"Injected\r\nBcc: attacker@example.test"` as a stored override, running it through `sendBookingCreatedEmails`, and asserting `sendEmail`'s actual `subject` argument is clean.
+
+### 7.3 — A second, smaller fix (`8851e8c`)
+
+The first fix left `SafeField.defaultValue` alone — correctly, since it feeds the `<title>` tag the parity fixture freezes. But the editor UI reads *that* value, so for 12 templates it displayed a default that was not what real sends emit: open `booking_confirmation`, see "Booking request received", clear the override, customer gets "Rahma Therapy booking request received". A narrower re-run of the exact editor-says-one-thing-sends-another defect C-15 exists to eliminate. The editor now reads `TemplateMeta.subjectDefault` for the subject field only; `<title>` and the parity gate untouched.
+
+### 7.4 — Final gate
+
+- `npx tsc --noEmit` → **0**
+- `pnpm lint` → **59 errors / 7 warnings**, exactly the six inherited files
+- `pnpm vitest run` → **5 failed / 1107 passed (1112)**, the five inherited by identity
+- `pnpm build` → clean
+- **Render-parity gate:** green throughout, and `render-parity-baseline.json` has **exactly one commit in its entire history** (`0d0a26d`) — captured once from unmodified code, never regenerated. Every phase's byte-identical assertion was therefore always measured against real pre-C-15 output, never against itself.
+- **§3.2 override-row diff:** `email_template_overrides` was 0 rows at pre-flight and is 0 rows now — no stored customisation lost by the registry sweep.
+
+**Bundle (§3.1) — measured, but the delta is unobtainable.** `scripts/measure-admin-bundles.mjs` has a hardcoded six-route list covering neither `/admin/emails` nor the new editor route, and this Next version prints no per-route sizes. A scratchpad copy of the script pointed at C-15's routes (no repo file touched) gives `/admin/emails/templates/[templateId]` **341.23 kB** and `/admin/emails` **346.84 kB** gzip first-load JS — both in the same band as the lightest existing admin routes (338.57 / 341.00), far below the heaviest (480.95 / 473.71). No pre-C-15 snapshot exists for either route and checking out an earlier commit is forbidden on a shared tree, so **the plan's named ceilings (+10 kB / +2 kB) were never checked by anyone** — stated plainly rather than ticked.
+
+### 7.5 — INHERITED BASELINE FOR THE NEXT PLAN
+
+**tsc 0 · lint 59E/7W in those six files · vitest 5 failed / 1107 passed (1112) with exactly those five names · build clean.** Use this, never a plan's hardcoded text (protocol §0 precedence).
+
+**Expected shrinkage: none applicable** — C-15 named no baseline entry it expected to fix, and none was fixed.
+
+### 7.6 — Deferred, logged, not fixed
+
+1. **`admin_booking_cancellation`'s "Cancellation note" fixed part** is declared in the legend but never outlined by the "Show what's editable" toggle — its markup carries neither CSS signature the client-side transform targets. Cosmetic, admin-internal.
+2. **The outline transform has no test coupling to real renderer output.** Specced against a hand-authored string; if a renderer ever changes `#f7f3ec`, outlining silently stops with no test failure. Accepted cost of keeping it decoupled from the render path — which is what protects the parity gate.
+3. **Four `eslint-disable` sites** across `LivePreview.tsx`, `TemplateEditor.tsx`, `TemplateGallery.tsx`. Each independently investigated and upheld (the same `useActionState`-result idiom appears ~30× in the codebase), but they sit in permanent files: a future lint cleanup would surface four new errors inside C-15's own surface.
+4. **Bundle ceilings unverified** (§7.4).
+5. **§3.3 Playwright sweep and §3.4 screenshots** — Owner-performed by necessity; `redesign/evidence/C-15/` does not exist yet.
+
+### 7.7 — Owner-performed checklist
+
+1. `/admin/emails` → Templates tab: 16 cards grouped by audience, badges read **Default**.
+2. Open `booking_confirmation` → subject placeholder/default now reads **"Rahma Therapy booking request received"** — the real one.
+3. Type in a body field → preview updates within ~500 ms, no iframe reload. Insert a chip mid-sentence → token lands **at the cursor**.
+4. Toggle "Show what's editable" → dashed outlines on summary/participant blocks, no network request.
+5. **Edit a subject, save, then trigger a real send on a `*.example.test` fixture → the customer subject reflects the edit.** This is the AC2 fix and the one thing most worth checking end to end.
+6. "Send me a test" → `[Test] …` at your notification address. Click again within 60 s → rate-limit error.
+7. Reset → confirm dialog → badge flips to Default, fields show defaults.
+8. Coordinator + Therapist → gallery/editor visible read-only, **no** Save, chips, Reset or Send-test.
+9. 375 px: stacked layout, sticky save bar clear of the mobile nav, chips tappable. Dark and light both clean.
+
+---
+
+*C-15 SHIPPED 2026-08-01 — plan #10 of 22. Phases A–F each independently verified; adversarial closeout review FAILed on AC2, two fix rounds followed, each re-verified. Zero migrations, zero Zone-2 actions. 16 templates registered (incl. `booking_restored_client`, C-04a's gap). Next plan: **C-13**.*
