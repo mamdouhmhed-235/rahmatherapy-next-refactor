@@ -14,6 +14,7 @@ import {
   Info,
   Mail,
   PoundSterling,
+  Repeat,
   ShieldX,
   Sparkles,
   Users,
@@ -36,6 +37,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canAssignBookings,
   canCreateSessionNotes,
+  canViewAllBookings,
   getStaffProfile,
 } from "@/lib/auth/rbac";
 import { isViewerAssignedPractitioner } from "@/app/admin/dashboard/shared-helpers";
@@ -229,6 +231,7 @@ const BOOKING_DETAIL_SELECT = `
   admin_notes,
   treatment_notes,
   created_at,
+  recurring_template_id,
   clients(full_name, phone, email),
   booking_participants(id, participant_gender, required_therapist_gender, is_main_contact, display_name, participant_notes, health_notes, consent_acknowledged),
   booking_items(id, booking_participant_id, service_name_snapshot, service_price_snapshot, service_duration_snapshot),
@@ -256,7 +259,13 @@ const CLAIMABLE_BOOKING_DETAIL_SELECT = `
   booking_assignments(id, participant_id, assigned_staff_id, required_therapist_gender, status, staff_profiles(name))
 `;
 
-type BookingRecordWithClientId = BookingRecord & { client_id: string | null };
+// C-02 Phase F, Step 18 — `recurring_template_id` is local to this file (like
+// `client_id` above) rather than added to the shared `BookingRecord` type in
+// `../types.ts`, which Phase F does not otherwise touch.
+type BookingRecordWithClientId = BookingRecord & {
+  client_id: string | null;
+  recurring_template_id: string | null;
+};
 
 interface BookingDetailPageProps {
   params: Promise<{ bookingId: string }>;
@@ -303,6 +312,10 @@ function normalizeClaimableBooking(
   return {
     id: booking.id ?? "",
     client_id: booking.client_id ?? null,
+    // CLAIMABLE_BOOKING_DETAIL_SELECT never selects this column — a
+    // claimable-only viewer doesn't qualify for the series view either
+    // (F4), so there is no cross-link to point at regardless.
+    recurring_template_id: booking.recurring_template_id ?? null,
     booking_date: booking.booking_date ?? "",
     start_time: booking.start_time ?? "",
     end_time: booking.end_time ?? "",
@@ -490,6 +503,11 @@ export default async function BookingDetailPage({
   const ownBooking = isOwnBooking(booking, profile);
   const claimableOnly = !canManageAllBookings(profile) && !ownBooking;
   const fullScope = canManageAllBookings(profile);
+  // C-02 Phase F, Step 18 — the series view's own RBAC gate is
+  // `canManageAllBookings || canViewAllBookings` (F4), a strict superset of
+  // `fullScope` above. Computed separately so the cross-link never points a
+  // viewer at a page that would then deny them.
+  const canOpenSeries = fullScope || canViewAllBookings(profile);
   // Role-only signal (no booking-state factor) — kept separate from
   // `canReassignBookings` below so the inline-notice visibility check can ask
   // "would this actor be able to reassign if the booking were active?".
@@ -708,6 +726,21 @@ export default async function BookingDetailPage({
           fromStatus={booking.status}
           restoreContext={restoreContext}
         />
+      ) : null}
+
+      {/* C-02 Phase F, Step 18 — cross-link into the series view. Gated on
+          `canOpenSeries` (not just `recurring_template_id` presence) so a
+          Therapist bound to this series never sees a link into a page that
+          would deny them (F4: series-level RBAC is stricter than individual
+          booking access). */}
+      {booking.recurring_template_id && canOpenSeries ? (
+        <Link
+          href={`/admin/bookings/series/${booking.recurring_template_id}`}
+          className="mb-2 inline-flex h-11 sm:h-9 w-fit items-center gap-1.5 rounded-[var(--admin-radius-control)] px-2 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          <Repeat className="size-4" aria-hidden="true" />
+          Part of a recurring series — View series
+        </Link>
       ) : null}
 
       {/* C-FIELDWORK: assigned-practitioner view reorders the sidebar (client
