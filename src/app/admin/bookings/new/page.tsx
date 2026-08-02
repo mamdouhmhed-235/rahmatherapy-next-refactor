@@ -39,7 +39,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
     await Promise.all([
       adminClient
         .from("services")
-        .select("slug, name, price, duration_mins, gender_restrictions")
+        .select("slug, name, price, duration_mins, gender_restrictions, allow_recurrence")
         .eq("is_active", true)
         .eq("is_visible_on_frontend", true)
         .order("display_order")
@@ -82,6 +82,12 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
   // "Take myself" — uses canClaimAssignments which checks active + can_take_bookings + claim_assignments permission
   const currentUserIsBookable = canClaimAssignments(profile) && !!profile.gender;
 
+  // C-02 Phase E (Step 15) — slug → services.allow_recurrence, so the form can
+  // offer repeat visits only for services that permit them.
+  const allowRecurrenceMap = Object.fromEntries(
+    services.map((service) => [service.slug, service.allow_recurrence === true])
+  );
+
   return (
     <AdminPageScaffold width="narrow">
       <AdminPageHeader title="New booking" />
@@ -96,6 +102,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
         currentUserGender={profile.gender ?? ""}
         currentUserName={profile.name ?? ""}
         currentUserIsBookable={currentUserIsBookable}
+        allowRecurrenceMap={allowRecurrenceMap}
       />
     </AdminPageScaffold>
   );

@@ -145,6 +145,9 @@ function recurringFormData(overrides: Record<string, string> = {}): FormData {
   formData.set("anchor_start_time", "14:00");
   formData.set("cadence", "weekly");
   formData.set("end_type", "until_cancelled");
+  // C-02 Phase E — the form emits this from the step-4 consent checkbox and the
+  // action now refuses without it, so every spec below has to carry it.
+  formData.set("consent_acknowledged", "on");
   for (const [key, value] of Object.entries(overrides)) {
     formData.set(key, value);
   }
@@ -224,6 +227,36 @@ describe("createRecurringSeries — validation", () => {
     );
 
     expect(result.fieldErrors?.participant_gender).toBeDefined();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  // C-02 Phase E (Owner decision 2026-08-02). `createManualBooking` refuses a
+  // single booking without an explicit consent tick; the RPC's
+  // `p_consent_acknowledged DEFAULT true` would have let a 12-visit series
+  // through on weaker consent than one visit.
+  it("rejects an unticked consent before the RPC is called", async () => {
+    const stub = stubAdminClient(RECURRABLE_SERVICE);
+    const formData = recurringFormData();
+    formData.set("consent_acknowledged", "");
+
+    const result = await createRecurringSeries({}, formData);
+
+    expect(result.error).toBe("Check the recurring booking details.");
+    expect(result.fieldErrors?.consent_acknowledged).toBe(
+      "Confirm the consent box before creating repeat visits."
+    );
+    expect(rpc).not.toHaveBeenCalled();
+    expect(stub.writes()).toHaveLength(0);
+  });
+
+  it("rejects a consent field the form never sent", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+    const formData = recurringFormData();
+    formData.delete("consent_acknowledged");
+
+    const result = await createRecurringSeries({}, formData);
+
+    expect(result.fieldErrors?.consent_acknowledged).toBeDefined();
     expect(rpc).not.toHaveBeenCalled();
   });
 
@@ -338,6 +371,7 @@ describe("createRecurringSeries — happy path", () => {
       p_service_city: "Luton",
       p_service_area: "Bedfordshire",
       p_notes: "Rear gate code 1234",
+      p_consent_acknowledged: true,
       p_horizon_weeks: 12,
     });
   });
@@ -366,6 +400,8 @@ describe("createRecurringSeries — happy path", () => {
       p_service_city: null,
       p_service_area: null,
       p_notes: null,
+      // Never left to the RPC's `DEFAULT true` — the whole point of the gate.
+      p_consent_acknowledged: true,
       p_horizon_weeks: 12,
     });
   });

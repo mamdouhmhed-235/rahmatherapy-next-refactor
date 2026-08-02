@@ -43,6 +43,14 @@ const recurringSchema = z.object({
   service_city: z.string().trim().optional(),
   service_area: z.string().trim().optional(),
   notes: z.string().trim().optional(),
+  // C-02 Phase E (Owner decision 2026-08-02) — the RPC defaults
+  // `p_consent_acknowledged` to true, so without this gate a 12-visit series
+  // would be created on weaker consent than the single booking
+  // `createManualBooking` refuses without an explicit tick. Rejected here, and
+  // the value is then passed to the RPC explicitly rather than defaulted.
+  consent_acknowledged: z.literal(true, {
+    error: "Confirm the consent box before creating repeat visits.",
+  }),
 });
 
 export interface RecurringActionState {
@@ -96,6 +104,9 @@ export async function createRecurringSeries(
     service_city: formData.get("service_city") || undefined,
     service_area: formData.get("service_area") || undefined,
     notes: formData.get("notes") || undefined,
+    // The form emits "on"/"" from the same consent checkbox the single-booking
+    // path uses — there is no second tick to keep in sync.
+    consent_acknowledged: formData.get("consent_acknowledged") === "on",
   });
 
   if (!parsed.success) {
@@ -163,6 +174,7 @@ export async function createRecurringSeries(
       p_service_city: parsed.data.service_city ?? null,
       p_service_area: parsed.data.service_area ?? null,
       p_notes: parsed.data.notes ?? null,
+      p_consent_acknowledged: parsed.data.consent_acknowledged,
       p_horizon_weeks: 12,
     }
   );

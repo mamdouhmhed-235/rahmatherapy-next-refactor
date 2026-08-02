@@ -23,6 +23,8 @@ import {
 } from "@/app/admin/components/admin-ui";
 import { DuplicateWarningBanner } from "@/app/admin/clients/components/DuplicateWarningBanner";
 import { createManualBooking, type ManualBookingState } from "../actions";
+import { createRecurringSeries, type RecurringActionState } from "../recurring-actions";
+import { RecurringSection } from "./RecurringSection";
 
 // ─── Step-4 review helpers (hoisted so React doesn't re-create the component
 //     on every render of the parent form) ─────────────────────────────────────
@@ -493,6 +495,7 @@ export function ManualBookingForm({
   currentUserGender = "",
   currentUserName = "",
   currentUserIsBookable = false,
+  allowRecurrenceMap = {},
 }: {
   services: ServiceOption[];
   prefillClient: PrefillClient | null;
@@ -504,8 +507,31 @@ export function ManualBookingForm({
   currentUserGender?: string;
   currentUserName?: string;
   currentUserIsBookable?: boolean;
+  /** C-02 Phase E — service slug → services.allow_recurrence. */
+  allowRecurrenceMap?: Record<string, boolean>;
 }) {
-  const [state, action, pending] = useActionState(createManualBooking, {} as ManualBookingState);
+  // C-02 Phase E — the two actions return different state shapes and
+  // `useActionState` binds its state type at the call site, so the toggle picks
+  // between two hooks rather than swapping the action on one. Both are called
+  // unconditionally (Rules of Hooks) and the form below stays a single tree —
+  // remounting it on the toggle would wipe steps 1-3.
+  const [manualState, manualAction, manualPending] = useActionState(
+    createManualBooking,
+    {} as ManualBookingState
+  );
+  const [recurringState, recurringAction, recurringPending] = useActionState(
+    createRecurringSeries,
+    {} as RecurringActionState
+  );
+  const [isRecurring, setIsRecurring] = useState(false);
+
+  const formAction = isRecurring ? recurringAction : manualAction;
+  const formPending = isRecurring ? recurringPending : manualPending;
+  // Both shapes are all-optional, so the intersection reads either safely.
+  // `duplicateWarning` only ever comes back from the manual action.
+  const formState: ManualBookingState & RecurringActionState = isRecurring
+    ? recurringState
+    : manualState;
 
   const [step, setStep] = useState(1);
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
@@ -517,7 +543,7 @@ export function ManualBookingForm({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setConfirmDuplicate(false);
-  }, [state.duplicateWarning]);
+  }, [formState.duplicateWarning]);
 
   // Form values
   const [bookingSource, setBookingSource] = useState(
@@ -801,11 +827,11 @@ export function ManualBookingForm({
   // Server error toast — persistent, fires when the server action returns an error
   const prevErrorRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (state.error && state.error !== prevErrorRef.current) {
+    if (formState.error && formState.error !== prevErrorRef.current) {
       toast.error("Something went wrong. Your details are still here. Try again.", { duration: Infinity });
     }
-    prevErrorRef.current = state.error;
-  }, [state.error]);
+    prevErrorRef.current = formState.error;
+  }, [formState.error]);
 
   // Participant helpers
   function updateParticipant(index: number, patch: Partial<Participant>) {
@@ -939,8 +965,23 @@ export function ManualBookingForm({
   })();
 
   // A duplicate match blocks submission until the admin acknowledges it.
-  const duplicateBlocked = Boolean(state.duplicateWarning) && !confirmDuplicate;
-  const submitDisabled = pending || !isStepReady || duplicateBlocked;
+  const duplicateBlocked = Boolean(formState.duplicateWarning) && !confirmDuplicate;
+  const submitDisabled = formPending || !isStepReady || duplicateBlocked;
+
+  // C-02 Phase E — a series binds to at most one therapist, so it reads the
+  // first participant's assignment choice. RecurringSection refuses to offer
+  // recurrence at all when there is more than one participant.
+  const recurringChoice = assignmentChoices[0] ?? "unassigned";
+  const recurringTherapistId =
+    recurringChoice === "self"
+      ? currentUserId
+      : recurringChoice === "assign"
+      ? assignmentStaffIds[0] ?? ""
+      : "";
+  const recurringTherapistName =
+    recurringChoice === "self"
+      ? currentUserName
+      : assignableStaff.find((s) => s.id === recurringTherapistId)?.name ?? "";
 
   // ─── Hidden inputs for server action ─────────────────────────────────────────
 
@@ -1887,6 +1928,24 @@ export function ManualBookingForm({
               ) : null}
             </div>
           </AdminPanel>
+
+          {/* C-02 Phase E — repeat visits. Sits with the other step-4 decisions;
+              the series reuses the same consent tick as the single booking. */}
+          <RecurringSection
+            enabled={isRecurring}
+            onEnabledChange={setIsRecurring}
+            clientId={prefillClient?.id ?? ""}
+            participantCount={participants.length}
+            participantGender={participants[0]?.gender ?? ""}
+            selectedServiceSlugs={allSelectedSlugs}
+            allowRecurrenceMap={allowRecurrenceMap}
+            selectedTherapistId={recurringTherapistId}
+            selectedTherapistName={recurringTherapistName}
+            firstOccurrenceDate={bookingDate}
+            startTime={startTime}
+            serviceAddress={{ line1: address, postcode, city, area }}
+            notes={customerNotes}
+          />
         </div>
       </div>
 
@@ -1902,7 +1961,7 @@ export function ManualBookingForm({
         </div>
       )}
 
-      {state.error && (
+      {formState.error && (
         <div
           role="alert"
           aria-live="polite"
@@ -1911,7 +1970,7 @@ export function ManualBookingForm({
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>
-            {state.error} Your details are still here. Try again.
+            {formState.error} Your details are still here. Try again.
           </span>
         </div>
       )}
@@ -1948,12 +2007,12 @@ export function ManualBookingForm({
         <button
           type="submit"
           disabled={submitDisabled}
-          aria-busy={pending || undefined}
-          aria-disabled={((!isStepReady || duplicateBlocked) && !pending) || undefined}
+          aria-busy={formPending || undefined}
+          aria-disabled={((!isStepReady || duplicateBlocked) && !formPending) || undefined}
           className="inline-flex items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
         >
-          {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-          Submit booking request
+          {formPending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          {isRecurring ? "Create repeat visits" : "Submit booking request"}
         </button>
       )}
     </div>
@@ -2000,11 +2059,11 @@ export function ManualBookingForm({
       {leaveDialog}
       <StepRail current={step} onNavigate={(n) => { setStepErrors({}); setStep(n); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
 
-      <form action={action} onSubmit={handleFormSubmit} className="grid gap-4 pb-20 md:pb-0">
+      <form action={formAction} onSubmit={handleFormSubmit} className="grid gap-4 pb-20 md:pb-0">
         {hiddenInputs}
-        {state.duplicateWarning ? (
+        {formState.duplicateWarning ? (
           <DuplicateWarningBanner
-            message={state.duplicateWarning}
+            message={formState.duplicateWarning}
             checked={confirmDuplicate}
             onCheckedChange={setConfirmDuplicate}
             // The two dedup branches have opposite outcomes, so the label has
@@ -2028,7 +2087,7 @@ export function ManualBookingForm({
 
         {/* Mobile action bar — hidden at md+ where inline navStrip shows */}
         <div className="md:hidden">
-        <AdminMobileActionBar submitting={pending}>
+        <AdminMobileActionBar submitting={formPending}>
           {step > 1 && (
             <AdminButton variant="secondary" className="flex-1" onClick={handleBack}>
               Back
@@ -2048,12 +2107,12 @@ export function ManualBookingForm({
             <button
               type="submit"
               disabled={submitDisabled}
-              aria-busy={pending || undefined}
-              aria-disabled={((!isStepReady || duplicateBlocked) && !pending) || undefined}
+              aria-busy={formPending || undefined}
+              aria-disabled={((!isStepReady || duplicateBlocked) && !formPending) || undefined}
               className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60 min-h-10"
             >
-              {pending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-              Submit booking request
+              {formPending && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+              {isRecurring ? "Create repeat visits" : "Submit booking request"}
             </button>
           )}
         </AdminMobileActionBar>
