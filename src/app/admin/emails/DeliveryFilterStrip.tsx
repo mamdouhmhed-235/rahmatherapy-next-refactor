@@ -123,14 +123,7 @@ export function DeliveryFilterStrip({
   );
 
   return (
-    <div
-      className="grid gap-3"
-      // FAKE: BUILD-email-delivery-filter-query — until the BUILD plan lands the
-      // server falls back to an unfiltered last-100 read; the page applies
-      // filters in-memory over that slice. Marked here so a future audit can
-      // grep for the FAKE surface.
-      data-redesign-backend="FAKE"
-    >
+    <div className="grid gap-3">
       {/* Tablet / desktop (≥768px) — visible inline; wraps to multiple rows on tablet, single row at `lg:` */}
       <div className="hidden md:block">
         <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-3">

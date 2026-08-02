@@ -32,15 +32,25 @@
 // `countEmailDeliveryEvents` is the cheap head-count companion for C-16's
 // "Showing X–Y of Z" readout; it is not called by the page today.
 //
-// FILTERS: the delivery feed is still fetched unfiltered and narrowed in
-// memory by page.tsx, exactly as before. Moving that narrowing into the query
-// is C-09 Phase D Step 11.
+// FILTERS (C-09 Phase D Step 11): `getFilteredDeliveryEvents` below is a
+// second, focused fetcher that applies event_type/delivery_status/
+// recipient_role/date-range/q as real query predicates, instead of the
+// in-memory slice page.tsx used to run over the unfiltered top-100. It's
+// separate from `getEmailsPageData` (not a new parameter on it) because the
+// reminders/templates data that function also loads doesn't vary with the
+// delivery filters, and re-running the whole thing per filter combination
+// would be wasteful; this fetcher owns only the delivery-events query and
+// its own cache entry, tagged and keyed the same way. page.tsx still calls
+// `getEmailsPageData` once, unfiltered, for the totalLoaded/failedRecent
+// badge/reminders/templates — those always reflect the same top-100 read
+// regardless of the delivery filters, same as before this step.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { TAGS } from "@/lib/cache/tag-taxonomy";
 import { cacheKeyPart } from "@/lib/cache/cache-key";
 import { getTemplateOverrideSummaries } from "@/lib/email/templates";
+import type { DateRangePresetKey } from "./format";
 
 export const EMAILS_PAGE_SIZE = 100;
 
@@ -245,6 +255,127 @@ export async function countEmailDeliveryEvents(): Promise<number> {
       return count ?? 0;
     },
     ["emails-delivery-count"],
+    { revalidate: 60, tags: [TAGS.EMAILS] }
+  );
+  return cached();
+}
+
+export interface EmailDeliveryFilters {
+  event_type?: string;
+  delivery_status?: string;
+  recipient_role?: string;
+  range?: DateRangePresetKey;
+  /** `YYYY-MM-DD`, only read when `range === "custom"`. */
+  from?: string;
+  to?: string;
+  /** Matched against recipient_email / provider_message_id / id. */
+  q?: string;
+}
+
+export interface FilteredDeliveryParams {
+  canSeeDelivery: boolean;
+  filters: EmailDeliveryFilters;
+  limit?: number;
+  offset?: number;
+}
+
+export interface FilteredDeliveryData {
+  events: EmailEvent[];
+  deliveryError: { message: string } | null;
+}
+
+function escapeLike(value: string) {
+  return value.replace(/[\\%_,()]/g, (match) => `\\${match}`);
+}
+
+/**
+ * Resolves the filter's date-range preset (or a custom from/to pair) to
+ * concrete ISO bounds OUTSIDE the cached fetcher — same pattern as
+ * `businessDate` above: `now` is captured here, in the outer function, and
+ * passed into both the query and the cache key, so the boundary never
+ * freezes for the 60s revalidate window.
+ */
+function resolveDeliveryDateBounds(
+  filters: EmailDeliveryFilters
+): { fromIso?: string; toIso?: string } {
+  if (filters.range === "custom") {
+    return {
+      fromIso: filters.from ? new Date(filters.from).toISOString() : undefined,
+      toIso: filters.to
+        ? new Date(new Date(filters.to).getTime() + 24 * 60 * 60 * 1000).toISOString()
+        : undefined,
+    };
+  }
+  const day = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  switch (filters.range) {
+    case "today":
+      return { fromIso: new Date(now - day).toISOString() };
+    case "last_7_days":
+      return { fromIso: new Date(now - 7 * day).toISOString() };
+    case "last_30_days":
+    default:
+      return { fromIso: new Date(now - 30 * day).toISOString() };
+  }
+}
+
+/**
+ * Server-side delivery-feed query (C-09 Phase D Step 11). Applies
+ * event_type/delivery_status/recipient_role/date-range/q as real predicates
+ * instead of the in-memory slice page.tsx used to run over the top-100.
+ */
+export async function getFilteredDeliveryEvents(
+  params: FilteredDeliveryParams
+): Promise<FilteredDeliveryData> {
+  const { canSeeDelivery, filters, limit = EMAILS_PAGE_SIZE, offset = 0 } = params;
+  if (!canSeeDelivery) {
+    return { events: [], deliveryError: null };
+  }
+  const { fromIso, toIso } = resolveDeliveryDateBounds(filters);
+
+  const cached = unstable_cache(
+    async (): Promise<FilteredDeliveryData> => {
+      const adminClient = createSupabaseAdminClient();
+      let query = adminClient
+        .from("email_delivery_events")
+        .select(DELIVERY_SELECT)
+        .order("created_at", { ascending: false });
+      if (filters.event_type) query = query.eq("event_type", filters.event_type);
+      if (filters.delivery_status) query = query.eq("delivery_status", filters.delivery_status);
+      if (filters.recipient_role) query = query.eq("recipient_role", filters.recipient_role);
+      if (filters.q) {
+        const needle = `%${escapeLike(filters.q)}%`;
+        query = query.or(
+          [
+            `recipient_email.ilike.${needle}`,
+            `provider_message_id.ilike.${needle}`,
+            `id.ilike.${needle}`,
+          ].join(",")
+        );
+      }
+      if (fromIso) query = query.gte("created_at", fromIso);
+      if (toIso) query = query.lte("created_at", toIso);
+      query = query.range(offset, offset + limit - 1);
+
+      const { data, error } = await query.returns<EmailEvent[]>();
+      return {
+        events: data ?? [],
+        deliveryError: error ? { message: error.message } : null,
+      };
+    },
+    [
+      "emails-delivery-filtered",
+      cacheKeyPart({
+        eventType: filters.event_type,
+        deliveryStatus: filters.delivery_status,
+        recipientRole: filters.recipient_role,
+        q: filters.q,
+        fromIso,
+        toIso,
+        limit,
+        offset,
+      }),
+    ],
     { revalidate: 60, tags: [TAGS.EMAILS] }
   );
   return cached();

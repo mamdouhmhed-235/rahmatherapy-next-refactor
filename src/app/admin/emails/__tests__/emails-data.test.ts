@@ -27,9 +27,8 @@ vi.mock("@/lib/email/templates", () => ({
 const { createFakeAdminClient } = await import(
   "@/lib/cache/__tests__/fake-supabase-admin"
 );
-const { getEmailsPageData, countEmailDeliveryEvents } = await import(
-  "../emails-data"
-);
+const { getEmailsPageData, getFilteredDeliveryEvents, countEmailDeliveryEvents } =
+  await import("../emails-data");
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
 
 const BASE_PARAMS = {
@@ -146,5 +145,89 @@ describe("getEmailsPageData cache behaviour", () => {
     await expect(countEmailDeliveryEvents()).resolves.toBe(250);
     await countEmailDeliveryEvents();
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+  });
+});
+
+// C-09 Phase D Step 11 — getFilteredDeliveryEvents is a second, focused
+// fetcher (see emails-data.ts's FILTERS note); its own filter wiring keys
+// separately, so a caller filtering to delivery_status=failed can never be
+// served a cache entry built for another status.
+describe("getFilteredDeliveryEvents filter-wiring cache behaviour", () => {
+  const DEFAULT_FILTERS = { range: "last_30_days" as const };
+
+  it("short-circuits without a Supabase call when the caller can't see delivery", async () => {
+    const data = await getFilteredDeliveryEvents({
+      canSeeDelivery: false,
+      filters: DEFAULT_FILTERS,
+    });
+    expect(data).toEqual({ events: [], deliveryError: null });
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("runs the fetcher on a cache miss", async () => {
+    const data = await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: DEFAULT_FILTERS,
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+    expect(data.events).toHaveLength(1);
+    expect(data.deliveryError).toBeNull();
+  });
+
+  it("does not re-run the fetcher on a cache hit", async () => {
+    await getFilteredDeliveryEvents({ canSeeDelivery: true, filters: DEFAULT_FILTERS });
+    await getFilteredDeliveryEvents({ canSeeDelivery: true, filters: DEFAULT_FILTERS });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keys separately per event_type/delivery_status/recipient_role/q filter", async () => {
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { ...DEFAULT_FILTERS, event_type: "booking_reminder" },
+    });
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { ...DEFAULT_FILTERS, delivery_status: "failed" },
+    });
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { ...DEFAULT_FILTERS, recipient_role: "staff" },
+    });
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { ...DEFAULT_FILTERS, q: "someone" },
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(4);
+  });
+
+  it("keys separately per date-range preset, so the boundary is not frozen", async () => {
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { range: "today" },
+    });
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { range: "last_7_days" },
+    });
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { range: "custom", from: "2026-01-01", to: "2026-01-10" },
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(3);
+  });
+
+  it("re-runs a filtered call after the emails tag is invalidated", async () => {
+    await getFilteredDeliveryEvents({ canSeeDelivery: true, filters: DEFAULT_FILTERS });
+    cacheHarness.invalidateTag(TAGS.EMAILS);
+    await getFilteredDeliveryEvents({ canSeeDelivery: true, filters: DEFAULT_FILTERS });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns a JSON-safe shape", async () => {
+    const data = await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: DEFAULT_FILTERS,
+    });
+    expect(JSON.parse(JSON.stringify(data))).toEqual(data);
   });
 });

@@ -22,6 +22,7 @@ import {
 } from "@/lib/auth/rbac";
 import {
   getEmailsPageData,
+  getFilteredDeliveryEvents,
   type EmailEvent,
   type ReminderBooking,
 } from "./emails-data";
@@ -141,12 +142,13 @@ export default async function EmailsPage({ searchParams }: PageProps) {
   }
 
   // ── Data reads ────────────────────────────────────────────────────────────
-  // FAKE: BUILD-email-delivery-filter-query — once the BUILD plan lands, the
-  // Delivery feed becomes a server-side filterable query with cursor pagination.
-  // Until then this page reads the most recent PAGE_SIZE events and applies
-  // filters in-memory; that's still a useful preview because the operator's
-  // typical drill is "what failed in the last 24h", and 100 rows comfortably
-  // covers a week of real volume.
+  // 5-step filter audit (brief §2.4): (1) URL parsed below (deliveryFilters);
+  // (2) passed into getFilteredDeliveryEvents; (3) applied server-side in
+  // emails-data.ts (.eq/.gte/.lte/.or-ilike); (4) filter UI defaults from
+  // these same URL-derived values (DeliveryFilterStrip's initialValues); (5)
+  // empty-state copy already distinguished filtered-empty from no-data
+  // (DeliveryEmpty) — now backed by a real query instead of an in-memory
+  // slice over the top-100.
   const canSeeAllBookings = canViewAllBookings(profile) || canManageAllBookings(profile);
 
   const {
@@ -218,11 +220,18 @@ export default async function EmailsPage({ searchParams }: PageProps) {
     q: q, // pass the raw value through to the client so it can render the too-short hint
   };
 
-  // FAKE: filter the in-memory slice. When BUILD-email-delivery-filter-query
-  // lands, server-side filtering replaces this.
-  const filteredEvents = canSeeDelivery
-    ? applyDeliveryFilters(allEvents, deliveryFilters)
-    : [];
+  // Server-side delivery query (C-09 Phase D Step 11) — a second, focused
+  // fetcher (see emails-data.ts's FILTERS note) rather than an in-memory
+  // slice over the top-100 `allEvents` read above.
+  const filteredDelivery = canSeeDelivery
+    ? await getFilteredDeliveryEvents({
+        canSeeDelivery,
+        filters: deliveryFilters,
+        limit: PAGE_SIZE,
+      })
+    : { events: [] as EmailEvent[], deliveryError: null };
+  const filteredEvents = filteredDelivery.events;
+  const combinedDeliveryError = deliveryError ?? filteredDelivery.deliveryError;
 
   // Failed-in-last-24h count for the Delivery tab badge.
   const failedRecent = countFailedRecent(allEvents);
@@ -273,7 +282,7 @@ export default async function EmailsPage({ searchParams }: PageProps) {
           deliveryFilters={deliveryFilters}
           events={filteredEvents}
           totalLoaded={allEvents.length}
-          deliveryError={deliveryError}
+          deliveryError={combinedDeliveryError}
           allowAdminRecipient={allowAdminRecipient}
           searchAttemptedTooShort={q.length > 0 && q.length < SEARCH_MIN_CHARS}
           canResend={canResend}
@@ -918,54 +927,6 @@ function isRecipientRole(value: string | undefined): value is RecipientRole {
   return Boolean(value && (RECIPIENT_ROLES as readonly string[]).includes(value));
 }
 
-function applyDeliveryFilters(
-  events: EmailEvent[],
-  filters: DeliveryFilters
-): EmailEvent[] {
-  return events.filter((event) => {
-    if (filters.event_type && event.event_type !== filters.event_type) return false;
-    if (filters.delivery_status && event.delivery_status !== filters.delivery_status) return false;
-    if (filters.recipient_role && event.recipient_role !== filters.recipient_role) return false;
-    if (filters.q) {
-      const needle = filters.q.toLowerCase();
-      const haystacks = [
-        event.recipient_email ?? "",
-        event.provider_message_id ?? "",
-        event.id,
-      ];
-      if (!haystacks.some((value) => value.toLowerCase().includes(needle))) return false;
-    }
-    if (filters.range !== "custom") {
-      const created = new Date(event.created_at).getTime();
-      const now = Date.now();
-      const day = 24 * 60 * 60 * 1000;
-      const cutoff = (() => {
-        switch (filters.range) {
-          case "today":
-            return now - day;
-          case "last_7_days":
-            return now - 7 * day;
-          case "last_30_days":
-            return now - 30 * day;
-          default:
-            return null;
-        }
-      })();
-      if (cutoff !== null && created < cutoff) return false;
-    } else {
-      const created = new Date(event.created_at).getTime();
-      if (filters.from) {
-        const fromTs = new Date(filters.from).getTime();
-        if (!Number.isNaN(fromTs) && created < fromTs) return false;
-      }
-      if (filters.to) {
-        const toTs = new Date(filters.to).getTime() + 24 * 60 * 60 * 1000;
-        if (!Number.isNaN(toTs) && created > toTs) return false;
-      }
-    }
-    return true;
-  });
-}
 
 function countFailedRecent(events: EmailEvent[]): number {
   const cutoff = Date.now() - FAILED_BADGE_WINDOW_HOURS * 60 * 60 * 1000;
