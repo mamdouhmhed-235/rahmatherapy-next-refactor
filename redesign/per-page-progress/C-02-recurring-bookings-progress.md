@@ -253,6 +253,23 @@ Model routing: §5 puts C-02 on `opus` for phases touching the schema, the RPCs 
 
 §0.6's table holds on 7 of 8 rows. One change: `AUDIT_PHRASING` is now **19** entries (not 18) — `email_template_sent_manually` was added by `10ca7db7` after §0.6 was written. Line span `:141-165` is still correct. Step 25 should anchor on literal keys, never the count. Both `ManualBookingForm` submit strips confirmed present (desktop `:1923-1960`, mobile `:2048-2057`) — both need the conditional-action treatment.
 
+## B6 — Owner decisions, taken in chat 2026-08-02 (all three answered)
+
+**1. Files-touched list WIDENED — approved ("approve all").** Protocol rule 6(b) STOP raised before Phase D and answered. The following are now in scope for C-02, because the plan's own steps cannot complete without them:
+
+| File | Why the plan's own step forces it |
+|---|---|
+| `src/lib/email/sample-data.ts` | `sample-data.test.ts` asserts `SAMPLE_RENDERERS` keys ≡ `TEMPLATES` ids; a 17th template without a renderer entry fails it |
+| `src/lib/email/__tests__/resolveSubject.test.ts` | asserts `CASES` covers every registered template |
+| `src/lib/email/__tests__/registry-defaults.test.ts` | hardcoded `TEMPLATES.length` count (already anticipated in §0.5) |
+| `src/app/admin/email-templates/preview/[id]/__tests__/route.test.ts` | hardcoded id array — does not auto-break, added for coverage parity |
+| `src/app/admin/bookings/BookingsChrome.tsx` | Step 23's Series filter chip lives here; `page.tsx` only mounts the component |
+| `src/app/admin/bookings/BookingCard.tsx` | Step 23's row-level recurring icon lives here |
+
+**2. Phase B Step 5 — DEFERRED to the Owner's Phase I sweep** (route (a)). No production writes, no Supabase dev branch. Plan §3.2's critical-path test 1 ("Owner creates weekly until_cancelled series → 12 occurrences materialise") exercises the same RPC through the admin form, covering Phases C and E in the same pass. The RPC's contract is pinned statically meanwhile (24 guards, 6-table write order, exact signature — `redesign/evidence/C-02/phase-b-rpc-verification.md`). **Step 5 is closed as Owner-deferred, not as passed.**
+
+**3. Consent — the recurring path MUST be gated.** `createManualBooking` requires an explicit consent tick and rejects without it; the recurring RPC defaults `p_consent_acknowledged` to `true`, so as built a 12-visit series was created with implicit consent while a single visit needed an explicit one. Owner ruled: gate it. **Assigned to Phase E**, where `RecurringSection` mounts inside the same step-4 block as the existing checkbox — the form field and the action wiring land and get tested together. Phase E must add `consent_acknowledged` to `recurringSchema`, reject when false, and pass `p_consent_acknowledged` explicitly rather than relying on the RPC default.
+
 ## B5 — Security hygiene note for the Owner
 
 A prep agent grepping `.env` for *key names* matched whole lines and pulled **real secret values** (Supabase service-role key, Resend API key, Cloudflare token, Sentry auth token, `CRON_SECRET`) into its own tool output. It did not reproduce them in its report and none reached a commit. No exposure beyond this machine's temp transcript directory, which already sits alongside `.env` itself — but worth knowing, and worth avoiding broad greps against `.env` in future dispatches.
