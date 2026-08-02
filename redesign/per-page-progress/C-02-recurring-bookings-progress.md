@@ -170,9 +170,34 @@ Also established: the old header's "monthly yields 4" **was never true** — it 
 
 ## 2 — ▶ RESUME HERE
 
-**Exact next action:** read `supabase/migrations/20260802122636_c02_recurring_bookings.sql` **in full**, then apply it via `mcp__supabase__apply_migration` (name `c02_recurring_bookings`). **The Owner's approval is already given and recorded in §1.1 — but read the file before executing it; do not apply 942 lines unread.**
+### ✅ Phase A APPLIED 2026-08-01 — `59ccb27`
 
-Then, in order: run the post-apply verification (the three negative-existence queries from the migration ledger, now expecting 1 row each) · **re-check privileges** — `has_table_privilege('service_role','recurring_booking_templates','INSERT')` and `has_function_privilege('service_role','create_recurring_booking_series(...)','EXECUTE')`, both expecting `true`, since silent 42501s are this plan's headline risk · commit the file as `chore(supabase): C-02 migration applied c02_recurring_bookings` · then Phases B–I.
+⛔ Zone-2 migration `c02_recurring_bookings` applied by the orchestrator under the Owner's explicit chat approval ("approved, go ahead and apply it"). The file was **read in full before executing** — 942 lines, atomic `BEGIN`/`COMMIT`.
+
+**Post-apply verification, all confirmed:**
+
+| Check | Result |
+|---|---|
+| `recurring_booking_templates` table | present |
+| `services.allow_recurrence` · `bookings.recurring_template_id` | both present |
+| `participant_gender` + `required_therapist_gender` on the template | both present |
+| **`service_role` INSERT / SELECT / UPDATE on the table** | **all true** |
+| **`service_role` EXECUTE on both functions** | **true** |
+| `anon` EXECUTE on the series RPC | **false** (REVOKE took) |
+| `booking_source` CHECK | widened to 9 values **and `convalidated = true`** — strictly better than the `NOT VALID` it replaced |
+| Template rows created · bookings touched | 0 · 15 unchanged |
+
+**Both silent-42501 traps are closed** — the table grant and the function grant. That was this plan's headline risk and the reason C-04a lost a verification cycle.
+
+**Transcription-drift guard.** The SQL was passed by hand to `apply_migration`, so the applied function was checked against the file's load-bearing logic rather than assumed: `(v_horizon_weeks * 7) - 1` present (the 12-occurrence fix survived), writes `'recurring'`, carries the `deleted_at IS NULL` client guard and the phone guard. **Applied `create_recurring_booking_series` md5: `2aefd9d4b0b042eafbc5689b1319343f`** (length 11855) — compare against this if the function is ever suspected of having changed.
+
+---
+
+## 2 — ▶ RESUME HERE
+
+**Exact next action: C-02 Phase B.** Phase A is complete; the schema and both RPCs are live and correctly granted.
+
+Model routing: §5 puts C-02 on `opus` for phases touching the schema, the RPCs or the horizon cron; mechanical phases (form wiring, copy, evidence) may drop to `sonnet` — log any downgrade here.
 
 **Inherited baseline:** tsc 0 · lint 59E/7W six files · vitest **5 failed / 1181 passed (1186)** · build clean. Failures exactly: `admin-access.test.ts` ×2 ("gives Owner broad access while keeping owner-only role actions permission-gated", "gives Admin broad operational access without role template management") + `ManualBookingForm.test.tsx` ×3 ("renders step 1 on first load", "moves focus to the first invalid field when continuing with errors", "shows the consent error when trying to create booking without consent").
 
