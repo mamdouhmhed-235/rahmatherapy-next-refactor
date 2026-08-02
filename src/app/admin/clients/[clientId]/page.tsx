@@ -30,7 +30,6 @@ import {
 import { EmptyState } from "../../components/EmptyState";
 import { cn } from "@/lib/utils";
 import { getTodayIsoDate, inertRowClassNames } from "../../bookings/_helpers";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
 import {
@@ -53,6 +52,10 @@ import type {
   ClientRecord,
 } from "../types";
 import { getClientDataAccess } from "../access";
+import {
+  getClientDetailData,
+  type ClientDetailAccessFlags,
+} from "./client-detail-data";
 import {
   ClientDetailShortcuts,
   ClientNoteForm,
@@ -185,156 +188,31 @@ function whatsappHref(phone: string): string {
   return `https://wa.me/${normalised}`;
 }
 
-// `deleted_at` is selected in BOTH branches on purpose: they are the two RBAC
-// variants that feed `getClientSelect`, and omitting the column from either
-// would leave a soft-deleted client's profile fully readable by that role alone
-// — the exact GDPR "UI lie" this plan removes. Nothing static can catch it:
-// these are cast through `.single<ClientRecord>()`, so a missing column reads as
-// `undefined` and the `notFound()` short-circuit below never fires.
-//
-// The four BOOKING_* selects deliberately do NOT carry it: no code path reads
-// `booking.deleted_at`, because a soft-deleted booking only ever exists as a
-// cascade of its client's deletion, and that client 404s below.
-const CLIENT_SELECT = `
-  id,
-  full_name,
-  phone,
-  email,
-  address,
-  postcode,
-  client_source,
-  source_detail,
-  created_at,
-  updated_at,
-  deleted_at
-`;
-
-const CLIENT_SAFE_SELECT = `
-  id,
-  full_name,
-  client_source,
-  source_detail,
-  created_at,
-  updated_at,
-  deleted_at
-`;
-
-const BOOKING_SELECT = `
-  id,
-  client_id,
-  booking_date,
-  start_time,
-  end_time,
-  status,
-  payment_status,
-  assignment_status,
-  group_booking,
-  total_price,
-  amount_due,
-  amount_paid,
-  booking_source,
-  contact_full_name,
-  contact_email,
-  contact_phone,
-  service_city,
-  service_postcode,
-  service_address_line1,
-  health_notes,
-  customer_notes,
-  created_at,
-  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot),
-  booking_participants(display_name, participant_gender, health_notes, participant_notes, consent_acknowledged)
-`;
-
-const BOOKING_SAFE_SELECT = `
-  id,
-  client_id,
-  booking_date,
-  start_time,
-  end_time,
-  status,
-  payment_status,
-  assignment_status,
-  group_booking,
-  total_price,
-  amount_due,
-  amount_paid,
-  booking_source,
-  created_at,
-  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
-`;
-
-const BOOKING_CONTACT_SELECT = `
-  id,
-  client_id,
-  booking_date,
-  start_time,
-  end_time,
-  status,
-  payment_status,
-  assignment_status,
-  group_booking,
-  total_price,
-  amount_due,
-  amount_paid,
-  booking_source,
-  contact_full_name,
-  contact_email,
-  contact_phone,
-  service_city,
-  service_postcode,
-  service_address_line1,
-  created_at,
-  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
-`;
-
-const BOOKING_HEALTH_SELECT = `
-  id,
-  client_id,
-  booking_date,
-  start_time,
-  end_time,
-  status,
-  payment_status,
-  assignment_status,
-  group_booking,
-  total_price,
-  amount_due,
-  amount_paid,
-  booking_source,
-  created_at,
-  health_notes,
-  customer_notes,
-  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot),
-  booking_participants(display_name, participant_gender, health_notes, participant_notes, consent_acknowledged)
-`;
+// The six RBAC select variants and the two getXSelect() helpers moved to
+// client-detail-data.ts with the fetch (C-09 Phase C Step 5), including the
+// note on why `deleted_at` is selected in both client branches and in none of
+// the booking branches.
 
 function isFutureBooking(booking: ClientBookingRecord) {
   return new Date(`${booking.booking_date}T${booking.start_time}`) >= new Date();
 }
 
-function getClientSelect({
-  canViewContactDetails,
-  canViewNotes,
-}: {
-  canViewContactDetails: boolean;
-  canViewNotes: boolean;
-}) {
-  const fields = canViewContactDetails ? CLIENT_SELECT : CLIENT_SAFE_SELECT;
-  return canViewNotes ? `${fields}, notes` : fields;
-}
-
-function getBookingSelect({
-  canViewContactDetails,
-  canViewHealthNotes,
-}: {
-  canViewContactDetails: boolean;
-  canViewHealthNotes: boolean;
-}) {
-  if (canViewContactDetails && canViewHealthNotes) return BOOKING_SELECT;
-  if (canViewContactDetails) return BOOKING_CONTACT_SELECT;
-  if (canViewHealthNotes) return BOOKING_HEALTH_SELECT;
-  return BOOKING_SAFE_SELECT;
+/**
+ * Narrows a `getClientDataAccess` result to the plain-boolean subset the
+ * cached fetcher needs. Keeps the permission `Set` inside the profile object
+ * on this side of the cache boundary (SHARED-NOTES §15).
+ */
+function toClientDetailAccessFlags(
+  access: ReturnType<typeof getClientDataAccess>
+): ClientDetailAccessFlags {
+  return {
+    canViewClient: access.canViewClient,
+    canViewContactDetails: access.canViewContactDetails,
+    canViewHealthNotes: access.canViewHealthNotes,
+    canCreateClientNote: access.canCreateClientNote,
+    canViewSensitiveNoteQueue: access.canViewSensitiveNoteQueue,
+    canManagePrivacyOperations: access.canManagePrivacyOperations,
+  };
 }
 
 function bookingStatusTone(status: string): AdminTone {
@@ -401,91 +279,40 @@ export default async function ClientDetailPage({
     return <InsufficientPermissions />;
   }
 
-  const adminClient = createSupabaseAdminClient();
   const hasAllClientAccess =
     pageAccess.dataScope === "all" || pageAccess.dataScope === "sensitive_hidden";
-  let hasAssignedClientAccess = false;
-  let clientAccess = getClientDataAccess(profile, {
-    hasAssignedBooking: hasAssignedClientAccess,
+
+  // The two access variants are resolved HERE and handed to the fetcher as
+  // plain booleans — StaffProfile carries a `Set` of permissions and must never
+  // cross the unstable_cache boundary (SHARED-NOTES §15).
+  const accessWithoutAssignment = getClientDataAccess(profile, {
+    hasAssignedBooking: false,
   });
-  let bookingHistory: ClientBookingRecord[] = [];
-  let client: ClientRecord | null = null;
+  const accessWithAssignment = getClientDataAccess(profile, {
+    hasAssignedBooking: true,
+  });
 
-  if (hasAllClientAccess) {
-    const clientSelect = getClientSelect({
-      canViewContactDetails: clientAccess.canViewContactDetails,
-      canViewNotes:
-        clientAccess.canViewHealthNotes ||
-        clientAccess.canCreateClientNote ||
-        clientAccess.canViewSensitiveNoteQueue,
-    });
-    const bookingSelect = getBookingSelect({
-      canViewContactDetails: clientAccess.canViewContactDetails,
-      canViewHealthNotes: clientAccess.canViewHealthNotes,
-    });
-    const [clientResult, bookingsResult] = await Promise.all([
-      adminClient
-        .from("clients")
-        .select(clientSelect)
-        .eq("id", clientId)
-        .single<ClientRecord>(),
-      adminClient
-        .from("bookings")
-        .select(bookingSelect)
-        .eq("client_id", clientId)
-        .order("booking_date", { ascending: false })
-        .order("start_time", { ascending: false })
-        .returns<ClientBookingRecord[]>(),
-    ]);
-    client = clientResult.data;
-    bookingHistory = bookingsResult.data ?? [];
-  } else {
-    const { data: assignments } = await adminClient
-      .from("booking_assignments")
-      .select("booking_id")
-      .eq("assigned_staff_id", profile.id);
-    const assignedBookingIds = Array.from(
-      new Set((assignments ?? []).map((assignment) => assignment.booking_id))
-    );
-    if (assignedBookingIds.length > 0) {
-      clientAccess = getClientDataAccess(profile, { hasAssignedBooking: true });
-      const bookingSelect = getBookingSelect({
-        canViewContactDetails: clientAccess.canViewContactDetails,
-        canViewHealthNotes: clientAccess.canViewHealthNotes,
-      });
-      const { data: assignedBookings } = await adminClient
-        .from("bookings")
-        .select(bookingSelect)
-        .eq("client_id", clientId)
-        .in("id", assignedBookingIds)
-        .order("booking_date", { ascending: false })
-        .order("start_time", { ascending: false })
-        .returns<ClientBookingRecord[]>();
-      bookingHistory = assignedBookings ?? [];
-      hasAssignedClientAccess = bookingHistory.length > 0;
-    } else {
-      hasAssignedClientAccess = false;
-    }
+  const {
+    client,
+    bookingHistory,
+    hasAssignedClientAccess,
+    clientNotes,
+    privacyRequests,
+    auditLogs,
+  } = await getClientDetailData({
+    clientId,
+    staffId: profile.id,
+    hasAllClientAccess,
+    accessWithoutAssignment: toClientDetailAccessFlags(accessWithoutAssignment),
+    accessWithAssignment: toClientDetailAccessFlags(accessWithAssignment),
+  });
 
-    clientAccess = getClientDataAccess(profile, {
-      hasAssignedBooking: hasAssignedClientAccess,
-    });
-    if (clientAccess.canViewClient) {
-      const clientSelect = getClientSelect({
-        canViewContactDetails: clientAccess.canViewContactDetails,
-        canViewNotes:
-          clientAccess.canViewHealthNotes ||
-          clientAccess.canCreateClientNote ||
-          clientAccess.canViewSensitiveNoteQueue,
-      });
-      const { data: assignedClient } = await adminClient
-        .from("clients")
-        .select(clientSelect)
-        .eq("id", clientId)
-        .single<ClientRecord>();
-      client = assignedClient;
-    }
-  }
+  // Re-derived from the fetcher's verdict, exactly as before: full-access
+  // callers keep the no-assignment variant; a therapist gets the assigned one
+  // only once the fetch confirmed they hold an assignment on this client.
+  const clientAccess = getClientDataAccess(profile, {
+    hasAssignedBooking: hasAllClientAccess ? false : hasAssignedClientAccess,
+  });
 
   // A soft-deleted client is gone as far as every working surface is concerned
   // (brief §5.3): the profile 404s for every role, so no Edit, Delete, note or
@@ -509,46 +336,6 @@ export default async function ClientDetailPage({
   );
   const lastVisit = pastBookings[0];
   const commonServices = getCommonServices(bookingHistory);
-
-  let clientNotes: ClientNoteRecord[] = [];
-  let privacyRequests: ClientPrivacyRequestRecord[] = [];
-  let auditLogs: { id: string; action_type: string; created_at: string }[] = [];
-
-  if (clientAccess.canViewHealthNotes || clientAccess.canViewSensitiveNoteQueue) {
-    let clientNotesQuery = adminClient
-      .from("client_notes")
-      .select("id, note, is_sensitive, created_at, staff_profiles(name)")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false });
-    if (!clientAccess.canViewSensitiveNoteQueue) {
-      clientNotesQuery = clientNotesQuery.eq("is_sensitive", false);
-    }
-    const clientNotesResult = await clientNotesQuery.returns<ClientNoteRecord[]>();
-    clientNotes = clientNotesResult.data ?? [];
-  }
-
-  if (clientAccess.canManagePrivacyOperations) {
-    const { data: requests } = await adminClient
-      .from("client_privacy_requests")
-      .select("id, request_type, status, request_note, created_at")
-      .eq("client_id", clientId)
-      .order("created_at", { ascending: false })
-      .returns<ClientPrivacyRequestRecord[]>();
-    privacyRequests = requests ?? [];
-
-    const auditTargetIds = [
-      clientId,
-      ...clientNotes.map((note) => note.id),
-      ...privacyRequests.map((request) => request.id),
-    ];
-    const { data: auditEvents } = await adminClient
-      .from("audit_logs")
-      .select("id, action_type, created_at")
-      .in("target_id", auditTargetIds)
-      .order("created_at", { ascending: false })
-      .limit(10);
-    auditLogs = auditEvents ?? [];
-  }
 
   const canCreateBooking = canManageAllBookings(profile);
   const canEditClient = canManageAllClients(profile);

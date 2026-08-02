@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Plus, SlidersHorizontal, UserPlus, Users } from "lucide-react";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getAdminPageAccess } from "@/lib/auth/admin-access";
 import { canManageClientDestructiveOps, getStaffProfile } from "@/lib/auth/rbac";
@@ -15,6 +14,7 @@ import { AdminSheet } from "../components/admin-ui-interactions";
 import { EmptyState } from "../components/EmptyState";
 import { formatDate, formatMoney } from "./format";
 import { getClientDataAccess } from "./access";
+import { getClientsListData } from "./clients-list-data";
 import type { ClientBookingRecord, ClientRecord } from "./types";
 import { ClientRowMenu, type LastBookingSummary } from "./ClientRowMenu";
 import {
@@ -41,83 +41,9 @@ interface ClientsPageProps {
   }>;
 }
 
-// `deleted_at` is selected in BOTH branches on purpose: these two strings are
-// the contact-details and no-contact-details RBAC variants of the same read, and
-// omitting the column from either would leave soft-deleted clients fully visible
-// for that role alone. Nothing static can catch that — both are cast through
-// `.returns<ClientRecord[]>()`, so a missing column reads as `undefined` and the
-// "Show deleted" scoping below silently passes every row.
-//
-// The BOOKING_* selects deliberately do NOT carry it: no code path reads
-// `booking.deleted_at`, because a soft-deleted booking only ever exists as a
-// cascade of its client's deletion, and that client is already filtered out
-// here and 404'd on the detail page.
-const CLIENT_SELECT = `
-  id,
-  full_name,
-  phone,
-  email,
-  address,
-  postcode,
-  client_source,
-  source_detail,
-  created_at,
-  updated_at,
-  deleted_at
-`;
-
-const CLIENT_SAFE_SELECT = `
-  id,
-  full_name,
-  client_source,
-  source_detail,
-  created_at,
-  updated_at,
-  deleted_at
-`;
-
-const BOOKING_SELECT = `
-  id,
-  client_id,
-  booking_date,
-  start_time,
-  end_time,
-  status,
-  payment_status,
-  assignment_status,
-  group_booking,
-  total_price,
-  amount_due,
-  amount_paid,
-  booking_source,
-  contact_full_name,
-  contact_email,
-  contact_phone,
-  service_city,
-  service_postcode,
-  service_address_line1,
-  created_at,
-  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
-`;
-
-const BOOKING_SAFE_SELECT = `
-  id,
-  client_id,
-  booking_date,
-  start_time,
-  end_time,
-  status,
-  payment_status,
-  assignment_status,
-  group_booking,
-  total_price,
-  amount_due,
-  amount_paid,
-  booking_source,
-  service_city,
-  created_at,
-  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
-`;
+// The four RBAC select variants moved to clients-list-data.ts with the fetch
+// (C-09 Phase C Step 5), including the note on why `deleted_at` is selected in
+// both client branches and in neither booking branch.
 
 const AZ_THRESHOLD = 40;
 const MS_PER_DAY = 86_400_000;
@@ -403,38 +329,24 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
     );
   }
 
-  const adminClient = createSupabaseAdminClient();
   const clientAccess = getClientDataAccess(profile, {
     hasAssignedBooking: hasAllClientAccess,
   });
   const canManageClients = clientAccess.canManageClient;
-  const clientSelect = clientAccess.canViewContactDetails ? CLIENT_SELECT : CLIENT_SAFE_SELECT;
-  const bookingSelect = clientAccess.canViewContactDetails ? BOOKING_SELECT : BOOKING_SAFE_SELECT;
 
-  const [clientsResult, bookingsResult] = await Promise.all([
-    adminClient
-      .from("clients")
-      .select(clientSelect)
-      .order("full_name")
-      .returns<ClientRecord[]>(),
-    adminClient
-      .from("bookings")
-      .select(bookingSelect)
-      .order("booking_date", { ascending: false })
-      .order("start_time", { ascending: false })
-      .returns<ClientBookingRecord[]>(),
-  ]);
+  const { clients: allClients, bookings } = await getClientsListData({
+    canViewContactDetails: clientAccess.canViewContactDetails,
+  });
+
   // Soft-deleted clients are hidden by default and reachable through the
   // "Show deleted" toggle (brief §5.3). Everything downstream — stats, counts,
   // pagination — works off the scoped list.
-  const allClients: ClientRecord[] = clientsResult.data ?? [];
   const deletedCount = allClients.filter((client) =>
     Boolean(client.deleted_at)
   ).length;
   const clients: ClientRecord[] = showDeleted
     ? allClients
     : allClients.filter((client) => !client.deleted_at);
-  const bookings: ClientBookingRecord[] = bookingsResult.data ?? [];
   const canDeleteClients = canManageClientDestructiveOps(profile);
 
   const now = new Date();
