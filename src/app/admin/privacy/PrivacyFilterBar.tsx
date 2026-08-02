@@ -149,7 +149,6 @@ export function PrivacyFilterBar({
 
   return (
     <form
-      data-redesign-fake="filter-query"
       onSubmit={onSearchSubmit}
       aria-busy={isPending || undefined}
       className="mb-5 grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-3"

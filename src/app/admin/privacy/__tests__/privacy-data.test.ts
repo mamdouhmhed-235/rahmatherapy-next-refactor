@@ -129,3 +129,55 @@ describe("getPrivacyPageData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
   });
 });
+
+// C-09 Phase D Step 12 — filter wiring keys separately, so a caller
+// filtering to status=open can never be served a cache entry built for
+// status=completed (or for the unfiltered queue).
+describe("getPrivacyPageData filter-wiring cache behaviour", () => {
+  it("keys the unfiltered call and a fully-empty-filters call identically", async () => {
+    await getPrivacyPageData(FULL_ACCESS);
+    await getPrivacyPageData({
+      ...FULL_ACCESS,
+      filters: {
+        requestTypes: undefined,
+        statuses: undefined,
+        fromDate: undefined,
+        toDate: undefined,
+        q: undefined,
+      },
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("keys separately per requestTypes/statuses/date/q filter", async () => {
+    await getPrivacyPageData({
+      ...FULL_ACCESS,
+      filters: { requestTypes: ["data_export"] },
+    });
+    await getPrivacyPageData({
+      ...FULL_ACCESS,
+      filters: { statuses: ["open"] },
+    });
+    await getPrivacyPageData({
+      ...FULL_ACCESS,
+      filters: { fromDate: "2026-01-01T00:00:00.000Z" },
+    });
+    await getPrivacyPageData({
+      ...FULL_ACCESS,
+      filters: { q: "deletion" },
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(4);
+    await getPrivacyPageData({
+      ...FULL_ACCESS,
+      filters: { requestTypes: ["data_export"] },
+    });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(4);
+  });
+
+  it("re-runs a filtered call after the audit tag is invalidated", async () => {
+    await getPrivacyPageData({ ...FULL_ACCESS, filters: { statuses: ["open"] } });
+    cacheHarness.invalidateTag(TAGS.AUDIT);
+    await getPrivacyPageData({ ...FULL_ACCESS, filters: { statuses: ["open"] } });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+});

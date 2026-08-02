@@ -19,6 +19,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   getPrivacyPageData,
   type PrivacyClientSummary,
+  type PrivacyQueueFilters,
   type PrivacyRequestRecord as PrivacyRequestRow,
   type PrivacySensitiveNote,
 } from "./privacy-data";
@@ -174,6 +175,41 @@ function startOfThisMonth(): Date {
   return new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
+/**
+ * Resolves the filter strip's range preset (or a custom from/to pair) to
+ * concrete ISO bounds, matching `PrivacyFilterBar`'s `RANGE_PRESETS` keys.
+ * Computed here, outside the cache boundary, and passed into the cache key —
+ * same pattern as emails-data.ts's `resolveDeliveryDateBounds` — so "today"
+ * never freezes for the 60s revalidate window.
+ */
+function resolvePrivacyDateBounds(
+  range: string,
+  from: string,
+  to: string
+): { fromIso?: string; toIso?: string } {
+  const now = new Date();
+  if (range === "custom") {
+    return {
+      fromIso: from ? new Date(`${from}T00:00:00`).toISOString() : undefined,
+      toIso: to ? new Date(`${to}T23:59:59`).toISOString() : undefined,
+    };
+  }
+  if (range === "today") {
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return { fromIso: startOfDay.toISOString() };
+  }
+  if (range === "this_week") {
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monday = new Date(startOfDay);
+    monday.setDate(startOfDay.getDate() - ((startOfDay.getDay() + 6) % 7));
+    return { fromIso: monday.toISOString() };
+  }
+  if (range === "this_month") {
+    return { fromIso: startOfThisMonth().toISOString() };
+  }
+  return {};
+}
+
 export default async function PrivacyPage({
   searchParams,
 }: {
@@ -205,54 +241,13 @@ export default async function PrivacyPage({
     );
   }
 
-  const {
-    requests,
-    notes,
-    clients,
-    staff: staffProfiles,
-    queueLoadFailed,
-  } = await getPrivacyPageData({
-    canManagePrivacyOperations,
-    canViewSensitiveNotes,
-    canViewContactDetails,
-  });
-
-  // Maps rebuilt on THIS side of the cache boundary — privacy-data.ts returns
-  // plain arrays because a Map would come back as {} (SHARED-NOTES §15).
-  const clientById = new Map(clients.map((client) => [client.id, client]));
-
-  // Authorship lookup: resolve created_by_staff_id to a display name so the
-  // request note can show "from customer email" vs "transcribed by Aisha".
-  const staffNameById = new Map(
-    staffProfiles.map((staff) => [staff.id, staff.full_name])
-  );
-
-  // ─── Group requests by status ──────────────────────────────────────────────
-  const requestsByStatus = new Map<string, PrivacyRequestRecord[]>();
-  for (const panel of STATUS_PANELS) {
-    requestsByStatus.set(panel.value, []);
-  }
-  for (const request of requests) {
-    const bucket = requestsByStatus.get(request.status);
-    if (bucket) bucket.push(request);
-  }
-
-  // ─── Stat-strip computations ───────────────────────────────────────────────
-  const openRequests = [
-    ...(requestsByStatus.get("open") ?? []),
-    ...(requestsByStatus.get("reviewing") ?? []),
-  ];
-  const oldestOpen = [...openRequests].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  )[0];
-  const oldestOpenDays = oldestOpen ? daysSince(oldestOpen.created_at) : 0;
-
-  const monthStart = startOfThisMonth();
-  const notesReviewedThisMonth = notes.filter(
-    (note) => new Date(note.created_at) >= monthStart
-  ).length;
-
   // ─── Filter strip initial values ───────────────────────────────────────────
+  // 5-step filter audit (brief §2.4): (1) URL parsed here; (2) passed into
+  // getPrivacyPageData's `filters` below; (3) applied server-side in
+  // privacy-data.ts (.in/.gte/.lte/.ilike); (4) filter UI defaults from these
+  // same URL-derived values (PrivacyFilterBar's initialValues); (5)
+  // empty-state copy distinguishes "no results for these filters" from "no
+  // requests yet" (queueEmpty / per-panel copy below).
   const initialFilterValues: PrivacyFilterValues = {
     request_type: readMultiParam(
       params,
@@ -270,7 +265,103 @@ export default async function PrivacyPage({
     q: readParam(params, "q"),
   };
 
-  // ─── Stat-tile filter href builders (FAKE — server ignores until BUILD plan) ──
+  const dateBounds = resolvePrivacyDateBounds(
+    initialFilterValues.range,
+    initialFilterValues.from,
+    initialFilterValues.to
+  );
+  const queueFilters: PrivacyQueueFilters = {
+    // Sorted so two URLs differing only in list order share a cache entry.
+    requestTypes: initialFilterValues.request_type.length
+      ? [...initialFilterValues.request_type].sort()
+      : undefined,
+    statuses: initialFilterValues.status.length
+      ? [...initialFilterValues.status].sort()
+      : undefined,
+    fromDate: dateBounds.fromIso,
+    toDate: dateBounds.toIso,
+    q: initialFilterValues.q.trim() || undefined,
+  };
+  const hasActiveFilters = Boolean(
+    queueFilters.requestTypes ||
+      queueFilters.statuses ||
+      queueFilters.fromDate ||
+      queueFilters.toDate ||
+      queueFilters.q
+  );
+
+  // Unfiltered fetch — the "Open requests" / "Awaiting longest" stat tiles
+  // always reflect the WHOLE queue, not the current filter, and `clients` /
+  // `staff` need to cover every request those unfiltered stats reference.
+  const base = await getPrivacyPageData({
+    canManagePrivacyOperations,
+    canViewSensitiveNotes,
+    canViewContactDetails,
+  });
+
+  // Filtered fetch (C-09 Phase D Step 12) — server-side query, not a no-op
+  // filter form. Reuses the unfiltered call's cache entry when nothing is
+  // narrowing the view, so the default view still costs exactly one query.
+  const filteredResult = hasActiveFilters
+    ? await getPrivacyPageData({
+        canManagePrivacyOperations,
+        canViewSensitiveNotes,
+        canViewContactDetails,
+        filters: queueFilters,
+      })
+    : base;
+
+  const requests = filteredResult.requests;
+  const queueLoadFailed = filteredResult.queueLoadFailed;
+  // `notes`/`clients`/`staff` always come from the unfiltered call: `clients`
+  // and `staff` there cover every id the unfiltered stats below reference
+  // (a superset of anything the filtered `requests` could need), and `notes`
+  // (the sensitive-notes rail) has no filter UI of its own.
+  const { notes, clients, staff: staffProfiles } = base;
+
+  // Maps rebuilt on THIS side of the cache boundary — privacy-data.ts returns
+  // plain arrays because a Map would come back as {} (SHARED-NOTES §15).
+  const clientById = new Map(clients.map((client) => [client.id, client]));
+
+  // Authorship lookup: resolve created_by_staff_id to a display name so the
+  // request note can show "from customer email" vs "transcribed by Aisha".
+  const staffNameById = new Map(
+    staffProfiles.map((staff) => [staff.id, staff.full_name])
+  );
+
+  // ─── Group requests by status (from the possibly-filtered `requests`) ─────
+  const requestsByStatus = new Map<string, PrivacyRequestRecord[]>();
+  for (const panel of STATUS_PANELS) {
+    requestsByStatus.set(panel.value, []);
+  }
+  for (const request of requests) {
+    const bucket = requestsByStatus.get(request.status);
+    if (bucket) bucket.push(request);
+  }
+
+  // ─── Stat-strip computations (always from the UNFILTERED `base.requests`) ─
+  const baseByStatus = new Map<string, PrivacyRequestRecord[]>();
+  for (const request of base.requests) {
+    const bucket = baseByStatus.get(request.status) ?? [];
+    bucket.push(request);
+    baseByStatus.set(request.status, bucket);
+  }
+  const openRequests = [
+    ...(baseByStatus.get("open") ?? []),
+    ...(baseByStatus.get("reviewing") ?? []),
+  ];
+  const oldestOpen = [...openRequests].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  )[0];
+  const oldestOpenDays = oldestOpen ? daysSince(oldestOpen.created_at) : 0;
+
+  const monthStart = startOfThisMonth();
+  const notesReviewedThisMonth = notes.filter(
+    (note) => new Date(note.created_at) >= monthStart
+  ).length;
+
+  // Stat-tile shortcuts — always jump to the GLOBAL open/oldest queue,
+  // independent of whatever filter is currently applied.
   const openHref = "/admin/privacy?status=open,reviewing";
   const oldestHref = "/admin/privacy?status=open&sort=created_at_asc";
 
@@ -389,7 +480,7 @@ export default async function PrivacyPage({
         </div>
       ) : null}
 
-      {/* Filter strip — preserved URL contract; backend FAKE per BUILD-privacy-filter-query.md */}
+      {/* Filter strip — server-side query wiring per C-09 Phase D Step 12 */}
       {showQueue ? (
         <PrivacyFilterBar
           initialValues={initialFilterValues}
@@ -432,15 +523,31 @@ export default async function PrivacyPage({
                 data-redesign-needs-photo="privacy-empty.svg"
                 className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] py-2"
               >
-                <EmptyState
-                  icon={ShieldCheck}
-                  title="No privacy requests yet"
-                  message="Create one from a client detail page when a customer asks for export, correction, deletion review, or sensitive-note review."
-                />
+                {hasActiveFilters ? (
+                  <EmptyState
+                    icon={ShieldCheck}
+                    title="No privacy requests match your filters"
+                    message="Try adjusting or clearing your filters."
+                    action={{ label: "Clear filters", href: "/admin/privacy" }}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={ShieldCheck}
+                    title="No privacy requests yet"
+                    message="Create one from a client detail page when a customer asks for export, correction, deletion review, or sensitive-note review."
+                  />
+                )}
               </div>
             ) : (
               STATUS_PANELS.map((panel) => {
                 const panelRequests = requestsByStatus.get(panel.value) ?? [];
+                // A status filter can legitimately hide a panel's real
+                // requests (they weren't fetched, not "there are none") —
+                // that reads differently from "genuinely zero", so the
+                // per-panel empty copy distinguishes the two below.
+                const hiddenByStatusFilter =
+                  Boolean(queueFilters.statuses) &&
+                  !queueFilters.statuses!.includes(panel.value);
                 const isOpen = expandAll || panel.defaultOpen || panelRequests.length === 0;
                 const countBadge = (
                   <AdminStatusBadge
@@ -483,10 +590,31 @@ export default async function PrivacyPage({
                       <div className="border-t border-[var(--admin-border)]">
                         {panelRequests.length === 0 ? (
                           <p className="px-4 py-3 text-sm leading-6 text-[var(--admin-text-muted)] sm:px-5">
-                            <span className="font-medium text-[var(--admin-body)]">
-                              {panel.emptyHeading}.
-                            </span>
-                            {panel.emptyBody ? ` ${panel.emptyBody}` : ""}
+                            {hiddenByStatusFilter ? (
+                              <>
+                                <span className="font-medium text-[var(--admin-body)]">
+                                  {panel.label} hidden by your status filter.
+                                </span>{" "}
+                                <Link
+                                  href="/admin/privacy"
+                                  className="underline-offset-4 hover:underline"
+                                >
+                                  Clear filters
+                                </Link>{" "}
+                                to see these.
+                              </>
+                            ) : hasActiveFilters ? (
+                              <span className="font-medium text-[var(--admin-body)]">
+                                No {panel.label.toLowerCase()} requests match your filters.
+                              </span>
+                            ) : (
+                              <>
+                                <span className="font-medium text-[var(--admin-body)]">
+                                  {panel.emptyHeading}.
+                                </span>
+                                {panel.emptyBody ? ` ${panel.emptyBody}` : ""}
+                              </>
+                            )}
                           </p>
                         ) : (
                           <ul

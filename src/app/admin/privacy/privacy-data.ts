@@ -24,6 +24,17 @@
 // unbounded queue exactly. The sensitive-notes rail keeps its fixed 25-row cap.
 // `countPrivacyRequests` is the cheap head-count companion for C-16's
 // "Showing X–Y of Z" readout; it is not called by the page today.
+//
+// FILTERS (C-09 Phase D Step 12): request_type/status/date-range/q are now
+// real `.in`/`.gte`/`.lte`/`.ilike` predicates on the requests query, applied
+// here and folded into the cache key — a caller filtering to status=open can
+// never be served a cache entry built for status=completed. page.tsx calls
+// this fetcher twice when any filter is active: once unfiltered (the "Open
+// requests" / "Awaiting longest" stat tiles always reflect the WHOLE queue,
+// not the current filter, and `clients`/`staff` need to cover every request
+// referenced by those unfiltered stats) and once with the filters (for the
+// status-grouped queue). The two calls share a cache entry in the common
+// no-filter case, so the default view still costs exactly one query.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -63,12 +74,23 @@ export interface PrivacyStaffName {
   full_name: string;
 }
 
+export interface PrivacyQueueFilters {
+  requestTypes?: string[];
+  statuses?: string[];
+  /** Inclusive ISO bounds, resolved from the page's range preset. */
+  fromDate?: string;
+  toDate?: string;
+  /** Matched against `request_note`. */
+  q?: string;
+}
+
 export interface PrivacyPageParams {
   canManagePrivacyOperations: boolean;
   canViewSensitiveNotes: boolean;
   canViewContactDetails: boolean;
   limit?: number;
   offset?: number;
+  filters?: PrivacyQueueFilters;
 }
 
 export interface PrivacyPageData {
@@ -77,6 +99,10 @@ export interface PrivacyPageData {
   clients: PrivacyClientSummary[];
   staff: PrivacyStaffName[];
   queueLoadFailed: boolean;
+}
+
+function escapeLike(value: string) {
+  return value.replace(/[\\%_,()]/g, (match) => `\\${match}`);
 }
 
 export async function getPrivacyPageData(
@@ -88,6 +114,7 @@ export async function getPrivacyPageData(
     canViewContactDetails,
     limit,
     offset,
+    filters,
   } = params;
 
   const cached = unstable_cache(
@@ -100,6 +127,20 @@ export async function getPrivacyPageData(
           "id, client_id, request_type, status, request_note, created_at, updated_at, created_by_staff_id"
         )
         .order("created_at", { ascending: false });
+      if (filters?.requestTypes?.length) {
+        requestsQuery = requestsQuery.in("request_type", filters.requestTypes);
+      }
+      if (filters?.statuses?.length) {
+        requestsQuery = requestsQuery.in("status", filters.statuses);
+      }
+      if (filters?.fromDate) requestsQuery = requestsQuery.gte("created_at", filters.fromDate);
+      if (filters?.toDate) requestsQuery = requestsQuery.lte("created_at", filters.toDate);
+      if (filters?.q) {
+        requestsQuery = requestsQuery.ilike(
+          "request_note",
+          `%${escapeLike(filters.q)}%`
+        );
+      }
       if (limit !== undefined) {
         const start = offset ?? 0;
         requestsQuery = requestsQuery.range(start, start + limit - 1);
@@ -178,6 +219,11 @@ export async function getPrivacyPageData(
         canViewContactDetails,
         limit,
         offset,
+        requestTypes: filters?.requestTypes,
+        statuses: filters?.statuses,
+        fromDate: filters?.fromDate,
+        toDate: filters?.toDate,
+        q: filters?.q,
       }),
     ],
     { revalidate: 60, tags: [TAGS.CLIENTS, TAGS.AUDIT] }
