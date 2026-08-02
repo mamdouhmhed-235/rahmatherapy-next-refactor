@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getRoleDisplayName, getStaffProfile } from "@/lib/auth/rbac";
 import {
@@ -30,39 +29,20 @@ import {
 } from "../components/admin-ui";
 import { EmptyState } from "../components/EmptyState";
 import { NewStaffForm } from "./NewStaffForm";
-import { getStaffTeamAccess, getStaffTeamSelect, staffProfilesFrom } from "./team-access";
+import { getStaffTeamAccess, getStaffTeamSelect } from "./team-access";
+import {
+  getStaffListData,
+  type StaffDirectoryRow,
+  type StaffRole,
+} from "./staff-list-data";
 
 export const metadata = {
   title: "Team - Rahma Therapy Admin",
 };
 
-type StaffRole = { name: string; display_label?: string | null };
-type StaffDirectoryRow = {
-  id: string;
-  auth_user_id?: string | null;
-  name: string;
-  email?: string | null;
-  role_id?: string | null;
-  gender: string | null;
-  active: boolean;
-  can_take_bookings: boolean;
-  availability_mode: string;
-  phone?: string | null;
-  short_bio?: string | null;
-  specialties?: string[] | null;
-  languages?: string[] | null;
-  service_areas?: string[] | null;
-  roles?: StaffRole | null;
-};
-type AssignmentRow = {
-  assigned_staff_id: string | null;
-  status: string;
-  bookings: {
-    booking_date: string;
-    start_time: string;
-    status: string;
-  } | null;
-};
+// StaffDirectoryRow / StaffAssignmentRow moved to staff-list-data.ts with the
+// fetch (C-09 Phase C Step 5); StaffDirectoryRow is re-imported above for the
+// row components below.
 type StaffTone = "success" | "info" | "restricted" | "warning";
 
 type StaffSearchParams = {
@@ -128,59 +108,20 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
     );
   }
 
-  const adminClient = createSupabaseAdminClient();
-  const staffProfiles = staffProfilesFrom(adminClient);
-  const staffSelect = getStaffTeamSelect(teamAccess);
-  let staff: StaffDirectoryRow[] = [];
-  let staffLoadError = false;
+  const {
+    staff,
+    assignments: typedAssignments,
+    staffLoadError,
+  } = await getStaffListData({
+    scope: teamAccess.scope,
+    staffSelect: getStaffTeamSelect(teamAccess),
+    staffId: profile.id,
+    staffGender: profile.gender,
+  });
 
-  // FPM: getStaffTeamAccess / getStaffTeamSelect / staffProfilesFrom are preserved verbatim (RECON §5).
-  if (teamAccess.scope === "admin") {
-    const { data, error } = await staffProfiles
-      .select<StaffDirectoryRow[]>(staffSelect)
-      .order("name");
-    if (error) staffLoadError = true;
-    staff = (data ?? []) as unknown as StaffDirectoryRow[];
-  } else if (teamAccess.scope === "assignment") {
-    const { data, error } = await staffProfiles
-      .select<StaffDirectoryRow[]>(staffSelect)
-      .eq("active", true)
-      .eq("can_take_bookings", true)
-      .order("name");
-    if (error) staffLoadError = true;
-    staff = (data ?? []) as unknown as StaffDirectoryRow[];
-  } else if (teamAccess.scope === "same_gender_team") {
-    const [sameGenderResult, ownProfileResult] = await Promise.all([
-      staffProfiles
-        .select<StaffDirectoryRow[]>(staffSelect)
-        .eq("active", true)
-        .eq("can_take_bookings", true)
-        .eq("gender", profile.gender)
-        .order("name"),
-      staffProfiles
-        .select<StaffDirectoryRow>(staffSelect)
-        .eq("id", profile.id)
-        .maybeSingle(),
-    ]);
-    if (sameGenderResult.error || ownProfileResult.error) staffLoadError = true;
-    staff = Array.from(
-      new Map(
-        ([...(sameGenderResult.data ?? []), ownProfileResult.data].filter(Boolean) as StaffDirectoryRow[])
-          .map((member) => [member.id, member])
-      ).values()
-    ).sort((left, right) => left.name.localeCompare(right.name));
-  }
-
-  const staffIds = staff.map((member) => member.id);
-  const { data: assignments } =
-    staffIds.length > 0
-      ? await adminClient
-          .from("booking_assignments")
-          .select("assigned_staff_id, status, bookings(booking_date, start_time, status)")
-          .in("assigned_staff_id", staffIds)
-      : { data: [] };
-  const typedAssignments = (assignments ?? []) as unknown as AssignmentRow[];
-
+  // Roles stay on the RLS-bound server client here: cookies() cannot be used
+  // inside an unstable_cache fetcher, and moving this read to the admin client
+  // would drop its RLS scoping.
   const { data: rolesData } = teamAccess.canCreateStaff
     ? await supabase
         .from("roles")

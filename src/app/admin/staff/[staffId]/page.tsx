@@ -16,7 +16,6 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canAssignStaffRoles,
@@ -34,8 +33,12 @@ import {
   canEditSafeStaffProfile,
   getStaffTeamAccess,
   getStaffTeamSelect,
-  staffProfilesFrom,
 } from "../team-access";
+import {
+  getStaffDetailData,
+  type StaffDetailAssignmentRow as AssignmentRow,
+  type StaffDetailRow,
+} from "./staff-detail-data";
 import { RolePermissionsList } from "./RolePermissionsPanel";
 import { StaffDetailShortcuts } from "./StaffDetailShortcuts";
 import { StaffPermissionOverridesForm } from "./StaffPermissionOverridesForm";
@@ -45,39 +48,9 @@ interface StaffDetailPageProps {
   params: Promise<{ staffId: string }>;
 }
 
-type StaffRole = { id?: string; name: string; display_label?: string | null };
-type StaffDetailRow = {
-  id: string;
-  auth_user_id?: string | null;
-  name: string;
-  email?: string | null;
-  role_id?: string;
-  gender: "male" | "female";
-  active: boolean;
-  can_take_bookings: boolean;
-  availability_mode: string;
-  profile_photo_path?: string | null;
-  phone?: string | null;
-  show_phone_on_profile?: boolean | null;
-  short_bio?: string | null;
-  specialties?: string[] | null;
-  languages?: string[] | null;
-  service_areas?: string[] | null;
-  roles?: StaffRole | null;
-};
-type AssignmentRow = {
-  id: string;
-  status: string;
-  required_therapist_gender: string;
-  bookings: {
-    id: string;
-    booking_date: string;
-    start_time: string;
-    status: string;
-    contact_full_name?: string | null;
-    service_city?: string | null;
-  } | null;
-};
+// StaffDetailRow / StaffDetailAssignmentRow moved to staff-detail-data.ts with
+// the fetch (C-09 Phase C Step 5); StaffDetailRow is re-imported above for the
+// panels below.
 
 export const metadata = {
   title: "Staff profile — Rahma Therapy admin",
@@ -193,25 +166,58 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     );
   }
 
-  const adminClient = createSupabaseAdminClient();
-  const staffProfiles = staffProfilesFrom(adminClient);
   const staffSelect =
     isOwnProfile || teamAccess.scope === "admin"
       ? getStaffTeamSelect({ ...teamAccess, scope: "admin" })
       : getStaffTeamSelect(teamAccess);
 
-  let staffQuery = staffProfiles.select<StaffDetailRow>(staffSelect).eq("id", staffId);
-  if (!isOwnProfile && teamAccess.scope === "assignment") {
-    staffQuery = staffQuery.eq("active", true).eq("can_take_bookings", true);
-  }
-  if (!isOwnProfile && teamAccess.scope === "same_gender_team") {
-    staffQuery = staffQuery
-      .eq("active", true)
-      .eq("can_take_bookings", true)
-      .eq("gender", profile.gender);
-  }
+  const canViewContactFields = teamAccess.canViewContactFields || isOwnProfile;
+  const canShowAdminPanels = teamAccess.canViewAdminFields;
+  // Brief §11 isOwnProfile exception: a therapist viewing their own page sees full client context
+  // even when teamAccess.canViewClientWorkloadContext is false.
+  const showClientWorkloadContext =
+    teamAccess.canViewClientWorkloadContext || isOwnProfile;
 
-  const { data: staff } = await staffQuery.maybeSingle();
+  // The roles lookup stays on the RLS-bound server client: cookies() cannot be
+  // used inside an unstable_cache fetcher, and moving it to the admin client
+  // would drop its RLS scoping. Issued in parallel with the cached read so the
+  // request waterfall is unchanged.
+  const [{ data: roles }, detail] = await Promise.all([
+    teamAccess.canViewRoleControls
+      ? supabase
+          .from("roles")
+          .select("id, name, display_label, active, sort_order")
+          .eq("active", true)
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true })
+      : Promise.resolve({ data: [] }),
+    getStaffDetailData({
+      staffId,
+      viewerId: profile.id,
+      viewerGender: profile.gender,
+      isOwnProfile,
+      scope: teamAccess.scope,
+      staffSelect,
+      hasTeamAccess: teamAccess.access,
+      canShowAdminPanels,
+      canViewPermissionControls: teamAccess.canViewPermissionControls,
+      canViewAudit: teamAccess.canViewAudit,
+      showClientWorkloadContext,
+    }),
+  ]);
+
+  const {
+    staff,
+    rolePermissions,
+    staffOverrides,
+    assignments,
+    auditLogs,
+    availabilityRules,
+    siblingStaff,
+    lastModified: lastModifiedRow,
+    lastModifiedActorName,
+  } = detail;
+  const allPermissions = detail.allPermissions;
 
   // Out-of-scope denied — viewer holds team access but the queried staff falls outside their scope.
   if (!staff) {
@@ -231,95 +237,11 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     );
   }
 
-  const typedStaff = staff as unknown as StaffDetailRow;
-  const canViewContactFields = teamAccess.canViewContactFields || isOwnProfile;
-  const canShowAdminPanels = teamAccess.canViewAdminFields;
+  const typedStaff = staff;
   const canEditSafeProfile = canEditSafeStaffProfile(profile, staffId);
   const canOpenWorkloadBookings =
     teamAccess.canViewClientWorkloadContext || teamAccess.scope === "assignment" || isOwnProfile;
-  // Brief §11 isOwnProfile exception: a therapist viewing their own page sees full client context
-  // even when teamAccess.canViewClientWorkloadContext is false.
-  const showClientWorkloadContext =
-    teamAccess.canViewClientWorkloadContext || isOwnProfile;
   const canManageOverrides = canManagePermissionOverrides(profile);
-
-  const [
-    { data: roles },
-    { data: rolePermissions },
-    { data: staffOverrides },
-    { data: allPermissions },
-    { data: assignments },
-    { data: auditLogs },
-    { data: availabilityRules },
-    { data: siblingStaff },
-    { data: lastModifiedRows },
-  ] = await Promise.all([
-    teamAccess.canViewRoleControls
-      ? supabase
-          .from("roles")
-          .select("id, name, display_label, active, sort_order")
-          .eq("active", true)
-          .order("sort_order", { ascending: true })
-          .order("name", { ascending: true })
-      : Promise.resolve({ data: [] }),
-    canShowAdminPanels && typedStaff.role_id
-      ? adminClient
-          .from("role_permissions")
-          .select("permission_id, permissions(name)")
-          .eq("role_id", typedStaff.role_id)
-      : Promise.resolve({ data: [] }),
-    teamAccess.canViewPermissionControls
-      ? adminClient
-          .from("staff_permission_overrides")
-          .select("permission_id, is_granted")
-          .eq("staff_id", staffId)
-      : Promise.resolve({ data: [] }),
-    teamAccess.canViewPermissionControls
-      ? adminClient
-          .from("permissions")
-          .select("id, name, description, category, scope, risk_level, active")
-          .eq("active", true)
-          .order("category", { ascending: true })
-          .order("name", { ascending: true })
-      : Promise.resolve({ data: [] }),
-    adminClient
-      .from("booking_assignments")
-      .select(
-        showClientWorkloadContext
-          ? "id, status, required_therapist_gender, bookings(id, booking_date, start_time, status, contact_full_name, service_city)"
-          : "id, status, required_therapist_gender, bookings(id, booking_date, start_time, status)"
-      )
-      .eq("assigned_staff_id", staffId)
-      .order("created_at", { ascending: false })
-      .limit(16),
-    teamAccess.canViewAudit
-      ? adminClient
-          .from("audit_logs")
-          .select("id, action_type, created_at")
-          .eq("target_id", staffId)
-          .order("created_at", { ascending: false })
-          .limit(8)
-      : Promise.resolve({ data: [] }),
-    adminClient.from("staff_availability_rules").select("id").eq("staff_id", staffId),
-    // Sibling staff for prev/next header arrows (only when caller has team-directory visibility).
-    // Restricted to active staff so prev/next never lands on retired colleagues.
-    teamAccess.access
-      ? adminClient
-          .from("staff_profiles")
-          .select("id, name")
-          .eq("active", true)
-          .order("name", { ascending: true })
-      : Promise.resolve({ data: [] }),
-    // Last-modified caption — most-recent staff-write audit event by an actor whose name we can resolve.
-    teamAccess.canViewAudit
-      ? adminClient
-          .from("audit_logs")
-          .select("created_at, actor_id, action_type")
-          .eq("target_id", staffId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-      : Promise.resolve({ data: [] }),
-  ]);
 
   const permissions = (rolePermissions ?? [])
     .map((row) => (row.permissions as unknown as { name: string } | null)?.name)
@@ -390,20 +312,6 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     currentIndex >= 0 && currentIndex < siblings.length - 1
       ? siblings[currentIndex + 1]
       : null;
-
-  // Last-modified caption — resolve actor name from staff_profiles when possible.
-  const lastModifiedRow = (lastModifiedRows ?? [])[0] as
-    | { created_at: string; actor_id: string | null; action_type: string }
-    | undefined;
-  let lastModifiedActorName: string | null = null;
-  if (lastModifiedRow?.actor_id) {
-    const { data: actorRow } = await adminClient
-      .from("staff_profiles")
-      .select("name")
-      .eq("id", lastModifiedRow.actor_id)
-      .maybeSingle();
-    lastModifiedActorName = (actorRow as { name?: string } | null)?.name ?? null;
-  }
 
   const status = statusFamily(typedStaff);
   const showAvailabilityTab = canShowAdminPanels || isOwnProfile;
