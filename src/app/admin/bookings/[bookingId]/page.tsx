@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -83,9 +84,72 @@ import type {
 import { BookingCreatedToast } from "./BookingCreatedToast";
 import { BookingDetailSidebar } from "./BookingDetailSidebar";
 
-export const metadata = {
+const DEFAULT_BOOKING_METADATA: Metadata = {
   title: "Booking detail - Rahma Therapy Admin",
 };
+
+/**
+ * C-13 Phase F (brief Q9.10, plan Step 13) — the browser tab title gets
+ * composite identity ("Aisha Khan + 2 others - Booking detail - ..."). This
+ * file previously exported a static `metadata` object; Next.js does not
+ * allow both a static `metadata` export and `generateMetadata` in the same
+ * segment, so this replaces it rather than sitting alongside it.
+ *
+ * Deliberately separate from the page component's own booking fetch below:
+ * this runs its own lightweight RBAC + scoped-relation check (same
+ * `getScopedBookingRelation` the page body uses) and a lean SELECT with
+ * only the fields `composeBookingIdentity` needs — no health_notes, items,
+ * assignments or email history — so a viewer without access to this
+ * booking, or a missing/deleted booking id, gets the generic fallback
+ * title rather than a leaked name or a thrown error. It does NOT touch the
+ * visible on-page title: `AdminPageHeader title={reference}` (below) stays
+ * the short reference hash — composite identity already reaches the page
+ * via `headerDescription` (Phase C) and duplicating it into the title
+ * block was explicitly out of scope here.
+ */
+export async function generateMetadata({
+  params,
+}: BookingDetailPageProps): Promise<Metadata> {
+  const { bookingId } = await params;
+  const supabase = await createSupabaseServerClient();
+  const profile = await getStaffProfile(supabase);
+
+  if (!profile || !profile.active || !canManageBookings(profile)) {
+    return DEFAULT_BOOKING_METADATA;
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const scopedRelation = await getScopedBookingRelation(
+    bookingId,
+    profile,
+    adminClient
+  );
+  if (!scopedRelation.canOpen) {
+    return DEFAULT_BOOKING_METADATA;
+  }
+
+  const { data: booking } = await adminClient
+    .from("bookings")
+    .select(
+      "contact_full_name, clients(full_name), booking_participants(display_name, is_main_contact)"
+    )
+    .eq("id", bookingId)
+    .maybeSingle<{
+      contact_full_name: string | null;
+      clients: { full_name: string | null } | null;
+      booking_participants: Array<{
+        display_name: string | null;
+        is_main_contact: boolean | null;
+      }>;
+    }>();
+
+  if (!booking) {
+    return DEFAULT_BOOKING_METADATA;
+  }
+
+  const identity = composeBookingIdentity(booking);
+  return { title: `${identity.primary} - Booking detail - Rahma Therapy Admin` };
+}
 
 const STATUS_TONES: Record<BookingStatus, AdminTone> = {
   pending: "info",
@@ -603,9 +667,13 @@ export default async function BookingDetailPage({
               tone={STATUS_TONES[booking.status]}
               value={STATUS_LABELS[booking.status]}
             />
-            {booking.group_booking ? (
-              <AdminStatusBadge tone="restricted" value="Group booking" />
-            ) : null}
+            {/* C-13 Phase F (plan Step 14) — removed the standalone "Group
+                booking" badge. It was gated on the group_booking flag, which
+                brief §5.7 documents as unreliable (can be true with one
+                participant, or absent on a genuine multi-participant
+                booking) — composite identity in headerDescription (Phase C,
+                above) already signals group-ness from the authoritative
+                participantCount check, without the flag. */}
             {booking.reschedule_status === "requested" ? (
               <AdminStatusBadge tone="warning" value="Reschedule requested" />
             ) : null}
@@ -777,12 +845,19 @@ function ParticipantsPanel({
   }
 
   const participantCount = booking.booking_participants.length;
+  // C-13 Phase F — this badge used to gate on the group_booking flag, the
+  // same unreliable signal brief §5.7 documents (true with one participant,
+  // or false on a real multi-participant booking). Switched to the
+  // authoritative participantCount > 1 check used everywhere else in C-13
+  // (BookingCard, the calendar tiles, composeBookingIdentity) so this is the
+  // one group indicator left on the page and it can't disagree with them.
+  const isGroupBooking = participantCount > 1;
 
   return (
     <AdminPanel
       title="Participants"
       badge={
-        booking.group_booking ? (
+        isGroupBooking ? (
           <AdminStatusBadge
             tone="restricted"
             value={`Group · ${participantCount}`}
