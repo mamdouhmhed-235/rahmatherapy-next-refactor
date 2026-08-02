@@ -10,7 +10,6 @@ import {
   MailWarning,
   TriangleAlert,
 } from "lucide-react";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getBusinessDate } from "@/lib/time/london";
 import {
@@ -21,7 +20,11 @@ import {
   canViewEmailLogs,
   getStaffProfile,
 } from "@/lib/auth/rbac";
-import { getTemplateOverrideSummaries } from "@/lib/email/templates";
+import {
+  getEmailsPageData,
+  type EmailEvent,
+  type ReminderBooking,
+} from "./emails-data";
 import { TemplateGallery, type TemplateGalleryBadge } from "./components/TemplateGallery";
 import { findTemplate } from "./components/templates-data";
 import { cn } from "@/lib/utils";
@@ -81,27 +84,8 @@ function resolveTab(
   return canSeeDelivery ? "delivery" : "reminders";
 }
 
-interface EmailEvent {
-  id: string;
-  booking_id: string | null;
-  staff_id: string | null;
-  event_type: string;
-  recipient_email: string | null;
-  recipient_role: string | null;
-  delivery_status: string;
-  provider_message_id: string | null;
-  error_message: string | null;
-  created_at: string;
-}
-
-interface ReminderBooking {
-  id: string;
-  booking_date: string;
-  start_time: string;
-  contact_full_name: string | null;
-  contact_email: string | null;
-  status: string;
-}
+// EmailEvent + ReminderBooking moved to emails-data.ts with the fetch
+// (C-09 Phase C Step 5); EmailEvent is re-imported above for the local helpers.
 
 interface PageProps {
   searchParams: Promise<{
@@ -157,93 +141,34 @@ export default async function EmailsPage({ searchParams }: PageProps) {
   }
 
   // ── Data reads ────────────────────────────────────────────────────────────
-  const adminClient = createSupabaseAdminClient();
-
   // FAKE: BUILD-email-delivery-filter-query — once the BUILD plan lands, the
   // Delivery feed becomes a server-side filterable query with cursor pagination.
   // Until then this page reads the most recent PAGE_SIZE events and applies
   // filters in-memory; that's still a useful preview because the operator's
   // typical drill is "what failed in the last 24h", and 100 rows comfortably
   // covers a week of real volume.
-  type DeliveryResult = { data: EmailEvent[] | null; error?: { message: string } | null };
-  const deliveryPromise: Promise<DeliveryResult> = canSeeDelivery
-    ? (adminClient
-        .from("email_delivery_events")
-        .select(
-          "id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, provider_message_id, error_message, created_at"
-        )
-        .order("created_at", { ascending: false })
-        .limit(PAGE_SIZE)
-        .returns<EmailEvent[]>() as unknown as Promise<DeliveryResult>)
-    : Promise.resolve({ data: [] });
-
-  // Reminders scope (H11 middle path). Owner/Admin/Coordinator see the full
-  // clinic queue (they have view_bookings_all / manage_bookings_all). A
-  // Therapist with resend_booking_emails but only assigned-bookings view is
-  // scoped to their own assignments — keeps client contact PII bounded to
-  // bookings they're actually working on without removing the self-serve
-  // "resend" autonomy they need in the field.
   const canSeeAllBookings = canViewAllBookings(profile) || canManageAllBookings(profile);
-  let allowedReminderBookingIds: string[] | null = null;
-  if (canResend && !canSeeAllBookings) {
-    const { data: ownAssignments } = await adminClient
-      .from("booking_assignments")
-      .select("booking_id")
-      .eq("assigned_staff_id", profile.id)
-      .limit(200);
-    allowedReminderBookingIds = Array.from(
-      new Set((ownAssignments ?? []).map((a) => a.booking_id).filter(Boolean))
-    );
-  }
 
-  const remindersPromise = (() => {
-    if (!canResend) return Promise.resolve({ data: [] as ReminderBooking[] });
-    if (allowedReminderBookingIds !== null && allowedReminderBookingIds.length === 0) {
-      return Promise.resolve({ data: [] as ReminderBooking[] });
-    }
-    let q = adminClient
-      .from("bookings")
-      .select(
-        "id, booking_date, start_time, contact_full_name, contact_email, status"
-      )
-      .gte("booking_date", getBusinessDate())
-      .in("status", ["pending", "confirmed"])
-      .order("booking_date")
-      .order("start_time")
-      .limit(20);
-    if (allowedReminderBookingIds !== null) {
-      q = q.in("id", allowedReminderBookingIds);
-    }
-    return q.returns<ReminderBooking[]>();
-  })();
+  const {
+    events: allEvents,
+    deliveryError,
+    reminderBookings: upcomingBookings,
+    templateOverrideSummaries,
+    templateStaff,
+  } = await getEmailsPageData({
+    canSeeDelivery,
+    canResend,
+    canSeeAllBookings,
+    staffId: profile.id,
+    businessDate: getBusinessDate(),
+    includeTemplates: activeTab === "templates",
+    limit: PAGE_SIZE,
+  });
 
-  // C-15 Phase E, Step 17 — gallery badge data. ONE grouped query (inside
-  // getTemplateOverrideSummaries — see templates.ts) rather than one lookup
-  // per card, plus one companion query to resolve `updated_by` staff ids to
-  // display names (same two-query shape the audit log page already uses).
-  const templateOverrideSummariesPromise = activeTab === "templates"
-    ? getTemplateOverrideSummaries()
-    : Promise.resolve({} as Record<string, { updatedAt: string; updatedBy: string | null }>);
-  type StaffNameRow = { id: string; name: string };
-  const templateStaffNamesPromise: Promise<{ data: StaffNameRow[] | null }> =
-    activeTab === "templates"
-      ? (adminClient
-          .from("staff_profiles")
-          .select("id, name")
-          .returns<StaffNameRow[]>() as unknown as Promise<{ data: StaffNameRow[] | null }>)
-      : Promise.resolve({ data: [] });
-
-  const [deliveryResult, remindersResult, templateOverrideSummaries, templateStaffNamesResult] =
-    await Promise.all([
-      deliveryPromise,
-      remindersPromise,
-      templateOverrideSummariesPromise,
-      templateStaffNamesPromise,
-    ]);
-  const deliveryError = "error" in deliveryResult ? deliveryResult.error ?? null : null;
-
+  // Map rebuilt on THIS side of the cache boundary — emails-data.ts returns a
+  // plain array because a Map would come back as {} (SHARED-NOTES §15).
   const templateStaffNameById = new Map<string, string>(
-    (templateStaffNamesResult.data ?? []).map((row) => [row.id, row.name])
+    templateStaff.map((row) => [row.id, row.name])
   );
   const templateBadges: Record<string, TemplateGalleryBadge> = {};
   for (const [templateId, summary] of Object.entries(templateOverrideSummaries)) {
@@ -254,9 +179,6 @@ export default async function EmailsPage({ searchParams }: PageProps) {
         : "Unknown staff",
     };
   }
-
-  const allEvents = deliveryResult.data ?? [];
-  const upcomingBookings = remindersResult.data ?? [];
 
   // Build map: booking_id → most-recent reminder event (only successful sends).
   const lastReminderByBooking = new Map<string, string>();

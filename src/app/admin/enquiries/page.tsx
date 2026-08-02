@@ -8,8 +8,8 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getEnquiriesPageData } from "./enquiries-data";
 import { canManageEnquiries, getStaffProfile } from "@/lib/auth/rbac";
 import { cn } from "@/lib/utils";
 import {
@@ -30,26 +30,7 @@ export const metadata = {
   title: "Enquiries - Rahma Therapy Admin",
 };
 
-interface EnquiryRecord {
-  id: string;
-  full_name: string;
-  phone: string | null;
-  email: string | null;
-  source: string;
-  status: string;
-  service_interest: string | null;
-  notes: string | null;
-  client_id: string | null;
-  converted_booking_id: string | null;
-  assigned_staff_id: string | null;
-  created_at: string;
-  updated_at: string | null;
-}
-
-interface StaffOption {
-  id: string;
-  name: string;
-}
+// Row shapes moved to enquiries-data.ts with the fetch (C-09 Phase C Step 5).
 
 type TabKey = "all" | "new" | "contacted" | "converted" | "closed";
 const TAB_ORDER: readonly TabKey[] = ["all", "new", "contacted", "converted", "closed"];
@@ -156,29 +137,14 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
   const qFilter = readParam(params.q);
   const sort = toSortKey(readParam(params.sort));
 
-  const adminClient = createSupabaseAdminClient();
   // FAKE: BUILD-enquiries-filter-query — until the server-side filter query lands,
   // we read the full list and degrade gracefully. Filtering below is in-memory and
   // therefore does not scale; the BUILD plan will move tab/source/assigned/date/q
   // filtering into the Supabase query.
-  const [{ data: enquiriesRaw }, { data: staffRaw }] = await Promise.all([
-    adminClient
-      .from("enquiries")
-      .select(
-        "id, full_name, phone, email, source, status, service_interest, notes, client_id, converted_booking_id, assigned_staff_id, created_at, updated_at"
-      )
-      .order("created_at", { ascending: false })
-      .returns<EnquiryRecord[]>(),
-    adminClient
-      .from("staff_profiles")
-      .select("id, name")
-      .eq("active", true)
-      .order("name")
-      .returns<StaffOption[]>(),
-  ]);
+  const { enquiries, staff } = await getEnquiriesPageData();
 
-  const enquiries = enquiriesRaw ?? [];
-  const staff = staffRaw ?? [];
+  // Map rebuilt on THIS side of the cache boundary — enquiries-data.ts returns
+  // a plain array because a Map would come back as {} (SHARED-NOTES §15).
   const staffNames = new Map(staff.map((member) => [member.id, member.name]));
 
   // Tab counts (full list).

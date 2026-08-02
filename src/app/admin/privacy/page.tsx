@@ -15,8 +15,13 @@ import {
   AdminStatusBadge,
 } from "../components/admin-ui";
 import { EmptyState } from "../components/EmptyState";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  getPrivacyPageData,
+  type PrivacyClientSummary,
+  type PrivacyRequestRecord as PrivacyRequestRow,
+  type PrivacySensitiveNote,
+} from "./privacy-data";
 import {
   canManageSensitiveClientNotes,
   canViewClientContactDetails,
@@ -34,31 +39,11 @@ export const metadata = {
   title: "Privacy operations - Rahma Therapy Admin",
 };
 
-interface PrivacyRequestRecord {
-  id: string;
-  client_id: string;
-  request_type: string;
-  status: string;
-  request_note: string | null;
-  created_at: string;
-  updated_at: string;
-  created_by_staff_id: string | null;
-}
-
-interface ClientSummary {
-  id: string;
-  full_name: string;
-  email: string | null;
-  phone: string | null;
-}
-
-interface SensitiveNoteRecord {
-  id: string;
-  client_id: string;
-  note: string;
-  created_at: string;
-  author_staff_id: string | null;
-}
+// Row shapes moved to privacy-data.ts with the fetch (C-09 Phase C Step 5);
+// re-aliased here so the sub-components below keep their original names.
+type PrivacyRequestRecord = PrivacyRequestRow;
+type ClientSummary = PrivacyClientSummary;
+type SensitiveNoteRecord = PrivacySensitiveNote;
 
 const STATUS_PANELS: {
   value: string;
@@ -220,69 +205,26 @@ export default async function PrivacyPage({
     );
   }
 
-  const adminClient = createSupabaseAdminClient();
-  const requestsResult = canManagePrivacyOperations
-    ? await adminClient
-        .from("client_privacy_requests")
-        .select(
-          "id, client_id, request_type, status, request_note, created_at, updated_at, created_by_staff_id"
-        )
-        .order("created_at", { ascending: false })
-        .returns<PrivacyRequestRecord[]>()
-    : { data: [] as PrivacyRequestRecord[], error: null };
-  const notesResult = canViewSensitiveNotes
-    ? await adminClient
-        .from("client_notes")
-        .select("id, client_id, note, created_at, author_staff_id")
-        .eq("is_sensitive", true)
-        .order("created_at", { ascending: false })
-        .limit(25)
-        .returns<SensitiveNoteRecord[]>()
-    : { data: [] as SensitiveNoteRecord[], error: null };
+  const {
+    requests,
+    notes,
+    clients,
+    staff: staffProfiles,
+    queueLoadFailed,
+  } = await getPrivacyPageData({
+    canManagePrivacyOperations,
+    canViewSensitiveNotes,
+    canViewContactDetails,
+  });
 
-  // Layer-3 error gate (brief §6): if the queue query failed for an operator who
-  // depends on it, surface the brief's specified copy in a Cancelled-family
-  // role="alert" region. Rail-only callers still proceed if only the queue errored.
-  const queueLoadFailed =
-    canManagePrivacyOperations && "error" in requestsResult && requestsResult.error != null;
-
-  const requests = requestsResult.data ?? [];
-  const notes = notesResult.data ?? [];
-  const clientIds = Array.from(
-    new Set([
-      ...requests.map((request) => request.client_id),
-      ...notes.map((note) => note.client_id),
-    ])
-  );
-  const { data: clients } =
-    clientIds.length > 0
-      ? await adminClient
-          .from("clients")
-          .select(canViewContactDetails ? "id, full_name, email, phone" : "id, full_name")
-          .in("id", clientIds)
-          .returns<ClientSummary[]>()
-      : { data: [] as ClientSummary[] };
-  const clientById = new Map((clients ?? []).map((client) => [client.id, client]));
+  // Maps rebuilt on THIS side of the cache boundary — privacy-data.ts returns
+  // plain arrays because a Map would come back as {} (SHARED-NOTES §15).
+  const clientById = new Map(clients.map((client) => [client.id, client]));
 
   // Authorship lookup: resolve created_by_staff_id to a display name so the
   // request note can show "from customer email" vs "transcribed by Aisha".
-  const staffIds = Array.from(
-    new Set(
-      requests
-        .map((request) => request.created_by_staff_id)
-        .filter((id): id is string => Boolean(id))
-    )
-  );
-  const { data: staffProfiles } =
-    staffIds.length > 0
-      ? await adminClient
-          .from("staff_profiles")
-          .select("id, full_name")
-          .in("id", staffIds)
-          .returns<{ id: string; full_name: string }[]>()
-      : { data: [] as { id: string; full_name: string }[] };
   const staffNameById = new Map(
-    (staffProfiles ?? []).map((staff) => [staff.id, staff.full_name])
+    staffProfiles.map((staff) => [staff.id, staff.full_name])
   );
 
   // ─── Group requests by status ──────────────────────────────────────────────
