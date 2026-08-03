@@ -22,10 +22,17 @@
 // alias, repeated `.or(...)`, `not.is.null` and `client_id.in.(…)` inside
 // `.or(...)`, `.in("id", [])`).
 //
-// 31 cases over 14 fixtures (plan §3.4 asks for 20), covering all 11 views,
+// 31 cases over 17 fixtures (plan §3.4 asks for 20), covering all 11 views,
 // C-05's cancelled/no_show opt-ins, claimable's strictness, and search's
 // joined-client and raw-id paths. Two further cases at the bottom PIN the two
 // places SQL cannot reproduce the oracle, so neither can widen unnoticed.
+//
+// FIX ROUND (this revision): B15-B17 close three more corpus gaps where a
+// view's predicate had a clause no fixture made the SOLE reason a row
+// qualified — see each fixture's comment. Six existing expectations grew to
+// include the new fixtures where they genuinely belong (attention, upcoming,
+// unassigned, cancelled, series, and the assignment_status=unassigned
+// filter); no existing assertion was narrowed or removed.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
@@ -75,6 +82,11 @@ const ID = {
   // `view=upcoming` losing its `status != completed` clause: every completed
   // fixture was also past-dated, so the date clause hid the missing one.
   B14: "00000014-0000-4000-8000-000000000014",
+  // B15-B17: a FIX ROUND closing three more of the same class of hole — see
+  // the comments on each fixture below.
+  B15: "00000015-0000-4000-8000-000000000015",
+  B16: "00000016-0000-4000-8000-000000000016",
+  B17: "00000017-0000-4000-8000-000000000017",
 } as const;
 
 type FixtureRow = BookingRecord & { client_id: string | null };
@@ -313,6 +325,51 @@ const FIXTURES: FixtureRow[] = [
     booking_items: [item("Reflexology")],
     booking_assignments: [
       assignment({ assigned_staff_id: STAFF_C, status: "completed" }),
+    ],
+  }),
+  // Closes a parity gap: no earlier fixture makes `status.eq.pending` the
+  // SOLE true `attention` clause — B1 is pending but also
+  // `assignment_status: "unassigned"`, so deleting `status.eq.pending` from
+  // the SQL predicate went uncaught (B1 still qualified through the other
+  // clause). B15 is pending, fully assigned, has no pending reschedule and
+  // was never customer-cancelled, so it can only qualify through that one
+  // clause.
+  booking({
+    id: ID.B15,
+    booking_date: "2026-06-22",
+    status: "pending",
+    assignment_status: "fully_assigned",
+    booking_assignments: [
+      assignment({ assigned_staff_id: STAFF_C, status: "assigned" }),
+    ],
+  }),
+  // Closes a parity gap: every other row whose assignment is
+  // `status: "unassigned"` also has `assigned_staff_id: null`, so deleting
+  // the `isNull("fv.assigned_staff_id")` guard from `claimable` went uncaught
+  // — the remaining `status`/gender/date conditions were enough on their own
+  // for the whole corpus. B16's assignment is otherwise fully claimable
+  // (unassigned status, gender-matched, future-dated, not cancelled) but
+  // already carries a staff id — the exact shape the null check exists to
+  // reject.
+  booking({
+    id: ID.B16,
+    booking_date: "2026-06-18",
+    assignment_status: "unassigned",
+    booking_assignments: [assignment({ assigned_staff_id: STAFF_C })],
+  }),
+  // Closes a parity gap: the "series ... cancelled included" case's expected
+  // set previously contained no cancelled or no_show row, so it asserted
+  // nothing about the C-05 archive exemption its name claimed to pin. B17 is
+  // cancelled AND belongs to a recurring template, so it only stays in
+  // `view=series` because that view is archive-exempt.
+  booking({
+    id: ID.B17,
+    booking_date: "2026-05-18",
+    status: "cancelled",
+    assignment_status: "fully_assigned",
+    recurring_template_id: TEMPLATE_1,
+    booking_assignments: [
+      assignment({ assigned_staff_id: STAFF_C, status: "assigned" }),
     ],
   }),
 ];
@@ -579,7 +636,7 @@ const CASES: ParityCase[] = [
     name: "view=attention — pending / not-fully-assigned / reschedule / customer-cancelled",
     view: "attention",
     query: { view: "attention" },
-    expected: ["B1", "B3", "B4", "B5", "B6", "B7", "B8"],
+    expected: ["B1", "B3", "B4", "B5", "B6", "B7", "B8", "B15", "B16"],
   },
   {
     name: "view=attention + status=cancelled — C-05 opt-in suspends the archive rule",
@@ -598,7 +655,7 @@ const CASES: ParityCase[] = [
     name: "view=upcoming — today-or-later, not completed",
     view: "upcoming",
     query: { view: "upcoming" },
-    expected: ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B12", "B13"],
+    expected: ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B12", "B13", "B15", "B16"],
   },
   {
     name: "view=claimable — gender-matched, future-dated, unassigned only",
@@ -632,7 +689,7 @@ const CASES: ParityCase[] = [
     name: "view=unassigned",
     view: "unassigned",
     query: { view: "unassigned" },
-    expected: ["B1", "B6", "B7", "B8"],
+    expected: ["B1", "B6", "B7", "B8", "B16"],
   },
   {
     name: "view=partially_assigned",
@@ -650,7 +707,7 @@ const CASES: ParityCase[] = [
     name: "view=cancelled — the archive view shows cancelled AND no_show",
     view: "cancelled",
     query: { view: "cancelled" },
-    expected: ["B9", "B10"],
+    expected: ["B9", "B10", "B17"],
   },
   {
     name: "view=cancelled + status=no_show — the status filter narrows the archive",
@@ -662,7 +719,7 @@ const CASES: ParityCase[] = [
     name: "view=series — every recurring occurrence, cancelled included",
     view: "series",
     query: { view: "series" },
-    expected: ["B11", "B12"],
+    expected: ["B11", "B12", "B17"],
   },
   {
     name: "view=series + templateId — narrowed to one template",
@@ -680,7 +737,7 @@ const CASES: ParityCase[] = [
     name: "filter assignment_status=unassigned",
     view: "all",
     query: { view: "all", assignment_status: "unassigned" },
-    expected: ["B1", "B6", "B7", "B8", "B9"],
+    expected: ["B1", "B6", "B7", "B8", "B9", "B16"],
   },
   {
     name: "filter required_gender=male (EXISTS on booking_assignments)",
