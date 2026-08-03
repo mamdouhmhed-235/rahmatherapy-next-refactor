@@ -260,16 +260,17 @@ export function DashboardFiltersClient({
   }
 
   function handleClearAll() {
-    const params = new URLSearchParams();
-    if (filters.range && filters.range !== "custom") {
-      // Preserve the resolved from/to alongside range: the server only knows
-      // how to rebuild a handful of range keys from range alone (getRangeDefaults
-      // in reporting.ts), so dropping the dates here can silently desync the
-      // window from the range label (C-07 B1 fix).
-      params.set("range", filters.range);
-      params.set("from", filters.from);
-      params.set("to", filters.to);
-    }
+    // C-07 B2 fix — build from the CURRENT params and DELETE only the
+    // advanced-filter keys, rather than starting from an empty
+    // URLSearchParams and re-adding an allow-list. The allow-list approach
+    // already lost `from`/`to` once (C-07 B1 fix, ef1d4b6) and then lost
+    // `scope` the very next time a new param was added (C-07 B2) — the same
+    // hole, twice. Deleting is robust to every param that exists today and
+    // every one added later, same as buildPresetHref, handleSheetSubmit,
+    // buildPillRemoveHref, handleCustomSubmit, and the pill-row "Clear all"
+    // link below.
+    const params = new URLSearchParams(searchParams.toString());
+    ADVANCED_FILTER_KEYS.forEach((key) => params.delete(key));
     startTransition(() => {
       router.push(`/admin/dashboard?${params.toString()}`, { scroll: false });
     });

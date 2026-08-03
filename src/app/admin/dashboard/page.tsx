@@ -15,7 +15,7 @@ import {
   parseReportFilters,
   summarizeReports,
 } from "../reports/reporting";
-import { getDashboardData, type DashboardActorScope } from "./dashboard-data";
+import { getDashboardData, getDashboardQueryPlan, type DashboardActorScope } from "./dashboard-data";
 import { buildDemandTrendData } from "./dashboard-helpers";
 import {
   getPriorStripeDateRange,
@@ -92,10 +92,20 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // honours it: the Personal Contribution stripe below is already actor-scoped
   // by `getStaffScorecard(profile.id)` and its prior-period comparison must
   // keep measuring the same population in both scopes.
-  const scope: DashboardActorScope =
+  //
+  // C-07 B2 fix — `DashboardScopeToggle` mounts ONLY in `BusinessDashboard.tsx`
+  // (never Coordinator or Therapist), so the param is honoured only for that
+  // variant. Without this gate, a Coordinator — the live Booking Coordinator
+  // role has `view_bookings_all = true`, so `plan.bookingScope === "all"` for
+  // them too — could type `?scope=mine` and get a silently narrowed dashboard
+  // with no toggle rendered to explain it. Outside the business variant, the
+  // param is treated as if it were absent: still "team", no error.
+  const requestedScope: DashboardActorScope =
     (Array.isArray(params.scope) ? params.scope[0] : params.scope) === "mine"
       ? "mine"
       : "team";
+  const scope: DashboardActorScope =
+    getDashboardQueryPlan(profile).variant === "business" ? requestedScope : "team";
   const adminClient = createSupabaseAdminClient();
 
   // Personal Stripe (B-5 §5.1) period is independent of the filter strip; we
