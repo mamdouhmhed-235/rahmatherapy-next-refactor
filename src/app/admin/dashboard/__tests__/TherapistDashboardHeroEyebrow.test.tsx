@@ -109,6 +109,8 @@ function renderDashboard({
       staffName="Sara Ahmed"
       today={today}
       data={makeData(allBookings)}
+      claimableWindowBookings={[]}
+      claimableWindowAssignments={[]}
       weekCount={0}
       todayAppointments={todayAppointments}
       nextAppointment={nextAppointment}

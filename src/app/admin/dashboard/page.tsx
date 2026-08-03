@@ -245,6 +245,27 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   // Therapist branch: focused worker UI. The owner/admin/coordinator
   // command-centre below is admin chrome that's noise for therapists.
   if (resolveAdminShellVariant(profile) === "therapist") {
+    // B-170 fix round — `data.bookings` is bounded by `filters.from`/`.to`
+    // (defaults to today-only on a plain `/admin/dashboard` visit — see
+    // `filters` above), so a claimable booking dated 1-7 days out was never
+    // in `data.bookings` for TherapistDashboard's 7-day filter to find. A
+    // second, separately-bounded fetch — same established pattern as the
+    // stripeFilters/stripePriorFilters calls above — gives the "Open to
+    // claim" section its own genuine forward window without widening
+    // `filters`/`data`, which every other tile on this page depends on.
+    // Cache key: `getDashboardData`'s unstable_cache key already includes
+    // `JSON.stringify(filters)`, so this distinctly-valued filters object
+    // naturally gets its own cache entry — no cache-key change needed.
+    const claimableWindowFilters = parseReportFilters({
+      range: "custom",
+      from: today,
+      to: sevenDayLimit,
+    });
+    const { data: claimableWindowData } = await getDashboardData(
+      adminClient,
+      profile,
+      claimableWindowFilters
+    );
     return (
       <>
         <PullToRefresh>
@@ -254,6 +275,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             staffName={profile.name}
             today={today}
             data={data}
+            claimableWindowBookings={claimableWindowData.bookings}
+            claimableWindowAssignments={claimableWindowData.assignments}
             weekCount={
               data.bookings.filter((booking) => {
                 const sevenDayLimit = addBusinessDays(today, 7);

@@ -55,6 +55,18 @@ export function BookingCreatedToast({
     sessionStorage.removeItem(CREATED_TOAST_KEY);
     sessionStorage.removeItem(DRAFT_KEY);
 
+    // C-07 fix round — ManualBookingForm's onSubmit sets this sessionStorage
+    // flag on EVERY submission through that form, including the `justCreated`
+    // path (the ordinary, non-enquiry booking). On that path the more
+    // specific "Booking created." toast below (with its optional "View
+    // client" action) is the one that should show — showing this generic
+    // one too double-toasts the most common booking-creation path. Skip
+    // firing it here and let the effect below own the message; still clear
+    // the flag above so a refresh doesn't replay it.
+    // justConverted/fromEnquiryRedirect are untouched: that double-toast
+    // (B-105) is a pre-existing, separately deferred issue (C-12+).
+    if (justCreated) return;
+
     const timestamp = Number(rawTimestamp);
     if (
       Number.isFinite(timestamp) &&
@@ -65,7 +77,7 @@ export function BookingCreatedToast({
         icon: "📋",
       });
     }
-  }, []);
+  }, [justCreated]);
 
   // C-03 Phase D — the page already read `just_converted` / `from_enquiry`
   // server-side (no `useSearchParams` needed here), same pattern as

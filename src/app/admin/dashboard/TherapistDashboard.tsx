@@ -56,6 +56,14 @@ interface TherapistDashboardProps {
   staffName: string;
   today: string;
   data: ReportData;
+  // B-170 fix round — a SEPARATELY bounded fetch (page.tsx) scoped to
+  // [today, today+7 days], distinct from `data` (which is bounded by the
+  // page-level date filter, defaulting to today-only). "Open to claim"
+  // reads these instead of `data.bookings`/`data.assignments` so the
+  // 7-day window is genuine, not a no-op filter over an already-truncated
+  // array. See page.tsx's Therapist branch for how these are fetched.
+  claimableWindowBookings: ReportData["bookings"];
+  claimableWindowAssignments: ReportData["assignments"];
   weekCount: number;
   todayAppointments: ReportData["bookings"];
   nextAppointment: ReportData["bookings"][number] | null;
@@ -88,6 +96,8 @@ export function TherapistDashboard({
   staffName,
   today,
   data,
+  claimableWindowBookings,
+  claimableWindowAssignments,
   weekCount,
   todayAppointments,
   nextAppointment,
@@ -177,11 +187,17 @@ export function TherapistDashboard({
 
   const serviceLookup = buildServiceLookup(data.bookingItems);
 
-  // B-170 (R05 fix): narrow "Open to claim" to the next 7 days so it no
-  // longer disagrees with what the dashboard visibly promises. The full,
-  // unfiltered list stays one click away via /admin/bookings?view=claimable.
+  // B-170 (R05 fix, + fix round): narrow "Open to claim" to the next 7 days
+  // so it no longer disagrees with what the dashboard visibly promises. The
+  // full, unfiltered list stays one click away via
+  // /admin/bookings?view=claimable. Reads `claimableWindowBookings` (a
+  // fetch separately bounded to [today, today+7] in page.tsx) rather than
+  // `data.bookings`, which is bounded by the page-level date filter
+  // (today-only by default) and so never contained the 1-7-day-out rows
+  // this filter is looking for. The date bounds below are kept as an
+  // explicit, defense-in-depth match of the fetch's own window.
   const claimableSevenDayLimit = addBusinessDays(today, 7);
-  const claimable = data.bookings.filter(
+  const claimable = claimableWindowBookings.filter(
     (booking) =>
       booking.assignment_status === "unassigned" &&
       booking.booking_date >= today &&
@@ -194,9 +210,12 @@ export function TherapistDashboard({
   // takes `assignmentId` NOT `bookingId`) can fire the optimistic claim flow.
   // Therapist data layer (dashboard-data.ts) already filters assignments to
   // assigned-to-self + claimable-matching-gender, so the first unassigned
-  // assignment per booking is the right target.
+  // assignment per booking is the right target. Sourced from
+  // `claimableWindowAssignments` (the same separately-bounded fetch as
+  // `claimableWindowBookings` above) so the map covers the full 7-day
+  // window, not just whatever `data.assignments` happened to include.
   const claimableAssignmentByBookingId = new Map<string, string>();
-  for (const assignment of data.assignments) {
+  for (const assignment of claimableWindowAssignments) {
     if (
       assignment.assigned_staff_id === null &&
       assignment.status !== "completed" &&
