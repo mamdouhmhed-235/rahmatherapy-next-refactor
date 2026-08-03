@@ -125,9 +125,22 @@ export const CRITICAL_NOTE_KEYWORDS = [
 /** Matches a sensitive note that should surface the "Critical note" safety
  *  banner. Every alternation branch here must nest at least one entry from
  *  `CRITICAL_NOTE_KEYWORDS` above as a substring — see that constant's
- *  comment and the sync test. */
+ *  comment and the sync test.
+ *
+ *  PREFIX MATCH, NOT WHOLE-WORD (Owner-authorised widening, 2026-08-03): only
+ *  the LEADING `\b` is kept — a match must still START at a word boundary —
+ *  but there is no trailing `\b`, so each branch matches as a prefix of
+ *  whatever follows. A trailing `\b` on the whole alternation made
+ *  `anaphyla` and `contraindic` match only as standalone words, which they
+ *  never are in real writing ("anaphylactic", "contraindicated"); those two
+ *  branches were effectively dead. Prefix matching fixes that while the
+ *  leading `\b` still keeps the pattern from firing inside an unrelated word
+ *  (e.g. "insurgent" does not match the `urgent` branch — the "urgent"
+ *  substring there isn't preceded by a boundary). `allerg` alone (dropping
+ *  the old `(y|ic|ies)` group) still covers allergy/allergic/allergies as
+ *  prefixes, plus now allergen/allergens/allergies. */
 export const CRITICAL_NOTE_PATTERN =
-  /\b(allerg(y|ic|ies)|anaphyla|epipen|contraindic|urgent|warning|do not|avoid)\b/i;
+  /\b(allerg|anaphyla|epipen|contraindic|urgent|warning|do not|avoid)/i;
 
 function escapeLike(value: string) {
   // Escapes ILIKE's own wildcard characters so a keyword can only match

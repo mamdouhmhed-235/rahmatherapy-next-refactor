@@ -426,6 +426,121 @@ describe("CRITICAL_NOTE_KEYWORDS stays a superset of CRITICAL_NOTE_PATTERN", () 
   });
 });
 
+// Owner-authorised widening (2026-08-03): the trailing `\b` on the whole
+// alternation made `anaphyla` and `contraindic` match only as standalone
+// words — which they never are in real clinical writing
+// ("anaphylactic", "contraindicated") — so those two branches were
+// effectively dead false negatives. Dropping the trailing `\b` (keeping the
+// leading one) turns every branch into a prefix match instead.
+describe("CRITICAL_NOTE_PATTERN — prefix widening (trailing \\b removed)", () => {
+  it.each([
+    "severe anaphylactic reaction",
+    "history of anaphylaxis",
+    "massage contraindicated due to DVT",
+    "contraindication for deep tissue",
+    "allergen exposure",
+    "carries an EpiPen",
+    "urgently review",
+    "warnings from GP",
+  ])(
+    "now matches %j (previously a false negative under the trailing \\b)",
+    (sample) => {
+      expect(CRITICAL_NOTE_PATTERN.test(sample)).toBe(true);
+    }
+  );
+
+  it.each([
+    "allergy to latex",
+    "allergic reaction",
+    "known allergies",
+    "do not use oils",
+    "avoid the lower back",
+  ])("still matches %j (no regression from the old whole-word form)", (sample) => {
+    expect(CRITICAL_NOTE_PATTERN.test(sample)).toBe(true);
+  });
+
+  it.each([
+    // "urgent" appears here, but not preceded by a word boundary (it's
+    // "ins-urgent", not a standalone "urgent") — the widening drops the
+    // TRAILING \b only; the LEADING \b still bounds the pattern against
+    // unrelated words that merely embed a keyword substring mid-word.
+    "The report describes an insurgent uprising.",
+    // No keyword substring anywhere in this sentence at all — confirms the
+    // widened pattern still doesn't fire on an ordinary, unremarkable note.
+    "Client felt relaxed and enjoyed the session.",
+  ])("does not match %j (the widening is bounded, not open-ended)", (sample) => {
+    expect(CRITICAL_NOTE_PATTERN.test(sample)).toBe(false);
+  });
+});
+
+// Mechanical version of the "superset" check above: instead of relying on
+// hand-picked sample sentences (which silently stop catching drift the
+// moment someone adds a branch without adding a matching sample), this
+// parses the branches straight out of CRITICAL_NOTE_PATTERN's own regex
+// source and checks EVERY one against CRITICAL_NOTE_KEYWORDS. A future edit
+// that adds an alternation branch with no corresponding keyword, or removes
+// a keyword a branch still depends on, fails HERE per-branch — hand
+// verification is what let the original trailing-\b defect survive.
+describe("CRITICAL_NOTE_PATTERN's branches are mechanically covered by CRITICAL_NOTE_KEYWORDS", () => {
+  function extractFlatAlternationBranches(pattern: RegExp): string[] {
+    // Expects the exact shape `\b(branch1|branch2|...)` — a single leading
+    // \b, one flat (non-nested) alternation group, nothing after the close
+    // paren. If the pattern's shape changes (trailing \b comes back, a
+    // branch grows a nested group, etc.) this throws instead of silently
+    // mis-parsing, so the failure below is loud and points at this test.
+    const flatAlternation = pattern.source.match(/^\\b\(([^()]*)\)$/);
+    if (!flatAlternation) {
+      throw new Error(
+        "CRITICAL_NOTE_PATTERN's source is no longer a single flat " +
+          "`\\b(a|b|c)` alternation with no trailing \\b — update this " +
+          `test's parser before trusting its per-branch coverage check. ` +
+          `Actual source: ${pattern.source}`
+      );
+    }
+    return flatAlternation[1].split("|");
+  }
+
+  it("parses into a flat, non-nested alternation of literal branches", () => {
+    expect(() => extractFlatAlternationBranches(CRITICAL_NOTE_PATTERN)).not.toThrow();
+  });
+
+  // Computed at collection time (needed for it.each below); falls back to an
+  // empty list if parsing fails, so a shape change reads as the dedicated
+  // "parses into a flat..." test above failing, not a collection-time crash
+  // that would also blank out unrelated tests in this file.
+  let branches: string[] = [];
+  try {
+    branches = extractFlatAlternationBranches(CRITICAL_NOTE_PATTERN);
+  } catch {
+    branches = [];
+  }
+
+  it.each(branches)(
+    "branch %j is itself matched by CRITICAL_NOTE_PATTERN",
+    (branch) => {
+      // Every current branch is a plain literal (no regex metacharacters),
+      // so a branch's own text is the minimal string it matches — this also
+      // exercises the leading \b anchor.
+      expect(CRITICAL_NOTE_PATTERN.test(branch)).toBe(true);
+    }
+  );
+
+  it.each(branches)(
+    "branch %j contains a CRITICAL_NOTE_KEYWORDS substring (the superset property)",
+    (branch) => {
+      // Appending characters after a matching prefix can only ever add
+      // substring occurrences, never remove the one already present in the
+      // branch's own literal text — so checking this minimal string proves
+      // the property for every longer string the branch can match too.
+      const lower = branch.toLowerCase();
+      const coveredByKeyword = CRITICAL_NOTE_KEYWORDS.some((keyword) =>
+        lower.includes(keyword)
+      );
+      expect(coveredByKeyword).toBe(true);
+    }
+  );
+});
+
 // Fix round (verify-FAIL Check 1) — `sensitiveNotes`' own hidden-rows signal,
 // mirroring `resolveClientNotesBannerState`'s tests exactly (same branch
 // order, same sabotage shape: `cappedOut` must be checked BEFORE `hidden`).
