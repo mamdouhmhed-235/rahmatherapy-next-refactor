@@ -74,7 +74,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [pending, cancelled],
       { view: "attention", status: "" },
-      profile()
+      profile(),
+      "attention"
     );
 
     expect(result.map((b) => b.id)).toEqual(["pending"]);
@@ -87,7 +88,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [pending, cancelled],
       { view: "attention", status: "cancelled" },
-      profile()
+      profile(),
+      "attention"
     );
 
     expect(result.map((b) => b.id)).toEqual(["cancelled"]);
@@ -100,7 +102,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [pending, noShow],
       { view: "attention", status: "no_show" },
-      profile()
+      profile(),
+      "attention"
     );
 
     expect(result.map((b) => b.id)).toEqual(["no-show"]);
@@ -121,7 +124,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [cancelledFuture, confirmedFuture],
       { view: "upcoming", status: "cancelled" },
-      profile()
+      profile(),
+      "upcoming"
     );
 
     expect(result.map((b) => b.id)).toEqual(["cancelled-future"]);
@@ -142,7 +146,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [cancelledToday, cancelledTomorrow],
       { view: "today", status: "cancelled" },
-      profile()
+      profile(),
+      "today"
     );
 
     expect(result.map((b) => b.id)).toEqual(["cancelled-today"]);
@@ -159,7 +164,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [cancelledClaimable],
       { view: "claimable", status: "cancelled" },
-      profile()
+      profile(),
+      "claimable"
     );
 
     expect(result).toEqual([]);
@@ -182,7 +188,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [activeClaimable, cancelledClaimable],
       { view: "claimable", status: "" },
-      profile()
+      profile(),
+      "claimable"
     );
 
     expect(result.map((b) => b.id)).toEqual(["active-claimable"]);
@@ -196,7 +203,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [cancelled, noShow, confirmed],
       { view: "cancelled", status: "" },
-      profile()
+      profile(),
+      "cancelled"
     );
 
     expect(result.map((b) => b.id)).toEqual(["cancelled", "no-show"]);
@@ -209,7 +217,8 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [cancelled, noShow],
       { view: "cancelled", status: "cancelled" },
-      profile()
+      profile(),
+      "cancelled"
     );
 
     expect(result.map((b) => b.id)).toEqual(["cancelled"]);
@@ -222,9 +231,55 @@ describe("filterBookings (C-05 Phase D — status-aware view filter)", () => {
     const result = filterBookings(
       [cancelled, confirmed],
       { view: "all", status: "" },
-      profile()
+      profile(),
+      "all"
     );
 
     expect(result.map((b) => b.id)).toEqual(["cancelled", "confirmed"]);
+  });
+
+  /**
+   * C-07 Phase B3 (D5) — the no-?view= default path. Previously `filterBookings`
+   * recomputed its own hardcoded `(getQueryValue(query.view) || "attention")`
+   * default, ignoring the caller's already-resolved, role-aware `currentView`
+   * (page.tsx:225-226: `canViewAll ? "attention" : "today"`). Every case above
+   * supplies an explicit `view` in `query`, so none of them reached that
+   * fallback branch — a Therapist opening `/admin/bookings` with no `?view=`
+   * saw the "Today" tab highlighted while the list was silently filtered by
+   * "attention". These two cases exercise the default path directly: `query`
+   * has no `view` key, and the resolved `currentView` param is honoured.
+   */
+  it("no ?view= param, currentView='today' (Therapist default): filters to today only", () => {
+    const today = booking({ id: "today", booking_date: TODAY, status: "confirmed" });
+    const future = booking({ id: "future", booking_date: "2026-06-15", status: "confirmed" });
+
+    const result = filterBookings(
+      [today, future],
+      { status: "" },
+      profile(),
+      "today"
+    );
+
+    expect(result.map((b) => b.id)).toEqual(["today"]);
+  });
+
+  it("no ?view= param, currentView='attention' (canViewAll default): filters to attention semantics", () => {
+    const pending = booking({ id: "pending", status: "pending" });
+    const settled = booking({
+      id: "settled",
+      status: "confirmed",
+      assignment_status: "fully_assigned",
+      reschedule_status: "none",
+      customer_cancelled_at: null,
+    });
+
+    const result = filterBookings(
+      [pending, settled],
+      { status: "" },
+      profile(),
+      "attention"
+    );
+
+    expect(result.map((b) => b.id)).toEqual(["pending"]);
   });
 });

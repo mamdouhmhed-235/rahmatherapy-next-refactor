@@ -57,9 +57,12 @@ function getQueryValue(value: string | string[] | undefined) {
 export function filterBookings(
   bookings: BookingRecord[],
   query: Record<string, string | string[] | undefined>,
-  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>,
+  currentView: BookingViewKey // C-07 Phase B3 (D5) — the already-resolved,
+  // role-aware default (page.tsx:225-226); no longer recomputed here so
+  // chrome (`view={currentView}`) and results can't silently diverge.
 ) {
-  const view = (getQueryValue(query.view) || "attention") as BookingViewKey;
+  const view = currentView;
   const search = getQueryValue(query.search)?.trim().toLowerCase() ?? "";
   const status = getQueryValue(query.status) ?? "";
   const assignmentStatus = getQueryValue(query.assignment_status) ?? "";
@@ -322,7 +325,7 @@ async function BookingListSection({
     );
   }
 
-  const filteredBookings = filterBookings(bookings, query, profile);
+  const filteredBookings = filterBookings(bookings, query, profile, currentView);
 
   const searchValue = getQueryValue(query.search);
   const nonSearchFilterNames = [
