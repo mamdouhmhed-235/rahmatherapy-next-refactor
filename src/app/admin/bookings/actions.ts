@@ -1641,36 +1641,47 @@ export async function createManualBooking(
       console.error("Inline assignment failed (booking was created):", assignmentError);
     }
 
+    // C-03 B-107: graceful catch — if the enquiry-update fails, the booking
+    // still succeeds; the redirect below proceeds regardless. Admin must mark
+    // the enquiry converted manually in that case.
     if (enquiryId) {
-      const { data: beforeEnquiry } = await adminClient
-        .from("enquiries")
-        .select("*")
-        .eq("id", enquiryId)
-        .single();
+      try {
+        const { data: beforeEnquiry } = await adminClient
+          .from("enquiries")
+          .select("*")
+          .eq("id", enquiryId)
+          .single();
 
-      const { data: updatedEnquiry } = await adminClient
-        .from("enquiries")
-        .update({
-          status: "booked",
-          converted_booking_id: result.bookingId,
-        })
-        .eq("id", enquiryId)
-        .select()
-        .single();
+        const { data: updatedEnquiry } = await adminClient
+          .from("enquiries")
+          .update({
+            status: "booked",
+            converted_booking_id: result.bookingId,
+          })
+          .eq("id", enquiryId)
+          .select()
+          .single();
 
-      await adminClient.from("audit_logs").insert({
-        actor_staff_id: actor.id,
-        action_type: "enquiry_converted_to_booking",
-        target_type: "enquiries",
-        target_id: enquiryId,
-        before_state: beforeEnquiry,
-        after_state: updatedEnquiry,
-      });
+        await adminClient.from("audit_logs").insert({
+          actor_staff_id: actor.id,
+          action_type: "enquiry_converted_to_booking",
+          target_type: "enquiries",
+          target_id: enquiryId,
+          before_state: beforeEnquiry,
+          after_state: updatedEnquiry,
+        });
 
-      updateTag("report-data");
-      updateTag("dashboard-data");
-      updateTag(TAGS.ENQUIRIES);
-      revalidatePath("/admin/enquiries");
+        updateTag("report-data");
+        updateTag("dashboard-data");
+        updateTag(TAGS.ENQUIRIES);
+        revalidatePath("/admin/enquiries");
+      } catch (enquiryUpdateError) {
+        console.error(
+          `[createManualBooking] Booking ${result.bookingId} created but enquiry ${enquiryId} update failed. Admin must mark manually.`,
+          enquiryUpdateError
+        );
+        // Continue — booking is already created; redirect proceeds.
+      }
     }
 
     // The form hides the checkbox when there is no email, so this is the
@@ -1703,7 +1714,13 @@ export async function createManualBooking(
     revalidatePath("/admin/bookings");
     revalidatePath("/admin/dashboard");
     revalidatePath("/admin/calendar");
-    redirect(`/admin/bookings/${result.bookingId}`);
+    // C-03 Step 6: source-aware redirect — carry the enquiry origin forward
+    // so the booking detail page can show the just-converted toast + Origin
+    // panel (Phase D). Source-of-truth linkage stays enquiries.converted_booking_id.
+    const redirectPath = enquiryId
+      ? `/admin/bookings/${result.bookingId}?just_converted=1&enquiry_id=${enquiryId}`
+      : `/admin/bookings/${result.bookingId}`;
+    redirect(redirectPath);
   } catch (error) {
     // Checked before BookingCreationError — DuplicateClientError extends it.
     if (error instanceof DuplicateClientError) {
