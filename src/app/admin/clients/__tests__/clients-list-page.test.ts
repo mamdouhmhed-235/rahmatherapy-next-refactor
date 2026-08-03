@@ -27,8 +27,11 @@ vi.mock("@/lib/supabase/admin", () => ({
 const {
   applyClientPredicates,
   buildClientPredicatePlan,
+  CLIENT_CANDIDATE_CAP,
+  CLIENT_CANDIDATE_VIEW_ALL_CAP,
   getClientsListPage,
   resolveClientBookingMatches,
+  resolveClientCandidateBannerState,
 } = await import("../clients-list-data");
 type ClientListContext = import("../clients-list-data").ClientListContext;
 const { LIST_PAGE_SIZE } = await import("@/lib/pagination");
@@ -181,6 +184,12 @@ function applyRecorded(rows: Row[], calls: Recorded[]): Row[] {
       return ascending ? left.localeCompare(right) : right.localeCompare(left);
     });
   }
+  // LIMIT lands after ORDER BY, as it does in Postgres — so a ceiling that
+  // reached the query truncates the rows this spec sees, and a "ceiling"
+  // applied to the array afterwards would not. That is what gives the
+  // candidate-cap assertions below their teeth.
+  const limitCall = calls.find((call) => call.method === "limit");
+  if (limitCall) result = result.slice(0, limitCall.args[0] as number);
   return result;
 }
 
@@ -234,8 +243,42 @@ function context(overrides: Partial<ClientListContext> = {}): ClientListContext 
     includeDeleted: false,
     sort: "name",
     today: TODAY,
+    viewAll: false,
     ...overrides,
   };
+}
+
+/**
+ * A directory big enough to make the candidate ceiling bind. Bookings are
+ * deliberately absent for these rows, so every one of them resolves to the
+ * same lifecycle and the assertions are about the ceiling, nothing else.
+ */
+function bigDirectory(count: number): Row[] {
+  return Array.from({ length: count }, (_, index) => {
+    const suffix = String(index).padStart(5, "0");
+    return {
+      id: `x${suffix}`,
+      full_name: `Client ${suffix}`,
+      created_at: "2020-01-01T09:00:00.000Z",
+      deleted_at: null,
+      client_source: "website",
+      postcode: "LU1 1AA",
+      address: "1 Hill Road",
+      phone: "07000000000",
+      email: `x${suffix}@example.test`,
+    };
+  });
+}
+
+/** Re-points the admin client at a different `clients` fixture for one test. */
+function useDirectory(rows: Row[]) {
+  db = createFakeDb((query) => {
+    const source = query.table === "clients" ? rows : [];
+    const result = applyRecorded(source, query.calls);
+    if (query.options?.head) return { data: null, count: result.length, error: null };
+    return { data: result, count: result.length, error: null };
+  });
+  createSupabaseAdminClient.mockImplementation(() => db.client);
 }
 
 const CANDIDATE_SELECT = "id, full_name, created_at";
@@ -543,5 +586,148 @@ describe("the reads are bounded", () => {
   it("issues a second, scope-only candidate query once a filter narrows the list", async () => {
     await getClientsListPage({ context: context({ q: "Bilal" }), pageSize: 25 });
     expect(candidateQueries()).toHaveLength(2);
+  });
+});
+
+// C-16 closeout — the defect this round exists to clear: `getClientCandidates`
+// shipped with neither `.range()` nor `.limit()`, so every render read every
+// matching client row. The assertions below are about the QUERY carrying the
+// ceiling (the fixture DB honours `.limit()` after ordering, so an in-memory
+// slice could not satisfy them) and about the page still telling the truth
+// once that ceiling binds.
+describe("the candidate read is bounded, and says so", () => {
+  function limitOn(query: Query): number | undefined {
+    const call = query.calls.find((entry) => entry.method === "limit");
+    return call ? (call.args[0] as number) : undefined;
+  }
+
+  it("puts the default ceiling on the query itself", async () => {
+    useDirectory(bigDirectory(CLIENT_CANDIDATE_CAP + 5));
+    await getClientsListPage({ context: context(), pageSize: 25 });
+
+    expect(limitOn(candidateQuery())).toBe(CLIENT_CANDIDATE_CAP);
+  });
+
+  it("raises that ceiling on the query — not after it — when viewing all", async () => {
+    useDirectory(bigDirectory(CLIENT_CANDIDATE_CAP + 5));
+    await getClientsListPage({
+      context: context({ viewAll: true }),
+      pageSize: 25,
+    });
+
+    expect(limitOn(candidateQuery())).toBe(CLIENT_CANDIDATE_VIEW_ALL_CAP);
+  });
+
+  it("reports the TRUE matching total beside what the ceiling let through", async () => {
+    useDirectory(bigDirectory(CLIENT_CANDIDATE_CAP + 5));
+    const result = await getClientsListPage({ context: context(), pageSize: 25 });
+
+    expect(result.candidateShown).toBe(CLIENT_CANDIDATE_CAP);
+    expect(result.candidateTotal).toBe(CLIENT_CANDIDATE_CAP + 5);
+    // The pager describes the rows it can actually reach — never more.
+    expect(result.total).toBe(CLIENT_CANDIDATE_CAP);
+    expect(result.total).toBeLessThanOrEqual(result.candidateShown);
+    expect(result.pageCount).toBe(CLIENT_CANDIDATE_CAP / 25);
+  });
+
+  it("keeps the of-N denominator exact and admits what the stats cover", async () => {
+    useDirectory(bigDirectory(CLIENT_CANDIDATE_CAP + 5));
+    const result = await getClientsListPage({ context: context(), pageSize: 25 });
+
+    // `totalInScope` is the head-count, so it stays exact even though the
+    // roster read behind the stats line was truncated — and `statsBasis`
+    // names the set those stats were actually computed over.
+    expect(result.totalInScope).toBe(CLIENT_CANDIDATE_CAP + 5);
+    expect(result.statsBasis).toBe(CLIENT_CANDIDATE_CAP);
+    expect(
+      result.stats.active + result.stats.atRiskLapsed
+    ).toBe(CLIENT_CANDIDATE_CAP);
+  });
+
+  it("head-counts the SAME predicate plan the rows were read with", async () => {
+    useDirectory(bigDirectory(40));
+    const result = await getClientsListPage({
+      context: context({ q: "Client 0000" }),
+      pageSize: 25,
+    });
+
+    const filterCalls = (query: Query) =>
+      query.calls.filter((call) => ["is", "in", "or"].includes(call.method));
+    const candidateCount = db.queries.find(
+      (query) =>
+        query.table === "clients" &&
+        query.options?.head === true &&
+        query.calls.some((call) => call.method === "or")
+    );
+    expect(candidateCount).toBeDefined();
+    expect(filterCalls(candidateCount!)).toEqual(filterCalls(candidateQuery()));
+    // Ten of the forty match, and nothing was truncated, so every figure agrees.
+    expect(result.candidateTotal).toBe(10);
+    expect(result.candidateShown).toBe(10);
+    expect(result.total).toBe(10);
+    expect(result.totalInScope).toBe(40);
+  });
+
+  it("costs no extra head request when nothing narrows the list", async () => {
+    useDirectory(bigDirectory(40));
+    await getClientsListPage({ context: context(), pageSize: 25 });
+
+    // The scope head-count IS the candidate head-count here, so it is reused
+    // rather than re-issued: the all-vs-live pair, and nothing else.
+    expect(
+      db.queries.filter(
+        (query) => query.table === "clients" && query.options?.head === true
+      )
+    ).toHaveLength(2);
+  });
+});
+
+// The four-state signal the page renders from. `cappedOut` BEFORE `hidden` —
+// the branch order that shipped broken twice on this plan (privacy's notes
+// rail, then password-requests), because once the reader is already viewing
+// all AND the total still exceeds the view-all cap, "view all N" links back to
+// the URL they are on.
+describe("resolveClientCandidateBannerState", () => {
+  it("is 'none' when the ceiling never bound", () => {
+    expect(
+      resolveClientCandidateBannerState({
+        candidateTotal: 12,
+        candidateShown: 12,
+        viewAll: false,
+      })
+    ).toEqual({ kind: "none" });
+  });
+
+  it("is 'hidden' when the default ceiling truncated the read", () => {
+    expect(
+      resolveClientCandidateBannerState({
+        candidateTotal: CLIENT_CANDIDATE_CAP + 10,
+        candidateShown: CLIENT_CANDIDATE_CAP,
+        viewAll: false,
+      })
+    ).toEqual({ kind: "hidden", total: CLIENT_CANDIDATE_CAP + 10 });
+  });
+
+  it("is 'viewingAll' when the raised ceiling covers everything", () => {
+    expect(
+      resolveClientCandidateBannerState({
+        candidateTotal: CLIENT_CANDIDATE_CAP + 10,
+        candidateShown: CLIENT_CANDIDATE_CAP + 10,
+        viewAll: true,
+      })
+    ).toEqual({ kind: "viewingAll", total: CLIENT_CANDIDATE_CAP + 10 });
+  });
+
+  it("SABOTAGE TARGET — is 'cappedOut', not 'hidden', once already viewing all and the total still exceeds the view-all cap", () => {
+    const result = resolveClientCandidateBannerState({
+      candidateTotal: CLIENT_CANDIDATE_VIEW_ALL_CAP + 25,
+      candidateShown: CLIENT_CANDIDATE_VIEW_ALL_CAP,
+      viewAll: true,
+    });
+    expect(result.kind).toBe("cappedOut");
+    expect(result).toEqual({
+      kind: "cappedOut",
+      total: CLIENT_CANDIDATE_VIEW_ALL_CAP + 25,
+    });
   });
 });

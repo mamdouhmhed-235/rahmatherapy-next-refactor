@@ -23,8 +23,12 @@ const { createFakeAdminClient } = await import(
 const {
   getClientDetailData,
   countClientBookings,
+  resolveClientBookingHistoryBannerState,
   resolveClientNotesBannerState,
   resolveClientSensitiveNotesBannerState,
+  CLIENT_BOOKING_HISTORY_LIMIT,
+  CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP,
+  CLIENT_LIFETIME_SCAN_CAP,
   CLIENT_NOTES_LIMIT,
   CLIENT_NOTES_VIEW_ALL_CAP,
   CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP,
@@ -32,6 +36,7 @@ const {
   CRITICAL_NOTE_KEYWORDS,
   CRITICAL_NOTE_PATTERN,
 } = await import("../client-detail-data");
+const { summariseClientBookingHistory } = await import("../page");
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
 
 const FULL_FLAGS = {
@@ -198,11 +203,15 @@ describe("getClientDetailData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(4);
   });
 
-  it("keys separately per limit/offset on the booking history", async () => {
-    await getClientDetailData({ ...OWNER_PARAMS, limit: 20, offset: 0 });
-    await getClientDetailData({ ...OWNER_PARAMS, limit: 20, offset: 20 });
+  // C-16 closeout — replaces the old limit/offset keying test. That plumbing
+  // is gone: no caller ever passed it, which is precisely why the rail shipped
+  // unbounded. `historyViewAll` changes the cap the query carries, so it has to
+  // reach the cache key or the expanded rail could be served the capped entry.
+  it("keys separately per historyViewAll (the cap actually queried differs)", async () => {
+    await getClientDetailData({ ...OWNER_PARAMS, historyViewAll: false });
+    await getClientDetailData({ ...OWNER_PARAMS, historyViewAll: true });
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
-    await getClientDetailData({ ...OWNER_PARAMS, limit: 20, offset: 20 });
+    await getClientDetailData({ ...OWNER_PARAMS, historyViewAll: true });
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
   });
 
@@ -228,6 +237,348 @@ describe("getClientDetailData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
     await countClientBookings("c2");
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C-16 closeout — the booking-history rail bound
+// ---------------------------------------------------------------------------
+//
+// `createFakeAdminClient` above records nothing and honours nothing, so a query
+// that quietly lost its `.limit()` would still pass every spec written against
+// it. This stand-in records the builder calls AND applies the recorded limit
+// after the fact, which is what makes "the bound is in the query, not in
+// memory" an assertion with teeth rather than a claim.
+
+interface RecordedCall {
+  method: string;
+  args: unknown[];
+}
+interface RecordedQuery {
+  table: string;
+  select: string;
+  options?: { count?: string; head?: boolean };
+  calls: RecordedCall[];
+}
+
+const RECORDING_CHAIN = [
+  "eq",
+  "neq",
+  "in",
+  "is",
+  "or",
+  "not",
+  "gte",
+  "gt",
+  "lte",
+  "lt",
+  "ilike",
+  "like",
+  "order",
+  "limit",
+  "range",
+  "returns",
+  "overrideTypes",
+] as const;
+
+function createRecordingAdminClient(
+  resolve: (query: RecordedQuery) => {
+    data?: unknown;
+    count?: number | null;
+    error?: unknown;
+  }
+) {
+  const queries: RecordedQuery[] = [];
+  const client = {
+    from(table: string) {
+      const query: RecordedQuery = { table, select: "", calls: [] };
+      queries.push(query);
+      const chain: Record<string, unknown> = {};
+      for (const method of RECORDING_CHAIN) {
+        chain[method] = (...args: unknown[]) => {
+          query.calls.push({ method, args });
+          return chain;
+        };
+      }
+      chain.select = (
+        select: string,
+        options?: { count?: string; head?: boolean }
+      ) => {
+        query.select = select;
+        query.options = options;
+        return chain;
+      };
+      chain.single = async () => resolve(query);
+      chain.maybeSingle = async () => resolve(query);
+      chain.then = (
+        onFulfilled?: (value: unknown) => unknown,
+        onRejected?: (reason: unknown) => unknown
+      ) => Promise.resolve(resolve(query)).then(onFulfilled, onRejected);
+      return chain;
+    },
+  };
+  return { client, queries };
+}
+
+/** Newest-first, £10 paid each, so a truncated sum is unmistakable. */
+function makeBookings(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `b${String(index).padStart(4, "0")}`,
+    client_id: "c1",
+    booking_date: new Date(Date.UTC(2026, 0, 1) - index * 86_400_000)
+      .toISOString()
+      .slice(0, 10),
+    start_time: "10:00",
+    end_time: "11:00",
+    status: "completed",
+    payment_status: "paid",
+    assignment_status: "fully_assigned",
+    group_booking: false,
+    total_price: 60,
+    amount_paid: 10,
+    created_at: "2025-01-01T09:00:00.000Z",
+    service_city: "Luton",
+    service_postcode: "LU1 1AA",
+    booking_items: [],
+  }));
+}
+
+function recordingClientWith(bookingRows: ReturnType<typeof makeBookings>) {
+  return createRecordingAdminClient((query) => {
+    if (query.table === "clients") {
+      return {
+        data: {
+          id: "c1",
+          full_name: "Test Client",
+          client_source: "web",
+          created_at: "2020-01-02T09:30:00.000Z",
+          updated_at: "2020-01-02T09:30:00.000Z",
+          deleted_at: null,
+        },
+        error: null,
+      };
+    }
+    if (query.table === "bookings") {
+      if (query.options?.head) {
+        return { data: null, count: bookingRows.length, error: null };
+      }
+      const limitCall = query.calls.find((call) => call.method === "limit");
+      const capped = limitCall
+        ? bookingRows.slice(0, limitCall.args[0] as number)
+        : bookingRows;
+      return { data: capped, count: bookingRows.length, error: null };
+    }
+    if (query.table === "booking_assignments") {
+      return { data: bookingRows.map((row) => ({ booking_id: row.id })), error: null };
+    }
+    if (query.options?.head) return { data: null, count: 0, error: null };
+    return { data: [], error: null };
+  });
+}
+
+/** The rail's fat select carries `amount_due`; the lifetime projection doesn't. */
+function railQuery(queries: RecordedQuery[]) {
+  const found = queries.find(
+    (query) =>
+      query.table === "bookings" &&
+      !query.options?.head &&
+      query.select.includes("amount_due")
+  );
+  if (!found) throw new Error("no rendered booking-history query was issued");
+  return found;
+}
+
+function lifetimeQuery(queries: RecordedQuery[]) {
+  const found = queries.find(
+    (query) =>
+      query.table === "bookings" &&
+      !query.options?.head &&
+      !query.select.includes("amount_due")
+  );
+  if (!found) throw new Error("no lifetime-scan query was issued");
+  return found;
+}
+
+function historyCountQuery(queries: RecordedQuery[]) {
+  const found = queries.find(
+    (query) => query.table === "bookings" && query.options?.head === true
+  );
+  if (!found) throw new Error("no booking head-count was issued");
+  return found;
+}
+
+function limitOf(query: RecordedQuery): number | undefined {
+  const call = query.calls.find((entry) => entry.method === "limit");
+  return call ? (call.args[0] as number) : undefined;
+}
+
+describe("getClientDetailData — booking-history rail bound (C-16 closeout)", () => {
+  const HISTORY_SIZE = CLIENT_BOOKING_HISTORY_LIMIT + 70;
+  let recording: ReturnType<typeof createRecordingAdminClient>;
+
+  function useRecording(count = HISTORY_SIZE) {
+    recording = recordingClientWith(makeBookings(count));
+    createSupabaseAdminClient.mockImplementation(() => recording.client);
+  }
+
+  it("bounds the rendered rail ON THE QUERY at the default cap", async () => {
+    useRecording();
+    const data = await getClientDetailData(OWNER_PARAMS);
+
+    expect(limitOf(railQuery(recording.queries))).toBe(CLIENT_BOOKING_HISTORY_LIMIT);
+    expect(railQuery(recording.queries).calls).not.toContainEqual(
+      expect.objectContaining({ method: "range" })
+    );
+    expect(data.bookingHistory).toHaveLength(CLIENT_BOOKING_HISTORY_LIMIT);
+  });
+
+  it("raises that bound to the view-all cap, still on the query", async () => {
+    useRecording();
+    const data = await getClientDetailData({
+      ...OWNER_PARAMS,
+      historyViewAll: true,
+    });
+
+    expect(limitOf(railQuery(recording.queries))).toBe(
+      CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP
+    );
+    expect(data.bookingHistory).toHaveLength(HISTORY_SIZE);
+  });
+
+  it("head-counts the SAME client scope, so the total the rail reports is the true one", async () => {
+    useRecording();
+    const data = await getClientDetailData(OWNER_PARAMS);
+
+    const count = historyCountQuery(recording.queries);
+    expect(count.options).toEqual({ count: "exact", head: true });
+    expect(count.calls).toContainEqual({ method: "eq", args: ["client_id", "c1"] });
+    expect(limitOf(count)).toBeUndefined();
+    expect(data.bookingHistoryTotal).toBe(HISTORY_SIZE);
+    expect(data.bookingHistoryTotal).toBeGreaterThan(data.bookingHistory.length);
+  });
+
+  it("gives the lifetime figures their own whole-history read — PII-free, and capped", async () => {
+    useRecording();
+    const data = await getClientDetailData(OWNER_PARAMS);
+
+    const scan = lifetimeQuery(recording.queries);
+    expect(limitOf(scan)).toBe(CLIENT_LIFETIME_SCAN_CAP);
+    for (const forbidden of [
+      "contact_",
+      "health_notes",
+      "customer_notes",
+      "booking_participants",
+      "service_address_line1",
+    ]) {
+      expect(scan.select).not.toContain(forbidden);
+    }
+    // The whole history, while the rail beside it is capped — the two reads
+    // are what let the ribbon stay lifetime-true after the rail was bounded.
+    expect(data.lifetimeBookings).toHaveLength(HISTORY_SIZE);
+    expect(data.bookingHistory).toHaveLength(CLIENT_BOOKING_HISTORY_LIMIT);
+  });
+
+  it("does not move the lifetime read when the rail is expanded", async () => {
+    useRecording();
+    const capped = await getClientDetailData(OWNER_PARAMS);
+    useRecording();
+    const expanded = await getClientDetailData({
+      ...OWNER_PARAMS,
+      historyViewAll: true,
+    });
+
+    expect(expanded.lifetimeBookings).toHaveLength(capped.lifetimeBookings.length);
+    expect(expanded.bookingHistoryTotal).toBe(capped.bookingHistoryTotal);
+  });
+
+  it("narrows all three reads to the therapist's own assignments alike", async () => {
+    useRecording();
+    await getClientDetailData({
+      ...OWNER_PARAMS,
+      hasAllClientAccess: false,
+      accessWithoutAssignment: NARROW_FLAGS,
+      accessWithAssignment: FULL_FLAGS,
+    });
+
+    for (const query of [
+      railQuery(recording.queries),
+      lifetimeQuery(recording.queries),
+      historyCountQuery(recording.queries),
+    ]) {
+      expect(query.calls).toContainEqual({ method: "eq", args: ["client_id", "c1"] });
+      expect(
+        query.calls.some(
+          (call) => call.method === "in" && call.args[0] === "id"
+        )
+      ).toBe(true);
+    }
+  });
+
+  it("SABOTAGE TARGET — the lifetime figures are the whole history's, never the rail page's", async () => {
+    useRecording();
+    const data = await getClientDetailData(OWNER_PARAMS);
+
+    const lifetime = summariseClientBookingHistory(data.lifetimeBookings);
+    const overTheRail = summariseClientBookingHistory(data.bookingHistory);
+
+    // £10 paid per booking: the whole history, and the rail's page, disagree —
+    // which is exactly the silent "lifetime value of the last 50 visits" this
+    // split exists to prevent. Feed the ribbon or the summary panel the rail
+    // and these are the numbers it would print.
+    expect(lifetime.totalSpend).toBe(HISTORY_SIZE * 10);
+    expect(lifetime.total).toBe(data.bookingHistoryTotal);
+    expect(lifetime.completedCount).toBe(HISTORY_SIZE);
+    expect(overTheRail.totalSpend).toBe(CLIENT_BOOKING_HISTORY_LIMIT * 10);
+    expect(overTheRail.totalSpend).toBeLessThan(lifetime.totalSpend);
+    expect(overTheRail.total).toBeLessThan(data.bookingHistoryTotal);
+  });
+});
+
+// The rail's four-state signal. Same branch order as the two notes resolvers:
+// `cappedOut` BEFORE `hidden`, or "show all N" links back to the state already
+// open once the true total exceeds the view-all cap itself.
+describe("resolveClientBookingHistoryBannerState", () => {
+  it("is 'none' when the cap never bound", () => {
+    expect(
+      resolveClientBookingHistoryBannerState({
+        historyTotal: 6,
+        historyShown: 6,
+        viewAll: false,
+      })
+    ).toEqual({ kind: "none" });
+  });
+
+  it("is 'hidden' when the default cap is truncating", () => {
+    expect(
+      resolveClientBookingHistoryBannerState({
+        historyTotal: CLIENT_BOOKING_HISTORY_LIMIT + 10,
+        historyShown: CLIENT_BOOKING_HISTORY_LIMIT,
+        viewAll: false,
+      })
+    ).toEqual({ kind: "hidden", total: CLIENT_BOOKING_HISTORY_LIMIT + 10 });
+  });
+
+  it("is 'viewingAll' when the view-all cap covers everything", () => {
+    expect(
+      resolveClientBookingHistoryBannerState({
+        historyTotal: CLIENT_BOOKING_HISTORY_LIMIT + 10,
+        historyShown: CLIENT_BOOKING_HISTORY_LIMIT + 10,
+        viewAll: true,
+      })
+    ).toEqual({ kind: "viewingAll", total: CLIENT_BOOKING_HISTORY_LIMIT + 10 });
+  });
+
+  it("SABOTAGE TARGET — is 'cappedOut', not 'hidden', once already viewing all and the total still exceeds the view-all cap", () => {
+    const result = resolveClientBookingHistoryBannerState({
+      historyTotal: CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP + 25,
+      historyShown: CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP,
+      viewAll: true,
+    });
+    expect(result.kind).toBe("cappedOut");
+    expect(result).toEqual({
+      kind: "cappedOut",
+      total: CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP + 25,
+    });
   });
 });
 
@@ -470,6 +821,67 @@ describe("CRITICAL_NOTE_PATTERN — prefix widening (trailing \\b removed)", () 
     "Client felt relaxed and enjoyed the session.",
   ])("does not match %j (the widening is bounded, not open-ended)", (sample) => {
     expect(CRITICAL_NOTE_PATTERN.test(sample)).toBe(false);
+  });
+});
+
+// C-16 closeout — the blast radius the widening shipped without. Dropping the
+// trailing `\b` loosened EVERY branch, not just the two dead ones, and on `do
+// not` a prefix match inverts the branch's own meaning: "do nothing", "do
+// notice", "do note" are ordinary notes that were tripping a clinical-safety
+// banner. That branch — and only that branch — gets its `\b` back.
+describe("CRITICAL_NOTE_PATTERN — the `do not` branch does not fire on benign prose", () => {
+  it.each([
+    "Client asked to do nothing more than light stretching this week.",
+    "Please do notice the change in posture.",
+    "Plan: continue current exercises, do nothing new this week.",
+    "do note the tension across the shoulders",
+    "Do noting of the session times, please.",
+    "do nothing",
+    "do notice",
+    "do note",
+  ])("does not match %j", (sample) => {
+    expect(CRITICAL_NOTE_PATTERN.test(sample)).toBe(false);
+  });
+
+  it.each([
+    "Do not use essential oils with this client.",
+    "do not use oils",
+    "DO NOT apply heat.",
+    "Do not administer without checking with GP first.",
+    "Instruction is clear: do not.",
+    "do not, under any circumstances, use deep pressure",
+  ])("still matches %j — the prohibition itself is untouched", (sample) => {
+    expect(CRITICAL_NOTE_PATTERN.test(sample)).toBe(true);
+  });
+});
+
+// Per-branch verdict, pinned. The other seven branches keep prefix matching on
+// purpose: every extension they reach preserves the clinical meaning, and
+// narrowing them would cost a false NEGATIVE on a safety banner — which this
+// module's own header ranks as the worse failure of the two.
+describe("CRITICAL_NOTE_PATTERN — the other branches keep their Owner-authorised prefix match", () => {
+  it.each([
+    // allerg — the widening's whole point; no benign English word starts here.
+    "allergen exposure noted",
+    "allergen-free oils only",
+    "seen by an allergist last year",
+    // anaphyla / contraindic — dead branches before the widening.
+    "severe anaphylactic reaction",
+    "history of anaphylaxis",
+    "massage contraindicated due to DVT",
+    "contraindication for deep tissue",
+    // epipen
+    "carries an EpiPen",
+    // urgent / warning — "urgently"/"warnings" are the same instruction.
+    "urgently review before the next visit",
+    "warnings from GP on file",
+    // avoid — "avoiding"/"avoidance of" are how this is actually written up;
+    // a trailing \b here would silently stop matching them.
+    "Avoiding the left shoulder due to injury.",
+    "avoidance of pressure on the lower back",
+    "avoids prone positioning",
+  ])("matches %j", (sample) => {
+    expect(CRITICAL_NOTE_PATTERN.test(sample)).toBe(true);
   });
 });
 

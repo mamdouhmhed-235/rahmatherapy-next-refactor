@@ -28,12 +28,37 @@
 //
 // Tags per the plan's Step 5 table: clients, bookings, audit, emails.
 //
-// PAGINATION-READY (C-16): optional `limit` + `offset` bound the booking
-// history — the only unbounded list on this surface — and flow into BOTH the
-// query and the cache key, so page 2 can never be served page 1's rows. Both
-// default to undefined, reproducing today's unbounded read exactly.
-// `countClientBookings` is the cheap head-count companion. Neither is used by
-// the page today; /admin/clients/[id] is not on C-16's Phase A list.
+// BOOKING-HISTORY BOUND (C-16 closeout). Until this round the rail accepted
+// `limit`/`offset` that gated a `.range()` — and its only caller never passed
+// them, so every render read a client's ENTIRE booking history. That plumbing
+// is gone, replaced by the cap+view-all treatment this plan applies to every
+// other rail: `CLIENT_BOOKING_HISTORY_LIMIT`, raised to
+// `CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP` by `historyViewAll`, with
+// `bookingHistoryTotal` as a head-count over the SAME predicate (client scope,
+// plus the assigned-ids narrowing on the therapist path) so
+// `resolveClientBookingHistoryBannerState` can state what is missing. A
+// `.range()` pager was rejected for this surface: the tabs and the status /
+// service filters run in memory over the fetched rows, so a page window would
+// be filtered AFTER slicing — a correct-looking page of the wrong bookings.
+//
+// THE RIBBON'S OWN READ. The LTV ribbon, the client-summary panel, the tab
+// counts and the lifecycle badge are LIFETIME figures: bounding the rail alone
+// would silently turn "Total paid" into "paid across the last 50 visits" —
+// this plan's signature defect. So `lifetimeBookings` is a SECOND, separate
+// read of the same client scope through `BOOKING_LIFETIME_SELECT`, a PII-free
+// projection (no contact columns, no address line, no health notes, no
+// participants) that exists only to be reduced into those figures by page.tsx;
+// it is never rendered as a booking card. It carries `CLIENT_LIFETIME_SCAN_CAP`
+// so it too is a bounded query, and `bookingHistoryTotal` is the head-count
+// that would expose it if that ceiling ever bound. Rows rather than a
+// pre-reduced summary cross the boundary here because `ClientLtvRibbon`'s prop
+// contract takes booking rows and lives outside this fix's file scope; the
+// projection is O(one client's bookings) and capped, not O(table).
+//
+// `countClientBookings` remains the standalone head-count companion; the count
+// used by this fetcher is issued INSIDE it instead, so the total and the rows
+// are built from the same scope in the same pass and cannot diverge on the
+// therapist path.
 //
 // NOTES RAIL BOUND (C-16 Phase E Step 14, finding N6 — Owner-approved
 // extension, per-page-progress §1 row 3 / §2). The old single `client_notes`
@@ -86,6 +111,31 @@ import type {
 
 export const CLIENT_NOTES_LIMIT = 25;
 export const CLIENT_NOTES_VIEW_ALL_CAP = 200;
+
+/**
+ * The rendered booking-history rail's default cap (C-16 closeout). 50 rows is
+ * roughly a year of weekly visits — comfortably past what anyone scrolls on a
+ * profile, and the tabs above it already carry the LIFETIME counts, so nothing
+ * a reader needs to know is hidden by it.
+ */
+export const CLIENT_BOOKING_HISTORY_LIMIT = 50;
+/**
+ * The rail's view-all cap: ~10 years of weekly visits. The brief's own worked
+ * example — a long-tenured weekly client over five years — lands near 260, so
+ * this is a real ceiling with the working case well inside it. Reaching it is
+ * the signal to give this rail a proper pager, which needs the tab/status
+ * filtering to move into SQL first.
+ */
+export const CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP = 500;
+/**
+ * Defensive ceiling on the lifetime scan (see the file header). ~38 years of
+ * weekly visits for ONE client: a bound no real record reaches, kept only so
+ * this query is bounded like every other. If it ever binds, `bookingHistoryTotal`
+ * exceeds the scanned length and page.tsx says so rather than quietly reporting
+ * a partial lifetime figure — it is not given a view-all because there is no
+ * honest wider read to offer, only a migration.
+ */
+export const CLIENT_LIFETIME_SCAN_CAP = 2000;
 /** `sensitiveNotes`' "recent" cap — same default as before this fix round,
  *  so ordinary clients (today's observed max: 2) see no change. See the
  *  file header: this no longer bounds the safety scan, only the display
@@ -138,9 +188,21 @@ export const CRITICAL_NOTE_KEYWORDS = [
  *  (e.g. "insurgent" does not match the `urgent` branch — the "urgent"
  *  substring there isn't preceded by a boundary). `allerg` alone (dropping
  *  the old `(y|ic|ies)` group) still covers allergy/allergic/allergies as
- *  prefixes, plus now allergen/allergens/allergies. */
+ *  prefixes, plus now allergen/allergens/allergies.
+ *
+ *  ONE BRANCH IS EXEMPT (C-16 closeout). Dropping the trailing `\b` loosened
+ *  `do not` along with the rest, and that branch alone inverts its own meaning
+ *  as a prefix: "do nothing", "do notice", "do note" are ordinary, benign
+ *  clinical phrasings that were tripping the patient-safety banner. It gets
+ *  its own trailing `\b` back — inside the group, so the alternation stays the
+ *  flat `\b(a|b|c)` shape the mechanical superset guard parses. The other
+ *  branches keep prefix matching, deliberately: their extensions all preserve
+ *  the clinical meaning ("allergen", "anaphylactic", "contraindicated",
+ *  "urgently", "warnings", "avoiding"), and narrowing `avoid` in particular
+ *  would lose "avoiding the left shoulder" — a false NEGATIVE on a safety
+ *  banner, which this file's own header ranks as the worse failure. */
 export const CRITICAL_NOTE_PATTERN =
-  /\b(allerg|anaphyla|epipen|contraindic|urgent|warning|do not|avoid)/i;
+  /\b(allerg|anaphyla|epipen|contraindic|urgent|warning|avoid|do not\b)/i;
 
 function escapeLike(value: string) {
   // Escapes ILIKE's own wildcard characters so a keyword can only match
@@ -285,6 +347,31 @@ const BOOKING_HEALTH_SELECT = `
   booking_participants(display_name, participant_gender, health_notes, participant_notes, consent_acknowledged)
 `;
 
+// The lifetime scan's projection (see the file header). Deliberately the
+// PII-free column set — no contact columns, no address line, no health notes,
+// no participants — because nothing downstream renders these as booking cards:
+// they exist to be counted, summed and grouped into the page's lifetime
+// figures. Every column here is read by one of those derivations
+// (`isFutureBooking` needs booking_date + start_time; the LTV ribbon needs
+// status, amount_paid, total_price and the service snapshots).
+const BOOKING_LIFETIME_SELECT = `
+  id,
+  client_id,
+  booking_date,
+  start_time,
+  end_time,
+  status,
+  payment_status,
+  assignment_status,
+  group_booking,
+  total_price,
+  amount_paid,
+  service_city,
+  service_postcode,
+  created_at,
+  booking_items(service_name_snapshot, service_price_snapshot, service_duration_snapshot)
+`;
+
 function getClientSelect({
   canViewContactDetails,
   canViewNotes,
@@ -329,8 +416,12 @@ export interface ClientDetailParams {
   accessWithoutAssignment: ClientDetailAccessFlags;
   /** getClientDataAccess(profile, { hasAssignedBooking: true }). */
   accessWithAssignment: ClientDetailAccessFlags;
-  limit?: number;
-  offset?: number;
+  /**
+   * C-16 closeout — cap+view-all toggle for the rendered booking-history rail
+   * only. Never affects `lifetimeBookings`, so no lifetime figure on the page
+   * moves when a reader expands or collapses the rail.
+   */
+  historyViewAll?: boolean;
   /** C-16 Step 14 (N6) — cap+view-all toggle for `regularNotes` only. */
   notesViewAll?: boolean;
   /** Fix round (verify-FAIL Check 1) — cap+view-all toggle for the
@@ -340,7 +431,25 @@ export interface ClientDetailParams {
 
 export interface ClientDetailData {
   client: ClientRecord | null;
+  /**
+   * The RENDERED rail — bounded by `CLIENT_BOOKING_HISTORY_LIMIT` /
+   * `CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP`. Never the source of a lifetime
+   * figure; use `lifetimeBookings` for those.
+   */
   bookingHistory: ClientBookingRecord[];
+  /**
+   * True count of this client's bookings under the SAME scope the two reads
+   * above and below use — clinic-wide for a full-access caller, assigned-only
+   * for a therapist. Drives `resolveClientBookingHistoryBannerState`.
+   */
+  bookingHistoryTotal: number;
+  /**
+   * The client's whole history through the PII-free `BOOKING_LIFETIME_SELECT`,
+   * bounded by `CLIENT_LIFETIME_SCAN_CAP`. Every LIFETIME figure on the page —
+   * the LTV ribbon, the client summary, the tab counts, the lifecycle badge —
+   * is computed over this, never over the capped rail.
+   */
+  lifetimeBookings: ClientBookingRecord[];
   /** True when the caller reached this client through their own assignments. */
   hasAssignedClientAccess: boolean;
   /** Display/pinning rail only, real cap+view-all — see file header. Never
@@ -370,11 +479,13 @@ export async function getClientDetailData(
     hasAllClientAccess,
     accessWithoutAssignment,
     accessWithAssignment,
-    limit,
-    offset,
+    historyViewAll,
     notesViewAll,
     sensitiveNotesViewAll,
   } = params;
+  const historyCap = historyViewAll
+    ? CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP
+    : CLIENT_BOOKING_HISTORY_LIMIT;
 
   const cached = unstable_cache(
     async (): Promise<ClientDetailData> => {
@@ -383,6 +494,8 @@ export async function getClientDetailData(
       let clientAccess = accessWithoutAssignment;
       let hasAssignedClientAccess = false;
       let bookingHistory: ClientBookingRecord[] = [];
+      let bookingHistoryTotal = 0;
+      let lifetimeBookings: ClientBookingRecord[] = [];
       let client: ClientRecord | null = null;
 
       if (hasAllClientAccess) {
@@ -397,26 +510,43 @@ export async function getClientDetailData(
           canViewContactDetails: clientAccess.canViewContactDetails,
           canViewHealthNotes: clientAccess.canViewHealthNotes,
         });
-        let bookingsQuery = adminClient
-          .from("bookings")
-          .select(bookingSelect)
-          .eq("client_id", clientId)
-          .order("booking_date", { ascending: false })
-          .order("start_time", { ascending: false });
-        if (limit !== undefined) {
-          const start = offset ?? 0;
-          bookingsQuery = bookingsQuery.range(start, start + limit - 1);
-        }
-        const [clientResult, bookingsResult] = await Promise.all([
-          adminClient
-            .from("clients")
-            .select(clientSelect)
-            .eq("id", clientId)
-            .single<ClientRecord>(),
-          bookingsQuery.returns<ClientBookingRecord[]>(),
-        ]);
+        const [clientResult, bookingsResult, historyCountResult, lifetimeResult] =
+          await Promise.all([
+            adminClient
+              .from("clients")
+              .select(clientSelect)
+              .eq("id", clientId)
+              .single<ClientRecord>(),
+            // The rendered rail — bounded on the QUERY, newest first, so the
+            // rows it does return are the ones the page shows first anyway.
+            adminClient
+              .from("bookings")
+              .select(bookingSelect)
+              .eq("client_id", clientId)
+              .order("booking_date", { ascending: false })
+              .order("start_time", { ascending: false })
+              .limit(historyCap)
+              .returns<ClientBookingRecord[]>(),
+            // Head-count over the SAME `client_id` scope as both reads — no
+            // rows transferred, and it cannot describe a different selection.
+            adminClient
+              .from("bookings")
+              .select("id", { count: "exact", head: true })
+              .eq("client_id", clientId),
+            // The lifetime scan — PII-free projection, whole history, capped.
+            adminClient
+              .from("bookings")
+              .select(BOOKING_LIFETIME_SELECT)
+              .eq("client_id", clientId)
+              .order("booking_date", { ascending: false })
+              .order("start_time", { ascending: false })
+              .limit(CLIENT_LIFETIME_SCAN_CAP)
+              .returns<ClientBookingRecord[]>(),
+          ]);
         client = clientResult.data;
         bookingHistory = bookingsResult.data ?? [];
+        bookingHistoryTotal = historyCountResult.count ?? 0;
+        lifetimeBookings = lifetimeResult.data ?? [];
       } else {
         const { data: assignments } = await adminClient
           .from("booking_assignments")
@@ -431,20 +561,39 @@ export async function getClientDetailData(
             canViewContactDetails: clientAccess.canViewContactDetails,
             canViewHealthNotes: clientAccess.canViewHealthNotes,
           });
-          let assignedQuery = adminClient
-            .from("bookings")
-            .select(bookingSelect)
-            .eq("client_id", clientId)
-            .in("id", assignedBookingIds)
-            .order("booking_date", { ascending: false })
-            .order("start_time", { ascending: false });
-          if (limit !== undefined) {
-            const start = offset ?? 0;
-            assignedQuery = assignedQuery.range(start, start + limit - 1);
-          }
-          const { data: assignedBookings } =
-            await assignedQuery.returns<ClientBookingRecord[]>();
-          bookingHistory = assignedBookings ?? [];
+          // Same three reads as the full-access branch, every one of them
+          // additionally narrowed to this therapist's own assignments — so the
+          // count, the rail and the lifetime figures all describe the same
+          // scope, and none of them can leak a booking they cannot see.
+          const [assignedResult, assignedCountResult, assignedLifetimeResult] =
+            await Promise.all([
+              adminClient
+                .from("bookings")
+                .select(bookingSelect)
+                .eq("client_id", clientId)
+                .in("id", assignedBookingIds)
+                .order("booking_date", { ascending: false })
+                .order("start_time", { ascending: false })
+                .limit(historyCap)
+                .returns<ClientBookingRecord[]>(),
+              adminClient
+                .from("bookings")
+                .select("id", { count: "exact", head: true })
+                .eq("client_id", clientId)
+                .in("id", assignedBookingIds),
+              adminClient
+                .from("bookings")
+                .select(BOOKING_LIFETIME_SELECT)
+                .eq("client_id", clientId)
+                .in("id", assignedBookingIds)
+                .order("booking_date", { ascending: false })
+                .order("start_time", { ascending: false })
+                .limit(CLIENT_LIFETIME_SCAN_CAP)
+                .returns<ClientBookingRecord[]>(),
+            ]);
+          bookingHistory = assignedResult.data ?? [];
+          bookingHistoryTotal = assignedCountResult.count ?? 0;
+          lifetimeBookings = assignedLifetimeResult.data ?? [];
           hasAssignedClientAccess = bookingHistory.length > 0;
         } else {
           hasAssignedClientAccess = false;
@@ -584,6 +733,8 @@ export async function getClientDetailData(
       return {
         client,
         bookingHistory,
+        bookingHistoryTotal,
+        lifetimeBookings,
         hasAssignedClientAccess,
         sensitiveNotes,
         sensitiveNotesTotal,
@@ -602,8 +753,7 @@ export async function getClientDetailData(
         hasAllClientAccess,
         accessWithoutAssignment,
         accessWithAssignment,
-        limit,
-        offset,
+        historyViewAll,
         notesViewAll,
         sensitiveNotesViewAll,
       }),
@@ -635,6 +785,38 @@ export async function countClientBookings(clientId: string): Promise<number> {
     { revalidate: 60, tags: [TAGS.BOOKINGS] }
   );
   return cached();
+}
+
+// C-16 closeout — the booking-history rail's hidden-rows signal. Same four
+// states and the same branch order as the two notes resolvers below:
+// `cappedOut` BEFORE `hidden`, so once the reader is already viewing all AND
+// the true total still exceeds the view-all cap, the rail says the rest are
+// unreachable instead of offering a "view all" link back to the URL they are
+// already on.
+export type ClientBookingHistoryBannerState =
+  | { kind: "none" }
+  | { kind: "hidden"; total: number }
+  | { kind: "cappedOut"; total: number }
+  | { kind: "viewingAll"; total: number };
+
+export function resolveClientBookingHistoryBannerState(params: {
+  /** True count of bookings in the caller's scope — `bookingHistoryTotal`. */
+  historyTotal: number;
+  /** `bookingHistory.length` actually fetched (bounded by the cap in force). */
+  historyShown: number;
+  viewAll: boolean;
+}): ClientBookingHistoryBannerState {
+  const { historyTotal, historyShown, viewAll } = params;
+  if (viewAll && historyTotal > CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP) {
+    return { kind: "cappedOut", total: historyTotal };
+  }
+  if (historyTotal > historyShown) {
+    return { kind: "hidden", total: historyTotal };
+  }
+  if (viewAll && historyTotal > CLIENT_BOOKING_HISTORY_LIMIT) {
+    return { kind: "viewingAll", total: historyTotal };
+  }
+  return { kind: "none" };
 }
 
 // C-16 Step 14 (N6) — mirrors `resolvePasswordRequestsBannerState`

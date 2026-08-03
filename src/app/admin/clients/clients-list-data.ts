@@ -40,6 +40,21 @@
 //   5. Only that window's 25 clients are then read in full, together with only
 //      those clients' bookings.
 //
+// THE CANDIDATE CEILING (C-16 closeout). Step 8 shipped that candidate query
+// with no `.range()` AND no `.limit()` — every matching client row on every
+// page load. That is the one thing this plan's own standing rule forbids, so
+// step 2 above now carries `CLIENT_CANDIDATE_CAP` (raised to
+// `CLIENT_CANDIDATE_VIEW_ALL_CAP` by `?all=1`), and `countClientCandidates`
+// head-counts the SAME predicate plan so the truncation is a number the page
+// can state rather than a silence. It is the cap-plus-view-all half of the
+// rule, not the pager half, for the reason spelled out above: the lifecycle /
+// payment narrowing and the "last visit" sort run over the summary IN MEMORY,
+// so a `.range()` would page a set the filters have not seen yet. Everything
+// derived from a capped read — `total`, the window, and the stats line — is
+// reported alongside `candidateTotal` / `candidateShown` / `statsBasis` so
+// page.tsx can say what it is counting; see
+// `resolveClientCandidateBannerState`.
+//
 // RESIDUAL, STATED PLAINLY: step 1 still scans `bookings` server-side and
 // transfers one narrow row per booking. It cannot be a grouped max()/count()
 // query on this project — PostgREST aggregate functions are disabled here
@@ -164,6 +179,35 @@ const CLIENT_CANDIDATE_SELECT = "id, full_name, created_at";
 /** The summary projection — see the header note. No joins, no PII. */
 const SUMMARY_BOOKING_SELECT =
   "client_id, booking_date, status, total_price, amount_due, amount_paid";
+
+/**
+ * The defensive ceiling on the candidate read (C-16 closeout).
+ *
+ * 1,000 rows is 40 pages of `LIST_PAGE_SIZE`. The brief projects 3,000–6,000
+ * clients inside five years, so on an unfiltered directory this WILL bind
+ * within that window — deliberately, and that is the point: it fixes the cost
+ * of a `/admin/clients` render no matter how large `clients` grows, which an
+ * uncapped read cannot do. Nobody walks a directory past page 40; the ways to
+ * reach a client beyond it are the search box, the filters, and the view-all
+ * below — and `countClientCandidates` makes the truncation a stated number
+ * rather than a silent one.
+ *
+ * Chosen against the same reasoning as `SCOPED_BRANCH_ROW_CAP` (bookings, 200)
+ * and `AVAILABILITY_UPCOMING_DEFENSIVE_CAP` (500): a bound the working day does
+ * not reach, that still caps the worst case.
+ */
+export const CLIENT_CANDIDATE_CAP = 1000;
+
+/**
+ * The view-all ceiling: the TOP of the brief's five-year projection, so an
+ * operator who genuinely wants the whole directory as one selection still gets
+ * an exact total, an exact sort and an exact stats line for the entire
+ * projected horizon. Crossing it is itself the signal that the derived
+ * narrowing has to move into SQL (a view / RPC / stored column — a migration,
+ * outside C-16's remit by design), which is why the state beyond it is reported
+ * as `cappedOut` instead of being quietly clamped.
+ */
+export const CLIENT_CANDIDATE_VIEW_ALL_CAP = 6000;
 
 // Mirrors `escapeLike`/`quoteOrValue` in enquiries-data.ts, emails-data.ts and
 // bookings-list-data.ts — duplicated per data module by house convention, each
@@ -342,6 +386,12 @@ export interface ClientListContext extends ClientListFilters {
   sort: ClientSortKey;
   /** UTC day, `YYYY-MM-DD`. Resolved by the caller — never inside a fetcher. */
   today: string;
+  /**
+   * `?all=1` — raises the candidate ceiling from `CLIENT_CANDIDATE_CAP` to
+   * `CLIENT_CANDIDATE_VIEW_ALL_CAP`. Part of the candidate query's cache key,
+   * because it changes the rows that query returns.
+   */
+  viewAll: boolean;
 }
 
 const LIFECYCLE_KEYS: readonly ClientLifecycleKey[] = [
@@ -370,6 +420,7 @@ export function clientListContextFromQuery(
     includeDeleted: value("show_deleted") === "1",
     sort: value("sort") === "last_visit" ? "last_visit" : "name",
     today: new Date().toISOString().slice(0, 10),
+    viewAll: value("all") === "1",
     q: value("q"),
     lifecycle: LIFECYCLE_KEYS.includes(lifecycle as ClientLifecycleKey)
       ? (lifecycle as ClientLifecycleKey)
@@ -618,13 +669,16 @@ export interface ClientCandidate {
 }
 
 /**
- * The clients matching the plan, id + name + created_at only.
+ * The clients matching the plan, id + name + created_at only, bounded by `cap`.
  *
- * Keyed on the plan's steps: the cache key IS the WHERE clause, so a predicate
- * that reached the query but not the key cannot exist.
+ * The `.limit(cap)` is on the QUERY, not on the array afterwards — a ceiling
+ * applied in memory would still have read every matching row. `cap` is part of
+ * the cache key alongside the plan's steps, so the key IS the query: a
+ * predicate, or a ceiling, that reached the query but not the key cannot exist.
  */
 async function getClientCandidates(
-  plan: ClientPredicatePlan
+  plan: ClientPredicatePlan,
+  cap: number
 ): Promise<ClientCandidate[]> {
   const cached = unstable_cache(
     async (): Promise<ClientCandidate[]> => {
@@ -636,10 +690,43 @@ async function getClientCandidates(
       )
         .order("full_name")
         .order("id")
+        .limit(cap)
         .returns<ClientCandidate[]>();
       return data ?? [];
     },
-    ["clients-candidates", cacheKeyPart({ steps: plan.steps })],
+    ["clients-candidates", cacheKeyPart({ steps: plan.steps, cap })],
+    { revalidate: 60, tags: [TAGS.CLIENTS] }
+  );
+  return cached();
+}
+
+/**
+ * The TRUE number of clients matching the candidate query's WHERE clause —
+ * head request, no rows transferred, and built by replaying the very same
+ * `plan.steps`, so it cannot describe a different selection than the rows it
+ * bounds. This is what makes the cap above honest: without it, a truncated
+ * candidate read is indistinguishable from a short one.
+ *
+ * NOTE the SQL half only: the lifecycle / payment narrowing runs in memory over
+ * the summary, so when either is active this is an upper bound on the displayed
+ * selection, not its total. `getClientsListPage` therefore uses it for the
+ * "was the READ truncated?" question and never as the pager's denominator.
+ */
+export async function countClientCandidates(
+  plan: ClientPredicatePlan
+): Promise<number> {
+  const cached = unstable_cache(
+    async (): Promise<number> => {
+      const { count, error } = await applyClientPredicates(
+        createSupabaseAdminClient()
+          .from("clients")
+          .select("id", { count: "exact", head: true }),
+        plan.steps
+      );
+      if (error) return 0;
+      return count ?? 0;
+    },
+    ["clients-candidates-count", cacheKeyPart({ steps: plan.steps })],
     { revalidate: 60, tags: [TAGS.CLIENTS] }
   );
   return cached();
@@ -731,12 +818,55 @@ export interface ClientLifecycleStats {
 }
 
 export type ClientsListPage = PaginatedResult<ClientListRow> & {
-  /** Clients in the current deleted-scope, before any filter or search. */
+  /**
+   * Clients in the current deleted-scope, before any filter or search — the
+   * head-count, NOT the length of a capped array, so the "of N clients"
+   * denominator stays exact however the candidate ceiling binds.
+   */
   totalInScope: number;
   /** Soft-deleted clients that exist at all — the "Show deleted (N)" label. */
   deletedCount: number;
   stats: ClientLifecycleStats;
+  /** True count matching the SQL half of the filters — see `countClientCandidates`. */
+  candidateTotal: number;
+  /** Candidate rows the ceiling actually let through: the cap in force, when it bound. */
+  candidateShown: number;
+  /** Clients the stats line was computed over — below `totalInScope` once capped. */
+  statsBasis: number;
 };
+
+// The candidate ceiling's hidden-rows signal, mirroring
+// `resolveClientNotesBannerState` (clients/[clientId]/client-detail-data.ts)
+// and `resolvePasswordRequestsBannerState` exactly — same four states, same
+// branch order. `cappedOut` is evaluated BEFORE `hidden` for the reason that
+// bug shipped twice on this plan already: once you are already viewing all AND
+// the true total still exceeds the view-all cap, "view all N" is a link back to
+// the URL you are on.
+export type ClientCandidateBannerState =
+  | { kind: "none" }
+  | { kind: "hidden"; total: number }
+  | { kind: "cappedOut"; total: number }
+  | { kind: "viewingAll"; total: number };
+
+export function resolveClientCandidateBannerState(params: {
+  /** `countClientCandidates` over the same plan the rows were read with. */
+  candidateTotal: number;
+  /** How many candidate rows were actually read. */
+  candidateShown: number;
+  viewAll: boolean;
+}): ClientCandidateBannerState {
+  const { candidateTotal, candidateShown, viewAll } = params;
+  if (viewAll && candidateTotal > CLIENT_CANDIDATE_VIEW_ALL_CAP) {
+    return { kind: "cappedOut", total: candidateTotal };
+  }
+  if (candidateTotal > candidateShown) {
+    return { kind: "hidden", total: candidateTotal };
+  }
+  if (viewAll && candidateTotal > CLIENT_CANDIDATE_CAP) {
+    return { kind: "viewingAll", total: candidateTotal };
+  }
+  return { kind: "none" };
+}
 
 function matchesDerivedFilters(
   candidate: ClientCandidate,
@@ -857,6 +987,11 @@ function computeLifecycleStats(
  * plan with the NARROWING filters removed — i.e. the current deleted-scope,
  * before search/lifecycle/payment/location/source — which is what they always
  * described.
+ *
+ * Both candidate reads are bounded (C-16 closeout, see the header). The
+ * denominator is the head-count, so it is exact regardless; `total`, the
+ * window and the stats line describe the capped read, and `candidateTotal` /
+ * `candidateShown` / `statsBasis` come back with them so the page can say so.
  */
 export async function getClientsListPage(params: {
   context: ClientListContext;
@@ -866,12 +1001,18 @@ export async function getClientsListPage(params: {
 }): Promise<ClientsListPage> {
   const { context } = params;
   const pageSize = params.pageSize ?? LIST_PAGE_SIZE;
+  const cap = context.viewAll
+    ? CLIENT_CANDIDATE_VIEW_ALL_CAP
+    : CLIENT_CANDIDATE_CAP;
 
   const scopeContext: ClientListContext = {
     canViewContactDetails: context.canViewContactDetails,
     includeDeleted: context.includeDeleted,
     sort: context.sort,
     today: context.today,
+    // Same ceiling on both reads: the stats line and the list must be capped
+    // alike, or "N active" would describe a wider set than the rows below it.
+    viewAll: context.viewAll,
   };
 
   const matches = await resolveClientBookingMatches(context);
@@ -883,19 +1024,28 @@ export async function getClientsListPage(params: {
 
   const [summaries, candidates, allClients, liveClients] = await Promise.all([
     getClientBookingSummaries(context.today),
-    getClientCandidates(plan),
+    getClientCandidates(plan, cap),
     countClients(true),
     countClients(false),
   ]);
+
+  // The deleted-scope denominator, straight off the head-counts — `countClients`
+  // pushes exactly the predicate `scopePlan` carries, so this is the uncapped
+  // truth about the scope even when the roster read below was truncated.
+  const totalInScope = context.includeDeleted ? allClients : liveClients;
 
   // With nothing narrowing the list, the two plans ARE the same WHERE clause,
   // so the stats reuse the array rather than re-issuing it — the default view
   // costs one clients query, as it did before this step. (Reused explicitly,
   // not left to the cache: two identical fetches issued concurrently both miss.)
-  const roster =
-    cacheKeyPart({ steps: plan.steps }) === cacheKeyPart({ steps: scopePlan.steps })
-      ? candidates
-      : await getClientCandidates(scopePlan);
+  const scopeIsPlan =
+    cacheKeyPart({ steps: plan.steps }) === cacheKeyPart({ steps: scopePlan.steps });
+  const roster = scopeIsPlan ? candidates : await getClientCandidates(scopePlan, cap);
+  // Same reuse for the head-count: when nothing narrows, `countClients` already
+  // counted this very WHERE clause, so no third head request is issued.
+  const candidateTotal = scopeIsPlan
+    ? totalInScope
+    : await countClientCandidates(plan);
 
   const selected = candidates.filter((candidate) =>
     matchesDerivedFilters(
@@ -951,8 +1101,11 @@ export async function getClientsListPage(params: {
     total,
     page,
     pageCount,
-    totalInScope: roster.length,
+    totalInScope,
     deletedCount: Math.max(0, allClients - liveClients),
     stats: computeLifecycleStats(roster, summaries, context.today),
+    candidateTotal,
+    candidateShown: candidates.length,
+    statsBasis: roster.length,
   };
 }

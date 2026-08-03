@@ -17,8 +17,11 @@ import { LIST_PAGE_SIZE } from "@/lib/pagination";
 import { formatDate, formatMoney } from "./format";
 import { getClientDataAccess } from "./access";
 import {
+  CLIENT_CANDIDATE_CAP,
+  CLIENT_CANDIDATE_VIEW_ALL_CAP,
   clientListContextFromQuery,
   getClientsListPage,
+  resolveClientCandidateBannerState,
   type ClientLifecycleKey,
   type ClientListRow,
   type ClientSortKey,
@@ -46,6 +49,8 @@ interface ClientsPageProps {
     page?: string;
     show_deleted?: string;
     deleted?: string;
+    /** C-16 closeout — "1" raises the candidate ceiling to CLIENT_CANDIDATE_VIEW_ALL_CAP. */
+    all?: string;
   }>;
 }
 
@@ -166,6 +171,7 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   const source = context.source ?? "";
   const sort = context.sort;
   const showDeleted = context.includeDeleted ? "1" : "";
+  const viewAll = context.viewAll ? "1" : "";
 
   const canDeleteClients = canManageClientDestructiveOps(profile);
   const { rows: pageRows, deletedCount, stats } = listPage;
@@ -208,7 +214,25 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
     source,
     sort,
     show_deleted: showDeleted,
+    // Carried by every builder below, so narrowing a filter or switching sort
+    // never silently drops the reader back to the smaller candidate ceiling.
+    all: viewAll,
   };
+
+  // C-16 closeout — the candidate ceiling's honest signal. `cappedOut` before
+  // `hidden`, resolved in clients-list-data.ts; each link below flips the
+  // toggle it is NOT currently in, so neither can target the URL already open.
+  const candidateBannerState = resolveClientCandidateBannerState({
+    candidateTotal: listPage.candidateTotal,
+    candidateShown: listPage.candidateShown,
+    viewAll: context.viewAll,
+  });
+  const candidateAllHref = buildViewAllHref(filterValues, true);
+  const candidateCappedHref = buildViewAllHref(filterValues, false);
+  // The stats line is computed over the deleted-scope roster, which is read
+  // under the same ceiling — say so when it bound, rather than presenting a
+  // partial count as the whole client base.
+  const statsAreCapped = listPage.statsBasis < totalClientCount;
 
   const activeChips: { label: string; href: string }[] = [];
   if (q) {
@@ -358,6 +382,12 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
           href={buildFilterHref(filterValues, "lifecycle", "at_risk")}
           active={lifecycle === "at_risk" || lifecycle === "lapsed"}
         />
+        {statsAreCapped ? (
+          <span className="basis-full text-xs text-[var(--admin-text-muted)]">
+            Counted over the first {listPage.statsBasis} of {totalClientCount}{" "}
+            clients — see the note below.
+          </span>
+        ) : null}
       </p>
 
       {/* Desktop filter bar (≥lg) — GET form */}
@@ -485,6 +515,53 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
           />
         </div>
       </div>
+
+      {/* C-16 closeout — the candidate ceiling, stated. Mirrors the notes and
+          availability rails' banners (cappedOut checked before hidden, in
+          clients-list-data.ts) and sits ABOVE the rows because it qualifies
+          the count line, the stats line and the pager alike, not just a rail. */}
+      {candidateBannerState.kind === "cappedOut" ? (
+        <p
+          role="status"
+          className="-mt-1 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 py-2 text-xs leading-5 text-[var(--admin-text-muted)]"
+        >
+          Read the first {listPage.candidateShown} of {candidateBannerState.total}{" "}
+          matching clients. The count, the stats and every page here cover only
+          those, and no view reaches further — narrow the search or the filters
+          to get to the rest.{" "}
+          <Link
+            href={candidateCappedHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Back to the first {CLIENT_CANDIDATE_CAP}
+          </Link>
+        </p>
+      ) : candidateBannerState.kind === "hidden" ? (
+        <p
+          role="status"
+          className="-mt-1 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 py-2 text-xs leading-5 text-[var(--admin-text-muted)]"
+        >
+          Read the first {listPage.candidateShown} of {candidateBannerState.total}{" "}
+          matching clients. The count, the stats and every page here cover only
+          those.{" "}
+          <Link
+            href={candidateAllHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Read the first {CLIENT_CANDIDATE_VIEW_ALL_CAP} instead
+          </Link>
+        </p>
+      ) : candidateBannerState.kind === "viewingAll" ? (
+        <p className="-mt-1 text-xs text-[var(--admin-text-muted)]">
+          Reading all {candidateBannerState.total} matching clients.{" "}
+          <Link
+            href={candidateCappedHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Back to the first {CLIENT_CANDIDATE_CAP}
+          </Link>
+        </p>
+      ) : null}
 
       {/* Active filter chips */}
       {activeChips.length > 0 ? (
@@ -635,6 +712,7 @@ export function buildClearLinkHref(
     source: string;
     sort: SortKey;
     show_deleted: string;
+    all: string;
   },
   drop: keyof typeof values
 ): string {
@@ -656,6 +734,7 @@ export function buildSortHref(
     location: string;
     source: string;
     show_deleted: string;
+    all: string;
   },
   next: SortKey
 ): string {
@@ -677,6 +756,7 @@ export function buildFilterHref(
     source: string;
     sort: SortKey;
     show_deleted: string;
+    all: string;
   },
   key: "lifecycle",
   value: string
@@ -701,6 +781,7 @@ export function buildPageHref(
     source: string;
     sort: SortKey;
     show_deleted: string;
+    all: string;
   },
   next: number
 ): string {
@@ -723,6 +804,7 @@ export function buildShowDeletedHref(
     source: string;
     sort: SortKey;
     show_deleted: string;
+    all: string;
   },
   next: boolean
 ): string {
@@ -733,6 +815,38 @@ export function buildShowDeletedHref(
     if (typeof value === "string" && value.length > 0) params.set(key, value);
   }
   if (next) params.set("show_deleted", "1");
+  const qs = params.toString();
+  return qs ? `/admin/clients?${qs}` : "/admin/clients";
+}
+
+/**
+ * C-16 closeout — the candidate ceiling's toggle, same shape as
+ * `buildShowDeletedHref`. `all` is dropped from the rebuild and re-set from
+ * `next`, so the "read more"/"back to the first N" pair always differ from the
+ * URL currently open (the state resolver guarantees only one of them renders).
+ * Carries no `page`: raising or lowering the ceiling re-sorts and re-slices the
+ * whole selection, so the page number in hand no longer means anything.
+ */
+export function buildViewAllHref(
+  values: {
+    q: string;
+    lifecycle: string;
+    payment: string;
+    location: string;
+    source: string;
+    sort: SortKey;
+    show_deleted: string;
+    all: string;
+  },
+  next: boolean
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (key === "all") continue;
+    if (key === "sort" && value === "name") continue;
+    if (typeof value === "string" && value.length > 0) params.set(key, value);
+  }
+  if (next) params.set("all", "1");
   const qs = params.toString();
   return qs ? `/admin/clients?${qs}` : "/admin/clients";
 }

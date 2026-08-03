@@ -17,6 +17,7 @@ import {
   buildPageHref,
   buildShowDeletedHref,
   buildSortHref,
+  buildViewAllHref,
 } from "../page";
 
 vi.mock("next/navigation", () => ({
@@ -32,6 +33,7 @@ const FILTERS = {
   source: "website",
   sort: "last_visit" as const,
   show_deleted: "1",
+  all: "",
 };
 
 afterEach(cleanup);
@@ -70,6 +72,46 @@ describe("page resets wherever the result set changes", () => {
     expect(buildPageHref(FILTERS, 3)).toContain("q=zainab");
     // Page 1 is the canonical URL — no redundant ?page=1 in history.
     expect(buildPageHref(FILTERS, 1)).not.toContain("page=");
+  });
+
+  // C-16 closeout — the candidate ceiling's toggle. Raising or lowering the
+  // ceiling re-reads, re-sorts and re-slices the whole selection, so the page
+  // in hand no longer names the same rows.
+  it("toggling the candidate ceiling never carries a page", () => {
+    expect(buildViewAllHref(FILTERS, true)).toContain("all=1");
+    expect(buildViewAllHref(FILTERS, true)).not.toContain("page=");
+    expect(buildViewAllHref(FILTERS, false)).not.toContain("all=1");
+    expect(buildViewAllHref(FILTERS, false)).not.toContain("page=");
+  });
+});
+
+// C-16 closeout — `all` is a filter-shaped param: every builder has to carry
+// it, or narrowing a filter / switching sort would silently drop the reader
+// back to the smaller ceiling and shrink the result set with no signal.
+describe("the candidate ceiling survives every other navigation", () => {
+  const VIEWING_ALL = { ...FILTERS, all: "1" };
+
+  it("is carried by sort, stat-link, pager and deleted-toggle hrefs", () => {
+    expect(buildSortHref(VIEWING_ALL, "name")).toContain("all=1");
+    expect(buildFilterHref(VIEWING_ALL, "lifecycle", "new")).toContain("all=1");
+    expect(buildPageHref(VIEWING_ALL, 3)).toContain("all=1");
+    expect(buildShowDeletedHref(VIEWING_ALL, true)).toContain("all=1");
+  });
+
+  it("is carried when an unrelated filter chip is cleared, and dropped by its own", () => {
+    expect(buildClearLinkHref(VIEWING_ALL, "q")).toContain("all=1");
+    expect(buildClearLinkHref(VIEWING_ALL, "all")).not.toContain("all=1");
+  });
+
+  it("SABOTAGE TARGET — the two ceiling links can never both be the current URL", () => {
+    // `resolveClientCandidateBannerState` renders exactly one of these at a
+    // time; each must differ from the URL the reader is already on, which is
+    // the bug shape that shipped twice on this plan.
+    expect(buildViewAllHref(FILTERS, true)).not.toEqual(
+      buildViewAllHref(FILTERS, false)
+    );
+    expect(buildViewAllHref(VIEWING_ALL, true)).toContain("all=1");
+    expect(buildViewAllHref(VIEWING_ALL, false)).not.toContain("all=1");
   });
 });
 

@@ -53,13 +53,17 @@ import type {
 } from "../types";
 import { getClientDataAccess } from "../access";
 import {
+  CLIENT_BOOKING_HISTORY_LIMIT,
+  CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP,
   CLIENT_NOTES_LIMIT,
   CLIENT_NOTES_VIEW_ALL_CAP,
   CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP,
   CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP,
   getClientDetailData,
+  resolveClientBookingHistoryBannerState,
   resolveClientNotesBannerState,
   resolveClientSensitiveNotesBannerState,
+  type ClientBookingHistoryBannerState,
   type ClientDetailAccessFlags,
   type ClientNotesBannerState,
   type ClientSensitiveNotesBannerState,
@@ -95,6 +99,10 @@ interface ClientDetailPageProps {
     /** Fix round (verify-FAIL Check 1) — "all" raises the sensitive-notes
      *  rail to CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP. Independent of `notes`. */
     sensitiveNotes?: string;
+    /** C-16 closeout — "all" raises the booking-history rail to
+     *  CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP. Independent of the two above, and
+     *  of every lifetime figure on the page. */
+    history?: string;
   }>;
 }
 
@@ -154,12 +162,19 @@ function buildClientUrl(
 }
 
 /** C-16 Step 14 (N6) — sets/clears a view-all toggle param on an
- *  already-built href, preserving every other param on it (`notes` for
- *  `regularNotes`, `sensitiveNotes` for `sensitiveNotes` — fix round, see
- *  each caller). */
-function withNotesParam(
+ *  already-built href, preserving every other param on it. C-16 closeout
+ *  added the third rail (`history`) to the union. */
+type RailToggle = "notes" | "sensitiveNotes" | "history";
+
+const RAIL_TOGGLES: readonly RailToggle[] = [
+  "notes",
+  "sensitiveNotes",
+  "history",
+] as const;
+
+function withRailParam(
   href: string,
-  paramName: "notes" | "sensitiveNotes",
+  paramName: RailToggle,
   value: "all" | null
 ): string {
   const [path, qs] = href.split("?");
@@ -168,6 +183,25 @@ function withNotesParam(
   else params.delete(paramName);
   const next = params.toString();
   return next ? `${path}?${next}` : path;
+}
+
+/**
+ * Flips exactly ONE rail's view-all toggle, carrying the other two through
+ * unchanged — so no rail's "view all" / "show recent" link can ever point at
+ * the URL already open, however many rails are expanded at once.
+ */
+function buildRailHref(
+  base: string,
+  current: Record<RailToggle, boolean>,
+  flip: RailToggle,
+  value: boolean
+): string {
+  const next = { ...current, [flip]: value };
+  let href = base;
+  for (const toggle of RAIL_TOGGLES) {
+    href = withRailParam(href, toggle, next[toggle] ? "all" : null);
+  }
+  return href;
 }
 
 const AUDIT_PHRASING: Record<string, string> = {
@@ -224,6 +258,40 @@ function whatsappHref(phone: string): string {
 
 function isFutureBooking(booking: ClientBookingRecord) {
   return new Date(`${booking.booking_date}T${booking.start_time}`) >= new Date();
+}
+
+/**
+ * Every figure this page derives from a booking array, in ONE place over ONE
+ * array (C-16 closeout). The page calls it twice: once with `lifetimeBookings`
+ * — the whole history — for the LTV ribbon, the client summary, the tab counts
+ * and the lifecycle badge; and once with `bookingHistory` — the capped rail —
+ * for the list it actually renders. Same rules over both, so the only thing
+ * that can make a figure describe the wrong set is being handed the wrong
+ * array, which is exactly what `__tests__/client-detail-data.test.ts` pins.
+ *
+ * Exported for that spec, same reason the href builders on /admin/clients are.
+ */
+export function summariseClientBookingHistory(bookings: ClientBookingRecord[]) {
+  const upcoming = bookings.filter(isFutureBooking);
+  const past = bookings.filter((booking) => !isFutureBooking(booking));
+  return {
+    upcoming,
+    past,
+    total: bookings.length,
+    upcomingCount: upcoming.length,
+    pastCount: past.length,
+    completedCount: bookings.filter((booking) => booking.status === "completed")
+      .length,
+    totalSpend: bookings.reduce(
+      (total, booking) => total + Number(booking.amount_paid ?? 0),
+      0
+    ),
+    /** Most recent non-future booking — the rows arrive newest-first. */
+    lastVisit: past[0] as ClientBookingRecord | undefined,
+    /** Earliest upcoming booking, for the same reason. */
+    nextVisit: upcoming[upcoming.length - 1] as ClientBookingRecord | undefined,
+    commonServices: getCommonServices(bookings),
+  };
 }
 
 /**
@@ -294,12 +362,14 @@ export default async function ClientDetailPage({
     updated: updatedParam,
     notes: notesParam,
     sensitiveNotes: sensitiveNotesParam,
+    history: historyParam,
   } = await searchParams;
   const tab = coerceTab(tabParam);
   const statusFilter = coerceStatus(statusParam);
   const serviceFilter = serviceParam?.trim() || null;
   const notesViewAll = notesParam === "all";
   const sensitiveNotesViewAll = sensitiveNotesParam === "all";
+  const historyViewAll = historyParam === "all";
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
@@ -328,6 +398,8 @@ export default async function ClientDetailPage({
   const {
     client,
     bookingHistory,
+    bookingHistoryTotal,
+    lifetimeBookings,
     hasAssignedClientAccess,
     sensitiveNotes,
     sensitiveNotesTotal,
@@ -342,6 +414,7 @@ export default async function ClientDetailPage({
     hasAllClientAccess,
     accessWithoutAssignment: toClientDetailAccessFlags(accessWithoutAssignment),
     accessWithAssignment: toClientDetailAccessFlags(accessWithAssignment),
+    historyViewAll,
     notesViewAll,
     sensitiveNotesViewAll,
   });
@@ -363,23 +436,25 @@ export default async function ClientDetailPage({
     return <InsufficientPermissions />;
   }
 
-  const upcomingBookings = bookingHistory.filter(isFutureBooking);
-  const pastBookings = bookingHistory.filter((booking) => !isFutureBooking(booking));
-  const upcomingCount = upcomingBookings.length;
-  const completedCount = bookingHistory.filter(
-    (booking) => booking.status === "completed"
-  ).length;
-  const totalSpend = bookingHistory.reduce(
-    (total, booking) => total + Number(booking.amount_paid ?? 0),
-    0
-  );
-  const lastVisit = pastBookings[0];
-  const commonServices = getCommonServices(bookingHistory);
+  // C-16 closeout — LIFETIME figures read `lifetimeBookings` (the whole
+  // history, PII-free projection), never `bookingHistory` (the rendered rail,
+  // which is capped). Bounding the rail without this split would have quietly
+  // redefined "Total paid", "Total visits", the tab counts and the LTV ribbon
+  // as "…across the most recent page", which is the defect class this plan
+  // exists to remove.
+  const lifetime = summariseClientBookingHistory(lifetimeBookings);
+  // The rendered rail's own split — same rules, applied to the capped rows.
+  const rail = summariseClientBookingHistory(bookingHistory);
+  const upcomingCount = lifetime.upcomingCount;
+  const completedCount = lifetime.completedCount;
+  const totalSpend = lifetime.totalSpend;
+  const lastVisit = lifetime.lastVisit;
+  const commonServices = lifetime.commonServices;
 
   const canCreateBooking = canManageAllBookings(profile);
   const canEditClient = canManageAllClients(profile);
   const canDeleteClient = canManageClientDestructiveOps(profile);
-  const lifecycle = lifecycleBadge(bookingHistory.length);
+  const lifecycle = lifecycleBadge(lifetime.total);
   const sourceLabel = formatLabel(client.client_source);
   const sourceDetailLabel = client.source_detail ? client.source_detail : null;
   const showHealthCard = clientAccess.canViewHealthNotes;
@@ -390,17 +465,19 @@ export default async function ClientDetailPage({
   const showFallback =
     !showHealthCard && !showNotesCard && !showPrivacyCard;
 
+  // Lifetime counts: the tab labelled "All" has to mean all, not "all of the
+  // page we happened to fetch". The rail beneath them is capped, and says so.
   const tabCounts: Record<TabKey, number> = {
-    upcoming: upcomingBookings.length,
-    past: pastBookings.length,
-    all: bookingHistory.length,
+    upcoming: lifetime.upcomingCount,
+    past: lifetime.pastCount,
+    all: lifetime.total,
   };
   const bookingsForTab =
     tab === "upcoming"
-      ? upcomingBookings
+      ? rail.upcoming
       : tab === "past"
-        ? pastBookings
-        : [...upcomingBookings, ...pastBookings];
+        ? rail.past
+        : [...rail.upcoming, ...rail.past];
   const matchesStatus = (booking: ClientBookingRecord) =>
     statusFilter === "all" || booking.status === statusFilter;
   const matchesService = (booking: ClientBookingRecord) =>
@@ -416,7 +493,9 @@ export default async function ClientDetailPage({
   const today = getTodayIsoDate();
   const filtersApplied = statusFilter !== "all" || Boolean(serviceFilter);
   const showFilterStrip = bookingsForTab.length >= FILTER_THRESHOLD || filtersApplied;
-  const nextVisit = upcomingBookings[upcomingBookings.length - 1];
+  // Earliest upcoming across the WHOLE history — the "Next visit" strip is a
+  // statement about the client, not about the rail's window.
+  const nextVisit = lifetime.nextVisit;
   // Fix round (verify-FAIL Check 1) — `criticalNote` now comes straight off
   // the fetcher's OWN dedicated query (see client-detail-data.ts's file
   // header), not from `sensitiveNotes` (the capped display rail below), so
@@ -445,29 +524,46 @@ export default async function ClientDetailPage({
     sensitiveShown: sensitiveNotes.length,
     viewAll: sensitiveNotesViewAll,
   });
-  const notesBaseHref = buildClientUrl(clientId, { tab, status: statusFilter, service: serviceFilter ?? undefined });
-  // Each href only ever flips ITS OWN toggle, carrying the other rail's
-  // current state through unchanged — so neither rail's "view all"/"show
-  // recent" link can ever point back at the exact URL already active.
-  const notesAllHref = withNotesParam(
-    withNotesParam(notesBaseHref, "sensitiveNotes", sensitiveNotesViewAll ? "all" : null),
-    "notes",
-    "all"
-  );
-  const notesRecentHref = withNotesParam(
-    withNotesParam(notesBaseHref, "sensitiveNotes", sensitiveNotesViewAll ? "all" : null),
-    "notes",
-    null
-  );
-  const sensitiveNotesAllHref = withNotesParam(
-    withNotesParam(notesBaseHref, "notes", notesViewAll ? "all" : null),
+  // C-16 closeout — the booking-history rail's own hidden-rows signal, same
+  // shape and branch order as the two notes rails (see client-detail-data.ts).
+  const historyBannerState = resolveClientBookingHistoryBannerState({
+    historyTotal: bookingHistoryTotal,
+    historyShown: bookingHistory.length,
+    viewAll: historyViewAll,
+  });
+  // The lifetime scan's own defensive ceiling is the one bound with no wider
+  // read to offer — if it ever binds, the summary panel says which set its
+  // figures describe instead of presenting a partial lifetime as the whole.
+  const lifetimeScanned = lifetime.total;
+  const railBaseHref = buildClientUrl(clientId, { tab, status: statusFilter, service: serviceFilter ?? undefined });
+  // Each href only ever flips ITS OWN toggle, carrying the other rails'
+  // current state through unchanged — so no rail's "view all"/"show recent"
+  // link can ever point back at the exact URL already active.
+  const railToggles: Record<RailToggle, boolean> = {
+    notes: notesViewAll,
+    sensitiveNotes: sensitiveNotesViewAll,
+    history: historyViewAll,
+  };
+  const notesAllHref = buildRailHref(railBaseHref, railToggles, "notes", true);
+  const notesRecentHref = buildRailHref(railBaseHref, railToggles, "notes", false);
+  const sensitiveNotesAllHref = buildRailHref(
+    railBaseHref,
+    railToggles,
     "sensitiveNotes",
-    "all"
+    true
   );
-  const sensitiveNotesRecentHref = withNotesParam(
-    withNotesParam(notesBaseHref, "notes", notesViewAll ? "all" : null),
+  const sensitiveNotesRecentHref = buildRailHref(
+    railBaseHref,
+    railToggles,
     "sensitiveNotes",
-    null
+    false
+  );
+  const historyAllHref = buildRailHref(railBaseHref, railToggles, "history", true);
+  const historyRecentHref = buildRailHref(
+    railBaseHref,
+    railToggles,
+    "history",
+    false
   );
   const avatarHue = deterministicHue(client.id);
   const avatarInitials = getInitials(client.full_name);
@@ -619,9 +715,12 @@ export default async function ClientDetailPage({
         ) : null}
       </header>
 
+      {/* Lifetime read, never the capped rail — an LTV computed over one
+          page's worth of visits would be a lie in the loudest place on the
+          page. See client-detail-data.ts's header. */}
       <ClientLtvRibbon
         clientId={client.id}
-        bookings={bookingHistory}
+        bookings={lifetimeBookings}
         scopeNarrowed={!hasAllClientAccess}
       />
 
@@ -634,14 +733,24 @@ export default async function ClientDetailPage({
           />
           <StatsPanel
             clientId={client.id}
-            bookingCount={bookingHistory.length}
+            bookingCount={lifetimeScanned}
             upcomingCount={upcomingCount}
             completedCount={completedCount}
             totalSpend={totalSpend}
             lastVisit={lastVisit}
             commonServices={commonServices}
+            lifetimeScanned={lifetimeScanned}
+            historyTotal={bookingHistoryTotal}
           />
           {showHealthCard ? (
+            // Deliberately the rail, not the lifetime read: the lifetime
+            // projection excludes `health_notes` and `booking_participants` on
+            // purpose (PII minimisation), and this panel shows the 6 most
+            // recent notes anyway — which the rail's newest-first cap covers
+            // for any client with 6 in their last CLIENT_BOOKING_HISTORY_LIMIT
+            // bookings. It is a display rail, never the clinical-safety
+            // control: that is `criticalNote`, which reads `client_notes`
+            // through its own keyword-filtered query and is untouched here.
             <HealthContextPanel bookings={bookingHistory} />
           ) : null}
           {showNotesCard ? (
@@ -712,6 +821,15 @@ export default async function ClientDetailPage({
                 </ul>
               )}
             </div>
+            {/* C-16 closeout — the rail's cap, stated. `cappedOut` is checked
+                before `hidden` (resolver in client-detail-data.ts) so "view
+                all" never links back to the state already open. The tab counts
+                above stay lifetime-true throughout. */}
+            <BookingHistoryBanner
+              state={historyBannerState}
+              allHref={historyAllHref}
+              recentHref={historyRecentHref}
+            />
           </AdminPanel>
           {showRecentActivityBalance && showAuditCard ? (
             <RecentActivityBalanceCard events={auditLogs.slice(0, 5)} />
@@ -909,6 +1027,62 @@ function ContactPanel({
   );
 }
 
+/**
+ * C-16 closeout — the booking-history rail's cap+view-all banner. Same three
+ * rendered states, same copy shape and the same `cappedOut`-first ordering as
+ * the notes rails in `NotesPanel` below.
+ */
+function BookingHistoryBanner({
+  state,
+  allHref,
+  recentHref,
+}: {
+  state: ClientBookingHistoryBannerState;
+  allHref: string;
+  recentHref: string;
+}) {
+  if (state.kind === "none") return null;
+  if (state.kind === "cappedOut") {
+    return (
+      <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs text-[var(--admin-text-muted)] print:hidden">
+        Showing the {CLIENT_BOOKING_HISTORY_VIEW_ALL_CAP} most recent of{" "}
+        {state.total} bookings. The rest aren&rsquo;t reachable from this list —
+        the counts on the tabs above still cover all of them.{" "}
+        <Link
+          href={recentHref}
+          className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          Show the {CLIENT_BOOKING_HISTORY_LIMIT} most recent only
+        </Link>
+      </p>
+    );
+  }
+  if (state.kind === "hidden") {
+    return (
+      <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs text-[var(--admin-text-muted)] print:hidden">
+        Showing the {CLIENT_BOOKING_HISTORY_LIMIT} most recent of {state.total}{" "}
+        bookings.{" "}
+        <Link
+          href={allHref}
+          className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          Show all {state.total}
+        </Link>
+      </p>
+    );
+  }
+  return (
+    <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs print:hidden">
+      <Link
+        href={recentHref}
+        className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+      >
+        Show the {CLIENT_BOOKING_HISTORY_LIMIT} most recent only
+      </Link>
+    </p>
+  );
+}
+
 function StatsPanel({
   clientId,
   bookingCount,
@@ -917,6 +1091,8 @@ function StatsPanel({
   totalSpend,
   lastVisit,
   commonServices,
+  lifetimeScanned,
+  historyTotal,
 }: {
   clientId: string;
   bookingCount: number;
@@ -925,6 +1101,11 @@ function StatsPanel({
   totalSpend: number;
   lastVisit?: ClientBookingRecord;
   commonServices: string[];
+  /** Bookings the lifetime scan actually read — see CLIENT_LIFETIME_SCAN_CAP. */
+  lifetimeScanned: number;
+  /** True count in the caller's scope. Above `lifetimeScanned` only if that
+   *  defensive ceiling ever binds, which is what the note below discloses. */
+  historyTotal: number;
 }) {
   return (
     <AdminPanel>
@@ -944,6 +1125,12 @@ function StatsPanel({
           }
         />
       </dl>
+      {historyTotal > lifetimeScanned ? (
+        <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
+          Counted over the {lifetimeScanned} most recent of {historyTotal}{" "}
+          bookings.
+        </p>
+      ) : null}
       {commonServices.length > 0 ? (
         <div className="mt-4 border-t border-[var(--admin-border)] pt-3">
           <p className="text-xs font-medium text-[var(--admin-text-muted)]">
