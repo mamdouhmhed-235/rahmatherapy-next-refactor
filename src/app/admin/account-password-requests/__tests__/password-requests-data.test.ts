@@ -222,4 +222,22 @@ describe("countPasswordResetRequests — real total, independent of the row cap"
     await countPasswordResetRequests();
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
   });
+
+  // Fix round (verify-FAIL, redesign/evidence/C-16/steps1112-verify.md check 6)
+  // — the "Pending (N)" tab badge in page.tsx reads `pendingCount` from this
+  // function, never from `rows.length`/`filterByStatus`. Pin that decoupling
+  // directly: the capped list-fetch can return fewer rows than the true
+  // pending count, and the pending count must still be exact — the tab badge
+  // stays honest even when the row cap is actively hiding rows a tab would
+  // otherwise show.
+  it("stays exact even when the capped row fetch would hide pending requests the tab should count", async () => {
+    const limitCalls: number[] = [];
+    createSupabaseAdminClient.mockImplementation(() =>
+      fakeClient({ requests: [REQUEST_ROW], count: 140, limitCalls })
+    );
+    const rows = await getPasswordResetRequests();
+    const pendingCount = await countPasswordResetRequests("pending");
+    expect(rows.length).toBeLessThan(pendingCount);
+    expect(pendingCount).toBe(140);
+  });
 });

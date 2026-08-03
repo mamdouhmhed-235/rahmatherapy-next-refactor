@@ -17,6 +17,7 @@ import {
   countPasswordResetRequests,
   getPasswordResetRequests,
   PASSWORD_REQUESTS_LIMIT,
+  PASSWORD_REQUESTS_VIEW_ALL_CAP,
   type PasswordResetRequest,
 } from "./password-requests-data";
 
@@ -101,6 +102,41 @@ function emptyStateCopy(status: StatusKey) {
   }
 }
 
+// Fix round — mirrors privacy/page.tsx's `cappedOut` distinction (commit
+// 6faf895) for the identical bug shape found here: the "hidden rows" banner
+// must react to the cap ACTUALLY in force (PASSWORD_REQUESTS_LIMIT, or
+// PASSWORD_REQUESTS_VIEW_ALL_CAP once `viewAll`), never hardcode
+// PASSWORD_REQUESTS_LIMIT. Once already viewing all AND the true total
+// exceeds the view-all cap itself, "view all N" is a lie — clicking it
+// re-navigates to the same `all=1` state and still only returns
+// PASSWORD_REQUESTS_VIEW_ALL_CAP rows, so that state gets its own branch
+// (`cappedOut`) ordered before the general `hidden` branch, same as
+// privacy's rail. Extracted as a pure function (same pattern as
+// `resolvePrivacyDateBounds` in privacy/page.tsx) so it's testable without
+// rendering this async server component.
+export type PasswordRequestsBannerState =
+  | { kind: "none" }
+  | { kind: "hidden"; totalCount: number }
+  | { kind: "cappedOut"; totalCount: number }
+  | { kind: "viewingAll"; totalCount: number };
+
+export function resolvePasswordRequestsBannerState(
+  totalCount: number,
+  rowsLength: number,
+  viewAll: boolean
+): PasswordRequestsBannerState {
+  if (viewAll && totalCount > PASSWORD_REQUESTS_VIEW_ALL_CAP) {
+    return { kind: "cappedOut", totalCount };
+  }
+  if (totalCount > rowsLength) {
+    return { kind: "hidden", totalCount };
+  }
+  if (viewAll && totalCount > PASSWORD_REQUESTS_LIMIT) {
+    return { kind: "viewingAll", totalCount };
+  }
+  return { kind: "none" };
+}
+
 interface PageProps {
   searchParams: Promise<{ status?: string; all?: string }>;
 }
@@ -132,14 +168,17 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
 
   const rows = await getPasswordResetRequests({ viewAll });
   // Real head-counts (C-16 Step 12), not derived from the possibly-capped
-  // `rows` fetch above: `totalCount` is the true table size (used below to
-  // tell whether the cap is hiding anything), and `pendingCount` — the tab
-  // badge staff actually act on — is exact regardless of the cap (though in
-  // practice "pending" never approaches the cap: a request expires 24h after
-  // creation, so it's always inside the most-recent window anyway).
+  // `rows` fetch above: `totalCount` is the true table size, and
+  // `pendingCount` — the tab badge staff actually act on — is exact
+  // regardless of the cap (though in practice "pending" never approaches
+  // the cap: a request expires 24h after creation, so it's always inside
+  // the most-recent window anyway).
   const totalCount = await countPasswordResetRequests();
   const pendingCount = await countPasswordResetRequests("pending");
-  const hasHiddenRequests = totalCount > rows.length;
+  // Fix round — which cap produced `rows.length` (100 vs 500) determines
+  // what the banner below may honestly claim; see
+  // resolvePasswordRequestsBannerState above.
+  const bannerState = resolvePasswordRequestsBannerState(totalCount, rows.length, viewAll);
 
   const canOpenAudit = profile.permissions.has(PERMISSIONS.MANAGE_AUDIT_LOGS);
   const reviewerName = profile.name ?? "you";
@@ -158,21 +197,32 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
         description="Approve or reject staff requests to reset their password. Approval sends a one-time link to the requester's email."
       />
 
-      {hasHiddenRequests ? (
+      {bannerState.kind === "cappedOut" ? (
         <p className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 py-2 text-xs text-[var(--admin-text-muted)]">
-          Showing the {PASSWORD_REQUESTS_LIMIT} most recent requests of {totalCount} total. Older
-          requests won&apos;t appear in any tab until you{" "}
+          Showing the first {PASSWORD_REQUESTS_VIEW_ALL_CAP} of {bannerState.totalCount} requests.
+          The rest aren&apos;t reachable from this page.{" "}
+          <Link
+            href={recentHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Show recent {PASSWORD_REQUESTS_LIMIT} only
+          </Link>
+        </p>
+      ) : bannerState.kind === "hidden" ? (
+        <p className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 py-2 text-xs text-[var(--admin-text-muted)]">
+          Showing the {PASSWORD_REQUESTS_LIMIT} most recent requests of {bannerState.totalCount}{" "}
+          total. Older requests won&apos;t appear in any tab until you{" "}
           <Link
             href={viewAllHref}
             className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
-            view all {totalCount}
+            view all {bannerState.totalCount}
           </Link>
           .
         </p>
-      ) : viewAll && totalCount > PASSWORD_REQUESTS_LIMIT ? (
+      ) : bannerState.kind === "viewingAll" ? (
         <p className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 py-2 text-xs text-[var(--admin-text-muted)]">
-          Showing all {totalCount} requests.{" "}
+          Showing all {bannerState.totalCount} requests.{" "}
           <Link
             href={recentHref}
             className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
