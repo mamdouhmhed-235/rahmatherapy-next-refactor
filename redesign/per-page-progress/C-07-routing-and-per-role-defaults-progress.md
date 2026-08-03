@@ -129,10 +129,27 @@ It landed at **`449f722` "redesign: bookings" — before the Band C programme st
 
 **Implementing Steps 14–16 as written would build a second, parallel saved-filters system alongside the working one** — two localStorage keys, two UI bars, two sources of truth. That is precisely the "two things that should be one thing" defect this plan has produced five times over (§2 below); the difference is that here the plan would create it deliberately.
 
-**This needs an Owner decision. Three options, unranked here because it is not the orchestrator's call:**
-1. **Close B4 as already-satisfied.** Verify the existing `SavedViewBar` meets B-161's intent, record it as a VERIFY-ALREADY-IMPLEMENTED outcome (§5 of the refinement conventions has precedent), and ship C-07 at 8/8.
-2. **Improve the existing implementation** to whatever B-161 wanted that `SavedViewBar` lacks — a scoped, in-place change rather than a parallel build.
-3. **Build it as written anyway**, accepting two parallel systems. Not recommended.
+### 1.8a — Read-only gap analysis, so the decision is answerable rather than a guess
+
+A read-only pass compared the existing implementation against what B-161 actually asked for — tracing the requirement to its origin in `redesign/audits/C-A/R03-coordinator-day.md` §3 (a directed single-finding read, the permitted case under rule 7), then the brief's §2.12, then Steps 14–16, then the live code.
+
+**Verdict: satisfied-but-for-four-specific-gaps.** Not cleanly already-done, not genuinely unmet.
+
+**Met, several exceeded:** save · list · apply · delete · corrupt-data resilience (`loadSavedViews` try/catches `JSON.parse`, checks `Array.isArray`, and type-guards every entry's `id`/`label`/`query` — functionally identical to the plan's `isValidSavedFilter`) · quota/private-mode safety (`persistSavedViews` try/catch, commented "*localStorage may be unavailable in private mode — fail silent*") · SSR-safety (both functions guard `typeof window === "undefined"`). It also ships name validation, a 20-item cap and a two-step delete confirm that the plan never asked for.
+
+**The round-trip question resolves in the existing code's favour, and corrects two premises I had asserted:**
+`handleSaveView` stores `new URLSearchParams(searchParams.toString()).toString()` — the raw address bar, never a curated key list — and apply pushes it straight back. Since `page.tsx` re-derives everything from `searchParams` each render, the request reproduces byte-for-byte. It is **generic by construction and forward-compatible with every param added since `449f722`**, including C-02 Phase H's `templateId` — which needed no change when it landed. `git show 449f722:…` confirms it was generic on day one, not retrofitted.
+- **C-09 Phase D never touched `/admin/bookings`.** Its five rewired surfaces were enquiries, staff, operations, emails and privacy; bookings filtering stays in-memory in `filterBookings()`. There is no "C-09 filter param" on this URL to round-trip. *(I had claimed otherwise in the B4 dispatch — wrong.)*
+- **`view` does not postdate saved views** — `449f722` introduced `BookingsChrome.tsx`, the `?view=` scheme and saved views in one commit. B3 fixed a server-side default-resolution bug; it never changed how `view` reaches the URL.
+
+**The four genuine gaps, in priority order:**
+
+1. **⚠️ The brief's own "cleared on logout" requirement is unmet — and it is a privacy issue on a shared machine.** §2.12 states saved filters are "**cleared on logout**". `src/app/admin/signout/route.ts` is a pure server action (`signOut()` + redirect) that touches no client storage. Worse, the key `rahma.admin.bookings.saved-views.v1` is **not namespaced per staff id** — so on a shared front-desk browser, one Coordinator's saved searches persist into the next person's session, and a saved view can carry a client name in its `search=` param. Namespacing the key per staff id fixes both at once and is the better fix than clearing on sign-out.
+2. **No test coverage**, which Step 14 explicitly required. `loadSavedViews`/`persistSavedViews` are private inside `BookingsChrome.tsx`, so testing them today means either exporting them or mounting the whole client component. Cheapest gap to close.
+3. **Hide-when-empty diverges from the written checkpoint.** The plan wants the bar hidden with no saved views and no active filter; the desktop bar renders always for any `canViewAll` role, showing "No saved views yet." Arguably better for discoverability — but it is a deviation from a written spec and should be an explicit call, not an implicit one.
+4. **Mobile has no save affordance** — the create flow lives only in the `hidden md:block` desktop bar, so a Coordinator on a phone can apply a saved view but never make one. Lowest priority; Coordinators are desk-based more often than Therapists.
+
+**Recommendation: close B4 as VERIFY-ALREADY-IMPLEMENTED *after* a scoped in-place fix round covering gaps 1 and 2**, with 3 and 4 as explicit Owner calls. Building the plan's parallel `saved-filters.ts` + `SavedFiltersBar.tsx` would be **strictly worse than either closing outright or fixing in place** — two localStorage keys and two UI bars for one capability, i.e. the same defect class this plan has already produced five times.
 
 **Nothing was implemented for B4. No files created, no commits made.**
 
