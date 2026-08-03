@@ -17,6 +17,9 @@
 //  - Every timestamp stays a string. page.tsx's `getTodayIsoDate()` comparison,
 //    `findRecentAutoPromotion`'s `Date.now() - new Date(created_at)` window and
 //    every `safeFormatDateTime` call run on the consumer side of the boundary.
+//  - `sourceEnquiry` (C-03 Phase D) is `null` or a plain object of scalars
+//    (id/full_name/service_interest strings, created_at kept as a string —
+//    formatted by `formatDate` on the consumer side, same rule as above).
 //  - TRANSFORM APPLIED: none needed — no Set / Map / Date is returned.
 //
 // NOT CACHED, deliberately: `getStaffAssignmentPreviews` (assignment
@@ -27,6 +30,12 @@
 // row read, only paid for when the Restore button will actually render.
 //
 // Tags per the plan's Step 5 table: bookings, clients, staff, audit, emails.
+// C-03 Phase D adds `enquiries`: the fetcher now also runs the
+// enquiry-origin reverse-lookup (Step 12) below, and `createManualBooking`
+// already calls `updateTag(TAGS.ENQUIRIES)` in the same request that sets
+// `enquiries.converted_booking_id` (bookings/actions.ts) — without this tag
+// on the fetcher, that exact event would leave a stale Origin panel for up
+// to 60s with nothing left that could ever bust it.
 //
 // PAGINATION (C-16): this surface is not on C-16's Phase A list and carries no
 // unbounded list — the activity timeline is a merge of two 10-row reads capped
@@ -298,11 +307,24 @@ export interface BookingDetailParams {
   auditLimit?: number;
 }
 
+// C-03 Phase D, Step 12 — the enquiry that converted into this booking, via
+// the reverse lookup (`enquiries.converted_booking_id = booking.id`). No
+// forward pointer exists on `bookings` (brief §1.5 locked reverse-lookup over
+// a schema change), so this is `null` for the overwhelming majority of
+// bookings that didn't originate from an enquiry.
+export interface SourceEnquiry {
+  id: string;
+  full_name: string;
+  created_at: string;
+  service_interest: string | null;
+}
+
 export interface BookingDetailData {
   canOpen: boolean;
   claimableOnly: boolean;
   booking: BookingRecordWithClientId | null;
   auditLogs: NonNullable<BookingRecord["audit_logs"]>;
+  sourceEnquiry: SourceEnquiry | null;
 }
 
 export async function getBookingDetailData(
@@ -322,7 +344,13 @@ export async function getBookingDetailData(
         adminClient
       );
       if (!scopedRelation.canOpen) {
-        return { canOpen: false, claimableOnly: false, booking: null, auditLogs: [] };
+        return {
+          canOpen: false,
+          claimableOnly: false,
+          booking: null,
+          auditLogs: [],
+          sourceEnquiry: null,
+        };
       }
 
       const bookingResult = scopedRelation.claimableOnly
@@ -347,6 +375,7 @@ export async function getBookingDetailData(
           claimableOnly: scopedRelation.claimableOnly,
           booking: null,
           auditLogs: [],
+          sourceEnquiry: null,
         };
       }
 
@@ -387,11 +416,25 @@ export async function getBookingDetailData(
             .slice(0, BOOKING_DETAIL_TIMELINE_CAP)
         : [];
 
+      // C-03 Phase D, Step 12 — reverse lookup for the enquiry this booking
+      // was converted from, if any. Every viewer who can open the booking may
+      // see the Origin panel (brief §3 RBAC matrix draws no distinction), so
+      // this runs unconditionally rather than gated on `fullScope`. Indexed
+      // (`idx_enquiries_converted_booking`, migration applied at 3453c0b) —
+      // a single-row lookup that returns null for the overwhelming majority
+      // of bookings.
+      const { data: sourceEnquiry } = await adminClient
+        .from("enquiries")
+        .select("id, full_name, created_at, service_interest")
+        .eq("converted_booking_id", booking.id)
+        .maybeSingle<SourceEnquiry>();
+
       return {
         canOpen: true,
         claimableOnly: scopedRelation.claimableOnly,
         booking,
         auditLogs,
+        sourceEnquiry: sourceEnquiry ?? null,
       };
     },
     [
@@ -408,7 +451,14 @@ export async function getBookingDetailData(
     ],
     {
       revalidate: 60,
-      tags: [TAGS.BOOKINGS, TAGS.CLIENTS, TAGS.STAFF, TAGS.AUDIT, TAGS.EMAILS],
+      tags: [
+        TAGS.BOOKINGS,
+        TAGS.CLIENTS,
+        TAGS.STAFF,
+        TAGS.AUDIT,
+        TAGS.EMAILS,
+        TAGS.ENQUIRIES,
+      ],
     }
   );
   return cached();

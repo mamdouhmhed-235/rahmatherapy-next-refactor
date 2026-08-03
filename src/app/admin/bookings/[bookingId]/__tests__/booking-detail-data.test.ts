@@ -67,6 +67,7 @@ function stubClient() {
       error: null,
     },
     booking_assignments: { data: [], error: null, count: 1 },
+    enquiries: { data: null, error: null },
   });
 }
 
@@ -96,7 +97,7 @@ describe("getBookingDetailData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
   });
 
-  it.each([TAGS.BOOKINGS, TAGS.CLIENTS, TAGS.STAFF, TAGS.AUDIT, TAGS.EMAILS])(
+  it.each([TAGS.BOOKINGS, TAGS.CLIENTS, TAGS.STAFF, TAGS.AUDIT, TAGS.EMAILS, TAGS.ENQUIRIES])(
     "re-runs the fetcher after the %s tag is invalidated",
     async (tag) => {
       const profile = makeProfile("s1");
@@ -150,6 +151,58 @@ describe("getBookingDetailData cache behaviour", () => {
       fullScope: false,
     });
     expect(data.auditLogs).toEqual([]);
+  });
+
+  it("returns sourceEnquiry: null when no enquiry converted into this booking", async () => {
+    const data = await getBookingDetailData({
+      bookingId: "b1",
+      profile: makeProfile("s1"),
+      fullScope: true,
+    });
+    expect(data.sourceEnquiry).toBeNull();
+  });
+
+  it("returns the converting enquiry when one exists (C-03 Phase D)", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        bookings: {
+          data: {
+            id: "b1",
+            client_id: "c1",
+            booking_date: "2026-01-10",
+            start_time: "10:00",
+            status: "confirmed",
+            booking_participants: [],
+            booking_items: [],
+            booking_assignments: [],
+          },
+          error: null,
+        },
+        audit_logs: { data: [], error: null },
+        booking_assignments: { data: [], error: null, count: 1 },
+        enquiries: {
+          data: {
+            id: "e1",
+            full_name: "Fatima Ahmed",
+            created_at: "2026-01-01T09:00:00.000Z",
+            service_interest: "Supreme Combo Package",
+          },
+          error: null,
+        },
+      })
+    );
+
+    const data = await getBookingDetailData({
+      bookingId: "b1",
+      profile: makeProfile("s1"),
+      fullScope: true,
+    });
+    expect(data.sourceEnquiry).toEqual({
+      id: "e1",
+      full_name: "Fatima Ahmed",
+      created_at: "2026-01-01T09:00:00.000Z",
+      service_interest: "Supreme Combo Package",
+    });
   });
 
   it("returns a JSON-safe shape (no Map/Set/Date crosses the boundary)", async () => {

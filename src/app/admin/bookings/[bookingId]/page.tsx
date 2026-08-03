@@ -129,7 +129,7 @@ const DEFAULT_BOOKING_METADATA: Metadata = {
  */
 export async function generateMetadata({
   params,
-}: BookingDetailPageProps): Promise<Metadata> {
+}: Pick<BookingDetailPageProps, "params">): Promise<Metadata> {
   const { bookingId } = await params;
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
@@ -194,12 +194,20 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
 
 interface BookingDetailPageProps {
   params: Promise<{ bookingId: string }>;
+  // C-03 Phase D, Step 14 — `just_converted` from the source-aware redirect
+  // in `createManualBooking`; `from_enquiry` from the re-conversion guard
+  // redirect in `bookings/new/page.tsx`.
+  searchParams: Promise<{ just_converted?: string; from_enquiry?: string }>;
 }
 
 export default async function BookingDetailPage({
   params,
+  searchParams,
 }: BookingDetailPageProps) {
   const { bookingId } = await params;
+  const { just_converted, from_enquiry } = await searchParams;
+  const justConverted = just_converted === "1";
+  const fromEnquiryRedirect = from_enquiry === "already_converted";
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
@@ -212,7 +220,7 @@ export default async function BookingDetailPage({
   }
 
   const adminClient = createSupabaseAdminClient();
-  const { canOpen, booking, auditLogs } = await getBookingDetailData({
+  const { canOpen, booking, auditLogs, sourceEnquiry } = await getBookingDetailData({
     bookingId,
     profile,
     fullScope: canManageAllBookings(profile),
@@ -374,7 +382,10 @@ export default async function BookingDetailPage({
 
   return (
     <AdminPageScaffold className="pb-24 md:pb-0">
-      <BookingCreatedToast />
+      <BookingCreatedToast
+        justConverted={justConverted}
+        fromEnquiryRedirect={fromEnquiryRedirect}
+      />
 
       <nav aria-label="Breadcrumb" className="mb-2">
         {/* Mobile: tappable back-link pill (44px target). Desktop: ordinary breadcrumb. */}
@@ -523,6 +534,7 @@ export default async function BookingDetailPage({
             clientId={bookingWithTimeline.client_id ?? null}
             showFinancials={fullScope}
             showClientLink={fullScope && Boolean(bookingWithTimeline.client_id)}
+            sourceEnquiry={sourceEnquiry}
           />
         </div>
       </div>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ExternalLink, Mail, MapPin, Phone, User } from "lucide-react";
+import { ArrowUpRight, ExternalLink, Mail, MapPin, Phone, User } from "lucide-react";
 import {
   AdminPanel,
   AdminStatusBadge,
@@ -11,6 +11,7 @@ import {
   formatTime,
 } from "../format";
 import type { BookingRecord, BookingStatus } from "../types";
+import type { SourceEnquiry } from "./booking-detail-data";
 
 const STATUS_TONES: Record<BookingStatus, AdminTone> = {
   pending: "info",
@@ -33,6 +34,8 @@ interface SidebarProps {
   clientId?: string | null;
   showFinancials: boolean;
   showClientLink: boolean;
+  /** C-03 Phase D, Step 13 — the enquiry this booking was converted from, if any. */
+  sourceEnquiry?: SourceEnquiry | null;
 }
 
 export function BookingDetailSidebar({
@@ -40,9 +43,11 @@ export function BookingDetailSidebar({
   clientId,
   showFinancials,
   showClientLink,
+  sourceEnquiry,
 }: SidebarProps) {
   return (
     <aside className="grid content-start gap-4 md:sticky md:top-4">
+      {sourceEnquiry ? <OriginCard sourceEnquiry={sourceEnquiry} /> : null}
       <SummaryCard booking={booking} showFinancials={showFinancials} />
       <ClientCard
         booking={booking}
@@ -51,6 +56,36 @@ export function BookingDetailSidebar({
       />
       <AddressCard booking={booking} />
     </aside>
+  );
+}
+
+// ─── Origin (C-03 Phase D, Step 13 — B-108) ──────────────────────────────────
+// Persistent reverse-link for the enquiry this booking was converted from.
+// Renders only when `sourceEnquiry` is non-null — the overwhelming majority
+// of bookings didn't originate from an enquiry and get no card here at all.
+
+function OriginCard({ sourceEnquiry }: { sourceEnquiry: SourceEnquiry }) {
+  return (
+    <AdminPanel>
+      <div className="grid gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.06em] text-[var(--admin-text-muted)]">
+          Origin
+        </p>
+        <p className="text-sm font-medium text-[var(--admin-body)]">
+          Converted from enquiry
+        </p>
+        <p className="text-sm text-[var(--admin-heading)]">
+          {sourceEnquiry.full_name} · {formatDate(sourceEnquiry.created_at.slice(0, 10))}
+        </p>
+        <Link
+          href="/admin/enquiries"
+          className="inline-flex h-9 sm:h-8 items-center gap-1.5 text-sm font-medium text-[var(--admin-primary)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        >
+          <ArrowUpRight className="size-3.5" aria-hidden="true" />
+          View enquiry
+        </Link>
+      </div>
+    </AdminPanel>
   );
 }
 

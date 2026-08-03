@@ -60,6 +60,7 @@ export const TAG_AUDIENCE: Record<ResourceTag, string[]> = {
     "/admin/enquiries",
     "/admin/dashboard",
     "/admin/clients/[id]",
+    "/admin/bookings/[id]",
   ],
   settings: [
     "/admin/settings",
