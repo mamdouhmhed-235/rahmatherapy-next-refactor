@@ -97,4 +97,50 @@ Range `7fe8b4f..0bb356d`: 162 commits, 239 files, +36,666/−4,036, 7 migrations
 
 ---
 
-*Checkpoint #3 due after plan #15.*
+## Checkpoint #3 — GROUNDWORK ONLY, run 2026-08-03 at HEAD `822441d`
+
+**⏳ NOT THE FORMAL CHECKPOINT.** C-07 (plan #15) is 7/8 phases, paused at a HARD-STOP on Phase B4 awaiting an Owner decision. §2.6 places the checkpoint *after* plan #15 ships, so this is the expensive read-only analysis done in advance; the checkpoint completes once B4 resolves and C-07 closes out. Five read-only lenses, no writes. Every conclusion below is marked where B4's outcome could still move it — for almost all of them it cannot, since B4 concerns `localStorage` saved views and touches none of these surfaces.
+
+**Range:** `7fe8b4f..HEAD` — 248 commits, 350 files, +57,756/−5,976. New ground since checkpoint #2 (`0bb356d`): plans #11–15 — C-13, C-02, C-09, C-03, C-07(partial).
+
+**Gates independently re-run at HEAD by three separate lenses, agreeing:** tsc 0 · lint **59E/7W in exactly six files** · build clean · vitest **5 failed / 1485 passed (1490)**, failures identity-exact. **F-1 did not recur** — `git status --porcelain` snapshotted at both ends of the session, byte-identical at 277 lines, HEAD unmoved. Unlike checkpoint #2, this analysis ran against a genuinely halted programme rather than a moving tree.
+
+### Checkpoint #2's seven follow-up items — answered
+
+1. **F-1 recurrence** — no, see above.
+2. **`notifications.ts` pressure** — grew **+185** (1282 → 1467) versus the prior window's **+877**, and structurally cleaner: no new logic was woven into an existing function's control flow; C-02's two additions are appended and self-contained. **C-09 never touched the file at all**, so checkpoint #2's "C-13/C-02/C-09 queued behind it" prediction was overstated by a third. Still unowned; C-16/C-17/C-18 are next.
+3. **The `providedOverrides` seam** — *neither* risk materialised. It is still unwired on five templates (F-6 unchanged), **but C-02 did not copy the double-fetch shape**: both new send fns call `resolveTemplateOverrides` once and thread one object into both legs, and the new renderers take `overrides` as a required parameter with no internal fetch, citing "the C-01 lesson" in-comment. The copied-deviation-becomes-pattern risk did not occur.
+4. **F-4 colour literals — the framing was too narrow, and this is the most significant correction.** Checkpoint #2 scoped it to "three new C-15 files". In fact the light-only `oklch(...)` literal pair is present in **68 files repo-wide at programme start (`7fe8b4f`)**, including `src/components/ui/badge.tsx` — and **C-11's "admin-wide dark mode" pass never touched them**. C-13's new `BookingCard.tsx` carries them only because rule 11 required matching the file it was extracted from (verified byte-identical at `0bb356d`). So this is not C-13/C-15 drift; it is large, old, ambient debt that no plan owns, and every new admin file re-plants it.
+5. **Backlog decay** — reversed. 54 → 79 lines; **all four new plans added their own rows** (C-13 ×3, C-02 ×5, C-03, C-09 ×2), the practice F-10 criticised C-15 for. But F-10's *backward* gap — ~42 older deferred items missing from the C-08-era snapshot — was never addressed and remains open.
+6. **C-09 as the first retroactive plan** — the prediction was directionally right, the outcome better than feared: **nothing earlier was undone.** Instead C-09 *introduced* three defects and caught all three in its own closeout (the Bookable filter losing its `active` conjunct; a malformed date 500-ing two pages; PostgREST `.or()` escaping silently returning zero rows). One was found only by re-running a lens that had returned a one-word stub verdict.
+7. **Post-deploy-only checks** — grew. C-02 added four cron-dependent checks on top of C-22's four limiter checks, C-08's histogram, C-21's Search Console items and the maintenance-flag restore. C-13/C-03/C-09 added none. Still no single consolidated "run these N once the deploy lands" list.
+
+### Part 0 conventions — clean, including the one checkpoint #2 flagged hardest
+
+Zero `border-l-4`. Zero `revalidateTag(`. Zero fixed-pixel width additions. **All 15–16 of C-09's new/extended `*-data.ts` files were read individually**, not trusted from their own headers: every page resolves `getStaffProfile`/`getAdminPageAccess` before invoking its helper, and where the admin client lives inside the cached closure the auth-derived scalars gating the query are threaded as explicit params **baked into the cache key**, so no RBAC-scoped result can leak between callers.
+
+**JSON-safety across `unstable_cache`: zero violations across all 16 wraps**, verified by reading actual return paths rather than declared types. Every `Set`/`Map` is consumed into an array and every `Date` is stringified before crossing the boundary. This was the single hazard checkpoint #2 most wanted watched, and it held under a 13-wrap expansion.
+
+### The duplicate-logic inventory — the defining pattern of plans #11–15
+
+| Instance | State at HEAD |
+|---|---|
+| Three today-in-London helpers (D2) | **Still unreconciled** — but *not worsened*. Both C-02 and C-07 B1 explicitly declined to add a fourth, each citing the existing helper. Vigilance held; nobody merged the three. `access.ts:85-92` and `_helpers.ts:198-205` are now byte-identical. |
+| Duplicate `MISSING_COLUMN_CODES`/`hasErrorCode` shims (D1) | **Still unreconciled, byte-identical, doubly dead.** Checkpoint #1 assigned it to "whichever of C-02/C-08/C-14 next needs the shape" — C-02 and C-08 have both passed without needing it. **Only C-14 remains as a candidate owner.** |
+| Two default-view computations | **✅ RECONCILED** by C-07 B3 (`838d049`) — and it was a live production bug for the whole programme. |
+| Allow-list param preserver vs its delete-based siblings | **✅ RECONCILED** by C-07 B2 (`dd5b497`), after losing `from`/`to` once and `scope` the next time — "the same hole, twice", now documented in-code. |
+| **Client preset map vs server range resolver** | **⚠️ STILL DIVERGENT — genuinely live.** `buildPresets()` knows `yesterday` and `last_30`; `getRangeDefaults()` in `reporting.ts` knows neither. **C-07's B1 fix MASKED this rather than removing it** — by always forwarding explicit `from`/`to` it made correctness independent of the server knowing the key, which is robust, but the two maps still disagree. `reporting.ts` is a Part 0 untouchable, so closing it properly needs an Owner decision. |
+
+**The honest conclusion on the pattern:** five instances in five plans is not coincidence, but neither is it evidence of a structural fix waiting to be applied. Three were reconciled *within* the plans that found them; two survive specifically because the reconciliation would touch protected or unowned files. Per-plan vigilance is currently working — C-02 and C-07 both *declined* to add a fourth date helper unprompted — and inventing an abstraction to prevent the class would itself be unrequested scope. **Recommendation: keep the vigilance, and give D1/D2 an owner rather than a framework.**
+
+### For the formal checkpoint, once C-07 ships
+
+1. Re-run the gates at the true final HEAD and confirm identity holds through B4's resolution.
+2. Fold in whatever B4 produces (see C-07 progress §1.8a — the recommendation is close-after-scoped-fix, with a genuine privacy gap in the shared-browser saved-views key).
+3. Decide an owner for the 68-file colour-literal debt, or record explicitly that it stays unowned into C-12+.
+4. Decide whether the client/server preset divergence is worth an Owner-approved `reporting.ts` exception.
+5. Consider consolidating the post-deploy-only checks into one list before the deploy, since they now span five plans.
+
+---
+
+*Checkpoint #3 groundwork complete 2026-08-03; formal checkpoint pending C-07's closeout. Checkpoint #4 due after plan #20.*
