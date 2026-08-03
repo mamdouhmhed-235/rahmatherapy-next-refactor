@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requirePermission, PERMISSIONS } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 type GenderRestriction = "any" | "male_only" | "female_only";
 
@@ -132,6 +133,13 @@ export async function createService(
     after_state: data,
   });
 
+  // C-09 addendum (Owner-approved 2026-08-03): mutates services, which
+  // bookings-list-data.ts's getBookingsChromeData unstable_cache wrap
+  // (tags: bookings, clients, staff) reads for the /admin/bookings filter
+  // dropdown. Without this, a new/renamed/deleted service is missing or
+  // stale there for up to ~60s.
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/services");
 
   return { success: true };
@@ -179,6 +187,10 @@ export async function updateService(
     after_state: data,
   });
 
+  // C-09 addendum (Owner-approved 2026-08-03): see createService — same
+  // getBookingsChromeData staleness rationale.
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/services");
 
   return { success: true };
@@ -230,6 +242,10 @@ export async function deleteService(serviceId: string): Promise<{ error?: string
     before_state: beforeState,
   });
 
+  // C-09 addendum (Owner-approved 2026-08-03): see createService — same
+  // getBookingsChromeData staleness rationale.
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
   revalidatePath("/admin/services");
 
   return {};

@@ -3,7 +3,8 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requirePermission, PERMISSIONS } from "@/lib/auth/rbac";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 const CRITICAL_ROLE_PERMISSIONS = new Set<string>([
   PERMISSIONS.MANAGE_STAFF_PROFILES,
@@ -182,6 +183,13 @@ export async function toggleRolePermission(
     },
   });
 
+  // C-09 addendum (Owner-approved 2026-08-03): grants/revokes mutate
+  // role_permissions, which staff-detail-data.ts's unstable_cache wrap
+  // (tags: staff, bookings, audit) reads to render a staff member's
+  // effective permissions. Without this, a grant/revoke only self-heals
+  // after the ~60s revalidate window.
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/roles/${roleId}`);
   revalidatePath("/admin/roles");
 
