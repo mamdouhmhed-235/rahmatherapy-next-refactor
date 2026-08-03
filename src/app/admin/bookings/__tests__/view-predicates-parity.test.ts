@@ -22,17 +22,25 @@
 // alias, repeated `.or(...)`, `not.is.null` and `client_id.in.(…)` inside
 // `.or(...)`, `.in("id", [])`).
 //
-// 31 cases over 17 fixtures (plan §3.4 asks for 20), covering all 11 views,
+// 31 cases over 18 fixtures (plan §3.4 asks for 20), covering all 11 views,
 // C-05's cancelled/no_show opt-ins, claimable's strictness, and search's
 // joined-client and raw-id paths. Two further cases at the bottom PIN the two
 // places SQL cannot reproduce the oracle, so neither can widen unnoticed.
 //
-// FIX ROUND (this revision): B15-B17 close three more corpus gaps where a
-// view's predicate had a clause no fixture made the SOLE reason a row
-// qualified — see each fixture's comment. Six existing expectations grew to
-// include the new fixtures where they genuinely belong (attention, upcoming,
-// unassigned, cancelled, series, and the assignment_status=unassigned
-// filter); no existing assertion was narrowed or removed.
+// FIX ROUND: B15-B17 close three corpus gaps where a view's predicate had a
+// clause no fixture made the SOLE reason a row qualified — see each
+// fixture's comment. Six existing expectations grew to include the new
+// fixtures where they genuinely belong (attention, upcoming, unassigned,
+// cancelled, series, and the assignment_status=unassigned filter); no
+// existing assertion was narrowed or removed.
+//
+// FIX ROUND (this revision): B18 closes the last gap of the same class —
+// claimable's `eq(fv.status, "unassigned")` clause (bookings-list-data.ts)
+// had no fixture with `assigned_staff_id: null` and a non-"unassigned"
+// assignment status, so deleting it went uncaught. Four existing
+// expectations grew to include B18 where it genuinely belongs (attention,
+// upcoming, unassigned, and the assignment_status=unassigned filter); no
+// existing assertion was narrowed or removed.
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
@@ -87,6 +95,9 @@ const ID = {
   B15: "00000015-0000-4000-8000-000000000015",
   B16: "00000016-0000-4000-8000-000000000016",
   B17: "00000017-0000-4000-8000-000000000017",
+  // B18: a further FIX ROUND closing the last gap of the same class — see
+  // its comment below.
+  B18: "00000018-0000-4000-8000-000000000018",
 } as const;
 
 type FixtureRow = BookingRecord & { client_id: string | null };
@@ -372,6 +383,21 @@ const FIXTURES: FixtureRow[] = [
       assignment({ assigned_staff_id: STAFF_C, status: "assigned" }),
     ],
   }),
+  // Closes a parity gap: every fixture whose assignment has
+  // `assigned_staff_id: null` also has assignment `status: "unassigned"`, so
+  // deleting `eq("fv.status", "unassigned")` from `claimable` went uncaught
+  // — the remaining `isNull`/gender/date conditions were enough on their own
+  // for the whole corpus. B18 models a per-assignment cancellation (the
+  // staff FK nulled, but `status` left "cancelled" rather than reset to
+  // "unassigned") that is otherwise fully claimable-shaped (gender-matched,
+  // future-dated, booking not cancelled) — the exact shape the status check
+  // exists to reject.
+  booking({
+    id: ID.B18,
+    booking_date: "2026-06-23",
+    assignment_status: "unassigned",
+    booking_assignments: [assignment({ status: "cancelled" })],
+  }),
 ];
 
 const FIXTURE_CLIENTS = [
@@ -636,7 +662,7 @@ const CASES: ParityCase[] = [
     name: "view=attention — pending / not-fully-assigned / reschedule / customer-cancelled",
     view: "attention",
     query: { view: "attention" },
-    expected: ["B1", "B3", "B4", "B5", "B6", "B7", "B8", "B15", "B16"],
+    expected: ["B1", "B3", "B4", "B5", "B6", "B7", "B8", "B15", "B16", "B18"],
   },
   {
     name: "view=attention + status=cancelled — C-05 opt-in suspends the archive rule",
@@ -655,7 +681,20 @@ const CASES: ParityCase[] = [
     name: "view=upcoming — today-or-later, not completed",
     view: "upcoming",
     query: { view: "upcoming" },
-    expected: ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B12", "B13", "B15", "B16"],
+    expected: [
+      "B1",
+      "B2",
+      "B3",
+      "B4",
+      "B5",
+      "B6",
+      "B7",
+      "B12",
+      "B13",
+      "B15",
+      "B16",
+      "B18",
+    ],
   },
   {
     name: "view=claimable — gender-matched, future-dated, unassigned only",
@@ -689,7 +728,7 @@ const CASES: ParityCase[] = [
     name: "view=unassigned",
     view: "unassigned",
     query: { view: "unassigned" },
-    expected: ["B1", "B6", "B7", "B8", "B16"],
+    expected: ["B1", "B6", "B7", "B8", "B16", "B18"],
   },
   {
     name: "view=partially_assigned",
@@ -737,7 +776,7 @@ const CASES: ParityCase[] = [
     name: "filter assignment_status=unassigned",
     view: "all",
     query: { view: "all", assignment_status: "unassigned" },
-    expected: ["B1", "B6", "B7", "B8", "B9", "B16"],
+    expected: ["B1", "B6", "B7", "B8", "B9", "B16", "B18"],
   },
   {
     name: "filter required_gender=male (EXISTS on booking_assignments)",
