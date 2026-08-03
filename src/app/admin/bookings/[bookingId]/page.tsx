@@ -38,6 +38,7 @@ import {
   canAssignBookings,
   canCreateSessionNotes,
   canViewAllBookings,
+  canViewStaff,
   getStaffProfile,
 } from "@/lib/auth/rbac";
 import { isViewerAssignedPractitioner } from "@/app/admin/dashboard/shared-helpers";
@@ -867,6 +868,11 @@ function AssignmentRow({
 }) {
   const isUnassigned =
     assignment.status === "unassigned" && !assignment.assigned_staff_id;
+  // W05-V-2 — gate the staff-name link on the same predicate that unlocks the
+  // "admin" scope in getStaffTeamAccess (team-access.ts); true here always
+  // implies canViewStaffProfile(profile, ANY target) === true, so this never
+  // renders a link into a staff page the viewer can't open.
+  const canViewAssignedStaff = canViewStaff(profile);
   const participant = booking.booking_participants.find(
     (item) => item.id === assignment.participant_id
   );
@@ -920,9 +926,18 @@ function AssignmentRow({
               For {participantLabel}
             </p>
             <p className="mt-0.5 font-semibold text-[var(--admin-heading)] break-words">
-              {isUnassigned
-                ? "Unassigned"
-                : assignment.staff_profiles?.name ?? "Therapist"}
+              {isUnassigned ? (
+                "Unassigned"
+              ) : canViewAssignedStaff && assignment.assigned_staff_id ? (
+                <Link
+                  href={`/admin/staff/${assignment.assigned_staff_id}`}
+                  className="rounded-sm underline-offset-4 outline-none transition-colors hover:text-[var(--admin-primary)] hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  {assignment.staff_profiles?.name ?? "Therapist"}
+                </Link>
+              ) : (
+                assignment.staff_profiles?.name ?? "Therapist"
+              )}
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               {isUnassigned ? (
