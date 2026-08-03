@@ -167,8 +167,70 @@ Enquiries' badges/stats now issue five head-counts through the shared filter bui
 
 **Write-pipelining dropped mid-plan.** §2.9(b) permits the next batch's implementation to start once the previous batch's self-gates pass. Twice in Phase D a verify-FAIL arrived while a new implementer was already in flight, forcing a choice between §2.9(b)'s freeze ("no further commits anywhere") and §1 rule 1 ("never two write-tasks in flight", run-ending). Both times it was resolved the same way — let the in-flight agent finish, because killing it mid-write leaves a dirty plan-scope tree that §3's ungraceful-loss rule warns against. Hitting it twice indicated the pipelining was too aggressive for this defect rate, so **from Phase D onward no implementer starts until the previous batch's verification returns.** §2.9 permits what was given up, so this is logged as a deliberate deviation rather than a silent one.
 
-## 8 — ▶ Position
+## 8 — Phase E — Steps 13–15
 
-Phase A ✅ · Phase B ✅ (`080279b`, verified) · Phase C Step 5 ✅ (`ca0cc21`, verification in flight) · **Steps 6–7 in flight** (`opus` — chip counts must reuse Step 5's predicate builder or they silently lie; saved views must not re-apply a stale `page`). Then Phase D (Steps 9–12, operations = **pager**, per §1) and Phase E (Steps 13–15, Step 13 reduced to verify-and-polish).
+| Step | Commit | Tier | Result |
+|---|---|---|---|
+| 14 — the five folded-in surfaces | `e822e12` | FULL | **FAIL** → fixed `f27a9da` → **PASS** |
+| (Owner-authorised) critical-note widening | `ed9d31b` | TARGETED | narrowed at closeout — see below |
+| 13 + 15 — roles verify-and-polish, standing rule | `4a9bef9` | TARGETED | **PASS**, zero code changes |
 
-**Cadence note:** the plan's §7 table makes all of Phase C bookings one commit. It is landing as two (`ca0cc21` Step 5, then Steps 6–7) — finer-grained than the table, deliberately, so the correctness-critical predicate port is isolated in its own reviewable commit.
+**Step 14** bounded services usage counts (narrow projection reduced in-cache — a grouped aggregate is impossible, PostgREST aggregates are disabled), clinic and per-staff blocked-dates/overrides, the client notes rail, and the staff assigned-bookings panel. It also fixed a live bug in passing: the "Show all assignments" link emitted `?staffId=`, a param `/admin/bookings` never reads, so it silently showed nothing staff-specific.
+
+**⚠️ Step 14's FAIL was safety-adjacent.** The `sensitiveNotes` list feeding the **"Critical note" allergy-scan banner** was capped at 300 most-recent-first with **no head-count and no signal** — a flagged note beyond the cap would drop out of the scan silently — while in-code comments called that cap "never truncated". Fixed at `f27a9da` by giving the banner **its own query** (an ILIKE keyword superset in SQL, refined by the exact regex in JS), so its correctness no longer depends on any display cap. The rail itself gained a real head-count and the standard `cappedOut` state machine.
+
+**Step 13 changed nothing, correctly.** The roles page's tier grouping, inactive-role disclosure, category-grouped sticky headers, filter strip and internal `max-h-[70vh]` scroll cap already existed and already bounded the page frame; `git log 74ed6ed..HEAD -- src/app/admin/roles/` was empty, so nothing had drifted. Real shape: 5 roles, 39 active permissions in 11 categories, 94 role-permission rows; Owner at 39/39 is the worst case. Deliverable is `redesign/evidence/C-16/roles-visual-checklist.md` for the Owner's 375/1280 pass, which needs a login no agent may perform.
+
+**Step 15 found a real discrepancy.** The standing rule was present and correctly worded but lived in **Part 6**, not Part 0 — while the plan and brief both cite it as "the Part 0 standing rule". A plan following Part 0 would never have seen it. **Fixed at closeout:** the rule is now in Part 0's hard-rules list, with its two C-16 corollaries (a cap is only honest if the true total is surfaced and the cap actually in force is named; a "view all" must never become a dead link — `cappedOut` before `hidden`) and an explicit note of what it knowingly does **not** cover (`reporting.ts`, `audit/queries.ts`).
+
+## 9 — ⚠️ The patient-safety defect, and the mistake made fixing it
+
+`CRITICAL_NOTE_PATTERN`'s trailing `\b` applied to the whole alternation group, so `anaphyla` and `contraindic` matched **only as standalone words** — which they never are. *"severe anaphylactic reaction"* and *"massage contraindicated due to DVT"* did **not** raise the Critical-note banner. Those two branches had been dead since `d7c8d0f`, **before the programme began**, and they are the most clinically specific terms in the list.
+
+Raised to the Owner rather than fixed unilaterally (rule 6a — pre-existing), since widening detection on a clinical pattern is a false-positive judgement the Owner owns. **Owner authorised the fix in chat on 2026-08-03** after the orchestrator confirmed containment: `CRITICAL_NOTE_PATTERN` appears in exactly three files, all already in C-16's approved scope, and **no other C-phase plan or brief mentions it at all**.
+
+**The orchestrator then got the fix shape wrong.** The proposed form dropped the trailing `\b` from *every* branch, and `do not` therefore prefix-matched `"do nothing"`, `"do notice"`, `"do note"` — benign notes tripping a clinical banner. The commit added no blast-radius test. **Caught by the closeout adversarial review**, narrowed at `d22ab37` to `do not\b` — the only branch whose prefix match inverts its meaning. `allerg`, `anaphyla`, `contraindic` keep prefix matching, which was the authorised intent. `avoid` was **considered and deliberately kept** as a prefix: `avoid\b` would stop matching "avoiding the left shoulder" / "avoidance of pressure", and a false negative on a safety banner is the worse failure.
+
+Durable protection: a mechanical guard parses `CRITICAL_NOTE_PATTERN.source` at test time to derive the **live** branch list and asserts each branch is covered by a `CRITICAL_NOTE_KEYWORDS` entry — so the SQL superset can never silently stop covering the regex. Restoring the trailing `\b` fails 15 tests.
+
+## 10 — Closeout gate (2026-08-04, at `d22ab37`)
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | **0 errors** |
+| `npx vitest run` | **5 failed / 1812 passed (1817)** — identity exact (`admin-access` ×2, `ManualBookingForm` ×3) |
+| `npx eslint .` | **59E / 7W**, same six files |
+| `npx next build` | clean, **53 routes** |
+| §3.4 parity spec | **35/35** (grown from the plan's "20-case" text by two hardening rounds) |
+| §3.2 no-unbounded-queries | **FAIL → fixed `d22ab37` → PASS** |
+| Adversarial full-range review | **FAIL → fixed `d22ab37` → PASS** |
+| Bundle budget | **NOT RUN** — tenth plan hit by the same tooling gap |
+| §3.3 multi-page proof · §3.5 role sweep | **Owner-performed by necessity** (admin sign-in; no agent may authenticate) |
+
+**The closeout FAIL was substantive and worth the round.** The sweep went beyond the plan's three named files to every `.from(` under `src/app/admin/**` and found that **`/admin/clients`' own core query had no ceiling** — the plan's flagship surface, still reading every matching client row per load — and that the **client-detail booking-history rail** was unbounded despite Phase A verdicting it `paginate` (its helper accepted `limit`/`offset`; the caller never passed them). That second one is a genuine lost step, and it is the orchestrator's: the Step 14 dispatch scoped N6 to the notes rail and asked only that the rail tension be *reported*.
+
+Both fixed at `d22ab37`: the candidate query capped at 1000 (6000 via view-all) with an exact head-count and honest copy — *"Read the first N of M matching clients. The count, the stats and every page here cover only those"* — and the history rail bounded to 50/500 with the **LTV ribbon given its own whole-history read**, so a lifetime figure can never silently become "value of the last 50 visits". A verifier confirmed by direct read that all five lifetime consumers take the uncapped array.
+
+**Why capped rather than paginated:** the lifecycle, payment-standing and last-visit sort derive from a per-client bookings summary computed in memory. Pushing them into SQL needs an aggregate; **PostgREST aggregates are disabled on this project** (`PGRST123`, independently confirmed by four separate agents), `reporting.ts` is untouchable, and a view/RPC/derived column is a migration — Zone-2, which C-16 must not take. Cap+view-all is the standing rule's own second clause, chosen consciously and recorded.
+
+## 11 — Deviations, all logged
+
+1. **Write-pipelining dropped mid-plan** (§7.1 above) — deliberate, after two verify-FAILs collided with in-flight implementers.
+2. **⚠️ Phase C Step 8 landed chronologically AFTER Phase D**, contrary to the plan's ordering. The orchestrator went Steps 5→6–7→Phase D and only then noticed Step 8 existed. Caught before Phase E, nothing shipped on top of the gap, and Step 8 was implemented and FULL-verified in full — but it is a real sequencing error, recorded here because it was previously only acknowledged in chat.
+3. **Phase A's inventory was source-derived, not Playwright-assisted** as the plan specifies — no agent may authenticate. Every row cites `file:line` for the actual query, which is stronger evidence than an observed render.
+4. **Commit cadence finer than §7's table** — the correctness-critical predicate port was isolated in its own commit, and fix rounds took their own.
+5. **Bundle gate NOT RUN** (tenth occurrence programme-wide).
+
+## 12 — ▶ Position
+
+**✅ C-16 SHIPPED 2026-08-04 — all five phases, final commit `d22ab37`.** Working tree clean within C-16's scope; the only modification inside `src/` is the standing deliberate `src/lib/maintenance.ts`.
+
+**➡️ INHERITED BASELINE FOR THE NEXT PLAN — BY IDENTITY:**
+- tsc → 0 errors · build → clean, 53 routes.
+- vitest → failures are exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3. **Judge by identity, never by count** — this programme's recorded counts have drifted repeatedly while the identities stayed exact.
+- eslint → 59 errors / 7 warnings confined to exactly `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`. **93% of those errors live in an untracked directory** (drift checkpoint #3) — the lint baseline is not reproducible from a fresh clone.
+- No expected shrinkage outstanding.
+
+**Outstanding Owner actions from C-16** (all in `OWNER-ACTION-BACKLOG.md`): the §3.5 4-role × 4-viewport sweep · the §3.3 multi-page proof via a temporary `LIST_PAGE_SIZE = 3` override · the roles visual pass at 375/1280 (`roles-visual-checklist.md`) · the `bookings` index migration before real volume arrives · enabling PostgREST aggregates (or a view/RPC) if `/admin/clients` is ever to be truly paginated rather than capped · the remaining unbounded internal id-lookups.
+
+**Next:** plan #17 — **C-17, co-shipping with C-18** (§4: "back to back" means no context reset between them, NOT a merged closeout — each gets its own pre-flight, phase loop, closeout gate, adversarial review and progress file).
