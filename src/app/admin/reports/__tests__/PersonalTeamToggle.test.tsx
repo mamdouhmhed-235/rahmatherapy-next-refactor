@@ -14,14 +14,14 @@ describe("<PersonalTeamToggle>", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders two Link options labelled Team and Personal when visible", () => {
+  it("renders two Link options labelled Team and Mine when visible", () => {
     const { container } = render(
       <PersonalTeamToggle visible scope="team" viewerId={VIEWER_ID} filters={{}} />
     );
     const links = container.querySelectorAll("a");
     expect(links.length).toBe(2);
     expect(links[0].textContent).toBe("Team");
-    expect(links[1].textContent).toBe("Personal");
+    expect(links[1].textContent).toBe("Mine");
   });
 
   it("marks the active scope with aria-current='page'", () => {

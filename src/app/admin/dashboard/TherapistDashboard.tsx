@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AdminPageScaffold, AdminStatusBadge } from "../components/admin-ui";
+import { addBusinessDays } from "@/lib/time/london";
 import { BusinessOverviewDisclosure } from "./dashboard-filters-client";
 // C-11 Phase D — the shared blocks library is the composition surface for
 // all three variants. `DashboardHeader` and `QuickHelpPanel` are re-exports
@@ -176,10 +177,15 @@ export function TherapistDashboard({
 
   const serviceLookup = buildServiceLookup(data.bookingItems);
 
+  // B-170 (R05 fix): narrow "Open to claim" to the next 7 days so it no
+  // longer disagrees with what the dashboard visibly promises. The full,
+  // unfiltered list stays one click away via /admin/bookings?view=claimable.
+  const claimableSevenDayLimit = addBusinessDays(today, 7);
   const claimable = data.bookings.filter(
     (booking) =>
       booking.assignment_status === "unassigned" &&
       booking.booking_date >= today &&
+      booking.booking_date <= claimableSevenDayLimit &&
       !["cancelled", "no_show"].includes(booking.status)
   );
 
@@ -612,9 +618,13 @@ function ClaimableStrip({
           id="claimable-heading"
           style={{ fontFamily: "var(--font-urbanist), var(--font-work-sans), Arial, sans-serif" }} className="flex items-center gap-2 text-[1.333rem] font-semibold tracking-[-0.01em] text-[var(--admin-heading)]"
         >
-          Open to claim
+          Open to claim — next 7 days
           {claimable.length > 0 ? (
-            <AdminStatusBadge value={claimable.length} tone="warning" compact />
+            <AdminStatusBadge
+              value={`${claimable.length} available`}
+              tone="warning"
+              compact
+            />
           ) : null}
         </h2>
         {claimable.length > 5 ? (
@@ -629,7 +639,13 @@ function ClaimableStrip({
 
       {claimable.length === 0 ? (
         <p className="text-sm leading-6 text-[var(--admin-text-muted)]">
-          Nothing open right now.
+          Nothing scheduled.{" "}
+          <Link
+            href="/admin/bookings?view=claimable"
+            className="font-semibold text-[var(--admin-body)] underline-offset-4 hover:underline"
+          >
+            Browse all claimable work →
+          </Link>
         </p>
       ) : (
         <ul

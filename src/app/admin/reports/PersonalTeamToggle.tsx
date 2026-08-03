@@ -74,7 +74,7 @@ export function PersonalTeamToggle({ visible, scope, viewerId, filters }: Person
         aria-current={scope === "personal" ? "page" : undefined}
         className={cn(baseClass, scope === "personal" ? activeClass : idleClass)}
       >
-        Personal
+        Mine
       </Link>
     </fieldset>
   );
