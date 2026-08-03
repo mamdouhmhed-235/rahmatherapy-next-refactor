@@ -143,4 +143,22 @@ Zero `border-l-4`. Zero `revalidateTag(`. Zero fixed-pixel width additions. **Al
 
 ---
 
+### Appendix — C-16 pre-flight prep (2026-08-03, read-only under §2.8c)
+
+Recorded here because it answers a cross-plan question no single plan's review could: **did C-09 actually keep the pagination-readiness promise it made to C-16?**
+
+**Yes.** All 16 wraps were read directly. Every applicable helper takes `limit?`/`offset?`, and each reaches **both the query and the cache key** through `cacheKeyPart`. **The page-2-serves-page-1 defect does not exist** — that was the one failure mode that would have made C-16 substantially larger, and it is the same shape as the `scope` cache-key risk in C-07 B2, so it is worth recording that the pattern was *not* repeated here.
+
+**Four gaps C-16 must close, none of them C-09's fault:**
+1. The params exist but **no page passes them** — every helper carries a `// PAGINATION-READY (C-16)` comment stating "not called by the page today". Wiring is entirely C-16's work.
+2. The count companions for **enquiries and emails take no filter arguments** and always count the whole table, so a filtered list would read "Showing 1–25 of «unfiltered total»".
+3. `bookings-list-data.ts` honours `limit`/`offset` **only on the `canViewAll` branch**; the therapist-scoped branch has no range, documented as deliberately deferred.
+4. `staff-list-data.ts` has no range at all — its FPM-preserved builder type exposes no `.range`. **This is C-09's own recorded hand-off:** if `/admin/staff` ever gains a bound, its in-memory `q` and workload filters would then filter only the current page.
+
+**Two corrections to C-16's audit premises, both strengthening its case** — and both now in `OWNER-ACTION-BACKLOG.md`: the privacy **request queue has never had any cap** (the audit's "25" is the sensitive-notes rail), and the **clients list makes two unbounded reads** while a 50-row in-memory pager makes it look solved. Bookings and enquiries are unbounded as claimed; the audit log is confirmed correct and is the house cursor pattern to copy.
+
+**C-16 carries a HARD-STOP at Phase A Step 2** — its inventory must be confirmed in chat before Phase C, and Step 11 explicitly refuses to re-decide the operations verdict if that checkpoint record is missing.
+
+---
+
 *Checkpoint #3 groundwork complete 2026-08-03; formal checkpoint pending C-07's closeout. Checkpoint #4 due after plan #20.*
