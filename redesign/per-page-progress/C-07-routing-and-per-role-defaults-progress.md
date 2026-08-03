@@ -7,7 +7,7 @@
 **Dependencies:** none blocking — C-11 (shipped) is the only soft one, for the scope-toggle mount point.
 **Migration:** none. C-07 is not among the ledger's 9 migration-bearing plans. **No Zone-2 actions.**
 
-> ## ⏳ IN PROGRESS — Phases A1–A4 done and verified. B1–B4 remain.
+> ## ⏳ IN PROGRESS — Phases A1–A4, B1 (Steps 9–10) done and verified. B2–B4 remain.
 
 ---
 
@@ -52,6 +52,25 @@ The A4 implementer shipped the footer correctly but never documented the verify-
 - **The expired-token render is graceful**, confirmed by reading both paths. On page load, a null from `getCustomerManageBooking` renders `InvalidManageLink` — heading "Manage link unavailable", body "This link is invalid or has expired…", plus a Return-home link. On submit, all three actions in `manage/actions.ts` independently re-check the token and return an inline "This manage link is invalid or expired." if it went stale between load and submit. Both degrade cleanly.
 
 The code half is clean: 34 insertions, zero deletions, one file, no new imports, **no `createSupabaseAdminClient`** anywhere near this public route, and `contactEmail`/`contactPhone` genuinely in scope from the pre-existing batched `getBusinessSettings()` call.
+
+## 1.5 — Phase B1 (Steps 9–10): Yesterday chip + dual-date sync
+
+**Step 9 (B-154).** Added `"yesterday"` to `PresetKey` and a matching `PresetRange` entry between `"today"` and `"this_week"` in `buildPresets()` (`dashboard-filters-client.tsx`). Confirmed `getActivePreset()` needs no change before relying on it — it's a generic `for` loop over the `presets` array matching on `from`/`to`, with no hardcoded key list, so it picks up `"yesterday"` automatically (verified by reading the function, not assumed from the plan text).
+
+Used the canonical helper (`addBusinessDays` from `src/lib/time/london.ts`) for the yesterday date, rather than the plan's own inline `yesterday.setUTCDate(today.getUTCDate() - 1)` snippet — per this brief's instruction to avoid a fourth competing today-in-London implementation. `todayISO` itself already arrives pre-computed via `getBusinessDate()` at `page.tsx:77`, so `buildPresets()` never computes "today" independently; it only needed a day-offset op, which `addBusinessDays(todayISO, -1)` supplies directly as an ISO string (no extra `Date` object needed for that one preset). Traced `PresetKey`/`buildPresets`/`PresetRange` project-wide first (`git grep`) — all three are private to this one file; no switch/exhaustiveness-check elsewhere could break on the new union member. Also traced `ReportFilters.range` (`reporting.ts`) — it's typed `string`, not a literal union, and `parseReportFilters()` always prefers explicit `?from=`/`?to=` query params over its own `getRangeDefaults()` fallback, so a `range=yesterday` value needs no corresponding case added there; the chip's own href already supplies `from`/`to` explicitly. `formatRangeLabel()` in `page.tsx` has no `"yesterday"` case either, but its generic fallback (`"{from} – {to}"`) renders a same-day range as e.g. "2 Aug – 2 Aug" — cosmetically repetitive but not broken, and that file is outside this phase's touched-file (dashboard-filters-client.tsx only); logged under §2 rather than fixed.
+
+**Step 10 (B-155) — audit result: already synced, no code change made.** Traced the full data flow rather than assuming: `page.tsx` (Server Component) computes `filters: ReportFilters` fresh from `searchParams` on every request via `parseReportFilters()`; both the chip strip's active-state (`getActivePreset(presets, filters)`, computed at render time from the `filters` prop) and the custom-date form's `defaultValue={filters.from}` / `defaultValue={filters.to}` derive from that same server-computed object — there is no separate client-side `useState` holding a "selected range" that could drift from the URL. Every write path (`buildPresetHref` for chips, `handleCustomSubmit` for the date-input form, `handleSheetSubmit` for the advanced-filters sheet, `handleClearAll`) writes `?from=`/`?to=`/`?range=` onto the URL via `Link`/`router.push`, which re-triggers the server render and refreshes `filters` for both UI pieces simultaneously. The custom form only mounts when `isCustom` is true, so the classic uncontrolled-input "`defaultValue` doesn't update after mount" pitfall doesn't manifest here either: switching in or out of the custom range always unmounts/remounts the form, giving it a fresh `defaultValue` from the current URL every time. Conclusion: the URL already is the single source of truth for both UI pieces — refactoring "to" a URL-driven model would have been redundant with what's already there, so per this brief's explicit instruction, no change was made.
+
+**Files touched:** `src/app/admin/dashboard/dashboard-filters-client.tsx` only (added `"yesterday"` to `PresetKey`; one new `PresetRange` array entry; one new import of `addBusinessDays`).
+**Commit:** `4e23053` — `feat(redesign): C-07 B1 — yesterday chip (B-154); dual-date sync audit, no change needed (B-155)`.
+**Model:** implementer `sonnet` (routine UI work per §5's capability-based routing — a small, mechanical date-array addition plus a read-only audit; no schema/RPC/concurrency/timezone-math complexity beyond calling the existing canonical helper).
+
+**Gates (2026-08-03, post Step 9–10):**
+- `npx tsc --noEmit` → 0 errors (clean, matches baseline).
+- `npx vitest run` → 5 failed, 1472 passed, 1477 total. Failures: `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3 — identical to the inherited baseline identity; no new failures.
+- `npx eslint .` → 59 errors / 7 warnings, confirmed confined to the same six baseline files (`design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`) — no new errors.
+- `npx next build` → clean, all 52 static pages + dynamic routes generated successfully.
+- `git status --porcelain` (scoped to this plan's touched paths) → only `src/app/admin/dashboard/dashboard-filters-client.tsx` modified; nothing staged/modified outside the plan.
 
 ---
 
