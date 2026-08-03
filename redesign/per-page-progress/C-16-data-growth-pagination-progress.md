@@ -80,6 +80,56 @@ The plan requires the Phase A inventory and the Q9.4 operations verdict to be co
 
 ---
 
-## 4 — ▶ Position
+## 3.1 — Second Owner scope decision (2026-08-03): component files
 
-**Phase A complete and confirmed. Next: Phase B (Steps 3–4)** — `src/lib/pagination.ts` + `src/app/admin/components/PaginationBar.tsx`, both with tests, tier FULL, model `sonnet`. No surface consumes them until Phase C.
+Raised at Phase C Step 6 and answered in chat. The plan's files-touched list names **pages** (`bookings/page.tsx`, `operations/page.tsx`, `roles/page.tsx` …), but several of the lists it must fix render in **sibling component files the list never mentions** — the page/component split post-dates the plan's July authorship. Under rule 6b each would have been its own blocking stop.
+
+**Owner ruling: grant the extension once.** The files-touched list is read as covering each named page **plus the component files that render that page's lists**. Every such file is logged here explicitly so the diff stays auditable and this is never mistaken for scope creep:
+
+| Component file | Why | Step |
+|---|---|---|
+| `src/app/admin/bookings/BookingsChrome.tsx` | renders the view chips Step 6 adds counts to; also owns C-07's saved views, which must not re-apply a stale `?page=` | C Step 6–7 |
+| `src/app/admin/operations/operations-board.tsx` | owns the nested per-column "Load more" that Step 11's server pager replaces | D Step 11 |
+| (further files as Phases D–E reach them — each appended to this table before it is touched) | | |
+
+## 4 — Phase B (Steps 3–4) — `080279b` — tier FULL — **PASS**
+
+`src/lib/pagination.ts` (`LIST_PAGE_SIZE` 25, `LOG_PAGE_SIZE` 100 — confirmed byte-equal to the existing `AUDIT_PAGE_SIZE` at `audit/queries.ts:12` — `PaginatedResult<T>`, `clampPage`, `pageRange`) + `src/app/admin/components/PaginationBar.tsx`, each with a co-located spec. 28 tests. No surface consumes them yet, by design.
+
+The generic `paginateListQuery` wrapper was **deliberately not built** — the plan is explicit that Supabase builders don't compose generically without type loss. Its absence is correct; its presence would have been the defect.
+
+**Verification re-derived the arithmetic independently rather than reading the tests.** `clampPage` was hand-traced for `undefined`, `null`, `"0"`, `"-3"`, `"abc"`, `"1e9"`, `"2.7"`, `0`, over-range values and `pageCount = 0`, then cross-checked by executing the function body standalone: **no input yields `0`, `NaN`, or a value above `pageCount`**. `pageRange` confirmed as `to = from + pageSize - 1`, matching Supabase's inclusive-both-ends `.range()` — the off-by-one that would silently fetch an extra row per page. Report: `redesign/evidence/C-16/phase-b-verify-full.md`.
+
+**Non-blocking finding, recorded:** `pagination.test.ts:37-46`'s "never returns 0 when pageCount itself is 0" test pre-floors `pageCount` to 1 in its own body, so it never exercises the code's own defence. A coverage gap, not a behavioural one — the implementation was verified correct directly.
+
+**Cursor mode was designed from the plan's spec, not copied from the audit log** — per §2's logged finding that the shipped audit UI is a forward-only append control with no Prev. It renders nothing when both hrefs are absent, the cursor equivalent of the offset mode's `pageCount <= 1` rule.
+
+**Model:** implementer `sonnet`, verifier `sonnet` (routine new-file work against an explicit spec).
+
+## 5 — Phase C Step 5 — `ca0cc21` — tier FULL — bookings view predicates into SQL
+
+**Model: `opus`.** Justification (§5 capability routing): translating 11 view predicates into SQL against an in-memory oracle, while keeping a count query and a range query's WHERE clauses in exact agreement, is a correctness-critical semantic port where a silent mismatch shows staff the wrong bookings.
+
+`buildBookingPredicatePlan` (`bookings-list-data.ts:270-390`) covers all 11 views, with the C-05 archive rule (`status not.in.(cancelled,no_show)`) applied ahead of every view unless the view is `cancelled`/`all`/`series` or the operator explicitly picked a cancelled status. `filterBookings` **stays** as the semantic oracle and still serves the therapist-scoped path.
+
+**Divergence between the count and range queries was made structurally impossible, not merely tested.** One `BookingPredicateContext` — including a snapshot of the resolved search client-ids, so the two queries cannot race on it — is resolved once by `getBookingsListPage` and passed to both `getBookingsListData` and `countBookings`; `applyBookingPredicates` is the only code that consumes a predicate step, so there is no second place a predicate can be written. The context reaches **both** cache keys via `cacheKeyPart`, JSON-safe throughout (strings, booleans, `string[]` — no `Set`/`Map`/`Date`).
+
+**Four distinct embed aliases, not one**, because two filters sharing a PostgREST alias must both hold on the *same* joined row. `view=assigned` combined with `assigned_staff=<someone else>` is the case that proves it, pinned as parity case 23.
+
+**The parity spec was sabotage-tested, and the fifth sabotage found a hole in the spec itself.** Dropping claimable's gender match, breaking the C-05 archive opt-in, collapsing `assigned_staff` onto the view's alias, and removing the joined-client search arm each failed the spec as they should. But removing `status != completed` from `upcoming` **passed** — every completed fixture was also past-dated, so the date clause masked the missing clause. A future-dated completed fixture (B14) was added and the sabotage now fails. **That gap would have shipped undetected**, and it is the reason sabotage-testing a parity spec is worth more than reading its green output.
+
+**Two pinned narrowings vs the oracle**, both inherent to SQL, both pinned as failing-if-changed tests rather than left silent:
+1. **Partial booking-id search no longer matches.** Postgres has no `uuid ILIKE text` and PostgREST rejects `id::text` in a filter — both errors verified directly against the live project. `audit/queries.ts:129-134` hit the same wall and answered it identically with full-UUID equality. **⚠️ Note the booking detail page renders a *short* id (`#3C0E12AB`, `[bookingId]/page.tsx:1269`), so a pasted short id is the realistic loser.** Raised to the Owner in chat at Step 5's close.
+2. A search or location term straddling two fields' boundary in the oracle's `join(" ")` no longer matches.
+
+**Also recorded:** `getSearchClientIds` caps the client-id lookup at 200 — a search matching more clients under-matches on the joined-client arm only, since the booking's own `contact_*` snapshot columns still match. `.order("id")` was added as a tiebreak per plan §4's stable-sort mitigation, required for correct offset paging. The therapist-scoped branch kept its in-memory merge and took the prescribed defensive `.limit(200)` per branch; its `.in("id", ids)` list is still unbounded, which is pre-existing (C-09) and a URL-length risk rather than a row-count one.
+
+**Interim state, by design and now closed by Steps 6–7:** between `ca0cc21` and Step 7, `getBookingsListPage` defaults to `LIST_PAGE_SIZE` with `offset: 0`, so the clinic-wide list shows at most 25 rows with no pager. Invisible at today's 15 bookings.
+
+---
+
+## 6 — ▶ Position
+
+Phase A ✅ · Phase B ✅ (`080279b`, verified) · Phase C Step 5 ✅ (`ca0cc21`, verification in flight) · **Steps 6–7 in flight** (`opus` — chip counts must reuse Step 5's predicate builder or they silently lie; saved views must not re-apply a stale `page`). Then Phase D (Steps 9–12, operations = **pager**, per §1) and Phase E (Steps 13–15, Step 13 reduced to verify-and-polish).
+
+**Cadence note:** the plan's §7 table makes all of Phase C bookings one commit. It is landing as two (`ca0cc21` Step 5, then Steps 6–7) — finer-grained than the table, deliberately, so the correctness-critical predicate port is isolated in its own reviewable commit.
