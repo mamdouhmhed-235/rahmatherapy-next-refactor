@@ -7,8 +7,10 @@ import {
   AlertCircle,
   CalendarX,
   Check,
+  CheckCircle2,
   ChevronRight,
   Clock,
+  Info,
   Loader2,
   Plus,
   Trash2,
@@ -142,7 +144,6 @@ const SOURCE_OPTIONS = [
 ];
 
 const MAX_PARTICIPANTS = 6;
-const DRAFT_KEY = "booking-new-draft";
 const CREATED_KEY = "booking-new-created-toast";
 
 const PACKAGE_OPTIONS = [
@@ -171,13 +172,23 @@ const MASSAGE_OPTIONS = [
   { slug: "massage-60", label: "1 hour", price: "£60" },
 ] as const;
 
-function emptyParticipant(name = ""): Participant {
+// C-03 Phase C Step 9 — `matchedServiceSlug` (from the enquiry fuzzy-match)
+// seeds the FIRST participant's service selection. A matched slug is either a
+// package (PACKAGE_OPTIONS, single-select radio) or a massage duration
+// (MASSAGE_OPTIONS, its own add-on radio) — never both — so it's routed into
+// whichever field it actually belongs to. An unrecognised or null slug leaves
+// both fields empty rather than guessing: this is a default the operator can
+// change on the form, never a silent lock.
+function emptyParticipant(name = "", matchedServiceSlug?: string | null): Participant {
+  const slug = matchedServiceSlug ?? "";
+  const isPackageMatch = slug !== "" && PACKAGE_OPTIONS.some((o) => o.slug === slug);
+  const isMassageMatch = slug !== "" && MASSAGE_OPTIONS.some((o) => o.slug === slug);
   return {
     name,
     gender: "",
-    packageSlug: "",
-    massageEnabled: false,
-    massageSlug: "",
+    packageSlug: isPackageMatch ? slug : "",
+    massageEnabled: isMassageMatch,
+    massageSlug: isMassageMatch ? slug : "",
     differentAddress: false,
     overrideAddress: "",
     overridePostcode: "",
@@ -488,6 +499,7 @@ interface AssignableStaffMember {
 export function ManualBookingForm({
   prefillClient,
   enquiry,
+  matchedServiceSlug = null,
   prefillFailed = false,
   canAssign = false,
   assignableStaff = [],
@@ -500,9 +512,9 @@ export function ManualBookingForm({
   services: ServiceOption[];
   prefillClient: PrefillClient | null;
   enquiry: EnquiryPrefill | null;
-  /** C-03 Phase B — fuzzy-matched service slug from the enquiry's
-   * service_interest text. Wired into initial-state pre-selection + hint UI
-   * in C-03 Phase C (Step 9); accepted here so page.tsx can pass it now. */
+  /** C-03 Phase B/C — fuzzy-matched service slug from the enquiry's
+   * service_interest text. Seeds the first participant's service selection
+   * and drives the hint/success banner in step 2 (Phase C Step 9). */
   matchedServiceSlug?: string | null;
   prefillFailed?: boolean;
   canAssign?: boolean;
@@ -542,6 +554,9 @@ export function ManualBookingForm({
   const [stepBannerError, setStepBannerError] = useState("");
   const [prefillEdited, setPrefillEdited] = useState<Set<string>>(new Set());
   const [confirmDuplicate, setConfirmDuplicate] = useState<boolean>(false);
+  // C-03 Phase C Step 9 — dismiss the fuzzy-match success banner; the pick
+  // itself stays in the form either way, this only hides the banner.
+  const [hintDismissed, setHintDismissed] = useState(false);
 
   // reset the acknowledgement whenever a new duplicate match comes back
   useEffect(() => {
@@ -561,7 +576,7 @@ export function ManualBookingForm({
   const [bookingForMode, setBookingForMode] = useState<"self" | "someone_else" | "group">("self");
 
   const [participants, setParticipants] = useState<Participant[]>([
-    emptyParticipant(prefillClient?.full_name ?? enquiry?.full_name ?? ""),
+    emptyParticipant(prefillClient?.full_name ?? enquiry?.full_name ?? "", matchedServiceSlug),
   ]);
 
   const [address, setAddress] = useState(prefillClient?.address ?? "");
@@ -681,6 +696,23 @@ export function ManualBookingForm({
     ? `Loaded from enquiry ${enquiry.id.slice(0, 8)}`
     : "";
 
+  // C-03 Phase C Step 10 (W01-E-2) — scope the sessionStorage draft key by
+  // source so converting two different enquiries in two tabs can't clobber
+  // each other's draft.
+  const draftKey = enquiry?.id
+    ? `bookings-new-draft:enquiry:${enquiry.id}`
+    : prefillClient?.id
+    ? `bookings-new-draft:client:${prefillClient.id}`
+    : "bookings-new-draft:scratch";
+
+  // C-03 Phase C Step 11 (W01-V-1) — Cancel returns the operator to where
+  // they came from instead of the generic bookings list.
+  const cancelHref = enquiry?.id
+    ? "/admin/enquiries"
+    : prefillClient?.id
+    ? `/admin/clients/${prefillClient.id}`
+    : "/admin/bookings";
+
   const formVals: FormValues = {
     bookingSource, fullName, email, phone, bookingForMode,
     participants, address, postcode, city, area, accessNotes, parkingNotes,
@@ -772,7 +804,7 @@ export function ManualBookingForm({
   // Session storage draft
   useEffect(() => {
     try {
-      const raw = sessionStorage.getItem(DRAFT_KEY);
+      const raw = sessionStorage.getItem(draftKey);
       if (raw && !hasPrefill) {
         const draft = JSON.parse(raw);
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -796,12 +828,12 @@ export function ManualBookingForm({
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+      sessionStorage.setItem(draftKey, JSON.stringify({
         step, bookingSource, fullName, email, phone, bookingForMode,
         participants, address, postcode, city, area, customerNotes, healthNotes,
       }));
     } catch {}
-  }, [step, bookingSource, fullName, email, phone, bookingForMode, participants, address, postcode, city, area, customerNotes, healthNotes]);
+  }, [draftKey, step, bookingSource, fullName, email, phone, bookingForMode, participants, address, postcode, city, area, customerNotes, healthNotes]);
 
   // Keep first participant name in sync when "Themself" is selected
   useEffect(() => {
@@ -823,7 +855,12 @@ export function ManualBookingForm({
   // Pre-fill failure toast — fires once on mount if the server fetch for clientId/enquiryId failed
   useEffect(() => {
     if (prefillFailed) {
-      toast.warning("Couldn't load client details. Fill in manually.", { duration: 6000 });
+      // C-03 Phase C Step 8 (B-104) — the failure is enquiry-specific when
+      // converting from an enquiry; don't call it "client details" then.
+      const message = prefillSource === "enquiry"
+        ? "Couldn't load enquiry details. Fill in manually."
+        : "Couldn't load client details. Fill in manually.";
+      toast.warning(message, { duration: 6000 });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -927,7 +964,7 @@ export function ManualBookingForm({
   function handleFormSubmit() {
     try {
       sessionStorage.setItem(CREATED_KEY, Date.now().toString());
-      sessionStorage.removeItem(DRAFT_KEY);
+      sessionStorage.removeItem(draftKey);
     } catch {}
   }
 
@@ -1058,6 +1095,53 @@ export function ManualBookingForm({
       <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
       {stepBannerError}
     </div>
+  ) : null;
+
+  // C-03 Phase C Step 9 — service fuzzy-match hint banner for step 2. Success
+  // tone when the enquiry's service_interest matched a service with enough
+  // confidence to pre-select it; info tone (no pre-select) when it didn't —
+  // the operator picks manually. Dismissing the success banner only hides it;
+  // the pre-selected radio stays exactly as any other selection would.
+  const matchedServiceName = matchedServiceSlug
+    ? PACKAGE_OPTIONS.find((o) => o.slug === matchedServiceSlug)?.name ??
+      MASSAGE_OPTIONS.find((o) => o.slug === matchedServiceSlug)?.label ??
+      null
+    : null;
+
+  const serviceMatchHint = enquiry?.service_interest ? (
+    matchedServiceSlug && matchedServiceName ? (
+      !hintDismissed && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="rahma-pop-in flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] px-4 py-3 text-sm text-[oklch(22%_0.085_155)]"
+        >
+          <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">
+            Matched from enquiry: <strong>{matchedServiceName}</strong>
+          </p>
+          <button
+            type="button"
+            onClick={() => setHintDismissed(true)}
+            aria-label="Dismiss"
+            className="shrink-0 rounded p-0.5 text-[oklch(22%_0.085_155)]/70 transition-colors hover:text-[oklch(22%_0.085_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            <X className="size-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      )
+    ) : (
+      <div
+        role="status"
+        aria-live="polite"
+        className="rahma-pop-in flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.055_75)] bg-[oklch(96.0%_0.038_75)] px-4 py-3 text-sm text-[oklch(28%_0.120_55)]"
+      >
+        <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        <p className="min-w-0">
+          Enquiry mentioned: <strong>&ldquo;{enquiry.service_interest}&rdquo;</strong>. Pick the closest match below.
+        </p>
+      </div>
+    )
   ) : null;
 
   const step1 = (
@@ -1194,6 +1278,7 @@ export function ManualBookingForm({
   const step2 = (
     <div className={step === 2 ? "grid gap-4" : "hidden"} aria-hidden={step !== 2}>
       {step === 2 && multiErrorBanner}
+      {step === 2 && serviceMatchHint}
       <AdminPanel title="Services & participants">
         {participants.map((participant, idx) => (
           <div
@@ -1994,7 +2079,7 @@ export function ManualBookingForm({
           Cancel
         </AdminButton>
       ) : (
-        <Link href="/admin/bookings" className="text-sm font-medium text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-body)]">
+        <Link href={cancelHref} className="text-sm font-medium text-[var(--admin-text-muted)] transition-colors hover:text-[var(--admin-body)]">
           Cancel
         </Link>
       )}
@@ -2043,7 +2128,7 @@ export function ManualBookingForm({
         </p>
         <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
           <Link
-            href="/admin/bookings"
+            href={cancelHref}
             className="inline-flex items-center justify-center rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 py-2.5 text-sm font-semibold text-[var(--admin-on-primary)] transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Leave

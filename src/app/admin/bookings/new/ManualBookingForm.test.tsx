@@ -274,8 +274,10 @@ async function submitFromStep4(
   user: ReturnType<typeof userEvent.setup>,
   { email = "aisha@example.test" }: { email?: string } = {}
 ) {
+  // C-03 Phase C Step 10 — draft key is now scoped by source; this helper
+  // always renders with prefillClient={null} enquiry={null}, i.e. "scratch".
   sessionStorage.setItem(
-    "booking-new-draft",
+    "bookings-new-draft:scratch",
     JSON.stringify({
       step: 4,
       fullName: "Aisha Khan",
