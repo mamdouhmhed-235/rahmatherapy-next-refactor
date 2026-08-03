@@ -7,7 +7,9 @@
 **Dependencies:** none blocking — C-11 (shipped) is the only soft one, for the scope-toggle mount point.
 **Migration:** none. C-07 is not among the ledger's 9 migration-bearing plans. **No Zone-2 actions.**
 
-> ## ⏳ IN PROGRESS — Phases A1–A4, B1 (Steps 9–10) done and verified. B2–B4 remain.
+> ## ⛔ PAUSED AT A HARD-STOP — **7 of 8 phases done and verified (A1–A4, B1, B2, B3). B4 is BLOCKED on a plan-vs-reality contradiction — see §1.8. Owner input required.**
+>
+> **▶ RESUME HERE:** read §1.8 first. Everything through `838d049` is committed and gated. Nothing is mid-flight; the working tree is clean within C-07's scope.
 
 ---
 
@@ -82,3 +84,68 @@ Used the canonical helper (`addBusinessDays` from `src/lib/time/london.ts`) for 
 - **Performance-page tiles still read "Personal utilisation" / "Personal retention"** (`performance-helpers.ts`). Same terminology family as W08-V-1 but that surface is in neither the audit's inventory nor C-07's files-touched list — a defensible scope boundary, flagged for completeness.
 - **The 7-day claimable filter had no test coverage** as originally shipped; the fix round added a boundary spec.
 - **Footer grammar asymmetry:** with only `contactEmail` set, the copy reads "Need help? email …" (lowercase, directly after the question mark) versus the phone branch's "Need help? Call us on …". Cosmetic.
+
+---
+
+## 1.6 — Phase B2 (`c6c1ec4` + fix `dd5b497`): the Team/Mine scope toggle
+
+New `DashboardScopeToggle`, mounted only in `BusinessDashboard.tsx`, plus `scope` narrowing wired through `dashboard-data.ts`. Routed **`opus`** — the only opus dispatch since C-02 — because a `scope` that reached the query but not the cache key would serve one Owner's "mine" dashboard to another. **That risk turned out to be closed already:** `profile.id` was in the cache key before this phase, so no actor-scoped narrowing existed to leak; the key now carries `scope` as a fourth part. Narrowing happens in SQL, not in memory over an already-bounded array — A3's lesson respected.
+
+Two BLOCKING findings in the fix round:
+
+**Clear-all dropped `scope` — the same function, the same hole, one phase later.** `handleClearAll` built `new URLSearchParams()` from scratch and re-added an allow-list. B1's fix (`ef1d4b6`) had added `from`/`to` to that allow-list rather than changing the approach, so B2's brand-new `scope` fell straight through. Every *other* param path in that file already started from `searchParams.toString()`. **Fixed structurally in `dd5b497`:** start from the current params and delete only the six advanced-filter keys. A verifier enumerated all twelve params the dashboard URL can carry and confirmed the split — the six advanced keys are deleted, the other six survive *because they are never named*. The next param anyone adds survives without this function being touched again.
+
+**`scope` was honoured for every dashboard variant, not just the one with the toggle.** `page.tsx` parsed it before any role branching. Because `narrowToActor` fires when `scope==="mine" && plan.bookingScope==="all"`, and the live **Booking Coordinator role has `view_bookings_all = true`** (confirmed against production `role_permissions`), a Coordinator typing `?scope=mine` got a silently narrowed dashboard with no toggle to explain it — typically looking broken or empty. Not a security hole; the data was genuinely theirs. Now gated on `getDashboardQueryPlan(profile).variant === "business"`; for anyone else the param collapses to `"team"` as if absent.
+
+Third fix-round item: the narrowing logic shipped with **zero** test coverage, flagged independently by two verifiers. Four specs added — mine narrows bookings/clients/enquiries/booking-linked events; absent doesn't narrow; the cache key differs between the two; and the staff roster stays deliberately un-narrowed.
+
+## 1.7 — Phase B3 (`838d049`): D5, a bug that was live in production
+
+`filterBookings()` recomputed its own hardcoded `"attention"` default, ignoring the role-aware `currentView` computed two hundred lines above it. **A Therapist opening `/admin/bookings` with no `?view=` saw the "Today" tab highlighted while the list was filtered by "attention".** Chrome and results silently disagreed, in production, for the whole programme.
+
+It survived because **every existing spec in `filterBookings.test.ts` supplies an explicit `view`**, so none reached the default-fallback branch. A green suite said nothing about it.
+
+Fixed per D5: `filterBookings()` now takes the resolved `currentView` as a parameter; `page.tsx` computes it once and threads it into both `BookingsChrome` (tab highlight) and `filterBookings` (list filter). No third helper. Ten existing call sites updated, two new specs added covering the no-`?view=` path for both a `canViewAll` role and a Therapist — the exact gap that hid it. Every pre-existing branch, including C-09's `series`, verified intact against the pre-phase blob.
+
+*(One of B3's two lenses returned a placeholder — the fourth on this programme. The other traced the fix thoroughly and passed it; B3 rests on that one genuine verdict. A re-run of the placeholder lens is the one loose thread on an otherwise-complete phase.)*
+
+## 1.8 — ⛔ Phase B4: HARD-STOP, plan-vs-reality contradiction
+
+**The implementer refused to implement and returned a HARD-STOP. It was right, and I verified it independently.**
+
+Steps 14–16 ask for a saved-filters bar: a new `src/lib/booking/saved-filters.ts` (localStorage CRUD with `isValidSavedFilter` resilience), a new `src/app/admin/bookings/SavedFiltersBar.tsx`, and a mount above the bookings table.
+
+**That feature already exists and already ships.** `src/app/admin/bookings/BookingsChrome.tsx` carries:
+
+| Plan asks for | Already in `BookingsChrome.tsx` |
+|---|---|
+| localStorage CRUD module | `STORAGE_KEY = "rahma.admin.bookings.saved-views.v1"`, `loadSavedViews()`, `persistSavedViews()` |
+| `isValidSavedFilter` corrupt-data resilience | per-entry type guard validating `id`/`label`/`query` are strings |
+| quota/private-mode safety | `persistSavedViews` try/catch, commented "localStorage may be unavailable in private mode — fail silent" |
+| `SavedFiltersBar` component | `SavedViewBar`, imported and rendered |
+| save / delete handlers | present, with success toasts |
+
+It landed at **`449f722` "redesign: bookings" — before the Band C programme started.** Neither file the plan names has ever existed in git history or the working tree.
+
+**Implementing Steps 14–16 as written would build a second, parallel saved-filters system alongside the working one** — two localStorage keys, two UI bars, two sources of truth. That is precisely the "two things that should be one thing" defect this plan has produced five times over (§2 below); the difference is that here the plan would create it deliberately.
+
+**This needs an Owner decision. Three options, unranked here because it is not the orchestrator's call:**
+1. **Close B4 as already-satisfied.** Verify the existing `SavedViewBar` meets B-161's intent, record it as a VERIFY-ALREADY-IMPLEMENTED outcome (§5 of the refinement conventions has precedent), and ship C-07 at 8/8.
+2. **Improve the existing implementation** to whatever B-161 wanted that `SavedViewBar` lacks — a scoped, in-place change rather than a parallel build.
+3. **Build it as written anyway**, accepting two parallel systems. Not recommended.
+
+**Nothing was implemented for B4. No files created, no commits made.**
+
+---
+
+## 3 — ▶ Position for whoever resumes
+
+**HEAD `838d049`.** C-07 is **7 of 8 phases** done, each independently verified. Working tree clean within C-07's scope; the only modification anywhere is the standing deliberate `src/lib/maintenance.ts` (`MAINTENANCE_MODE = false`, never staged).
+
+**Commits, in order:** `526733f` A1 · `5b07851` A2 · `8f76fc6` A3 · `b8f2f5d` A-fix · `4603340` A4 · `ed99e6a` A-progress · `4e23053` B1 · `94cb96a` B1-progress · `ef1d4b6` B1-fix · `c6c1ec4` B2 · `dd5b497` B2-fix · `838d049` B3.
+
+**Gates at HEAD:** tsc 0 · lint 59E/7W in the same six files · build clean · vitest **5 failed / 1483 passed (1488)**, the five inherited by identity (`admin-access` ×2 + `ManualBookingForm` ×3).
+
+**To resume:** ① put §1.8's B4 question to the Owner and act on the answer; ② optionally re-run B3's placeholder lens; ③ then C-07's closeout gate (§3 of the plan), progress finalisation, and flip the master-plan row. **Drift checkpoint #3 falls due immediately after C-07 ships** — it is the first full-range review since plan #10 and the first to see C-09's cache layer.
+
+**C-07 carries no migration and no Zone-2 action.** It does not join the pending Cloudflare deploy.
