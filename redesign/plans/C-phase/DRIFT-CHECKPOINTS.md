@@ -161,4 +161,94 @@ Recorded here because it answers a cross-plan question no single plan's review c
 
 ---
 
-*Checkpoint #3 groundwork complete 2026-08-03; formal checkpoint pending C-07's closeout. Checkpoint #4 due after plan #20.*
+*Checkpoint #3 groundwork complete 2026-08-03; formal checkpoint run same day — see below. Checkpoint #4 due after plan #20.*
+
+---
+
+## Checkpoint #3 — FORMAL, run 2026-08-03 at HEAD `435472a` (after plan #15, C-07) — **PASS-WITH-FINDINGS**
+
+Run as one `opus` adversarial reviewer (§5) plus four supporting read-only lenses (§2.8a fan-out), each writing to its own file. Full reports: `DRIFT-CHECKPOINT-3-FORMAL.md` (the reviewer) and `redesign/evidence/checkpoint-3/{baseline-erosion-audit, final-head-gates, post-deploy-runbook, unowned-debt-inventory}.md`. The groundwork section above did the expensive full-range analysis in advance; the lenses were aimed deliberately at what it could NOT close, so this is not a repeat of it.
+
+**Gates at final HEAD, independently re-measured by two separate lenses — IDENTITY: MATCH.** tsc 0 · vitest **5 failed / 1494 passed (1499)**, failures exactly `admin-access` ×2 + `ManualBookingForm` ×3 · eslint 59E/7W in the same six files · build clean, 52 pages · 277 working-tree entries, every one classified as known intentional dirt. `git diff --stat f038b4f..HEAD` is `redesign/**` docs only, so C-07's closeout gates remain the authoritative code measurement.
+
+### ⚠️ The reviewer's headline finding was investigated by the orchestrator and REFUTED — recorded because the refutation is itself the finding
+
+The reviewer observed that **every implementer commit from C-15 onward carries a `Co-Authored-By: Claude Opus 5` trailer**, though §5 routes five of those six plans to `sonnet`, and concluded either that routing was not being honoured or that implementers had stopped committing their own work. That would have meant five plans implemented on the wrong model, so the orchestrator tested it before recording it.
+
+**It does not hold.** The trailer tallies across `7fe8b4f..HEAD` are: **Opus 5 ×188, Sonnet 5 ×30, Fable 5 ×12, Opus 4.7 ×1.** Fable 5 and Opus 4.7 appear in **no routing table and no dispatch anywhere in the programme** — `6b1628b`, a protocol-edit commit, carries the Fable trailer. Fable and Opus trailers interleave across the same dates, and the Sonnet trailers stop on **2026-07-31**, precisely the `/model` switch at plan #8 recorded in §5. The trailer therefore reflects the **orchestrating session's configured model string**, not the dispatched subagent's model. Confirmed from the other side in this session: the B4 implementer ran on `sonnet` (it said so in its return) and its commit `f038b4f` carries **no trailer at all**.
+
+**The real finding, which stands:** *git carries no trustworthy record of which model implemented what.* Progress files are the only record — which is exactly why §5 mandates logging the model per dispatch. C-07 does this per phase; earlier plans are patchier. **Action: keep logging it in progress files; never again treat a commit trailer as evidence of the implementing model.** Any future audit of routing compliance must read progress files, not `git log`.
+
+### Job 1 — Sonnet/Opus idiom divergence: a rigorous null result
+
+§2.6 names this explicitly and checkpoint #1 called the sample too small. It is now large, and comparing only where progress files and trailers agree (Sonnet-certain 8,424 added lines; Opus-certain 20,232):
+
+- **Comment density and test granularity are plan-driven, not model-driven.** Sonnet's C-05 runs 13% comments against Opus's C-02 at 10%; the highest test density in the range is Sonnet's C-FIELDWORK and the lowest is Opus's C-11.
+- **All 13 data-only Supabase destructures were read in both corpora** — every null explicitly handled, no swallowed `error` in either. Given protocol §3b documents this codebase's habit of discarding `error`, that is the check most worth having run.
+- All 6 Opus `TODO`s are intra-plan phase markers; 5 already resolved.
+- **On the sharpest available test — the same file touched by both models —** `notifications.ts:880-883` holds an Opus-written function stating in-code that it "mirrors `sendStaffUnassignmentEmail`'s posture", a **Sonnet-authored** function. Rule 11's match-existing-style requirement is doing the normalising §5 predicted.
+
+No manufactured finding. The honest answer is no meaningful divergence.
+
+### Job 2 — nine groundwork claims re-verified; eight hold, one is wrong
+
+Zero `border-l-4`, zero `revalidateTag(`, JSON-safety across every `unstable_cache` wrap (verified by reading actual return paths, not declared types — `reporting.ts:145-149` still carries an in-code tombstone from the last time a `Set` crossed that boundary), D1/D2 byte-identity, zero skipped tests, lint suppressions **down** 45→37.
+
+**The "68 files carry light-only `oklch(…)` literals" figure does not reproduce** and should not be quoted again — see Decision A.
+
+### Job 3 — baseline erosion: none, and the count drift is fully explained
+
+HEAD's five failures are a strict **subset** of programme start's six. `ManualBookingForm.test.tsx` *was* edited across five commits, but the diff is +298/−1 with the single deletion being an import line — **no failing test body was ever touched**, confirmed by a targeted run. C-20's plan text says outright "do not 'fix' them here": these failures were never owned, by design, and that is a deliberate decision rather than neglect.
+
+**The pass-count drift is mechanical and benign — but only because gates are judged by identity.** Root cause: **C-09 and C-03 are the only two plans of fifteen that never recorded a final post-implementation gate table.** C-09's Owner-approved addenda added 29 test cases across 6 files *after* the number its master-plan row cites (`git diff --stat 880809e 08cba8c`), C-03 added 2, and nothing re-counted until C-07's closeout. **Action for the remaining seven plans: every plan records a final gate table at closeout, including any post-closeout addendum work.**
+
+**Correction to a figure this programme has been repeating.** The bundle-budget gate has not been missed by "three" or "four" plans. The audit identified **nine**: C-04a, C-05, C-FIELDWORK, C-08, C-15, C-13, C-02, C-03, C-07. The internal tallies disagreed with each other and undercounted. Every instance was honestly recorded as NOT RUN rather than falsely passed — the reporting was sound, the arithmetic was not.
+
+**Structural fragility worth naming: 55 of the 59 lint errors (93%) come from `design_handoff_area_pages/`, which `git ls-files` confirms is entirely untracked.** Only 4 come from tracked `src/` files. The programme's lint baseline is not reproducible from a fresh clone — it depends on an untracked fixture directory persisting in this working tree.
+
+### Job 4 — the groundwork's five held items, closed
+
+1. **Gates at true final HEAD** — done above, IDENTITY: MATCH, two independent lenses agreeing.
+2. **B4 folded in.** Its outcome *strengthens* the groundwork's "keep the vigilance, don't invent a framework" recommendation: the sixth instance of the duplicate-logic pattern was caught by **a subagent refusing a plan instruction**, not by an abstraction. One correction to C-07's own framing: namespacing the saved-views key fixes **UI visibility, not data residency** — the previous user's rows are purged, but the mechanism is client-side storage either way, so brief §2.12's "cleared on logout" is **partially** met, not fully. Recorded rather than reopened.
+3. **Colour-literal debt** → Decision A below.
+4. **Preset divergence** → Decision B below, and it is worse than the groundwork thought.
+5. **Post-deploy checks** → consolidated into a **13-item ordered runbook**, `redesign/evidence/checkpoint-3/post-deploy-runbook.md`.
+
+### 📋 DECISION A for the Owner — the `oklch(…)` colour debt
+
+**Question: does this get an owner, or is it explicitly recorded as unowned into C-12+?**
+
+Corrected facts, measured at HEAD:
+- The long-quoted **"68 files" figure does not reproduce under any of five grep methodologies** (range 54–98). The defensible count is **98 files / 679 occurrences** of hardcoded, theme-blind `oklch(...)` literals — 3 files/33 occurrences in `src/components/ui/` (`badge.tsx`, `button.tsx`, `input.tsx`), 95 files/646 in `src/app/admin/`, **zero in the public site**.
+- **11 brand-new files created during this programme carry the debt from their first commit** (verified with `git cat-file -e 7fe8b4f:<path>`), each citing rule 11's match-the-source requirement. The pattern is actively being replanted.
+- **A correction to the groundwork:** "C-11 never touched them" is wrong. C-11's progress file shows it ran a deliberate, Owner-approved, narrowly-scoped sweep and explicitly logged the ~90-file remainder as known and deferred. This is a recorded deferral, not an oversight.
+- **The decisive new fact: the dark-mode-correct token values already exist in `tokens.css`** (e.g. `--admin-status-cancelled-text`) and are **byte-identical** to the hardcoded literals. The bulk of this is a mechanical find-and-replace, not new design work.
+- **Worst concrete offender: `src/components/ui/input.tsx:116,143`** — the shared form-field error text and required-asterisk render directly on the dark panel with a ~4-point lightness gap. That is functionally **invisible**, not merely low-contrast, and it is a shared primitive, so it appears wherever admin forms do. Dark is the default for every staff account (all 12 rows have `theme_preference = NULL`).
+
+**Recommendation:** a one-sentence Part 0 exception permitting token substitution when a file is already being edited, rather than a dedicated retrofit plan — with `input.tsx` fixed on its own merits, since a shared primitive with invisible error text is a live usability defect rather than debt.
+
+### 📋 DECISION B for the Owner — client preset map vs server range resolver
+
+**Question: does `reporting.ts` — a Part 0 untouchable — get an explicit exception to add two missing cases?**
+
+**The groundwork said C-07 B1's fix "masked" this. It does not fully mask it — there is a live hole.** `/admin/me`, `/admin/staff/[staffId]/performance`, and `/admin/reports`/`export` all call `parseReportFilters` on raw, undefaulted searchParams. (`/admin/dashboard` is safe only because of an unrelated pre-programme `?? today` fallback.) A hand-typed or bookmarked `?range=yesterday` on those three surfaces silently falls through to the catch-all and returns **current-month-to-+30-business-days** — the same window as the default month view, so it looks like it worked. Worse, two of them auto-generate onward links (`me/page.tsx:156`, `performance-helpers.ts:125,128`) that **re-propagate the bad key with no dates**.
+
+Fix (i) add two cases to `reporting.ts`: smaller and safer long-term, needs the Part 0 exception. Fix (ii) guard at 4+ call sites: avoids the exception but recreates the exact duplicate-logic pattern this checkpoint tracks. **Recommendation: (i).** Supporting fact from the reviewer: `reporting.ts:966-969` shows this function **already shipped this exact class of bug once**, caught by an audit.
+
+### Two further corrections worth not losing
+
+- **D1's presumed owner is wrong.** The duplicate `MISSING_COLUMN_CODES`/`hasErrorCode` shims were assigned to "whichever of C-02/C-08/C-14 next needs the shape"; C-02 and C-08 have both passed. **C-14 does not need it either** — it uses an atomic co-deploy migration strategy, the opposite of the tolerate-a-missing-column pattern D1 exists for. D1 will remain unclaimed after C-14 ships unless someone claims it deliberately.
+- **Two post-deploy items are already obsolete:** C-08's "expect 14" histogram target is stale (C-02 registered two more email event types afterwards), and the `d8a61721` fixture recommended for C-04a's queue-drain check is unusable for it, because `sendTrackedEmail` (`notifications.ts:493-504`) skips the queue insert entirely when the recipient email is null — and that fixture has both email fields NULL.
+
+### Recommendations for checkpoint #4 (after plan #20)
+
+1. **Re-audit model routing from progress files, never from git trailers.** Confirm every plan since C-07 logged its per-dispatch model and one-line opus justification.
+2. **Verify the final-gate-table rule held** — that no plan after C-07 closed without recording one, including addendum work.
+3. **Re-measure the `oklch` count** to see whether Decision A's disposition actually stopped the replanting, or whether the 11-new-files trend continued through C-16→C-20.
+4. **Check the untracked-lint-baseline fragility** hasn't become load-bearing for a gate decision.
+5. Re-check D1/D2 for an owner, and whether the post-deploy runbook has drifted from the plans it was compiled from.
+6. Watch C-23 and C-14 specifically — both edit the **live public availability engine**, the highest-blast-radius surfaces remaining, and both are presumptively `opus`.
+
+---
+
+*Checkpoint #3 formal complete 2026-08-03 at `435472a`. Verdict PASS-WITH-FINDINGS: no blocking defect, no baseline erosion, no model-idiom divergence; two Owner decisions open (A and B above), one refuted headline finding recorded for its refutation, and four figures corrected. Checkpoint #4 due after plan #20.*
