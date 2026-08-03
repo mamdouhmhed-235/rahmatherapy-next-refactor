@@ -9,15 +9,22 @@ import {
   X,
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getEnquiriesPageData } from "./enquiries-data";
+import {
+  getEnquiriesListPage,
+  getEnquiryOverviewCounts,
+  type EnquiriesFilters,
+  type EnquirySortKey,
+} from "./enquiries-data";
 import { canManageEnquiries, getStaffProfile } from "@/lib/auth/rbac";
 import { cn } from "@/lib/utils";
+import { LIST_PAGE_SIZE } from "@/lib/pagination";
 import {
   AdminAccessDenied,
   AdminPageHeader,
 } from "../components/admin-ui";
 import { AdminSheet } from "../components/admin-ui-interactions";
 import { EmptyState } from "../components/EmptyState";
+import { PaginationBar } from "../components/PaginationBar";
 import { EnquiryIntakePanel } from "./EnquiryForm";
 import {
   EnquiryList,
@@ -42,7 +49,7 @@ const TAB_LABELS: Record<TabKey, string> = {
   closed: "Closed",
 };
 
-type SortKey = "newest" | "oldest" | "name" | "activity";
+type SortKey = EnquirySortKey;
 const SORT_ORDER: readonly SortKey[] = ["newest", "oldest", "name", "activity"];
 
 function toSortKey(value: string): SortKey {
@@ -76,6 +83,41 @@ function buildHref(params: URLSearchParams, mutate: (next: URLSearchParams) => v
   for (const key of Array.from(next.keys())) {
     if (!next.get(key)) next.delete(key);
   }
+  const qs = next.toString();
+  return qs ? `/admin/enquiries?${qs}` : "/admin/enquiries";
+}
+
+/**
+ * The page's canonical query string (C-16 Phase C Step 8). Every navigation on
+ * this page — tab links, filter chips, the sort select, the persisted filter
+ * state — is built from this, and it deliberately never reads `params.page`.
+ * That is the whole page-reset mechanism: there is no path by which a stale
+ * page number can survive a change to the result set, because nothing but the
+ * pager ever writes one.
+ */
+export function buildEnquiryUrlParams(
+  params: Record<string, string | string[] | undefined>
+): URLSearchParams {
+  const next = new URLSearchParams();
+  const tab = toTabKey(readParam(params.tab));
+  if (tab !== "all") next.set("tab", tab);
+  for (const key of ["source", "assigned_staff", "from", "to", "q"] as const) {
+    const value = readParam(params[key]);
+    if (value) next.set(key, value);
+  }
+  const sort = toSortKey(readParam(params.sort));
+  if (sort !== "newest") next.set("sort", sort);
+  return next;
+}
+
+/** The pager's href — the only place `page` is written. */
+export function buildEnquiryPageHref(
+  urlParams: URLSearchParams,
+  page: number
+): string {
+  const next = new URLSearchParams(urlParams);
+  if (page > 1) next.set("page", String(page));
+  else next.delete("page");
   const qs = next.toString();
   return qs ? `/admin/enquiries?${qs}` : "/admin/enquiries";
 }
@@ -145,91 +187,50 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
   const hasActiveFilters = Boolean(
     sourceFilter || assignedFilter || fromFilter || toFilter || qFilter
   );
-  const hasAnyNarrowing = tab !== "all" || hasActiveFilters;
 
-  // Unfiltered fetch — the tab badge (newCount) and the at-a-glance strip
-  // always reflect the whole pipeline, not the currently-applied filter, so
-  // they're computed from this call regardless of what's on the URL. When no
-  // filter is active this is the ONLY call (see below), so the default view
-  // costs exactly one query, same as before this step.
-  const { enquiries, staff } = await getEnquiriesPageData();
+  // One filter object, shared by the row query and the head-count that sizes
+  // the pager (C-16 Phase C Step 8) — see `applyEnquiryFilters`.
+  const filters: EnquiriesFilters = {
+    status: tab === "all" ? undefined : tab,
+    source: sourceFilter || undefined,
+    assignedStaff: assignedFilter || undefined,
+    fromDate: fromFilter || undefined,
+    toDate: toFilter || undefined,
+    q: qFilter || undefined,
+  };
+
+  const todayPresetRange = presetRange("today");
+  const weekPresetRange = presetRange("week");
+  const monthPresetRange = presetRange("month");
+
+  // The badge/stat head-counts use the SAME day ranges as the links they sit
+  // on, so a stat can never disagree with the view it navigates to.
+  const [listPage, overview] = await Promise.all([
+    getEnquiriesListPage({ filters, sort, page: readParam(params.page) }),
+    getEnquiryOverviewCounts({
+      today: todayPresetRange,
+      week: weekPresetRange,
+      month: monthPresetRange,
+    }),
+  ]);
+  const { rows: displayed, staff } = listPage;
 
   // Map rebuilt on THIS side of the cache boundary — enquiries-data.ts returns
   // a plain array because a Map would come back as {} (SHARED-NOTES §15).
   const staffNames = new Map(staff.map((member) => [member.id, member.name]));
 
-  // Tab counts (full, unfiltered list).
-  const newCount = enquiries.filter((row) => row.status === "new").length;
-
-  // Filtered fetch (C-09 Phase D Step 8) — server-side query, not in-memory.
-  // Reuses the unfiltered call's cache entry when nothing is narrowing the
-  // view (cacheKeyPart({}) === cacheKeyPart({}) for the no-filter case).
-  const { enquiries: displayedUnsorted } = hasAnyNarrowing
-    ? await getEnquiriesPageData({
-        status: tab === "all" ? undefined : tab,
-        source: sourceFilter || undefined,
-        assignedStaff: assignedFilter || undefined,
-        fromDate: fromFilter || undefined,
-        toDate: toFilter || undefined,
-        q: qFilter || undefined,
-      })
-    : { enquiries };
-
-  // Apply sort (client-facing sort order was never part of the filter-FAKE
-  // pattern — it stays a display-only pass over the already server-filtered
-  // rows).
-  const displayed = [...displayedUnsorted].sort((a, b) => {
-    switch (sort) {
-      case "oldest":
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      case "name":
-        return a.full_name.localeCompare(b.full_name, "en", { sensitivity: "base" });
-      case "activity": {
-        const aTs = new Date(a.updated_at ?? a.created_at).getTime();
-        const bTs = new Date(b.updated_at ?? b.created_at).getTime();
-        return bTs - aTs;
-      }
-      default:
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    }
-  });
-
-  // S1: at-a-glance stats (server-computed).
-  const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const startOfWeekDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  startOfWeekDate.setDate(
-    startOfWeekDate.getDate() - ((startOfWeekDate.getDay() + 6) % 7)
-  );
-  const startOfWeek = startOfWeekDate.getTime();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  const todayNew = enquiries.filter(
-    (r) => r.status === "new" && new Date(r.created_at).getTime() >= todayStart
-  ).length;
-  const thisWeekTotal = enquiries.filter(
-    (r) => new Date(r.created_at).getTime() >= startOfWeek
-  ).length;
-  const monthEnquiries = enquiries.filter(
-    (r) => new Date(r.created_at).getTime() >= startOfMonth
-  );
-  const monthConverted = monthEnquiries.filter((r) => r.converted_booking_id).length;
+  // Tab badge + S1 at-a-glance strip: head-counts over the whole pipeline,
+  // not `.filter(...).length` over an unbounded fetch of it.
+  const newCount = overview.newTotal;
   const conversionRatePct =
-    monthEnquiries.length > 0
-      ? Math.round((monthConverted / monthEnquiries.length) * 100)
+    overview.monthTotal > 0
+      ? Math.round((overview.monthConverted / overview.monthTotal) * 100)
       : null;
 
-  const urlParams = new URLSearchParams();
-  if (tab !== "all") urlParams.set("tab", tab);
-  if (sourceFilter) urlParams.set("source", sourceFilter);
-  if (assignedFilter) urlParams.set("assigned_staff", assignedFilter);
-  if (fromFilter) urlParams.set("from", fromFilter);
-  if (toFilter) urlParams.set("to", toFilter);
-  if (qFilter) urlParams.set("q", qFilter);
-  if (sort !== "newest") urlParams.set("sort", sort);
-
-  const todayPresetRange = presetRange("today");
-  const weekPresetRange = presetRange("week");
-  const monthPresetRange = presetRange("month");
+  // `page` is deliberately absent from `urlParams`: every link, chip, form and
+  // the sort select are built from it, so the window resets wherever the
+  // result set changes. The pager is the only thing that writes `page`.
+  const urlParams = buildEnquiryUrlParams(params);
   const clearAllHref = buildHref(urlParams, (next) => {
     next.delete("source");
     next.delete("assigned_staff");
@@ -468,11 +469,11 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
           {/* S1 — at-a-glance strip */}
           <AtAGlanceStrip
             urlParams={urlParams}
-            todayNew={todayNew}
-            thisWeekTotal={thisWeekTotal}
+            todayNew={overview.todayNew}
+            thisWeekTotal={overview.weekTotal}
             conversionRatePct={conversionRatePct}
-            monthEnquiries={monthEnquiries.length}
-            monthConverted={monthConverted}
+            monthEnquiries={overview.monthTotal}
+            monthConverted={overview.monthConverted}
             todayRange={todayPresetRange}
             weekRange={weekPresetRange}
             monthRange={monthPresetRange}
@@ -484,8 +485,8 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
           {/* Count + sort */}
           <div className="flex flex-wrap items-center justify-between gap-3 px-1">
             <p className="text-xs text-[var(--admin-text-muted)]">
-              Showing <span className="font-semibold text-[var(--admin-heading)]">{displayed.length}</span>{" "}
-              {displayed.length === 1 ? "enquiry" : "enquiries"}
+              Showing <span className="font-semibold text-[var(--admin-heading)]">{listPage.total}</span>{" "}
+              {listPage.total === 1 ? "enquiry" : "enquiries"}
               {tab !== "all" ? <> in <span className="font-medium">{TAB_LABELS[tab]}</span></> : null}
             </p>
             {displayed.length > 0 ? (
@@ -510,6 +511,14 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
               }))}
             />
           )}
+
+          <PaginationBar
+            page={listPage.page}
+            pageCount={listPage.pageCount}
+            total={listPage.total}
+            pageSize={LIST_PAGE_SIZE}
+            makeHref={(nextPage) => buildEnquiryPageHref(urlParams, nextPage)}
+          />
         </main>
       </div>
     </div>

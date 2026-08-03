@@ -12,9 +12,17 @@ import {
 } from "../components/admin-ui";
 import { AdminSheet } from "../components/admin-ui-interactions";
 import { EmptyState } from "../components/EmptyState";
+import { PaginationBar } from "../components/PaginationBar";
+import { LIST_PAGE_SIZE } from "@/lib/pagination";
 import { formatDate, formatMoney } from "./format";
 import { getClientDataAccess } from "./access";
-import { getClientsListData } from "./clients-list-data";
+import {
+  clientListContextFromQuery,
+  getClientsListPage,
+  type ClientLifecycleKey,
+  type ClientListRow,
+  type ClientSortKey,
+} from "./clients-list-data";
 import type { ClientBookingRecord, ClientRecord } from "./types";
 import { ClientRowMenu, type LastBookingSummary } from "./ClientRowMenu";
 import {
@@ -44,13 +52,17 @@ interface ClientsPageProps {
 // The four RBAC select variants moved to clients-list-data.ts with the fetch
 // (C-09 Phase C Step 5), including the note on why `deleted_at` is selected in
 // both client branches and in neither booking branch.
+//
+// C-16 Phase C Step 8 — so did every derivation this page used to run over an
+// unbounded in-memory client→bookings map: the lifecycle rules, the visit
+// counts, the outstanding-balance sum, the search/filter predicates, the sort
+// and the paging. `getClientsListPage` resolves one filter context into the
+// total, the stats and exactly one page of rows; what is left here is display.
 
 const AZ_THRESHOLD = 40;
-const MS_PER_DAY = 86_400_000;
-const PAGE_SIZE = 50;
 
-type LifecycleKey = "new" | "returning" | "at_risk" | "lapsed";
-type SortKey = "name" | "last_visit";
+type LifecycleKey = ClientLifecycleKey;
+type SortKey = ClientSortKey;
 
 const LIFECYCLE_LABEL: Record<LifecycleKey, string> = {
   new: "New",
@@ -72,120 +84,6 @@ const LIFECYCLE_TITLE: Record<LifecycleKey, string> = {
   at_risk: "At-risk: last visit over 3 months ago",
   lapsed: "Lapsed: last visit over 6 months ago",
 };
-
-function matchesSearch(
-  client: ClientRecord,
-  query: string,
-  canSearchContactDetails: boolean
-) {
-  const normalizedQuery = query.trim().toLowerCase();
-  if (!normalizedQuery) return true;
-
-  return [
-    client.full_name,
-    ...(canSearchContactDetails ? [client.phone, client.email] : []),
-  ]
-    .filter((value): value is string => Boolean(value))
-    .some((value) => value.toLowerCase().includes(normalizedQuery));
-}
-
-function getOutstandingAmount(bookings: ClientBookingRecord[]) {
-  return bookings.reduce((total, booking) => {
-    const due = Number(booking.amount_due ?? booking.total_price ?? 0);
-    const paid = Number(booking.amount_paid ?? 0);
-    return total + Math.max(0, due - paid);
-  }, 0);
-}
-
-function todayIso(now: Date): string {
-  return now.toISOString().slice(0, 10);
-}
-
-function isCompletedVisit(booking: ClientBookingRecord, today: string): boolean {
-  if (booking.status === "cancelled" || booking.status === "no_show") return false;
-  return booking.booking_date < today;
-}
-
-function isUpcomingBooking(booking: ClientBookingRecord, today: string): boolean {
-  if (booking.status === "cancelled") return false;
-  return booking.booking_date >= today;
-}
-
-function getLastCompletedVisit(
-  bookings: ClientBookingRecord[],
-  today: string
-): ClientBookingRecord | null {
-  let latest: ClientBookingRecord | null = null;
-  for (const booking of bookings) {
-    if (!isCompletedVisit(booking, today)) continue;
-    if (!latest || booking.booking_date > latest.booking_date) latest = booking;
-  }
-  return latest;
-}
-
-function getNextUpcomingBooking(
-  bookings: ClientBookingRecord[],
-  today: string
-): ClientBookingRecord | null {
-  let earliest: ClientBookingRecord | null = null;
-  for (const booking of bookings) {
-    if (!isUpcomingBooking(booking, today)) continue;
-    if (!earliest || booking.booking_date < earliest.booking_date) earliest = booking;
-  }
-  return earliest;
-}
-
-function countCompletedVisits(
-  bookings: ClientBookingRecord[],
-  today: string
-): number {
-  return bookings.reduce(
-    (total, booking) => (isCompletedVisit(booking, today) ? total + 1 : total),
-    0
-  );
-}
-
-function countUpcoming(bookings: ClientBookingRecord[], today: string): number {
-  return bookings.reduce(
-    (total, booking) => (isUpcomingBooking(booking, today) ? total + 1 : total),
-    0
-  );
-}
-
-function getDaysSince(dateIso: string | null, now: Date): number | null {
-  if (!dateIso) return null;
-  const then = new Date(`${dateIso}T00:00:00`);
-  if (Number.isNaN(then.getTime())) return null;
-  return Math.max(0, Math.floor((now.getTime() - then.getTime()) / MS_PER_DAY));
-}
-
-function getLifecycle(
-  client: ClientRecord,
-  bookings: ClientBookingRecord[],
-  now: Date
-): LifecycleKey {
-  const today = todayIso(now);
-  const lastCompleted = getLastCompletedVisit(bookings, today);
-  const completedCount = countCompletedVisits(bookings, today);
-  const hasUpcoming = countUpcoming(bookings, today) > 0;
-  const createdDays = getDaysSince(client.created_at.slice(0, 10), now);
-  const isNewByAge = createdDays !== null && createdDays <= 30;
-
-  if (completedCount === 0) {
-    // Never visited yet
-    if (hasUpcoming) return isNewByAge ? "new" : "returning";
-    return isNewByAge ? "new" : "lapsed";
-  }
-
-  const daysSinceLastCompleted = getDaysSince(lastCompleted!.booking_date, now);
-  if (daysSinceLastCompleted !== null && !hasUpcoming) {
-    if (daysSinceLastCompleted > 180) return "lapsed";
-    if (daysSinceLastCompleted > 90) return "at_risk";
-  }
-  if (completedCount >= 3) return "returning";
-  if (isNewByAge) return "new";
-  return "returning";
-}
 
 function deterministicHue(id: string): number {
   let hash = 0;
@@ -211,92 +109,8 @@ function letterBucket(name: string): string {
   return /[A-Z]/.test(letter) ? letter : "#";
 }
 
-function matchesFilters({
-  client,
-  bookings,
-  lifecycle,
-  payment,
-  location,
-  source,
-  canSearchContactDetails,
-  now,
-}: {
-  client: ClientRecord;
-  bookings: ClientBookingRecord[];
-  lifecycle: string;
-  payment: string;
-  location: string;
-  source: string;
-  canSearchContactDetails: boolean;
-  now: Date;
-}) {
-  if (
-    lifecycle &&
-    (["new", "returning", "at_risk", "lapsed"] as const).includes(lifecycle as LifecycleKey)
-  ) {
-    if (getLifecycle(client, bookings, now) !== lifecycle) return false;
-  }
-
-  if (payment) {
-    const outstanding = getOutstandingAmount(bookings);
-    if (payment === "in_good_standing" && outstanding > 0) return false;
-    if (payment === "outstanding" && outstanding <= 0) return false;
-  }
-
-  if (source) {
-    const matchesSource =
-      client.client_source === source ||
-      bookings.some((booking) => booking.booking_source === source);
-    if (!matchesSource) return false;
-  }
-
-  const normalizedLocation = location.trim().toLowerCase();
-  if (normalizedLocation) {
-    const haystack = [
-      ...(canSearchContactDetails ? [client.postcode, client.address] : []),
-      ...bookings.flatMap((booking) => [
-        booking.service_city,
-        booking.service_postcode,
-        canSearchContactDetails ? booking.service_address_line1 : null,
-      ]),
-    ]
-      .filter((value): value is string => Boolean(value))
-      .map((value) => value.toLowerCase());
-    if (!haystack.some((value) => value.includes(normalizedLocation))) return false;
-  }
-
-  return true;
-}
-
-function parseSort(value: string | undefined): SortKey {
-  return value === "last_visit" ? "last_visit" : "name";
-}
-
-function parseLifecycle(value: string): string {
-  return (["new", "returning", "at_risk", "lapsed"] as const).includes(value as LifecycleKey)
-    ? value
-    : "";
-}
-
-function parsePayment(value: string): string {
-  return ["in_good_standing", "outstanding"].includes(value) ? value : "";
-}
-
-function parsePage(value: string | undefined): number {
-  const parsed = Number.parseInt(value ?? "1", 10);
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : 1;
-}
-
 export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   const params = await searchParams;
-  const q = (params.q ?? "").trim();
-  const lifecycle = parseLifecycle(params.lifecycle ?? "");
-  const payment = parsePayment(params.payment ?? "");
-  const location = params.location ?? "";
-  const source = params.source ?? "";
-  const sort = parseSort(params.sort);
-  const pageParam = parsePage(params.page);
-  const showDeleted = params.show_deleted === "1" ? "1" : "";
   const justDeleted = params.deleted === "1";
 
   const supabase = await createSupabaseServerClient();
@@ -334,99 +148,29 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
   });
   const canManageClients = clientAccess.canManageClient;
 
-  const { clients: allClients, bookings } = await getClientsListData({
+  // ONE context — the search, the filters, the deleted scope (now a real SQL
+  // predicate, not an in-memory pass), the sort and the day boundary — feeds
+  // the total, the stats and the page window alike.
+  const context = clientListContextFromQuery(params, {
     canViewContactDetails: clientAccess.canViewContactDetails,
   });
+  const listPage = await getClientsListPage({
+    context,
+    page: params.page,
+  });
 
-  // Soft-deleted clients are hidden by default and reachable through the
-  // "Show deleted" toggle (brief §5.3). Everything downstream — stats, counts,
-  // pagination — works off the scoped list.
-  const deletedCount = allClients.filter((client) =>
-    Boolean(client.deleted_at)
-  ).length;
-  const clients: ClientRecord[] = showDeleted
-    ? allClients
-    : allClients.filter((client) => !client.deleted_at);
+  const q = context.q ?? "";
+  const lifecycle = context.lifecycle ?? "";
+  const payment = context.payment ?? "";
+  const location = context.location ?? "";
+  const source = context.source ?? "";
+  const sort = context.sort;
+  const showDeleted = context.includeDeleted ? "1" : "";
+
   const canDeleteClients = canManageClientDestructiveOps(profile);
+  const { rows: pageRows, deletedCount, stats } = listPage;
 
-  const now = new Date();
-  const bookingsByClientId = new Map<string, ClientBookingRecord[]>();
-  for (const booking of bookings) {
-    bookingsByClientId.set(booking.client_id, [
-      ...(bookingsByClientId.get(booking.client_id) ?? []),
-      booking,
-    ]);
-  }
-
-  const visibleClients = clients.filter((client) => {
-    const clientBookings = bookingsByClientId.get(client.id) ?? [];
-    return (
-      matchesSearch(client, q, clientAccess.canViewContactDetails) &&
-      matchesFilters({
-        client,
-        bookings: clientBookings,
-        lifecycle,
-        payment,
-        location,
-        source,
-        canSearchContactDetails: clientAccess.canViewContactDetails,
-        now,
-      })
-    );
-  });
-
-  const today = todayIso(now);
-
-  type Row = {
-    client: ClientRecord;
-    bookings: ClientBookingRecord[];
-    lifecycle: LifecycleKey;
-    lastCompleted: ClientBookingRecord | null;
-    nextUpcoming: ClientBookingRecord | null;
-    completedCount: number;
-    upcomingCount: number;
-  };
-
-  const rows: Row[] = visibleClients.map((client) => {
-    const clientBookings = bookingsByClientId.get(client.id) ?? [];
-    return {
-      client,
-      bookings: clientBookings,
-      lifecycle: getLifecycle(client, clientBookings, now),
-      lastCompleted: getLastCompletedVisit(clientBookings, today),
-      nextUpcoming: getNextUpcomingBooking(clientBookings, today),
-      completedCount: countCompletedVisits(clientBookings, today),
-      upcomingCount: countUpcoming(clientBookings, today),
-    };
-  });
-
-  if (sort === "last_visit") {
-    // Sort by most recent completed visit; clients with no completed visits
-    // fall back to next upcoming (earliest first), then alphabetical.
-    rows.sort((a, b) => {
-      const aLast = a.lastCompleted?.booking_date ?? "";
-      const bLast = b.lastCompleted?.booking_date ?? "";
-      if (aLast && bLast) return bLast.localeCompare(aLast);
-      if (aLast) return -1;
-      if (bLast) return 1;
-      const aNext = a.nextUpcoming?.booking_date ?? "";
-      const bNext = b.nextUpcoming?.booking_date ?? "";
-      if (aNext && bNext) return aNext.localeCompare(bNext);
-      if (aNext) return -1;
-      if (bNext) return 1;
-      return a.client.full_name.localeCompare(b.client.full_name);
-    });
-  } else {
-    rows.sort((a, b) => a.client.full_name.localeCompare(b.client.full_name));
-  }
-
-  // C8 pagination
-  const totalRows = rows.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
-  const currentPage = Math.min(pageParam, totalPages);
-  const pageStartIndex = (currentPage - 1) * PAGE_SIZE;
-  const pageEndIndex = Math.min(pageStartIndex + PAGE_SIZE, totalRows);
-  const pageRows = rows.slice(pageStartIndex, pageEndIndex);
+  type Row = ClientListRow;
 
   // Only live rows are selectable — a deleted row offers "View" and nothing
   // else (brief §5.3).
@@ -434,24 +178,10 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
     .filter((row) => !row.client.deleted_at)
     .map((row) => ({ id: row.client.id, full_name: row.client.full_name }));
 
-  const totalClientCount = clients.length;
+  const totalClientCount = listPage.totalInScope;
   const isFiltered = Boolean(q || lifecycle || payment || location || source);
   const isAlphaSort = sort === "name";
   const showAzStrip = isAlphaSort && !q && totalClientCount >= AZ_THRESHOLD;
-
-  // C2 stats
-  let activeCount = 0;
-  let newThisMonthCount = 0;
-  let returningCount = 0;
-  let atRiskLapsedCount = 0;
-  for (const client of clients) {
-    const clientBookings = bookingsByClientId.get(client.id) ?? [];
-    const lc = getLifecycle(client, clientBookings, now);
-    if (lc !== "lapsed") activeCount += 1;
-    if (lc === "new") newThisMonthCount += 1;
-    if (lc === "returning") returningCount += 1;
-    if (lc === "at_risk" || lc === "lapsed") atRiskLapsedCount += 1;
-  }
 
   const groupedRows: { letter: string; rows: Row[] }[] = [];
   if (isAlphaSort) {
@@ -606,25 +336,25 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         aria-label="Client base summary"
       >
         <StatLink
-          label={`${activeCount} active`}
+          label={`${stats.active} active`}
           href="/admin/clients"
           active={!lifecycle}
         />
         <Dot />
         <StatLink
-          label={`${newThisMonthCount} new this month`}
+          label={`${stats.newThisMonth} new this month`}
           href={buildFilterHref(filterValues, "lifecycle", "new")}
           active={lifecycle === "new"}
         />
         <Dot />
         <StatLink
-          label={`${returningCount} returning`}
+          label={`${stats.returning} returning`}
           href={buildFilterHref(filterValues, "lifecycle", "returning")}
           active={lifecycle === "returning"}
         />
         <Dot />
         <StatLink
-          label={`${atRiskLapsedCount} at risk or lapsed`}
+          label={`${stats.atRiskLapsed} at risk or lapsed`}
           href={buildFilterHref(filterValues, "lifecycle", "at_risk")}
           active={lifecycle === "at_risk" || lifecycle === "lapsed"}
         />
@@ -724,19 +454,15 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
 
       {/* Sort toggle + count summary — frameless (A11) */}
       <div className="hidden flex-wrap items-center justify-between gap-3 lg:flex">
+        {/* The window ("Showing 26–50 of 3,412") is the pager's job now — this
+            line stays the result-set-vs-directory summary it always was. */}
         <p className="text-sm text-[var(--admin-text-muted)]">
-          {totalRows === 0 ? (
+          {listPage.total === 0 ? (
             <>0 of {totalClientCount} clients</>
-          ) : totalRows > PAGE_SIZE ? (
-            <>
-              {pageStartIndex + 1}–{pageEndIndex} of {totalRows} clients
-              {totalRows !== totalClientCount ? (
-                <> (filtered from {totalClientCount})</>
-              ) : null}
-            </>
           ) : (
             <>
-              {totalRows} of {totalClientCount} client{totalClientCount === 1 ? "" : "s"}
+              {listPage.total} of {totalClientCount} client
+              {totalClientCount === 1 ? "" : "s"}
             </>
           )}
         </p>
@@ -881,54 +607,26 @@ export default async function ClientsPage({ searchParams }: ClientsPageProps) {
         </ClientSelectionProvider>
       )}
 
-      {/* C8 pagination */}
-      {totalPages > 1 ? (
-        <nav
-          aria-label="Pagination"
-          className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--admin-border)] pt-3"
-        >
-          <p className="text-xs text-[var(--admin-text-muted)]">
-            Page {currentPage} of {totalPages}
-          </p>
-          <div className="flex items-center gap-2">
-            {currentPage > 1 ? (
-              <Link
-                href={buildPageHref(filterValues, currentPage - 1)}
-                className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-3 text-xs font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-              >
-                Previous
-              </Link>
-            ) : (
-              <span
-                aria-hidden="true"
-                className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] px-3 text-xs font-semibold text-[var(--admin-text-muted)]/60"
-              >
-                Previous
-              </span>
-            )}
-            {currentPage < totalPages ? (
-              <Link
-                href={buildPageHref(filterValues, currentPage + 1)}
-                className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-3 text-xs font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-              >
-                Next
-              </Link>
-            ) : (
-              <span
-                aria-hidden="true"
-                className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] px-3 text-xs font-semibold text-[var(--admin-text-muted)]/60"
-              >
-                Next
-              </span>
-            )}
-          </div>
-        </nav>
-      ) : null}
+      <PaginationBar
+        page={listPage.page}
+        pageCount={listPage.pageCount}
+        total={listPage.total}
+        pageSize={LIST_PAGE_SIZE}
+        makeHref={(nextPage) => buildPageHref(filterValues, nextPage)}
+      />
     </div>
   );
 }
 
-function buildClearLinkHref(
+/**
+ * The href builders (C-16 Phase C Step 8). Every one of them rebuilds the
+ * query string from `filterValues`, which carries no `page` — so clearing a
+ * chip, switching sort, toggling deleted or following a stat link always
+ * returns to page 1 of the new result set. `buildPageHref` is the only one
+ * that writes a page, and the two GET filter forms have no `page` field.
+ * Exported for `__tests__/clients-page-param.test.tsx`, which pins that.
+ */
+export function buildClearLinkHref(
   values: {
     q: string;
     lifecycle: string;
@@ -950,7 +648,7 @@ function buildClearLinkHref(
   return qs ? `/admin/clients?${qs}` : "/admin/clients";
 }
 
-function buildSortHref(
+export function buildSortHref(
   values: {
     q: string;
     lifecycle: string;
@@ -970,7 +668,7 @@ function buildSortHref(
   return qs ? `/admin/clients?${qs}` : "/admin/clients";
 }
 
-function buildFilterHref(
+export function buildFilterHref(
   values: {
     q: string;
     lifecycle: string;
@@ -994,7 +692,7 @@ function buildFilterHref(
   return qs ? `/admin/clients?${qs}` : "/admin/clients";
 }
 
-function buildPageHref(
+export function buildPageHref(
   values: {
     q: string;
     lifecycle: string;
@@ -1016,7 +714,7 @@ function buildPageHref(
   return qs ? `/admin/clients?${qs}` : "/admin/clients";
 }
 
-function buildShowDeletedHref(
+export function buildShowDeletedHref(
   values: {
     q: string;
     lifecycle: string;
