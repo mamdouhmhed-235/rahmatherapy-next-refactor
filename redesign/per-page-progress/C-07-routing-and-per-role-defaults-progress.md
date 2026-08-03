@@ -107,7 +107,7 @@ It survived because **every existing spec in `filterBookings.test.ts` supplies a
 
 Fixed per D5: `filterBookings()` now takes the resolved `currentView` as a parameter; `page.tsx` computes it once and threads it into both `BookingsChrome` (tab highlight) and `filterBookings` (list filter). No third helper. Ten existing call sites updated, two new specs added covering the no-`?view=` path for both a `canViewAll` role and a Therapist — the exact gap that hid it. Every pre-existing branch, including C-09's `series`, verified intact against the pre-phase blob.
 
-*(One of B3's two lenses returned a placeholder — the fourth on this programme. The other traced the fix thoroughly and passed it; B3 rests on that one genuine verdict. A re-run of the placeholder lens is the one loose thread on an otherwise-complete phase.)*
+*(One of B3's two lenses returned a placeholder — the fourth on this programme. **Re-run, and it PASSED cleanly**, so B3 now rests on two genuine verdicts.* The blast-radius check confirmed all ten "removed" lines in `filterBookings.test.ts` are the same mechanical signature update, each test's new literal matching the `view` key already in its own `query` object — no expectation moved, no assertion weakened. Only one real call site exists in the tree and its argument order and types are correct; the new parameter is typed to the narrow 11-member `BookingViewKey` union rather than `string`, so a typo'd view key cannot slip through the signature. `page.tsx`'s diff is exactly two hunks. **This is the first of the four placeholder re-runs to find nothing wrong** — the other three each surfaced a real defect.*)*
 
 ## 1.8 — ⛔ Phase B4: HARD-STOP, plan-vs-reality contradiction
 
@@ -146,6 +146,6 @@ It landed at **`449f722` "redesign: bookings" — before the Band C programme st
 
 **Gates at HEAD:** tsc 0 · lint 59E/7W in the same six files · build clean · vitest **5 failed / 1483 passed (1488)**, the five inherited by identity (`admin-access` ×2 + `ManualBookingForm` ×3).
 
-**To resume:** ① put §1.8's B4 question to the Owner and act on the answer; ② optionally re-run B3's placeholder lens; ③ then C-07's closeout gate (§3 of the plan), progress finalisation, and flip the master-plan row. **Drift checkpoint #3 falls due immediately after C-07 ships** — it is the first full-range review since plan #10 and the first to see C-09's cache layer.
+**To resume:** ① put §1.8's B4 question to the Owner and act on the answer; ② then C-07's closeout gate (§3 of the plan), progress finalisation, and flip the master-plan row. **Drift checkpoint #3 falls due immediately after C-07 ships** — it is the first full-range review since plan #10 and the first to see C-09's cache layer.
 
 **C-07 carries no migration and no Zone-2 action.** It does not join the pending Cloudflare deploy.
