@@ -265,6 +265,90 @@ describe("ManualBookingForm optional email", () => {
   });
 });
 
+describe("ManualBookingForm service match hint (C-03 fix — live selection)", () => {
+  const enquiryWithMatch = {
+    id: "enquiry-1",
+    full_name: "Sara Mohamed",
+    email: "sara@example.test",
+    phone: "07123456789",
+    source: "phone",
+    service_interest: "hijama package",
+    notes: null,
+  };
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    // Earlier describes in this file leave their trees mounted, and a second
+    // copy of the form would make the queries below ambiguous.
+    cleanup();
+  });
+
+  // Step 2's own heading text ("Services & participants") is ambiguous: the
+  // review step's summary card (step 4, always mounted alongside the others —
+  // only CSS + aria-hidden toggle which step shows) repeats the same title.
+  // The step-rail's title attribute is the one thing that's unique per step.
+  async function continueToStep2(
+    user: ReturnType<typeof userEvent.setup>,
+    container: HTMLElement
+  ) {
+    const continueButtons = () => screen.getAllByRole("button", { name: /Continue/i });
+    await user.click(continueButtons()[0]);
+    await waitFor(() =>
+      expect(container.querySelector('[title="Step 2: current"]')).not.toBeNull()
+    );
+  }
+
+  it("stops claiming a match once the operator picks a different service for participant 1", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ManualBookingForm
+        services={services}
+        prefillClient={null}
+        enquiry={enquiryWithMatch}
+        matchedServiceSlug="hijama-package"
+      />
+    );
+    await continueToStep2(user, container);
+
+    // Pre-select honoured on arrival: the banner claims the match.
+    expect(screen.getByRole("status").textContent).toContain("Matched from enquiry:");
+    expect(screen.getByRole("status").textContent).toContain("Hijama Package");
+
+    // Operator changes their mind and picks a different package.
+    await user.click(screen.getByRole("radio", { name: /Fire Package/i }));
+
+    // The banner must not go on asserting the old match now that the live
+    // selection has moved away from it.
+    await waitFor(() => {
+      expect(screen.getByRole("status").textContent).not.toContain("Matched from enquiry:");
+    });
+    expect(screen.getByRole("status").textContent).toContain("Enquiry mentioned:");
+  });
+
+  it("preserves the matched pre-select — and keeps the banner accurate — across the Themself to Someone else toggle", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <ManualBookingForm
+        services={services}
+        prefillClient={null}
+        enquiry={enquiryWithMatch}
+        matchedServiceSlug="hijama-package"
+      />
+    );
+
+    // Switch "Booking for" away from the default before ever reaching step 2.
+    await user.click(screen.getByRole("radio", { name: /Someone else/i }));
+    await continueToStep2(user, container);
+
+    // The pre-select survives the toggle (a changeable default, not erased) —
+    // and the banner keeps agreeing with it.
+    const hijamaRadio = screen.getByRole("radio", { name: /Hijama Package/i }) as HTMLInputElement;
+    expect(hijamaRadio.checked).toBe(true);
+    expect(screen.getByRole("status").textContent).toContain("Matched from enquiry:");
+    expect(screen.getByRole("status").textContent).toContain("Hijama Package");
+  });
+});
+
 /**
  * Jumps to the review step via the session-storage draft the form already
  * restores, ticks consent so nothing but the duplicate check can block submit,

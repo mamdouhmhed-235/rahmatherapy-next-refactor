@@ -896,9 +896,13 @@ export function ManualBookingForm({
   function handleBookingForChange(mode: "self" | "someone_else" | "group") {
     setBookingForMode(mode);
     if (mode === "self") {
-      setParticipants([emptyParticipant(fullName)]);
+      // Fix (C-03 fix round) — pass the matched slug through so the toggle
+      // doesn't silently wipe the enquiry's pre-select. Who the booking is
+      // FOR doesn't change what the enquiry said they were interested in,
+      // and it stays a changeable default either way.
+      setParticipants([emptyParticipant(fullName, matchedServiceSlug)]);
     } else if (mode === "someone_else") {
-      setParticipants([emptyParticipant()]);
+      setParticipants([emptyParticipant("", matchedServiceSlug)]);
     } else {
       // Group: ensure at least 2 participants
       setParticipants((prev) =>
@@ -1108,8 +1112,19 @@ export function ManualBookingForm({
       null
     : null;
 
+  // Fix (C-03 fix round) — `matchedServiceSlug` is a static prop from the
+  // server-side fuzzy-match; it never updates after mount. The banner must
+  // not go on claiming a match once participant 1's LIVE selection has moved
+  // away from it — whether the operator picked a different package/duration
+  // on this step, or the booking-for toggle reset participant 1. This only
+  // reads the current selection; it never re-applies the match itself.
+  const liveMatchesEnquiry =
+    !!matchedServiceSlug &&
+    (participants[0]?.packageSlug === matchedServiceSlug ||
+      participants[0]?.massageSlug === matchedServiceSlug);
+
   const serviceMatchHint = enquiry?.service_interest ? (
-    matchedServiceSlug && matchedServiceName ? (
+    liveMatchesEnquiry && matchedServiceName ? (
       !hintDismissed && (
         <div
           role="status"
