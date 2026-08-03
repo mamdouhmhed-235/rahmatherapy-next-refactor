@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -9,6 +10,7 @@ import {
   hashResetToken,
   verifyResetToken,
 } from "@/lib/auth/password-reset-token";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 const COOKIE_NAME = "rahma_password_reset_request";
 const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 7;
@@ -126,6 +128,7 @@ export async function submitPasswordResetRequest(
         target_id: inserted.id,
         after_state: { masked_email: maskEmail(email) },
       });
+      updateTag(TAGS.AUDIT);
     }
   } else {
     await adminClient.from("audit_logs").insert({
@@ -135,6 +138,7 @@ export async function submitPasswordResetRequest(
       target_id: null,
       after_state: { masked_email: maskEmail(email) },
     });
+    updateTag(TAGS.AUDIT);
   }
 
   await setRequestCookie(email);
@@ -194,6 +198,7 @@ export async function setPasswordWithToken(formData: FormData): Promise<void> {
       target_id: targetId,
       after_state: { reason },
     });
+    updateTag(TAGS.AUDIT);
   }
 
   if (!row) {
@@ -255,6 +260,7 @@ export async function setPasswordWithToken(formData: FormData): Promise<void> {
     target_id: row.id,
     after_state: { staff_id: staff.id },
   });
+  updateTag(TAGS.AUDIT);
 
   // Fetch the email to sign the staff member in.
   const { data: authUserResult } =

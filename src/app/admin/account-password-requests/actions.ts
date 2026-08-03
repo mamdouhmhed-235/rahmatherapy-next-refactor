@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 import {
   CURRENT_CIPHER_VERSION,
   generateResetToken,
@@ -219,6 +220,7 @@ export async function approvePasswordResetRequest(
       expires_at: expiresAt.toISOString(),
     },
   });
+  updateTag(TAGS.AUDIT);
 
   revalidatePath("/admin/account-password-requests");
   return { ok: true };
@@ -349,6 +351,7 @@ export async function rejectPasswordResetRequest(
       reviewer_note: reviewerNote,
     },
   });
+  updateTag(TAGS.AUDIT);
 
   revalidatePath("/admin/account-password-requests");
   return { ok: true };

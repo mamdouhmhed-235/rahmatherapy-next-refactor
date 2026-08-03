@@ -1,3 +1,4 @@
+import { updateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -11,7 +12,22 @@ import { saveNotificationSettings } from "../actions";
  * format validation with empty allowed, the audit row shape, and the
  * disabled-checkbox-preserves-prior-types behaviour (progress file's
  * `prefs.types` trap, applied to the write side).
+ *
+ * C-09 addendum (Owner-approved 2026-08-03) — the `notification_settings_updated`
+ * audit row this action writes had no `updateTag` and no `revalidatePath` at
+ * all, leaving `/admin/audit` (tagged `audit` only) stale. The written
+ * `staff_profiles` columns (notification_email, business_notification_prefs)
+ * are genuinely inert for caching purposes — `admin/me/page.tsx` reads them
+ * directly via the RLS server client, never through `unstable_cache` — so only
+ * the `audit` tag is invalidated; `staff` is deliberately NOT added here
+ * (unlike the roles precedent) because `staff-detail-data.ts`'s audit
+ * sub-query is already covered by the `audit` tag it carries in its own tags
+ * array, and no other staff-tagged fetcher reads these two columns.
  */
+
+vi.mock("next/cache", () => ({
+  updateTag: vi.fn(),
+}));
 
 vi.mock("@/lib/supabase/admin", () => ({
   createSupabaseAdminClient: vi.fn(),
@@ -343,5 +359,51 @@ describe("saveNotificationSettings — audit row", () => {
 
     expect(result).toEqual({ error: "Failed to save notification settings." });
     expect(stub.inserts.some((i) => i.table === "audit_logs")).toBe(false);
+  });
+});
+
+describe("saveNotificationSettings — cache tag invalidation", () => {
+  it("invalidates only the audit tag on a successful save", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(owner);
+    stubAdminClient({});
+
+    const result = await saveNotificationSettings({}, formData({ notification_email: "" }));
+
+    expect(result).toEqual({ success: true });
+    expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
+      "audit",
+    ]);
+  });
+
+  it("never calls updateTag when the actor lacks permission", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(coordinator);
+    const stub = stubAdminClient({});
+
+    await saveNotificationSettings({}, formData());
+
+    expect(stub.client.from).not.toHaveBeenCalled();
+    expect(updateTag).not.toHaveBeenCalled();
+  });
+
+  it("never calls updateTag when email validation fails", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(owner);
+    stubAdminClient({});
+
+    const result = await saveNotificationSettings(
+      {},
+      formData({ notification_email: "not-an-email" })
+    );
+
+    expect(result).toEqual({ error: "Enter a valid email address." });
+    expect(updateTag).not.toHaveBeenCalled();
+  });
+
+  it("never calls updateTag when the Supabase update fails", async () => {
+    vi.mocked(getStaffProfile).mockResolvedValue(owner);
+    stubAdminClient({ updateError: { message: "42501" } });
+
+    await saveNotificationSettings({}, formData({ notification_email: "" }));
+
+    expect(updateTag).not.toHaveBeenCalled();
   });
 });

@@ -1,9 +1,11 @@
 "use server";
 
 import { z } from "zod/v4";
+import { updateTag } from "next/cache";
 import { canManageEmailTemplates, getStaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { TAGS } from "@/lib/cache/tag-taxonomy";
 
 // C-08 Phase D Step 17 (brief §2.8, plan §1 Step 17) — the five alert-type
 // keys are locked and must match `resolveBusinessNotificationRecipients`
@@ -113,6 +115,7 @@ export async function saveNotificationSettings(
       business_notification_prefs: prefsPayload,
     },
   });
+  updateTag(TAGS.AUDIT);
 
   return { success: true };
 }
