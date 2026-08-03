@@ -262,7 +262,13 @@ export function DashboardFiltersClient({
   function handleClearAll() {
     const params = new URLSearchParams();
     if (filters.range && filters.range !== "custom") {
+      // Preserve the resolved from/to alongside range: the server only knows
+      // how to rebuild a handful of range keys from range alone (getRangeDefaults
+      // in reporting.ts), so dropping the dates here can silently desync the
+      // window from the range label (C-07 B1 fix).
       params.set("range", filters.range);
+      params.set("from", filters.from);
+      params.set("to", filters.to);
     }
     startTransition(() => {
       router.push(`/admin/dashboard?${params.toString()}`, { scroll: false });
