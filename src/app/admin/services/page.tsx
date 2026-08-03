@@ -8,11 +8,11 @@ import {
   AdminStatusBadge,
 } from "../components/admin-ui";
 import { EmptyState } from "../components/EmptyState";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
 import { ServiceFormDialog, type ServiceRecord } from "./ServiceFormDialog";
 import { ServiceRowActions } from "./ServiceRowActions";
+import { getServiceUsageCounts } from "./services-data";
 
 export const metadata = {
   title: "Services — Rahma Therapy Admin",
@@ -109,24 +109,17 @@ export default async function ServicesPage() {
     );
   }
 
-  const adminClient = createSupabaseAdminClient();
   const { data: rawServices } = await supabase
     .from("services")
     .select("*")
     .order("display_order")
     .order("name");
-  const { data: serviceUsage } = await adminClient
-    .from("booking_items")
-    .select("service_id");
+  // C-16 Phase E Step 14 (finding N2) — narrow projection reduced inside a
+  // cached fetcher; see services-data.ts. No longer an unbounded, uncached
+  // full-table read of `booking_items` on every render.
+  const usageCounts = await getServiceUsageCounts();
 
   const services = (rawServices ?? []) as ServiceRecord[];
-  const usageCounts = new Map<string, number>();
-  for (const item of serviceUsage ?? []) {
-    usageCounts.set(
-      item.service_id,
-      (usageCounts.get(item.service_id) ?? 0) + 1
-    );
-  }
 
   const total = services.length;
   const active = services.filter((s) => s.is_active).length;
@@ -178,7 +171,7 @@ export default async function ServicesPage() {
               </header>
               <div className="grid gap-3">
                 {group.services.map((service) => {
-                  const usageCount = usageCounts.get(service.id) ?? 0;
+                  const usageCount = usageCounts[service.id] ?? 0;
                   const genderLabel = GENDER_LABEL[service.gender_restrictions];
                   const genderTooltip =
                     GENDER_TOOLTIP[service.gender_restrictions];

@@ -2,7 +2,8 @@
 
 import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clock3, Loader2, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, Clock3, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { AdminPanel } from "../components/admin-ui";
@@ -13,6 +14,11 @@ import {
   deleteAvailabilityOverride,
   type AvailabilityActionState,
 } from "./actions";
+import {
+  AVAILABILITY_PAST_CAP,
+  AVAILABILITY_PAST_VIEW_ALL_CAP,
+  resolveAvailabilityBannerState,
+} from "./availability-data";
 
 interface AvailabilityOverride {
   id: string;
@@ -31,7 +37,15 @@ interface AvailabilityRule {
 }
 
 interface AvailabilityOverridesManagerProps {
-  overrides: AvailabilityOverride[];
+  /** C-16 Step 14 (N3) — `>= today`, defensive-capped only. Query-sorted ascending. */
+  upcoming: AvailabilityOverride[];
+  /** `< today`, capped (or view-all capped). Query-sorted newest-first. */
+  past: AvailabilityOverride[];
+  /** True count of `override_date < today` — see availability-data.ts. */
+  pastTotal: number;
+  pastViewAll: boolean;
+  pastAllHref: string;
+  pastRecentHref: string;
   rules: AvailabilityRule[];
   /** "Last saved by {actor} on {date}" line for the panel description. */
   lastSavedBy?: string | null;
@@ -53,7 +67,12 @@ function formatDateLong(value: string) {
 }
 
 export function AvailabilityOverridesManager({
-  overrides,
+  upcoming,
+  past,
+  pastTotal,
+  pastViewAll,
+  pastAllHref,
+  pastRecentHref,
   rules,
   lastSavedBy,
 }: AvailabilityOverridesManagerProps) {
@@ -69,9 +88,14 @@ export function AvailabilityOverridesManager({
   const formErrorId = `${dateInputId}-form-error`;
 
   const today = new Date().toISOString().slice(0, 10);
-  const sortedOverrides = [...overrides].sort((a, b) =>
-    a.override_date.localeCompare(b.override_date)
-  );
+  // `upcoming` is query-sorted ascending already (`>= today`, defensive-cap
+  // only — see availability-data.ts) and is the ONLY bucket a new entry
+  // (min={today} on the date input below) could ever collide with.
+  const bannerState = resolveAvailabilityBannerState({
+    pastTotal,
+    pastShown: past.length,
+    viewAll: pastViewAll,
+  });
 
   function isClosedWeeklyDay(dateIso: string): boolean {
     const date = new Date(`${dateIso}T00:00:00`);
@@ -96,7 +120,7 @@ export function AvailabilityOverridesManager({
     }
     if (
       dateValue &&
-      sortedOverrides.some((row) => row.override_date === dateValue)
+      upcoming.some((row) => row.override_date === dateValue)
     ) {
       setState({
         fieldErrors: {
@@ -164,6 +188,11 @@ export function AvailabilityOverridesManager({
     <AdminPanel
       title="Hour adjustments"
       description="Days when the clinic runs different hours from the weekly schedule."
+      badge={
+        <span className="inline-flex rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-text-muted)]">
+          {upcoming.length} upcoming{pastTotal ? ` · ${pastTotal} past` : ""}
+        </span>
+      }
     >
       {lastSavedBy ? (
         <p className="-mt-2 mb-4 text-xs text-[var(--admin-text-muted)]">
@@ -322,8 +351,12 @@ export function AvailabilityOverridesManager({
         ) : null}
       </form>
 
+      {/* C-16 Step 14 (N3) — restructure: upcoming/past split, past behind a
+          closed-by-default disclosure, matching
+          StaffAvailabilityOverridesManager's existing shape for the
+          equivalent per-staff table. */}
       <div className="mt-5">
-        {sortedOverrides.length === 0 ? (
+        {upcoming.length === 0 ? (
           <EmptyState
             icon={Clock3}
             illustrationSrc="/images/admin/empty-states/hour-adjustments.svg"
@@ -332,47 +365,105 @@ export function AvailabilityOverridesManager({
           />
         ) : (
           <ul className="grid list-none gap-2 pl-0" aria-label="Hour adjustments">
-            {sortedOverrides.map((entry) => (
-              <li
-                key={entry.id}
-                className="flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3 transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:border-[var(--admin-primary)]/30"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="font-mono text-sm font-medium text-[var(--admin-heading)]">
-                    {formatDateLong(entry.override_date)}
-                  </p>
-                  <p className="mt-0.5 text-sm text-[var(--admin-text-muted)]">
-                    <span className="font-mono">
-                      {formatTime(entry.start_time)}–{formatTime(entry.end_time)}
-                    </span>
-                    {entry.reason ? <span> · {entry.reason}</span> : null}
-                  </p>
-                </div>
-                <ConfirmActionModal
-                  title="Remove this hour adjustment?"
-                  description={`The clinic will use its standard hours on ${formatDateLong(
-                    entry.override_date
-                  )} again.`}
-                  confirmLabel="Remove"
-                  cancelLabel="Keep it"
-                  destructive
-                  onConfirm={handleDelete(entry.id)}
-                  trigger={
-                    <button
-                      type="button"
-                      title={`Remove this hour adjustment: ${formatDateLong(entry.override_date)}`}
-                      aria-label={`Remove hour adjustment for ${formatDateLong(entry.override_date)}`}
-                      className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[oklch(95.5%_0.028_20)] hover:text-[oklch(26%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-                    >
-                      <Trash2 className="size-4" aria-hidden="true" />
-                    </button>
-                  }
-                />
-              </li>
+            {upcoming.map((entry) => (
+              <OverrideRow key={entry.id} entry={entry} onDelete={handleDelete(entry.id)} />
             ))}
           </ul>
         )}
+
+        {past.length > 0 ? (
+          <details className="group mt-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-canvas)] px-4 py-3">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--admin-body)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden">
+              <span>Past adjustments ({pastViewAll ? past.length : `${past.length} of ${pastTotal}`})</span>
+              <ChevronDown
+                className="size-4 text-[var(--admin-text-muted)] transition-transform duration-[var(--motion-duration-fast)] ease-gentle group-open:rotate-180"
+                aria-hidden="true"
+              />
+            </summary>
+            <ul className="mt-3 grid list-none gap-2 pl-0" aria-label="Past adjustments">
+              {past.map((entry) => (
+                <OverrideRow key={entry.id} entry={entry} onDelete={handleDelete(entry.id)} />
+              ))}
+            </ul>
+            {/* C-16 Step 14 (N3) — cap+view-all banner, same shape and branch
+                order as BlockedDatesManager's (cappedOut before hidden). */}
+            {bannerState.kind === "cappedOut" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs text-[var(--admin-text-muted)]">
+                Showing the first {AVAILABILITY_PAST_VIEW_ALL_CAP} of {bannerState.total} past
+                adjustments. The rest aren&rsquo;t reachable from this list.{" "}
+                <Link
+                  href={pastRecentHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  Show recent {AVAILABILITY_PAST_CAP} only
+                </Link>
+              </p>
+            ) : bannerState.kind === "hidden" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+                <Link
+                  href={pastAllHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  View all {bannerState.total} past adjustments
+                </Link>
+              </p>
+            ) : bannerState.kind === "viewingAll" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+                <Link
+                  href={pastRecentHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  Show recent {AVAILABILITY_PAST_CAP} only
+                </Link>
+              </p>
+            ) : null}
+          </details>
+        ) : null}
       </div>
     </AdminPanel>
+  );
+}
+
+function OverrideRow({
+  entry,
+  onDelete,
+}: {
+  entry: AvailabilityOverride;
+  onDelete: () => Promise<void>;
+}) {
+  return (
+    <li className="flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3 transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:border-[var(--admin-primary)]/30">
+      <div className="min-w-0 flex-1">
+        <p className="font-mono text-sm font-medium text-[var(--admin-heading)]">
+          {formatDateLong(entry.override_date)}
+        </p>
+        <p className="mt-0.5 text-sm text-[var(--admin-text-muted)]">
+          <span className="font-mono">
+            {formatTime(entry.start_time)}–{formatTime(entry.end_time)}
+          </span>
+          {entry.reason ? <span> · {entry.reason}</span> : null}
+        </p>
+      </div>
+      <ConfirmActionModal
+        title="Remove this hour adjustment?"
+        description={`The clinic will use its standard hours on ${formatDateLong(
+          entry.override_date
+        )} again.`}
+        confirmLabel="Remove"
+        cancelLabel="Keep it"
+        destructive
+        onConfirm={onDelete}
+        trigger={
+          <button
+            type="button"
+            title={`Remove this hour adjustment: ${formatDateLong(entry.override_date)}`}
+            aria-label={`Remove hour adjustment for ${formatDateLong(entry.override_date)}`}
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[oklch(95.5%_0.028_20)] hover:text-[oklch(26%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+          </button>
+        }
+      />
+    </li>
   );
 }

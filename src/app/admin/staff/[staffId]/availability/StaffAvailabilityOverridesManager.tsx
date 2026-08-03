@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   AlertCircle,
   CalendarClock,
@@ -24,9 +25,12 @@ import {
   PENDING_BG_SOFT,
   PENDING_BORDER,
   PENDING_TEXT,
+  STAFF_AVAILABILITY_PAST_CAP,
+  STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP,
   formatDateFull,
   formatDateLong,
   formatTime,
+  resolveStaffAvailabilityBannerState,
 } from "./lib";
 
 interface StaffAvailabilityOverride {
@@ -44,7 +48,15 @@ interface WeeklyRule {
 
 interface StaffAvailabilityOverridesManagerProps {
   staffId: string;
-  overrides: StaffAvailabilityOverride[];
+  /** C-16 Step 14 (N4) — `>= today`, defensive-capped only. Query-sorted ascending. */
+  upcoming: StaffAvailabilityOverride[];
+  /** `< today`, capped (or view-all capped). Query-sorted newest-first. */
+  past: StaffAvailabilityOverride[];
+  /** True count of `override_date < today` for this staff — see lib.ts. */
+  pastTotal: number;
+  pastViewAll: boolean;
+  pastAllHref: string;
+  pastRecentHref: string;
   weeklyRules: WeeklyRule[];
   /** "Last saved by {actor} on {date}" line. */
   lastSavedBy?: string | null;
@@ -52,7 +64,12 @@ interface StaffAvailabilityOverridesManagerProps {
 
 export function StaffAvailabilityOverridesManager({
   staffId,
-  overrides,
+  upcoming,
+  past,
+  pastTotal,
+  pastViewAll,
+  pastAllHref,
+  pastRecentHref,
   weeklyRules,
   lastSavedBy,
 }: StaffAvailabilityOverridesManagerProps) {
@@ -74,16 +91,14 @@ export function StaffAvailabilityOverridesManager({
   const formErrorId = `${dateInputId}-form-error`;
 
   const today = new Date().toISOString().slice(0, 10);
-
-  const { upcoming, past } = useMemo(() => {
-    const sorted = [...overrides].sort((a, b) =>
-      a.override_date.localeCompare(b.override_date)
-    );
-    return {
-      upcoming: sorted.filter((row) => row.override_date >= today),
-      past: sorted.filter((row) => row.override_date < today).reverse(),
-    };
-  }, [overrides, today]);
+  // `upcoming` is query-sorted ascending already (`>= today`, defensive-cap
+  // only — see lib.ts) and is the ONLY bucket a new entry (min={today} on
+  // the date input below) could ever collide with.
+  const bannerState = resolveStaffAvailabilityBannerState({
+    pastTotal,
+    pastShown: past.length,
+    viewAll: pastViewAll,
+  });
 
   function isNonWorkingDay(dateIso: string): boolean {
     const date = new Date(`${dateIso}T00:00:00`);
@@ -107,7 +122,7 @@ export function StaffAvailabilityOverridesManager({
       setState({ fieldErrors: { date: "Pick a date from today onwards." } });
       return;
     }
-    if (dateValue && overrides.some((row) => row.override_date === dateValue)) {
+    if (dateValue && upcoming.some((row) => row.override_date === dateValue)) {
       setState({
         fieldErrors: {
           date: "That date already has an adjustment. Delete the existing one first.",
@@ -187,7 +202,7 @@ export function StaffAvailabilityOverridesManager({
       description="Hours that replace the weekly pattern for a single date. Use this for extended Saturdays or a half-day clinic."
       badge={
         <span className="inline-flex rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-text-muted)]">
-          {upcoming.length} upcoming{past.length ? ` · ${past.length} past` : ""}
+          {upcoming.length} upcoming{pastTotal ? ` · ${pastTotal} past` : ""}
         </span>
       }
     >
@@ -389,7 +404,7 @@ export function StaffAvailabilityOverridesManager({
         {past.length > 0 ? (
           <details className="group mt-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-canvas)] px-4 py-3">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--admin-body)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden">
-              <span>Past overrides ({past.length})</span>
+              <span>Past overrides ({pastViewAll ? past.length : `${past.length} of ${pastTotal}`})</span>
               <ChevronDown
                 className="size-4 text-[var(--admin-text-muted)] transition-transform duration-[var(--motion-duration-fast)] ease-gentle group-open:rotate-180"
                 aria-hidden="true"
@@ -400,6 +415,38 @@ export function StaffAvailabilityOverridesManager({
                 <OverrideRow key={entry.id} entry={entry} onDelete={handleDelete(entry.id)} />
               ))}
             </ul>
+            {/* C-16 Step 14 (N4) — cap+view-all banner, same shape and branch
+                order as StaffBlockedDatesManager's (cappedOut before hidden). */}
+            {bannerState.kind === "cappedOut" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs text-[var(--admin-text-muted)]">
+                Showing the first {STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP} of {bannerState.total} past
+                overrides. The rest aren&rsquo;t reachable from this list.{" "}
+                <Link
+                  href={pastRecentHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  Show recent {STAFF_AVAILABILITY_PAST_CAP} only
+                </Link>
+              </p>
+            ) : bannerState.kind === "hidden" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+                <Link
+                  href={pastAllHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  View all {bannerState.total} past overrides
+                </Link>
+              </p>
+            ) : bannerState.kind === "viewingAll" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+                <Link
+                  href={pastRecentHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  Show recent {STAFF_AVAILABILITY_PAST_CAP} only
+                </Link>
+              </p>
+            ) : null}
           </details>
         ) : null}
       </div>

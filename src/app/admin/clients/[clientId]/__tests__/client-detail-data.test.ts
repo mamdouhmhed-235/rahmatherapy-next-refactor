@@ -20,9 +20,13 @@ vi.mock("@/lib/supabase/admin", () => ({
 const { createFakeAdminClient } = await import(
   "@/lib/cache/__tests__/fake-supabase-admin"
 );
-const { getClientDetailData, countClientBookings } = await import(
-  "../client-detail-data"
-);
+const {
+  getClientDetailData,
+  countClientBookings,
+  resolveClientNotesBannerState,
+  CLIENT_NOTES_LIMIT,
+  CLIENT_NOTES_VIEW_ALL_CAP,
+} = await import("../client-detail-data");
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
 
 const FULL_FLAGS = {
@@ -79,17 +83,35 @@ function stubClient() {
       count: 4,
     },
     booking_assignments: { data: [{ booking_id: "b1" }], error: null },
-    client_notes: {
-      data: [
-        {
-          id: "n1",
-          note: "note",
-          is_sensitive: false,
-          created_at: "2026-01-02T09:30:00.000Z",
-        },
-      ],
-      error: null,
-    },
+    // C-16 Step 14 (N6) — three `.from("client_notes")` calls per fetch, in
+    // this order: regular-notes rows, regular-notes head-count, sensitive
+    // notes rows (only when canViewSensitiveNoteQueue). `createFakeAdminClient`
+    // cycles an array registration in call order.
+    client_notes: [
+      {
+        data: [
+          {
+            id: "n1",
+            note: "note",
+            is_sensitive: false,
+            created_at: "2026-01-02T09:30:00.000Z",
+          },
+        ],
+        error: null,
+      },
+      { data: null, error: null, count: 1 },
+      {
+        data: [
+          {
+            id: "n2",
+            note: "sensitive note",
+            is_sensitive: true,
+            created_at: "2026-01-01T09:30:00.000Z",
+          },
+        ],
+        error: null,
+      },
+    ],
     client_privacy_requests: {
       data: [
         {
@@ -127,7 +149,9 @@ describe("getClientDetailData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
     expect(data.client?.id).toBe("c1");
     expect(data.bookingHistory).toHaveLength(1);
-    expect(data.clientNotes).toHaveLength(1);
+    expect(data.regularNotes).toHaveLength(1);
+    expect(data.regularNotesTotal).toBe(1);
+    expect(data.sensitiveNotes).toHaveLength(1);
     expect(data.privacyRequests).toHaveLength(1);
     expect(data.auditLogs).toHaveLength(1);
   });
@@ -189,5 +213,104 @@ describe("getClientDetailData cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
     await countClientBookings("c2");
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+});
+
+// C-16 Step 14 (N6) — the notes rail bound. The query is what's asserted
+// (not an in-memory filter over an unbounded fetch): `regularNotes` carries
+// `.eq("is_sensitive", false)` + `.limit()`, `sensitiveNotes` carries
+// `.eq("is_sensitive", true)` + its own defensive cap, and `regularNotesTotal`
+// is a head-count over the SAME `is_sensitive = false` predicate as the rows.
+describe("getClientDetailData — notes rail bound (N6)", () => {
+  it("keys separately per notesViewAll (the cap actually queried differs)", async () => {
+    await getClientDetailData({ ...OWNER_PARAMS, notesViewAll: false });
+    await getClientDetailData({ ...OWNER_PARAMS, notesViewAll: true });
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+
+  it("never returns fewer sensitive notes than exist regardless of notesViewAll", async () => {
+    const withoutViewAll = await getClientDetailData({
+      ...OWNER_PARAMS,
+      notesViewAll: false,
+    });
+    const withViewAll = await getClientDetailData({
+      ...OWNER_PARAMS,
+      notesViewAll: true,
+    });
+    // The regular-notes cap toggles; the sensitive-notes defensive cap does not.
+    expect(withoutViewAll.sensitiveNotes).toHaveLength(1);
+    expect(withViewAll.sensitiveNotes).toHaveLength(1);
+  });
+
+  it("a caller without canViewSensitiveNoteQueue gets zero sensitive notes, same as before this step", async () => {
+    const data = await getClientDetailData({
+      ...OWNER_PARAMS,
+      accessWithoutAssignment: { ...FULL_FLAGS, canViewSensitiveNoteQueue: false },
+    });
+    // hasAllClientAccess: true (from OWNER_PARAMS) means clientAccess is
+    // always accessWithoutAssignment — canViewHealthNotes still true,
+    // canViewSensitiveNoteQueue false: regular notes fetch, sensitive skipped.
+    expect(data.sensitiveNotes).toEqual([]);
+    expect(data.regularNotes).toHaveLength(1);
+  });
+});
+
+// C-16 Step 14 (N6) — mirrors password-requests' resolvePasswordRequestsBannerState
+// tests (commit 6fa19ce). This is the branch order that shipped broken twice
+// before this plan (privacy's notes rail, then password-requests): `cappedOut`
+// MUST be evaluated before `hidden`, or "view all N" becomes a dead link once
+// the true total exceeds the view-all cap itself.
+describe("resolveClientNotesBannerState", () => {
+  it("is 'none' when nothing is hidden and not viewing all", () => {
+    expect(
+      resolveClientNotesBannerState({ regularTotal: 5, regularShown: 5, viewAll: false })
+    ).toEqual({ kind: "none" });
+  });
+
+  it("is 'hidden' when the default cap is truncating", () => {
+    expect(
+      resolveClientNotesBannerState({
+        regularTotal: CLIENT_NOTES_LIMIT + 10,
+        regularShown: CLIENT_NOTES_LIMIT,
+        viewAll: false,
+      })
+    ).toEqual({ kind: "hidden", total: CLIENT_NOTES_LIMIT + 10 });
+  });
+
+  it("is 'viewingAll' when the view-all cap covers everything", () => {
+    expect(
+      resolveClientNotesBannerState({
+        regularTotal: CLIENT_NOTES_LIMIT + 10,
+        regularShown: CLIENT_NOTES_LIMIT + 10,
+        viewAll: true,
+      })
+    ).toEqual({ kind: "viewingAll", total: CLIENT_NOTES_LIMIT + 10 });
+  });
+
+  it("SABOTAGE TARGET — is 'cappedOut', not 'hidden', once view-all itself is truncating", () => {
+    // The exact scenario that shipped broken twice: already viewing all AND
+    // the true total exceeds the view-all cap. If `hidden` were checked
+    // first (the bug's shape), this would return `hidden` with a link back
+    // to the same already-active `all=1` state — a dead "view all" link.
+    const result = resolveClientNotesBannerState({
+      regularTotal: CLIENT_NOTES_VIEW_ALL_CAP + 25,
+      regularShown: CLIENT_NOTES_VIEW_ALL_CAP,
+      viewAll: true,
+    });
+    expect(result.kind).toBe("cappedOut");
+    expect(result).toEqual({ kind: "cappedOut", total: CLIENT_NOTES_VIEW_ALL_CAP + 25 });
+  });
+
+  it("does not let a small sensitive-note count push cappedOut early (regularTotal only, never combined)", () => {
+    // Regression guard for the bug caught during implementation: comparing a
+    // COMBINED (sensitive + regular) total against CLIENT_NOTES_VIEW_ALL_CAP
+    // would falsely report cappedOut here even though every regular note is
+    // shown. The function only ever sees `regularTotal`/`regularShown`.
+    const result = resolveClientNotesBannerState({
+      regularTotal: CLIENT_NOTES_VIEW_ALL_CAP - 5,
+      regularShown: CLIENT_NOTES_VIEW_ALL_CAP - 5,
+      viewAll: true,
+    });
+    expect(result.kind).toBe("viewingAll");
   });
 });

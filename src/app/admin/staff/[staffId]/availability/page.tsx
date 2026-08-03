@@ -10,10 +10,18 @@ import { AvailabilityModeSelector } from "./AvailabilityModeSelector";
 import { StaffAvailabilityRulesForm } from "./StaffAvailabilityRulesForm";
 import { StaffBlockedDatesManager } from "./StaffBlockedDatesManager";
 import { StaffAvailabilityOverridesManager } from "./StaffAvailabilityOverridesManager";
-import { RESTRICTED_BG_SOFT, RESTRICTED_TEXT } from "./lib";
+import {
+  RESTRICTED_BG_SOFT,
+  RESTRICTED_TEXT,
+  STAFF_AVAILABILITY_PAST_CAP,
+  STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP,
+  STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP,
+} from "./lib";
 
 interface AvailabilityPageProps {
   params: Promise<{ staffId: string }>;
+  /** C-16 Step 14 (N4) — cap+view-all toggles for the two past-dated lists. */
+  searchParams: Promise<{ blockedPast?: string; adjPast?: string }>;
 }
 
 export const metadata = {
@@ -27,7 +35,10 @@ function toIsoDate(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-export default async function AvailabilityPage({ params }: AvailabilityPageProps) {
+export default async function AvailabilityPage({
+  params,
+  searchParams,
+}: AvailabilityPageProps) {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
@@ -78,11 +89,25 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
 
   if (!staff) notFound();
 
+  // C-16 Step 14 (N4) — cap+view-all toggles for the two past-dated lists.
+  const { blockedPast: blockedPastParam, adjPast: adjPastParam } = await searchParams;
+  const blockedPastViewAll = blockedPastParam === "all";
+  const adjPastViewAll = adjPastParam === "all";
+  const today = toIsoDate(new Date());
+
   const adminClient = createSupabaseAdminClient();
   const [
     { data: availabilityRules },
-    { data: blockedDatesData },
-    { data: overridesData },
+    // `staff_blocked_dates` / `staff_availability_overrides` (C-16 Step 14,
+    // N4): each split into upcoming (defensive-capped only) + past
+    // (cap+view-all) + a true past head-count, replacing the old single
+    // unbounded `.eq("staff_id", staffId)` fetch. See lib.ts's comment.
+    { data: blockedUpcomingData },
+    { data: blockedPastData },
+    { count: blockedPastTotal },
+    { data: overridesUpcomingData },
+    { data: overridesPastData },
+    { count: overridesPastTotal },
     { data: globalRulesData },
     { data: upcomingBookings },
     { data: auditTrail },
@@ -97,12 +122,40 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
       .from("staff_blocked_dates")
       .select("id, blocked_date, reason")
       .eq("staff_id", staffId)
-      .order("blocked_date"),
+      .gte("blocked_date", today)
+      .order("blocked_date", { ascending: true })
+      .limit(STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
+    supabase
+      .from("staff_blocked_dates")
+      .select("id, blocked_date, reason")
+      .eq("staff_id", staffId)
+      .lt("blocked_date", today)
+      .order("blocked_date", { ascending: false })
+      .limit(blockedPastViewAll ? STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP : STAFF_AVAILABILITY_PAST_CAP),
+    supabase
+      .from("staff_blocked_dates")
+      .select("id", { count: "exact", head: true })
+      .eq("staff_id", staffId)
+      .lt("blocked_date", today),
     supabase
       .from("staff_availability_overrides")
       .select("id, override_date, start_time, end_time, reason")
       .eq("staff_id", staffId)
-      .order("override_date"),
+      .gte("override_date", today)
+      .order("override_date", { ascending: true })
+      .limit(STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
+    supabase
+      .from("staff_availability_overrides")
+      .select("id, override_date, start_time, end_time, reason")
+      .eq("staff_id", staffId)
+      .lt("override_date", today)
+      .order("override_date", { ascending: false })
+      .limit(adjPastViewAll ? STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP : STAFF_AVAILABILITY_PAST_CAP),
+    supabase
+      .from("staff_availability_overrides")
+      .select("id", { count: "exact", head: true })
+      .eq("staff_id", staffId)
+      .lt("override_date", today),
     supabase
       .from("availability_rules")
       .select("day_of_week, start_time, end_time, is_working_day")
@@ -111,7 +164,7 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
       .from("bookings")
       .select("booking_date, staff_id")
       .eq("staff_id", staffId)
-      .gte("booking_date", toIsoDate(new Date()))
+      .gte("booking_date", today)
       .neq("status", "cancelled"),
     adminClient
       .from("audit_logs")
@@ -166,6 +219,38 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
     const key = String(row.booking_date);
     bookingsByDate[key] = (bookingsByDate[key] ?? 0) + 1;
   }
+
+  // C-16 Step 14 (N4) — hrefs for the two independent past-view-all toggles;
+  // each preserves the OTHER toggle's current state (no other query params
+  // exist on this page).
+  function buildStaffAvailabilityHref(toggles: {
+    blockedPast: boolean;
+    adjPast: boolean;
+  }): string {
+    const params = new URLSearchParams();
+    if (toggles.blockedPast) params.set("blockedPast", "all");
+    if (toggles.adjPast) params.set("adjPast", "all");
+    const qs = params.toString();
+    return qs
+      ? `/admin/staff/${staffId}/availability?${qs}`
+      : `/admin/staff/${staffId}/availability`;
+  }
+  const blockedPastAllHref = buildStaffAvailabilityHref({
+    blockedPast: true,
+    adjPast: adjPastViewAll,
+  });
+  const blockedPastRecentHref = buildStaffAvailabilityHref({
+    blockedPast: false,
+    adjPast: adjPastViewAll,
+  });
+  const adjPastAllHref = buildStaffAvailabilityHref({
+    blockedPast: blockedPastViewAll,
+    adjPast: true,
+  });
+  const adjPastRecentHref = buildStaffAvailabilityHref({
+    blockedPast: blockedPastViewAll,
+    adjPast: false,
+  });
 
   const canEdit = canManageGlobal || (isOwnProfile && canManageOwn);
   const isSelfView = isOwnProfile;
@@ -275,14 +360,24 @@ export default async function AvailabilityPage({ params }: AvailabilityPageProps
 
       <StaffBlockedDatesManager
         staffId={staffId}
-        blockedDates={blockedDatesData ?? []}
+        upcoming={blockedUpcomingData ?? []}
+        past={blockedPastData ?? []}
+        pastTotal={blockedPastTotal ?? 0}
+        pastViewAll={blockedPastViewAll}
+        pastAllHref={blockedPastAllHref}
+        pastRecentHref={blockedPastRecentHref}
         bookingsByDate={bookingsByDate}
         lastSavedBy={blockedTrail}
       />
 
       <StaffAvailabilityOverridesManager
         staffId={staffId}
-        overrides={overridesData ?? []}
+        upcoming={overridesUpcomingData ?? []}
+        past={overridesPastData ?? []}
+        pastTotal={overridesPastTotal ?? 0}
+        pastViewAll={adjPastViewAll}
+        pastAllHref={adjPastAllHref}
+        pastRecentHref={adjPastRecentHref}
         weeklyRules={availabilityRules ?? []}
         lastSavedBy={overridesTrail}
       />

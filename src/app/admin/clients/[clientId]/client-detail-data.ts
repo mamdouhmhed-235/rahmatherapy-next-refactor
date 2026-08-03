@@ -15,8 +15,9 @@
 // cached.
 //
 // CACHE HAZARD AUDIT (SHARED-NOTES §15): the returned shape is JSON-safe.
-//  - `client`, `bookingHistory`, `clientNotes`, `privacyRequests`,
-//    `auditLogs` are plain rows / nested arrays of scalars.
+//  - `client`, `bookingHistory`, `sensitiveNotes`, `regularNotes`,
+//    `privacyRequests`, `auditLogs` are plain rows / nested arrays of
+//    scalars; `regularNotesTotal` is a number.
 //  - `hasAssignedClientAccess` is a boolean.
 //  - Every timestamp stays an ISO/date string. `isFutureBooking`'s
 //    `new Date(...)` comparison and the "now" it compares against both run in
@@ -33,6 +34,36 @@
 // default to undefined, reproducing today's unbounded read exactly.
 // `countClientBookings` is the cheap head-count companion. Neither is used by
 // the page today; /admin/clients/[id] is not on C-16's Phase A list.
+//
+// NOTES RAIL BOUND (C-16 Phase E Step 14, finding N6 — Owner-approved
+// extension, per-page-progress §1 row 3 / §2). The old single `client_notes`
+// query (`.eq("client_id", clientId)`, no `.limit()`/`.range()` of any kind)
+// is split into TWO queries with two different, explicitly-chosen verdicts —
+// they cannot share one bound because page.tsx's header renders a safety
+// banner ("Critical note") sourced from whichever sensitive note matches
+// `CRITICAL_NOTE_PATTERN` (allergy/anaphylaxis/urgent/etc.), and a display
+// cap that could silently drop an old allergy note from that scan would be a
+// patient-safety regression, not a cosmetic one:
+//   - `sensitiveNotes` (`is_sensitive = true`) — DEFENSIVE CAP ONLY
+//     (`CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP`, 300), no view-all UI. Verdict:
+//     bound is conscious, not defaulted, but NOT cap+view-all — sensitive
+//     notes are the safety-critical subset (health/allergy context), their
+//     per-client volume is bounded by business reality (written far less
+//     often than general notes; the inventory's own "tens per client" 5-year
+//     projection is for the WHOLE notes rail, sensitive notes are a minority
+//     of that), and silently truncating the set `criticalNote` is derived
+//     from would be worse than the residual unbounded-read risk. Same
+//     reasoning as the bookings scoped-branch's `SCOPED_BRANCH_ROW_CAP` /
+//     privacy's `PRIVACY_NOTES_VIEW_ALL_CAP` — "a defensive ceiling, not a
+//     truly unbounded read."
+//   - `regularNotes` (`is_sensitive = false`) — real cap+view-all
+//     (`CLIENT_NOTES_LIMIT` 25 / `CLIENT_NOTES_VIEW_ALL_CAP` 200), same shape
+//     as privacy's sensitive-notes rail (C-16 Step 10): `regularNotesTotal`
+//     is a head-count over the SAME `is_sensitive = false` predicate, so a
+//     "hidden notes" banner in page.tsx can never disagree with what it
+//     counts. `notesViewAll` flows into the query AND the cache key.
+// page.tsx recombines `sensitiveNotes` (always complete) with `regularNotes`
+// (the capped window) for the rendered list — see its own comment.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -44,6 +75,12 @@ import type {
   ClientPrivacyRequestRecord,
   ClientRecord,
 } from "../types";
+
+export const CLIENT_NOTES_LIMIT = 25;
+export const CLIENT_NOTES_VIEW_ALL_CAP = 200;
+/** Defensive-only — see the file header. Never paginated; a client's
+ *  sensitive-note count realistically never approaches this. */
+export const CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP = 300;
 
 // `deleted_at` is selected in BOTH branches on purpose: they are the two RBAC
 // variants that feed `getClientSelect`, and omitting the column from either
@@ -215,6 +252,8 @@ export interface ClientDetailParams {
   accessWithAssignment: ClientDetailAccessFlags;
   limit?: number;
   offset?: number;
+  /** C-16 Step 14 (N6) — cap+view-all toggle for `regularNotes` only. */
+  notesViewAll?: boolean;
 }
 
 export interface ClientDetailData {
@@ -222,7 +261,12 @@ export interface ClientDetailData {
   bookingHistory: ClientBookingRecord[];
   /** True when the caller reached this client through their own assignments. */
   hasAssignedClientAccess: boolean;
-  clientNotes: ClientNoteRecord[];
+  /** Safety-critical subset, defensive-capped only — see file header. */
+  sensitiveNotes: ClientNoteRecord[];
+  /** The growing rail, real cap+view-all — see file header. */
+  regularNotes: ClientNoteRecord[];
+  /** True count of `is_sensitive = false` notes — same predicate as `regularNotes`. */
+  regularNotesTotal: number;
   privacyRequests: ClientPrivacyRequestRecord[];
   auditLogs: { id: string; action_type: string; created_at: string }[];
 }
@@ -238,6 +282,7 @@ export async function getClientDetailData(
     accessWithAssignment,
     limit,
     offset,
+    notesViewAll,
   } = params;
 
   const cached = unstable_cache(
@@ -334,21 +379,49 @@ export async function getClientDetailData(
         }
       }
 
-      let clientNotes: ClientNoteRecord[] = [];
+      // C-16 Step 14 (N6) — two queries, two verdicts. See file header.
+      let sensitiveNotes: ClientNoteRecord[] = [];
+      let regularNotes: ClientNoteRecord[] = [];
+      let regularNotesTotal = 0;
       let privacyRequests: ClientPrivacyRequestRecord[] = [];
       let auditLogs: { id: string; action_type: string; created_at: string }[] = [];
 
       if (clientAccess.canViewHealthNotes || clientAccess.canViewSensitiveNoteQueue) {
-        let clientNotesQuery = adminClient
+        const regularCap = notesViewAll ? CLIENT_NOTES_VIEW_ALL_CAP : CLIENT_NOTES_LIMIT;
+        const regularNotesQuery = adminClient
           .from("client_notes")
           .select("id, note, is_sensitive, created_at, staff_profiles(name)")
           .eq("client_id", clientId)
-          .order("created_at", { ascending: false });
-        if (!clientAccess.canViewSensitiveNoteQueue) {
-          clientNotesQuery = clientNotesQuery.eq("is_sensitive", false);
-        }
-        const clientNotesResult = await clientNotesQuery.returns<ClientNoteRecord[]>();
-        clientNotes = clientNotesResult.data ?? [];
+          .eq("is_sensitive", false)
+          .order("created_at", { ascending: false })
+          .limit(regularCap)
+          .returns<ClientNoteRecord[]>();
+        const regularNotesCountQuery = adminClient
+          .from("client_notes")
+          .select("id", { count: "exact", head: true })
+          .eq("client_id", clientId)
+          .eq("is_sensitive", false);
+        // Defensive-cap only, no view-all — see file header on why this
+        // subset is never truncated by the same rule as `regularNotes`.
+        const sensitiveNotesQuery = clientAccess.canViewSensitiveNoteQueue
+          ? adminClient
+              .from("client_notes")
+              .select("id, note, is_sensitive, created_at, staff_profiles(name)")
+              .eq("client_id", clientId)
+              .eq("is_sensitive", true)
+              .order("created_at", { ascending: false })
+              .limit(CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP)
+              .returns<ClientNoteRecord[]>()
+          : Promise.resolve({ data: [] as ClientNoteRecord[] });
+
+        const [regularResult, regularCountResult, sensitiveResult] = await Promise.all([
+          regularNotesQuery,
+          regularNotesCountQuery,
+          sensitiveNotesQuery,
+        ]);
+        regularNotes = regularResult.data ?? [];
+        regularNotesTotal = regularCountResult.count ?? 0;
+        sensitiveNotes = sensitiveResult.data ?? [];
       }
 
       if (clientAccess.canManagePrivacyOperations) {
@@ -362,7 +435,8 @@ export async function getClientDetailData(
 
         const auditTargetIds = [
           clientId,
-          ...clientNotes.map((note) => note.id),
+          ...sensitiveNotes.map((note) => note.id),
+          ...regularNotes.map((note) => note.id),
           ...privacyRequests.map((request) => request.id),
         ];
         const { data: auditEvents } = await adminClient
@@ -378,7 +452,9 @@ export async function getClientDetailData(
         client,
         bookingHistory,
         hasAssignedClientAccess,
-        clientNotes,
+        sensitiveNotes,
+        regularNotes,
+        regularNotesTotal,
         privacyRequests,
         auditLogs,
       };
@@ -393,6 +469,7 @@ export async function getClientDetailData(
         accessWithAssignment,
         limit,
         offset,
+        notesViewAll,
       }),
     ],
     {
@@ -422,4 +499,45 @@ export async function countClientBookings(clientId: string): Promise<number> {
     { revalidate: 60, tags: [TAGS.BOOKINGS] }
   );
   return cached();
+}
+
+// C-16 Step 14 (N6) — mirrors `resolvePasswordRequestsBannerState`
+// (account-password-requests/page.tsx, commit 6fa19ce) and privacy's
+// `cappedOut` distinction (commit 6faf895) for the identical bug shape: once
+// already viewing all AND the true total exceeds the view-all cap itself,
+// "view all N" is a lie — clicking it re-navigates to the same state and
+// still only returns CLIENT_NOTES_VIEW_ALL_CAP rows. `cappedOut` is
+// evaluated BEFORE `hidden`, same branch order as both precedents (that bug
+// shipped twice already on this exact plan — see the two sabotage tests in
+// `__tests__/client-detail-data.test.ts`).
+export type ClientNotesBannerState =
+  | { kind: "none" }
+  | { kind: "hidden"; total: number }
+  | { kind: "cappedOut"; total: number }
+  | { kind: "viewingAll"; total: number };
+
+export function resolveClientNotesBannerState(params: {
+  /** True count of `is_sensitive = false` notes — the only capped resource. */
+  regularTotal: number;
+  /** `regularNotes.length` actually fetched (bounded by the current cap). */
+  regularShown: number;
+  viewAll: boolean;
+}): ClientNotesBannerState {
+  const { regularTotal, regularShown, viewAll } = params;
+  // Scoped to `regularNotes` throughout — `sensitiveNotes` is always fully
+  // fetched (defensive cap only, see file header), so it never contributes
+  // to whether anything is hidden and must NOT be mixed into these
+  // comparisons: a client with a handful of sensitive notes pushing a
+  // COMBINED total past CLIENT_NOTES_VIEW_ALL_CAP would otherwise report
+  // `cappedOut` even though every regular note is already shown.
+  if (viewAll && regularTotal > CLIENT_NOTES_VIEW_ALL_CAP) {
+    return { kind: "cappedOut", total: regularTotal };
+  }
+  if (regularTotal > regularShown) {
+    return { kind: "hidden", total: regularTotal };
+  }
+  if (viewAll && regularTotal > CLIENT_NOTES_LIMIT) {
+    return { kind: "viewingAll", total: regularTotal };
+  }
+  return { kind: "none" };
 }

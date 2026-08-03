@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, useTransition } from "react";
+import { useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { CalendarX, ChevronDown, Loader2, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -15,8 +16,11 @@ import {
 import {
   CANCELLED_BORDER,
   CANCELLED_TEXT,
+  STAFF_AVAILABILITY_PAST_CAP,
+  STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP,
   formatDateFull,
   formatDateLong,
+  resolveStaffAvailabilityBannerState,
 } from "./lib";
 
 interface StaffBlockedDate {
@@ -27,7 +31,15 @@ interface StaffBlockedDate {
 
 interface StaffBlockedDatesManagerProps {
   staffId: string;
-  blockedDates: StaffBlockedDate[];
+  /** C-16 Step 14 (N4) — `>= today`, defensive-capped only. Query-sorted ascending. */
+  upcoming: StaffBlockedDate[];
+  /** `< today`, capped (or view-all capped). Query-sorted newest-first. */
+  past: StaffBlockedDate[];
+  /** True count of `blocked_date < today` for this staff — see lib.ts. */
+  pastTotal: number;
+  pastViewAll: boolean;
+  pastAllHref: string;
+  pastRecentHref: string;
   /** ISO date → count of non-cancelled bookings on that date (booking guard). */
   bookingsByDate?: Record<string, number>;
   /** "Last saved by {actor} on {date}" line for the panel sub-line. */
@@ -36,7 +48,12 @@ interface StaffBlockedDatesManagerProps {
 
 export function StaffBlockedDatesManager({
   staffId,
-  blockedDates,
+  upcoming,
+  past,
+  pastTotal,
+  pastViewAll,
+  pastAllHref,
+  pastRecentHref,
   bookingsByDate,
   lastSavedBy,
 }: StaffBlockedDatesManagerProps) {
@@ -57,16 +74,14 @@ export function StaffBlockedDatesManager({
   const formErrorId = `${dateInputId}-form-error`;
 
   const today = new Date().toISOString().slice(0, 10);
-
-  const { upcoming, past } = useMemo(() => {
-    const sorted = [...blockedDates].sort((a, b) =>
-      a.blocked_date.localeCompare(b.blocked_date)
-    );
-    return {
-      upcoming: sorted.filter((row) => row.blocked_date >= today),
-      past: sorted.filter((row) => row.blocked_date < today).reverse(),
-    };
-  }, [blockedDates, today]);
+  // `upcoming` is query-sorted ascending already (`>= today`, defensive-cap
+  // only — see lib.ts) and is the ONLY bucket a new entry (min={today} on
+  // the date input below) could ever collide with.
+  const bannerState = resolveStaffAvailabilityBannerState({
+    pastTotal,
+    pastShown: past.length,
+    viewAll: pastViewAll,
+  });
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,7 +96,7 @@ export function StaffBlockedDatesManager({
     }
     if (
       dateValue &&
-      blockedDates.some((row) => row.blocked_date === dateValue)
+      upcoming.some((row) => row.blocked_date === dateValue)
     ) {
       setState({
         fieldErrors: {
@@ -155,7 +170,7 @@ export function StaffBlockedDatesManager({
       description="Days this staff member isn't available. Closures override the weekly pattern."
       badge={
         <span className="inline-flex rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-text-muted)]">
-          {upcoming.length} upcoming{past.length ? ` · ${past.length} past` : ""}
+          {upcoming.length} upcoming{pastTotal ? ` · ${pastTotal} past` : ""}
         </span>
       }
     >
@@ -291,7 +306,7 @@ export function StaffBlockedDatesManager({
         {past.length > 0 ? (
           <details className="group mt-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-canvas)] px-4 py-3">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--admin-body)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden">
-              <span>Past closures ({past.length})</span>
+              <span>Past closures ({pastViewAll ? past.length : `${past.length} of ${pastTotal}`})</span>
               <ChevronDown
                 className="size-4 text-[var(--admin-text-muted)] transition-transform duration-[var(--motion-duration-fast)] ease-gentle group-open:rotate-180"
                 aria-hidden="true"
@@ -302,6 +317,40 @@ export function StaffBlockedDatesManager({
                 <ClosureRow key={entry.id} entry={entry} onDelete={handleDelete(entry.id)} />
               ))}
             </ul>
+            {/* C-16 Step 14 (N4) — cap+view-all banner. `cappedOut` is
+                checked before `hidden` inside
+                `resolveStaffAvailabilityBannerState` — the exact bug shape
+                that shipped twice before this plan. */}
+            {bannerState.kind === "cappedOut" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs text-[var(--admin-text-muted)]">
+                Showing the first {STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP} of {bannerState.total} past
+                closures. The rest aren&rsquo;t reachable from this list.{" "}
+                <Link
+                  href={pastRecentHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  Show recent {STAFF_AVAILABILITY_PAST_CAP} only
+                </Link>
+              </p>
+            ) : bannerState.kind === "hidden" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+                <Link
+                  href={pastAllHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  View all {bannerState.total} past closures
+                </Link>
+              </p>
+            ) : bannerState.kind === "viewingAll" ? (
+              <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+                <Link
+                  href={pastRecentHref}
+                  className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                >
+                  Show recent {STAFF_AVAILABILITY_PAST_CAP} only
+                </Link>
+              </p>
+            ) : null}
           </details>
         ) : null}
       </div>

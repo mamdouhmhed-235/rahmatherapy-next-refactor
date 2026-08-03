@@ -28,12 +28,27 @@
 //
 // Tags per the plan's Step 5 table: staff, bookings, audit.
 //
-// PAGINATION (C-16): /admin/staff/[id] is not on C-16's Phase A list and has
-// no unbounded list — assignments are capped at 16, the audit strip at 8, the
-// sibling list is the active directory. `assignmentLimit` and `auditLimit` are
-// the real, query-level knobs and both flow into the cache key. No offset is
-// offered: the page splits the single assignment read into upcoming/past in
-// memory, so an offset would page a window that does not exist in the UI.
+// PAGINATION (C-16 Phase B): assignments are capped at 16, the audit strip at
+// 8, the sibling list is the active directory. `assignmentLimit` and
+// `auditLimit` are the real, query-level knobs and both flow into the cache
+// key. No offset is offered: the page splits the single assignment read into
+// upcoming/past in memory, so an offset would page a window that does not
+// exist in the UI.
+//
+// ASSIGNED-BOOKINGS CAP+VIEW-ALL (C-16 Phase E Step 14, finding N7 — Owner-
+// approved extension, per-page-progress §1 row 3 / §2). The 16-row cap above
+// was silent: page.tsx's "Show all assignments" link only ever reached the
+// UPCOMING bookings view, so a staff member's PAST assignments beyond
+// whatever fell into that 16-row, most-recently-created-first window had no
+// reachable path at all — not from the panel's own 8-row past disclosure,
+// not from the footer link. `assignmentsTotal` below is a plain head-count
+// (no join, no date predicate) over the SAME `assigned_staff_id` scope the
+// capped fetch uses, so page.tsx can tell whether the 16-row cap is hiding
+// ANYTHING (regardless of whether the hidden rows are upcoming or past — see
+// its own comment for why an exact upcoming/past split isn't attempted
+// server-side). Precedent: same shape as `countClientBookings`
+// (clients/[clientId]/client-detail-data.ts) — a cheap companion
+// head-count, not a redesign of the capped read.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -118,6 +133,8 @@ export interface StaffDetailData {
   staffOverrides: { permission_id: string; is_granted: boolean }[];
   allPermissions: StaffDetailPermission[];
   assignments: StaffDetailAssignmentRow[];
+  /** True count of `booking_assignments` for this staff — see file header (N7). */
+  assignmentsTotal: number;
   auditLogs: { id: string; action_type: string; created_at: string }[];
   availabilityRules: { id: string }[];
   siblingStaff: { id: string; name: string }[];
@@ -133,6 +150,7 @@ const EMPTY: StaffDetailData = {
   staffOverrides: [],
   allPermissions: [],
   assignments: [],
+  assignmentsTotal: 0,
   auditLogs: [],
   availabilityRules: [],
   siblingStaff: [],
@@ -187,6 +205,7 @@ export async function getStaffDetailData(
         { data: staffOverrides },
         { data: allPermissions },
         { data: assignments },
+        { count: assignmentsTotal },
         { data: auditLogs },
         { data: availabilityRules },
         { data: siblingStaff },
@@ -222,6 +241,13 @@ export async function getStaffDetailData(
           .eq("assigned_staff_id", staffId)
           .order("created_at", { ascending: false })
           .limit(assignmentLimit),
+        // N7 — true count, same `assigned_staff_id` scope as the capped
+        // fetch above, so page.tsx can tell whether the 16-row cap is
+        // hiding anything at all.
+        adminClient
+          .from("booking_assignments")
+          .select("id", { count: "exact", head: true })
+          .eq("assigned_staff_id", staffId),
         canViewAudit
           ? adminClient
               .from("audit_logs")
@@ -283,6 +309,7 @@ export async function getStaffDetailData(
         }[],
         allPermissions: (allPermissions ?? []) as unknown as StaffDetailPermission[],
         assignments: (assignments ?? []) as unknown as StaffDetailAssignmentRow[],
+        assignmentsTotal: assignmentsTotal ?? 0,
         auditLogs: (auditLogs ?? []) as {
           id: string;
           action_type: string;
@@ -315,4 +342,23 @@ export async function getStaffDetailData(
     { revalidate: 60, tags: [TAGS.STAFF, TAGS.BOOKINGS, TAGS.AUDIT] }
   );
   return cached();
+}
+
+/**
+ * C-16 Step 14 (N7) — is the "cap+view-all" note in page.tsx warranted? True
+ * when either bound is actually truncating: the 16-row `created_at`-ordered
+ * fetch itself (`assignmentsTotal > fetchedCount`), or the panel's own
+ * 8-visible slice of whatever past rows landed inside that fetch
+ * (`pastCount > visiblePastCount`). Extracted so both states — "the deep
+ * fetch is truncating" and "only the panel's own slice is truncating" — are
+ * pinned by test without rendering the page.
+ */
+export function hasHiddenStaffAssignments(params: {
+  assignmentsTotal: number;
+  fetchedCount: number;
+  pastCount: number;
+  visiblePastCount: number;
+}): boolean {
+  const { assignmentsTotal, fetchedCount, pastCount, visiblePastCount } = params;
+  return assignmentsTotal > fetchedCount || pastCount > visiblePastCount;
 }

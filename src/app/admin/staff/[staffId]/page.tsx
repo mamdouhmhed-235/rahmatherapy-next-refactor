@@ -36,6 +36,7 @@ import {
 } from "../team-access";
 import {
   getStaffDetailData,
+  hasHiddenStaffAssignments,
   type StaffDetailAssignmentRow as AssignmentRow,
   type StaffDetailRow,
 } from "./staff-detail-data";
@@ -211,6 +212,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     rolePermissions,
     staffOverrides,
     assignments,
+    assignmentsTotal,
     auditLogs,
     availabilityRules,
     siblingStaff,
@@ -273,6 +275,22 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
     (assignment) => !upcomingAssignments.includes(assignment)
   );
   const visiblePastAssignments = pastAssignments.slice(0, 8);
+  // C-16 Step 14 (N7) — `assignmentsTotal` is a true head-count over the same
+  // `assigned_staff_id` scope as `typedAssignments` (capped at
+  // STAFF_DETAIL_ASSIGNMENT_LIMIT). This is the only reliable "is anything
+  // hidden" signal: the 16-row fetch is ordered by assignment `created_at`,
+  // not booking date, so a precise upcoming/past split of what's BEYOND the
+  // cap can't be derived from what's already in memory — see
+  // staff-detail-data.ts's file header for why an exact server-side split
+  // wasn't attempted. `hasHiddenAssignments` covers both: rows truncated by
+  // the 16-row fetch itself, AND past rows truncated further by the panel's
+  // own 8-visible slice.
+  const hasHiddenAssignments = hasHiddenStaffAssignments({
+    assignmentsTotal,
+    fetchedCount: typedAssignments.length,
+    pastCount: pastAssignments.length,
+    visiblePastCount: visiblePastAssignments.length,
+  });
 
   const completionItems: { label: string; fieldName: string; done: boolean }[] = [
     { label: "Phone", fieldName: "phone", done: Boolean(typedStaff.phone) },
@@ -522,7 +540,16 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
             footer={
               canShowAdminPanels || typedAssignments.length > 0 ? (
                 <Link
-                  href={`/admin/bookings?staffId=${staffId}&view=upcoming`}
+                  // C-16 Step 14 (N7) — was `?staffId=${staffId}&view=upcoming`:
+                  // /admin/bookings has never read a `staffId` param (only
+                  // `assigned_staff`), so this link silently filtered to
+                  // NOTHING staff-specific, and `view=upcoming` meant past
+                  // assignments had no path here at all regardless. Both
+                  // fixed: `assigned_staff` actually scopes the list, and
+                  // `view=all` matches what "Show all assignments" claims —
+                  // that destination is itself fully paginated (C-16 Phase C),
+                  // so it always reaches every assignment, never a second cap.
+                  href={`/admin/bookings?assigned_staff=${staffId}&view=all`}
                   className="inline-flex items-center gap-1.5 rounded-sm text-sm font-semibold text-[var(--admin-primary)] outline-none transition-colors hover:text-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-2"
                   title="Open the bookings list filtered to this staff member"
                 >
@@ -576,6 +603,24 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
                       ))}
                     </div>
                   </details>
+                ) : null}
+                {/* C-16 Step 14 (N7) — the true total, surfaced. Neither the
+                    16-row fetch nor the panel's own 8-visible past slice is
+                    the whole picture; this makes that explicit instead of
+                    silently truncating, and points at the (now-fixed) footer
+                    link that reaches every assignment. */}
+                {hasHiddenAssignments ? (
+                  <p className="text-xs text-[var(--admin-text-muted)]">
+                    Showing {typedAssignments.length} of {assignmentsTotal} total
+                    assignments, most recent first.{" "}
+                    <Link
+                      href={`/admin/bookings?assigned_staff=${staffId}&view=all`}
+                      className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                    >
+                      View the full booking history
+                    </Link>
+                    .
+                  </p>
                 ) : null}
               </div>
             )}

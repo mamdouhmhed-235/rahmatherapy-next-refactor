@@ -20,7 +20,9 @@ vi.mock("@/lib/supabase/admin", () => ({
 const { createFakeAdminClient } = await import(
   "@/lib/cache/__tests__/fake-supabase-admin"
 );
-const { getStaffDetailData } = await import("../staff-detail-data");
+const { getStaffDetailData, hasHiddenStaffAssignments } = await import(
+  "../staff-detail-data"
+);
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
 
 const OWNER_PARAMS = {
@@ -76,22 +78,27 @@ function stubClient() {
       ],
       error: null,
     },
-    booking_assignments: {
-      data: [
-        {
-          id: "a1",
-          status: "assigned",
-          required_therapist_gender: "female",
-          bookings: {
-            id: "b1",
-            booking_date: "2026-01-10",
-            start_time: "10:00",
-            status: "confirmed",
+    // C-16 Step 14 (N7) — two `.from("booking_assignments")` calls per fetch,
+    // in this order: the capped rows, then the true head-count.
+    booking_assignments: [
+      {
+        data: [
+          {
+            id: "a1",
+            status: "assigned",
+            required_therapist_gender: "female",
+            bookings: {
+              id: "b1",
+              booking_date: "2026-01-10",
+              start_time: "10:00",
+              status: "confirmed",
+            },
           },
-        },
-      ],
-      error: null,
-    },
+        ],
+        error: null,
+      },
+      { data: null, error: null, count: 19 },
+    ],
     audit_logs: {
       data: [
         {
@@ -120,6 +127,17 @@ describe("getStaffDetailData cache behaviour", () => {
     expect(data.staff?.id).toBe("s2");
     expect(data.assignments).toHaveLength(1);
     expect(data.allPermissions).toHaveLength(1);
+  });
+
+  // C-16 Step 14 (N7) — the bound is in the query (a real head-count), not a
+  // derivation over the already-capped `assignments` array: the true total
+  // (19) is bigger than what the capped fetch could ever report (1 in this
+  // fixture), which is exactly the "hidden rows" case page.tsx must be able
+  // to detect.
+  it("surfaces a true assignments total independent of the capped fetch (N7)", async () => {
+    const data = await getStaffDetailData(OWNER_PARAMS);
+    expect(data.assignmentsTotal).toBe(19);
+    expect(data.assignmentsTotal).toBeGreaterThan(data.assignments.length);
   });
 
   it("does not re-run the fetcher on a cache hit", async () => {
@@ -162,5 +180,47 @@ describe("getStaffDetailData cache behaviour", () => {
   it("returns a JSON-safe shape (no Map/Set/Date crosses the boundary)", async () => {
     const data = await getStaffDetailData(OWNER_PARAMS);
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
+  });
+});
+
+// C-16 Step 14 (N7) — the two independent ways the panel can be truncating,
+// and the case that must stay false (nothing hidden at all).
+describe("hasHiddenStaffAssignments", () => {
+  it("is false when the fetch is complete and the past slice isn't truncating", () => {
+    expect(
+      hasHiddenStaffAssignments({
+        assignmentsTotal: 3,
+        fetchedCount: 3,
+        pastCount: 2,
+        visiblePastCount: 2,
+      })
+    ).toBe(false);
+  });
+
+  it("is true when the 16-row fetch itself is short of the true total", () => {
+    expect(
+      hasHiddenStaffAssignments({
+        assignmentsTotal: 40,
+        fetchedCount: 16,
+        pastCount: 5,
+        visiblePastCount: 5,
+      })
+    ).toBe(true);
+  });
+
+  it("SABOTAGE TARGET — is true when only the panel's own 8-visible past slice is truncating (fetch itself is complete)", () => {
+    // This is the exact N7 gap: 16-row fetch caught everything (total ==
+    // fetched), but the panel's in-panel disclosure only ever shows 8 of the
+    // past ones it already has. If this branch were dropped (`||` narrowed
+    // to just the assignmentsTotal check), this case would wrongly report
+    // "nothing hidden" while 4 past assignments sit unreachable.
+    expect(
+      hasHiddenStaffAssignments({
+        assignmentsTotal: 12,
+        fetchedCount: 12,
+        pastCount: 12,
+        visiblePastCount: 8,
+      })
+    ).toBe(true);
   });
 });

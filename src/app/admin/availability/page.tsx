@@ -17,10 +17,29 @@ import { AvailabilityManagersTabs } from "./AvailabilityManagersTabs";
 import { AvailabilityOverridesManager } from "./AvailabilityOverridesManager";
 import { AvailabilityRulesManager } from "./AvailabilityRulesManager";
 import { BlockedDatesManager } from "./BlockedDatesManager";
+import {
+  AVAILABILITY_PAST_CAP,
+  AVAILABILITY_PAST_VIEW_ALL_CAP,
+  AVAILABILITY_UPCOMING_DEFENSIVE_CAP,
+} from "./availability-data";
 
 export const metadata = {
   title: "Availability - Rahma Therapy Admin",
 };
+
+interface AvailabilityPageProps {
+  /** C-16 Step 14 (N3) — cap+view-all toggles for the two past-dated lists. */
+  searchParams: Promise<{ closedPast?: string; adjPast?: string }>;
+}
+
+/** Preserves the OTHER toggle's state — no other query params exist on this page. */
+function buildAvailabilityHref(toggles: { closedPast: boolean; adjPast: boolean }): string {
+  const params = new URLSearchParams();
+  if (toggles.closedPast) params.set("closedPast", "all");
+  if (toggles.adjPast) params.set("adjPast", "all");
+  const qs = params.toString();
+  return qs ? `/admin/availability?${qs}` : "/admin/availability";
+}
 
 // Brief renders week as Mon → Sun. day_of_week column convention is 0 = Sunday.
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
@@ -104,7 +123,7 @@ interface StaffRow {
   availability_mode: string;
 }
 
-export default async function AvailabilityPage() {
+export default async function AvailabilityPage({ searchParams }: AvailabilityPageProps) {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
@@ -116,7 +135,36 @@ export default async function AvailabilityPage() {
     return <DeniedSurface profile={profile} />;
   }
 
-  const [rulesResult, blockedDatesResult, overridesResult] = await Promise.all([
+  // C-16 Step 14 (N3) — cap+view-all toggles for the two past-dated lists.
+  const { closedPast: closedPastParam, adjPast: adjPastParam } = await searchParams;
+  const closedPastViewAll = closedPastParam === "all";
+  const adjPastViewAll = adjPastParam === "all";
+
+  const today = toIsoDate(new Date());
+  const { start: weekStart, end: weekEnd } = getCurrentWeekRange();
+  const weekStartIso = toIsoDate(weekStart);
+  const weekEndIso = toIsoDate(weekEnd);
+
+  const [
+    rulesResult,
+    // `blocked_dates` / `availability_overrides` (C-16 Step 14, N3): three
+    // queries each, replacing the old single unbounded `select("*")`.
+    //  - "week" is scoped exactly to the current Mon-Sun window so
+    //    CapacityPreview's grid stays correct regardless of the past cap
+    //    below (the week can start up to 6 days before `today`) — see
+    //    availability-data.ts's file header.
+    //  - "upcoming" (`>= today`) is defensive-capped only, never paginated:
+    //    business reality bounds it.
+    //  - "past" (`< today`) is real cap+view-all, plus a true head-count.
+    blockedWeekResult,
+    blockedUpcomingResult,
+    blockedPastResult,
+    blockedPastCountResult,
+    overridesWeekResult,
+    overridesUpcomingResult,
+    overridesPastResult,
+    overridesPastCountResult,
+  ] = await Promise.all([
     supabase
       .from("availability_rules")
       .select("*")
@@ -124,11 +172,47 @@ export default async function AvailabilityPage() {
     supabase
       .from("blocked_dates")
       .select("*")
+      .gte("blocked_date", weekStartIso)
+      .lte("blocked_date", weekEndIso)
       .order("blocked_date", { ascending: true }),
+    supabase
+      .from("blocked_dates")
+      .select("*")
+      .gte("blocked_date", today)
+      .order("blocked_date", { ascending: true })
+      .limit(AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
+    supabase
+      .from("blocked_dates")
+      .select("*")
+      .lt("blocked_date", today)
+      .order("blocked_date", { ascending: false })
+      .limit(closedPastViewAll ? AVAILABILITY_PAST_VIEW_ALL_CAP : AVAILABILITY_PAST_CAP),
+    supabase
+      .from("blocked_dates")
+      .select("id", { count: "exact", head: true })
+      .lt("blocked_date", today),
     supabase
       .from("availability_overrides")
       .select("*")
+      .gte("override_date", weekStartIso)
+      .lte("override_date", weekEndIso)
       .order("override_date", { ascending: true }),
+    supabase
+      .from("availability_overrides")
+      .select("*")
+      .gte("override_date", today)
+      .order("override_date", { ascending: true })
+      .limit(AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
+    supabase
+      .from("availability_overrides")
+      .select("*")
+      .lt("override_date", today)
+      .order("override_date", { ascending: false })
+      .limit(adjPastViewAll ? AVAILABILITY_PAST_VIEW_ALL_CAP : AVAILABILITY_PAST_CAP),
+    supabase
+      .from("availability_overrides")
+      .select("id", { count: "exact", head: true })
+      .lt("override_date", today),
   ]);
 
   const [
@@ -167,8 +251,18 @@ export default async function AvailabilityPage() {
   ]);
 
   const rules = (rulesResult.data ?? []) as AvailabilityRuleRow[];
-  const blockedDates = (blockedDatesResult.data ?? []) as BlockedDateRow[];
-  const overrides = (overridesResult.data ?? []) as OverrideRow[];
+  // C-16 Step 14 (N3) — three buckets per table, replacing the old single
+  // unbounded fetch. `weekClosures`/`weekAdjustments` (for CapacityPreview)
+  // come directly from the dedicated week-window query — see the Promise.all
+  // comment above for why that isn't derived from `upcoming`/`past`.
+  const blockedUpcoming = (blockedUpcomingResult.data ?? []) as BlockedDateRow[];
+  const blockedPast = (blockedPastResult.data ?? []) as BlockedDateRow[];
+  const blockedPastTotal = blockedPastCountResult.count ?? 0;
+  const weekClosures = (blockedWeekResult.data ?? []) as BlockedDateRow[];
+  const overridesUpcoming = (overridesUpcomingResult.data ?? []) as OverrideRow[];
+  const overridesPast = (overridesPastResult.data ?? []) as OverrideRow[];
+  const overridesPastTotal = overridesPastCountResult.count ?? 0;
+  const weekAdjustments = (overridesWeekResult.data ?? []) as OverrideRow[];
   const staffList = ((staffResult.data ?? []) as StaffRow[]).filter(
     (staff) => staff.active
   );
@@ -189,17 +283,6 @@ export default async function AvailabilityPage() {
   const femaleCapacity = bookingStaff.filter(
     (staff) => staff.gender === "female"
   ).length;
-
-  const { start: weekStart, end: weekEnd } = getCurrentWeekRange();
-  const weekStartIso = toIsoDate(weekStart);
-  const weekEndIso = toIsoDate(weekEnd);
-  const weekClosures = blockedDates.filter(
-    (row) => row.blocked_date >= weekStartIso && row.blocked_date <= weekEndIso
-  );
-  const weekAdjustments = overrides.filter(
-    (row) =>
-      row.override_date >= weekStartIso && row.override_date <= weekEndIso
-  );
 
   // Resolve each day of THIS calendar week to its actual state (closure
   // overrides override-times overrides recurring template).
@@ -275,6 +358,26 @@ export default async function AvailabilityPage() {
   const blockedTrail = formatAuditTrail("blocked_dates");
   const overridesTrail = formatAuditTrail("availability_overrides");
 
+  // C-16 Step 14 (N3) — hrefs for the two independent past-view-all toggles;
+  // each preserves the OTHER toggle's current state (no other query params
+  // exist on this page).
+  const closedPastAllHref = buildAvailabilityHref({
+    closedPast: true,
+    adjPast: adjPastViewAll,
+  });
+  const closedPastRecentHref = buildAvailabilityHref({
+    closedPast: false,
+    adjPast: adjPastViewAll,
+  });
+  const adjPastAllHref = buildAvailabilityHref({
+    closedPast: closedPastViewAll,
+    adjPast: true,
+  });
+  const adjPastRecentHref = buildAvailabilityHref({
+    closedPast: closedPastViewAll,
+    adjPast: false,
+  });
+
   return (
     <div className="grid gap-6">
       <AdminPageHeader
@@ -303,14 +406,24 @@ export default async function AvailabilityPage() {
         }
         closedSlot={
           <BlockedDatesManager
-            blockedDates={blockedDates}
+            upcoming={blockedUpcoming}
+            past={blockedPast}
+            pastTotal={blockedPastTotal}
+            pastViewAll={closedPastViewAll}
+            pastAllHref={closedPastAllHref}
+            pastRecentHref={closedPastRecentHref}
             lastSavedBy={blockedTrail}
             bookingsByDate={bookingsByDate}
           />
         }
         adjustmentsSlot={
           <AvailabilityOverridesManager
-            overrides={overrides}
+            upcoming={overridesUpcoming}
+            past={overridesPast}
+            pastTotal={overridesPastTotal}
+            pastViewAll={adjPastViewAll}
+            pastAllHref={adjPastAllHref}
+            pastRecentHref={adjPastRecentHref}
             rules={rules}
             lastSavedBy={overridesTrail}
           />
