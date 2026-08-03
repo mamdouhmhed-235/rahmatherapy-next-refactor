@@ -36,7 +36,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
   const adminClient = createSupabaseAdminClient();
   const canAssign = canAssignBookings(profile);
 
-  const [servicesResult, prefillClientResult, enquiryResult, assignableStaffResult] =
+  const [servicesResult, prefillClientResult, enquiryResult, assignableStaffResult, settingsResult] =
     await Promise.all([
       adminClient
         .from("services")
@@ -68,12 +68,20 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
             .eq("can_take_bookings", true)
             .order("name")
         : Promise.resolve({ data: [], error: null }),
+      // C-07 Step 5 (W02-E-1) — the whitelist create_booking_request checks
+      // server-side; fetched here so the form can warn inline before submit.
+      adminClient
+        .from("business_settings")
+        .select("allowed_cities")
+        .eq("id", 1)
+        .single(),
     ]);
 
   const services = servicesResult.data ?? [];
   const prefillClient = prefillClientResult.data ?? null;
   const enquiry = enquiryResult.data ?? null;
   const assignableStaff = assignableStaffResult.data ?? [];
+  const allowedCities = (settingsResult.data?.allowed_cities ?? []) as string[];
 
   // C-03 B-106: re-conversion guard — a stale/bookmarked URL for an enquiry
   // that has already been converted must not let the operator create a
@@ -117,6 +125,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
         currentUserName={profile.name ?? ""}
         currentUserIsBookable={currentUserIsBookable}
         allowRecurrenceMap={allowRecurrenceMap}
+        allowedCities={allowedCities}
       />
     </AdminPageScaffold>
   );

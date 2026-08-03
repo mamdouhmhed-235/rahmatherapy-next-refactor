@@ -110,6 +110,7 @@ describe("createManualBooking", () => {
     );
     // Proves the assertion above ran on a completed booking, not an early
     // permission/validation return that never reached the RPC.
-    expect(redirect).toHaveBeenCalledWith("/admin/bookings/booking-new");
+    // C-07 Step 4 (W02-V-2): no-prefill path now appends `?just_created=1`.
+    expect(redirect).toHaveBeenCalledWith("/admin/bookings/booking-new?just_created=1");
   });
 });

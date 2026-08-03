@@ -1717,9 +1717,14 @@ export async function createManualBooking(
     // C-03 Step 6: source-aware redirect — carry the enquiry origin forward
     // so the booking detail page can show the just-converted toast + Origin
     // panel (Phase D). Source-of-truth linkage stays enquiries.converted_booking_id.
+    // C-07 Step 4 (W02-V-2): extend the same source-aware pattern to the
+    // non-enquiry paths — `?just_created=1` (+ `client_id` when prefilled)
+    // drives BookingCreatedToast's "Booking created." toast.
     const redirectPath = enquiryId
       ? `/admin/bookings/${result.bookingId}?just_converted=1&enquiry_id=${enquiryId}`
-      : `/admin/bookings/${result.bookingId}`;
+      : clientId
+        ? `/admin/bookings/${result.bookingId}?just_created=1&client_id=${clientId}`
+        : `/admin/bookings/${result.bookingId}?just_created=1`;
     redirect(redirectPath);
   } catch (error) {
     // Checked before BookingCreationError — DuplicateClientError extends it.

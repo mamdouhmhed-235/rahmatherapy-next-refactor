@@ -198,7 +198,14 @@ interface BookingDetailPageProps {
   // C-03 Phase D, Step 14 — `just_converted` from the source-aware redirect
   // in `createManualBooking`; `from_enquiry` from the re-conversion guard
   // redirect in `bookings/new/page.tsx`.
-  searchParams: Promise<{ just_converted?: string; from_enquiry?: string }>;
+  // C-07 Step 4 (W02-V-2) — `just_created` (+ `client_id`) from the same
+  // redirect's non-enquiry paths.
+  searchParams: Promise<{
+    just_converted?: string;
+    from_enquiry?: string;
+    just_created?: string;
+    client_id?: string;
+  }>;
 }
 
 export default async function BookingDetailPage({
@@ -206,9 +213,10 @@ export default async function BookingDetailPage({
   searchParams,
 }: BookingDetailPageProps) {
   const { bookingId } = await params;
-  const { just_converted, from_enquiry } = await searchParams;
+  const { just_converted, from_enquiry, just_created, client_id } = await searchParams;
   const justConverted = just_converted === "1";
   const fromEnquiryRedirect = from_enquiry === "already_converted";
+  const justCreated = just_created === "1";
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
@@ -386,6 +394,8 @@ export default async function BookingDetailPage({
       <BookingCreatedToast
         justConverted={justConverted}
         fromEnquiryRedirect={fromEnquiryRedirect}
+        justCreated={justCreated}
+        clientId={client_id ?? null}
       />
 
       <nav aria-label="Breadcrumb" className="mb-2">

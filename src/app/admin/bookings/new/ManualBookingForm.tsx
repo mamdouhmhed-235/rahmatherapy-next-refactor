@@ -508,6 +508,7 @@ export function ManualBookingForm({
   currentUserName = "",
   currentUserIsBookable = false,
   allowRecurrenceMap = {},
+  allowedCities = [],
 }: {
   services: ServiceOption[];
   prefillClient: PrefillClient | null;
@@ -525,6 +526,10 @@ export function ManualBookingForm({
   currentUserIsBookable?: boolean;
   /** C-02 Phase E — service slug → services.allow_recurrence. */
   allowRecurrenceMap?: Record<string, boolean>;
+  /** C-07 Step 5 (W02-E-1) — business_settings.allowed_cities, for the
+   * inline (non-blocking) city warning below; create_booking_request still
+   * enforces this server-side. */
+  allowedCities?: string[];
 }) {
   // C-02 Phase E — the two actions return different state shapes and
   // `useActionState` binds its state type at the call site, so the toggle picks
@@ -1505,6 +1510,21 @@ export function ManualBookingForm({
     </div>
   );
 
+  // C-07 Step 5 (W02-E-1) — mirrors create_booking_request's own check
+  // (`lower(v_clean_city) like '%' || lower(trim(allowed.city)) || '%'`):
+  // the entered city must equal or contain an allowed city, case-insensitive.
+  // Kept permissive to match the server exactly — a stricter client check
+  // would warn on cities the server actually accepts.
+  const cityTrimmed = city.trim();
+  const cityNormalised = cityTrimmed.toLowerCase();
+  const isCityKnown =
+    cityTrimmed.length === 0 ||
+    allowedCities.length === 0 ||
+    allowedCities.some((allowed) => {
+      const allowedNormalised = allowed.trim().toLowerCase();
+      return allowedNormalised === cityNormalised || cityNormalised.includes(allowedNormalised);
+    });
+
   const step3 = (
     <div className={step === 3 ? "grid gap-4" : "hidden"} aria-hidden={step !== 3}>
       {step === 3 && multiErrorBanner}
@@ -1523,17 +1543,24 @@ export function ManualBookingForm({
             onChange={(e) => { setPostcode(e.target.value); markEdited("postcode"); setPostcodeLookupError(""); }}
             onBlur={handlePostcodeBlur}
           />
-          <AdminInput
-            id="city"
-            label="City"
-            required
-            placeholder="Luton"
-            maxLength={60}
-            value={city}
-            error={stepErrors.city}
-            className={isPrefilled("city") ? "[&_input]:bg-[var(--admin-selected-sky)]" : ""}
-            onChange={(e) => { setCity(e.target.value); markEdited("city"); setBookingDate(""); setStartTime(""); setAvailChecked(false); setAvailSlots([]); setFemaleAvailChecked(false); setMaleAvailChecked(false); }}
-          />
+          <div className="grid gap-1.5">
+            <AdminInput
+              id="city"
+              label="City"
+              required
+              placeholder="Luton"
+              maxLength={60}
+              value={city}
+              error={stepErrors.city}
+              className={isPrefilled("city") ? "[&_input]:bg-[var(--admin-selected-sky)]" : ""}
+              onChange={(e) => { setCity(e.target.value); markEdited("city"); setBookingDate(""); setStartTime(""); setAvailChecked(false); setAvailSlots([]); setFemaleAvailChecked(false); setMaleAvailChecked(false); }}
+            />
+            {!isCityKnown ? (
+              <p className="text-xs text-[oklch(26%_0.14_25)]" role="alert">
+                &ldquo;{cityTrimmed}&rdquo; is outside our current service area. We deliver to: {allowedCities.join(", ")}.
+              </p>
+            ) : null}
+          </div>
           <AdminInput
             id="area"
             label="Area"

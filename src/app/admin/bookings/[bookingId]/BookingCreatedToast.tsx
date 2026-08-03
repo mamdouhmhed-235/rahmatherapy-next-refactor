@@ -26,11 +26,25 @@ interface BookingCreatedToastProps {
    * a stale enquiry URL to this, its already-existing, booking.
    */
   fromEnquiryRedirect?: boolean;
+  /**
+   * C-07 Step 4 (W02-V-2) — set when `?just_created=1` is present, i.e. the
+   * source-aware redirect from `createManualBooking` for the no-prefill or
+   * `?client_id=` prefill paths (mirrors `justConverted` above, which owns
+   * the enquiry path).
+   */
+  justCreated?: boolean;
+  /**
+   * C-07 Step 4 — accompanies `justCreated` when the booking was created via
+   * `?client_id=` prefill; drives the toast's "View client" action.
+   */
+  clientId?: string | null;
 }
 
 export function BookingCreatedToast({
   justConverted = false,
   fromEnquiryRedirect = false,
+  justCreated = false,
+  clientId = null,
 }: BookingCreatedToastProps = {}) {
   const router = useRouter();
 
@@ -60,7 +74,7 @@ export function BookingCreatedToast({
   const conversionFired = useRef(false);
   useEffect(() => {
     if (conversionFired.current) return;
-    if (!justConverted && !fromEnquiryRedirect) return;
+    if (!justConverted && !fromEnquiryRedirect && !justCreated) return;
     conversionFired.current = true;
 
     if (justConverted) {
@@ -76,14 +90,27 @@ export function BookingCreatedToast({
         "This enquiry was already converted. Showing the existing booking.",
         { duration: 5000 }
       );
+    } else if (justCreated) {
+      // C-07 Step 4 (W02-V-2) — no-prefill / `?client_id=` prefill paths.
+      toast.success("Booking created.", {
+        duration: 5000,
+        action: clientId
+          ? {
+              label: "View client",
+              onClick: () => router.push(`/admin/clients/${clientId}`),
+            }
+          : undefined,
+      });
     }
 
     const url = new URL(window.location.href);
     url.searchParams.delete("just_converted");
     url.searchParams.delete("enquiry_id");
     url.searchParams.delete("from_enquiry");
+    url.searchParams.delete("just_created");
+    url.searchParams.delete("client_id");
     window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
-  }, [justConverted, fromEnquiryRedirect, router]);
+  }, [justConverted, fromEnquiryRedirect, justCreated, clientId, router]);
 
   return null;
 }
