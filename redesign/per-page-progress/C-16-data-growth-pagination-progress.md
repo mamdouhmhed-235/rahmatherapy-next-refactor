@@ -128,7 +128,46 @@ The generic `paginateListQuery` wrapper was **deliberately not built** — the p
 
 ---
 
-## 6 — ▶ Position
+## 5.1 — Phase C Step 8 — `2f376f9` — tier FULL — **PASS** — clients + enquiries
+
+**Model: `opus`.** Justification: the plan called this "same pattern, simpler" and it is not — the clients surface needed a redesign, not a `.range()`.
+
+**The clients redesign.** `clients-list-data.ts` used to select **every row of `bookings`** to build a client→bookings map, with a 50-row in-memory pager on top making the UI look solved. It now reads a **six-column scalar projection** (`client_id, booking_date, status, total_price, amount_due, amount_paid`, no joins) and reduces it to one summary per client **inside** the cached fetcher — so what crosses the cache boundary and lives in page memory is O(clients), not O(bookings). Only the window's 25 clients are then read in full.
+
+**⚠️ Residual, and it is Owner-actionable, not a defect.** That one query still scans `bookings` server-side. It cannot become a grouped `max()/count()`: **PostgREST aggregates are disabled on this project** — `{"code":"PGRST123","message":"Use of aggregate functions is not allowed"}` — with no view or aggregate RPC available. Both the implementer and the verifier probed the live endpoint independently and got the same refusal. Enabling aggregates, or adding a view / RPC / derived column, is a migration or project-config change, i.e. **Zone-2** — correctly not taken. This is the one thing standing between the clients list and a fully bounded query.
+
+**Count/rows agreement is stronger here than elsewhere:** `total` is the length of the resolved ordered array and `rows` is a slice of that same array (`clients-list-data.ts:930-940`), so they cannot disagree even under concurrent writes.
+
+**The three traps, all closed:** C-06's deleted-clients toggle now reaches SQL (`:443`) so the candidate query, the total and `countClients` finally agree — previously it was an in-memory filter while `countClients` scoped in SQL, i.e. they disagreed; clients' search moved to SQL and composes with the range; and **enquiries' sort moved into the query** with an `id` tiebreak, so page 2 is the tail of the whole order rather than a re-sorted block. Two sort divergences were verified against live schema rather than assumed: `enquiries.updated_at` is `NOT NULL DEFAULT now()` so the old `updated_at ?? created_at` fallback was unreachable, and DB collation is `en_US.UTF-8` (low-risk divergence from `localeCompare`).
+
+Enquiries' badges/stats now issue five head-counts through the shared filter builder, each scoped by the same day bounds as the link it sits on — so a stat can no longer disagree with its own destination. **`getClientsListData` was deleted** (dead after the change; zero live references confirmed) rather than left as an unbounded helper in the tree.
+
+**Sabotage-proven:** removing the `deleted_at` push-down failed 5 clients tests; flipping `oldest` to descending failed 3 enquiries tests including *"page 2 is the tail of the WHOLE order"*.
+
+## 7 — Phase D — Steps 9–12
+
+| Step | Commit | Tier | Result |
+|---|---|---|---|
+| 9–10 emails + privacy | `dc26dc0` | FULL / TARGETED | **FAIL** → fixed `6faf895` → **PASS** |
+| 11–12 operations + password requests | `66e9391` | FULL / TARGETED | **FAIL** → fixed `6fa19ce` → **PASS** |
+
+**Step 9 — emails.** 100-cap → real pager; the placeholder `data-redesign-backend="FAKE"` bar removed; `countEmailDeliveryEvents` taught the same filters as the rows query. **A pre-existing defect had to be fixed for the step to be correct at all:** `resolveDeliveryDateBounds` put **millisecond-precision `Date.now()`** into the `unstable_cache` key, so the delivery feed's cache had **never hit** and minted an entry per request — and once a count query joined the rows query, the two would resolve milliseconds apart and disagree. Bounds are now resolved once per request and floored to a day.
+
+**⚠️ The FAIL: that fix shipped with an off-by-one.** It kept a `- day` offset that no longer belonged, so `"today"` resolved to the start of **yesterday** and the "Today" filter returned ~48 hours — worse than the rolling window it replaced. **The accompanying test was vacuous**: it asserted only that two calls agreed with each other, so it would pass with any wrong-but-stable value. Fixed at `6faf895`: all three ranges now mean "N calendar days up to and including today" (`today` → `todayStart`, 7 days → `-6*day`, 30 → `-29*day`), pinned with `vi.setSystemTime` and hardcoded expected ISO strings, sabotage-proven.
+
+**Step 10 — privacy.** The plan's "25-cap → pager" premise was wrong and Phase A had already corrected it: the **request queue** (never bounded at all, GDPR-facing) got the pager; the **sensitive-notes rail** — where `PRIVACY_NOTES_LIMIT = 25` actually lives — got cap+view-all with the true total surfaced. Stat tiles were independently verified to have moved to **whole-table aggregates**, not page-scoped slices.
+
+**Step 11 — operations.** The Owner's locked verdict (§1 row 1) was honoured: real pager at `LOG_PAGE_SIZE`. `countOperationalEvents` taught the same filters. **The nested per-column "Load more" was removed** — it only ever revealed rows already fetched and hidden, so beside a real server pager it was a second "more" control with different semantics. A `multiPage` prop stops the global-sounding "Nothing open / The clinic is humming" copy appearing when it is only true of the current page.
+
+**Step 12 — password requests.** Was fully unbounded *and* uncached; now capped (100, 500 via view-all), `unstable_cache`d on `[AUDIT, STAFF]`, with a real uncapped total and an exact cap-independent `pendingCount`. Verdict cap+view-all rather than a pager, justified by slow growth, pending self-bounding at 24h, and five tabs each sorting a different column.
+
+**⚠️ The FAIL, and it was the SECOND instance of one defect shape.** The banner computed `hasHiddenRequests = totalCount > rows.length` without distinguishing which cap produced the row count — so in view-all mode above 500 it claimed "100 most recent" while showing 500, and offered a "view all" link pointing at the current URL. **The identical bug had just been fixed on privacy's notes rail two commits earlier**, independently reproduced by a different implementer on a different surface. Fixed at `6fa19ce` as a four-state discriminated union with `cappedOut` evaluated before `hidden`, matching privacy's branch order and its honesty principle. **A shape-level sweep of every admin surface found no third instance** — the shared pager (`clampPage`/`pageRange`/`PaginationBar`) and audit's cursor are structurally immune; the construct existed only on those two surfaces. Independently spot-checked by the re-verifier.
+
+## 7.1 — Process deviation, logged
+
+**Write-pipelining dropped mid-plan.** §2.9(b) permits the next batch's implementation to start once the previous batch's self-gates pass. Twice in Phase D a verify-FAIL arrived while a new implementer was already in flight, forcing a choice between §2.9(b)'s freeze ("no further commits anywhere") and §1 rule 1 ("never two write-tasks in flight", run-ending). Both times it was resolved the same way — let the in-flight agent finish, because killing it mid-write leaves a dirty plan-scope tree that §3's ungraceful-loss rule warns against. Hitting it twice indicated the pipelining was too aggressive for this defect rate, so **from Phase D onward no implementer starts until the previous batch's verification returns.** §2.9 permits what was given up, so this is logged as a deliberate deviation rather than a silent one.
+
+## 8 — ▶ Position
 
 Phase A ✅ · Phase B ✅ (`080279b`, verified) · Phase C Step 5 ✅ (`ca0cc21`, verification in flight) · **Steps 6–7 in flight** (`opus` — chip counts must reuse Step 5's predicate builder or they silently lie; saved views must not re-apply a stale `page`). Then Phase D (Steps 9–12, operations = **pager**, per §1) and Phase E (Steps 13–15, Step 13 reduced to verify-and-polish).
 
