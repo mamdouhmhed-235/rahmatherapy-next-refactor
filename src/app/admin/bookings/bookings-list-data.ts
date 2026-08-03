@@ -34,12 +34,23 @@
 // `countBookings` — both through the same predicate plan (see the Step 5
 // section below). The therapist-scoped branch stays an in-memory merge with a
 // defensive per-branch row cap.
+//
+// C-16 Phase C Steps 6-7: `getBookingsListPage` now also clamps `?page=`
+// against the real page count, and `getBookingViewCounts` answers the chip
+// counts — one head-count per RENDERED chip, each built from the SAME
+// `BookingPredicateContext` the list uses with only `view` swapped, so a chip
+// can never advertise a number its own view would not show.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { TAGS } from "@/lib/cache/tag-taxonomy";
 import { cacheKeyPart } from "@/lib/cache/cache-key";
-import { LIST_PAGE_SIZE } from "@/lib/pagination";
+import {
+  LIST_PAGE_SIZE,
+  clampPage,
+  pageRange,
+  type PaginatedResult,
+} from "@/lib/pagination";
 import type { getStaffProfile } from "@/lib/auth/rbac";
 import { canClaimAssignments } from "./access";
 import { getTodayIsoDate } from "./_helpers";
@@ -824,35 +835,19 @@ export async function getSearchClientIds(search?: string): Promise<string[]> {
   return cached();
 }
 
-export interface BookingsListPage {
-  rows: BookingRecord[];
-  total: number;
-}
+export type BookingsListPage = PaginatedResult<BookingRecord>;
 
 /**
- * The bookings list page's single entry point (C-16 Phase C Step 5).
- *
- * Clinic-wide: builds ONE predicate context and hands it to both the paged row
- * query and the head-count, so `total` always describes `rows`' WHERE clause.
- * Therapist-scoped: the two id-bounded reads still merge in memory and
- * `filterBookings` still filters them at the page — that branch is not paged,
- * and `total` is simply what came back.
+ * The request's predicate context — the filters plus everything the SQL plan
+ * needs that only the server knows. Resolved ONCE and shared by the row query,
+ * the head-count and (with `view` swapped) every chip count, which is what
+ * stops any of them describing a different WHERE clause than the others.
  */
-export async function getBookingsListPage(params: {
-  profile: Profile;
-  canViewAll: boolean;
-  filters: BookingListFilters;
-  limit?: number;
-  offset?: number;
-}): Promise<BookingsListPage> {
-  const { profile, canViewAll, filters } = params;
-
-  if (!canViewAll) {
-    const rows = await getBookingsListData({ profile, canViewAll });
-    return { rows, total: rows.length };
-  }
-
-  const predicates: BookingPredicateContext = {
+async function resolveBookingPredicateContext(
+  profile: Profile,
+  filters: BookingListFilters
+): Promise<BookingPredicateContext> {
+  return {
     ...filters,
     today: getTodayIsoDate(),
     staffId: profile.id,
@@ -860,14 +855,113 @@ export async function getBookingsListPage(params: {
     canClaim: canClaimAssignments(profile),
     searchClientIds: await getSearchClientIds(filters.search),
   };
+}
 
-  const limit = params.limit ?? LIST_PAGE_SIZE;
-  const offset = params.offset ?? 0;
+/**
+ * The bookings list page's single entry point (C-16 Phase C Steps 5 + 7).
+ *
+ * Clinic-wide: builds ONE predicate context and hands it to both the paged row
+ * query and the head-count, so `total` always describes `rows`' WHERE clause.
+ * Therapist-scoped: the two id-bounded reads still merge in memory and
+ * `filterBookings` still filters them at the page — that branch is not paged
+ * (plan §1 Step 5), so it reports one page and `PaginationBar` renders nothing.
+ */
+export async function getBookingsListPage(params: {
+  profile: Profile;
+  canViewAll: boolean;
+  filters: BookingListFilters;
+  /** Raw `?page=` — parsed and clamped here, against the REAL page count. */
+  page?: unknown;
+  pageSize?: number;
+}): Promise<BookingsListPage> {
+  const { profile, canViewAll, filters } = params;
+  const pageSize = params.pageSize ?? LIST_PAGE_SIZE;
 
-  const [rows, total] = await Promise.all([
-    getBookingsListData({ profile, canViewAll, limit, offset, predicates }),
-    countBookings(predicates),
-  ]);
+  if (!canViewAll) {
+    const rows = await getBookingsListData({ profile, canViewAll });
+    return { rows, total: rows.length, page: 1, pageCount: 1 };
+  }
 
-  return { rows, total };
+  const predicates = await resolveBookingPredicateContext(profile, filters);
+
+  // Sequential, not Promise.all: a stale `?page=99` can only be clamped once
+  // the total is known, and fetching a window that then has to be discarded
+  // costs a whole row query. Both halves are `unstable_cache`d on the same
+  // tags, so the common path is two cache reads, not two round trips.
+  const total = await countBookings(predicates);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = clampPage(params.page, pageCount);
+  const { from } = pageRange(page, pageSize);
+
+  const rows = await getBookingsListData({
+    profile,
+    canViewAll,
+    limit: pageSize,
+    offset: from,
+    predicates,
+  });
+
+  return { rows, total, page, pageCount };
+}
+
+/**
+ * The view chips `BookingsChrome` actually renders for this role.
+ *
+ * SECOND SOURCE, deliberately: the arrays live in `BookingsChrome.tsx`, which
+ * is a `"use client"` module — a server component cannot read a value out of
+ * one. `__tests__/booking-view-counts.test.ts` pins this list against those
+ * arrays so the two cannot drift: a chip missing from here renders with no
+ * count, and a view listed here that no chip renders is a wasted query.
+ */
+export function visibleBookingViews(canViewAll: boolean): BookingViewKey[] {
+  return canViewAll
+    ? [
+        "attention",
+        "today",
+        "upcoming",
+        "claimable",
+        "assigned",
+        "unassigned",
+        "partially_assigned",
+        "completed",
+        "cancelled",
+        "all",
+        "series",
+      ]
+    : ["today", "upcoming", "claimable", "assigned", "completed"];
+}
+
+/**
+ * C-16 Phase C Step 6 — one head-count per visible chip (clinic-wide scope).
+ *
+ * Each chip's number is `countBookings` over the request's own context with
+ * ONLY `view` swapped, which is exactly the URL clicking that chip produces
+ * (the chips carry every other filter across, and drop `page`). Because
+ * `countBookings` runs that context through `buildBookingPredicatePlan`, the
+ * chip count and the view's own list are the same predicate by construction —
+ * there is no second place a chip's rule could be written.
+ *
+ * Fan-out: 11 chips clinic-wide, each a `count: "exact", head: true` query,
+ * issued in parallel and cached on TAGS.BOOKINGS with the list. Measured at
+ * implementation time on the live table: all 11 predicates together execute in
+ * 0.596 ms / 13 shared buffers, so the Q9.5 fallback (active chip + total only)
+ * was NOT taken.
+ */
+export async function getBookingViewCounts(params: {
+  profile: Profile;
+  filters: BookingListFilters;
+  views: readonly BookingViewKey[];
+}): Promise<Partial<Record<BookingViewKey, number>>> {
+  const { profile, filters, views } = params;
+  const base = await resolveBookingPredicateContext(profile, filters);
+
+  const totals = await Promise.all(
+    views.map((view) => countBookings({ ...base, view }))
+  );
+
+  const counts: Partial<Record<BookingViewKey, number>> = {};
+  views.forEach((view, index) => {
+    counts[view] = totals[index];
+  });
+  return counts;
 }

@@ -39,12 +39,15 @@ const ALL_VIEW_LABELS: Record<BookingViewKey, string> = {
   series: "Series",
 };
 
-const FULL_PRIMARY: BookingViewKey[] = ["attention", "today", "upcoming", "claimable"];
+// Exported for the C-16 Step 6 pinning spec only: `visibleBookingViews`
+// (bookings-list-data.ts) has to name the same chips to count them, and a
+// server component cannot read a value out of this `"use client"` module.
+export const FULL_PRIMARY: BookingViewKey[] = ["attention", "today", "upcoming", "claimable"];
 // C-02 Phase H (plan Step 23) — "series" joins the canViewAll-only overflow,
 // same gate as the other operator-wide filters (Payment/Gender/Service/etc.
 // below); the deep link Phase F emits (`?view=series&templateId=<id>`) only
 // ever targets an admin/coordinator audience.
-const FULL_OVERFLOW: BookingViewKey[] = [
+export const FULL_OVERFLOW: BookingViewKey[] = [
   "assigned",
   "unassigned",
   "partially_assigned",
@@ -53,8 +56,8 @@ const FULL_OVERFLOW: BookingViewKey[] = [
   "all",
   "series",
 ];
-const THERAPIST_PRIMARY: BookingViewKey[] = ["today", "upcoming", "claimable"];
-const THERAPIST_OVERFLOW: BookingViewKey[] = ["assigned", "completed"];
+export const THERAPIST_PRIMARY: BookingViewKey[] = ["today", "upcoming", "claimable"];
+export const THERAPIST_OVERFLOW: BookingViewKey[] = ["assigned", "completed"];
 
 const FILTER_LABELS: Record<string, string> = {
   search: "Search",
@@ -85,17 +88,35 @@ type Props = {
   staff: Array<{ id: string; name: string }>;
   canViewAll: boolean;
   staffId: string;
+  /**
+   * C-16 Step 6 — one count per chip, each computed with that chip's own view
+   * predicate (see `getVisibleViewCounts` in page.tsx). Absent when the count
+   * fetch failed; a chip with no entry simply renders its label.
+   */
+  viewCounts?: Partial<Record<BookingViewKey, number>>;
 };
 
 export function storageKeyFor(staffId: string): string {
   return `rahma.admin.bookings.saved-views.v2.${staffId}`;
 }
 
+/**
+ * C-16 Step 7 — `page` belongs to one result set. Every navigation that
+ * changes WHICH rows are listed drops it, so the reader lands on page 1 of the
+ * new set instead of page 3 of a list that may now be one page long.
+ */
+function withoutPage(queryString: string): string {
+  const params = new URLSearchParams(queryString);
+  params.delete("page");
+  return params.toString();
+}
+
 function readQueryString(query: Props["query"], view: BookingViewKey): string {
   const params = new URLSearchParams();
   params.set("view", view);
   for (const [key, raw] of Object.entries(query)) {
-    if (key === "view") continue;
+    // `page`: see `withoutPage` — switching view changes the result set.
+    if (key === "view" || key === "page") continue;
     const value = Array.isArray(raw) ? raw[0] : raw;
     if (typeof value === "string" && value.length > 0) {
       params.set(key, value);
@@ -157,6 +178,7 @@ export function BookingsChrome({
   staff,
   canViewAll,
   staffId,
+  viewCounts,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -223,6 +245,7 @@ export function BookingsChrome({
   function clearFilter(name: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.delete(name);
+    params.delete("page");
     router.push(`/admin/bookings?${params.toString()}`);
   }
 
@@ -233,7 +256,11 @@ export function BookingsChrome({
   }
 
   function handleSaveView(name: string) {
-    const queryString = new URLSearchParams(searchParams.toString()).toString();
+    // A saved view stores FILTERS, never a window into them (C-16 Step 7,
+    // plan §4 risk row): saving from page 3 and re-applying it a week later
+    // would otherwise open page 3 of a different result set — or an empty
+    // page, if the set has since shrunk.
+    const queryString = withoutPage(searchParams.toString());
     const next = [
       ...savedViews,
       { id: `view-${Date.now()}`, label: name, query: queryString },
@@ -254,12 +281,16 @@ export function BookingsChrome({
   function handleApplySavedView(id: string) {
     const target = savedViews.find((view) => view.id === id);
     if (!target) return;
-    navigateToQuery(target.query);
+    // Stripped on apply as well as on save: views persisted before this
+    // change are already in localStorage and may carry a `page`.
+    navigateToQuery(withoutPage(target.query));
   }
 
-  const currentQuery = searchParams.toString();
+  // Compared page-free, so a saved view still reads as active on page 2.
+  const currentQuery = withoutPage(searchParams.toString());
   const activeSavedViewId =
-    savedViews.find((view) => view.query === currentQuery)?.id ?? null;
+    savedViews.find((view) => withoutPage(view.query) === currentQuery)?.id ??
+    null;
 
   const activeFilters: Array<{
     name: string;
@@ -313,13 +344,22 @@ export function BookingsChrome({
               href={`/admin/bookings?${readQueryString(query, key)}`}
               aria-current={isActive ? "page" : undefined}
               className={cn(
-                "inline-flex h-9 shrink-0 items-center rounded-full px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                "inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                 isActive
                   ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)]"
                   : "text-[var(--admin-body)] hover:bg-[var(--admin-hover-mist)] hover:text-[var(--admin-heading)]"
               )}
             >
               {ALL_VIEW_LABELS[key]}
+              <ViewCount
+                count={viewCounts?.[key]}
+                className={cn(
+                  "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[0.6875rem] font-semibold",
+                  isActive
+                    ? "bg-[var(--admin-on-primary)]/20 text-[var(--admin-on-primary)]"
+                    : "bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
+                )}
+              />
             </Link>
           );
         })}
@@ -371,6 +411,10 @@ export function BookingsChrome({
                     )}
                   >
                     {ALL_VIEW_LABELS[key]}
+                    <ViewCount
+                      count={viewCounts?.[key]}
+                      className="ml-auto pl-3 text-xs text-[var(--admin-text-muted)]"
+                    />
                   </Link>
                 );
               })}
@@ -491,6 +535,31 @@ export function BookingsChrome({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * C-16 Step 6 — a chip's booking count. Read aloud, a bare number is ambiguous
+ * ("Claimable 4"), so the badge is hidden from assistive tech and a spelled-out
+ * equivalent rides alongside it. Renders nothing when the count is unknown.
+ */
+function ViewCount({
+  count,
+  className,
+}: {
+  count: number | undefined;
+  className?: string;
+}) {
+  if (count === undefined) return null;
+  return (
+    <>
+      <span aria-hidden="true" className={cn("tabular-nums", className)}>
+        {count}
+      </span>
+      <span className="sr-only">
+        , {count} booking{count === 1 ? "" : "s"}
+      </span>
+    </>
   );
 }
 

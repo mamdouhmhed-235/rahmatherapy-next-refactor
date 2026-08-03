@@ -13,11 +13,13 @@ import {
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
+import { LIST_PAGE_SIZE } from "@/lib/pagination";
 import {
   AdminAccessDenied,
   AdminPageHeader,
 } from "../components/admin-ui";
 import { EmptyState } from "../components/EmptyState";
+import { PaginationBar } from "../components/PaginationBar";
 import { BookingCardSkeletonList } from "../components/admin-scalable-lists";
 import { BookingsChrome, type BookingViewKey } from "./BookingsChrome";
 import { BookingCard } from "./BookingCard";
@@ -31,8 +33,10 @@ import { getTodayIsoDate } from "./_helpers";
 import { formatDate } from "./format";
 import {
   bookingListFiltersFromQuery,
+  getBookingViewCounts,
   getBookingsChromeData,
   getBookingsListPage,
+  visibleBookingViews,
   type BookingsListPage,
 } from "./bookings-list-data";
 import type { BookingRecord } from "./types";
@@ -230,8 +234,12 @@ export default async function BookingsPage({
   const defaultView: BookingViewKey = canViewAll ? "attention" : "today";
   const currentView = (getQueryValue(query.view) ?? defaultView) as BookingViewKey;
 
-  // Lightweight chrome data — filter dropdown options only.
-  const { services, staff } = await getBookingsChromeData(canViewAll);
+  // Lightweight chrome data — filter dropdown options only — plus the chip
+  // counts (C-16 Step 6), which the chrome renders alongside the labels.
+  const [{ services, staff }, viewCounts] = await Promise.all([
+    getBookingsChromeData(canViewAll),
+    getVisibleViewCounts({ query, profile, canViewAll, currentView }),
+  ]);
 
   return (
     <div>
@@ -262,6 +270,7 @@ export default async function BookingsPage({
         staff={staff}
         canViewAll={canViewAll}
         staffId={profile.id}
+        viewCounts={viewCounts}
       />
 
       {/* Suspense boundary: chrome stays rendered while the list data streams in. */}
@@ -277,6 +286,54 @@ export default async function BookingsPage({
       </div>
     </div>
   );
+}
+
+/**
+ * C-16 Phase C Step 6 — one count per RENDERED chip, each computed with the
+ * predicate that chip's own view would use.
+ *
+ * Clinic-wide: `getBookingViewCounts` re-uses the request's own
+ * `BookingPredicateContext` with only `view` swapped and runs it through
+ * `buildBookingPredicatePlan` — the same builder the list query uses — so a
+ * chip cannot advertise a number its view would not show.
+ *
+ * Therapist-scoped: that branch has no SQL predicate to reuse. Its list IS
+ * `filterBookings` over the merged id-bounded reads (see `BookingListSection`),
+ * so its chip counts are that same oracle, once per chip, over rows already
+ * fetched — `getBookingsListPage` here and there share one `unstable_cache`
+ * entry, so this is not a second read.
+ *
+ * Counts are decoration: a failure here must not take the page down, so it
+ * degrades to unlabelled chips and leaves the list its own error panel.
+ */
+async function getVisibleViewCounts({
+  query,
+  profile,
+  canViewAll,
+  currentView,
+}: {
+  query: Record<string, string | string[] | undefined>;
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>;
+  canViewAll: boolean;
+  currentView: BookingViewKey;
+}): Promise<Partial<Record<BookingViewKey, number>> | undefined> {
+  const views = visibleBookingViews(canViewAll);
+  const filters = bookingListFiltersFromQuery(query, currentView);
+
+  try {
+    if (canViewAll) {
+      return await getBookingViewCounts({ profile, filters, views });
+    }
+    const { rows } = await getBookingsListPage({ profile, canViewAll, filters });
+    const counts: Partial<Record<BookingViewKey, number>> = {};
+    for (const view of views) {
+      counts[view] = filterBookings(rows, query, profile, view).length;
+    }
+    return counts;
+  } catch (countError) {
+    console.error("[bookings] failed to load view counts", countError);
+    return undefined;
+  }
 }
 
 async function BookingListSection({
@@ -302,12 +359,23 @@ async function BookingListSection({
   }
   const retryHref = `/admin/bookings?${retryParams.toString()}`;
 
+  // C-16 Step 7 — page navigation keeps every other param; `page` is the only
+  // one it rewrites. Every OTHER navigation (view chip, filter form, clearing
+  // a filter or a search) drops `page` at its own source, so the window always
+  // resets when the result set changes.
+  const makePageHref = (nextPage: number) => {
+    const params = new URLSearchParams(retryParams);
+    params.set("page", String(nextPage));
+    return `/admin/bookings?${params.toString()}`;
+  };
+
   let listPage: BookingsListPage;
   try {
     listPage = await getBookingsListPage({
       profile,
       canViewAll,
       filters: bookingListFiltersFromQuery(query, currentView),
+      page: getQueryValue(query.page),
     });
   } catch (loadError) {
     // Surface to Sentry / dev console; swallowing the error leaves the
@@ -432,6 +500,18 @@ async function BookingListSection({
           </div>
         </section>
       ))}
+
+      {/* C-16 Step 7 — closes the interim gap left by Step 5: the clinic-wide
+          list has been windowed to LIST_PAGE_SIZE since ca0cc21 with no way to
+          reach page 2. Renders nothing at one page, which is also how the
+          un-paged therapist branch (pageCount 1) stays unchanged. */}
+      <PaginationBar
+        page={listPage.page}
+        pageCount={listPage.pageCount}
+        total={listPage.total}
+        pageSize={LIST_PAGE_SIZE}
+        makeHref={makePageHref}
+      />
     </div>
   );
 }
@@ -449,16 +529,18 @@ function BookingsEmptyState(props: {
   );
 }
 
-function buildClearSearchHref(
+export function buildClearSearchHref(
   view: BookingViewKey,
   query: Record<string, string | string[] | undefined>
 ) {
   // Preserve every active filter except `search` itself, so "Clear search"
-  // doesn't wipe a Location or Status the operator also dialled in.
+  // doesn't wipe a Location or Status the operator also dialled in. `page` is
+  // dropped with the search term (C-16 Step 7): the result set widens, so page
+  // 3 of the narrowed list is meaningless.
   const params = new URLSearchParams();
   params.set("view", view);
   for (const [key, raw] of Object.entries(query)) {
-    if (key === "view" || key === "search") continue;
+    if (key === "view" || key === "search" || key === "page") continue;
     const value = Array.isArray(raw) ? raw[0] : raw;
     if (typeof value === "string" && value.length > 0) {
       params.set(key, value);
