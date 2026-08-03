@@ -39,6 +39,10 @@ interface AvailabilityRule {
 interface AvailabilityOverridesManagerProps {
   /** C-16 Step 14 (N3) — `>= today`, defensive-capped only. Query-sorted ascending. */
   upcoming: AvailabilityOverride[];
+  /** Fix round (verify-FAIL Check 2, non-blocking) — true count of
+   *  `override_date >= today`. Only differs from `upcoming.length` once the
+   *  defensive cap is actually hit. */
+  upcomingTotal: number;
   /** `< today`, capped (or view-all capped). Query-sorted newest-first. */
   past: AvailabilityOverride[];
   /** True count of `override_date < today` — see availability-data.ts. */
@@ -68,6 +72,7 @@ function formatDateLong(value: string) {
 
 export function AvailabilityOverridesManager({
   upcoming,
+  upcomingTotal,
   past,
   pastTotal,
   pastViewAll,
@@ -190,7 +195,13 @@ export function AvailabilityOverridesManager({
       description="Days when the clinic runs different hours from the weekly schedule."
       badge={
         <span className="inline-flex rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-text-muted)]">
-          {upcoming.length} upcoming{pastTotal ? ` · ${pastTotal} past` : ""}
+          {/* Fix round (verify-FAIL Check 2, non-blocking) — silent at 501+
+              before this: the badge just showed `upcoming.length` with no
+              way to tell a cap had been hit. */}
+          {upcomingTotal > upcoming.length
+            ? `${upcoming.length} of ${upcomingTotal} upcoming`
+            : `${upcoming.length} upcoming`}
+          {pastTotal ? ` · ${pastTotal} past` : ""}
         </span>
       }
     >

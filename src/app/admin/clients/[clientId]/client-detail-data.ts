@@ -38,32 +38,40 @@
 // NOTES RAIL BOUND (C-16 Phase E Step 14, finding N6 — Owner-approved
 // extension, per-page-progress §1 row 3 / §2). The old single `client_notes`
 // query (`.eq("client_id", clientId)`, no `.limit()`/`.range()` of any kind)
-// is split into TWO queries with two different, explicitly-chosen verdicts —
-// they cannot share one bound because page.tsx's header renders a safety
-// banner ("Critical note") sourced from whichever sensitive note matches
-// `CRITICAL_NOTE_PATTERN` (allergy/anaphylaxis/urgent/etc.), and a display
-// cap that could silently drop an old allergy note from that scan would be a
-// patient-safety regression, not a cosmetic one:
-//   - `sensitiveNotes` (`is_sensitive = true`) — DEFENSIVE CAP ONLY
-//     (`CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP`, 300), no view-all UI. Verdict:
-//     bound is conscious, not defaulted, but NOT cap+view-all — sensitive
-//     notes are the safety-critical subset (health/allergy context), their
-//     per-client volume is bounded by business reality (written far less
-//     often than general notes; the inventory's own "tens per client" 5-year
-//     projection is for the WHOLE notes rail, sensitive notes are a minority
-//     of that), and silently truncating the set `criticalNote` is derived
-//     from would be worse than the residual unbounded-read risk. Same
-//     reasoning as the bookings scoped-branch's `SCOPED_BRANCH_ROW_CAP` /
-//     privacy's `PRIVACY_NOTES_VIEW_ALL_CAP` — "a defensive ceiling, not a
-//     truly unbounded read."
+// is split into THREE queries:
 //   - `regularNotes` (`is_sensitive = false`) — real cap+view-all
 //     (`CLIENT_NOTES_LIMIT` 25 / `CLIENT_NOTES_VIEW_ALL_CAP` 200), same shape
 //     as privacy's sensitive-notes rail (C-16 Step 10): `regularNotesTotal`
 //     is a head-count over the SAME `is_sensitive = false` predicate, so a
 //     "hidden notes" banner in page.tsx can never disagree with what it
 //     counts. `notesViewAll` flows into the query AND the cache key.
-// page.tsx recombines `sensitiveNotes` (always complete) with `regularNotes`
-// (the capped window) for the rendered list — see its own comment.
+//   - `sensitiveNotes` (`is_sensitive = true`) — DISPLAY/PINNING RAIL ONLY,
+//     now also a real cap+view-all (`CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP`
+//     300 / `CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP` 3000), with
+//     `sensitiveNotesTotal` as its own head-count over the SAME
+//     `is_sensitive = true` predicate — the same honesty shape as
+//     `regularNotes`, mirrored via `resolveClientSensitiveNotesBannerState`.
+//     `sensitiveNotesViewAll` flows into the query AND the cache key.
+//   - `criticalNote` — a SEPARATE, dedicated query for the clinical-safety
+//     "Critical note" banner (verify-FAIL Check 1, C-16 Step 14 fix round).
+//     Fixed round finding: the banner used to be `sensitiveNotes.find(note
+//     => CRITICAL_NOTE_PATTERN.test(note.note))`, which meant a client with
+//     more than `CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP` sensitive notes could
+//     have an older flagged note silently drop out of the scan — the display
+//     cap and the safety scan shared one bound, with zero signal if it was
+//     ever hit. The fix: the safety scan gets its OWN query, scoped to
+//     `is_sensitive = true` AND a SQL-side `ilike`-OR filter built from
+//     `CRITICAL_NOTE_KEYWORDS` — a guaranteed SUPERSET of every branch in
+//     `CRITICAL_NOTE_PATTERN` (see that constant's comment), ordered
+//     newest-first. The exact regex is then re-applied in JS over that
+//     already-narrow, already-complete-relative-to-the-predicate result to
+//     pick the true most-recent match. Because this query is filtered BEFORE
+//     it is capped (not capped-then-filtered, which was the bug), whatever
+//     `sensitiveNotes` is capped at for DISPLAY purposes is now irrelevant to
+//     the banner's correctness — the property the fix round asked for.
+// page.tsx recombines `sensitiveNotes` with `regularNotes` for the rendered
+// notes list, and reads `criticalNote` directly off this fetcher's result —
+// see its own comment.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -78,9 +86,67 @@ import type {
 
 export const CLIENT_NOTES_LIMIT = 25;
 export const CLIENT_NOTES_VIEW_ALL_CAP = 200;
-/** Defensive-only — see the file header. Never paginated; a client's
- *  sensitive-note count realistically never approaches this. */
+/** `sensitiveNotes`' "recent" cap — same default as before this fix round,
+ *  so ordinary clients (today's observed max: 2) see no change. See the
+ *  file header: this no longer bounds the safety scan, only the display
+ *  rail, which is why it can now safely have a real view-all cap below it. */
 export const CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP = 300;
+/** `sensitiveNotes`' view-all cap, mirroring `CLIENT_NOTES_VIEW_ALL_CAP`'s
+ *  role for `regularNotes`. An order of magnitude beyond the recent cap —
+ *  reaching it would itself be a signal to revisit, same as every other
+ *  view-all ceiling in this plan. */
+export const CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP = 3000;
+
+/**
+ * Substrings that make `CRITICAL_NOTE_PATTERN` match somewhere in a note.
+ * Every branch of that regex's alternation nests one of these literal
+ * substrings, so this array is a guaranteed SUPERSET of the pattern: any
+ * note the regex matches necessarily contains at least one of these
+ * substrings too (a word-boundary match is always a substring match; the
+ * converse need not hold — an over-inclusive SQL scan is safe for a safety
+ * banner, an under-inclusive one is not). Used to build the SQL-side filter
+ * for `criticalNote` below, so the safety scan's completeness never depends
+ * on `CRITICAL_NOTE_PATTERN` being reproduced correctly as a Postgres regex.
+ * Kept as a plain array, not derived from the regex mechanically, so an edit
+ * to one is a visible diff next to the other — see the sync test in
+ * `__tests__/client-detail-data.test.ts`.
+ */
+export const CRITICAL_NOTE_KEYWORDS = [
+  "allerg",
+  "anaphyla",
+  "epipen",
+  "contraindic",
+  "urgent",
+  "warning",
+  "do not",
+  "avoid",
+] as const;
+
+/** Matches a sensitive note that should surface the "Critical note" safety
+ *  banner. Every alternation branch here must nest at least one entry from
+ *  `CRITICAL_NOTE_KEYWORDS` above as a substring — see that constant's
+ *  comment and the sync test. */
+export const CRITICAL_NOTE_PATTERN =
+  /\b(allerg(y|ic|ies)|anaphyla|epipen|contraindic|urgent|warning|do not|avoid)\b/i;
+
+function escapeLike(value: string) {
+  // Escapes ILIKE's own wildcard characters so a keyword can only match
+  // literally — mirrors emails-data.ts's `escapeLike`/`quoteOrValue` pair.
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+function quoteOrValue(value: string) {
+  // PostgREST's documented mechanism for its reserved `.or(...)` characters
+  // (`,` `.` `:` `*` `(` `)`) — wrap the whole operand in double quotes.
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
+/** The `.or(...)` filter string for the `criticalNote` query below — one
+ *  `ilike` arm per keyword, ORed together. Built once at module scope since
+ *  the keyword list is static. */
+const CRITICAL_NOTE_KEYWORD_OR_FILTER = CRITICAL_NOTE_KEYWORDS.map(
+  (keyword) => `note.ilike.${quoteOrValue(`%${escapeLike(keyword)}%`)}`
+).join(",");
 
 // `deleted_at` is selected in BOTH branches on purpose: they are the two RBAC
 // variants that feed `getClientSelect`, and omitting the column from either
@@ -254,6 +320,9 @@ export interface ClientDetailParams {
   offset?: number;
   /** C-16 Step 14 (N6) — cap+view-all toggle for `regularNotes` only. */
   notesViewAll?: boolean;
+  /** Fix round (verify-FAIL Check 1) — cap+view-all toggle for the
+   *  `sensitiveNotes` DISPLAY rail only. Never affects `criticalNote`. */
+  sensitiveNotesViewAll?: boolean;
 }
 
 export interface ClientDetailData {
@@ -261,12 +330,20 @@ export interface ClientDetailData {
   bookingHistory: ClientBookingRecord[];
   /** True when the caller reached this client through their own assignments. */
   hasAssignedClientAccess: boolean;
-  /** Safety-critical subset, defensive-capped only — see file header. */
+  /** Display/pinning rail only, real cap+view-all — see file header. Never
+   *  the source of `criticalNote` below. */
   sensitiveNotes: ClientNoteRecord[];
+  /** True count of `is_sensitive = true` notes — same predicate as `sensitiveNotes`. */
+  sensitiveNotesTotal: number;
   /** The growing rail, real cap+view-all — see file header. */
   regularNotes: ClientNoteRecord[];
   /** True count of `is_sensitive = false` notes — same predicate as `regularNotes`. */
   regularNotesTotal: number;
+  /** The clinical-safety "Critical note" banner's own note, or `null`. From a
+   *  dedicated query scoped to keyword-matching sensitive notes only — see
+   *  the file header and `CRITICAL_NOTE_KEYWORDS` — so it can never miss a
+   *  flagged note because `sensitiveNotes` above happened to be capped. */
+  criticalNote: ClientNoteRecord | null;
   privacyRequests: ClientPrivacyRequestRecord[];
   auditLogs: { id: string; action_type: string; created_at: string }[];
 }
@@ -283,6 +360,7 @@ export async function getClientDetailData(
     limit,
     offset,
     notesViewAll,
+    sensitiveNotesViewAll,
   } = params;
 
   const cached = unstable_cache(
@@ -379,10 +457,12 @@ export async function getClientDetailData(
         }
       }
 
-      // C-16 Step 14 (N6) — two queries, two verdicts. See file header.
+      // C-16 Step 14 (N6) + fix round (verify-FAIL Check 1). See file header.
       let sensitiveNotes: ClientNoteRecord[] = [];
+      let sensitiveNotesTotal = 0;
       let regularNotes: ClientNoteRecord[] = [];
       let regularNotesTotal = 0;
+      let criticalNote: ClientNoteRecord | null = null;
       let privacyRequests: ClientPrivacyRequestRecord[] = [];
       let auditLogs: { id: string; action_type: string; created_at: string }[] = [];
 
@@ -401,8 +481,11 @@ export async function getClientDetailData(
           .select("id", { count: "exact", head: true })
           .eq("client_id", clientId)
           .eq("is_sensitive", false);
-        // Defensive-cap only, no view-all — see file header on why this
-        // subset is never truncated by the same rule as `regularNotes`.
+        const sensitiveCap = sensitiveNotesViewAll
+          ? CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP
+          : CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP;
+        // Display/pinning rail only — NEVER the source of `criticalNote`
+        // below. Real cap+view-all, same shape as `regularNotes`.
         const sensitiveNotesQuery = clientAccess.canViewSensitiveNoteQueue
           ? adminClient
               .from("client_notes")
@@ -410,18 +493,55 @@ export async function getClientDetailData(
               .eq("client_id", clientId)
               .eq("is_sensitive", true)
               .order("created_at", { ascending: false })
+              .limit(sensitiveCap)
+              .returns<ClientNoteRecord[]>()
+          : Promise.resolve({ data: [] as ClientNoteRecord[] });
+        const sensitiveNotesCountQuery = clientAccess.canViewSensitiveNoteQueue
+          ? adminClient
+              .from("client_notes")
+              .select("id", { count: "exact", head: true })
+              .eq("client_id", clientId)
+              .eq("is_sensitive", true)
+          : Promise.resolve({ count: 0 });
+        // Fix round (verify-FAIL Check 1) — the safety banner's OWN query.
+        // Scoped to keyword-matching sensitive notes only (see
+        // CRITICAL_NOTE_KEYWORD_OR_FILTER), so its correctness never depends
+        // on `sensitiveNotes`' cap above. Reuses the SAME defensive cap
+        // number as a further ceiling on this already keyword-narrowed
+        // subset — see the file header.
+        const criticalNoteCandidatesQuery = clientAccess.canViewSensitiveNoteQueue
+          ? adminClient
+              .from("client_notes")
+              .select("id, note, is_sensitive, created_at, staff_profiles(name)")
+              .eq("client_id", clientId)
+              .eq("is_sensitive", true)
+              .or(CRITICAL_NOTE_KEYWORD_OR_FILTER)
+              .order("created_at", { ascending: false })
               .limit(CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP)
               .returns<ClientNoteRecord[]>()
           : Promise.resolve({ data: [] as ClientNoteRecord[] });
 
-        const [regularResult, regularCountResult, sensitiveResult] = await Promise.all([
+        const [
+          regularResult,
+          regularCountResult,
+          sensitiveResult,
+          sensitiveCountResult,
+          criticalNoteCandidatesResult,
+        ] = await Promise.all([
           regularNotesQuery,
           regularNotesCountQuery,
           sensitiveNotesQuery,
+          sensitiveNotesCountQuery,
+          criticalNoteCandidatesQuery,
         ]);
         regularNotes = regularResult.data ?? [];
         regularNotesTotal = regularCountResult.count ?? 0;
         sensitiveNotes = sensitiveResult.data ?? [];
+        sensitiveNotesTotal = sensitiveCountResult.count ?? 0;
+        const criticalNoteCandidates = criticalNoteCandidatesResult.data ?? [];
+        criticalNote =
+          criticalNoteCandidates.find((note) => CRITICAL_NOTE_PATTERN.test(note.note)) ??
+          null;
       }
 
       if (clientAccess.canManagePrivacyOperations) {
@@ -453,8 +573,10 @@ export async function getClientDetailData(
         bookingHistory,
         hasAssignedClientAccess,
         sensitiveNotes,
+        sensitiveNotesTotal,
         regularNotes,
         regularNotesTotal,
+        criticalNote,
         privacyRequests,
         auditLogs,
       };
@@ -470,6 +592,7 @@ export async function getClientDetailData(
         limit,
         offset,
         notesViewAll,
+        sensitiveNotesViewAll,
       }),
     ],
     {
@@ -517,19 +640,20 @@ export type ClientNotesBannerState =
   | { kind: "viewingAll"; total: number };
 
 export function resolveClientNotesBannerState(params: {
-  /** True count of `is_sensitive = false` notes — the only capped resource. */
+  /** True count of `is_sensitive = false` notes — the only resource this
+   *  function looks at. */
   regularTotal: number;
   /** `regularNotes.length` actually fetched (bounded by the current cap). */
   regularShown: number;
   viewAll: boolean;
 }): ClientNotesBannerState {
   const { regularTotal, regularShown, viewAll } = params;
-  // Scoped to `regularNotes` throughout — `sensitiveNotes` is always fully
-  // fetched (defensive cap only, see file header), so it never contributes
-  // to whether anything is hidden and must NOT be mixed into these
-  // comparisons: a client with a handful of sensitive notes pushing a
-  // COMBINED total past CLIENT_NOTES_VIEW_ALL_CAP would otherwise report
-  // `cappedOut` even though every regular note is already shown.
+  // Scoped to `regularNotes` throughout, deliberately never mixed with
+  // `sensitiveNotes` — the two rails have independent caps and independent
+  // view-all toggles (see `resolveClientSensitiveNotesBannerState` below), so
+  // a COMBINED total compared against CLIENT_NOTES_VIEW_ALL_CAP would falsely
+  // report `cappedOut` from a handful of sensitive notes even though every
+  // regular note is already shown.
   if (viewAll && regularTotal > CLIENT_NOTES_VIEW_ALL_CAP) {
     return { kind: "cappedOut", total: regularTotal };
   }
@@ -538,6 +662,39 @@ export function resolveClientNotesBannerState(params: {
   }
   if (viewAll && regularTotal > CLIENT_NOTES_LIMIT) {
     return { kind: "viewingAll", total: regularTotal };
+  }
+  return { kind: "none" };
+}
+
+// Fix round (verify-FAIL Check 1) — `sensitiveNotes`' own hidden-rows signal,
+// mirroring `resolveClientNotesBannerState` above exactly (same branch order,
+// same reasoning: `cappedOut` before `hidden` so "view all N" never promises
+// a link that can't deliver). Kept as a SEPARATE function rather than a
+// parameter on the one above because the two rails have independent caps —
+// see that function's comment. Scoped to `sensitiveNotes` (the DISPLAY rail)
+// only; never affects `criticalNote`, which has no cap to hide behind.
+export type ClientSensitiveNotesBannerState =
+  | { kind: "none" }
+  | { kind: "hidden"; total: number }
+  | { kind: "cappedOut"; total: number }
+  | { kind: "viewingAll"; total: number };
+
+export function resolveClientSensitiveNotesBannerState(params: {
+  /** True count of `is_sensitive = true` notes. */
+  sensitiveTotal: number;
+  /** `sensitiveNotes.length` actually fetched (bounded by the current cap). */
+  sensitiveShown: number;
+  viewAll: boolean;
+}): ClientSensitiveNotesBannerState {
+  const { sensitiveTotal, sensitiveShown, viewAll } = params;
+  if (viewAll && sensitiveTotal > CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP) {
+    return { kind: "cappedOut", total: sensitiveTotal };
+  }
+  if (sensitiveTotal > sensitiveShown) {
+    return { kind: "hidden", total: sensitiveTotal };
+  }
+  if (viewAll && sensitiveTotal > CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP) {
+    return { kind: "viewingAll", total: sensitiveTotal };
   }
   return { kind: "none" };
 }

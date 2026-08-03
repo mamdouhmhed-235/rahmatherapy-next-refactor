@@ -158,10 +158,12 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
     //  - "past" (`< today`) is real cap+view-all, plus a true head-count.
     blockedWeekResult,
     blockedUpcomingResult,
+    blockedUpcomingCountResult,
     blockedPastResult,
     blockedPastCountResult,
     overridesWeekResult,
     overridesUpcomingResult,
+    overridesUpcomingCountResult,
     overridesPastResult,
     overridesPastCountResult,
   ] = await Promise.all([
@@ -181,6 +183,14 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
       .gte("blocked_date", today)
       .order("blocked_date", { ascending: true })
       .limit(AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
+    // Fix round (verify-FAIL Check 2, non-blocking) — cheap head-count so the
+    // "N upcoming" badge can say when the defensive cap was actually hit,
+    // instead of staying silent at 501+. Mirrors the `past` bucket's own
+    // count query below.
+    supabase
+      .from("blocked_dates")
+      .select("id", { count: "exact", head: true })
+      .gte("blocked_date", today),
     supabase
       .from("blocked_dates")
       .select("*")
@@ -203,6 +213,12 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
       .gte("override_date", today)
       .order("override_date", { ascending: true })
       .limit(AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
+    // Fix round (verify-FAIL Check 2, non-blocking) — same head-count as the
+    // blocked-dates upcoming bucket above.
+    supabase
+      .from("availability_overrides")
+      .select("id", { count: "exact", head: true })
+      .gte("override_date", today),
     supabase
       .from("availability_overrides")
       .select("*")
@@ -256,10 +272,12 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
   // come directly from the dedicated week-window query — see the Promise.all
   // comment above for why that isn't derived from `upcoming`/`past`.
   const blockedUpcoming = (blockedUpcomingResult.data ?? []) as BlockedDateRow[];
+  const blockedUpcomingTotal = blockedUpcomingCountResult.count ?? 0;
   const blockedPast = (blockedPastResult.data ?? []) as BlockedDateRow[];
   const blockedPastTotal = blockedPastCountResult.count ?? 0;
   const weekClosures = (blockedWeekResult.data ?? []) as BlockedDateRow[];
   const overridesUpcoming = (overridesUpcomingResult.data ?? []) as OverrideRow[];
+  const overridesUpcomingTotal = overridesUpcomingCountResult.count ?? 0;
   const overridesPast = (overridesPastResult.data ?? []) as OverrideRow[];
   const overridesPastTotal = overridesPastCountResult.count ?? 0;
   const weekAdjustments = (overridesWeekResult.data ?? []) as OverrideRow[];
@@ -407,6 +425,7 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
         closedSlot={
           <BlockedDatesManager
             upcoming={blockedUpcoming}
+            upcomingTotal={blockedUpcomingTotal}
             past={blockedPast}
             pastTotal={blockedPastTotal}
             pastViewAll={closedPastViewAll}
@@ -419,6 +438,7 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
         adjustmentsSlot={
           <AvailabilityOverridesManager
             upcoming={overridesUpcoming}
+            upcomingTotal={overridesUpcomingTotal}
             past={overridesPast}
             pastTotal={overridesPastTotal}
             pastViewAll={adjPastViewAll}

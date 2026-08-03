@@ -103,9 +103,11 @@ export default async function AvailabilityPage({
     // (cap+view-all) + a true past head-count, replacing the old single
     // unbounded `.eq("staff_id", staffId)` fetch. See lib.ts's comment.
     { data: blockedUpcomingData },
+    { count: blockedUpcomingTotal },
     { data: blockedPastData },
     { count: blockedPastTotal },
     { data: overridesUpcomingData },
+    { count: overridesUpcomingTotal },
     { data: overridesPastData },
     { count: overridesPastTotal },
     { data: globalRulesData },
@@ -125,6 +127,13 @@ export default async function AvailabilityPage({
       .gte("blocked_date", today)
       .order("blocked_date", { ascending: true })
       .limit(STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
+    // Fix round (verify-FAIL Check 2, non-blocking) — cheap head-count so the
+    // "N upcoming" badge can say when the defensive cap was actually hit.
+    supabase
+      .from("staff_blocked_dates")
+      .select("id", { count: "exact", head: true })
+      .eq("staff_id", staffId)
+      .gte("blocked_date", today),
     supabase
       .from("staff_blocked_dates")
       .select("id, blocked_date, reason")
@@ -144,6 +153,13 @@ export default async function AvailabilityPage({
       .gte("override_date", today)
       .order("override_date", { ascending: true })
       .limit(STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
+    // Fix round (verify-FAIL Check 2, non-blocking) — same head-count as the
+    // staff blocked-dates upcoming bucket above.
+    supabase
+      .from("staff_availability_overrides")
+      .select("id", { count: "exact", head: true })
+      .eq("staff_id", staffId)
+      .gte("override_date", today),
     supabase
       .from("staff_availability_overrides")
       .select("id, override_date, start_time, end_time, reason")
@@ -361,6 +377,7 @@ export default async function AvailabilityPage({
       <StaffBlockedDatesManager
         staffId={staffId}
         upcoming={blockedUpcomingData ?? []}
+        upcomingTotal={blockedUpcomingTotal ?? 0}
         past={blockedPastData ?? []}
         pastTotal={blockedPastTotal ?? 0}
         pastViewAll={blockedPastViewAll}
@@ -373,6 +390,7 @@ export default async function AvailabilityPage({
       <StaffAvailabilityOverridesManager
         staffId={staffId}
         upcoming={overridesUpcomingData ?? []}
+        upcomingTotal={overridesUpcomingTotal ?? 0}
         past={overridesPastData ?? []}
         pastTotal={overridesPastTotal ?? 0}
         pastViewAll={adjPastViewAll}

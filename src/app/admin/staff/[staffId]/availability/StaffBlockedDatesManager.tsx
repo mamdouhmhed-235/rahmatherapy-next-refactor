@@ -33,6 +33,10 @@ interface StaffBlockedDatesManagerProps {
   staffId: string;
   /** C-16 Step 14 (N4) — `>= today`, defensive-capped only. Query-sorted ascending. */
   upcoming: StaffBlockedDate[];
+  /** Fix round (verify-FAIL Check 2, non-blocking) — true count of
+   *  `blocked_date >= today` for this staff. Only differs from
+   *  `upcoming.length` once the defensive cap is actually hit. */
+  upcomingTotal: number;
   /** `< today`, capped (or view-all capped). Query-sorted newest-first. */
   past: StaffBlockedDate[];
   /** True count of `blocked_date < today` for this staff — see lib.ts. */
@@ -49,6 +53,7 @@ interface StaffBlockedDatesManagerProps {
 export function StaffBlockedDatesManager({
   staffId,
   upcoming,
+  upcomingTotal,
   past,
   pastTotal,
   pastViewAll,
@@ -170,7 +175,13 @@ export function StaffBlockedDatesManager({
       description="Days this staff member isn't available. Closures override the weekly pattern."
       badge={
         <span className="inline-flex rounded-full border border-[var(--admin-border)] bg-[var(--admin-panel)] px-2.5 py-0.5 text-xs font-medium text-[var(--admin-text-muted)]">
-          {upcoming.length} upcoming{pastTotal ? ` · ${pastTotal} past` : ""}
+          {/* Fix round (verify-FAIL Check 2, non-blocking) — silent at 501+
+              before this: the badge just showed `upcoming.length` with no
+              way to tell a cap had been hit. */}
+          {upcomingTotal > upcoming.length
+            ? `${upcoming.length} of ${upcomingTotal} upcoming`
+            : `${upcoming.length} upcoming`}
+          {pastTotal ? ` · ${pastTotal} past` : ""}
         </span>
       }
     >

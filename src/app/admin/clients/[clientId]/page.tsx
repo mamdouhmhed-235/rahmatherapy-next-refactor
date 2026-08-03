@@ -55,10 +55,14 @@ import { getClientDataAccess } from "../access";
 import {
   CLIENT_NOTES_LIMIT,
   CLIENT_NOTES_VIEW_ALL_CAP,
+  CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP,
+  CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP,
   getClientDetailData,
   resolveClientNotesBannerState,
+  resolveClientSensitiveNotesBannerState,
   type ClientDetailAccessFlags,
   type ClientNotesBannerState,
+  type ClientSensitiveNotesBannerState,
 } from "./client-detail-data";
 import {
   ClientDetailShortcuts,
@@ -88,6 +92,9 @@ interface ClientDetailPageProps {
     updated?: string;
     /** C-16 Step 14 (N6) — "all" raises the notes rail to CLIENT_NOTES_VIEW_ALL_CAP. */
     notes?: string;
+    /** Fix round (verify-FAIL Check 1) — "all" raises the sensitive-notes
+     *  rail to CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP. Independent of `notes`. */
+    sensitiveNotes?: string;
   }>;
 }
 
@@ -100,7 +107,6 @@ const VALID_STATUSES: readonly StatusFilter[] = [
   "cancelled",
 ] as const;
 const FILTER_THRESHOLD = 5;
-const CRITICAL_NOTE_PATTERN = /\b(allerg(y|ic|ies)|anaphyla|epipen|contraindic|urgent|warning|do not|avoid)\b/i;
 
 function coerceTab(raw: string | undefined): TabKey {
   return (VALID_TABS as readonly string[]).includes(raw ?? "")
@@ -147,13 +153,19 @@ function buildClientUrl(
     : `/admin/clients/${clientId}`;
 }
 
-/** C-16 Step 14 (N6) — sets/clears the notes-rail view-all toggle on an
- *  already-built href, preserving every other param on it. */
-function withNotesParam(href: string, value: "all" | null): string {
+/** C-16 Step 14 (N6) — sets/clears a view-all toggle param on an
+ *  already-built href, preserving every other param on it (`notes` for
+ *  `regularNotes`, `sensitiveNotes` for `sensitiveNotes` — fix round, see
+ *  each caller). */
+function withNotesParam(
+  href: string,
+  paramName: "notes" | "sensitiveNotes",
+  value: "all" | null
+): string {
   const [path, qs] = href.split("?");
   const params = new URLSearchParams(qs);
-  if (value) params.set("notes", value);
-  else params.delete("notes");
+  if (value) params.set(paramName, value);
+  else params.delete(paramName);
   const next = params.toString();
   return next ? `${path}?${next}` : path;
 }
@@ -281,11 +293,13 @@ export default async function ClientDetailPage({
     service: serviceParam,
     updated: updatedParam,
     notes: notesParam,
+    sensitiveNotes: sensitiveNotesParam,
   } = await searchParams;
   const tab = coerceTab(tabParam);
   const statusFilter = coerceStatus(statusParam);
   const serviceFilter = serviceParam?.trim() || null;
   const notesViewAll = notesParam === "all";
+  const sensitiveNotesViewAll = sensitiveNotesParam === "all";
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
 
@@ -316,8 +330,10 @@ export default async function ClientDetailPage({
     bookingHistory,
     hasAssignedClientAccess,
     sensitiveNotes,
+    sensitiveNotesTotal,
     regularNotes,
     regularNotesTotal,
+    criticalNote,
     privacyRequests,
     auditLogs,
   } = await getClientDetailData({
@@ -327,6 +343,7 @@ export default async function ClientDetailPage({
     accessWithoutAssignment: toClientDetailAccessFlags(accessWithoutAssignment),
     accessWithAssignment: toClientDetailAccessFlags(accessWithAssignment),
     notesViewAll,
+    sensitiveNotesViewAll,
   });
 
   // Re-derived from the fetcher's verdict, exactly as before: full-access
@@ -400,11 +417,10 @@ export default async function ClientDetailPage({
   const filtersApplied = statusFilter !== "all" || Boolean(serviceFilter);
   const showFilterStrip = bookingsForTab.length >= FILTER_THRESHOLD || filtersApplied;
   const nextVisit = upcomingBookings[upcomingBookings.length - 1];
-  // C-16 Step 14 (N6) — `sensitiveNotes` from the fetcher is ALWAYS complete
-  // (defensive cap only; see client-detail-data.ts's file header), so this
-  // safety scan is unaffected by the `regularNotes` cap below.
-  const criticalNote =
-    sensitiveNotes.find((note) => CRITICAL_NOTE_PATTERN.test(note.note)) ?? null;
+  // Fix round (verify-FAIL Check 1) — `criticalNote` now comes straight off
+  // the fetcher's OWN dedicated query (see client-detail-data.ts's file
+  // header), not from `sensitiveNotes` (the capped display rail below), so
+  // it can never miss a flagged note that fell outside that cap.
   const pinnedSensitiveNoteForPanel =
     sensitiveNotes.find((note) => note.id !== criticalNote?.id) ?? null;
   // The rendered rail: sensitive notes beyond the pinned one, merged with the
@@ -422,8 +438,37 @@ export default async function ClientDetailPage({
     regularShown: regularNotes.length,
     viewAll: notesViewAll,
   });
-  const notesAllHref = withNotesParam(buildClientUrl(clientId, { tab, status: statusFilter, service: serviceFilter ?? undefined }), "all");
-  const notesRecentHref = withNotesParam(buildClientUrl(clientId, { tab, status: statusFilter, service: serviceFilter ?? undefined }), null);
+  // Fix round (verify-FAIL Check 1) — `sensitiveNotes`' own hidden-rows
+  // signal, independent of the one above (see client-detail-data.ts).
+  const sensitiveNotesBannerState = resolveClientSensitiveNotesBannerState({
+    sensitiveTotal: sensitiveNotesTotal,
+    sensitiveShown: sensitiveNotes.length,
+    viewAll: sensitiveNotesViewAll,
+  });
+  const notesBaseHref = buildClientUrl(clientId, { tab, status: statusFilter, service: serviceFilter ?? undefined });
+  // Each href only ever flips ITS OWN toggle, carrying the other rail's
+  // current state through unchanged — so neither rail's "view all"/"show
+  // recent" link can ever point back at the exact URL already active.
+  const notesAllHref = withNotesParam(
+    withNotesParam(notesBaseHref, "sensitiveNotes", sensitiveNotesViewAll ? "all" : null),
+    "notes",
+    "all"
+  );
+  const notesRecentHref = withNotesParam(
+    withNotesParam(notesBaseHref, "sensitiveNotes", sensitiveNotesViewAll ? "all" : null),
+    "notes",
+    null
+  );
+  const sensitiveNotesAllHref = withNotesParam(
+    withNotesParam(notesBaseHref, "notes", notesViewAll ? "all" : null),
+    "sensitiveNotes",
+    "all"
+  );
+  const sensitiveNotesRecentHref = withNotesParam(
+    withNotesParam(notesBaseHref, "notes", notesViewAll ? "all" : null),
+    "sensitiveNotes",
+    null
+  );
   const avatarHue = deterministicHue(client.id);
   const avatarInitials = getInitials(client.full_name);
   const showRecentActivityBalance =
@@ -609,6 +654,9 @@ export default async function ClientDetailPage({
               bannerState={notesBannerState}
               allHref={notesAllHref}
               recentHref={notesRecentHref}
+              sensitiveBannerState={sensitiveNotesBannerState}
+              sensitiveAllHref={sensitiveNotesAllHref}
+              sensitiveRecentHref={sensitiveNotesRecentHref}
             />
           ) : null}
           {showPrivacyCard ? (
@@ -973,6 +1021,9 @@ function NotesPanel({
   bannerState,
   allHref,
   recentHref,
+  sensitiveBannerState,
+  sensitiveAllHref,
+  sensitiveRecentHref,
 }: {
   client: ClientRecord;
   notes: ClientNoteRecord[];
@@ -983,6 +1034,10 @@ function NotesPanel({
   bannerState: ClientNotesBannerState;
   allHref: string;
   recentHref: string;
+  /** Fix round (verify-FAIL Check 1) — `sensitiveNotes`' own hidden-rows signal. */
+  sensitiveBannerState: ClientSensitiveNotesBannerState;
+  sensitiveAllHref: string;
+  sensitiveRecentHref: string;
 }) {
   const hasAnyContent =
     Boolean(client.notes) || notes.length > 0 || Boolean(pinnedNote);
@@ -1081,6 +1136,41 @@ function NotesPanel({
             className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Show recent {CLIENT_NOTES_LIMIT} only
+          </Link>
+        </p>
+      ) : null}
+      {/* Fix round (verify-FAIL Check 1) — `sensitiveNotes`' own cap+view-all
+          banner, same cappedOut-before-hidden shape as above, independent
+          toggle. Never affects the "Critical note" safety banner above the
+          header, which has its own uncapped query. */}
+      {sensitiveBannerState.kind === "cappedOut" ? (
+        <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs text-[var(--admin-text-muted)]">
+          Showing the first {CLIENT_SENSITIVE_NOTES_VIEW_ALL_CAP} of{" "}
+          {sensitiveBannerState.total} sensitive notes. The rest aren&rsquo;t
+          reachable from this rail.{" "}
+          <Link
+            href={sensitiveRecentHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Show recent {CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP} sensitive notes only
+          </Link>
+        </p>
+      ) : sensitiveBannerState.kind === "hidden" ? (
+        <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+          <Link
+            href={sensitiveAllHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            View all {sensitiveBannerState.total} sensitive notes
+          </Link>
+        </p>
+      ) : sensitiveBannerState.kind === "viewingAll" ? (
+        <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+          <Link
+            href={sensitiveRecentHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Show recent {CLIENT_SENSITIVE_NOTES_DEFENSIVE_CAP} sensitive notes only
           </Link>
         </p>
       ) : null}
