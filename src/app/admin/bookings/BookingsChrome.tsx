@@ -69,7 +69,12 @@ const FILTER_LABELS: Record<string, string> = {
   to: "To",
 };
 
-const STORAGE_KEY = "rahma.admin.bookings.saved-views.v1";
+// Pre-namespacing key (C-06 and earlier) — global to the browser, so on a
+// shared front-desk machine one staff member's saved searches (which can
+// carry a client name via `search=`) would persist into the next person's
+// session. v2 below is namespaced per staff id; this constant only exists
+// so `loadSavedViews` can purge it on sight (see the comment there).
+const LEGACY_GLOBAL_STORAGE_KEY = "rahma.admin.bookings.saved-views.v1";
 
 type SavedView = { id: string; label: string; query: string };
 
@@ -79,7 +84,12 @@ type Props = {
   services: Array<{ slug: string; name: string }>;
   staff: Array<{ id: string; name: string }>;
   canViewAll: boolean;
+  staffId: string;
 };
+
+export function storageKeyFor(staffId: string): string {
+  return `rahma.admin.bookings.saved-views.v2.${staffId}`;
+}
 
 function readQueryString(query: Props["query"], view: BookingViewKey): string {
   const params = new URLSearchParams();
@@ -102,10 +112,20 @@ function readQueryValue(
   return Array.isArray(raw) ? raw[0] : raw;
 }
 
-function loadSavedViews(): SavedView[] {
+export function loadSavedViews(staffId: string): SavedView[] {
   if (typeof window === "undefined") return [];
+  // Legacy purge, no migration: the old global key may hold a previous staff
+  // member's saved searches (a saved view's `search=` param can carry a
+  // client's name). Migrating it to whichever staff id loads next would hand
+  // that data to the wrong person — the exact leak namespacing this key is
+  // meant to close. Delete it on sight instead of carrying it forward.
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_GLOBAL_STORAGE_KEY);
+  } catch {
+    // localStorage may be unavailable in private mode — fail silent.
+  }
+  try {
+    const raw = window.localStorage.getItem(storageKeyFor(staffId));
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -121,10 +141,10 @@ function loadSavedViews(): SavedView[] {
   }
 }
 
-function persistSavedViews(views: SavedView[]) {
+export function persistSavedViews(staffId: string, views: SavedView[]) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(views));
+    window.localStorage.setItem(storageKeyFor(staffId), JSON.stringify(views));
   } catch {
     // localStorage may be unavailable in private mode — fail silent.
   }
@@ -136,6 +156,7 @@ export function BookingsChrome({
   services,
   staff,
   canViewAll,
+  staffId,
 }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -147,8 +168,8 @@ export function BookingsChrome({
 
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSavedViews(loadSavedViews());
-  }, []);
+    setSavedViews(loadSavedViews(staffId));
+  }, [staffId]);
 
   React.useEffect(() => {
     if (!overflowOpen) return;
@@ -218,7 +239,7 @@ export function BookingsChrome({
       { id: `view-${Date.now()}`, label: name, query: queryString },
     ];
     setSavedViews(next);
-    persistSavedViews(next);
+    persistSavedViews(staffId, next);
     toast.success(`View "${name}" saved.`);
   }
 
@@ -226,7 +247,7 @@ export function BookingsChrome({
     const target = savedViews.find((view) => view.id === id);
     const next = savedViews.filter((view) => view.id !== id);
     setSavedViews(next);
-    persistSavedViews(next);
+    persistSavedViews(staffId, next);
     if (target) toast.success(`View "${target.label}" removed.`);
   }
 
@@ -480,7 +501,7 @@ function FilterForm({
   staff,
   canViewAll,
   mobile = false,
-}: Props & { mobile?: boolean }) {
+}: Omit<Props, "staffId"> & { mobile?: boolean }) {
   const getVal = (key: string) => {
     const raw = query[key];
     return Array.isArray(raw) ? raw[0] : raw ?? "";

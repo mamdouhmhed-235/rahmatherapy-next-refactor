@@ -259,6 +259,7 @@ export default async function BookingsPage({
         services={services}
         staff={staff}
         canViewAll={canViewAll}
+        staffId={profile.id}
       />
 
       {/* Suspense boundary: chrome stays rendered while the list data streams in. */}
