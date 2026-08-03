@@ -26,6 +26,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AdminSheet } from "../components/admin-ui-interactions";
 import type { ReportFilters } from "../reports/reporting";
+import { addBusinessDays } from "@/lib/time/london";
 
 function isoDate(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -37,7 +38,7 @@ function parseDate(value: string | undefined) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-type PresetKey = "today" | "this_week" | "this_month" | "last_30" | "custom";
+type PresetKey = "today" | "yesterday" | "this_week" | "this_month" | "last_30" | "custom";
 
 interface PresetRange {
   key: PresetKey;
@@ -58,8 +59,10 @@ function buildPresets(todayISO: string): PresetRange[] {
   const monthEnd = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0));
   const thirtyAgo = new Date(today);
   thirtyAgo.setUTCDate(today.getUTCDate() - 29);
+  const yesterdayISO = addBusinessDays(todayISO, -1);
   return [
     { key: "today", label: "Today", from: isoDate(today), to: isoDate(today) },
+    { key: "yesterday", label: "Yesterday", from: yesterdayISO, to: yesterdayISO },
     { key: "this_week", label: "This week", from: isoDate(weekStart), to: isoDate(weekEnd) },
     { key: "this_month", label: "This month", from: isoDate(monthStart), to: isoDate(monthEnd) },
     { key: "last_30", label: "Last 30 days", from: isoDate(thirtyAgo), to: isoDate(today) },
