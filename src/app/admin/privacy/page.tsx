@@ -182,16 +182,21 @@ function startOfThisMonth(): Date {
  * same pattern as emails-data.ts's `resolveDeliveryDateBounds` — so "today"
  * never freezes for the 60s revalidate window.
  */
-function resolvePrivacyDateBounds(
+export function resolvePrivacyDateBounds(
   range: string,
   from: string,
   to: string
 ): { fromIso?: string; toIso?: string } {
   const now = new Date();
   if (range === "custom") {
+    // Raw, unvalidated URL params — validate before converting. A malformed
+    // value silently falls back to "no bound" (same as no filter) rather than
+    // throwing RangeError out of `.toISOString()` and 500ing the page.
+    const fromMs = from ? new Date(`${from}T00:00:00`).getTime() : NaN;
+    const toMs = to ? new Date(`${to}T23:59:59`).getTime() : NaN;
     return {
-      fromIso: from ? new Date(`${from}T00:00:00`).toISOString() : undefined,
-      toIso: to ? new Date(`${to}T23:59:59`).toISOString() : undefined,
+      fromIso: Number.isNaN(fromMs) ? undefined : new Date(fromMs).toISOString(),
+      toIso: Number.isNaN(toMs) ? undefined : new Date(toMs).toISOString(),
     };
   }
   if (range === "today") {

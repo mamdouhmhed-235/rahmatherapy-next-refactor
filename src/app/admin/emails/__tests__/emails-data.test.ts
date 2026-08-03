@@ -230,4 +230,70 @@ describe("getFilteredDeliveryEvents filter-wiring cache behaviour", () => {
     });
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
   });
+
+  // C-09 Phase D fix round — a malformed custom from/to used to hit
+  // `.toISOString()` on an Invalid Date and throw RangeError, 500ing the
+  // whole page. Malformed input must fall back to "no bound" instead.
+  it("does not throw on a malformed custom `from` and ignores it", async () => {
+    const data = await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { range: "custom", from: "not-a-date", to: "2026-01-10" },
+    });
+    expect(data.deliveryError).toBeNull();
+  });
+
+  it("does not throw on a malformed custom `to` and ignores it", async () => {
+    const data = await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { range: "custom", from: "2026-01-01", to: "not-a-date" },
+    });
+    expect(data.deliveryError).toBeNull();
+  });
+});
+
+// C-09 Phase D fix round — PostgREST's `.or(...)` argument is forwarded to
+// the URL verbatim (postgrest-js does no escaping of its own); reserved
+// characters (comma, parens) inside a value must be handled by wrapping the
+// WHOLE value in double quotes, not by backslash-prefixing them unquoted.
+// `createFakeAdminClient`'s chain doesn't record `.or()` calls, so this uses
+// a local recording stub to assert on the exact generated filter string.
+describe("getFilteredDeliveryEvents q-filter or() string", () => {
+  it("quotes the whole needle so an embedded comma and parenthesis survive", async () => {
+    const orCalls: string[] = [];
+    const chain: {
+      select: () => typeof chain;
+      order: () => typeof chain;
+      or: (filters: string) => typeof chain;
+      gte: () => typeof chain;
+      lte: () => typeof chain;
+      range: () => typeof chain;
+      returns: () => Promise<{ data: unknown[]; error: null }>;
+    } = {
+      select: () => chain,
+      order: () => chain,
+      or: (filters) => {
+        orCalls.push(filters);
+        return chain;
+      },
+      gte: () => chain,
+      lte: () => chain,
+      range: () => chain,
+      returns: async () => ({ data: [], error: null }),
+    };
+    createSupabaseAdminClient.mockImplementation(() => ({ from: () => chain }));
+
+    await getFilteredDeliveryEvents({
+      canSeeDelivery: true,
+      filters: { range: "last_30_days", q: "Smith, John (Jr.)" },
+    });
+
+    const needle = `"%Smith, John (Jr.)%"`;
+    expect(orCalls).toEqual([
+      [
+        `recipient_email.ilike.${needle}`,
+        `provider_message_id.ilike.${needle}`,
+        `id.ilike.${needle}`,
+      ].join(","),
+    ]);
+  });
 });

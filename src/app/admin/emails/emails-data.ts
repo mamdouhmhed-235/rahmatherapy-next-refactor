@@ -285,7 +285,26 @@ export interface FilteredDeliveryData {
 }
 
 function escapeLike(value: string) {
-  return value.replace(/[\\%_,()]/g, (match) => `\\${match}`);
+  // Escapes what the ILIKE pattern engine treats specially — a literal
+  // backslash, `%`, and `_` — so user input matches literally instead of as
+  // a wildcard.
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+/**
+ * Wraps a `.or(...)` filter operand in double quotes — PostgREST's
+ * documented mechanism for its reserved characters (`,` `.` `:` `*` `(` `)`)
+ * inside a filter value. `postgrest-js`'s `.or()` forwards its argument to
+ * the URL verbatim (see PostgrestFilterBuilder.or() in
+ * node_modules/@supabase/postgrest-js) — nothing downstream escapes a bare
+ * comma/paren, and a bare backslash before one is not honoured either
+ * (confirmed against PostgREST's URL-grammar docs: reserved characters are
+ * escaped by quoting the whole value, not by backslash-prefixing them
+ * unquoted). A literal `"` inside the value is escaped to `\"` per the same
+ * quoting convention.
+ */
+function quoteOrValue(value: string) {
+  return `"${value.replace(/"/g, '\\"')}"`;
 }
 
 /**
@@ -299,11 +318,16 @@ function resolveDeliveryDateBounds(
   filters: EmailDeliveryFilters
 ): { fromIso?: string; toIso?: string } {
   if (filters.range === "custom") {
+    // Raw, unvalidated URL params — validate before converting. A malformed
+    // value silently falls back to "no bound" (same as no filter) rather than
+    // throwing RangeError out of `.toISOString()` and 500ing the page.
+    const fromMs = filters.from ? new Date(filters.from).getTime() : NaN;
+    const toMs = filters.to ? new Date(filters.to).getTime() : NaN;
     return {
-      fromIso: filters.from ? new Date(filters.from).toISOString() : undefined,
-      toIso: filters.to
-        ? new Date(new Date(filters.to).getTime() + 24 * 60 * 60 * 1000).toISOString()
-        : undefined,
+      fromIso: Number.isNaN(fromMs) ? undefined : new Date(fromMs).toISOString(),
+      toIso: Number.isNaN(toMs)
+        ? undefined
+        : new Date(toMs + 24 * 60 * 60 * 1000).toISOString(),
     };
   }
   const day = 24 * 60 * 60 * 1000;
@@ -344,7 +368,7 @@ export async function getFilteredDeliveryEvents(
       if (filters.delivery_status) query = query.eq("delivery_status", filters.delivery_status);
       if (filters.recipient_role) query = query.eq("recipient_role", filters.recipient_role);
       if (filters.q) {
-        const needle = `%${escapeLike(filters.q)}%`;
+        const needle = quoteOrValue(`%${escapeLike(filters.q)}%`);
         query = query.or(
           [
             `recipient_email.ilike.${needle}`,

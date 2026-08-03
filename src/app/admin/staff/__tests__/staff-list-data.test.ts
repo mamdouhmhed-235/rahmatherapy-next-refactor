@@ -170,3 +170,38 @@ describe("getStaffListData filter-wiring cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
   });
 });
+
+// C-09 Phase D fix round — "Bookable" must restore the conjunction the
+// in-memory predicate enforced (member.active && member.can_take_bookings),
+// not just the raw column, or an admin filtering by Bookable alone would
+// surface inactive staff whose can_take_bookings flag was never flipped.
+//
+// `createFakeAdminClient`'s chain doesn't evaluate `.eq()` predicates (it's a
+// passthrough stub), so asserting on returned rows would prove nothing here —
+// this spec records the QUERY BUILDER CALLS directly via a local recording
+// stub instead.
+describe("getStaffListData admin-scope bookable filter", () => {
+  it("applies both can_take_bookings AND active eq() calls for the admin scope", async () => {
+    const eqCalls: [string, unknown][] = [];
+    const chain: {
+      select: () => typeof chain;
+      eq: (column: string, value: unknown) => typeof chain;
+      order: () => Promise<{ data: unknown[]; error: null }>;
+    } = {
+      select: () => chain,
+      eq: (column, value) => {
+        eqCalls.push([column, value]);
+        return chain;
+      },
+      order: async () => ({ data: [], error: null }),
+    };
+    createSupabaseAdminClient.mockImplementation(() => ({
+      from: () => chain,
+    }));
+
+    await getStaffListData({ ...ADMIN_PARAMS, filters: { bookable: true } });
+
+    expect(eqCalls).toContainEqual(["can_take_bookings", true]);
+    expect(eqCalls).toContainEqual(["active", true]);
+  });
+});

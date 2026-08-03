@@ -86,7 +86,26 @@ export interface EnquiriesPageData {
 }
 
 function escapeLike(value: string) {
-  return value.replace(/[\\%_,()]/g, (match) => `\\${match}`);
+  // Escapes what the ILIKE pattern engine treats specially — a literal
+  // backslash, `%`, and `_` — so user input matches literally instead of as
+  // a wildcard.
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+/**
+ * Wraps a `.or(...)` filter operand in double quotes — PostgREST's
+ * documented mechanism for its reserved characters (`,` `.` `:` `*` `(` `)`)
+ * inside a filter value. `postgrest-js`'s `.or()` forwards its argument to
+ * the URL verbatim (see PostgrestFilterBuilder.or() in
+ * node_modules/@supabase/postgrest-js) — nothing downstream escapes a bare
+ * comma/paren, and a bare backslash before one is not honoured either
+ * (confirmed against PostgREST's URL-grammar docs: reserved characters are
+ * escaped by quoting the whole value, not by backslash-prefixing them
+ * unquoted). A literal `"` inside the value is escaped to `\"` per the same
+ * quoting convention.
+ */
+function quoteOrValue(value: string) {
+  return `"${value.replace(/"/g, '\\"')}"`;
 }
 
 export async function getEnquiriesPageData(
@@ -117,7 +136,7 @@ export async function getEnquiriesPageData(
       if (fromDate) enquiriesQuery = enquiriesQuery.gte("created_at", `${fromDate}T00:00:00Z`);
       if (toDate) enquiriesQuery = enquiriesQuery.lte("created_at", `${toDate}T23:59:59Z`);
       if (q) {
-        const needle = `%${escapeLike(q)}%`;
+        const needle = quoteOrValue(`%${escapeLike(q)}%`);
         enquiriesQuery = enquiriesQuery.or(
           [
             `full_name.ilike.${needle}`,

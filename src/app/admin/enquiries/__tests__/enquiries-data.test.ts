@@ -146,3 +146,50 @@ describe("getEnquiriesPageData filter-wiring cache behaviour", () => {
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
   });
 });
+
+// C-09 Phase D fix round — PostgREST's `.or(...)` argument is forwarded to
+// the URL verbatim (postgrest-js does no escaping of its own); reserved
+// characters (comma, parens) inside a value must be handled by wrapping the
+// WHOLE value in double quotes, not by backslash-prefixing them unquoted.
+// `createFakeAdminClient`'s chain doesn't record `.or()` calls, so this uses
+// a local recording stub to assert on the exact generated filter string.
+describe("getEnquiriesPageData q-filter or() string", () => {
+  it("quotes the whole needle so an embedded comma and parenthesis survive", async () => {
+    const orCalls: string[] = [];
+    const enquiriesChain: {
+      select: () => typeof enquiriesChain;
+      order: () => typeof enquiriesChain;
+      or: (filters: string) => typeof enquiriesChain;
+      returns: () => Promise<{ data: unknown[]; error: null }>;
+    } = {
+      select: () => enquiriesChain,
+      order: () => enquiriesChain,
+      or: (filters) => {
+        orCalls.push(filters);
+        return enquiriesChain;
+      },
+      returns: async () => ({ data: [], error: null }),
+    };
+    const staffChain = {
+      select: () => staffChain,
+      eq: () => staffChain,
+      order: () => staffChain,
+      returns: async () => ({ data: [], error: null }),
+    };
+    createSupabaseAdminClient.mockImplementation(() => ({
+      from: (table: string) => (table === "enquiries" ? enquiriesChain : staffChain),
+    }));
+
+    await getEnquiriesPageData({ q: "Smith, John (Jr.)" });
+
+    const needle = `"%Smith, John (Jr.)%"`;
+    expect(orCalls).toEqual([
+      [
+        `full_name.ilike.${needle}`,
+        `phone.ilike.${needle}`,
+        `email.ilike.${needle}`,
+        `service_interest.ilike.${needle}`,
+      ].join(","),
+    ]);
+  });
+});

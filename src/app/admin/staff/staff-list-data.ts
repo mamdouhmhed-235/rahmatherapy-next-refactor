@@ -145,7 +145,14 @@ async function fetchScopedStaff(
     if (filters?.roleId) query = query.eq("role_id", filters.roleId);
     if (filters?.gender) query = query.eq("gender", filters.gender);
     if (filters?.active !== undefined) query = query.eq("active", filters.active);
-    if (filters?.bookable) query = query.eq("can_take_bookings", true);
+    // "Bookable" is a conjunction, not just the raw column — it mirrors the
+    // in-memory predicate this step replaced (see git show
+    // b615ba1:src/app/admin/staff/page.tsx's matchesBookable), which required
+    // `member.active && member.can_take_bookings` regardless of any separate
+    // status filter. Without the `active` half, an admin filtering by
+    // Bookable alone would surface inactive staff whose `can_take_bookings`
+    // flag was never flipped.
+    if (filters?.bookable) query = query.eq("can_take_bookings", true).eq("active", true);
     const { data, error } = await query.order("name");
     if (error) staffLoadError = true;
     staff = (data ?? []) as unknown as StaffDirectoryRow[];
