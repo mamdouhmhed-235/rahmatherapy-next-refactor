@@ -7,9 +7,9 @@
 **Dependencies:** none blocking — C-11 (shipped) is the only soft one, for the scope-toggle mount point.
 **Migration:** none. C-07 is not among the ledger's 9 migration-bearing plans. **No Zone-2 actions.**
 
-> ## ⛔ PAUSED AT A HARD-STOP — **7 of 8 phases done and verified (A1–A4, B1, B2, B3). B4 is BLOCKED on a plan-vs-reality contradiction — see §1.8. Owner input required.**
+> ## ✅ SHIPPED 2026-08-03 — **8 of 8 phases (A1–A4, B1, B2, B3, B4), each independently verified.**
 >
-> **▶ RESUME HERE:** read §1.8 first. Everything through `838d049` is committed and gated. Nothing is mid-flight; the working tree is clean within C-07's scope.
+> B4's HARD-STOP was answered by the Owner in chat on 2026-08-03: **do not build the plan's parallel saved-filters system.** B4 closed as VERIFY-ALREADY-IMPLEMENTED plus a scoped in-place fix round — see §1.9. Final commit `f038b4f` (+ bookkeeping). One gate — the bundle budget — is recorded **NOT RUN**, see §1.10.
 
 ---
 
@@ -151,18 +151,82 @@ A read-only pass compared the existing implementation against what B-161 actuall
 
 **Recommendation: close B4 as VERIFY-ALREADY-IMPLEMENTED *after* a scoped in-place fix round covering gaps 1 and 2**, with 3 and 4 as explicit Owner calls. Building the plan's parallel `saved-filters.ts` + `SavedFiltersBar.tsx` would be **strictly worse than either closing outright or fixing in place** — two localStorage keys and two UI bars for one capability, i.e. the same defect class this plan has already produced five times.
 
-**Nothing was implemented for B4. No files created, no commits made.**
+**Nothing was implemented for B4 at the time of the HARD-STOP. No files created, no commits made.** *(Superseded by §1.9 — the Owner answered on 2026-08-03.)*
+
+## 1.9 — Phase B4 resolved (`f038b4f`): closed as VERIFY-ALREADY-IMPLEMENTED + a two-gap fix round
+
+**Owner ruling, in chat, 2026-08-03 — per §1.8a's recommendation:** do NOT build the plan's parallel saved-filters system. **Steps 14–16 as literally written are CANCELLED.** `src/lib/booking/saved-filters.ts` and `src/app/admin/bookings/SavedFiltersBar.tsx` were never created, deliberately; their absence is the correct outcome, not a lost step. The four gaps from §1.8a were dispositioned individually:
+
+| Gap | Owner disposition | Outcome |
+|---|---|---|
+| 1 — key not namespaced per staff id (privacy leak on a shared browser; brief §2.12's "cleared on logout" unmet) | **FIX in place** | Done, `f038b4f` |
+| 2 — no test coverage, which Step 14 required | **FIX in place** | Done, 9 specs, `f038b4f` |
+| 3 — bar renders always, vs the plan's hide-when-empty checkpoint | **KEEP as-is** | **Accepted deviation**, recorded below |
+| 4 — no mobile save affordance | **Defer** | → `OWNER-ACTION-BACKLOG.md`, C-12+ |
+
+**What shipped.** `STORAGE_KEY` became `storageKeyFor(staffId)` → `rahma.admin.bookings.saved-views.v2.${staffId}`; `loadSavedViews`/`persistSavedViews` take the staff id and are exported for testability (they stay in `BookingsChrome.tsx` — no new module); `Props` gained `staffId: string`; `page.tsx` passes `staffId={profile.id}` in a single prop-only hunk; the mount effect now keys on `[staffId]`. Every pre-existing guarantee was left byte-intact: SSR guards, per-entry type guards, private-mode try/catch, the 20-item cap, name validation, the two-step delete confirm.
+
+**The deliberate non-migration is the substantive decision here.** The legacy global key `…saved-views.v1` is `removeItem`-ed on load and its contents are **never carried over**. Migrating would have handed the previous user's saved searches — which can carry a client's name in their `search=` param — to whoever signed in next, i.e. it would have performed the exact leak the fix exists to close. Existing users lose their saved views once; that is the intended cost, and B-161 is explicitly a v1 localStorage feature (plan §9 Q9.4 puts DB persistence in C-12+). The purge runs unconditionally *before* any staff-keyed read, so no early-return path can skip it — independently re-derived by the verifier at `BookingsChrome.tsx:122-126`, not taken on the implementer's word.
+
+**One consequential extra edit, judged and accepted:** `FilterForm`'s prop type changed from `Props & {mobile?}` to `Omit<Props, "staffId"> & {mobile?}`. The verifier confirmed `FilterForm` never reads `staffId` and neither call site ever passed it — the minimal type-only consequence of making `staffId` required on `Props`, not a hidden behavioural change.
+
+**Verification tier: FULL** (§2.9c) — `admin/bookings/page.tsx` is a rule-9 shared surface and the change carries a privacy requirement. The verifier re-derived the storage control flow, the effect-dependency safety and every spec assertion independently, and specifically confirmed the cross-staff-isolation and legacy-purge tests **fail if the change is reverted** — i.e. they are not vacuous. Report: `redesign/evidence/C-07/b4-verify-full.md`.
+
+**Model:** implementer `sonnet`, verifier `sonnet` — routine client-component storage-key work plus test authoring; no schema/RPC/concurrency/date-math complexity. The plan's only `opus` dispatch remains B2 (§1.6).
+
+## 1.10 — ⚠️ The bundle-budget gate is recorded NOT RUN — the tool cannot answer the plan's question
+
+Plan §3.1 sets a **+5 kB cumulative ceiling across `/admin/me`, `/admin/bookings*`, `/admin/dashboard`, `/admin/clients/[id]`** and names `node scripts/measure-admin-bundles.mjs` as the check. The script ran, but it cannot answer that question:
+
+- Its hardcoded `ROUTES` list (lines 31–44) contains **no `/admin/bookings` route at all** — so one of the four named surfaces, and the one B3/B4 actually changed, has zero measurement.
+- Its only baseline file (`bundle-pre-B1.json`) was captured **2026-05-24 at `d2e6512`, before Band B**. The deltas it reports are therefore cumulative across Band B *and* all of Band C, not attributable to C-07: `/admin/dashboard` 482.22 kB gzip (+23.41 kB vs that baseline), `/admin/clients/[clientId]` 338.56 kB (+2.31 kB), `/admin/me` 448.31 kB (no delta available — the route postdates the baseline).
+
+Absolutes captured above so a future comparison has a real anchor. **This is the fourth plan hit by the same gap** (C-03's master-plan row records it as the third; C-03 shipped ✅ with "Bundle gate NEVER RUN" recorded, which is the precedent followed here). Raised in chat at closeout and logged to `OWNER-ACTION-BACKLOG.md` as a recurring measurement blind spot rather than treated as a C-07 defect. Evidence: `redesign/evidence/C-07/closeout-static-gates.md`.
+
+## 1.11 — Closeout gate results (2026-08-03, at `f038b4f`)
+
+**Verification tiers, declared per §2.9c.** Phases A1–A4, B1, B2, B3 were verified before fast-path mode existed and each received an independent step-by-step review — recorded retrospectively as **FULL**. B4 was declared **FULL** at dispatch, in advance, for the reasons in §1.9.
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | **0 errors** |
+| `npx vitest run` | **5 failed / 1494 passed (1499)** — failures exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3. Identity match, no new failures. No `createBookingTransaction` entry — C-06's expected shrinkage still holding. |
+| `npx eslint .` | **59 errors / 7 warnings**, confined to the same six baseline files |
+| `npx next build` | clean, 52 pages |
+| Bundle budget | **NOT RUN** — see §1.10 |
+| Adversarial diff review (`d3b5c90..HEAD`, 19 commits, 35 files) | **PASS** — `redesign/evidence/C-07/closeout-adversarial-review.md` |
+| B4 FULL verify | **PASS** — `redesign/evidence/C-07/b4-verify-full.md` |
+| Isolation (`git status --porcelain`) | clean within C-07's scope; only `src/lib/maintenance.ts` modified inside `src/` (standing Owner-owned change, never staged) |
+
+**📌 Baseline correction — the recorded pass-counts had drifted, the identities never did.** This file previously recorded the inherited vitest baseline as *5 failed / 1483 passed (1488)*. Three agents independently re-ran the suite at HEAD on unchanged test code and all three got **1490 total** pre-B4 (drift checkpoint #3's groundwork also recorded 1490), rising to **1499** with B4's 9 new specs. The gap was already present before B4 touched anything. No gate was ever affected — every gate in this programme is judged by **identity**, and the identity list has been exact throughout — but the numbers written here were wrong and are corrected. **The inherited baseline for the next plan is the identity list, not any count.**
+
+**Accepted deviations (Owner-sanctioned, recorded so they are not re-litigated):**
+1. **B4 Steps 14–16 not implemented** — cancelled by Owner ruling; the capability already shipped at `449f722`. §1.9.
+2. **The desktop saved-views bar renders always** for `canViewAll` roles, rather than hiding when there are no saved views and no active filter as the plan's B4 checkpoint specifies. Owner chose discoverability over the written checkpoint. Mobile keeps no save affordance (gap 4, deferred).
+3. **`BookingsChrome.tsx` is not on the plan's §2 files-touched list.** Editing it is covered by the same Owner ruling — the fix had to land where the feature actually lives.
+4. **Three phases carry an extra `-fix` commit** beyond the plan's §7 one-commit-per-phase cadence (A3 → `b8f2f5d`, B1 → `ef1d4b6`, B2 → `dd5b497`). Each is a verifier-caught defect fixed in its own transparent commit — the opposite of a silent squash.
+5. **A fifth plan/reality naming mismatch, uncorrected in the plan text.** The plan and brief both name `BookingDetailToasts.tsx` as "the C-03 component to extend"; that file has never existed in this repo — C-03's real component is `BookingCreatedToast.tsx`, which is what A2 correctly extended. The plan carries four explicit "✅ CORRECTION" annotations for this same class; this one never got one.
+
+**Owner-performed by necessity (agent cannot authenticate — protocol §3b):** the plan's §3.2 per-role × per-viewport Playwright sweep (18 numbered items across Owner/Admin, Coordinator, Therapist) and §3.4 screenshot evidence. Filed in `OWNER-ACTION-BACKLOG.md`. These are **not** recorded as pending-for-an-agent; no agent can ever run them.
 
 ---
 
 ## 3 — ▶ Position for whoever resumes
 
-**HEAD `838d049`.** C-07 is **7 of 8 phases** done, each independently verified. Working tree clean within C-07's scope; the only modification anywhere is the standing deliberate `src/lib/maintenance.ts` (`MAINTENANCE_MODE = false`, never staged).
+**✅ C-07 SHIPPED — 8 of 8 phases, each independently verified. Final code commit `f038b4f`.** Working tree clean within C-07's scope; the only modification anywhere inside `src/` is the standing deliberate `src/lib/maintenance.ts` (`MAINTENANCE_MODE = false`, never staged).
 
-**Commits, in order:** `526733f` A1 · `5b07851` A2 · `8f76fc6` A3 · `b8f2f5d` A-fix · `4603340` A4 · `ed99e6a` A-progress · `4e23053` B1 · `94cb96a` B1-progress · `ef1d4b6` B1-fix · `c6c1ec4` B2 · `dd5b497` B2-fix · `838d049` B3.
+**Commits, in order:** `526733f` A1 · `5b07851` A2 · `8f76fc6` A3 · `b8f2f5d` A-fix · `4603340` A4 · `ed99e6a` A-progress · `4e23053` B1 · `94cb96a` B1-progress · `ef1d4b6` B1-fix · `c6c1ec4` B2 · `dd5b497` B2-fix · `838d049` B3 · `c52942c` interrupt checkpoint · `e022be6` B3 lens re-run · `822441d` B4 gap analysis · **`f038b4f` B4**.
 
-**Gates at HEAD:** tsc 0 · lint 59E/7W in the same six files · build clean · vitest **5 failed / 1483 passed (1488)**, the five inherited by identity (`admin-access` ×2 + `ManualBookingForm` ×3).
+**Gates at `f038b4f`:** tsc 0 · lint 59E/7W in the same six files · build clean, 52 pages · vitest **5 failed / 1494 passed (1499)**, the five inherited by identity (`admin-access` ×2 + `ManualBookingForm` ×3) · bundle budget **NOT RUN** (§1.10). Full table in §1.11.
 
-**To resume:** ① put §1.8's B4 question to the Owner and act on the answer; ② then C-07's closeout gate (§3 of the plan), progress finalisation, and flip the master-plan row. **Drift checkpoint #3 falls due immediately after C-07 ships** — it is the first full-range review since plan #10 and the first to see C-09's cache layer.
+**➡️ INHERITED BASELINE FOR THE NEXT PLAN — BY IDENTITY:**
+- tsc → 0 errors · build → clean.
+- vitest → failures are exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3. **Judge by identity, never by count** — the counts in this programme's progress files have drifted (§1.11) while the identities have been exact throughout.
+- eslint → 59 errors / 7 warnings confined to exactly `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`.
+- No expected shrinkage is outstanding: C-06's `createBookingTransaction` removal is confirmed still holding.
 
-**C-07 carries no migration and no Zone-2 action.** It does not join the pending Cloudflare deploy.
+**Next:** **formal drift checkpoint #3** — it falls due immediately, is the first full-range review since plan #10, and is the first to see C-09's cache layer. Its groundwork is already recorded in `redesign/plans/C-phase/DRIFT-CHECKPOINTS.md` §"Checkpoint #3 — GROUNDWORK ONLY", including five items explicitly held for "once C-07 ships". Then plan #16, **C-16** (pre-flight prep exists in that file's appendix; it opens with its own ⏸ at Phase A Step 2 — the inventory needs Owner confirmation before Phase C).
+
+**C-07 carries no migration and no Zone-2 action.** It does not join the pending four-in-one Cloudflare deploy.
+
+**Outstanding Owner actions from C-07:** the §3.2 role sweep + §3.4 screenshots (sign-in required); the gap-4 mobile save affordance (C-12+); the bundle-measurement tooling gap (§1.10). All three are indexed in `OWNER-ACTION-BACKLOG.md`.
