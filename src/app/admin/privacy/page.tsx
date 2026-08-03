@@ -22,6 +22,7 @@ import {
   getOldestOpenPrivacyRequest,
   getPrivacyRequestsPage,
   PRIVACY_NOTES_LIMIT,
+  PRIVACY_NOTES_VIEW_ALL_CAP,
   type PrivacyClientSummary,
   type PrivacyQueueFilters,
   type PrivacyRequestRecord as PrivacyRequestRow,
@@ -919,6 +920,12 @@ function SensitiveNotesPanel({
   // never a pager. `hasHiddenNotes` is what the badge/link below react to —
   // whether the CURRENT cap is hiding anything at all.
   const hasHiddenNotes = notesTotal > notes.length;
+  // Fix round — once already viewing all AND the true total exceeds the
+  // view-all cap itself, "View all N" is a lie: clicking it re-navigates to
+  // the same `notes=all` state and still only returns PRIVACY_NOTES_VIEW_ALL_CAP
+  // rows. Distinguish that boundary so the rail never promises a link that
+  // can't deliver — the cap itself is unchanged, only what we say about it.
+  const cappedOut = notesViewAll && notesTotal > PRIVACY_NOTES_VIEW_ALL_CAP;
   return (
     <AdminPanel
       title="Sensitive notes"
@@ -986,7 +993,19 @@ function SensitiveNotesPanel({
           })}
         </ul>
       )}
-      {hasHiddenNotes ? (
+      {cappedOut ? (
+        <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs text-[var(--admin-text-muted)]">
+          Showing the first {PRIVACY_NOTES_VIEW_ALL_CAP} of {notesTotal} sensitive
+          notes. The rest aren&rsquo;t reachable from this rail — open individual
+          clients to review them.{" "}
+          <Link
+            href={notesRecentHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Show recent {PRIVACY_NOTES_LIMIT} only
+          </Link>
+        </p>
+      ) : hasHiddenNotes ? (
         <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
           <Link
             href={notesAllHref}

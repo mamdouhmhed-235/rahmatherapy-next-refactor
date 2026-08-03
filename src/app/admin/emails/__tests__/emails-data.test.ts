@@ -1,5 +1,5 @@
 // C-09 Phase C Step 7 — cache behaviour for /admin/emails' data helper.
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const cacheHarness = await vi.hoisted(async () => {
   const { createFakeUnstableCache } = await import(
@@ -321,6 +321,52 @@ describe("resolveDeliveryDateBounds stability", () => {
     const first = resolveDeliveryDateBounds({});
     const second = resolveDeliveryDateBounds({});
     expect(second).toEqual(first);
+  });
+});
+
+// Fix round (verify-FAIL on commit dc26dc0) — the stability suite above would
+// pass unchanged with a wrong-but-stable `fromIso`, which is exactly how the
+// "today" regression (resolved to the start of YESTERDAY) got through. These
+// pin the EXACT `fromIso` each preset produces for a fixed, non-midnight
+// clock, so a wrong offset fails even though it's still stable across calls.
+// "Today" = the current calendar day (`todayStart`). "Last 7/30 days" = that
+// many calendar days up to and including today (`todayStart - 6`/`29 * day`)
+// — the conventional dashboard reading, and internally coherent with "Today"
+// meaning today rather than "today excluded".
+describe("resolveDeliveryDateBounds correctness (fixed clock)", () => {
+  const FIXED_NOW = "2026-01-15T15:42:07.123Z";
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(FIXED_NOW));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('"today" resolves to the start of TODAY, not yesterday', () => {
+    expect(resolveDeliveryDateBounds({ range: "today" })).toEqual({
+      fromIso: "2026-01-15T00:00:00.000Z",
+    });
+  });
+
+  it('"last_7_days" resolves to 7 calendar days including today', () => {
+    expect(resolveDeliveryDateBounds({ range: "last_7_days" })).toEqual({
+      fromIso: "2026-01-09T00:00:00.000Z",
+    });
+  });
+
+  it('"last_30_days" resolves to 30 calendar days including today', () => {
+    expect(resolveDeliveryDateBounds({ range: "last_30_days" })).toEqual({
+      fromIso: "2025-12-17T00:00:00.000Z",
+    });
+  });
+
+  it("the default (no range) preset matches last_30_days", () => {
+    expect(resolveDeliveryDateBounds({})).toEqual({
+      fromIso: "2025-12-17T00:00:00.000Z",
+    });
   });
 });
 

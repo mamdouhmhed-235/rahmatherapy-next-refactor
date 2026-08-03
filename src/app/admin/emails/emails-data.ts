@@ -322,6 +322,16 @@ function quoteOrValue(value: string) {
  * two calls can only disagree in the sub-second window that straddles UTC
  * midnight, an accepted, self-healing-on-navigation edge case (same category
  * as offset pagination's page-boundary risk elsewhere in this plan).
+ *
+ * Range semantics (fix round after C-16 Phase D Step 9): each preset means
+ * "the N calendar days up to and including today", counting from
+ * `todayStart` — NOT a rolling N×24h window from `now`. So "Today" is
+ * `todayStart` itself (1 calendar day: today), "Last 7 days" is
+ * `todayStart - 6 * day` (7 calendar days: today + 6 prior), and "Last 30
+ * days" is `todayStart - 29 * day` (30 calendar days: today + 29 prior).
+ * This is the conventional reading for dashboard date-range labels (e.g. GA)
+ * and keeps all three presets internally consistent with each other and with
+ * their labels in format.ts's `DATE_RANGE_PRESETS`.
  */
 export function resolveDeliveryDateBounds(
   filters: EmailDeliveryFilters
@@ -343,12 +353,12 @@ export function resolveDeliveryDateBounds(
   const todayStart = Math.floor(Date.now() / day) * day;
   switch (filters.range) {
     case "today":
-      return { fromIso: new Date(todayStart - day).toISOString() };
+      return { fromIso: new Date(todayStart).toISOString() };
     case "last_7_days":
-      return { fromIso: new Date(todayStart - 7 * day).toISOString() };
+      return { fromIso: new Date(todayStart - 6 * day).toISOString() };
     case "last_30_days":
     default:
-      return { fromIso: new Date(todayStart - 30 * day).toISOString() };
+      return { fromIso: new Date(todayStart - 29 * day).toISOString() };
   }
 }
 
