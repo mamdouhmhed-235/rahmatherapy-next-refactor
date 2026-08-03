@@ -145,6 +145,40 @@ export default async function ManageBookingPage({
           </aside>
         </section>
       </div>
+
+      {booking.settings.contactPhone || booking.settings.contactEmail ? (
+        <footer className="mx-auto mt-12 max-w-6xl border-t border-[var(--rahma-border)] pt-6 text-center text-sm text-[var(--rahma-muted)]">
+          <p>
+            Need help?{" "}
+            {booking.settings.contactPhone ? (
+              <>
+                Call us on{" "}
+                <a
+                  href={`tel:${booking.settings.contactPhone}`}
+                  className="font-medium text-[var(--rahma-charcoal)] underline underline-offset-4"
+                >
+                  {booking.settings.contactPhone}
+                </a>
+              </>
+            ) : null}
+            {booking.settings.contactPhone && booking.settings.contactEmail
+              ? " or "
+              : null}
+            {booking.settings.contactEmail ? (
+              <>
+                email{" "}
+                <a
+                  href={`mailto:${booking.settings.contactEmail}`}
+                  className="font-medium text-[var(--rahma-charcoal)] underline underline-offset-4"
+                >
+                  {booking.settings.contactEmail}
+                </a>
+              </>
+            ) : null}
+            .
+          </p>
+        </footer>
+      ) : null}
     </main>
   );
 }
