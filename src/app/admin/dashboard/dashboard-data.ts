@@ -33,6 +33,10 @@ import { TAGS } from "@/lib/cache/tag-taxonomy";
 export type DashboardVariant = "business" | "coordinator" | "therapist" | "blocked";
 export type DashboardBookingScope = "all" | "assigned_and_claimable" | "none";
 
+// C-07 Phase B2 (B-139) — the viewer-facing Team/Mine toggle. "team" is the
+// pre-C-07 behaviour and the default for every caller that doesn't pass one.
+export type DashboardActorScope = "team" | "mine";
+
 export interface DashboardQueryPlan {
   variant: DashboardVariant;
   bookingScope: DashboardBookingScope;
@@ -153,10 +157,16 @@ export function getDashboardQueryPlan(profile: StaffProfile | null): DashboardQu
 // + Sentry.startSpan. Tag list includes 'report-data' so dismissInsight (and any
 // other report-side mutation) invalidates dashboards too. The cache key includes
 // profile.id so RBAC-scoped datasets don't bleed across viewers.
+//
+// C-07 B2: `scope` is a fourth cache-key part. It MUST be — the actor id is
+// already in the key (so "mine" data can never be served to another viewer),
+// but without `scope` the same viewer's Team and Mine dashboards would share
+// one entry and whichever rendered first would answer for both.
 export async function getDashboardData(
   adminClient: SupabaseClient,
   profile: StaffProfile,
-  filters: ReportFilters
+  filters: ReportFilters,
+  scope: DashboardActorScope = "team"
 ): Promise<{ data: ReportData; plan: DashboardQueryPlan }> {
   const fetchCached = unstable_cache(
     () =>
@@ -164,11 +174,11 @@ export async function getDashboardData(
         {
           name: "getDashboardData",
           op: "db.query",
-          attributes: { profile_id: profile.id, range: filters.range },
+          attributes: { profile_id: profile.id, range: filters.range, scope },
         },
-        async () => getDashboardDataInner(adminClient, profile, filters)
+        async () => getDashboardDataInner(adminClient, profile, filters, scope)
       ),
-    ["dashboard-data", profile.id, JSON.stringify(filters)],
+    ["dashboard-data", profile.id, JSON.stringify(filters), scope],
     // C-09 Step 4: resource tags ADDED alongside the existing output-driven
     // 'dashboard-data' + 'report-data' tags (cache key untouched). The dashboard
     // assembles bookings + clients + enquiries + staff reads.
@@ -190,12 +200,18 @@ export async function getDashboardData(
 async function getDashboardDataInner(
   adminClient: SupabaseClient,
   profile: StaffProfile,
-  filters: ReportFilters
+  filters: ReportFilters,
+  scope: DashboardActorScope
 ): Promise<{ data: ReportData; plan: DashboardQueryPlan }> {
   const plan = getDashboardQueryPlan(profile);
   if (plan.bookingScope === "none") {
     return { data: emptyReportData(filters), plan };
   }
+
+  // C-07 B2 — "Mine" narrows this viewer's own work. It only applies to the
+  // `all` booking scope (Business/Coordinator); the therapist scope is already
+  // personal-plus-claimable and re-narrowing it would drop the claim queue.
+  const narrowToActor = scope === "mine" && plan.bookingScope === "all";
 
   const assignmentsForScope =
     plan.bookingScope === "assigned_and_claimable"
@@ -209,7 +225,9 @@ async function getDashboardDataInner(
   const scopeBookingIds =
     plan.bookingScope === "assigned_and_claimable"
       ? uniqueIds(assignmentsForScope.map((assignment) => assignment.booking_id))
-      : null;
+      : narrowToActor
+        ? await getActorAssignedBookingIds(adminClient, profile)
+        : null;
   const bookings = await getBookings(adminClient, filters, plan, scopeBookingIds);
   const bookingIds = uniqueIds(bookings.map((booking) => booking.id));
   const allAssignments =
@@ -267,14 +285,19 @@ async function getDashboardDataInner(
     finalBookings.map((booking) => booking.client_id).filter((id): id is string => Boolean(id))
   );
 
+  // C-07 B2 — under "Mine" the booking-linked event feeds narrow to the very
+  // bookings this render is showing, so a Mine dashboard can never report a
+  // team-wide failed-email or open-operation count. `null` = unnarrowed.
+  const actorBookingIds = narrowToActor ? [...finalBookingIds] : null;
+
   const [clients, staff, staffAvailabilityRuleStaffIds, enquiries, emailEvents, operationalEvents] =
     await Promise.all([
-      getClients(adminClient, plan, linkedClientIds),
+      getClients(adminClient, plan, linkedClientIds, narrowToActor),
       getStaff(adminClient, plan, profile),
       getStaffAvailabilityRuleIds(adminClient, plan, profile),
-      getEnquiries(adminClient, plan),
-      getEmailEvents(adminClient, plan),
-      getOperationalEvents(adminClient, plan),
+      getEnquiries(adminClient, plan, narrowToActor ? profile.id : null),
+      getEmailEvents(adminClient, plan, actorBookingIds),
+      getOperationalEvents(adminClient, plan, actorBookingIds),
     ]);
 
   return {
@@ -351,6 +374,23 @@ async function getTherapistScopeAssignments(
   return [...(assignedResult.data ?? []), ...activeClaimable];
 }
 
+// C-07 B2 — the "mine" booking set for a Business/Coordinator viewer. Same
+// ownership column the therapist scope uses (`booking_assignments
+// .assigned_staff_id`); an Owner who personally covers appointments has rows
+// here, one who doesn't gets `[]` and `getBookings` short-circuits to an empty
+// (correct, not silently team-wide) dashboard.
+async function getActorAssignedBookingIds(
+  adminClient: SupabaseClient,
+  profile: StaffProfile
+): Promise<string[]> {
+  const { data } = await adminClient
+    .from("booking_assignments")
+    .select("booking_id")
+    .eq("assigned_staff_id", profile.id)
+    .returns<{ booking_id: string }[]>();
+  return uniqueIds((data ?? []).map((assignment) => assignment.booking_id));
+}
+
 async function getBookings(
   adminClient: SupabaseClient,
   filters: ReportFilters,
@@ -409,16 +449,21 @@ async function getBookingItems(
 async function getClients(
   adminClient: SupabaseClient,
   plan: DashboardQueryPlan,
-  linkedClientIds: string[]
+  linkedClientIds: string[],
+  narrowToActor: boolean
 ) {
   if (!plan.includeClients) return [];
-  if (plan.includeClients === "linked" && linkedClientIds.length === 0) return [];
+  // C-07 B2 — "Mine" collapses the full client book to the clients on this
+  // viewer's own bookings, the same restriction the therapist plan already
+  // gets from `includeClients === "linked"`.
+  const restrictToLinked = plan.includeClients === "linked" || narrowToActor;
+  if (restrictToLinked && linkedClientIds.length === 0) return [];
 
   let query = adminClient
     .from("clients")
     .select("id, full_name, client_source, created_at");
 
-  if (plan.includeClients === "linked") {
+  if (restrictToLinked) {
     query = query.in("id", linkedClientIds);
   }
 
@@ -426,6 +471,13 @@ async function getClients(
   return data ?? [];
 }
 
+// DELIBERATELY NOT narrowed by C-07 B2's "Mine" (and its sibling
+// `getStaffAvailabilityRuleIds` with it): the roster is reference data, not
+// this viewer's work. `data.staff` populates the filter strip's staff
+// dropdown — narrowing it to one row would silently disable an unrelated
+// control — and the "Staff gaps" health row it feeds is a practice-wide
+// coverage signal that means nothing scoped to a single person. Both stay
+// team-wide in both scopes, and stay consistent with each other.
 async function getStaff(
   adminClient: SupabaseClient,
   plan: DashboardQueryPlan,
@@ -461,38 +513,68 @@ async function getStaffAvailabilityRuleIds(
   return [...new Set((data ?? []).map((rule) => rule.staff_id))];
 }
 
-async function getEnquiries(adminClient: SupabaseClient, plan: DashboardQueryPlan) {
+// `actorStaffId` non-null = "Mine". `enquiries.assigned_staff_id` is the same
+// ownership column `/admin/enquiries`'s own assignedStaff filter uses, so the
+// two surfaces agree on what "assigned to me" means.
+async function getEnquiries(
+  adminClient: SupabaseClient,
+  plan: DashboardQueryPlan,
+  actorStaffId: string | null
+) {
   if (!plan.includeEnquiries) return [];
-  const { data } = await adminClient
+  let query = adminClient
     .from("enquiries")
     .select("id, full_name, source, status, created_at")
     .order("created_at", { ascending: false });
+
+  if (actorStaffId) {
+    query = query.eq("assigned_staff_id", actorStaffId);
+  }
+
+  const { data } = await query;
   return data ?? [];
 }
 
+// `actorBookingIds` non-null = "Mine": restrict to events attached to the
+// bookings this render is showing. An empty array means the viewer has no
+// bookings in range, so there are no events to report either.
 async function getEmailEvents(
   adminClient: SupabaseClient,
-  plan: DashboardQueryPlan
+  plan: DashboardQueryPlan,
+  actorBookingIds: string[] | null
 ) {
   if (!plan.includeEmailEvents) return [];
-  const { data } = await adminClient
+  if (actorBookingIds && actorBookingIds.length === 0) return [];
+  let query = adminClient
     .from("email_delivery_events")
     .select("id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, error_message, created_at")
-    .order("created_at", { ascending: false })
-    .returns<EmailEvent[]>();
+    .order("created_at", { ascending: false });
+
+  if (actorBookingIds) {
+    query = query.in("booking_id", actorBookingIds);
+  }
+
+  const { data } = await query.returns<EmailEvent[]>();
   return data ?? [];
 }
 
 async function getOperationalEvents(
   adminClient: SupabaseClient,
-  plan: DashboardQueryPlan
+  plan: DashboardQueryPlan,
+  actorBookingIds: string[] | null
 ) {
   if (!plan.includeOperationalEvents) return [];
-  const { data } = await adminClient
+  if (actorBookingIds && actorBookingIds.length === 0) return [];
+  let query = adminClient
     .from("operational_events")
     .select("id, event_type, severity, status, summary, booking_id, staff_id, created_at")
-    .order("created_at", { ascending: false })
-    .returns<OperationalEvent[]>();
+    .order("created_at", { ascending: false });
+
+  if (actorBookingIds) {
+    query = query.in("booking_id", actorBookingIds);
+  }
+
+  const { data } = await query.returns<OperationalEvent[]>();
   return data ?? [];
 }
 

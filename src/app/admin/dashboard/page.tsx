@@ -15,7 +15,7 @@ import {
   parseReportFilters,
   summarizeReports,
 } from "../reports/reporting";
-import { getDashboardData } from "./dashboard-data";
+import { getDashboardData, type DashboardActorScope } from "./dashboard-data";
 import { buildDemandTrendData } from "./dashboard-helpers";
 import {
   getPriorStripeDateRange,
@@ -87,6 +87,15 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     paymentStatus: params.paymentStatus,
     city: params.city,
   });
+  // C-07 B2 (B-139) — the Team/Mine toggle's URL state. Absent/anything else
+  // means "team", the pre-C-07 behaviour. Only the main filter-strip fetch
+  // honours it: the Personal Contribution stripe below is already actor-scoped
+  // by `getStaffScorecard(profile.id)` and its prior-period comparison must
+  // keep measuring the same population in both scopes.
+  const scope: DashboardActorScope =
+    (Array.isArray(params.scope) ? params.scope[0] : params.scope) === "mine"
+      ? "mine"
+      : "team";
   const adminClient = createSupabaseAdminClient();
 
   // Personal Stripe (B-5 §5.1) period is independent of the filter strip; we
@@ -116,7 +125,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
     { data: stripeData },
     { data: stripePriorData },
   ] = await Promise.all([
-    getDashboardData(adminClient, profile, filters),
+    getDashboardData(adminClient, profile, filters, scope),
     getDashboardData(adminClient, profile, stripeFilters),
     getDashboardData(adminClient, profile, stripePriorFilters),
   ]);

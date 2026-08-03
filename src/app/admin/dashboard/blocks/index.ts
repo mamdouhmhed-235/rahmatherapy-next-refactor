@@ -48,3 +48,6 @@ export type {
 
 export { ScheduleGapStripe } from "./ScheduleGapStripe";
 export type { ScheduleGap, ScheduleGapStripeProps } from "./ScheduleGapStripe";
+
+export { DashboardScopeToggle } from "./DashboardScopeToggle";
+export type { DashboardScopeValue } from "./DashboardScopeToggle";

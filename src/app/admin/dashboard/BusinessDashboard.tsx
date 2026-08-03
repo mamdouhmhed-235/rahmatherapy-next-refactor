@@ -33,6 +33,7 @@ import { OperationsHealthCard } from "./dashboard-cards";
 // this is a re-point rather than a duplicate rendering.
 import {
   DashboardHeader,
+  DashboardScopeToggle,
   EnquiriesTodoStripe,
   MobileStickyActionBar,
   PendingBookingsStripe,
@@ -240,6 +241,13 @@ export function BusinessDashboard({
 
   const businessQuickHelpLinks = quickHelpLinksForBusiness(permissionAccess);
 
+  // C-07 B2 (B-139) — Team/Mine scope. Read from `preservedSearchParams`,
+  // which `page.tsx` already builds from the request's query string, so no new
+  // prop is threaded through the shared variant contract. This mount is the
+  // ONLY one: CoordinatorDashboard and TherapistDashboard never render the
+  // toggle, so Coordinators and Therapists cannot see it.
+  const scope = preservedSearchParams.scope === "mine" ? "mine" : "team";
+
   return (
     <>
     <PullToRefresh>
@@ -253,6 +261,10 @@ export function BusinessDashboard({
         updatedAtIso={new Date().toISOString()}
         scopeLabel={formatTodayScopeLabel(todayAppointments.length, nextSevenDays.length)}
       />
+
+      <div className="-mt-2 flex justify-end">
+        <DashboardScopeToggle currentScope={scope} />
+      </div>
 
       <LegacyDisclosureCleanup staffId={profile.id} />
 
