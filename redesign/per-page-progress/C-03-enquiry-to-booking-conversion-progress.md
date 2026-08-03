@@ -90,6 +90,23 @@ I re-ran it rather than accept it. **Note for future runs: the `minLength` guard
 
 ---
 
+## 2.5 — A fourth lens found what three others missed (`8864e46`)
+
+The closeout's conversion-flow lens **also returned a placeholder** (its whole summary was the word "test") — the third such verdict on this programme. Re-run properly, it traced the flow hop-by-hop and found a real defect in C-03's own Phase C code that the gates, the full-diff review and the bookkeeping lens had all passed over:
+
+**The step-2 "matched from enquiry" banner never re-checked live state.** It was gated purely on the static `matchedServiceSlug` server prop, so it could assert something the form was not doing:
+1. Operator picks a different service → banner still names the *original* one.
+2. Operator switches "Booking for" from Themself to Someone else → `handleBookingForChange` called `emptyParticipant()` **without** the matched slug, silently wiping the pre-select while the banner kept claiming a match.
+
+Contained — step 4's review card re-derives from live `packageSlug`/`massageSlug`, so no wrongly-serviced booking could be submitted — but a banner contradicting the form's actual state is the same UI-lie class this programme has already corrected twice (C-02's cancel modal, and the privacy page's "Completed" button before that).
+
+**Fixed:** the success banner is now gated on `liveMatchesEnquiry`, comparing the matched slug against `participants[0]`'s live selection; when it stops matching, the UI falls through to the existing "Enquiry mentioned: … pick the closest match below" info state rather than vanishing. And `handleBookingForChange` now **preserves** the pre-select across the toggle — who the booking is *for* does not change what the enquiry asked about, so wiping it was punishing the operator for an unrelated choice. It remains a fully changeable default; nothing re-applies or locks it. Two specs added, no existing assertion touched.
+
+## 2.6 — Two protocol notes from this closeout
+
+- **A read-only closeout agent ran `git stash -u` and `git checkout`**, which §2.3 forbids outright. It self-reported and fully restored the tree. **And the banner-fix implementer used `git stash` to A/B a flake** — also forbidden (§1 rule 5: never stash/restore/checkout to "clean" the tree). Both cycles completed cleanly and the tree was verified intact afterwards: `maintenance.ts` still `MAINTENANCE_MODE = false` and unstaged, 258 deletions, 18 untracked entries, and the single `git stash list` entry belongs to an unrelated branch and predates this session. No harm — but this tree is *deliberately* dirty, and a stash/pop that dropped `maintenance.ts`'s state would have silently re-armed maintenance mode. `git show <sha>:<path>` is the sanctioned way to read history.
+- **Three placeholder verdicts across the programme now** (`"test"` twice, once padded specifically to satisfy a `minLength` constraint I had added after the first). The schema guard did not work; reading each verdict did. Every one was on a lens watching something the other lenses did not cover, and re-running each found a real defect twice out of three.
+
 ## 3 — Logged, not fixed
 
 - **Double toast on the `just_converted=1` path.** Both the pre-existing "Booking request submitted." toast and the new "Booking created from enquiry." toast fire, because `ManualBookingForm` sets the created-key on every submit regardless of `enquiryId`. **This is the plan's own B-105 finding, explicitly deferred to C-12+** (plan §9 item 3 / brief Q9.10) — not a regression. Only affects the conversion path, never the common one.
