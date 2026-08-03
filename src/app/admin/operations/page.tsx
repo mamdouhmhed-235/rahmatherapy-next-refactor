@@ -10,8 +10,10 @@ import {
   AdminPageScaffold,
   AdminStat,
 } from "../components/admin-ui";
+import { PaginationBar } from "../components/PaginationBar";
+import { LOG_PAGE_SIZE } from "@/lib/pagination";
 import { OperationsBoard } from "./operations-board";
-import { getOperationsPageData } from "./operations-data";
+import { getOperationsEventsPage, getOperationsPageData, type OperationsFilters } from "./operations-data";
 
 export const metadata = {
   title: "Operational events - Rahma Therapy Admin",
@@ -72,18 +74,22 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
     severity || eventTypeFilter || statusFilter || fromDate || toDate || queryText
   );
 
-  // Unfiltered fetch — the open-errors/warnings/infos stat tiles and the
-  // event-type dropdown always reflect the WHOLE queue, not the current
-  // filter, so they're computed from this call regardless of the URL. When
-  // no filter is active this is the ONLY call (see below): same one query as
-  // before this step.
-  const { events: allEvents, hasError: unfilteredError } = await getOperationsPageData();
+  // Unfiltered, unpaged fetch — the open-errors/warnings/infos stat tiles and
+  // the event-type dropdown always reflect a WIDE (top-OPERATIONS_DEFAULT_LIMIT)
+  // read regardless of the current filter or page, same top-N approximation
+  // emails/page.tsx's badges document (C-16 Phase D Step 9's comment) —
+  // unaffected by the pager below. Its own `hasError` is no longer read: the
+  // "Open events by severity" section below gates on the paged/filtered
+  // fetch's `error` (unchanged from before this step).
+  const { events: allEvents } = await getOperationsPageData();
 
-  // Filtered fetch (C-09 Phase D Step 10) — server-side query, not the
-  // previous no-op filter form. Reuses the unfiltered call's cache entry
-  // when nothing is narrowing the view.
-  const { events, hasError: error } = filtersActive
-    ? await getOperationsPageData({
+  // ONE filter resolution feeds both the count and the rows query below (C-16
+  // Phase D Step 11) — `countOperationalEvents` used to take no filter
+  // arguments and count the whole table, which made a filtered board's "of N"
+  // readout describe the unfiltered table. `undefined` when no filter is
+  // active, matching `getOperationsPageData`'s own "no filters" cache entry.
+  const filtersForQuery: OperationsFilters | undefined = filtersActive
+    ? {
         severity: (["info", "warning", "error"] as const).includes(
           severity as "info" | "warning" | "error"
         )
@@ -98,8 +104,23 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
         q: queryText || undefined,
-      })
-    : { events: allEvents, hasError: unfilteredError };
+      }
+    : undefined;
+
+  // C-16 Phase D Step 11 — the board previously fetched a silent
+  // OPERATIONS_DEFAULT_LIMIT (300) cap with no pager. `getOperationsEventsPage`
+  // resolves the total from `filtersForQuery`, clamps `?page=` against the
+  // REAL page count, then fetches exactly that LOG_PAGE_SIZE (100) window.
+  const {
+    rows: events,
+    total,
+    page,
+    pageCount,
+    hasError: error,
+  } = await getOperationsEventsPage({
+    filters: filtersForQuery,
+    page: readParam(params, "page"),
+  });
 
   // Severity counts on the OPEN column (clear-the-queue metric) — always
   // from the unfiltered queue, same as the event-type dropdown above.
@@ -161,6 +182,25 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
     { key: "30d", label: "Last 30 days", from: last30Iso, to: todayIso },
   ];
   const activePreset = presets.find((p) => p.from === fromDate && p.to === toDate)?.key ?? (fromDate || toDate ? "custom" : null);
+
+  // C-16 Phase D Step 11 — page navigation keeps every other query param;
+  // `page` is the only one it rewrites. None of the filter/preset/clear
+  // hrefs above (`buildClearUrl`, `presetUrl`, the filter chips, the filter
+  // form) ever set `page`, so every filter change already drops it at its
+  // own source and the window resets when the result set changes (same
+  // discipline as bookings' Step 7 / privacy's Step 10).
+  const currentFilterParams = new URLSearchParams();
+  if (severity) currentFilterParams.set("severity", severity);
+  if (eventTypeFilter) currentFilterParams.set("event_type", eventTypeFilter);
+  if (statusFilter) currentFilterParams.set("status", statusFilter);
+  if (fromDate) currentFilterParams.set("from", fromDate);
+  if (toDate) currentFilterParams.set("to", toDate);
+  if (queryText) currentFilterParams.set("q", queryText);
+  const makeOperationsPageHref = (nextPage: number) => {
+    const p = new URLSearchParams(currentFilterParams);
+    p.set("page", String(nextPage));
+    return `/admin/operations?${p.toString()}`;
+  };
 
   return (
     <AdminPageScaffold>
@@ -398,7 +438,22 @@ export default async function OperationsPage({ searchParams }: OperationsPagePro
             </a>
           </div>
         ) : (
-          <OperationsBoard events={events} filtersActive={filtersActive} />
+          <>
+            <OperationsBoard
+              events={events}
+              filtersActive={filtersActive}
+              multiPage={pageCount > 1}
+            />
+            {/* C-16 Phase D Step 11 — the board previously fetched a silent
+                300-row cap; renders nothing at one page. */}
+            <PaginationBar
+              page={page}
+              pageCount={pageCount}
+              total={total}
+              pageSize={LOG_PAGE_SIZE}
+              makeHref={makeOperationsPageHref}
+            />
+          </>
         )}
       </>
     </AdminPageScaffold>

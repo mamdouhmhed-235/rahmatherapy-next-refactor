@@ -3,7 +3,6 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CheckCheck, Inbox } from "lucide-react";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
 import {
@@ -14,13 +13,23 @@ import {
 } from "../components/admin-ui";
 import { EmptyState } from "../components/EmptyState";
 import { RequestRow } from "./RequestRow";
+import {
+  countPasswordResetRequests,
+  getPasswordResetRequests,
+  PASSWORD_REQUESTS_LIMIT,
+  type PasswordResetRequest,
+} from "./password-requests-data";
 
 export const metadata: Metadata = {
   title: "Password-reset requests · Rahma",
 };
 
+// Re-exported so `RequestRow.tsx`'s `import type { PasswordResetRequest }
+// from "./page"` keeps resolving — the type now lives in
+// password-requests-data.ts (C-16 Phase D Step 12), page.tsx just re-exports it.
+export type { PasswordResetRequest };
+
 type StatusKey = "pending" | "approved" | "rejected" | "expired" | "all";
-type RowStatus = "pending" | "approved" | "rejected" | "expired" | "used";
 
 const STATUS_TABS: Array<{ key: StatusKey; label: string }> = [
   { key: "pending", label: "Pending" },
@@ -32,112 +41,6 @@ const STATUS_TABS: Array<{ key: StatusKey; label: string }> = [
 
 function isStatusKey(v: string | undefined): v is StatusKey {
   return v === "pending" || v === "approved" || v === "rejected" || v === "expired" || v === "all";
-}
-
-export interface PasswordResetRequest {
-  id: string;
-  email: string;
-  status: RowStatus;
-  created_at: string;
-  expires_at: string;
-  reviewed_at: string | null;
-  reviewed_by_name: string | null;
-  reviewer_note: string | null;
-}
-
-interface RawRequestRow {
-  id: string;
-  staff_id: string;
-  status: RowStatus;
-  requested_at: string;
-  created_at: string;
-  expires_at: string;
-  reviewed_at: string | null;
-  reviewed_by: string | null;
-  reviewer_note: string | null;
-}
-
-interface StaffEmailLookup {
-  id: string;
-  name: string | null;
-  auth_user_id: string;
-}
-
-async function loadPasswordResetRequests(): Promise<PasswordResetRequest[]> {
-  const adminClient = createSupabaseAdminClient();
-  const { data: rawRows, error } = await adminClient
-    .from("account_password_requests")
-    .select(
-      "id, staff_id, status, requested_at, created_at, expires_at, reviewed_at, reviewed_by, reviewer_note"
-    )
-    .order("requested_at", { ascending: false })
-    .returns<RawRequestRow[]>();
-
-  if (error || !rawRows) {
-    if (error) console.error("loadPasswordResetRequests db error:", error);
-    return [];
-  }
-  if (rawRows.length === 0) return [];
-
-  const staffIds = Array.from(
-    new Set(
-      rawRows.flatMap((row) =>
-        [row.staff_id, row.reviewed_by].filter((v): v is string => Boolean(v))
-      )
-    )
-  );
-
-  const { data: staffRows } = await adminClient
-    .from("staff_profiles")
-    .select("id, name, auth_user_id")
-    .in("id", staffIds)
-    .returns<StaffEmailLookup[]>();
-
-  const staffById = new Map<string, StaffEmailLookup>(
-    (staffRows ?? []).map((staff) => [staff.id, staff])
-  );
-
-  const authUserIds = new Set(
-    (staffRows ?? [])
-      .map((s) => s.auth_user_id)
-      .filter((v): v is string => Boolean(v))
-  );
-
-  // The `auth` schema isn't exposed via PostgREST. Use the Auth admin API,
-  // page through (single page covers any realistic staff list), and build
-  // the lookup map client-side.
-  const emailByAuthUserId = new Map<string, string>();
-  if (authUserIds.size > 0) {
-    const { data: list, error: listError } =
-      await adminClient.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (listError) {
-      console.error("loadPasswordResetRequests listUsers error:", listError);
-    } else {
-      for (const u of list.users) {
-        if (u.id && authUserIds.has(u.id) && u.email) {
-          emailByAuthUserId.set(u.id, u.email);
-        }
-      }
-    }
-  }
-
-  return rawRows.map((row) => {
-    const requester = staffById.get(row.staff_id);
-    const reviewer = row.reviewed_by ? staffById.get(row.reviewed_by) : null;
-    const email = requester
-      ? emailByAuthUserId.get(requester.auth_user_id) ?? "(unknown email)"
-      : "(unknown staff)";
-    return {
-      id: row.id,
-      email,
-      status: row.status,
-      created_at: row.requested_at ?? row.created_at,
-      expires_at: row.expires_at,
-      reviewed_at: row.reviewed_at,
-      reviewed_by_name: reviewer?.name ?? null,
-      reviewer_note: row.reviewer_note,
-    };
-  });
 }
 
 function filterByStatus(rows: PasswordResetRequest[], status: StatusKey): PasswordResetRequest[] {
@@ -199,7 +102,7 @@ function emptyStateCopy(status: StatusKey) {
 }
 
 interface PageProps {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; all?: string }>;
 }
 
 export default async function AccountPasswordRequestsPage({ searchParams }: PageProps) {
@@ -223,12 +126,30 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
   const params = await searchParams;
   const rawStatus = params.status;
   const status: StatusKey = isStatusKey(rawStatus) ? rawStatus : "pending";
+  // C-16 Phase D Step 12 — cap+view-all toggle. `?all=1` raises the fetch
+  // from PASSWORD_REQUESTS_LIMIT to PASSWORD_REQUESTS_VIEW_ALL_CAP.
+  const viewAll = params.all === "1";
 
-  const rows = await loadPasswordResetRequests();
-  const pendingCount = rows.filter((r) => r.status === "pending").length;
+  const rows = await getPasswordResetRequests({ viewAll });
+  // Real head-counts (C-16 Step 12), not derived from the possibly-capped
+  // `rows` fetch above: `totalCount` is the true table size (used below to
+  // tell whether the cap is hiding anything), and `pendingCount` — the tab
+  // badge staff actually act on — is exact regardless of the cap (though in
+  // practice "pending" never approaches the cap: a request expires 24h after
+  // creation, so it's always inside the most-recent window anyway).
+  const totalCount = await countPasswordResetRequests();
+  const pendingCount = await countPasswordResetRequests("pending");
+  const hasHiddenRequests = totalCount > rows.length;
 
   const canOpenAudit = profile.permissions.has(PERMISSIONS.MANAGE_AUDIT_LOGS);
   const reviewerName = profile.name ?? "you";
+
+  // Preserve the active tab across the view-all toggle.
+  const tabQueryParam = status === "pending" ? null : `status=${status}`;
+  const viewAllHref = `/admin/account-password-requests?${[tabQueryParam, "all=1"].filter(Boolean).join("&")}`;
+  const recentHref = tabQueryParam
+    ? `/admin/account-password-requests?${tabQueryParam}`
+    : "/admin/account-password-requests";
 
   return (
     <div className="mx-auto w-full max-w-[68rem] space-y-5 sm:space-y-6">
@@ -236,6 +157,30 @@ export default async function AccountPasswordRequestsPage({ searchParams }: Page
         title="Password-reset requests"
         description="Approve or reject staff requests to reset their password. Approval sends a one-time link to the requester's email."
       />
+
+      {hasHiddenRequests ? (
+        <p className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 py-2 text-xs text-[var(--admin-text-muted)]">
+          Showing the {PASSWORD_REQUESTS_LIMIT} most recent requests of {totalCount} total. Older
+          requests won&apos;t appear in any tab until you{" "}
+          <Link
+            href={viewAllHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            view all {totalCount}
+          </Link>
+          .
+        </p>
+      ) : viewAll && totalCount > PASSWORD_REQUESTS_LIMIT ? (
+        <p className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-3 py-2 text-xs text-[var(--admin-text-muted)]">
+          Showing all {totalCount} requests.{" "}
+          <Link
+            href={recentHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Show recent {PASSWORD_REQUESTS_LIMIT} only
+          </Link>
+        </p>
+      ) : null}
 
       <nav aria-label="Filter by request status">
         <ul className="-mx-1 flex list-none flex-nowrap items-center gap-0.5 overflow-x-auto px-1 pb-1 sm:gap-1 sm:flex-wrap sm:overflow-visible">

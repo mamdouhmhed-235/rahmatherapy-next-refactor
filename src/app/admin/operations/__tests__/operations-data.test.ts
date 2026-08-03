@@ -20,9 +20,11 @@ vi.mock("@/lib/supabase/admin", () => ({
 const { createFakeAdminClient } = await import(
   "@/lib/cache/__tests__/fake-supabase-admin"
 );
-const { getOperationsPageData, countOperationalEvents } = await import(
-  "../operations-data"
-);
+const {
+  getOperationsPageData,
+  countOperationalEvents,
+  getOperationsEventsPage,
+} = await import("../operations-data");
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
 
 function stubClient() {
@@ -144,5 +146,124 @@ describe("getOperationsPageData filter-wiring cache behaviour", () => {
     cacheHarness.invalidateTag(TAGS.AUDIT);
     await getOperationsPageData({ severity: "error" });
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+});
+
+// C-16 Phase D Step 11 — `countOperationalEvents` used to take no filter
+// arguments and count the WHOLE table, so a filtered board's "of N" readout
+// could describe a different query than the rows it was paginating. It must
+// build its WHERE clause through the exact same sequence as
+// `getOperationsPageData`.
+describe("countOperationalEvents honours the same filters as getOperationsPageData", () => {
+  it("applies the identical eq/gte/lte/ilike sequence to the count query and the rows query", async () => {
+    const filters = {
+      severity: "error" as const,
+      eventType: "email_failed",
+      status: "open" as const,
+      fromDate: "2026-01-01",
+      toDate: "2026-01-31",
+      q: "timeout",
+    };
+
+    function recordingChain(calls: string[]) {
+      const chain: Record<string, unknown> = {};
+      chain.select = () => chain;
+      chain.order = () => chain;
+      chain.eq = (column: string, value: string) => {
+        calls.push(`eq:${column}:${value}`);
+        return chain;
+      };
+      chain.gte = (column: string, value: string) => {
+        calls.push(`gte:${column}:${value}`);
+        return chain;
+      };
+      chain.lte = (column: string, value: string) => {
+        calls.push(`lte:${column}:${value}`);
+        return chain;
+      };
+      chain.ilike = (column: string, value: string) => {
+        calls.push(`ilike:${column}:${value}`);
+        return chain;
+      };
+      chain.range = () => chain;
+      chain.returns = async () => ({ data: [], error: null });
+      chain.then = (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({ count: 0, error: null }).then(resolve);
+      return chain;
+    }
+
+    const countCalls: string[] = [];
+    createSupabaseAdminClient.mockImplementation(() => ({
+      from: () => recordingChain(countCalls),
+    }));
+    await countOperationalEvents(filters);
+
+    cacheHarness.clear();
+    const rowCalls: string[] = [];
+    createSupabaseAdminClient.mockImplementation(() => ({
+      from: () => recordingChain(rowCalls),
+    }));
+    await getOperationsPageData(filters);
+
+    expect(countCalls.length).toBeGreaterThan(0);
+    expect(countCalls).toEqual(rowCalls);
+  });
+});
+
+describe("getOperationsEventsPage", () => {
+  it("clamps a stale ?page=99 to the last real page", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        operational_events: { data: [], error: null, count: 250 },
+      })
+    );
+    // count 250; LOG_PAGE_SIZE (100) => 3 pages.
+    const result = await getOperationsEventsPage({ page: 99 });
+    expect(result.pageCount).toBe(3);
+    expect(result.page).toBe(3);
+    expect(result.total).toBe(250);
+  });
+
+  it("computes pageCount 1 (pager renders nothing) when the total fits on one page", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        operational_events: { data: [], error: null, count: 12 },
+      })
+    );
+    const result = await getOperationsEventsPage({});
+    expect(result.pageCount).toBe(1);
+    expect(result.page).toBe(1);
+    expect(result.total).toBe(12);
+  });
+
+  it("total describes the SAME filters as rows — a filtered count never leaks the unfiltered total", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        operational_events: { data: [], error: null, count: 42 },
+      })
+    );
+    const unfiltered = await getOperationsEventsPage({});
+    cacheHarness.clear();
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        operational_events: { data: [], error: null, count: 5 },
+      })
+    );
+    const filtered = await getOperationsEventsPage({
+      filters: { severity: "error" },
+    });
+    expect(unfiltered.total).toBe(42);
+    expect(filtered.total).toBe(5);
+  });
+
+  it("reports hasError as a boolean sourced from the rows query", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        operational_events: { data: null, error: { message: "boom" }, count: 0 },
+      })
+    );
+    const result = await getOperationsEventsPage({});
+    expect(result.hasError).toBe(true);
+    expect(result.rows).toEqual([]);
   });
 });

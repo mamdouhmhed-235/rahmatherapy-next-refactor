@@ -15,8 +15,14 @@ interface OperationsBoardProps {
   events: OperationalEventRow[];
   /** Whether the active filter strip currently has any non-default value applied. */
   filtersActive: boolean;
-  /** Initial per-column display cap; rows beyond this collapse behind "Load more". */
-  initialPageSize?: number;
+  /**
+   * True when the server pager (C-16 Phase D Step 11) has more than one
+   * page for the current filters — i.e. `events` is a WINDOW, not the whole
+   * result set. Softens a column's empty-state copy: "nothing open" reads as
+   * a global claim, but on a multi-page board it may just mean this status's
+   * events landed on a different page (see the empty-state note below).
+   */
+  multiPage?: boolean;
 }
 
 type ColumnKey = "open" | "acknowledged" | "resolved";
@@ -60,20 +66,13 @@ const COLUMN_KEYBOARD_MAP: Record<string, ColumnKey> = {
   r: "resolved",
 };
 
-const DEFAULT_PAGE_SIZE = 50;
-
 export function OperationsBoard({
   events,
   filtersActive,
-  initialPageSize = DEFAULT_PAGE_SIZE,
+  multiPage = false,
 }: OperationsBoardProps) {
   const router = useRouter();
   const [columnOverride, setColumnOverride] = useState<Map<string, ColumnKey>>(new Map());
-  const [pageSize, setPageSize] = useState<Record<ColumnKey, number>>({
-    open: initialPageSize,
-    acknowledged: initialPageSize,
-    resolved: initialPageSize,
-  });
   const [activeTab, setActiveTab] = useState<ColumnKey>("open");
   const [bulkResolving, setBulkResolving] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
@@ -294,8 +293,6 @@ export function OperationsBoard({
           const column = columnMeta[key];
           const isActiveOnMobile = activeTab === key;
           const allRows = grouped[key];
-          const visibleRows = allRows.slice(0, pageSize[key]);
-          const hasMore = allRows.length > visibleRows.length;
           return (
             <section
               key={key}
@@ -367,14 +364,33 @@ export function OperationsBoard({
                 <div className="rounded-[var(--admin-radius-control)] bg-[var(--admin-panel)]/60 px-3 py-6">
                   <EmptyState
                     icon={key === "open" ? ShieldCheck : key === "acknowledged" ? Eye : Inbox}
-                    title={column.emptyTitle}
-                    message={column.emptyMessage}
+                    title={multiPage ? `${column.label}: none on this page` : column.emptyTitle}
+                    message={
+                      multiPage
+                        ? "There may be more on another page — check the pager below."
+                        : column.emptyMessage
+                    }
                     compact
                   />
                 </div>
               ) : (
                 <div className="grid gap-2.5">
-                  {visibleRows.map((event) => (
+                  {/* C-16 Phase D Step 11 — every row already fetched for THIS
+                      server page is rendered; there is no second, client-side
+                      "Load more" cap here anymore. Before the pager existed,
+                      each column silently capped itself at 50 visible rows
+                      (with a "Load more" that only ever revealed rows already
+                      downloaded) as its own anti-sprawl measure. Now that the
+                      server pager bounds the whole board to LOG_PAGE_SIZE
+                      (100) rows per page, that per-column cap would sit
+                      INSIDE an already-bounded window and add a second "more"
+                      affordance with different semantics from the real one
+                      below the board — clicking it never fetches anything,
+                      it only un-hides rows that were already in memory, which
+                      reads as "there's more data" when the server page
+                      boundary is the actual limit. Removed; the pager below
+                      is the single source of truth for "there is more". */}
+                  {allRows.map((event) => (
                     <EventRow
                       key={event.id}
                       event={event}
@@ -383,20 +399,6 @@ export function OperationsBoard({
                       onTransitionFailed={handleTransitionFailed}
                     />
                   ))}
-                  {hasMore ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPageSize((prev) => ({
-                          ...prev,
-                          [key]: prev[key] + DEFAULT_PAGE_SIZE,
-                        }))
-                      }
-                      className="mt-1 inline-flex min-h-9 w-full items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-3 text-xs font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-                    >
-                      Load more ({allRows.length - visibleRows.length} hidden)
-                    </button>
-                  ) : null}
                 </div>
               )}
             </section>
