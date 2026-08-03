@@ -30,8 +30,10 @@ import {
 import { getTodayIsoDate } from "./_helpers";
 import { formatDate } from "./format";
 import {
+  bookingListFiltersFromQuery,
   getBookingsChromeData,
-  getBookingsListData,
+  getBookingsListPage,
+  type BookingsListPage,
 } from "./bookings-list-data";
 import type { BookingRecord } from "./types";
 
@@ -300,9 +302,13 @@ async function BookingListSection({
   }
   const retryHref = `/admin/bookings?${retryParams.toString()}`;
 
-  let bookings: BookingRecord[];
+  let listPage: BookingsListPage;
   try {
-    bookings = await getBookingsListData({ profile, canViewAll });
+    listPage = await getBookingsListPage({
+      profile,
+      canViewAll,
+      filters: bookingListFiltersFromQuery(query, currentView),
+    });
   } catch (loadError) {
     // Surface to Sentry / dev console; swallowing the error leaves the
     // crash invisible in production telemetry.
@@ -326,7 +332,16 @@ async function BookingListSection({
     );
   }
 
-  const filteredBookings = filterBookings(bookings, query, profile, currentView);
+  // C-16 Phase C Step 5 — the clinic-wide branch now selects in SQL through
+  // `buildBookingPredicatePlan`, so its rows arrive already filtered and
+  // already windowed to one page; re-running `filterBookings` over them would
+  // narrow a page the count query said was full and make the readout lie.
+  // The therapist-scoped branch is NOT paged (two id-bounded reads merged in
+  // memory), so it keeps the oracle — which is also what the parity spec
+  // measures the SQL plan against.
+  const filteredBookings = canViewAll
+    ? listPage.rows
+    : filterBookings(listPage.rows, query, profile, currentView);
 
   const searchValue = getQueryValue(query.search);
   const nonSearchFilterNames = [
