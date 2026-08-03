@@ -22,10 +22,11 @@ import {
 } from "@/lib/auth/rbac";
 import {
   getEmailsPageData,
-  getFilteredDeliveryEvents,
+  getEmailDeliveryPage,
   type EmailEvent,
   type ReminderBooking,
 } from "./emails-data";
+import { LOG_PAGE_SIZE } from "@/lib/pagination";
 import { TemplateGallery, type TemplateGalleryBadge } from "./components/TemplateGallery";
 import { findTemplate } from "./components/templates-data";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ import {
   AdminStatusBadge,
 } from "../components/admin-ui";
 import { EmptyState } from "../components/EmptyState";
+import { PaginationBar } from "../components/PaginationBar";
 import { DeliveryFilterStrip } from "./DeliveryFilterStrip";
 import { CopyEventId } from "./CopyEventId";
 import { ReminderResendForm } from "./ReminderResendForm";
@@ -98,6 +100,8 @@ interface PageProps {
     range?: string;
     from?: string;
     to?: string;
+    /** C-16 Phase D Step 9 — 1-based delivery-feed page, clamped server-side. */
+    page?: string;
     /** C-15 Phase E, Step 18 — old in-tab editor deep link (pre-gallery
      *  TemplatesTab wrote `?tab=templates&templateId=<id>` to the URL and
      *  sessionStorage). Redirected to the editor route below rather than
@@ -143,7 +147,8 @@ export default async function EmailsPage({ searchParams }: PageProps) {
 
   // ── Data reads ────────────────────────────────────────────────────────────
   // 5-step filter audit (brief §2.4): (1) URL parsed below (deliveryFilters);
-  // (2) passed into getFilteredDeliveryEvents; (3) applied server-side in
+  // (2) passed into getEmailDeliveryPage (which threads it into both
+  // getFilteredDeliveryEvents and countEmailDeliveryEvents); (3) applied server-side in
   // emails-data.ts (.eq/.gte/.lte/.or-ilike); (4) filter UI defaults from
   // these same URL-derived values (DeliveryFilterStrip's initialValues); (5)
   // empty-state copy already distinguished filtered-empty from no-data
@@ -220,18 +225,36 @@ export default async function EmailsPage({ searchParams }: PageProps) {
     q: q, // pass the raw value through to the client so it can render the too-short hint
   };
 
-  // Server-side delivery query (C-09 Phase D Step 11) — a second, focused
-  // fetcher (see emails-data.ts's FILTERS note) rather than an in-memory
-  // slice over the top-100 `allEvents` read above.
-  const filteredDelivery = canSeeDelivery
-    ? await getFilteredDeliveryEvents({
+  // Server-side delivery query (C-09 Phase D Step 11 / C-16 Phase D Step 9) —
+  // a second, focused fetcher (see emails-data.ts's FILTERS/PAGER notes)
+  // rather than an in-memory slice over the top-100 `allEvents` read above.
+  // `getEmailDeliveryPage` resolves the count and the rows from the SAME
+  // `deliveryFilters`, so the pager's total can never disagree with the rows.
+  const deliveryPage = canSeeDelivery
+    ? await getEmailDeliveryPage({
         canSeeDelivery,
         filters: deliveryFilters,
-        limit: PAGE_SIZE,
+        page: params.page,
       })
-    : { events: [] as EmailEvent[], deliveryError: null };
-  const filteredEvents = filteredDelivery.events;
-  const combinedDeliveryError = deliveryError ?? filteredDelivery.deliveryError;
+    : { rows: [] as EmailEvent[], total: 0, page: 1, pageCount: 1, deliveryError: null };
+  const filteredEvents = deliveryPage.rows;
+  const combinedDeliveryError = deliveryError ?? deliveryPage.deliveryError;
+
+  // C-16 Phase D Step 9 — page navigation keeps every other query param;
+  // `page` is the only one it rewrites. The filter strip's own URL builder
+  // (DeliveryFilterStrip's `toUrl`) never sets `page`, so every filter change
+  // drops it at its own source and the window resets when the result set
+  // changes (same discipline as bookings' Step 7).
+  const deliveryRetryParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "page") continue;
+    if (typeof value === "string" && value.length > 0) deliveryRetryParams.set(key, value);
+  }
+  const makeDeliveryPageHref = (nextPage: number) => {
+    const p = new URLSearchParams(deliveryRetryParams);
+    p.set("page", String(nextPage));
+    return `/admin/emails?${p.toString()}`;
+  };
 
   // Failed-in-last-24h count for the Delivery tab badge.
   const failedRecent = countFailedRecent(allEvents);
@@ -281,11 +304,15 @@ export default async function EmailsPage({ searchParams }: PageProps) {
           filters={initialFilters}
           deliveryFilters={deliveryFilters}
           events={filteredEvents}
+          total={deliveryPage.total}
           totalLoaded={allEvents.length}
           deliveryError={combinedDeliveryError}
           allowAdminRecipient={allowAdminRecipient}
           searchAttemptedTooShort={q.length > 0 && q.length < SEARCH_MIN_CHARS}
           canResend={canResend}
+          page={deliveryPage.page}
+          pageCount={deliveryPage.pageCount}
+          makeHref={makeDeliveryPageHref}
         />
       ) : null}
 
@@ -376,20 +403,29 @@ function DeliveryTab({
   filters,
   deliveryFilters,
   events,
+  total,
   totalLoaded,
   deliveryError,
   allowAdminRecipient,
   searchAttemptedTooShort,
   canResend,
+  page,
+  pageCount,
+  makeHref,
 }: {
   filters: DeliveryFilters;
   deliveryFilters: DeliveryFilters;
   events: EmailEvent[];
+  /** Real count matching `deliveryFilters` (C-16 Step 9) — the pager's total. */
+  total: number;
   totalLoaded: number;
   deliveryError: { message: string } | null;
   allowAdminRecipient: boolean;
   searchAttemptedTooShort: boolean;
   canResend: boolean;
+  page: number;
+  pageCount: number;
+  makeHref: (page: number) => string;
 }) {
   const anyFilter = hasAnyDeliveryFilter(deliveryFilters);
 
@@ -438,12 +474,18 @@ function DeliveryTab({
           searchAttemptedTooShort={searchAttemptedTooShort}
         />
       ) : (
-        <DayGroupedFeed
-          events={events}
-          totalLoaded={totalLoaded}
-          anyFilter={anyFilter}
-          canResend={canResend}
-        />
+        <>
+          <DayGroupedFeed events={events} total={total} anyFilter={anyFilter} canResend={canResend} />
+          {/* C-16 Phase D Step 9 — replaces the FAKE "most recent 100" notice
+              with the real pager; renders nothing at one page. */}
+          <PaginationBar
+            page={page}
+            pageCount={pageCount}
+            total={total}
+            pageSize={LOG_PAGE_SIZE}
+            makeHref={makeHref}
+          />
+        </>
       )}
     </div>
   );
@@ -513,15 +555,21 @@ function DeliveryEmpty({
 
 function DayGroupedFeed({
   events,
-  totalLoaded,
+  total,
   anyFilter,
   canResend,
 }: {
   events: EmailEvent[];
-  totalLoaded: number;
+  /** Real count matching the active filters (C-16 Step 9), not just what's on this page. */
+  total: number;
   anyFilter: boolean;
   canResend: boolean;
 }) {
+  // C-16 Phase D Step 9 — `events` is now one PAGE of a possibly-larger
+  // filtered set, not the whole loaded pool: a calendar day that straddles a
+  // page boundary is split across two renders of this component, each
+  // showing only its own page's share of that day under a full-looking day
+  // header (see the plan's accepted risk — same category as the audit log).
   const groups: { key: string; label: string; events: EmailEvent[] }[] = [];
   for (const event of events) {
     const key = dayKey(event.created_at);
@@ -539,20 +587,10 @@ function DayGroupedFeed({
         className="-mb-3 text-sm leading-6 text-[var(--admin-text-muted)] [font-variant-numeric:tabular-nums]"
         aria-live="polite"
       >
-        {anyFilter ? (
-          <>
-            Showing{" "}
-            <span className="font-semibold text-[var(--admin-heading)]">{events.length}</span> of{" "}
-            <span className="font-semibold text-[var(--admin-heading)]">{totalLoaded}</span> recent
-            events
-          </>
-        ) : (
-          <>
-            Showing{" "}
-            <span className="font-semibold text-[var(--admin-heading)]">{events.length}</span>{" "}
-            recent events
-          </>
-        )}
+        Showing{" "}
+        <span className="font-semibold text-[var(--admin-heading)]">{events.length}</span> of{" "}
+        <span className="font-semibold text-[var(--admin-heading)]">{total}</span>{" "}
+        {anyFilter ? "matching events" : "events"}
       </p>
 
       {groups.map((group) => {
@@ -600,25 +638,6 @@ function DayGroupedFeed({
           </AdminPanel>
         );
       })}
-
-      {totalLoaded >= PAGE_SIZE ? (
-        <div
-          className="grid gap-2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/40 p-4 text-center"
-          data-redesign-backend="FAKE"
-        >
-          <div className="flex items-center justify-center gap-2">
-            <p className="text-sm font-medium text-[var(--admin-heading)]">
-              Showing the most recent {PAGE_SIZE} events
-            </p>
-            <span className="inline-flex items-center rounded-full bg-[oklch(96.0%_0.038_75)] px-2 py-0.5 text-[0.6875rem] font-semibold uppercase tracking-[0.04em] text-[oklch(28%_0.120_55)]">
-              BUILD pending
-            </span>
-          </div>
-          <p className="text-xs text-[var(--admin-text-muted)]">
-            Load more arrives with the cursor-pagination backend.
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -17,7 +17,11 @@ import {
 import { EmptyState } from "../components/EmptyState";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
-  getPrivacyPageData,
+  countPrivacyRequests,
+  countSensitiveNotes,
+  getOldestOpenPrivacyRequest,
+  getPrivacyRequestsPage,
+  PRIVACY_NOTES_LIMIT,
   type PrivacyClientSummary,
   type PrivacyQueueFilters,
   type PrivacyRequestRecord as PrivacyRequestRow,
@@ -30,6 +34,8 @@ import {
   hasPermission,
   PERMISSIONS,
 } from "@/lib/auth/rbac";
+import { LIST_PAGE_SIZE } from "@/lib/pagination";
+import { PaginationBar } from "../components/PaginationBar";
 import { formatDateTime } from "../clients/format";
 import { PrivacyStatusForm } from "./PrivacyStatusForm";
 import { PrivacyFilterBar, type PrivacyFilterValues } from "./PrivacyFilterBar";
@@ -294,35 +300,37 @@ export default async function PrivacyPage({
       queueFilters.toDate ||
       queueFilters.q
   );
+  // C-16 Phase D Step 10 — ONE resolution feeds both the count query below
+  // and the rows query, so the pager's total can never describe a different
+  // WHERE clause than the queue it's paginating (same discipline Phase C
+  // used for bookings). `undefined` when no filter is active — matches
+  // `getPrivacyPageData`'s own "no filters" cache entry exactly.
+  const filtersForQueue: PrivacyQueueFilters | undefined = hasActiveFilters
+    ? queueFilters
+    : undefined;
 
-  // Unfiltered fetch — the "Open requests" / "Awaiting longest" stat tiles
-  // always reflect the WHOLE queue, not the current filter, and `clients` /
-  // `staff` need to cover every request those unfiltered stats reference.
-  const base = await getPrivacyPageData({
+  const notesViewAll = readParam(params, "notes") === "all";
+
+  // C-16 Phase D Step 10 — the request queue previously carried NO bound at
+  // all (no `.limit()`, no `.range()`); `getPrivacyRequestsPage` (privacy-
+  // data.ts) resolves the total and clamps `?page=` against it, then fetches
+  // exactly that window — replacing the old base/filteredResult double read
+  // (the "unfiltered call" WAS the unbounded query). Covers this page's
+  // queue rows, the sensitive-notes rail, and the clients/staff lookups both
+  // need.
+  const { data: pagedResult, total, page, pageCount } = await getPrivacyRequestsPage({
     canManagePrivacyOperations,
     canViewSensitiveNotes,
     canViewContactDetails,
+    filters: filtersForQueue,
+    notesViewAll,
+    page: readParam(params, "page"),
   });
 
-  // Filtered fetch (C-09 Phase D Step 12) — server-side query, not a no-op
-  // filter form. Reuses the unfiltered call's cache entry when nothing is
-  // narrowing the view, so the default view still costs exactly one query.
-  const filteredResult = hasActiveFilters
-    ? await getPrivacyPageData({
-        canManagePrivacyOperations,
-        canViewSensitiveNotes,
-        canViewContactDetails,
-        filters: queueFilters,
-      })
-    : base;
-
-  const requests = filteredResult.requests;
-  const queueLoadFailed = filteredResult.queueLoadFailed;
-  // `notes`/`clients`/`staff` always come from the unfiltered call: `clients`
-  // and `staff` there cover every id the unfiltered stats below reference
-  // (a superset of anything the filtered `requests` could need), and `notes`
-  // (the sensitive-notes rail) has no filter UI of its own.
-  const { notes, clients, staff: staffProfiles } = base;
+  const requests = pagedResult.requests;
+  const queueLoadFailed = pagedResult.queueLoadFailed;
+  const { notes, clients, staff: staffProfiles } = pagedResult;
+  const notesTotal = canViewSensitiveNotes ? await countSensitiveNotes() : 0;
 
   // Maps rebuilt on THIS side of the cache boundary — privacy-data.ts returns
   // plain arrays because a Map would come back as {} (SHARED-NOTES §15).
@@ -334,7 +342,7 @@ export default async function PrivacyPage({
     staffProfiles.map((staff) => [staff.id, staff.full_name])
   );
 
-  // ─── Group requests by status (from the possibly-filtered `requests`) ─────
+  // ─── Group requests by status (this page of the possibly-filtered queue) ──
   const requestsByStatus = new Map<string, PrivacyRequestRecord[]>();
   for (const panel of STATUS_PANELS) {
     requestsByStatus.set(panel.value, []);
@@ -344,21 +352,19 @@ export default async function PrivacyPage({
     if (bucket) bucket.push(request);
   }
 
-  // ─── Stat-strip computations (always from the UNFILTERED `base.requests`) ─
-  const baseByStatus = new Map<string, PrivacyRequestRecord[]>();
-  for (const request of base.requests) {
-    const bucket = baseByStatus.get(request.status) ?? [];
-    bucket.push(request);
-    baseByStatus.set(request.status, bucket);
-  }
-  const openRequests = [
-    ...(baseByStatus.get("open") ?? []),
-    ...(baseByStatus.get("reviewing") ?? []),
-  ];
-  const oldestOpen = [...openRequests].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  )[0];
-  const oldestOpenDays = oldestOpen ? daysSince(oldestOpen.created_at) : 0;
+  // ─── Stat-strip computations ───────────────────────────────────────────────
+  // C-16 Phase D Step 10 — these used to reduce over an unfiltered, unbounded
+  // fetch of the WHOLE table (the exact "never carried any bound" defect this
+  // step removes). "Open requests" is a backlog-sized count and "oldest open"
+  // a 1-row read — both independent of whatever filter/page is active, same
+  // as before.
+  const openRequestsCount = canManagePrivacyOperations
+    ? await countPrivacyRequests({ statuses: ["open", "reviewing"] })
+    : 0;
+  const oldestOpenRequest = await getOldestOpenPrivacyRequest(
+    canManagePrivacyOperations
+  );
+  const oldestOpenDays = oldestOpenRequest ? daysSince(oldestOpenRequest.createdAt) : 0;
 
   const monthStart = startOfThisMonth();
   const notesReviewedThisMonth = notes.filter(
@@ -369,6 +375,37 @@ export default async function PrivacyPage({
   // independent of whatever filter is currently applied.
   const openHref = "/admin/privacy?status=open,reviewing";
   const oldestHref = "/admin/privacy?status=open&sort=created_at_asc";
+
+  // C-16 Phase D Step 10 — page navigation keeps every other query param;
+  // `page` is the only one it rewrites. PrivacyFilterBar's own URL builder
+  // (`buildHref`) never sets `page`, so every filter change drops it at its
+  // own source and the window resets when the result set changes (same
+  // discipline as bookings' Step 7 / emails' Step 9).
+  const queueRetryParams = new URLSearchParams();
+  for (const [key, raw] of Object.entries(params)) {
+    if (key === "page") continue;
+    const value = Array.isArray(raw) ? raw[0] : raw;
+    if (typeof value === "string" && value.length > 0) queueRetryParams.set(key, value);
+  }
+  const makeQueuePageHref = (nextPage: number) => {
+    const p = new URLSearchParams(queueRetryParams);
+    p.set("page", String(nextPage));
+    return `/admin/privacy?${p.toString()}`;
+  };
+
+  // Sensitive-notes rail cap+view-all toggle (C-16 Step 10) — preserves every
+  // other param, only adds/removes `notes=all`.
+  const notesAllHref = (() => {
+    const p = new URLSearchParams(queueRetryParams);
+    p.set("notes", "all");
+    return `/admin/privacy?${p.toString()}`;
+  })();
+  const notesRecentHref = (() => {
+    const p = new URLSearchParams(queueRetryParams);
+    p.delete("notes");
+    const qs = p.toString();
+    return qs ? `/admin/privacy?${qs}` : "/admin/privacy";
+  })();
 
   // Right rail visibility: hide when caller has no sensitive-note permission.
   const showRail = canViewSensitiveNotes;
@@ -396,30 +433,30 @@ export default async function PrivacyPage({
         <div className="mb-5 grid gap-3 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
           <Link
             href={openHref}
-            aria-label={`Open requests: ${openRequests.length}. Filter to open requests.`}
+            aria-label={`Open requests: ${openRequestsCount}. Filter to open requests.`}
             title="Filter to open requests"
             className="group block rounded-[var(--admin-radius-card)] outline-none transition-shadow duration-200 ease-out hover:shadow-md focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             <AdminStat
               label="Open requests"
-              value={openRequests.length}
+              value={openRequestsCount}
               note="Received + Reviewing"
               icon={Inbox}
               numeral
-              tone={openRequests.length > 0 ? "warning" : "default"}
+              tone={openRequestsCount > 0 ? "warning" : "default"}
             />
           </Link>
           <div className="grid gap-2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 sm:p-5">
             <Link
               href={oldestHref}
               aria-label={
-                oldestOpen
+                oldestOpenRequest
                   ? `Awaiting longest: ${oldestOpenDays} days. Open the oldest queue.`
                   : "Awaiting longest: nothing open right now."
               }
               title={
-                oldestOpen
-                  ? `Oldest open request: ${oldestOpen.id.slice(0, 8)} from ${clientById.get(oldestOpen.client_id)?.full_name ?? "Unknown client"}`
+                oldestOpenRequest
+                  ? `Oldest open request: ${oldestOpenRequest.id.slice(0, 8)} from ${oldestOpenRequest.clientName ?? "Unknown client"}`
                   : undefined
               }
               className="group flex min-h-11 items-center justify-between gap-3 rounded-[var(--admin-radius-control)] px-2 py-1.5 -mx-2 outline-none transition-colors duration-200 ease-out hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
@@ -427,9 +464,9 @@ export default async function PrivacyPage({
               <span className="flex min-w-0 items-center gap-2.5">
                 <Clock
                   className={
-                    oldestOpen && oldestOpenDays > 14
+                    oldestOpenRequest && oldestOpenDays > 14
                       ? "size-4 shrink-0 text-[oklch(26%_0.14_25)]"
-                      : oldestOpen
+                      : oldestOpenRequest
                         ? "size-4 shrink-0 text-[oklch(26%_0.13_55)]"
                         : "size-4 shrink-0 text-[var(--admin-primary)]"
                   }
@@ -440,11 +477,11 @@ export default async function PrivacyPage({
                     Awaiting longest
                   </span>
                   <span className="block text-sm font-semibold text-[var(--admin-heading)]">
-                    {oldestOpen ? (
+                    {oldestOpenRequest ? (
                       <>
                         {oldestOpenDays}d ·{" "}
                         <span className="font-medium text-[var(--admin-body)]">
-                          {clientById.get(oldestOpen.client_id)?.full_name ?? "Unknown client"}
+                          {oldestOpenRequest.clientName ?? "Unknown client"}
                         </span>
                       </>
                     ) : (
@@ -453,7 +490,7 @@ export default async function PrivacyPage({
                   </span>
                 </span>
               </span>
-              {oldestOpen ? (
+              {oldestOpenRequest ? (
                 <span
                   aria-hidden="true"
                   className="shrink-0 text-xs font-medium text-[var(--admin-primary)] opacity-0 transition-opacity duration-200 ease-out group-hover:opacity-100"
@@ -648,6 +685,18 @@ export default async function PrivacyPage({
                 );
               })
             )}
+
+            {/* C-16 Phase D Step 10 — the request queue previously carried no
+                bound at all; renders nothing at one page. */}
+            {!queueLoadFailed && !queueEmpty ? (
+              <PaginationBar
+                page={page}
+                pageCount={pageCount}
+                total={total}
+                pageSize={LIST_PAGE_SIZE}
+                makeHref={makeQueuePageHref}
+              />
+            ) : null}
           </div>
         ) : null}
 
@@ -656,7 +705,14 @@ export default async function PrivacyPage({
           <aside className="min-w-0">
             {/* Desktop: sticky panel — cap height + scroll within so a 25-row rail never leaks past viewport */}
             <div className="hidden xl:sticky xl:top-4 xl:block xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto">
-              <SensitiveNotesPanel notes={notes} clientById={clientById} />
+              <SensitiveNotesPanel
+                notes={notes}
+                clientById={clientById}
+                notesTotal={notesTotal}
+                notesViewAll={notesViewAll}
+                notesAllHref={notesAllHref}
+                notesRecentHref={notesRecentHref}
+              />
             </div>
             {/* Mobile / tablet: collapsed-by-default <details> */}
             <details className="block xl:hidden">
@@ -670,13 +726,20 @@ export default async function PrivacyPage({
                     Sensitive notes
                   </h2>
                   <span className="text-xs text-[var(--admin-text-muted)]">
-                    ({notes.length})
+                    ({notesTotal})
                   </span>
                 </span>
                 <ChevronDown className="size-4 text-[var(--admin-text-muted)]" aria-hidden="true" />
               </summary>
               <div className="mt-2">
-                <SensitiveNotesPanel notes={notes} clientById={clientById} />
+                <SensitiveNotesPanel
+                  notes={notes}
+                  clientById={clientById}
+                  notesTotal={notesTotal}
+                  notesViewAll={notesViewAll}
+                  notesAllHref={notesAllHref}
+                  notesRecentHref={notesRecentHref}
+                />
               </div>
             </details>
           </aside>
@@ -838,17 +901,31 @@ function PrivacyRequestRow({
 function SensitiveNotesPanel({
   notes,
   clientById,
+  notesTotal,
+  notesViewAll,
+  notesAllHref,
+  notesRecentHref,
 }: {
   notes: SensitiveNoteRecord[];
   clientById: Map<string, ClientSummary>;
+  /** Real count of sensitive notes clinic-wide (C-16 Step 10) — may exceed `notes.length`. */
+  notesTotal: number;
+  notesViewAll: boolean;
+  notesAllHref: string;
+  notesRecentHref: string;
 }) {
+  // C-16 Phase D Step 10 — cap+view-all verdict: `notes` is capped
+  // (PRIVACY_NOTES_LIMIT, or PRIVACY_NOTES_VIEW_ALL_CAP once `notesViewAll`),
+  // never a pager. `hasHiddenNotes` is what the badge/link below react to —
+  // whether the CURRENT cap is hiding anything at all.
+  const hasHiddenNotes = notesTotal > notes.length;
   return (
     <AdminPanel
       title="Sensitive notes"
       description="These notes don't enter exports or operational logs. Open the client to edit."
       badge={
         <AdminStatusBadge
-          value={`Last ${notes.length}`}
+          value={hasHiddenNotes ? `${notes.length} of ${notesTotal}` : `All ${notesTotal}`}
           tone="restricted"
           compact
         />
@@ -909,6 +986,25 @@ function SensitiveNotesPanel({
           })}
         </ul>
       )}
+      {hasHiddenNotes ? (
+        <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+          <Link
+            href={notesAllHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            View all {notesTotal} sensitive notes
+          </Link>
+        </p>
+      ) : notesViewAll && notesTotal > PRIVACY_NOTES_LIMIT ? (
+        <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs">
+          <Link
+            href={notesRecentHref}
+            className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          >
+            Show recent {PRIVACY_NOTES_LIMIT} only
+          </Link>
+        </p>
+      ) : null}
     </AdminPanel>
   );
 }

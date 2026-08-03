@@ -18,30 +18,49 @@
 //
 // Tags per the plan's Step 5 table: clients, audit.
 //
-// PAGINATION-READY (C-16): optional `limit` + `offset` bound the privacy-request
-// queue and flow into BOTH the query and the cache key, so page 2 can never be
-// served page 1's rows. Both default to undefined, which reproduces today's
-// unbounded queue exactly. The sensitive-notes rail keeps its fixed 25-row cap.
-// `countPrivacyRequests` is the cheap head-count companion for C-16's
-// "Showing X–Y of Z" readout; it is not called by the page today.
+// PAGER (C-16 Phase D Step 10): the request queue (`client_privacy_requests`)
+// previously carried no bound at all — no `.limit()`, no `.range()`. `limit` +
+// `offset` now bound it and flow into BOTH the query and the cache key, so
+// page 2 can never be served page 1's rows. `getPrivacyPageData`'s
+// `requestsQuery` and `countPrivacyRequests` both build their WHERE clause
+// through the same `applyPrivacyRequestFilters` helper, so a caller can never
+// get a total that describes a different query than the rows it's paginating
+// (page.tsx passes both the SAME resolved `filters` object). The
+// sensitive-notes rail is verdicted cap+view-all, not pagination (it's a side
+// rail, not the primary list): `PRIVACY_NOTES_LIMIT` (25) stays the default,
+// and `notesViewAll` raises it to `PRIVACY_NOTES_VIEW_ALL_CAP` — a defensive
+// cap, not a truly unbounded read, matching the SCOPED_BRANCH_ROW_CAP /
+// SEARCH_CLIENT_ID_CAP precedent in bookings-list-data.ts.
 //
 // FILTERS (C-09 Phase D Step 12): request_type/status/date-range/q are now
 // real `.in`/`.gte`/`.lte`/`.ilike` predicates on the requests query, applied
 // here and folded into the cache key — a caller filtering to status=open can
-// never be served a cache entry built for status=completed. page.tsx calls
-// this fetcher twice when any filter is active: once unfiltered (the "Open
-// requests" / "Awaiting longest" stat tiles always reflect the WHOLE queue,
-// not the current filter, and `clients`/`staff` need to cover every request
-// referenced by those unfiltered stats) and once with the filters (for the
-// status-grouped queue). The two calls share a cache entry in the common
-// no-filter case, so the default view still costs exactly one query.
+// never be served a cache entry built for status=completed.
+//
+// STATS (C-16 Phase D Step 10): the "Open requests" / "Awaiting longest" stat
+// tiles used to be computed by reducing over an UNFILTERED call to this same
+// fetcher with no bound at all — i.e. the exact unbounded read this step
+// removes. They no longer read `getPrivacyPageData`'s output: "Open requests"
+// is `countPrivacyRequests({ statuses: ["open", "reviewing"] })` and "oldest
+// open" is `getOldestOpenPrivacyRequest()` below. Both are backlog-sized, not
+// table-sized — a request stays "open" only until resolved, so these stay
+// cheap however large the table's full five-year history grows. page.tsx now
+// calls `getPrivacyPageData` exactly once per render, with whatever filters
+// (if any) are active and the current page's `limit`/`offset`.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { TAGS } from "@/lib/cache/tag-taxonomy";
 import { cacheKeyPart } from "@/lib/cache/cache-key";
+import { LIST_PAGE_SIZE, clampPage, pageRange } from "@/lib/pagination";
 
 export const PRIVACY_NOTES_LIMIT = 25;
+// C-16 Phase D Step 10 — cap+view-all verdict for the sensitive-notes rail
+// (a side rail, not the primary list, so it doesn't get a pager). This is the
+// "view all" cap: generous enough that a small clinic's sensitive-note
+// backlog won't realistically hit it, but still a defensive bound rather than
+// a truly unbounded read — same reasoning as bookings' SCOPED_BRANCH_ROW_CAP.
+export const PRIVACY_NOTES_VIEW_ALL_CAP = 500;
 
 export interface PrivacyRequestRecord {
   id: string;
@@ -91,6 +110,8 @@ export interface PrivacyPageParams {
   limit?: number;
   offset?: number;
   filters?: PrivacyQueueFilters;
+  /** C-16 Step 10 — cap+view-all toggle for the sensitive-notes rail. */
+  notesViewAll?: boolean;
 }
 
 export interface PrivacyPageData {
@@ -105,6 +126,47 @@ function escapeLike(value: string) {
   return value.replace(/[\\%_,()]/g, (match) => `\\${match}`);
 }
 
+/** Structural minimum of a PostgREST filter builder — see the note on
+ *  `applyPrivacyRequestFilters` below for why `Q` stays unconstrained. */
+interface PrivacyFilterBuilder {
+  in(column: string, values: readonly string[]): PrivacyFilterBuilder;
+  gte(column: string, value: string): PrivacyFilterBuilder;
+  lte(column: string, value: string): PrivacyFilterBuilder;
+  ilike(column: string, value: string): PrivacyFilterBuilder;
+}
+
+/**
+ * Applies requestTypes/statuses/date-bounds/q to a `client_privacy_requests`
+ * query builder. The ONLY place this WHERE clause is built —
+ * `getPrivacyPageData` (rows) and `countPrivacyRequests` (total) both call
+ * this with the same `filters`, so the pager's total cannot describe a
+ * different query than the rows it's paginating (C-16 Phase D Step 10, same
+ * discipline as `applyBookingPredicates` / `applyDeliveryPredicates`).
+ *
+ * `Q` is deliberately unconstrained — constraining it makes tsc compare
+ * `PrivacyFilterBuilder` against `PostgrestFilterBuilder`'s parsed-select
+ * generics and give up (TS2589). `Q` flows straight back out, so callers keep
+ * `.order()`/`.range()`/`.returns()` on the concrete builder.
+ */
+function applyPrivacyRequestFilters<Q>(
+  query: Q,
+  filters: PrivacyQueueFilters | undefined
+): Q {
+  let next = query as unknown as PrivacyFilterBuilder;
+  if (filters?.requestTypes?.length) {
+    next = next.in("request_type", filters.requestTypes);
+  }
+  if (filters?.statuses?.length) {
+    next = next.in("status", filters.statuses);
+  }
+  if (filters?.fromDate) next = next.gte("created_at", filters.fromDate);
+  if (filters?.toDate) next = next.lte("created_at", filters.toDate);
+  if (filters?.q) {
+    next = next.ilike("request_note", `%${escapeLike(filters.q)}%`);
+  }
+  return next as unknown as Q;
+}
+
 export async function getPrivacyPageData(
   params: PrivacyPageParams
 ): Promise<PrivacyPageData> {
@@ -115,32 +177,22 @@ export async function getPrivacyPageData(
     limit,
     offset,
     filters,
+    notesViewAll,
   } = params;
 
   const cached = unstable_cache(
     async (): Promise<PrivacyPageData> => {
       const adminClient = createSupabaseAdminClient();
 
-      let requestsQuery = adminClient
-        .from("client_privacy_requests")
-        .select(
-          "id, client_id, request_type, status, request_note, created_at, updated_at, created_by_staff_id"
-        )
-        .order("created_at", { ascending: false });
-      if (filters?.requestTypes?.length) {
-        requestsQuery = requestsQuery.in("request_type", filters.requestTypes);
-      }
-      if (filters?.statuses?.length) {
-        requestsQuery = requestsQuery.in("status", filters.statuses);
-      }
-      if (filters?.fromDate) requestsQuery = requestsQuery.gte("created_at", filters.fromDate);
-      if (filters?.toDate) requestsQuery = requestsQuery.lte("created_at", filters.toDate);
-      if (filters?.q) {
-        requestsQuery = requestsQuery.ilike(
-          "request_note",
-          `%${escapeLike(filters.q)}%`
-        );
-      }
+      let requestsQuery = applyPrivacyRequestFilters(
+        adminClient
+          .from("client_privacy_requests")
+          .select(
+            "id, client_id, request_type, status, request_note, created_at, updated_at, created_by_staff_id"
+          )
+          .order("created_at", { ascending: false }),
+        filters
+      );
       if (limit !== undefined) {
         const start = offset ?? 0;
         requestsQuery = requestsQuery.range(start, start + limit - 1);
@@ -156,7 +208,7 @@ export async function getPrivacyPageData(
             .select("id, client_id, note, created_at, author_staff_id")
             .eq("is_sensitive", true)
             .order("created_at", { ascending: false })
-            .limit(PRIVACY_NOTES_LIMIT)
+            .limit(notesViewAll ? PRIVACY_NOTES_VIEW_ALL_CAP : PRIVACY_NOTES_LIMIT)
             .returns<PrivacySensitiveNote[]>()
         : { data: [] as PrivacySensitiveNote[], error: null };
 
@@ -224,6 +276,7 @@ export async function getPrivacyPageData(
         fromDate: filters?.fromDate,
         toDate: filters?.toDate,
         q: filters?.q,
+        notesViewAll,
       }),
     ],
     { revalidate: 60, tags: [TAGS.CLIENTS, TAGS.AUDIT] }
@@ -233,20 +286,161 @@ export async function getPrivacyPageData(
 
 /**
  * Cheap head-count companion for C-16's "Showing X–Y of Z" readout. Head
- * request — no rows transferred. Not used by the page yet.
+ * request — no rows transferred. Takes the SAME `filters` as
+ * `getPrivacyPageData` and applies them through the SAME
+ * `applyPrivacyRequestFilters`, so the total this returns always describes
+ * the rows query's WHERE clause.
  */
-export async function countPrivacyRequests(): Promise<number> {
+export async function countPrivacyRequests(
+  filters?: PrivacyQueueFilters
+): Promise<number> {
+  const cached = unstable_cache(
+    async (): Promise<number> => {
+      const adminClient = createSupabaseAdminClient();
+      const query = applyPrivacyRequestFilters(
+        adminClient
+          .from("client_privacy_requests")
+          .select("id", { count: "exact", head: true }),
+        filters
+      );
+      const { count, error } = await query;
+      if (error) return 0;
+      return count ?? 0;
+    },
+    [
+      "privacy-requests-count",
+      cacheKeyPart({
+        requestTypes: filters?.requestTypes,
+        statuses: filters?.statuses,
+        fromDate: filters?.fromDate,
+        toDate: filters?.toDate,
+        q: filters?.q,
+      }),
+    ],
+    { revalidate: 60, tags: [TAGS.CLIENTS, TAGS.AUDIT] }
+  );
+  return cached();
+}
+
+/**
+ * Cheap head-count companion for the sensitive-notes rail (C-16 Phase D
+ * Step 10 — "surface the total so a user knows notes are hidden"). No
+ * filters: the rail has no filter UI of its own.
+ */
+export async function countSensitiveNotes(): Promise<number> {
   const cached = unstable_cache(
     async (): Promise<number> => {
       const adminClient = createSupabaseAdminClient();
       const { count, error } = await adminClient
-        .from("client_privacy_requests")
-        .select("id", { count: "exact", head: true });
+        .from("client_notes")
+        .select("id", { count: "exact", head: true })
+        .eq("is_sensitive", true);
       if (error) return 0;
       return count ?? 0;
     },
-    ["privacy-requests-count"],
+    ["privacy-notes-count"],
+    { revalidate: 60, tags: [TAGS.CLIENTS] }
+  );
+  return cached();
+}
+
+export interface PrivacyOldestOpenRequest {
+  id: string;
+  clientId: string;
+  clientName: string | null;
+  createdAt: string;
+}
+
+/**
+ * The single oldest still-open (`open` | `reviewing`) privacy request, for
+ * the "Awaiting longest" stat tile (C-16 Phase D Step 10). Previously this
+ * and the "Open requests" count (see `countPrivacyRequests` above) were both
+ * derived by reducing over an UNFILTERED, unbounded `getPrivacyPageData` call
+ * — the exact "no bound at all" defect this step removes. A currently-open
+ * request stays open only until it's resolved, so this stays a 1-row read
+ * regardless of how large the table's full history grows over five years.
+ */
+export async function getOldestOpenPrivacyRequest(
+  canManagePrivacyOperations: boolean
+): Promise<PrivacyOldestOpenRequest | null> {
+  if (!canManagePrivacyOperations) return null;
+
+  const cached = unstable_cache(
+    async (): Promise<PrivacyOldestOpenRequest | null> => {
+      const adminClient = createSupabaseAdminClient();
+      const { data } = await adminClient
+        .from("client_privacy_requests")
+        .select("id, client_id, created_at")
+        .in("status", ["open", "reviewing"])
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .returns<{ id: string; client_id: string; created_at: string }[]>();
+      const row = data?.[0];
+      if (!row) return null;
+
+      const { data: client } = await adminClient
+        .from("clients")
+        .select("full_name")
+        .eq("id", row.client_id)
+        .maybeSingle<{ full_name: string }>();
+
+      return {
+        id: row.id,
+        clientId: row.client_id,
+        clientName: client?.full_name ?? null,
+        createdAt: row.created_at,
+      };
+    },
+    ["privacy-oldest-open"],
     { revalidate: 60, tags: [TAGS.CLIENTS, TAGS.AUDIT] }
   );
   return cached();
+}
+
+export interface PrivacyRequestsPage {
+  data: PrivacyPageData;
+  total: number;
+  page: number;
+  pageCount: number;
+}
+
+/**
+ * The privacy queue's single entry point (C-16 Phase D Step 10) — mirrors
+ * `getBookingsListPage` / `getEmailDeliveryPage`. Builds the total from
+ * `countPrivacyRequests(filters)`, clamps `?page=` against the REAL page
+ * count, then fetches exactly that window from `getPrivacyPageData`. Both
+ * calls receive the SAME `filters`, so `total` always describes the
+ * `requests` it's paginating.
+ */
+export async function getPrivacyRequestsPage(params: {
+  canManagePrivacyOperations: boolean;
+  canViewSensitiveNotes: boolean;
+  canViewContactDetails: boolean;
+  filters?: PrivacyQueueFilters;
+  notesViewAll?: boolean;
+  /** Raw `?page=` — parsed and clamped here, against the REAL page count. */
+  page?: unknown;
+  pageSize?: number;
+}): Promise<PrivacyRequestsPage> {
+  const { canManagePrivacyOperations, filters } = params;
+  const pageSize = params.pageSize ?? LIST_PAGE_SIZE;
+
+  // Sequential, not Promise.all — same reasoning as getBookingsListPage: a
+  // stale `?page=99` can only be clamped once the total is known.
+  const total = canManagePrivacyOperations ? await countPrivacyRequests(filters) : 0;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = clampPage(params.page, pageCount);
+  const { from } = pageRange(page, pageSize);
+
+  const data = await getPrivacyPageData({
+    canManagePrivacyOperations: params.canManagePrivacyOperations,
+    canViewSensitiveNotes: params.canViewSensitiveNotes,
+    canViewContactDetails: params.canViewContactDetails,
+    filters,
+    notesViewAll: params.notesViewAll,
+    limit: pageSize,
+    offset: from,
+  });
+
+  return { data, total, page, pageCount };
 }

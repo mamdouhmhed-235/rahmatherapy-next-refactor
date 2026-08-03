@@ -20,9 +20,13 @@ vi.mock("@/lib/supabase/admin", () => ({
 const { createFakeAdminClient } = await import(
   "@/lib/cache/__tests__/fake-supabase-admin"
 );
-const { getPrivacyPageData, countPrivacyRequests } = await import(
-  "../privacy-data"
-);
+const {
+  getPrivacyPageData,
+  countPrivacyRequests,
+  countSensitiveNotes,
+  getOldestOpenPrivacyRequest,
+  getPrivacyRequestsPage,
+} = await import("../privacy-data");
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
 
 const FULL_ACCESS = {
@@ -179,5 +183,167 @@ describe("getPrivacyPageData filter-wiring cache behaviour", () => {
     cacheHarness.invalidateTag(TAGS.AUDIT);
     await getPrivacyPageData({ ...FULL_ACCESS, filters: { statuses: ["open"] } });
     expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+});
+
+// C-16 Phase D Step 10 — `countPrivacyRequests` must build its WHERE clause
+// from the exact same filters as `getPrivacyPageData`'s requests query, so
+// the pager's total can never describe a different query than the rows it's
+// paginating.
+describe("countPrivacyRequests honours the same filters as getPrivacyPageData", () => {
+  it("applies the identical in/gte/lte/ilike sequence to the count query and the rows query", async () => {
+    const filters = {
+      requestTypes: ["data_export"],
+      statuses: ["open", "reviewing"],
+      fromDate: "2026-01-01T00:00:00.000Z",
+      toDate: "2026-01-31T23:59:59.000Z",
+      q: "deletion",
+    };
+
+    function recordingChain(calls: string[]) {
+      const chain: Record<string, unknown> = {};
+      chain.select = () => chain;
+      chain.order = () => chain;
+      chain.in = (column: string, values: readonly string[]) => {
+        calls.push(`in:${column}:${values.join(",")}`);
+        return chain;
+      };
+      chain.gte = (column: string, value: string) => {
+        calls.push(`gte:${column}:${value}`);
+        return chain;
+      };
+      chain.lte = (column: string, value: string) => {
+        calls.push(`lte:${column}:${value}`);
+        return chain;
+      };
+      chain.ilike = (column: string, value: string) => {
+        calls.push(`ilike:${column}:${value}`);
+        return chain;
+      };
+      chain.range = () => chain;
+      chain.returns = async () => ({ data: [], error: null });
+      chain.then = (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({ count: 0, error: null }).then(resolve);
+      return chain;
+    }
+
+    // `client_privacy_requests` routes through the recording chain; every
+    // other table (notes/clients/staff, which getPrivacyPageData also reads)
+    // routes through the shared fake with empty results — irrelevant here.
+    function makeClient(calls: string[]) {
+      const fallback = createFakeAdminClient({
+        client_notes: { data: [], error: null },
+        clients: { data: [], error: null },
+        staff_profiles: { data: [], error: null },
+      });
+      return {
+        from: (table: string) =>
+          table === "client_privacy_requests" ? recordingChain(calls) : fallback.from(table),
+      };
+    }
+
+    const countCalls: string[] = [];
+    createSupabaseAdminClient.mockImplementation(() => makeClient(countCalls));
+    await countPrivacyRequests(filters);
+
+    cacheHarness.clear();
+    const rowCalls: string[] = [];
+    createSupabaseAdminClient.mockImplementation(() => makeClient(rowCalls));
+    await getPrivacyPageData({ ...FULL_ACCESS, filters });
+
+    expect(countCalls.length).toBeGreaterThan(0);
+    expect(countCalls).toEqual(rowCalls);
+  });
+});
+
+describe("countSensitiveNotes", () => {
+  it("caches the sensitive-notes head-count under its own key", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        client_notes: { data: [], error: null, count: 143 },
+      })
+    );
+    await expect(countSensitiveNotes()).resolves.toBe(143);
+    await countSensitiveNotes();
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getOldestOpenPrivacyRequest", () => {
+  it("returns null without a query when the caller can't manage privacy operations", async () => {
+    const result = await getOldestOpenPrivacyRequest(false);
+    expect(result).toBeNull();
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("returns null when there is no open/reviewing request", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({ client_privacy_requests: { data: [], error: null } })
+    );
+    const result = await getOldestOpenPrivacyRequest(true);
+    expect(result).toBeNull();
+  });
+
+  it("resolves the oldest open request's client name", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        client_privacy_requests: {
+          data: [
+            {
+              id: "r9",
+              client_id: "c9",
+              created_at: "2025-11-01T00:00:00.000Z",
+            },
+          ],
+          error: null,
+        },
+        // `.maybeSingle()` on a real Supabase client unwraps to one row (not
+        // an array) — the shared fake returns whatever's registered verbatim,
+        // so this must be registered as the unwrapped shape.
+        clients: { data: { full_name: "Oldest Client" }, error: null },
+      })
+    );
+    const result = await getOldestOpenPrivacyRequest(true);
+    expect(result).toEqual({
+      id: "r9",
+      clientId: "c9",
+      clientName: "Oldest Client",
+      createdAt: "2025-11-01T00:00:00.000Z",
+    });
+  });
+});
+
+describe("getPrivacyRequestsPage", () => {
+  it("clamps a stale ?page=99 to the last real page", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        client_privacy_requests: { data: [], error: null, count: 60 },
+        client_notes: { data: [], error: null },
+        clients: { data: [], error: null },
+        staff_profiles: { data: [], error: null },
+      })
+    );
+    // count 60, LIST_PAGE_SIZE 25 => 3 pages.
+    const result = await getPrivacyRequestsPage({ ...FULL_ACCESS, page: 99 });
+    expect(result.pageCount).toBe(3);
+    expect(result.page).toBe(3);
+    expect(result.total).toBe(60);
+  });
+
+  it("computes pageCount 1 (pager renders nothing) when the total fits on one page", async () => {
+    const result = await getPrivacyRequestsPage(FULL_ACCESS);
+    expect(result.pageCount).toBe(1);
+    expect(result.page).toBe(1);
+    expect(result.total).toBe(7); // stubClient's registered count
+  });
+
+  it("reports total 0 without a query when the caller can't manage privacy operations", async () => {
+    const result = await getPrivacyRequestsPage({
+      ...FULL_ACCESS,
+      canManagePrivacyOperations: false,
+    });
+    expect(result.total).toBe(0);
+    expect(result.pageCount).toBe(1);
+    expect(result.page).toBe(1);
   });
 });

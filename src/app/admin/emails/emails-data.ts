@@ -29,8 +29,6 @@
 // and flow into BOTH the query and the cache key, so page 2 can never be
 // served page 1's rows. `limit` defaults to EMAILS_PAGE_SIZE (100) — the
 // ceiling the page already used — so behaviour is unchanged.
-// `countEmailDeliveryEvents` is the cheap head-count companion for C-16's
-// "Showing X–Y of Z" readout; it is not called by the page today.
 //
 // FILTERS (C-09 Phase D Step 11): `getFilteredDeliveryEvents` below is a
 // second, focused fetcher that applies event_type/delivery_status/
@@ -44,12 +42,27 @@
 // `getEmailsPageData` once, unfiltered, for the totalLoaded/failedRecent
 // badge/reminders/templates — those always reflect the same top-100 read
 // regardless of the delivery filters, same as before this step.
+//
+// PAGER (C-16 Phase D Step 9): `countEmailDeliveryEvents` and
+// `getFilteredDeliveryEvents` both build their WHERE clause through the same
+// `applyDeliveryPredicates` helper, and both resolve the date-range preset
+// through the same `resolveDeliveryDateBounds` — so a caller can never get a
+// total that describes a different query than the rows it's paginating.
+// `getEmailDeliveryPage` is the single entry point that ties count → clamp →
+// range together (mirrors `getBookingsListPage` in bookings-list-data.ts);
+// page.tsx calls it instead of `getFilteredDeliveryEvents` directly.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { TAGS } from "@/lib/cache/tag-taxonomy";
 import { cacheKeyPart } from "@/lib/cache/cache-key";
 import { getTemplateOverrideSummaries } from "@/lib/email/templates";
+import {
+  LOG_PAGE_SIZE,
+  clampPage,
+  pageRange,
+  type PaginatedResult,
+} from "@/lib/pagination";
 import type { DateRangePresetKey } from "./format";
 
 export const EMAILS_PAGE_SIZE = 100;
@@ -240,26 +253,6 @@ export async function getEmailsPageData(
   return cached();
 }
 
-/**
- * Cheap head-count companion for C-16's "Showing X–Y of Z" readout. Head
- * request — no rows transferred. Not used by the page yet.
- */
-export async function countEmailDeliveryEvents(): Promise<number> {
-  const cached = unstable_cache(
-    async (): Promise<number> => {
-      const adminClient = createSupabaseAdminClient();
-      const { count, error } = await adminClient
-        .from("email_delivery_events")
-        .select("id", { count: "exact", head: true });
-      if (error) return 0;
-      return count ?? 0;
-    },
-    ["emails-delivery-count"],
-    { revalidate: 60, tags: [TAGS.EMAILS] }
-  );
-  return cached();
-}
-
 export interface EmailDeliveryFilters {
   event_type?: string;
   delivery_status?: string;
@@ -310,11 +303,27 @@ function quoteOrValue(value: string) {
 /**
  * Resolves the filter's date-range preset (or a custom from/to pair) to
  * concrete ISO bounds OUTSIDE the cached fetcher — same pattern as
- * `businessDate` above: `now` is captured here, in the outer function, and
- * passed into both the query and the cache key, so the boundary never
- * freezes for the 60s revalidate window.
+ * `businessDate` above: resolved here, in the outer function, and passed
+ * into both the query and the cache key, so the boundary never freezes for
+ * the 60s revalidate window.
+ *
+ * C-16 Phase D Step 9: the preset branches floor to the UTC day boundary
+ * (`todayStart` below) instead of reading `Date.now()` at millisecond
+ * precision. Two defects that fixed: (a) the old ms-precision value was part
+ * of the `unstable_cache` key, so the key changed on every single call and
+ * this fetcher's cache never hit; (b) `countEmailDeliveryEvents` and
+ * `getFilteredDeliveryEvents` each call this function independently — at
+ * millisecond precision they could resolve `now` a moment apart and disagree
+ * on the window, which would make the pager's total describe a different
+ * WHERE clause than the rows it's paginating. A day boundary is the natural
+ * granularity for a preset that's itself labelled in days ("today" /
+ * "last 7 days" / "last 30 days"), and it's stable for the rest of the UTC
+ * day regardless of which call resolves it or when within that day — so the
+ * two calls can only disagree in the sub-second window that straddles UTC
+ * midnight, an accepted, self-healing-on-navigation edge case (same category
+ * as offset pagination's page-boundary risk elsewhere in this plan).
  */
-function resolveDeliveryDateBounds(
+export function resolveDeliveryDateBounds(
   filters: EmailDeliveryFilters
 ): { fromIso?: string; toIso?: string } {
   if (filters.range === "custom") {
@@ -331,16 +340,108 @@ function resolveDeliveryDateBounds(
     };
   }
   const day = 24 * 60 * 60 * 1000;
-  const now = Date.now();
+  const todayStart = Math.floor(Date.now() / day) * day;
   switch (filters.range) {
     case "today":
-      return { fromIso: new Date(now - day).toISOString() };
+      return { fromIso: new Date(todayStart - day).toISOString() };
     case "last_7_days":
-      return { fromIso: new Date(now - 7 * day).toISOString() };
+      return { fromIso: new Date(todayStart - 7 * day).toISOString() };
     case "last_30_days":
     default:
-      return { fromIso: new Date(now - 30 * day).toISOString() };
+      return { fromIso: new Date(todayStart - 30 * day).toISOString() };
   }
+}
+
+/** Structural minimum of a PostgREST filter builder — see the note on
+ *  `applyDeliveryPredicates` below for why `Q` stays unconstrained. */
+interface DeliveryFilterBuilder {
+  eq(column: string, value: string): DeliveryFilterBuilder;
+  or(filters: string): DeliveryFilterBuilder;
+  gte(column: string, value: string): DeliveryFilterBuilder;
+  lte(column: string, value: string): DeliveryFilterBuilder;
+}
+
+/**
+ * Applies event_type/delivery_status/recipient_role/q/date-bounds to a query
+ * builder. The ONLY place this WHERE clause is built — `getFilteredDeliveryEvents`
+ * (rows) and `countEmailDeliveryEvents` (total) both call this with the same
+ * `filters`, so the pager's total cannot describe a different query than the
+ * rows it's paginating (C-16 Phase D Step 9, same discipline Phase C's
+ * `applyBookingPredicates` uses for bookings).
+ *
+ * `Q` is deliberately unconstrained, same reasoning as `applyBookingPredicates`
+ * in bookings-list-data.ts: constraining it to `DeliveryFilterBuilder` makes
+ * tsc compare that interface against `PostgrestFilterBuilder`'s parsed-select
+ * generics and give up (TS2589). The cast below is the price; `Q` flows
+ * straight back out, so callers keep `.order()`/`.range()`/`.returns()` on
+ * the concrete builder.
+ */
+function applyDeliveryPredicates<Q>(
+  query: Q,
+  filters: EmailDeliveryFilters,
+  fromIso: string | undefined,
+  toIso: string | undefined
+): Q {
+  let next = query as unknown as DeliveryFilterBuilder;
+  if (filters.event_type) next = next.eq("event_type", filters.event_type);
+  if (filters.delivery_status) next = next.eq("delivery_status", filters.delivery_status);
+  if (filters.recipient_role) next = next.eq("recipient_role", filters.recipient_role);
+  if (filters.q) {
+    const needle = quoteOrValue(`%${escapeLike(filters.q)}%`);
+    next = next.or(
+      [
+        `recipient_email.ilike.${needle}`,
+        `provider_message_id.ilike.${needle}`,
+        `id.ilike.${needle}`,
+      ].join(",")
+    );
+  }
+  if (fromIso) next = next.gte("created_at", fromIso);
+  if (toIso) next = next.lte("created_at", toIso);
+  return next as unknown as Q;
+}
+
+/**
+ * Cheap head-count companion for C-16's "Showing X–Y of Z" readout. Head
+ * request — no rows transferred. Takes the SAME `filters` as
+ * `getFilteredDeliveryEvents` and applies them through the SAME
+ * `applyDeliveryPredicates`/`resolveDeliveryDateBounds` pair, so the total
+ * this returns always describes the rows query's WHERE clause.
+ */
+export async function countEmailDeliveryEvents(
+  filters: EmailDeliveryFilters = {}
+): Promise<number> {
+  const { fromIso, toIso } = resolveDeliveryDateBounds(filters);
+
+  const cached = unstable_cache(
+    async (): Promise<number> => {
+      const adminClient = createSupabaseAdminClient();
+      const query = applyDeliveryPredicates(
+        adminClient
+          .from("email_delivery_events")
+          .select("id", { count: "exact", head: true }),
+        filters,
+        fromIso,
+        toIso
+      );
+      const { count, error } = await query;
+      if (error) return 0;
+      return count ?? 0;
+    },
+    [
+      "emails-delivery-count",
+      cacheKeyPart({
+        eventType: filters.event_type,
+        deliveryStatus: filters.delivery_status,
+        recipientRole: filters.recipient_role,
+        q: filters.q,
+        fromIso,
+        toIso,
+      }),
+    ],
+    { revalidate: 60, tags: [TAGS.EMAILS] }
+  );
+  return cached();
 }
 
 /**
@@ -360,26 +461,15 @@ export async function getFilteredDeliveryEvents(
   const cached = unstable_cache(
     async (): Promise<FilteredDeliveryData> => {
       const adminClient = createSupabaseAdminClient();
-      let query = adminClient
-        .from("email_delivery_events")
-        .select(DELIVERY_SELECT)
-        .order("created_at", { ascending: false });
-      if (filters.event_type) query = query.eq("event_type", filters.event_type);
-      if (filters.delivery_status) query = query.eq("delivery_status", filters.delivery_status);
-      if (filters.recipient_role) query = query.eq("recipient_role", filters.recipient_role);
-      if (filters.q) {
-        const needle = quoteOrValue(`%${escapeLike(filters.q)}%`);
-        query = query.or(
-          [
-            `recipient_email.ilike.${needle}`,
-            `provider_message_id.ilike.${needle}`,
-            `id.ilike.${needle}`,
-          ].join(",")
-        );
-      }
-      if (fromIso) query = query.gte("created_at", fromIso);
-      if (toIso) query = query.lte("created_at", toIso);
-      query = query.range(offset, offset + limit - 1);
+      const query = applyDeliveryPredicates(
+        adminClient
+          .from("email_delivery_events")
+          .select(DELIVERY_SELECT)
+          .order("created_at", { ascending: false }),
+        filters,
+        fromIso,
+        toIso
+      ).range(offset, offset + limit - 1);
 
       const { data, error } = await query.returns<EmailEvent[]>();
       return {
@@ -403,4 +493,49 @@ export async function getFilteredDeliveryEvents(
     { revalidate: 60, tags: [TAGS.EMAILS] }
   );
   return cached();
+}
+
+export type EmailDeliveryPage = PaginatedResult<EmailEvent> & {
+  deliveryError: { message: string } | null;
+};
+
+/**
+ * The Delivery tab's single entry point (C-16 Phase D Step 9) — mirrors
+ * `getBookingsListPage` in bookings-list-data.ts. Builds the total from
+ * `countEmailDeliveryEvents(filters)`, clamps `?page=` against the REAL page
+ * count, then fetches exactly that window from `getFilteredDeliveryEvents`.
+ * Both calls resolve the SAME date bounds from the SAME `filters` through
+ * `resolveDeliveryDateBounds` (see that function's doc), so `total` always
+ * describes `rows`' WHERE clause.
+ */
+export async function getEmailDeliveryPage(params: {
+  canSeeDelivery: boolean;
+  filters: EmailDeliveryFilters;
+  /** Raw `?page=` — parsed and clamped here, against the REAL page count. */
+  page?: unknown;
+  pageSize?: number;
+}): Promise<EmailDeliveryPage> {
+  const { canSeeDelivery, filters } = params;
+  const pageSize = params.pageSize ?? LOG_PAGE_SIZE;
+
+  if (!canSeeDelivery) {
+    return { rows: [], total: 0, page: 1, pageCount: 1, deliveryError: null };
+  }
+
+  // Sequential, not Promise.all — same reasoning as getBookingsListPage: a
+  // stale `?page=99` can only be clamped once the total is known, and
+  // fetching a window that then has to be discarded costs a whole row query.
+  const total = await countEmailDeliveryEvents(filters);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const page = clampPage(params.page, pageCount);
+  const { from } = pageRange(page, pageSize);
+
+  const { events, deliveryError } = await getFilteredDeliveryEvents({
+    canSeeDelivery,
+    filters,
+    limit: pageSize,
+    offset: from,
+  });
+
+  return { rows: events, total, page, pageCount, deliveryError };
 }

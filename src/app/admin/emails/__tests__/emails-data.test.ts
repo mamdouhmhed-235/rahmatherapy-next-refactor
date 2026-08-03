@@ -27,8 +27,13 @@ vi.mock("@/lib/email/templates", () => ({
 const { createFakeAdminClient } = await import(
   "@/lib/cache/__tests__/fake-supabase-admin"
 );
-const { getEmailsPageData, getFilteredDeliveryEvents, countEmailDeliveryEvents } =
-  await import("../emails-data");
+const {
+  getEmailsPageData,
+  getFilteredDeliveryEvents,
+  countEmailDeliveryEvents,
+  getEmailDeliveryPage,
+  resolveDeliveryDateBounds,
+} = await import("../emails-data");
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
 
 const BASE_PARAMS = {
@@ -295,5 +300,122 @@ describe("getFilteredDeliveryEvents q-filter or() string", () => {
         `id.ilike.${needle}`,
       ].join(","),
     ]);
+  });
+});
+
+// C-16 Phase D Step 9 — the date-bounds resolution used to read `Date.now()`
+// at millisecond precision, which meant two calls a moment apart (the count
+// query and the rows query, once a count query existed) could disagree about
+// the window. This must fail if ms-precision `Date.now()` is reintroduced.
+describe("resolveDeliveryDateBounds stability", () => {
+  it.each(["today", "last_7_days", "last_30_days"] as const)(
+    "resolves %s identically across two calls in the same request",
+    (range) => {
+      const first = resolveDeliveryDateBounds({ range });
+      const second = resolveDeliveryDateBounds({ range });
+      expect(second).toEqual(first);
+    }
+  );
+
+  it("resolves the default (no range) preset identically across two calls", () => {
+    const first = resolveDeliveryDateBounds({});
+    const second = resolveDeliveryDateBounds({});
+    expect(second).toEqual(first);
+  });
+});
+
+// C-16 Phase D Step 9 — `countEmailDeliveryEvents` and `getFilteredDeliveryEvents`
+// must build their WHERE clause from the exact same filters, so the pager's
+// total can never describe a different query than the rows it's paginating.
+describe("countEmailDeliveryEvents honours the same filters as getFilteredDeliveryEvents", () => {
+  it("applies the identical eq/or/gte/lte sequence to the count query and the rows query", async () => {
+    const filters = {
+      event_type: "booking_reminder",
+      delivery_status: "failed",
+      recipient_role: "customer" as const,
+      q: "Smith",
+      range: "last_7_days" as const,
+    };
+
+    function recordingChain(calls: string[]) {
+      const chain: Record<string, unknown> = {};
+      chain.select = () => chain;
+      chain.order = () => chain;
+      chain.eq = (column: string, value: string) => {
+        calls.push(`eq:${column}:${value}`);
+        return chain;
+      };
+      chain.or = (filterString: string) => {
+        calls.push(`or:${filterString}`);
+        return chain;
+      };
+      chain.gte = (column: string, value: string) => {
+        calls.push(`gte:${column}:${value}`);
+        return chain;
+      };
+      chain.lte = (column: string, value: string) => {
+        calls.push(`lte:${column}:${value}`);
+        return chain;
+      };
+      chain.range = () => chain;
+      chain.returns = async () => ({ data: [], error: null });
+      chain.then = (resolve: (value: unknown) => unknown) =>
+        Promise.resolve({ count: 0, error: null }).then(resolve);
+      return chain;
+    }
+
+    const countCalls: string[] = [];
+    createSupabaseAdminClient.mockImplementation(() => ({
+      from: () => recordingChain(countCalls),
+    }));
+    await countEmailDeliveryEvents(filters);
+
+    cacheHarness.clear();
+    const rowCalls: string[] = [];
+    createSupabaseAdminClient.mockImplementation(() => ({
+      from: () => recordingChain(rowCalls),
+    }));
+    await getFilteredDeliveryEvents({ canSeeDelivery: true, filters });
+
+    expect(countCalls.length).toBeGreaterThan(0);
+    expect(countCalls).toEqual(rowCalls);
+  });
+});
+
+describe("getEmailDeliveryPage", () => {
+  it("clamps a stale ?page=99 to the last real page", async () => {
+    // stubClient's email_delivery_events count is 250; LOG_PAGE_SIZE (100) => 3 pages.
+    const result = await getEmailDeliveryPage({
+      canSeeDelivery: true,
+      filters: {},
+      page: 99,
+    });
+    expect(result.pageCount).toBe(3);
+    expect(result.page).toBe(3);
+    expect(result.total).toBe(250);
+  });
+
+  it("computes pageCount 1 (pager renders nothing) when the total fits on one page", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        email_delivery_events: { data: [], error: null, count: 12 },
+      })
+    );
+    const result = await getEmailDeliveryPage({ canSeeDelivery: true, filters: {} });
+    expect(result.pageCount).toBe(1);
+    expect(result.page).toBe(1);
+    expect(result.total).toBe(12);
+  });
+
+  it("short-circuits without a query when the caller can't see delivery", async () => {
+    const result = await getEmailDeliveryPage({ canSeeDelivery: false, filters: {} });
+    expect(result).toEqual({
+      rows: [],
+      total: 0,
+      page: 1,
+      pageCount: 1,
+      deliveryError: null,
+    });
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
   });
 });
