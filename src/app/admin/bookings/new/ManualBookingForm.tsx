@@ -500,6 +500,10 @@ export function ManualBookingForm({
   services: ServiceOption[];
   prefillClient: PrefillClient | null;
   enquiry: EnquiryPrefill | null;
+  /** C-03 Phase B — fuzzy-matched service slug from the enquiry's
+   * service_interest text. Wired into initial-state pre-selection + hint UI
+   * in C-03 Phase C (Step 9); accepted here so page.tsx can pass it now. */
+  matchedServiceSlug?: string | null;
   prefillFailed?: boolean;
   canAssign?: boolean;
   assignableStaff?: AssignableStaffMember[];

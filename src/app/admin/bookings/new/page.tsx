@@ -5,6 +5,7 @@ import { canAssignBookings, canClaimAssignments, getStaffProfile } from "@/lib/a
 import { AdminAccessDenied, AdminPageScaffold, AdminPageHeader } from "../../components/admin-ui";
 import { canManageAllBookings } from "../access";
 import { ManualBookingForm } from "./ManualBookingForm";
+import { fuzzyMatchService } from "@/lib/booking/service-fuzzy-match";
 
 export const metadata = {
   title: "New booking — Rahma Admin",
@@ -39,7 +40,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
     await Promise.all([
       adminClient
         .from("services")
-        .select("slug, name, price, duration_mins, gender_restrictions, allow_recurrence")
+        .select("slug, name, price, duration_mins, gender_restrictions, allow_recurrence, group_category")
         .eq("is_active", true)
         .eq("is_visible_on_frontend", true)
         .order("display_order")
@@ -54,7 +55,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
       enquiryId
         ? adminClient
             .from("enquiries")
-            .select("id, full_name, email, phone, source, service_interest, notes")
+            .select("id, full_name, email, phone, source, service_interest, notes, converted_booking_id")
             .eq("id", enquiryId)
             .single()
         : Promise.resolve({ data: null, error: null }),
@@ -73,6 +74,18 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
   const prefillClient = prefillClientResult.data ?? null;
   const enquiry = enquiryResult.data ?? null;
   const assignableStaff = assignableStaffResult.data ?? [];
+
+  // C-03 B-106: re-conversion guard — a stale/bookmarked URL for an enquiry
+  // that has already been converted must not let the operator create a
+  // second booking from it. Redirect to the existing booking instead.
+  if (enquiry?.converted_booking_id) {
+    redirect(`/admin/bookings/${enquiry.converted_booking_id}?from_enquiry=already_converted`);
+  }
+
+  // C-03 — pre-select the service the enquiry mentioned, when confident.
+  const matchedServiceSlug = enquiry?.service_interest
+    ? fuzzyMatchService(enquiry.service_interest, services)
+    : null;
 
   // Signal to the form when a requested pre-fill fetch failed (so it can toast a warning)
   const prefillFailed =
@@ -95,6 +108,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
         services={services}
         prefillClient={prefillClient}
         enquiry={enquiry}
+        matchedServiceSlug={matchedServiceSlug}
         prefillFailed={prefillFailed}
         canAssign={canAssign}
         assignableStaff={assignableStaff as Array<{ id: string; name: string; gender: string; can_take_bookings: boolean }>}
