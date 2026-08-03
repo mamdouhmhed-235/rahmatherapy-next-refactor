@@ -74,6 +74,13 @@ export async function updateRoleMetadata(
     after_state: data,
   });
 
+  // C-09 addendum (Owner-approved 2026-08-03): renames/relabels mutate
+  // roles.display_label, which dashboard-data.ts's getDashboardData
+  // unstable_cache wrap (tags incl. staff) reads via its `roles(name,
+  // display_label)` staff join. Without this, the dashboard shows the old
+  // label for up to the ~60s revalidate window.
+  updateTag(TAGS.STAFF);
+  updateTag(TAGS.AUDIT);
   revalidatePath(`/admin/roles/${roleId}`);
   revalidatePath("/admin/roles");
 
