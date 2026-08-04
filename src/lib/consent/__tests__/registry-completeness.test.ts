@@ -8,6 +8,8 @@
 // from that inventory's table so this test fails the moment the registry and
 // the inventory disagree about which items exist, in either direction.
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   CONSENT_BANNER_VERSION,
   COOKIE_REGISTRY,
@@ -102,6 +104,39 @@ describe("registry completeness (inventory <-> registry parity)", () => {
     expect(entry).toBeDefined();
     expect(entry?.purpose).toBe("analytics");
     expect(entry?.type).toBe("cookie");
+  });
+});
+
+describe("sentryReplaySession Phase D dependency pin", () => {
+  // C-18 Phase A fix round (redesign/evidence/C-18/cookie-inventory-browser.md):
+  // sentryReplaySession's description claims Replay "Only starts once you
+  // accept analytics cookies" — true only once Phase D (consent-gated
+  // loading) ships, which it has not as of this commit. cookie-registry.ts
+  // carries a "PHASE D DEPENDENCY" marker comment next to the claim,
+  // recording that it must be revisited before C-18 closes. This test fails
+  // loudly if that marker is ever removed while the claim itself is still
+  // present, so the dependency can't be silently forgotten and the page
+  // can't end up shipping a false statement without something failing.
+  const PHASE_D_CLAIM = "Only starts once you accept analytics cookies.";
+  const PHASE_D_MARKER = "PHASE D DEPENDENCY";
+  const registrySource = readFileSync(
+    join(process.cwd(), "src", "lib", "consent", "cookie-registry.ts"),
+    "utf8"
+  );
+
+  it("sanity check: the claim this test guards is still the one in the file", () => {
+    expect(registrySource).toContain(PHASE_D_CLAIM);
+  });
+
+  it("keeps the PHASE D DEPENDENCY marker paired with the claim", () => {
+    expect(
+      registrySource.includes(PHASE_D_MARKER),
+      `sentryReplaySession's description states "${PHASE_D_CLAIM}" but Phase D ` +
+        "(consent-gated loading) has not shipped, so this is currently false. " +
+        "The PHASE D DEPENDENCY marker comment in cookie-registry.ts must stay " +
+        "next to this claim as a reminder to verify/fix it before C-18 closes — " +
+        "it was removed without the claim being resolved."
+    ).toBe(true);
   });
 });
 

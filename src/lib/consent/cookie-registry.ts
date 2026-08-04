@@ -143,18 +143,37 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
   {
     // Written by the @sentry-internal/replay package (REPLAY_SESSION_KEY),
     // configured in sentry.client.config.ts, started via SentryProvider.tsx
-    // mounted at the ROOT layout (src/app/layout.tsx) — reaches (public),
-    // /admin and /booking/manage alike. 10% of sessions sampled, 100% of
-    // sessions with an error. Owner decision 2026-08-04 (progress §3, #1):
+    // mounted at the ROOT layout (src/app/layout.tsx). syncSessionReplay()
+    // in sentry.client.config.ts blocks it on /booking/manage (never started
+    // there — commit 09b2e26, browser-confirmed by
+    // redesign/evidence/C-18/cookie-inventory-browser.md §3 Scenario A: a
+    // fresh landing on that route writes zero storage), so it reaches
+    // (public) and /admin, not /booking/manage. Every visit is recorded
+    // (browser-confirmed: the write happens on every page load, before any
+    // sample outcome is known — cookie-inventory-browser.md §2); ~10% of
+    // sessions are sampled for continuous upload and any session with an
+    // error is uploaded too. Owner decision 2026-08-04 (progress §3, #1):
     // registered here and gated under analytics consent — the same purpose
     // as GA — rather than given its own purpose bucket.
+    //
+    // PHASE D DEPENDENCY: the description's closing sentence, "Only starts
+    // once you accept analytics cookies," is end-state copy — Phase D
+    // (consent-gated script/feature loading) has not shipped as of C-18
+    // Phase A, so today Replay starts for every visitor regardless of
+    // consent (SentryProvider.tsx mounts unconditionally). C-18 ships as one
+    // plan, so this becomes true at closeout — but if Phase D does not end
+    // up gating Replay before C-18 closes, this sentence must change to
+    // describe present-tense reality instead. Do not remove this marker
+    // without also revisiting the sentence:
+    // registry-completeness.test.ts asserts this exact marker text stays
+    // present in this file for as long as the claim does.
     name: "sentryReplaySession",
     provider: "Sentry (Functional Software, Inc.)",
     type: "sessionStorage",
     purpose: "analytics",
     duration: "Session — cleared when you close your browser tab",
     description:
-      "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. About 10% of visits are recorded, and any visit where an error occurs is always recorded. Only starts once you accept analytics cookies.",
+      "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. Every visit is recorded; what varies is whether that recording is sent to us: about 10% of visits are sent automatically, and any visit where an error occurs is sent too, even if it wasn't one of that 10%. Only starts once you accept analytics cookies.",
   },
 ];
 
