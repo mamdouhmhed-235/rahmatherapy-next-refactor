@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { CheckCircle2, Copy } from "lucide-react";
 import styles from "../BookingExperience.module.css";
@@ -16,6 +16,21 @@ export function SuccessScreen({
 }) {
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<number | null>(null);
+  const trackedSubmissionRef = useRef(false);
+
+  // GA4 conversion event, fired once when this screen mounts (i.e. once per
+  // submitted booking). Optional-chained so a blocked/absent gtag (ad-blocker,
+  // dev, GA env unset) can never throw; the ref guards against StrictMode's
+  // dev mount->cleanup->mount cycle double-firing it. No payload beyond the
+  // event name — no booking id, email, name, service or price (brief C-17 §2.4).
+  useEffect(() => {
+    if (trackedSubmissionRef.current) return;
+    trackedSubmissionRef.current = true;
+    (window as { gtag?: (...args: unknown[]) => void }).gtag?.(
+      "event",
+      "booking_request_submitted"
+    );
+  }, []);
 
   const copyManageUrl = async () => {
     if (!manageUrl) return;
