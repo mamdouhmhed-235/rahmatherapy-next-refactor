@@ -192,13 +192,37 @@ export const PURPOSE_LABELS: Record<CookiePurpose, string> = {
   analytics: "Analytics",
 };
 
+// PHASE D OBLIGATION — every "not yet consent-gated" correction made across
+// this registry and its consumers, consolidated in one place so a human
+// revisiting this file when Phases C/D actually ship can find all of them
+// without hunting. Phase D must NOT flip any of the five below back to a
+// present-tense "gated"/"off by default" claim without ALSO shipping the
+// real gate that makes it true, AND a test that asserts the gate itself
+// exists (e.g. reads SentryProvider.tsx / sentry.client.config.ts /
+// GoogleAnalytics.tsx / the booking submit handler for actual consent
+// checks) — never a test that only re-checks copy, the way the earlier
+// PHASE D DEPENDENCY pin did before it was removed in a5b5d9c for proving
+// nothing about the world outside this file:
+//   1. PURPOSE_DESCRIPTIONS.functional, below — "stored automatically
+//      today... don't yet wait for you to say yes".
+//   2. PURPOSE_DESCRIPTIONS.analytics, below — "load or run automatically
+//      today... don't yet wait for you to say yes".
+//   3. The non-essential group badge in
+//      src/app/(public)/cookies/CookieRegistryGroups.tsx — "Currently on —
+//      no cookie choice yet".
+//   4. The "_ga / _ga_*" entry's description, above — "It currently loads
+//      automatically in production... it does not yet wait for a cookie
+//      choice."
+//   5. The "sentryReplaySession" entry's description, above — "It starts
+//      automatically for every visitor today — it does not yet wait for a
+//      cookie choice."
 export const PURPOSE_DESCRIPTIONS: Record<CookiePurpose, string> = {
   essential:
-    "Needed for a function you specifically asked for — the site does not work as requested without these. You can't opt out of these from the cookie banner.",
+    "Needed for a function you specifically asked for — the site does not work as requested without these. You can't opt out of these here.",
   functional:
-    "Make a return visit more convenient by remembering things across visits. Off by default; only used if you say yes.",
+    "Make a return visit more convenient by remembering things across visits. There's no cookie choice on this site yet, so items in this group are stored automatically today — they don't yet wait for you to say yes.",
   analytics:
-    "Help us understand how the site is used in aggregate, so we can improve it. Off by default; only used if you say yes.",
+    "Help us understand how the site is used in aggregate, so we can improve it. There's no cookie choice on this site yet, so items in this group load or run automatically today — they don't yet wait for you to say yes.",
 };
 
 // Fixed display order — essential first (it's the one bucket that's always

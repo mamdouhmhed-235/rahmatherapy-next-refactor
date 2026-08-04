@@ -82,7 +82,7 @@ export function CookieRegistryGroups() {
               </span>
             ) : (
               <span className="text-sm font-semibold text-rahma-muted">
-                Off unless you say yes
+                Currently on — no cookie choice yet
               </span>
             )}
           </div>
