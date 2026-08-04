@@ -14,10 +14,10 @@
 // src/lib/consent/consent-state.ts). Six entries in total.
 //
 // This file drives THREE surfaces from one array: the /cookies notice page
-// (src/app/(public)/cookies/page.tsx), and — in later phases — the
-// preferences panel's toggle list and per-cookie table. No surface may hold
-// its own hand-maintained copy of this list; add an entry here and every
-// consumer updates itself.
+// (src/app/(public)/cookies/page.tsx) and the preferences panel's control list
+// and per-item disclosure (src/components/consent/ConsentPreferencesPanel.tsx).
+// No surface may hold its own hand-maintained copy of this list; add an entry
+// here and every consumer updates itself.
 //
 // Bump policy (brief §2.1, Q8.2): CONSENT_BANNER_VERSION is a date + a
 // same-day counter ("YYYY-MM-DD.n"). Bump it whenever a change here would
@@ -101,13 +101,11 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     // consent choice is what makes the choice stick, and PECR cannot
     // sensibly require consent for the thing that stores the answer.
     //
-    // NOT marked `dormant`. The flag's copy in
-    // src/app/(public)/cookies/CookieRegistryGroups.tsx says the feature is
-    // "switched off" and "starts again" once switched back on — true of
-    // maintenance-modal-seen, wrong here, where the feature has never
-    // existed. The description carries the plain fact instead. Delete that
-    // last sentence when Phase C's banner first writes this cookie; see the
-    // PHASE D OBLIGATION list below.
+    // The banner and preferences panel that write this cookie shipped in
+    // Phase C (src/components/consent/), so the description below no longer
+    // carries the "nothing sets this yet" sentence it was written with — that
+    // was PHASE D OBLIGATION item 6, discharged in the same change that shipped
+    // the banner.
     name: "rahma_consent",
     provider: "Rahma Therapy",
     type: "cookie",
@@ -115,7 +113,7 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     duration:
       "6 months (182 days) from the moment a choice is made or changed — the interval the ICO recommends before asking again",
     description:
-      "Stores the cookie choices you make on this site — what you agreed to and what you refused — so every page can honour them without asking you again, and so we can show what you were asked and what you answered. It also holds a random reference number that isn't linked to your name, your email or any booking. Nothing sets this cookie yet: the banner and preferences panel that would record a choice haven't been built, so no visitor's browser is storing it today.",
+      "Stores the cookie choices you make on this site — what you agreed to and what you refused — so every page can honour them without asking you again, and so we can show what you were asked and what you answered. It also holds a random reference number that isn't linked to your name, your email or any booking. It's written the moment you answer the cookie banner or save your settings, and not before.",
   },
   {
     // src/features/booking/store/booking-store.ts:75-79 — zustand `persist`,
@@ -222,43 +220,42 @@ export const PURPOSE_LABELS: Record<CookiePurpose, string> = {
   analytics: "Analytics",
 };
 
-// PHASE D OBLIGATION — every "not yet consent-gated" correction made across
+// GATING OBLIGATIONS — every "not yet consent-gated" correction made across
 // this registry and its consumers, consolidated in one place so a human
-// revisiting this file when Phases C/D actually ship can find all of them
-// without hunting. Phase D must NOT flip any of the six below back to a
-// present-tense "gated"/"off by default" claim without ALSO shipping the
-// real gate that makes it true, AND a test that asserts the gate itself
-// exists (e.g. reads SentryProvider.tsx / sentry.client.config.ts /
-// GoogleAnalytics.tsx / the booking submit handler for actual consent
-// checks) — never a test that only re-checks copy, the way the earlier
-// PHASE D DEPENDENCY pin did before it was removed in a5b5d9c for proving
-// nothing about the world outside this file:
-//   1. PURPOSE_DESCRIPTIONS.functional, below — "stored automatically
-//      today... don't yet wait for you to say yes".
-//   2. PURPOSE_DESCRIPTIONS.analytics, below — "load or run automatically
-//      today... don't yet wait for you to say yes".
-//   3. The non-essential group badge in
-//      src/app/(public)/cookies/CookieRegistryGroups.tsx — "Currently on —
-//      no cookie choice yet".
-//   4. The "_ga / _ga_*" entry's description, above — "It currently loads
-//      automatically in production... it does not yet wait for a cookie
-//      choice."
-//   5. The "sentryReplaySession" entry's description, above — "It starts
-//      automatically for every visitor today — it does not yet wait for a
-//      cookie choice."
-//   6. The "rahma_consent" entry's description, above — "Nothing sets this
-//      cookie yet: the banner and preferences panel that would record a
-//      choice haven't been built, so no visitor's browser is storing it
-//      today." This one flips EARLIER than the other five: it stops being
-//      true the moment PHASE C's banner first calls writeConsent(), not at
-//      Phase D. Drop that sentence in the same change that ships the banner.
+// revisiting this file can find all of them without hunting. No item below may
+// be flipped back to a present-tense "gated"/"off by default" claim without
+// ALSO shipping the real gate that makes it true, AND a test that asserts the
+// gate itself exists (e.g. reads SentryProvider.tsx / sentry.client.config.ts /
+// GoogleAnalytics.tsx / the booking submit handler for actual consent checks) —
+// never a test that only re-checks copy, the way the earlier PHASE D DEPENDENCY
+// pin did before it was removed in a5b5d9c for proving nothing about the world
+// outside this file.
+//
+//   1. OPEN (Phase C, next commit) — PURPOSE_DESCRIPTIONS.functional, below:
+//      "still stored automatically today, even if you switch this off". The
+//      gate goes in src/features/booking/BookingExperience.tsx.
+//   2. OPEN (Phase D) — PURPOSE_DESCRIPTIONS.analytics, below: "still load and
+//      run automatically today, even if you switch this off".
+//   3. OPEN (Phase C, next commit / Phase D) — the non-essential group badge in
+//      src/app/(public)/cookies/CookieRegistryGroups.tsx. One string covers
+//      both non-essential groups today; once functional is gated and analytics
+//      is not, it has to become purpose-aware rather than be deleted.
+//   4. OPEN (Phase D) — the "_ga / _ga_*" entry's description, above: "It
+//      currently loads automatically in production... it does not yet wait for
+//      a cookie choice."
+//   5. OPEN (Phase D) — the "sentryReplaySession" entry's description, above:
+//      "It starts automatically for every visitor today — it does not yet wait
+//      for a cookie choice."
+//   6. DISCHARGED in Phase C — the "rahma_consent" entry's description, above,
+//      used to say nothing set the cookie yet. The banner and preferences panel
+//      now write it, and the sentence went in the same change.
 export const PURPOSE_DESCRIPTIONS: Record<CookiePurpose, string> = {
   essential:
     "Needed for a function you specifically asked for — the site does not work as requested without these. You can't opt out of these here.",
   functional:
-    "Make a return visit more convenient by remembering things across visits. There's no cookie choice on this site yet, so items in this group are stored automatically today — they don't yet wait for you to say yes.",
+    "Make a return visit more convenient by remembering things across visits. Items in this group are still stored automatically today, even if you switch this off.",
   analytics:
-    "Help us understand how the site is used in aggregate, so we can improve it. There's no cookie choice on this site yet, so items in this group load or run automatically today — they don't yet wait for you to say yes.",
+    "Help us understand how the site is used in aggregate, so we can improve it. Items in this group still load and run automatically today, even if you switch this off.",
 };
 
 // Fixed display order — essential first (it's the one bucket that's always

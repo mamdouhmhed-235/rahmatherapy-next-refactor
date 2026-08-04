@@ -7,11 +7,11 @@
 // page's first inline script — no client effect, no flash of the wrong state —
 // and the browser enforces the expiry for us.
 //
-// NOTHING CALLS writeConsent() AT THIS COMMIT. Phase B ships this helper plus
-// the default-denied script; the banner that records a visitor's choice is
-// Phase C and the consent-gated loaders are Phase D. So no visitor's browser
-// holds a `rahma_consent` cookie today — the registry entry of the same name
-// says exactly that in the visitor-facing copy, and both must change together.
+// writeConsent() is called from the consent store
+// (src/components/consent/consent-store.ts) when a visitor answers the banner
+// or saves from the preferences panel — the only two places a choice is
+// recorded. The consent-gated loaders that act on an analytics grant are still
+// Phase D.
 import { CONSENT_BANNER_VERSION } from "./cookie-registry";
 
 /**

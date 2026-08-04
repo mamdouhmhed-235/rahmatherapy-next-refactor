@@ -7,6 +7,7 @@ import { MaintenanceBanner } from "@/components/shared/MaintenanceBanner";
 import { MaintenanceModal } from "@/components/shared/MaintenanceModal";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { ConsentScripts } from "@/components/consent/ConsentScripts";
+import { CookieBanner } from "@/components/consent/CookieBanner";
 
 export default function PublicLayout({
   children,
@@ -33,6 +34,11 @@ export default function PublicLayout({
       {!MAINTENANCE_MODE && <BookingExperienceLoader />}
       {MAINTENANCE_MODE && <MaintenanceModal />}
       <PublicScrollbar />
+      {/* Last in the tree, and unconditional like ConsentScripts above: the
+          consent question is asked in maintenance mode too, and being late in
+          the DOM keeps it late in the tab order rather than ahead of the page's
+          own content. */}
+      <CookieBanner />
       <GoogleAnalytics />
     </>
   );

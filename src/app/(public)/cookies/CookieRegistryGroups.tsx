@@ -62,8 +62,8 @@ function EntryCard({ entry }: { entry: CookieRegistryEntry }) {
  * purpose. This is the ONLY place the /cookies page describes individual
  * cookies/storage items — there is no separate hand-maintained list, so this
  * component and the registry cannot drift apart. The preferences panel
- * (Phase C) is expected to render the same per-cookie detail from the same
- * `groupRegistryByPurpose()` call.
+ * (src/components/consent/ConsentPreferencesPanel.tsx) renders the same
+ * per-item detail from the same `groupRegistryByPurpose()` call.
  */
 export function CookieRegistryGroups() {
   const groups = groupRegistryByPurpose();
@@ -82,7 +82,7 @@ export function CookieRegistryGroups() {
               </span>
             ) : (
               <span className="text-sm font-semibold text-rahma-muted">
-                Currently on — no cookie choice yet
+                On today whichever way you choose
               </span>
             )}
           </div>
