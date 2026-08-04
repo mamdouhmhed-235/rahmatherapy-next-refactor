@@ -54,9 +54,8 @@ export default function CookiesPage() {
             <p className="mt-3 text-sm leading-7 text-rahma-muted sm:text-base">
               Open your cookie settings below, whenever you like. Essential items aren&apos;t
               switchable off, because the site can&apos;t do what you&apos;ve asked without
-              them. Everything else has its own switch, and each group tells you plainly
-              whether your answer is being acted on yet — some of it isn&apos;t, and the
-              groups below say so.
+              them. Everything else has its own switch that is off until you turn it on,
+              and each group below tells you exactly what turning it on or off does.
             </p>
             <a
               href={COOKIE_SETTINGS_HREF}

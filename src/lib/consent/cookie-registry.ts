@@ -138,14 +138,14 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     // mounted from src/app/(public)/layout.tsx. Set by Google, not by this
     // repo's code, so the exact attributes are Google's own defaults.
     //
-    // Like sentryReplaySession below, this is NOT consent-gated today —
-    // GoogleAnalytics.tsx loads gtag.js whenever GA_ID is set and
-    // NODE_ENV === "production", with only a "// C-18 consent insertion
-    // point" code comment marking where a future gate goes (verified by
-    // reading the file, C-18 Phase A fix round). The description states
-    // that present-tense fact instead of the end-state claim it previously
-    // made. Phase D must add the actual gate here AND update this sentence
-    // together.
+    // Consent-gated since Phase D: GoogleAnalytics.tsx keeps C-17's
+    // env-and-production check and adds a stored-analytics-grant check read
+    // through the consent store, so it renders nothing — no script, no request
+    // to any Google host — until the visitor has said yes. It is the only
+    // component in the app that names a Google host, which is what makes
+    // "zero Google requests before consent" true by construction rather than
+    // by ordering luck. Tests:
+    // src/components/__tests__/GoogleAnalytics.test.tsx.
     name: "_ga / _ga_*",
     provider: "Google (Google Analytics 4)",
     type: "cookie",
@@ -153,7 +153,7 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     duration:
       "Up to 13 months (Google's documented default for this cookie family; this site does not set a custom expiry, and this figure has not been independently verified in production)",
     description:
-      "Google Analytics 4 cookies used to distinguish visitors and sessions so we can see aggregate website-traffic patterns — for example, which pages are popular and how visitors move through the site. It currently loads automatically in production whenever analytics is configured for this site — it does not yet wait for a cookie choice.",
+      "Google Analytics 4 cookies used to distinguish visitors and sessions so we can see aggregate website-traffic patterns — for example, which pages are popular and how visitors move through the site. They only appear if you switch Analytics on: until you do, Google Analytics isn't loaded at all and your browser doesn't contact Google, so there is nothing to set them. Switch Analytics back off and we delete them.",
   },
   {
     // src/components/shared/MaintenanceModal.tsx:14,20-21 — gated behind
@@ -190,24 +190,27 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     // registered here and gated under analytics consent — the same purpose
     // as GA — rather than given its own purpose bucket.
     //
-    // Replay is NOT consent-gated today: SentryProvider.tsx mounts it
-    // unconditionally, and neither it nor sentry.client.config.ts contains
-    // any reference to "consent" (verified by grep, C-18 Phase A fix round).
-    // The description below states that present-tense fact rather than the
-    // end-state claim ("only starts once you accept analytics cookies")
-    // that a prior draft asserted before it was true. Phase D
-    // (consent-gated script/feature loading) must add BOTH the actual
-    // gating in SentryProvider.tsx/sentry.client.config.ts AND this
-    // sentence's replacement, together, in the same change — a test in
-    // Phase D's own work should assert the gate genuinely exists, not just
-    // that copy mentions it.
+    // Consent-gated since Phase D: syncSessionReplay() in
+    // sentry.client.config.ts adds the Replay integration only when the stored
+    // consent grants analytics, so on a gated route nothing is started and this
+    // key is never written. Error reporting is untouched and stays on for
+    // everyone (Owner decision 1). Tests:
+    // src/components/__tests__/SentryProvider.test.tsx.
+    //
+    // The gate is scoped to the PUBLIC surface: replayRequiresConsent()
+    // excludes /admin, because the banner is mounted from (public)/layout.tsx
+    // only and brief §3 gives the admin tree no banner — gating staff pages on
+    // a consent record that can never be written there would disable staff
+    // error-replay with no way to turn it back on. /admin/login is inside that
+    // exclusion even though anyone can load it, so the description below names
+    // the admin area as the exception rather than claiming a blanket gate.
     name: "sentryReplaySession",
     provider: "Sentry (Functional Software, Inc.)",
     type: "sessionStorage",
     purpose: "analytics",
     duration: "Session — cleared when you close your browser tab",
     description:
-      "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. Every visit is recorded; what varies is whether that recording is sent to us: about 10% of visits are sent automatically, and any visit where an error occurs is sent too, even if it wasn't one of that 10%. It starts automatically for every visitor today — it does not yet wait for a cookie choice.",
+      "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. Where it is running, every visit is recorded; what varies is whether that recording is sent to us: about 10% of visits are sent automatically, and any visit where an error occurs is sent too, even if it wasn't one of that 10%. It only starts if you switch Analytics on, and switching Analytics back off stops it. The exception is our staff-only admin area, including its sign-in page, which keeps recording for error investigation either way, because it isn't part of a public visit.",
   },
 ];
 
@@ -217,44 +220,48 @@ export const PURPOSE_LABELS: Record<CookiePurpose, string> = {
   analytics: "Analytics",
 };
 
-// GATING OBLIGATIONS — every "not yet consent-gated" correction made across
-// this registry and its consumers, consolidated in one place so a human
-// revisiting this file can find all of them without hunting. No item below may
-// be flipped back to a present-tense "gated"/"off by default" claim without
-// ALSO shipping the real gate that makes it true, AND a test that asserts the
-// gate itself exists (e.g. reads SentryProvider.tsx / sentry.client.config.ts /
-// GoogleAnalytics.tsx / the booking submit handler for actual consent checks) —
-// never a test that only re-checks copy, the way the earlier PHASE D DEPENDENCY
-// pin did before it was removed in a5b5d9c for proving nothing about the world
-// outside this file.
+// GATING OBLIGATIONS — ALL SIX DISCHARGED (items 1, 3-functional and 6 in Phase
+// C; items 2, 3-analytics, 4 and 5 in Phase D). Nothing on this list is
+// outstanding. It is kept, rather than deleted, because the RULE it encodes
+// still governs every future change:
 //
-//   1. DISCHARGED in Phase C — PURPOSE_DESCRIPTIONS.functional, below. The gate
-//      is saveReturningCustomerIfConsented / loadReturningCustomerIfConsented in
-//      src/features/booking/BookingExperience.tsx, and the test that it exists
-//      is src/features/booking/__tests__/returning-customer-consent-gate.test.ts.
-//   2. OPEN (Phase D) — PURPOSE_DESCRIPTIONS.analytics, below: "still load and
-//      run automatically today, even if you switch this off".
-//   3. DISCHARGED in Phase C, for functional only — the group badge in
-//      src/app/(public)/cookies/CookieRegistryGroups.tsx is now purpose-aware,
-//      and the analytics arm of it is still an OPEN Phase D item: it says the
-//      group runs whichever way you choose, which is the truth until the
-//      loaders are gated.
-//   4. OPEN (Phase D) — the "_ga / _ga_*" entry's description, above: "It
-//      currently loads automatically in production... it does not yet wait for
-//      a cookie choice."
-//   5. OPEN (Phase D) — the "sentryReplaySession" entry's description, above:
-//      "It starts automatically for every visitor today — it does not yet wait
-//      for a cookie choice."
-//   6. DISCHARGED in Phase C — the "rahma_consent" entry's description, above,
-//      used to say nothing set the cookie yet. The banner and preferences panel
-//      now write it, and the sentence went in the same change.
+//   No copy in this registry or its consumers may make a present-tense
+//   "gated" / "off by default" / "waits for your choice" claim unless the real
+//   gate that makes it true ships in the SAME change, together with a test that
+//   asserts the gate itself exists — never a test that only re-checks copy, the
+//   way the earlier PHASE D DEPENDENCY pin did before it was removed in a5b5d9c
+//   for proving nothing about the world outside this file.
+//
+// The gates and the tests that assert they exist, as shipped:
+//
+//   1. PURPOSE_DESCRIPTIONS.functional (Phase C) — gate:
+//      saveReturningCustomerIfConsented / loadReturningCustomerIfConsented in
+//      src/features/booking/BookingExperience.tsx; test:
+//      src/features/booking/__tests__/returning-customer-consent-gate.test.ts.
+//   2. PURPOSE_DESCRIPTIONS.analytics, below (Phase D) — gates: the analytics
+//      arm of src/components/GoogleAnalytics.tsx and of syncSessionReplay() in
+//      sentry.client.config.ts; tests:
+//      src/components/__tests__/GoogleAnalytics.test.tsx and
+//      src/components/__tests__/SentryProvider.test.tsx, both of which assert
+//      the loaders' real behaviour under each consent state.
+//   3. The purpose-aware group badge in
+//      src/app/(public)/cookies/CookieRegistryGroups.tsx — functional arm in
+//      Phase C, analytics arm in Phase D, each with the gate above.
+//   4. The "_ga / _ga_*" entry's description, above (Phase D) — gate and test
+//      as in item 2, GA side.
+//   5. The "sentryReplaySession" entry's description, above (Phase D) — gate
+//      and test as in item 2, Replay side. Its wording carries the one
+//      exception the gate really has: /admin is out of scope by design.
+//   6. The "rahma_consent" entry's description, above (Phase C) — gate: the
+//      banner and panel now write the cookie; test:
+//      src/components/consent/__tests__/CookieBanner.test.tsx.
 export const PURPOSE_DESCRIPTIONS: Record<CookiePurpose, string> = {
   essential:
     "Needed for a function you specifically asked for — the site does not work as requested without these. You can't opt out of these here.",
   functional:
     "Make a return visit more convenient by remembering things across visits. Nothing in this group is stored, or read back, unless you switch it on — and switching it off again deletes what was stored.",
   analytics:
-    "Help us understand how the site is used in aggregate, so we can improve it. Items in this group still load and run automatically today, even if you switch this off.",
+    "Help us understand how the site is used in aggregate, so we can improve it. Nothing in this group loads or runs on the public site unless you switch it on, and switching it back off stops it straight away. Our staff-only admin pages sit outside this choice — the Sentry item in this group explains why.",
 };
 
 // Fixed display order — essential first (it's the one bucket that's always

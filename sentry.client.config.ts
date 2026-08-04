@@ -1,6 +1,8 @@
 import * as Sentry from "@sentry/nextjs";
 import type { Event } from "@sentry/nextjs";
 import { scrubSentryEvent } from "./src/lib/observability/sentry-scrubbing";
+import { readConsent } from "./src/lib/consent/consent-state";
+import { registerReplayGate } from "./src/components/consent/consent-store";
 
 // `/booking/manage` receives the customer's booking-management bearer token as
 // a URL query parameter (`?token=...` — src/app/booking/manage/page.tsx).
@@ -15,16 +17,55 @@ import { scrubSentryEvent } from "./src/lib/observability/sentry-scrubbing";
 // blocked path. Error reporting is untouched and stays on for every route.
 const REPLAY_BLOCKED_PATH = "/booking/manage";
 
+const ADMIN_PATH = "/admin";
+
+function normalisePath(pathname: string): string {
+  return pathname.replace(/\/+$/, "");
+}
+
 /**
  * True for `/booking/manage` and anything beneath it, with or without the
  * trailing slash Next.js adds (`trailingSlash: true`, next.config.ts).
  */
 export function isReplayBlockedPath(pathname: string): boolean {
-  const normalised = pathname.replace(/\/+$/, "");
+  const normalised = normalisePath(pathname);
   return (
     normalised === REPLAY_BLOCKED_PATH ||
     normalised.startsWith(`${REPLAY_BLOCKED_PATH}/`)
   );
+}
+
+/**
+ * Which routes Session Replay needs analytics consent for — C-18 Phase D,
+ * Owner decision 1 (progress §3): Replay is registered in the cookie registry
+ * as an `analytics` item and gated behind that choice.
+ *
+ * SCOPED TO THE PUBLIC SURFACE, DELIBERATELY. `/admin` is excluded because the
+ * consent record can never exist there: the banner is mounted from
+ * `(public)/layout.tsx` only, and brief §3 states the admin tree gets no banner
+ * (it is staff-only, and PECR consent is about visitors' terminal equipment on
+ * the public site). Gating admin on a cookie nothing there can write would
+ * silently disable staff error-replay with no route to re-enable it — a
+ * different defect, not a stricter one. `/admin/login` is inside that exclusion
+ * even though an anonymous person can load it; the `sentryReplaySession`
+ * registry entry's description says so rather than claiming a blanket gate.
+ *
+ * Everything else — the whole `(public)` group, `/booking/*`, 404s — is gated.
+ * Unrecognised paths fall on the gated side, which is the fail-closed one.
+ */
+export function replayRequiresConsent(pathname: string): boolean {
+  const normalised = normalisePath(pathname);
+  return !(normalised === ADMIN_PATH || normalised.startsWith(`${ADMIN_PATH}/`));
+}
+
+/**
+ * The visitor's stored analytics choice, read through `readConsent` — the same
+ * parser the banner, the panel and the gated GA loader use, so there is exactly
+ * one definition of what a valid grant looks like. Anything else (absent,
+ * malformed, or from a superseded banner version) is not a grant.
+ */
+function hasAnalyticsConsent(): boolean {
+  return readConsent(document.cookie)?.choices.analytics === true;
 }
 
 /** Drop the query string (i.e. the token) from a URL on a blocked path. */
@@ -71,12 +112,19 @@ Sentry.addEventProcessor((event) => {
 });
 
 /**
- * Start Session Replay when the route allows it, and never on a blocked one.
+ * Start Session Replay when the route AND the visitor's consent allow it, and
+ * never on a blocked one.
  *
  * `SentryProvider` calls this on mount and on every client-side route change:
  * the root layout does not remount across App Router transitions, so without
  * this a Replay session started on a public page would follow the visitor onto
- * `/booking/manage` and record its URL.
+ * `/booking/manage` and record its URL. C-18 Phase D adds the consent arm to
+ * the same route-aware decision rather than a second mechanism, and the consent
+ * store calls this function again when a choice changes.
+ *
+ * Nothing here touches error reporting: `Sentry.init` above is what captures
+ * errors, it runs on every route, and Owner decision 1 keeps it ungated for
+ * everyone. Only the replay recording is a consent question.
  */
 export function syncSessionReplay(pathname: string): void {
   const replay = Sentry.getReplay();
@@ -91,8 +139,17 @@ export function syncSessionReplay(pathname: string): void {
     return;
   }
 
-  // Already added — and if it was stopped on a blocked path, deliberately left
-  // stopped for the remainder of this page's life.
+  if (replayRequiresConsent(pathname) && !hasAnalyticsConsent()) {
+    // No grant: never start. The `stop()` is for the withdrawal case, where the
+    // consent store calls this again after rewriting the cookie — see
+    // src/components/consent/consent-store.ts for what `stop()` does and does
+    // not transmit at this pinned SDK version.
+    void replay?.stop();
+    return;
+  }
+
+  // Already added — and if it was stopped on a blocked path or a withdrawal,
+  // deliberately left stopped for the remainder of this page's life.
   if (replay) return;
 
   Sentry.addIntegration(
@@ -104,5 +161,14 @@ export function syncSessionReplay(pathname: string): void {
     })
   );
 }
+
+// A choice made in the preferences panel has to reach Replay without waiting
+// for a navigation — a withdrawal in particular, which must stop recording
+// before the page reloads. The consent store cannot import this module (it is
+// on every public page and the Sentry SDK is not), so the dependency is
+// inverted: this module hands the store its gate as soon as SentryProvider
+// loads it. See the comment on registerReplayGate for the measurement that
+// settled the direction.
+registerReplayGate(syncSessionReplay);
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

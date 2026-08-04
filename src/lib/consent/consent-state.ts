@@ -10,8 +10,9 @@
 // writeConsent() is called from the consent store
 // (src/components/consent/consent-store.ts) when a visitor answers the banner
 // or saves from the preferences panel — the only two places a choice is
-// recorded. The consent-gated loaders that act on an analytics grant are still
-// Phase D.
+// recorded. readConsent() is what the two consent-gated loaders act on:
+// src/components/GoogleAnalytics.tsx (through the store) and Session Replay's
+// route gate in sentry.client.config.ts (directly).
 import { CONSENT_BANNER_VERSION } from "./cookie-registry";
 
 /**

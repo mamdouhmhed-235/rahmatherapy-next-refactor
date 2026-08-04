@@ -11,15 +11,16 @@ const TYPE_LABELS: Record<StorageMechanism, string> = {
   sessionStorage: "Browser storage (this browser tab/session only)",
 };
 
-// One line per purpose saying what your choice does to that group TODAY. It is
-// per-purpose rather than one line for everything non-essential because that
-// stopped being true the moment functional got a real gate and analytics did
-// not: see the gating-obligation list in src/lib/consent/cookie-registry.ts,
-// where the analytics arm below is still an open item.
+// One line per purpose saying what your choice does to that group TODAY. Both
+// gated groups now read the same because both are now genuinely gated, but the
+// map stays per-purpose rather than collapsing to one line: it was per-purpose
+// precisely because the two arms once differed, and a future purpose that
+// behaves differently again must be able to say so here. Each line is bound to
+// a real gate by the obligations list in src/lib/consent/cookie-registry.ts.
 const PURPOSE_STATUS: Record<CookiePurpose, string> = {
   essential: "Always on — can't be switched off here",
   functional: "Off unless you switch it on",
-  analytics: "On today whichever way you choose",
+  analytics: "Off unless you switch it on",
 };
 
 function EntryCard({ entry }: { entry: CookieRegistryEntry }) {

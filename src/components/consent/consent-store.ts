@@ -7,9 +7,8 @@
 // client provider would push every public page's children through a client
 // component boundary; src/app/(public)/layout.tsx is a server component and the
 // 15 prerendered public pages depend on it staying that way. A module-level
-// store needs no provider: the banner subscribes, and Phase D's consent-gated
-// loaders will subscribe to this same store without either of them having to
-// share an ancestor.
+// store needs no provider: the banner subscribes, and so does Phase D's gated
+// GoogleAnalytics loader, without either of them having to share an ancestor.
 //
 // WHY THE SNAPSHOT HAS THREE STATES. `undefined` means "not read yet on this
 // client" and is what the server snapshot returns; `null` means "read, and
@@ -118,6 +117,31 @@ export function hasConsentFor(purpose: GatedPurpose): boolean {
   return getConsentSnapshot()?.choices[purpose] === true;
 }
 
+/**
+ * Session Replay's route-aware gate — `syncSessionReplay` from
+ * sentry.client.config.ts, registered by that module when `SentryProvider`
+ * loads it (on mount, on every route). Undefined until then, which is
+ * self-consistent: the same module is the only thing that ever starts Replay,
+ * so if it has not loaded there is nothing running to stop.
+ *
+ * WHY A REGISTRATION AND NOT AN IMPORT. This module is in every public page's
+ * first-load bundle and the Sentry SDK must not be. The obvious
+ * `await import("../../../sentry.client.config")` here was written and MEASURED
+ * first: +1.98 kB gzipped on /home, because the extra async boundary made
+ * Turbopack split the layout's client code into one more chunk, and 16
+ * separately-gzipped streams compress worse than 15. C-18's budget is +5 kB
+ * gzipped and Phase C had already spent 4.68 kB of it, so that was not
+ * affordable. Inverting the dependency leaves the reference in the Sentry
+ * chunk, which is lazy already, and costs this bundle nothing — and it keeps
+ * the withdrawal sequence synchronous with the click.
+ */
+type ReplayGate = (pathname: string) => void;
+let replayGate: ReplayGate | undefined;
+
+export function registerReplayGate(gate: ReplayGate): void {
+  replayGate = gate;
+}
+
 // Same optional-chained posture as SuccessScreen.tsx: an ad-blocker, or a page
 // whose inline consent script never ran, must not turn a consent click into a
 // thrown error.
@@ -156,17 +180,56 @@ async function applyChoiceTransition(previous: ConsentChoices, next: ConsentChoi
   if (next.analytics === previous.analytics) return;
 
   if (next.analytics) {
+    // Google Analytics mounts immediately: GoogleAnalytics.tsx subscribes to
+    // this store, so the notify() above has already re-rendered it and gtag.js
+    // is loading — no navigation needed (brief §2.2). Sentry Session Replay
+    // starts at the next route change instead, when SentryProvider re-runs
+    // syncSessionReplay and finds the grant. Starting it here as well would
+    // pull the Sentry chunk into the click handler to begin recording a page
+    // that is already half over; a grant is a permission, not a promise to
+    // start this instant. A withdrawal is the direction that has to be
+    // immediate, and it is — see below.
     consentModeUpdate("granted");
     return;
   }
 
-  // Withdrawal: tell Google to stop, delete what it already stored, then reload
-  // so any gtag.js already on the page cannot keep running. Sentry Replay is
-  // deliberately not stopped here — it restarts unconditionally on load today,
-  // so stopping it a moment before a reload would achieve nothing; Phase D owns
-  // it end to end, gate and stop together.
+  // Withdrawal: tell Google to stop, delete what it already stored, stop Sentry
+  // Session Replay, then reload so nothing already on the page can keep running.
   consentModeUpdate("denied");
   clearGaCookies();
+
+  // WHY REPLAY IS STOPPED HERE RATHER THAN LEFT TO THE RELOAD (C-18 Phase D).
+  // Read out of the pinned package, @sentry-internal/replay@10.51.0,
+  // build/npm/cjs/index.js:
+  //   - The public `stop()` (:10090) calls the container's
+  //     `stop({ forceFlush: recordingMode === 'session' })`. There is no
+  //     discard-without-sending option on either API.
+  //   - The container's `stop()` (:8876) is synchronous up to the flush:
+  //     `_removeListeners()` (:8900) — which drops the `visibilitychange`
+  //     handler registered at :9329 — then `stopRecording()` (:8901) and
+  //     `_debouncedFlush.cancel()` (:8903). Only then, and only when
+  //     forceFlush, does it `await _flush({force:true})` (:8906).
+  //   - In BUFFER mode — the ~90% path, since replaysSessionSampleRate is 0.1
+  //     (mode chosen at :8726) — forceFlush is false, so the whole of stop()
+  //     runs synchronously and transmits NOTHING: the buffer is destroyed
+  //     unsent (:8911) and the sticky `sentryReplaySession` key is removed
+  //     (:8916 -> deleteSession :6076).
+  //   - In SESSION mode there is no way to discard what is already buffered.
+  //     But NOT calling stop() does not avoid that send either: the reload
+  //     hides the document, and the visibilitychange listener runs
+  //     `_doChangeToBackgroundTasks` (:9377) -> `conditionalFlush()` (:9074),
+  //     which flushes the same buffer. stop() therefore transmits no more than
+  //     doing nothing, and less content, because recording is halted before the
+  //     flush rather than continuing until unload.
+  // DISCLOSED RESIDUAL: for a session-mode visitor a final flush of
+  // already-buffered data happens either way. Nothing at this SDK version
+  // prevents it; the gate is what stops the next visit being recorded at all.
+  //
+  // The gate is re-run rather than a stop being called directly, so that one
+  // function decides whether Replay may run — and it is re-run now, with the
+  // new cookie already written, so it takes the deny branch.
+  replayGate?.(window.location.pathname);
+
   window.location.reload();
 }
 

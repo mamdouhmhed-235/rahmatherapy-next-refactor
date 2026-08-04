@@ -22,11 +22,18 @@ import {
   ALL_DENIED,
   ALL_GRANTED,
   recordConsentChoices,
+  registerReplayGate,
   resetConsentStoreForTests,
 } from "../consent-store";
 
 const reload = vi.fn();
 const gtag = vi.fn();
+// Stands in for syncSessionReplay, which sentry.client.config.ts registers here
+// at import time in the browser. Registering a spy instead keeps the real
+// config — and its module-scope Sentry.init — out of this suite; what the real
+// gate does with a denied cookie is pinned in
+// src/components/__tests__/SentryProvider.test.tsx.
+const replayGate = vi.fn();
 
 function cookieNames(): string[] {
   return document.cookie
@@ -59,12 +66,19 @@ beforeEach(() => {
   reload.mockClear();
   gtag.mockClear();
   vi.mocked(clearReturningCustomer).mockClear();
+  replayGate.mockClear();
+  registerReplayGate(replayGate);
 
   (window as { gtag?: unknown }).gtag = gtag;
   Object.defineProperty(window, "location", {
     configurable: true,
     writable: true,
-    value: { hostname: "localhost", href: "https://localhost:3000/", reload },
+    value: {
+      hostname: "localhost",
+      href: "https://localhost:3000/",
+      pathname: "/",
+      reload,
+    },
   });
 });
 
@@ -123,6 +137,39 @@ describe("withdrawing analytics", () => {
     expect(cookieNames()).toContain("_gali");
     expect(reload).toHaveBeenCalledTimes(1);
     expect(gtag.mock.invocationCallOrder[0]).toBeLessThan(reload.mock.invocationCallOrder[0]);
+  });
+
+  it("re-runs the Session Replay gate BEFORE the reload, not after it", () => {
+    // Left to the reload alone, Replay would keep recording until the document
+    // unloads and then flush that longer recording anyway (the package trace is
+    // in consent-store.ts). Re-running the gate now stops recording
+    // immediately; in buffer mode — ~90% of visitors — it also discards the
+    // buffer unsent and clears the sticky sentryReplaySession key.
+    storedChoice(ALL_GRANTED);
+
+    recordConsentChoices({ analytics: false, functional: true });
+
+    expect(replayGate).toHaveBeenCalledTimes(1);
+    expect(replayGate).toHaveBeenCalledWith("/");
+    expect(replayGate.mock.invocationCallOrder[0]).toBeLessThan(
+      reload.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("does not touch Session Replay when nothing was withdrawn", () => {
+    storedChoice(ALL_DENIED);
+
+    recordConsentChoices(ALL_DENIED);
+
+    expect(replayGate).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("does not touch Session Replay on a grant either — that waits for the next route", () => {
+    recordConsentChoices(ALL_GRANTED);
+
+    expect(replayGate).not.toHaveBeenCalled();
+    expect(analyticsUpdates()).toEqual(["granted"]);
   });
 });
 

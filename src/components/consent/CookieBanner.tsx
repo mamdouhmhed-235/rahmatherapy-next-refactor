@@ -60,13 +60,16 @@ function BannerCard() {
           what one media query already does, and the media query cannot be out
           of date on first paint. */}
       <div className="pointer-events-auto mx-auto flex max-w-3xl animate-in flex-col gap-4 rounded-2xl border border-rahma-border bg-rahma-ivory p-4 shadow-elevated duration-300 fade-in-0 slide-in-from-bottom-4 motion-reduce:animate-none sm:p-5">
-        {/* Says only what is true today. Functional storage now waits for a
-            yes; the analytics tools do not yet, and pretending otherwise here
-            would be the same defect this plan has already produced twelve
-            times. When Phase D gates them, this sentence changes with them. */}
+        {/* Says only what is true today. Both non-essential purposes now
+            genuinely wait for an answer — functional since Phase C, analytics
+            since Phase D — so this sentence says so plainly instead of the
+            "not everything waits for your answer yet" caveat it carried while
+            that was still the case. It names the two purposes rather than
+            claiming "nothing else runs", which would over-reach: the linked
+            page carries the one narrow exception (staff-only admin pages). */}
         <p className="text-sm leading-6 text-rahma-charcoal">
-          We store a few things on your device to make this site work. You can choose what
-          else we keep — though not everything waits for your answer yet.{" "}
+          We store a few things on your device to make this site work. Analytics, and
+          remembering your details for next time, wait for your answer.{" "}
           <Link
             href="/cookies/"
             className="font-semibold text-rahma-green underline underline-offset-2"
