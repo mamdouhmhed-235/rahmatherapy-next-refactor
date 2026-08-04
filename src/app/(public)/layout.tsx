@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { MAINTENANCE_MODE } from "@/lib/maintenance";
 import { MaintenanceBanner } from "@/components/shared/MaintenanceBanner";
 import { MaintenanceModal } from "@/components/shared/MaintenanceModal";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 
 export default function PublicLayout({
   children,
@@ -28,6 +29,7 @@ export default function PublicLayout({
       {!MAINTENANCE_MODE && <BookingExperienceLoader />}
       {MAINTENANCE_MODE && <MaintenanceModal />}
       <PublicScrollbar />
+      <GoogleAnalytics />
     </>
   );
 }
