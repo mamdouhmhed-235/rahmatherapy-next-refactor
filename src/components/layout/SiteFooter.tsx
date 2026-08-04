@@ -73,22 +73,41 @@ export function SiteFooter() {
                 <div className="footer_credit-text">
                   {footerContent.copyrightLine}
                 </div>
-                {footerContent.legalLinks.length > 0 ? (
-                  <nav
-                    className="w-layout-grid footer_legal-list"
-                    aria-label="Footer legal navigation"
+                <nav
+                  className="w-layout-grid footer_legal-list"
+                  aria-label="Footer legal navigation"
+                >
+                  {footerContent.legalLinks.map((item) => (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className="footer_legal-link"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                  {/* C-18 Phase F — the persistent withdrawal surface (brief
+                      §2.5), present on every public page via this shared
+                      footer. A plain anchor with the trigger attribute, not a
+                      generic legalLinks entry: CookieBanner
+                      (mounted from src/app/(public)/layout.tsx) already
+                      delegates a click on ANY [data-cookie-settings-trigger]
+                      element to openConsentPanel() — the same mechanism the
+                      /cookies page's own "Cookie settings" button uses
+                      (src/app/(public)/cookies/page.tsx) — so this needs no
+                      client island and no change to that delegation. The
+                      "?cookie-settings=1" href is the no-JS fallback:
+                      CookieBanner also opens the panel on load if that query
+                      param is present, so a real navigation (JS not yet
+                      running, or disabled) still reaches the same control. */}
+                  <a
+                    href="?cookie-settings=1"
+                    data-cookie-settings-trigger="true"
+                    className="footer_legal-link"
                   >
-                    {footerContent.legalLinks.map((item) => (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        className="footer_legal-link"
-                      >
-                        {item.label}
-                      </Link>
-                    ))}
-                  </nav>
-                ) : null}
+                    Cookie settings
+                  </a>
+                </nav>
               </div>
             </div>
           </div>

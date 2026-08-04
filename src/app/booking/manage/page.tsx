@@ -179,6 +179,26 @@ export default async function ManageBookingPage({
           </p>
         </footer>
       ) : null}
+
+      {/* C-18 Phase F — this route renders under the ROOT layout (DO-NOT-
+          TOUCH), which mounts neither ConsentScripts nor CookieBanner, so
+          there is no in-place panel to open here: the token in this page's
+          own URL is exactly the kind of thing this plan has twice removed
+          third-party code from around (Phase 0's Sentry Replay fix). A link
+          to /cookies is proportionate instead — the copy below says plainly
+          that it navigates away, not that it toggles anything in place. */}
+      <p className="mx-auto mt-6 max-w-6xl text-center text-sm text-[var(--rahma-muted)]">
+        This page keeps to what your booking needs and doesn&apos;t run the
+        cookie banner here. You can still view or change your cookie choices
+        for the rest of the site on our{" "}
+        <Link
+          href="/cookies/"
+          className="font-medium text-[var(--rahma-charcoal)] underline underline-offset-4"
+        >
+          cookies page
+        </Link>
+        .
+      </p>
     </main>
   );
 }
