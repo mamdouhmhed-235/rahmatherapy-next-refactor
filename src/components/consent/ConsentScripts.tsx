@@ -1,5 +1,5 @@
-import { cookies } from "next/headers";
-import { CONSENT_COOKIE, readConsent } from "@/lib/consent/consent-state";
+import { CONSENT_COOKIE } from "@/lib/consent/consent-state";
+import { CONSENT_BANNER_VERSION } from "@/lib/consent/cookie-registry";
 
 // C-18 Phase B Step 4 — Google Consent Mode v2, default-denied, first thing on
 // the page.
@@ -10,17 +10,26 @@ import { CONSENT_COOKIE, readConsent } from "@/lib/consent/consent-state";
 // only honours that in the root layout (src/app/layout.tsx), which is
 // do-not-touch. Inline content was never the problem; placement was.
 //
-// ORDERING: this renders first in (public)/layout.tsx, so it is the first
-// script *content* in the streamed HTML — everything before it is Next's own
-// async runtime-chunk <script src> tags in <head>. That is a weaker guarantee
-// than pre-hydration, and it is enough here for one reason: no Google code
-// exists on the page at all until the consent-gated loader mounts it (Phase D),
-// so "default before Google" holds by construction rather than by racing.
+// WHY THE COOKIE IS READ IN THE BROWSER AND NOT ON THE SERVER (Owner decision,
+// 2026-08-04). Reading it here with cookies() from next/headers would:
+//   (a) bake ONE visitor's consent state into HTML that Cloudflare edge-caches
+//       and can then serve to a DIFFERENT visitor, and
+//   (b) opt the whole (public) route group out of static generation — in Next
+//       16.2.4 any cookies() call reaches throwToInterruptStaticGeneration
+//       (node_modules/next/dist/server/request/cookies.js:88).
+// (a) is the correctness reason and (b) is the price the framework charges to
+// make (a) safe. Reading document.cookie inside this same inline script is both
+// correct behind a shared cache and free of any dynamic API, so the 15
+// prerendered public pages stay prerendered.
+//
+// The read still happens at script PARSE time — before hydration, before any
+// React effect, and before any Google code exists on the page at all — so a
+// returning visitor who granted analytics never has a window in which their
+// state reads as denied. No client component, no useEffect, zero external
+// requests.
 //
 // wait_for_update:500 gives an in-page consent update half a second to arrive
 // before any tag that did load acts on the defaults.
-//
-// First-party inline only. This component makes ZERO external requests.
 
 const DEFAULT_DENIED = `window.dataLayer=window.dataLayer||[];
 function gtag(){dataLayer.push(arguments);}
@@ -28,22 +37,45 @@ gtag('consent','default',{'ad_storage':'denied','analytics_storage':'denied','ad
 
 const RESTORE_GRANTED = `gtag('consent','update',{'analytics_storage':'granted'});`;
 
-export async function ConsentScripts() {
-  const cookieStore = await cookies();
-  const stored = cookieStore.get(CONSENT_COOKIE)?.value;
+// THE SECOND-SOURCE-OF-TRUTH RISK, AND WHAT HOLDS IT SHUT. An inline script is
+// a string: it cannot import, so the rules below are unavoidably a second copy
+// of readConsent() in src/lib/consent/consent-state.ts, and a copy that drifts
+// would grant or withhold consent on different rules than the rest of the app —
+// silently. Three things keep the copies honest:
+//   1. The cookie NAME and the banner VERSION are interpolated from their single
+//      definitions. Neither literal is ever retyped here.
+//   2. The rules are deliberately the SAME rules, in the same order — exact
+//      cookie-name match (not a substring: `not_rahma_consent` must not match),
+//      percent-decode with the raw value as fallback, JSON.parse, then v / id /
+//      ts / choices.analytics. readConsent's `id` and `ts` checks are included
+//      for that reason alone: without them a hand-made cookie carrying only
+//      {v, choices} would be honoured here and rejected everywhere else.
+//   3. __tests__/ConsentScripts.test.tsx evaluates this exact emitted string
+//      against readConsent() over one shared corpus of cookie values and asserts
+//      they agree on every entry. If either side's rules move, that test fails.
+//
+// Everything is wrapped in try/catch and falls through to denied: an uncaught
+// JSON parse error in a page's first script would be a page-breaking error for
+// every visitor, and denied is the safe direction to fail in. The IIFE keeps the
+// parse locals off `window`.
+//
+// Both interpolated constants are internal build-time literals, never visitor
+// input, so nothing can escape the <script> element through them.
+const READ_COOKIE = `(function(){try{
+var n=${JSON.stringify(CONSENT_COOKIE)},p=document.cookie.split(';'),r=null;
+for(var i=0;i<p.length;i++){var q=p[i].indexOf('=');if(q<0)continue;if(p[i].slice(0,q).trim()!==n)continue;r=p[i].slice(q+1).trim();break;}
+if(!r)return;
+var d;try{d=decodeURIComponent(r);}catch(_d){d=r;}
+var s=JSON.parse(d);
+if(s&&typeof s==='object'&&s.v===${JSON.stringify(CONSENT_BANNER_VERSION)}&&typeof s.id==='string'&&s.id&&typeof s.ts==='string'&&s.ts&&s.choices&&s.choices.analytics===true){${RESTORE_GRANTED}}
+}catch(_e){}})();`;
 
-  // Rebuilt into a cookie-header fragment so one reader serves both sides.
-  // readConsent percent-decodes and tolerates an already-decoded value, which
-  // is what a server-side cookie API may hand back.
-  const consent = stored ? readConsent(`${CONSENT_COOKIE}=${stored}`) : null;
+/**
+ * The emitted script body. Exported for its equivalence test, which has to
+ * evaluate the very string that ships rather than a re-derivation of it.
+ */
+export const CONSENT_SCRIPT = `${DEFAULT_DENIED}\n${READ_COOKIE}`;
 
-  // A returning visitor who granted analytics gets the update in this SAME
-  // script, not from a client effect: by the time anything else on the page
-  // runs, the state is already correct, so there is no window in which their
-  // consent reads as denied.
-  const script = consent?.choices.analytics
-    ? `${DEFAULT_DENIED}\n${RESTORE_GRANTED}`
-    : DEFAULT_DENIED;
-
-  return <script id="consent-default" dangerouslySetInnerHTML={{ __html: script }} />;
+export function ConsentScripts() {
+  return <script id="consent-default" dangerouslySetInnerHTML={{ __html: CONSENT_SCRIPT }} />;
 }
