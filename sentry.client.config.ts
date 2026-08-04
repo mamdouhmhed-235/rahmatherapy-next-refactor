@@ -36,26 +36,44 @@ export function isReplayBlockedPath(pathname: string): boolean {
 }
 
 /**
+ * True for `/admin` and everything beneath it, with or without the trailing
+ * slash Next.js adds.
+ *
+ * Owner decision 9 (progress §3 #9, 2026-08-04) — superseding Owner decision
+ * 1 for this one route group: Session Replay is switched OFF on `/admin`
+ * entirely, not consent-gated there. Staff never see the consent banner (it
+ * mounts only from `(public)/layout.tsx`), so a "gate" on admin could never
+ * be satisfied — it would just be an elaborate way of disabling Replay while
+ * dressing it up as a choice. `/admin` holds the most sensitive data in the
+ * system (client records, health notes, safeguarding notes); text is masked
+ * by default, but layout, click paths and record UUIDs in the URL are still
+ * captured and uploaded to a third party, so it is turned off plainly
+ * instead. Error reporting is untouched — `Sentry.init` above runs on every
+ * route regardless, admin included.
+ */
+function isAdminPath(pathname: string): boolean {
+  const normalised = normalisePath(pathname);
+  return normalised === ADMIN_PATH || normalised.startsWith(`${ADMIN_PATH}/`);
+}
+
+/**
  * Which routes Session Replay needs analytics consent for — C-18 Phase D,
  * Owner decision 1 (progress §3): Replay is registered in the cookie registry
  * as an `analytics` item and gated behind that choice.
  *
- * SCOPED TO THE PUBLIC SURFACE, DELIBERATELY. `/admin` is excluded because the
- * consent record can never exist there: the banner is mounted from
- * `(public)/layout.tsx` only, and brief §3 states the admin tree gets no banner
- * (it is staff-only, and PECR consent is about visitors' terminal equipment on
- * the public site). Gating admin on a cookie nothing there can write would
- * silently disable staff error-replay with no route to re-enable it — a
- * different defect, not a stricter one. `/admin/login` is inside that exclusion
- * even though an anonymous person can load it; the `sentryReplaySession`
- * registry entry's description says so rather than claiming a blanket gate.
+ * `/admin` answers `false` here, but no longer for Phase D's reason. Owner
+ * decision 9 turns Replay off on `/admin` outright — checked by `isAdminPath`
+ * above, unconditionally, before `syncSessionReplay` ever asks this function
+ * — so "does starting Replay here need consent" has no live answer for admin:
+ * nothing ever starts there for consent to gate. `false` is kept rather than
+ * flipped to `true`, since "needs consent" would misstate admin as a route a
+ * grant could unlock.
  *
  * Everything else — the whole `(public)` group, `/booking/*`, 404s — is gated.
  * Unrecognised paths fall on the gated side, which is the fail-closed one.
  */
 export function replayRequiresConsent(pathname: string): boolean {
-  const normalised = normalisePath(pathname);
-  return !(normalised === ADMIN_PATH || normalised.startsWith(`${ADMIN_PATH}/`));
+  return !isAdminPath(pathname);
 }
 
 /**
@@ -113,18 +131,19 @@ Sentry.addEventProcessor((event) => {
 
 /**
  * Start Session Replay when the route AND the visitor's consent allow it, and
- * never on a blocked one.
+ * never on a blocked one — `/booking/manage` (the credential leak, Phase 0)
+ * or `/admin` (Owner decision 9, off outright).
  *
  * `SentryProvider` calls this on mount and on every client-side route change:
  * the root layout does not remount across App Router transitions, so without
  * this a Replay session started on a public page would follow the visitor onto
- * `/booking/manage` and record its URL. C-18 Phase D adds the consent arm to
- * the same route-aware decision rather than a second mechanism, and the consent
- * store calls this function again when a choice changes.
+ * `/booking/manage` or `/admin` and keep recording there. C-18 Phase D adds the
+ * consent arm to the same route-aware decision rather than a second mechanism,
+ * and the consent store calls this function again when a choice changes.
  *
  * Nothing here touches error reporting: `Sentry.init` above is what captures
- * errors, it runs on every route, and Owner decision 1 keeps it ungated for
- * everyone. Only the replay recording is a consent question.
+ * errors, it runs on every route, and Owner decisions 1 and 9 both keep it
+ * ungated for everyone. Only the replay recording is affected.
  */
 export function syncSessionReplay(pathname: string): void {
   const replay = Sentry.getReplay();
@@ -135,6 +154,16 @@ export function syncSessionReplay(pathname: string): void {
     // This only bites after a client-side navigation, where `stop()` force-
     // flushes in session mode; the event processor above and
     // `beforeAddRecordingEvent` below are what make that flush safe to send.
+    void replay?.stop();
+    return;
+  }
+
+  if (isAdminPath(pathname)) {
+    // Owner decision 9: off entirely, not a consent question — see
+    // isAdminPath's doc comment above. A running session that a client-side
+    // navigation carries onto /admin (from a public page) is stopped the same
+    // way a stale session on /booking/manage is: deliberately, so a page-view
+    // no admin visitor ever agreed to is never uploaded.
     void replay?.stop();
     return;
   }

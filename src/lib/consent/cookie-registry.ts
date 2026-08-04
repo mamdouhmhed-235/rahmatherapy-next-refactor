@@ -186,40 +186,40 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
   {
     // Written by the @sentry-internal/replay package (REPLAY_SESSION_KEY),
     // configured in sentry.client.config.ts, started via SentryProvider.tsx
-    // mounted at the ROOT layout (src/app/layout.tsx). syncSessionReplay()
-    // in sentry.client.config.ts blocks it on /booking/manage (never started
-    // there — commit 09b2e26, browser-confirmed by
-    // redesign/evidence/C-18/cookie-inventory-browser.md §3 Scenario A: a
-    // fresh landing on that route writes zero storage), so it reaches
-    // (public) and /admin, not /booking/manage. Every visit is recorded
+    // mounted at the ROOT layout (src/app/layout.tsx). syncSessionReplay() in
+    // sentry.client.config.ts blocks it unconditionally on /booking/manage
+    // (never started there — commit 09b2e26, browser-confirmed by
+    // redesign/evidence/C-18/cookie-inventory-browser.md §3 Scenario A) AND,
+    // since Owner decision 9 (progress §3, #9, 2026-08-04), on /admin — so
+    // this key now reaches (public) only, gated behind analytics consent, and
+    // nowhere else. Where it is running, every visit is recorded
     // (browser-confirmed: the write happens on every page load, before any
     // sample outcome is known — cookie-inventory-browser.md §2); ~10% of
     // sessions are sampled for continuous upload and any session with an
-    // error is uploaded too. Owner decision 2026-08-04 (progress §3, #1):
-    // registered here and gated under analytics consent — the same purpose
-    // as GA — rather than given its own purpose bucket.
+    // error is uploaded too.
     //
-    // Consent-gated since Phase D: syncSessionReplay() in
-    // sentry.client.config.ts adds the Replay integration only when the stored
-    // consent grants analytics, so on a gated route nothing is started and this
-    // key is never written. Error reporting is untouched and stays on for
-    // everyone (Owner decision 1). Tests:
+    // Consent-gated since Phase D: syncSessionReplay() adds the Replay
+    // integration only when the stored consent grants analytics, so on a
+    // gated route nothing is started and this key is never written. Error
+    // reporting is untouched and stays on for everyone, admin included
+    // (Owner decisions 1 and 9). Tests:
     // src/components/__tests__/SentryProvider.test.tsx.
     //
-    // The gate is scoped to the PUBLIC surface: replayRequiresConsent()
-    // excludes /admin, because the banner is mounted from (public)/layout.tsx
-    // only and brief §3 gives the admin tree no banner — gating staff pages on
-    // a consent record that can never be written there would disable staff
-    // error-replay with no way to turn it back on. /admin/login is inside that
-    // exclusion even though anyone can load it, so the description below names
-    // the admin area as the exception rather than claiming a blanket gate.
+    // /admin IS NOT a consent question, and the description below says so
+    // plainly rather than describing it as an exception a visitor could ever
+    // satisfy: staff never see the banner, so gating admin on a consent
+    // record that can never be written there would just be a roundabout way
+    // of disabling Replay. Switched off outright instead (Owner decision 9,
+    // reversing Phase D's original "keeps recording on admin regardless"
+    // posture — see redesign/per-page-progress/C-18-cookie-consent-progress.md
+    // §3 #9 for the reasoning).
     name: "sentryReplaySession",
     provider: "Sentry (Functional Software, Inc.)",
     type: "sessionStorage",
     purpose: "analytics",
     duration: "Session — cleared when you close your browser tab",
     description:
-      "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. Where it is running, every visit is recorded; what varies is whether that recording is sent to us: about 10% of visits are sent automatically, and any visit where an error occurs is sent too, even if it wasn't one of that 10%. It only starts if you switch Analytics on, and switching Analytics back off stops it. The exception is our staff-only admin area, including its sign-in page, which keeps recording for error investigation either way, because it isn't part of a public visit.",
+      "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. It only runs on our public pages, and only once you switch Analytics on; switching Analytics back off stops it. Where it is running, every visit is recorded; what varies is whether that recording is sent to us: about 10% of visits are sent automatically, and any visit where an error occurs is sent too, even if it wasn't one of that 10%. It never runs at all on our staff-only admin area, whatever anyone's choice — we've switched it off there outright because of how sensitive the information handled on those pages is. Sentry's separate error-reporting tool, which does not use this storage item, keeps working everywhere, admin included, so we can still catch and fix bugs.",
   },
 ];
 
@@ -258,9 +258,12 @@ export const PURPOSE_LABELS: Record<CookiePurpose, string> = {
 //      Phase C, analytics arm in Phase D, each with the gate above.
 //   4. The "_ga / _ga_*" entry's description, above (Phase D) — gate and test
 //      as in item 2, GA side.
-//   5. The "sentryReplaySession" entry's description, above (Phase D) — gate
-//      and test as in item 2, Replay side. Its wording carries the one
-//      exception the gate really has: /admin is out of scope by design.
+//   5. The "sentryReplaySession" entry's description, above (Phase D, and
+//      Owner decision 9 for the /admin line specifically) — gate and test as
+//      in item 2, Replay side. Its wording states plainly that /admin has
+//      Replay switched off outright, not gated by consent — there is no
+//      "exception" left to word carefully, because nothing in this group runs
+//      on /admin at all now.
 //   6. The "rahma_consent" entry's description, above (Phase C) — gate: the
 //      banner and panel now write the cookie; test:
 //      src/components/consent/__tests__/CookieBanner.test.tsx.
@@ -270,7 +273,7 @@ export const PURPOSE_DESCRIPTIONS: Record<CookiePurpose, string> = {
   functional:
     "Make a return visit more convenient by remembering things across visits. Nothing in this group is stored, or read back, unless you switch it on — and switching it off again deletes what was stored.",
   analytics:
-    "Help us understand how the site is used in aggregate, so we can improve it. Nothing in this group loads or runs on the public site unless you switch it on, and switching it back off stops it straight away. Our staff-only admin pages sit outside this choice — the Sentry item in this group explains why.",
+    "Help us understand how the site is used in aggregate, so we can improve it. Nothing in this group loads or runs on the public site unless you switch it on, and switching it back off stops it straight away. Nothing in this group runs on our staff-only admin pages either, whatever anyone's choice — the Sentry item in this group explains why.",
 };
 
 // Fixed display order — essential first (it's the one bucket that's always

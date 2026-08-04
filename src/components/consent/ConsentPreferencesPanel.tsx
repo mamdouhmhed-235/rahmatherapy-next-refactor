@@ -165,12 +165,12 @@ function PanelBody() {
           <Dialog.Title className="font-display text-xl font-semibold text-rahma-charcoal">
             Cookie settings
           </Dialog.Title>
-          {/* Still no blanket "nothing is on unless you turn it on". It is now
-              true of both gated purposes on the public site, but the Analytics
-              group has one narrow carve-out (staff-only admin pages), and its
-              own description below is where that belongs — a summary line here
-              could only state it or hide it, and hiding it is how this plan
-              produced twelve false statements in Phase A. */}
+          {/* Still no blanket "nothing is on unless you turn it on" here — the
+              Analytics group's own description below is where the one extra
+              fact belongs: Owner decision 9 switches Session Replay off on our
+              staff-only admin pages entirely, not by this toggle. A summary
+              line here could only state that or hide it, and hiding it is how
+              this plan produced twelve false statements in Phase A. */}
           <Dialog.Description className="mt-1 text-sm leading-6 text-rahma-muted">
             Choose what we may store on your device. Every group says what your choice
             changes for it today, and you can come back and change your mind whenever you

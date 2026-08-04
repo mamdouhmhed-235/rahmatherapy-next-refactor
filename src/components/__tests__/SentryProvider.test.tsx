@@ -302,17 +302,47 @@ describe("the consent gate is scoped to the public surface", () => {
     expect(replayRequiresConsent("/admin/login/")).toBe(false);
     expect(replayRequiresConsent("/admin/dashboard/")).toBe(false);
   });
+});
 
-  it("keeps staff error-replay running on /admin with no consent record at all", async () => {
-    // Deliberate, and documented in sentry.client.config.ts and in the
-    // sentryReplaySession registry entry: the banner is mounted from
-    // (public)/layout.tsx only, so a consent record can never be written on
-    // /admin. Gating there would switch staff error-replay off permanently with
-    // no way to switch it back on.
+describe("Session Replay is off on /admin entirely (Owner decision 9)", () => {
+  it("never starts Replay on any /admin path, with no consent record at all", async () => {
     await renderProviderAt("/admin/dashboard/");
 
+    expect(sentryMocks.addIntegration).not.toHaveBeenCalled();
+    expect(sentryMocks.replayIntegration).not.toHaveBeenCalled();
+    // Error reporting still comes up on /admin — only Replay is affected.
+    expect(sentryMocks.init).toHaveBeenCalledTimes(1);
+  });
+
+  it("still does not start Replay on /admin even with a valid analytics grant", async () => {
+    // The regression that matters most here, mirroring the /booking/manage
+    // credential-guard tests above: a consent record existing at all must not
+    // unblock admin. Staff never see the banner, so this can only happen if a
+    // grant written on the public site somehow survives into an admin session
+    // — it must still make no difference.
+    grantAnalytics();
+    await renderProviderAt("/admin/login/");
+
+    expect(sentryMocks.addIntegration).not.toHaveBeenCalled();
+    expect(sentryMocks.replayIntegration).not.toHaveBeenCalled();
+    expect(sentryMocks.init).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops a Replay session a client-side navigation carries onto /admin", async () => {
+    // The App Router keeps the root layout mounted, so a session started on a
+    // public page is still running when a navigation enters /admin.
+    grantAnalytics();
+    const { rerender, SentryProvider } = await renderProviderAt("/");
     await waitFor(() =>
       expect(sentryMocks.addIntegration).toHaveBeenCalledTimes(1)
     );
+
+    const runningReplay = { name: "Replay", stop: vi.fn(() => Promise.resolve()) };
+    sentryMocks.getReplay.mockReturnValue(runningReplay);
+    navigationMocks.usePathname.mockReturnValue("/admin/dashboard/");
+    rerender(<SentryProvider />);
+
+    await waitFor(() => expect(runningReplay.stop).toHaveBeenCalledTimes(1));
+    expect(sentryMocks.addIntegration).toHaveBeenCalledTimes(1);
   });
 });
