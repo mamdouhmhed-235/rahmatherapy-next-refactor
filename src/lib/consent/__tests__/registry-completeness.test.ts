@@ -6,7 +6,9 @@
 // 7 are staff-only inside /admin and are explicitly out of this registry's
 // scope — see that document's §5). The names below are transcribed directly
 // from that inventory's table so this test fails the moment the registry and
-// the inventory disagree about which items exist, in either direction.
+// the inventory disagree about which items exist, in either direction —
+// plus, separately, the cookies C-18 itself introduces, which no inventory
+// pass could have observed because they did not exist when it ran.
 import { describe, expect, it } from "vitest";
 import {
   CONSENT_BANNER_VERSION,
@@ -16,6 +18,7 @@ import {
   groupRegistryByPurpose,
   type StorageMechanism,
 } from "../cookie-registry";
+import { CONSENT_COOKIE } from "../consent-state";
 
 const INVENTORY_NAMES = [
   "zam-therapy-booking-draft-v3",
@@ -25,27 +28,37 @@ const INVENTORY_NAMES = [
   "sentryReplaySession",
 ] as const;
 
+// C-18 Phase B, Step 3 adds a cookie no inventory pass could have found,
+// because this plan is what introduces it: the consent cookie itself
+// (CONSENT_COOKIE in src/lib/consent/consent-state.ts). It is held separately
+// from INVENTORY_NAMES so the inventory list above stays a faithful
+// transcription of the evidence document, and so a future inventory refresh
+// can be diffed against it without this entry looking like a discrepancy.
+const SELF_INTRODUCED_NAMES = ["rahma_consent"] as const;
+
+const EXPECTED_NAMES: readonly string[] = [...INVENTORY_NAMES, ...SELF_INTRODUCED_NAMES];
+
 const VALID_PURPOSES: CookiePurpose[] = ["essential", "functional", "analytics"];
 const VALID_TYPES: StorageMechanism[] = ["cookie", "localStorage", "sessionStorage"];
 
 describe("registry completeness (inventory <-> registry parity)", () => {
-  it("has exactly the 5 visitor-facing entries the source inventory found", () => {
-    expect(COOKIE_REGISTRY.length).toBe(INVENTORY_NAMES.length);
+  it("has exactly the 5 inventoried entries plus the consent cookie C-18 adds", () => {
+    expect(COOKIE_REGISTRY.length).toBe(EXPECTED_NAMES.length);
   });
 
-  it("every inventoried item has a registry entry", () => {
+  it("every expected item has a registry entry", () => {
     const registryNames = new Set(COOKIE_REGISTRY.map((entry) => entry.name));
-    for (const name of INVENTORY_NAMES) {
+    for (const name of EXPECTED_NAMES) {
       expect(registryNames.has(name), `missing registry entry for "${name}"`).toBe(true);
     }
   });
 
-  it("has no registry entry beyond the inventoried set (symmetric check)", () => {
-    const inventorySet = new Set<string>(INVENTORY_NAMES);
+  it("has no registry entry beyond the expected set (symmetric check)", () => {
+    const expected = new Set(EXPECTED_NAMES);
     for (const entry of COOKIE_REGISTRY) {
       expect(
-        inventorySet.has(entry.name),
-        `registry entry "${entry.name}" is not in the source inventory`
+        expected.has(entry.name),
+        `registry entry "${entry.name}" is in neither the source inventory nor C-18's own additions`
       ).toBe(true);
     }
   });
@@ -95,6 +108,17 @@ describe("registry completeness (inventory <-> registry parity)", () => {
     const entry = COOKIE_REGISTRY.find((e) => e.name === "sentryReplaySession");
     expect(entry).toBeDefined();
     expect(entry?.purpose).toBe("analytics");
+  });
+
+  it("rahma_consent is registered as a first-party essential cookie", () => {
+    const entry = COOKIE_REGISTRY.find((e) => e.name === CONSENT_COOKIE);
+    expect(entry, `no registry entry for the consent cookie "${CONSENT_COOKIE}"`).toBeDefined();
+    expect(entry?.type).toBe("cookie");
+    expect(entry?.provider).toBe("Rahma Therapy");
+    // Recording a consent choice is the textbook strictly-necessary case; if
+    // this ever becomes anything else, the /cookies page would be offering to
+    // switch off the thing that remembers the answer.
+    expect(entry?.purpose).toBe("essential");
   });
 
   it("_ga / _ga_* is classified analytics", () => {

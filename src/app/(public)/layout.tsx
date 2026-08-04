@@ -6,6 +6,7 @@ import { MAINTENANCE_MODE } from "@/lib/maintenance";
 import { MaintenanceBanner } from "@/components/shared/MaintenanceBanner";
 import { MaintenanceModal } from "@/components/shared/MaintenanceModal";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { ConsentScripts } from "@/components/consent/ConsentScripts";
 
 export default function PublicLayout({
   children,
@@ -14,6 +15,9 @@ export default function PublicLayout({
 }) {
   return (
     <>
+      {/* First, unconditionally — including under MAINTENANCE_MODE below, where
+          the consent default still has to be established before anything else. */}
+      <ConsentScripts />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[1000] focus:rounded-full focus:bg-rahma-green focus:px-5 focus:py-3 focus:text-sm focus:font-semibold focus:text-white focus:shadow-card focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-rahma-gold"

@@ -6,7 +6,12 @@
 // `master` @ 70e2103). That inventory found 12 mechanisms in total; 7 are
 // staff-only inside the authenticated /admin tree (out of PECR's
 // visitor-consent scope, and outside this registry) and 5 reach an
-// anonymous visitor — those 5 are COOKIE_REGISTRY below.
+// anonymous visitor.
+//
+// COOKIE_REGISTRY below is those 5 plus one the inventory could not have
+// found, because C-18 itself introduces it: `rahma_consent`, the cookie that
+// stores the visitor's own choice (added in Phase B, Step 3 —
+// src/lib/consent/consent-state.ts). Six entries in total.
 //
 // This file drives THREE surfaces from one array: the /cookies notice page
 // (src/app/(public)/cookies/page.tsx), and — in later phases — the
@@ -87,6 +92,31 @@ export interface CookieRegistryEntry {
 }
 
 export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
+  {
+    // src/lib/consent/consent-state.ts — CONSENT_COOKIE, written by
+    // writeConsent() with Max-Age=CONSENT_MAX_AGE_S (182 days), SameSite=Lax,
+    // Secure, Path=/.
+    //
+    // "essential" is the textbook strictly-necessary case: a record of a
+    // consent choice is what makes the choice stick, and PECR cannot
+    // sensibly require consent for the thing that stores the answer.
+    //
+    // NOT marked `dormant`. The flag's copy in
+    // src/app/(public)/cookies/CookieRegistryGroups.tsx says the feature is
+    // "switched off" and "starts again" once switched back on — true of
+    // maintenance-modal-seen, wrong here, where the feature has never
+    // existed. The description carries the plain fact instead. Delete that
+    // last sentence when Phase C's banner first writes this cookie; see the
+    // PHASE D OBLIGATION list below.
+    name: "rahma_consent",
+    provider: "Rahma Therapy",
+    type: "cookie",
+    purpose: "essential",
+    duration:
+      "6 months (182 days) from the moment a choice is made or changed — the interval the ICO recommends before asking again",
+    description:
+      "Stores the cookie choices you make on this site — what you agreed to and what you refused — so every page can honour them without asking you again, and so we can show what you were asked and what you answered. It also holds a random reference number that isn't linked to your name, your email or any booking. Nothing sets this cookie yet: the banner and preferences panel that would record a choice haven't been built, so no visitor's browser is storing it today.",
+  },
   {
     // src/features/booking/store/booking-store.ts:75-79 — zustand `persist`,
     // `partialize` limits the persisted shape to `selectedPackageIds` only.
@@ -195,7 +225,7 @@ export const PURPOSE_LABELS: Record<CookiePurpose, string> = {
 // PHASE D OBLIGATION — every "not yet consent-gated" correction made across
 // this registry and its consumers, consolidated in one place so a human
 // revisiting this file when Phases C/D actually ship can find all of them
-// without hunting. Phase D must NOT flip any of the five below back to a
+// without hunting. Phase D must NOT flip any of the six below back to a
 // present-tense "gated"/"off by default" claim without ALSO shipping the
 // real gate that makes it true, AND a test that asserts the gate itself
 // exists (e.g. reads SentryProvider.tsx / sentry.client.config.ts /
@@ -216,6 +246,12 @@ export const PURPOSE_LABELS: Record<CookiePurpose, string> = {
 //   5. The "sentryReplaySession" entry's description, above — "It starts
 //      automatically for every visitor today — it does not yet wait for a
 //      cookie choice."
+//   6. The "rahma_consent" entry's description, above — "Nothing sets this
+//      cookie yet: the banner and preferences panel that would record a
+//      choice haven't been built, so no visitor's browser is storing it
+//      today." This one flips EARLIER than the other five: it stops being
+//      true the moment PHASE C's banner first calls writeConsent(), not at
+//      Phase D. Drop that sentence in the same change that ships the banner.
 export const PURPOSE_DESCRIPTIONS: Record<CookiePurpose, string> = {
   essential:
     "Needed for a function you specifically asked for — the site does not work as requested without these. You can't opt out of these here.",
