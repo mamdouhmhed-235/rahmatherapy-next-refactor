@@ -116,7 +116,7 @@ The twelve, by class:
 ### Owner-facing behaviour finding, reported not fixed
 `zam-therapy-booking-draft-v3` **persists on the device after a booking is submitted** — `resetDraft()` fires only from "Start a new request". Now accurately described, but the behaviour is a small privacy wart the Owner may want closed by calling `resetDraft()` on the submit-success path. That means editing `BookingExperience.tsx`, outside C-18's scope.
 
-## 3.2 — Phase B (consent state + Consent Mode ordering) — IMPLEMENTED, **NOT YET INDEPENDENTLY VERIFIED**
+## 3.2 — Phase B (consent state + Consent Mode ordering) — **VERIFIED FULL — PASS** (evidence §3.3)
 
 | Commit | What | Model |
 |---|---|---|
@@ -141,6 +141,26 @@ The twelve, by class:
 
 **Self-gates at `5259ae6`:** tsc 0 · consent suites 51/51 (19 registry + 21 state + 11 new) · full suite **5 failed / 1878 passed (1883)**, identity-exact · eslint 59E/7W in the same six files.
 
+## 3.3 — Phase B independent verification (FULL tier) — **PASS**, 2026-08-04
+
+Fresh verifier, `model: sonnet`, no prior involvement. Evidence: `redesign/evidence/C-18/phase-b-verify-full.md`. All five lead items confirmed by re-derivation rather than restatement:
+
+1. **Equivalence / second-source-of-truth — CONFIRMED and the corpus is NON-VACUOUS.** Expected `grants` values are literal pins in the test file, not computed from either reader, so the two cannot pass by being wrong together. Verifier re-derived `readConsent()` against the emitted script by hand across name-collision, jar position, percent-encoding, version/`id`/`ts`/`choices` shape and truthy-not-`true`. **In-repo mutation was refused by the tool permission classifier**, so an independent standalone Node harness was built from the verbatim logic + the real corpus: baseline 0 failures, and **4/4 mutations caught** (drop version check · drop `id` check · name-match → substring · `===true` → truthy).
+2. **Consent Mode ordering — CONFIRMED against live streamed HTML**, not source reasoning: consent script is the first thing in `<body>` (byte 5775, after the zero-width hydration marker), and the document contains **zero** `googletagmanager` / `gtag.js` strings. In-browser: no leaked globals; malformed cookie → default-denied only; valid grant → `[default, update]` in that order.
+3. **`clearGaCookies` domain matrix — CONFIRMED effective.** Production domain is the apex `rahmatherapy.uk` (`src/content/site/site-url.ts:6`; no www-redirect code found), and the matrix emits `.rahmatherapy.uk` — the variant gtag actually sets. `Path=/` on every deletion write. Name match exact; `_gat_x`, `my_ga`, `_gali` confirmed to survive.
+4. **Static generation — CONFIRMED by independent build.** 53/53 static; public `○`/`●`; `/admin`, `/api`, `/booking/manage` `ƒ`. Full import-graph trace: only three files repo-wide import `next/headers`, all admin-only, none reachable from `(public)`. Dev server undisturbed (`/about/` → 200 before and after).
+5. **Registry entry 6 is true at this commit — CONFIRMED.** `writeConsent()` zero callers; no `CookieBanner` exists; listed as PHASE D OBLIGATION item 6; correctly not `dormant`. `/cookies` copy not silently invalidated by Phase B. Checked and cleared, not a defect: `CONSENT_BANNER_VERSION` was not bumped for the new entry — nothing has ever been stored under any version, so a bump would invalidate nothing.
+
+**Gates by identity:** tsc 0 · consent suites 51/51 · vitest 5 failed / 1878 passed (1883), identities exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3 · eslint 59E/7W in exactly the six baseline files · isolation clean for Phase B scope.
+
+**Explicitly NOT confirmed (scoped out, not gaps in the work):** production-mode ordering with `GoogleAnalytics` actually rendering (needs a second server — forbidden); external DNS/Cloudflare apex-vs-www routing (repo source only); live GA DebugView (Phase D).
+
+### ⚠️ Orchestration defect found and corrected (not a code defect)
+A concurrent read-only prep agent reported "Phase B is not green — 3 failures, the inline script never interpolates `CONSENT_BANNER_VERSION`". **False.** The orchestrator verified directly: working-tree blob ≡ committed blob (`879c9a1`), version check present at `ConsentScripts.tsx:70` in both, suite 11/11. The prep agent had observed the verifier's *transient in-place mutation* — "drop the version check" is verbatim one of the four mutations the verifier was instructed to try. **Rule added for the rest of the programme: in-place mutation testing is forbidden while any other agent is running; scratchpad copies only.** Cost: one false alarm, no code impact.
+
+### ⚠️ Finding for Phase C — a Phase A copy claim that is false at HEAD
+`src/lib/maintenance.ts` is `MAINTENANCE_MODE = true` **at HEAD**; only the Owner's standing uncommitted working copy is `false`. The registry's `maintenance-modal-seen` entry carries `dormant: true`, whose rendered copy in `CookieRegistryGroups.tsx` tells visitors the feature is "switched off" and "starts again when switched back on". Every Phase A pass read the working copy rather than the committed value, so this survived five fix rounds. **Any deploy ships `true`** (the standing rule requires restoring it before deploying), so the modal mounts and the key IS written. `/cookies` is a public legal statement — the flag is wrong for the deployable state. **Phase C removes `dormant: true` from that entry.** In scope: it is C-18's own file and C-18's own shipped copy, not a rule-6(a) unrelated issue.
+
 ---
 
 # ▶▶ INTERRUPT CHECKPOINT — 2026-08-04 — READ THIS FIRST ON RESUME
@@ -155,7 +175,9 @@ The twelve, by class:
 | Files mid-flight | **NONE** — working tree clean in C-18 scope; only `src/lib/maintenance.ts` (standing Owner change, never stage) |
 | Programme | **17 of 22 shipped.** C-18 is #18; then C-19 → C-20 → C-23 → C-14 → C-10 |
 
-### EXACT NEXT ACTION
+### EXACT NEXT ACTION — ✅ DISCHARGED 2026-08-04, see §3.3 (PASS). The next action is now **Phase C (Steps 5–7)**.
+
+*(Historical — the action this checkpoint recorded:)*
 **Dispatch a FULL-tier independent verifier for Phase B** (`6dd05e5` + `5259ae6`), `model: sonnet`, writing to `redesign/evidence/C-18/phase-b-verify-full.md`. It has not been verified by anyone but its own implementer. Lead it on:
 1. **The equivalence claim** — does the emitted `CONSENT_SCRIPT` genuinely agree with `readConsent()` on all 31 corpus entries, and is the corpus itself non-vacuous? This is the second-source-of-truth risk.
 2. **Consent Mode ordering** — default-denied established before any Google code could run, verified against streamed HTML.
