@@ -47,9 +47,15 @@ const RESTORE_GRANTED = `gtag('consent','update',{'analytics_storage':'granted'}
 //   2. The rules are deliberately the SAME rules, in the same order — exact
 //      cookie-name match (not a substring: `not_rahma_consent` must not match),
 //      percent-decode with the raw value as fallback, JSON.parse, then v / id /
-//      ts / choices.analytics. readConsent's `id` and `ts` checks are included
-//      for that reason alone: without them a hand-made cookie carrying only
-//      {v, choices} would be honoured here and rejected everywhere else.
+//      ts / choices / every key of ConsentChoices. readConsent's `id` and `ts`
+//      checks are included for that reason alone: without them a hand-made
+//      cookie carrying only {v, choices} would be honoured here and rejected
+//      everywhere else. The same argument is why `choices.functional` is
+//      type-checked here even though Consent Mode has no functional signal:
+//      readConsent rejects a record that does not carry every purpose, so a
+//      script that granted on {analytics:true} alone would grant on a record
+//      the rest of the app treats as no consent at all — and the banner would
+//      then be shown to someone whose analytics had already been turned on.
 //   3. __tests__/ConsentScripts.test.tsx evaluates this exact emitted string
 //      against readConsent() over one shared corpus of cookie values and asserts
 //      they agree on every entry. If either side's rules move, that test fails.
@@ -67,7 +73,7 @@ for(var i=0;i<p.length;i++){var q=p[i].indexOf('=');if(q<0)continue;if(p[i].slic
 if(!r)return;
 var d;try{d=decodeURIComponent(r);}catch(_d){d=r;}
 var s=JSON.parse(d);
-if(s&&typeof s==='object'&&s.v===${JSON.stringify(CONSENT_BANNER_VERSION)}&&typeof s.id==='string'&&s.id&&typeof s.ts==='string'&&s.ts&&s.choices&&s.choices.analytics===true){${RESTORE_GRANTED}}
+if(s&&typeof s==='object'&&s.v===${JSON.stringify(CONSENT_BANNER_VERSION)}&&typeof s.id==='string'&&s.id&&typeof s.ts==='string'&&s.ts&&s.choices&&typeof s.choices.analytics==='boolean'&&typeof s.choices.functional==='boolean'&&s.choices.analytics===true){${RESTORE_GRANTED}}
 }catch(_e){}})();`;
 
 /**

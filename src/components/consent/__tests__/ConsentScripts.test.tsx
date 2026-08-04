@@ -29,7 +29,12 @@ function cookie(payload: unknown): string {
   return `${CONSENT_COOKIE}=${encodeURIComponent(JSON.stringify(payload))}`;
 }
 
-const GRANTED = { v: CONSENT_BANNER_VERSION, id: ID, choices: { analytics: true }, ts: TS };
+const GRANTED = {
+  v: CONSENT_BANNER_VERSION,
+  id: ID,
+  choices: { analytics: true, functional: true },
+  ts: TS,
+};
 
 /**
  * Replaces `document.cookie`'s getter for the duration of `fn`, so a corpus
@@ -84,7 +89,7 @@ const CORPUS: { name: string; cookie: string; grants: boolean }[] = [
   { name: "valid, analytics granted", cookie: cookie(GRANTED), grants: true },
   {
     name: "valid, analytics rejected",
-    cookie: cookie({ ...GRANTED, choices: { analytics: false } }),
+    cookie: cookie({ ...GRANTED, choices: { analytics: false, functional: false } }),
     grants: false,
   },
   {
@@ -124,7 +129,11 @@ const CORPUS: { name: string; cookie: string; grants: boolean }[] = [
   // the app rejects.
   {
     name: "wrong shape — no id",
-    cookie: cookie({ v: CONSENT_BANNER_VERSION, choices: { analytics: true }, ts: TS }),
+    cookie: cookie({
+      v: CONSENT_BANNER_VERSION,
+      choices: { analytics: true, functional: true },
+      ts: TS,
+    }),
     grants: false,
   },
   {
@@ -134,18 +143,22 @@ const CORPUS: { name: string; cookie: string; grants: boolean }[] = [
   },
   {
     name: "wrong shape — no ts",
-    cookie: cookie({ v: CONSENT_BANNER_VERSION, id: ID, choices: { analytics: true } }),
+    cookie: cookie({
+      v: CONSENT_BANNER_VERSION,
+      id: ID,
+      choices: { analytics: true, functional: true },
+    }),
     grants: false,
   },
   { name: "wrong shape — empty ts", cookie: cookie({ ...GRANTED, ts: "" }), grants: false },
   {
     name: "wrong shape — analytics is the string 'yes'",
-    cookie: cookie({ ...GRANTED, choices: { analytics: "yes" } }),
+    cookie: cookie({ ...GRANTED, choices: { analytics: "yes", functional: true } }),
     grants: false,
   },
   {
     name: "wrong shape — analytics is 1",
-    cookie: cookie({ ...GRANTED, choices: { analytics: 1 } }),
+    cookie: cookie({ ...GRANTED, choices: { analytics: 1, functional: true } }),
     grants: false,
   },
   { name: "wrong shape — no choices", cookie: cookie({ v: CONSENT_BANNER_VERSION, id: ID, ts: TS }), grants: false },
@@ -155,6 +168,49 @@ const CORPUS: { name: string; cookie: string; grants: boolean }[] = [
   { name: "wrong shape — payload is a JSON string", cookie: cookie("a string"), grants: false },
   { name: "wrong shape — payload is null", cookie: cookie(null), grants: false },
   { name: "wrong shape — payload is an array", cookie: cookie([GRANTED]), grants: false },
+
+  // --- the second purpose (C-18 Phase C): choices now carries `functional` ---
+  // Consent Mode has no functional signal, so it would be easy to let the
+  // inline script ignore the key entirely. It must not: readConsent rejects a
+  // record that does not carry every purpose, so a script that granted on
+  // {analytics:true} alone would grant analytics on a record the rest of the
+  // app reads as "no consent" — and would show the banner to a visitor whose
+  // analytics it had just turned on.
+  {
+    name: "valid — analytics granted, functional denied",
+    cookie: cookie({ ...GRANTED, choices: { analytics: true, functional: false } }),
+    grants: true,
+  },
+  {
+    name: "valid — analytics denied, functional granted",
+    cookie: cookie({ ...GRANTED, choices: { analytics: false, functional: true } }),
+    grants: false,
+  },
+  {
+    name: "wrong shape — no functional, analytics granted",
+    cookie: cookie({ v: CONSENT_BANNER_VERSION, id: ID, ts: TS, choices: { analytics: true } }),
+    grants: false,
+  },
+  {
+    name: "wrong shape — functional present, analytics missing",
+    cookie: cookie({ v: CONSENT_BANNER_VERSION, id: ID, ts: TS, choices: { functional: true } }),
+    grants: false,
+  },
+  {
+    name: "wrong shape — functional is the string 'yes'",
+    cookie: cookie({ ...GRANTED, choices: { analytics: true, functional: "yes" } }),
+    grants: false,
+  },
+  {
+    name: "wrong shape — functional is null",
+    cookie: cookie({ ...GRANTED, choices: { analytics: true, functional: null } }),
+    grants: false,
+  },
+  {
+    name: "wrong shape — functional is 0",
+    cookie: cookie({ ...GRANTED, choices: { analytics: true, functional: 0 } }),
+    grants: false,
+  },
 
   // --- a real grant, in the awkward places it can turn up ---
   { name: "granted, first of several cookies", cookie: `${cookie(GRANTED)}; a=1; b=2`, grants: true },
@@ -209,7 +265,9 @@ describe("consent defaults", () => {
 
   it("makes exactly one call when consent is not granted, and two when it is", () => {
     expect(runScript(cookie(GRANTED))).toHaveLength(2);
-    expect(runScript(cookie({ ...GRANTED, choices: { analytics: false } }))).toHaveLength(1);
+    expect(
+      runScript(cookie({ ...GRANTED, choices: { analytics: false, functional: true } }))
+    ).toHaveLength(1);
     expect(runScript("")).toHaveLength(1);
   });
 });

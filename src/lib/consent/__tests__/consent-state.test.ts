@@ -71,19 +71,29 @@ afterEach(() => {
 
 describe("readConsent", () => {
   it("round-trips a choice written by writeConsent", () => {
-    const written = writeConsent({ analytics: true });
+    const written = writeConsent({ analytics: true, functional: true });
     const read = readConsent(document.cookie);
 
     expect(read).toEqual(written);
     expect(read?.v).toBe(CONSENT_BANNER_VERSION);
     expect(read?.choices.analytics).toBe(true);
+    expect(read?.choices.functional).toBe(true);
     expect(read?.id).toMatch(UUID_PATTERN);
     expect(new Date(read?.ts ?? "").toString()).not.toBe("Invalid Date");
   });
 
   it("round-trips a rejection just as faithfully as a grant", () => {
-    writeConsent({ analytics: false });
+    writeConsent({ analytics: false, functional: false });
     expect(readConsent(document.cookie)?.choices.analytics).toBe(false);
+    expect(readConsent(document.cookie)?.choices.functional).toBe(false);
+  });
+
+  it("keeps the two purposes independent of each other", () => {
+    writeConsent({ analytics: false, functional: true });
+    expect(readConsent(document.cookie)?.choices).toEqual({ analytics: false, functional: true });
+
+    writeConsent({ analytics: true, functional: false });
+    expect(readConsent(document.cookie)?.choices).toEqual({ analytics: true, functional: false });
   });
 
   it("returns null when the cookie is absent", () => {
@@ -100,8 +110,18 @@ describe("readConsent", () => {
   it("returns null on a well-formed payload of the wrong shape", () => {
     const wrongShapes = [
       { v: CONSENT_BANNER_VERSION, id: "abc", ts: "2026-08-04T00:00:00.000Z" },
-      { v: CONSENT_BANNER_VERSION, id: "abc", choices: { analytics: "yes" }, ts: "t" },
-      { v: CONSENT_BANNER_VERSION, id: "", choices: { analytics: true }, ts: "t" },
+      {
+        v: CONSENT_BANNER_VERSION,
+        id: "abc",
+        choices: { analytics: "yes", functional: true },
+        ts: "t",
+      },
+      {
+        v: CONSENT_BANNER_VERSION,
+        id: "",
+        choices: { analytics: true, functional: true },
+        ts: "t",
+      },
       "a string",
       null,
     ];
@@ -112,11 +132,31 @@ describe("readConsent", () => {
     }
   });
 
+  it("returns null when a purpose is missing from choices, however valid the rest is", () => {
+    // A record that names only some of the purposes cannot say what the visitor
+    // was asked, so it is treated as no consent rather than as a partial yes.
+    const partialShapes = [
+      { v: CONSENT_BANNER_VERSION, id: "abc", choices: { analytics: true }, ts: "t" },
+      { v: CONSENT_BANNER_VERSION, id: "abc", choices: { functional: true }, ts: "t" },
+      {
+        v: CONSENT_BANNER_VERSION,
+        id: "abc",
+        choices: { analytics: true, functional: "yes" },
+        ts: "t",
+      },
+    ];
+
+    for (const shape of partialShapes) {
+      const value = encodeURIComponent(JSON.stringify(shape));
+      expect(readConsent(`${CONSENT_COOKIE}=${value}`), JSON.stringify(shape)).toBeNull();
+    }
+  });
+
   it("returns null on a version mismatch, however valid the rest is", () => {
     const stale = {
       v: "2020-01-01.1",
       id: "3f1d5f6e-1c2b-4a3d-9e8f-0a1b2c3d4e5f",
-      choices: { analytics: true },
+      choices: { analytics: true, functional: true },
       ts: "2026-08-04T00:00:00.000Z",
     };
 
@@ -124,7 +164,7 @@ describe("readConsent", () => {
   });
 
   it("finds the consent cookie among others, in any position", () => {
-    writeConsent({ analytics: true });
+    writeConsent({ analytics: true, functional: true });
     const consentPair = document.cookie
       .split(";")
       .map((pair) => pair.trim())
@@ -142,7 +182,7 @@ describe("writeConsent", () => {
   it("sets Path, Max-Age (~6 months), SameSite=Lax and Secure", () => {
     const capture = captureCookieWrites();
     try {
-      writeConsent({ analytics: true });
+      writeConsent({ analytics: true, functional: true });
 
       expect(capture.writes).toHaveLength(1);
       const written = capture.writes[0];
@@ -161,8 +201,8 @@ describe("writeConsent", () => {
   });
 
   it("preserves the pseudonymous id across a re-write", () => {
-    const first = writeConsent({ analytics: true });
-    const second = writeConsent({ analytics: false });
+    const first = writeConsent({ analytics: true, functional: true });
+    const second = writeConsent({ analytics: false, functional: false });
 
     expect(second.id).toBe(first.id);
     expect(second.choices.analytics).toBe(false);
@@ -173,23 +213,23 @@ describe("writeConsent", () => {
     const stale = {
       v: "2020-01-01.1",
       id: "3f1d5f6e-1c2b-4a3d-9e8f-0a1b2c3d4e5f",
-      choices: { analytics: true },
+      choices: { analytics: true, functional: true },
       ts: "2026-08-04T00:00:00.000Z",
     };
     setCookie(CONSENT_COOKIE, encodeURIComponent(JSON.stringify(stale)));
     // Precondition: that cookie is not honoured as consent.
     expect(readConsent(document.cookie)).toBeNull();
 
-    const rewritten = writeConsent({ analytics: false });
+    const rewritten = writeConsent({ analytics: false, functional: false });
 
     expect(rewritten.id).toBe(stale.id);
     expect(rewritten.v).toBe(CONSENT_BANNER_VERSION);
   });
 
   it("mints a fresh id when there is no prior cookie", () => {
-    const first = writeConsent({ analytics: true });
+    const first = writeConsent({ analytics: true, functional: true });
     clearAllCookies();
-    const second = writeConsent({ analytics: true });
+    const second = writeConsent({ analytics: true, functional: true });
 
     expect(second.id).toMatch(UUID_PATTERN);
     expect(second.id).not.toBe(first.id);
@@ -197,7 +237,7 @@ describe("writeConsent", () => {
 
   it("mints a fresh id when the prior cookie is unparseable", () => {
     setCookie(CONSENT_COOKIE, "not-json");
-    expect(writeConsent({ analytics: true }).id).toMatch(UUID_PATTERN);
+    expect(writeConsent({ analytics: true, functional: true }).id).toMatch(UUID_PATTERN);
   });
 });
 

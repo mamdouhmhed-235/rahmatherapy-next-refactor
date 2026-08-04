@@ -14,13 +14,28 @@
 // says exactly that in the visitor-facing copy, and both must change together.
 import { CONSENT_BANNER_VERSION } from "./cookie-registry";
 
+/**
+ * The visitor's answer for every non-essential purpose in the registry —
+ * CookiePurpose minus "essential", which is never a choice.
+ *
+ * One key per purpose, not a partial map: a record that omits a purpose is a
+ * record that cannot say whether the visitor was ever asked about it, so
+ * `readConsent` rejects it outright rather than guessing. Adding a purpose to
+ * COOKIE_REGISTRY therefore means adding a key here, adding it to the inline
+ * script's guard in src/components/consent/ConsentScripts.tsx, and bumping
+ * CONSENT_BANNER_VERSION so every stored record is re-collected.
+ */
+export interface ConsentChoices {
+  analytics: boolean;
+  functional: boolean;
+}
+
 export interface ConsentState {
   /** Banner version in force when the choice was made; a bump invalidates it. */
   v: string;
   /** Pseudonymous id — minted once, then preserved across later choices. */
   id: string;
-  /** Keyed by CookiePurpose minus "essential" (essential is never a choice). */
-  choices: { analytics: boolean };
+  choices: ConsentChoices;
   /** ISO timestamp of the choice. */
   ts: string;
 }
@@ -85,10 +100,11 @@ function parseConsentCookie(cookieString: string | null | undefined): ConsentSta
   if (typeof ts !== "string" || !ts) return null;
   if (typeof choices !== "object" || choices === null) return null;
 
-  const { analytics } = choices as Record<string, unknown>;
+  const { analytics, functional } = choices as Record<string, unknown>;
   if (typeof analytics !== "boolean") return null;
+  if (typeof functional !== "boolean") return null;
 
-  return { v, id, choices: { analytics }, ts };
+  return { v, id, choices: { analytics, functional }, ts };
 }
 
 /**
@@ -115,7 +131,7 @@ export function readConsent(cookieString: string | null | undefined): ConsentSta
  * Records a choice in the consent cookie and returns what was stored.
  * Client-only — it writes `document.cookie`.
  */
-export function writeConsent(choices: { analytics: boolean }): ConsentState {
+export function writeConsent(choices: ConsentChoices): ConsentState {
   const existing = parseConsentCookie(document.cookie);
 
   const state: ConsentState = {
@@ -125,7 +141,7 @@ export function writeConsent(choices: { analytics: boolean }): ConsentState {
     // log (Phase E) needs the old and new events to join up. A fresh id is
     // minted only when there is no prior cookie at all.
     id: existing?.id ?? crypto.randomUUID(),
-    choices: { analytics: choices.analytics },
+    choices: { analytics: choices.analytics, functional: choices.functional },
     ts: new Date().toISOString(),
   };
 
