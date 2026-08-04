@@ -22,6 +22,7 @@
 // ConsentScripts.tsx for the full reasoning).
 import { useSyncExternalStore } from "react";
 import {
+  clearGaCookies,
   readConsent,
   writeConsent,
   type ConsentChoices,
@@ -112,16 +113,77 @@ export function closeConsentPanel(): void {
   notify(panelListeners);
 }
 
+/** Is this purpose granted right now? Anything other than a stored `true` is no. */
+export function hasConsentFor(purpose: GatedPurpose): boolean {
+  return getConsentSnapshot()?.choices[purpose] === true;
+}
+
+// Same optional-chained posture as SuccessScreen.tsx: an ad-blocker, or a page
+// whose inline consent script never ran, must not turn a consent click into a
+// thrown error.
+function consentModeUpdate(analyticsStorage: "granted" | "denied") {
+  (window as { gtag?: (...args: unknown[]) => void }).gtag?.("consent", "update", {
+    analytics_storage: analyticsStorage,
+  });
+}
+
 /**
- * Records a choice: writes the consent cookie and updates every subscriber, so
- * the banner goes away without a reload.
+ * C-18 Phase C Step 7 — what a choice actually does, decided by comparing it
+ * with the PREVIOUS stored choice rather than with the new one alone.
+ *
+ * The distinction matters in both directions. Rejecting on a first visit is not
+ * a withdrawal: nothing was ever granted, ConsentScripts already established
+ * default-denied, and firing a denied update plus a reload at someone who has
+ * just said "no thanks" would be gratuitous. Re-saving a choice that did not
+ * change is not an event either. Only a real transition does anything.
+ *
+ * Absent or unreadable consent counts as denied, so the gate fails closed:
+ * silence is never consent.
+ */
+async function applyChoiceTransition(previous: ConsentChoices, next: ConsentChoices) {
+  // Functional first, and awaited, because the analytics branch below may
+  // reload the page out from under it. The import is deferred rather than
+  // top-level so the booking feature's zod-backed contact helpers stay out of
+  // every public page's bundle — they are needed only at the moment someone
+  // withdraws this one purpose.
+  if (previous.functional && !next.functional) {
+    const { clearReturningCustomer } = await import(
+      "@/features/booking/utils/returning-customer"
+    );
+    clearReturningCustomer();
+  }
+
+  if (next.analytics === previous.analytics) return;
+
+  if (next.analytics) {
+    consentModeUpdate("granted");
+    return;
+  }
+
+  // Withdrawal: tell Google to stop, delete what it already stored, then reload
+  // so any gtag.js already on the page cannot keep running. Sentry Replay is
+  // deliberately not stopped here — it restarts unconditionally on load today,
+  // so stopping it a moment before a reload would achieve nothing; Phase D owns
+  // it end to end, gate and stop together.
+  consentModeUpdate("denied");
+  clearGaCookies();
+  window.location.reload();
+}
+
+/**
+ * Records a choice: writes the consent cookie, updates every subscriber so the
+ * banner goes away without a reload, and then applies whatever the change
+ * actually means.
  */
 export function recordConsentChoices(choices: ConsentChoices): ConsentState {
+  const previous = getConsentSnapshot()?.choices ?? ALL_DENIED;
   const state = writeConsent(choices);
 
   hasRead = true;
   snapshot = state;
   notify(consentListeners);
+
+  void applyChoiceTransition(previous, state.choices);
 
   return state;
 }

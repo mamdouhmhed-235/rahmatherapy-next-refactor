@@ -154,7 +154,11 @@ describe("what the panel offers", () => {
 
     expect(essential.checked).toBe(true);
     expect(essential.disabled).toBe(true);
-    expect(within(dialog).getByText(/can't be switched off/i)).toBeTruthy();
+    // Locked is not enough on its own — the panel has to say what these are for,
+    // or "you can't turn this off" is an instruction rather than an explanation.
+    expect(
+      within(dialog).getByText(/can't do what you've asked it to do/i)
+    ).toBeTruthy();
   });
 
   it("discloses every registry entry, from the registry itself", async () => {

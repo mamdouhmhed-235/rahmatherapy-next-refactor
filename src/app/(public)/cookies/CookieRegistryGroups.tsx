@@ -1,4 +1,5 @@
 import {
+  type CookiePurpose,
   type CookieRegistryEntry,
   type StorageMechanism,
   groupRegistryByPurpose,
@@ -8,6 +9,17 @@ const TYPE_LABELS: Record<StorageMechanism, string> = {
   cookie: "Cookie",
   localStorage: "Browser storage (stays until cleared or it expires)",
   sessionStorage: "Browser storage (this browser tab/session only)",
+};
+
+// One line per purpose saying what your choice does to that group TODAY. It is
+// per-purpose rather than one line for everything non-essential because that
+// stopped being true the moment functional got a real gate and analytics did
+// not: see the gating-obligation list in src/lib/consent/cookie-registry.ts,
+// where the analytics arm below is still an open item.
+const PURPOSE_STATUS: Record<CookiePurpose, string> = {
+  essential: "Always on — can't be switched off here",
+  functional: "Off unless you switch it on",
+  analytics: "On today whichever way you choose",
 };
 
 function EntryCard({ entry }: { entry: CookieRegistryEntry }) {
@@ -20,22 +32,10 @@ function EntryCard({ entry }: { entry: CookieRegistryEntry }) {
         <span className="rounded-full border border-rahma-border bg-rahma-ivory px-2.5 py-0.5 text-xs font-semibold text-rahma-green">
           {TYPE_LABELS[entry.type]}
         </span>
-        {entry.dormant ? (
-          <span className="rounded-full border border-rahma-border bg-rahma-sand px-2.5 py-0.5 text-xs font-semibold text-rahma-charcoal">
-            Not currently active
-          </span>
-        ) : null}
       </div>
       <p className="mt-3 text-sm leading-7 text-rahma-muted sm:text-base">
         {entry.description}
       </p>
-      {entry.dormant ? (
-        <p className="mt-2 text-sm leading-6 text-rahma-muted">
-          This item is part of a feature that is switched off today, so nothing is currently
-          being stored under this name. It stays listed here because it starts again the moment
-          that feature is switched back on.
-        </p>
-      ) : null}
       <dl className="mt-4 grid gap-1 text-sm text-rahma-muted sm:text-base">
         <div className="flex gap-2">
           <dt className="font-semibold text-rahma-charcoal">Set by:</dt>
@@ -46,13 +46,6 @@ function EntryCard({ entry }: { entry: CookieRegistryEntry }) {
           <dd>{entry.duration}</dd>
         </div>
       </dl>
-      {entry.provisionalNote ? (
-        <p className="mt-4 rounded-xl border border-rahma-gold/40 bg-rahma-gold/10 px-4 py-3 text-sm leading-6 text-rahma-charcoal">
-          <span className="font-semibold">Under review: </span>
-          How we classify this item is still being finalised — we&apos;ll update this page once
-          that&apos;s settled.
-        </p>
-      ) : null}
     </article>
   );
 }
@@ -76,15 +69,15 @@ export function CookieRegistryGroups() {
             <h3 className="font-display text-xl font-semibold text-rahma-charcoal sm:text-2xl">
               {group.label}
             </h3>
-            {group.purpose === "essential" ? (
-              <span className="text-sm font-semibold text-rahma-green">
-                Always on — can&apos;t be switched off here
-              </span>
-            ) : (
-              <span className="text-sm font-semibold text-rahma-muted">
-                On today whichever way you choose
-              </span>
-            )}
+            <span
+              className={
+                group.purpose === "essential"
+                  ? "text-sm font-semibold text-rahma-green"
+                  : "text-sm font-semibold text-rahma-muted"
+              }
+            >
+              {PURPOSE_STATUS[group.purpose]}
+            </span>
           </div>
           <p className="mt-2 max-w-2xl text-sm leading-7 text-rahma-muted sm:text-base">
             {group.description}

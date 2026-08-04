@@ -165,9 +165,13 @@ function PanelBody() {
           <Dialog.Title className="font-display text-xl font-semibold text-rahma-charcoal">
             Cookie settings
           </Dialog.Title>
+          {/* No blanket "nothing is on unless you turn it on": it is true of
+              Functional and not yet of Analytics, and each group's own
+              description below says which. */}
           <Dialog.Description className="mt-1 text-sm leading-6 text-rahma-muted">
-            Choose what we may store on your device. Nothing in the groups below is on
-            unless you turn it on, and you can come back and change it whenever you like.
+            Choose what we may store on your device. Every group says what your choice
+            changes for it today, and you can come back and change your mind whenever you
+            like.
           </Dialog.Description>
         </div>
         <Dialog.Close
@@ -185,7 +189,7 @@ function PanelBody() {
             group={group}
             checked
             disabled
-            lockedReason="These can't be switched off. Without them the site can't do what you've asked it to do — hold on to what you picked in the booking form while you fill it in, or remember the choice you make right here."
+            lockedReason="Without them the site can't do what you've asked it to do — things like holding on to what you picked in the booking form while you fill it in, or remembering the choice you make right here."
           />
         ))}
         {gatedGroups.map((group) => (

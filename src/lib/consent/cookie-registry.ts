@@ -74,21 +74,6 @@ export interface CookieRegistryEntry {
    * this bucket.
    */
   description: string;
-  /**
-   * Set only on an entry whose underlying feature is currently switched
-   * off, so nothing is being written to any visitor's browser today. The
-   * entry stays registered because the code path exists and can start
-   * writing again the moment the feature is switched back on.
-   */
-  dormant?: boolean;
-  /**
-   * Set only on an entry whose `purpose` has not yet received a final
-   * Owner ruling. Non-empty means: treat `purpose` as a working
-   * classification for registry-shape purposes only — Phase C/D must not
-   * gate consent behaviour on this entry until the note is resolved and
-   * removed.
-   */
-  provisionalNote?: string;
 }
 
 export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
@@ -131,15 +116,21 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     // src/features/booking/utils/returning-customer.ts:7-8,24-43 — written on
     // successful booking submission, read once per booking-dialog session
     // while the form is still pristine, self-expires after 180 days.
+    //
+    // Owner ruling 2026-08-04 (progress §3 #6): stays "functional" and gets a
+    // real gate. Both the write and the read now go through
+    // saveReturningCustomerIfConsented / loadReturningCustomerIfConsented in
+    // src/features/booking/BookingExperience.tsx, tested in
+    // src/features/booking/__tests__/returning-customer-consent-gate.test.ts.
+    // The provisional-classification note this entry carried while that ruling
+    // was outstanding has gone with it.
     name: "rahma-booking-contact-v1",
     provider: "Rahma Therapy",
     type: "localStorage",
     purpose: "functional",
     duration: "180 days, or until you clear it",
     description:
-      "After you complete a booking, stores your name, phone number, email address, gender, home address (house/street, town, area and postcode), and any access or parking notes you gave, on this device so they can be pre-filled automatically if you book with us again within 180 days. This is a convenience for a future visit — completing your current booking does not depend on it.",
-    provisionalNote:
-      "PROVISIONAL classification pending an explicit Owner ruling before Phase C gates any consent behaviour on this entry (raised in redesign/evidence/C-18/cookie-inventory-source.md §2 and recorded as an open question in redesign/per-page-progress/C-18-cookie-consent-progress.md §1). It stores personal data (full name, phone, email, address) purely for cross-visit convenience, so it is not \"essential\" in the strict PECR sense — nothing about the booking in progress depends on it — but it is not tracking either, hence the new \"functional\" bucket rather than defaulting it into \"essential\" or \"analytics\". Do not treat this note's presence as a decision either way.",
+      "After you complete a booking, stores your name, phone number, email address, gender, home address (house/street, town, area and postcode), and any access or parking notes you gave, on this device so they can be pre-filled automatically if you book with us again within 180 days. This is a convenience for a future visit — completing your current booking does not depend on it. It's only stored, and only read back, if you switch Functional on; switch it off and anything already stored is deleted.",
   },
   {
     // src/components/GoogleAnalytics.tsx — loaded via Google's externally
@@ -166,8 +157,15 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
   },
   {
     // src/components/shared/MaintenanceModal.tsx:14,20-21 — gated behind
-    // MAINTENANCE_MODE in src/app/(public)/layout.tsx, currently `false`
-    // (src/lib/maintenance.ts) so the modal never mounts today.
+    // MAINTENANCE_MODE in src/app/(public)/layout.tsx.
+    //
+    // NOT marked as inactive, and this is deliberate. An earlier pass read
+    // MAINTENANCE_MODE as `false` and described the whole feature as switched
+    // off — but that `false` is an uncommitted local change; the committed
+    // value (`git show HEAD:src/lib/maintenance.ts`) is `true`, so any deploy
+    // ships the modal mounted and this key written. This page is a public
+    // statement about what a visitor's browser actually receives, and it has to
+    // describe the deployable state, not one machine's working copy.
     name: "maintenance-modal-seen",
     provider: "Rahma Therapy",
     type: "sessionStorage",
@@ -175,7 +173,6 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     duration: "Session — cleared when you close your browser tab",
     description:
       "While planned maintenance is in progress, remembers that you've already seen the one-off 'site not ready' notice this session, so it doesn't interrupt you again on every page you visit before maintenance ends.",
-    dormant: true,
   },
   {
     // Written by the @sentry-internal/replay package (REPLAY_SESSION_KEY),
@@ -231,15 +228,17 @@ export const PURPOSE_LABELS: Record<CookiePurpose, string> = {
 // pin did before it was removed in a5b5d9c for proving nothing about the world
 // outside this file.
 //
-//   1. OPEN (Phase C, next commit) — PURPOSE_DESCRIPTIONS.functional, below:
-//      "still stored automatically today, even if you switch this off". The
-//      gate goes in src/features/booking/BookingExperience.tsx.
+//   1. DISCHARGED in Phase C — PURPOSE_DESCRIPTIONS.functional, below. The gate
+//      is saveReturningCustomerIfConsented / loadReturningCustomerIfConsented in
+//      src/features/booking/BookingExperience.tsx, and the test that it exists
+//      is src/features/booking/__tests__/returning-customer-consent-gate.test.ts.
 //   2. OPEN (Phase D) — PURPOSE_DESCRIPTIONS.analytics, below: "still load and
 //      run automatically today, even if you switch this off".
-//   3. OPEN (Phase C, next commit / Phase D) — the non-essential group badge in
-//      src/app/(public)/cookies/CookieRegistryGroups.tsx. One string covers
-//      both non-essential groups today; once functional is gated and analytics
-//      is not, it has to become purpose-aware rather than be deleted.
+//   3. DISCHARGED in Phase C, for functional only — the group badge in
+//      src/app/(public)/cookies/CookieRegistryGroups.tsx is now purpose-aware,
+//      and the analytics arm of it is still an OPEN Phase D item: it says the
+//      group runs whichever way you choose, which is the truth until the
+//      loaders are gated.
 //   4. OPEN (Phase D) — the "_ga / _ga_*" entry's description, above: "It
 //      currently loads automatically in production... it does not yet wait for
 //      a cookie choice."
@@ -253,7 +252,7 @@ export const PURPOSE_DESCRIPTIONS: Record<CookiePurpose, string> = {
   essential:
     "Needed for a function you specifically asked for — the site does not work as requested without these. You can't opt out of these here.",
   functional:
-    "Make a return visit more convenient by remembering things across visits. Items in this group are still stored automatically today, even if you switch this off.",
+    "Make a return visit more convenient by remembering things across visits. Nothing in this group is stored, or read back, unless you switch it on — and switching it off again deletes what was stored.",
   analytics:
     "Help us understand how the site is used in aggregate, so we can improve it. Items in this group still load and run automatically today, even if you switch this off.",
 };

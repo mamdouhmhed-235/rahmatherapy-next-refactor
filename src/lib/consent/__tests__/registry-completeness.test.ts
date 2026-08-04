@@ -91,17 +91,25 @@ describe("registry completeness (inventory <-> registry parity)", () => {
     }
   });
 
-  it("rahma-booking-contact-v1 carries a provisional note (Owner decision pending)", () => {
+  it("rahma-booking-contact-v1 is classified functional, and no longer provisionally", () => {
+    // The Owner ruled on 2026-08-04 that it stays "functional" and gets a real
+    // gate (progress §3 #6), so the provisional-classification note it carried
+    // while that was outstanding has gone. The gate itself is tested in
+    // src/features/booking/__tests__/returning-customer-consent-gate.test.ts.
     const entry = COOKIE_REGISTRY.find((e) => e.name === "rahma-booking-contact-v1");
     expect(entry).toBeDefined();
     expect(entry?.purpose).toBe("functional");
-    expect(entry?.provisionalNote, "provisionalNote").toBeTruthy();
+    expect(entry).not.toHaveProperty("provisionalNote");
   });
 
-  it("maintenance-modal-seen is marked dormant", () => {
+  it("maintenance-modal-seen is not described as inactive", () => {
+    // MAINTENANCE_MODE is `true` in the committed source, whatever a given
+    // working copy says, so any deploy mounts the modal and writes this key.
+    // An earlier pass read a local `false` and marked the entry dormant, which
+    // told visitors a feature was switched off when the shipping code has it on.
     const entry = COOKIE_REGISTRY.find((e) => e.name === "maintenance-modal-seen");
     expect(entry).toBeDefined();
-    expect(entry?.dormant).toBe(true);
+    expect(entry).not.toHaveProperty("dormant");
   });
 
   it("sentryReplaySession is classified analytics, not a new purpose bucket", () => {

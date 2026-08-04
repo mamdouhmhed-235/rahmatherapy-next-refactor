@@ -34,6 +34,7 @@ import {
   type BookingDetailsFormValues,
 } from "./schemas/booking-schema";
 import { useBookingDraftStore } from "./store/booking-store";
+import { hasConsentFor } from "@/components/consent/consent-store";
 import {
   BOOKING_STEPS,
   emptyBookingDetails,
@@ -44,6 +45,31 @@ import {
 import styles from "./BookingExperience.module.css";
 
 const SCHEDULE_FIELDS = ["preferredDate", "preferredTime"];
+
+// C-18 Phase C — the functional-consent gate on `rahma-booking-contact-v1`
+// (Owner decision, C-18 progress §3 #6). That store holds ten fields including
+// name, phone, email, address, gender and access notes for 180 days, purely so
+// a future booking can be pre-filled; nothing about the booking in progress
+// depends on it. So it sits behind the panel's Functional control, and a
+// visitor who declines loses pre-fill on a later visit. That is the intended
+// consequence.
+//
+// The READ is gated as well as the write. PECR covers the storage of, OR ACCESS
+// TO, information on a visitor's device — a control that stopped new writes
+// while still reading ten stored fields back would be a control that half-lies.
+//
+// Both are module-scope and exported so the gate itself can be tested directly.
+// The registry's gating-obligation comment requires a test that the gate
+// genuinely exists, never one that only re-reads the copy describing it.
+export function saveReturningCustomerIfConsented(details: BookingDetailsFormValues): void {
+  if (!hasConsentFor("functional")) return;
+  saveReturningCustomer(details);
+}
+
+export function loadReturningCustomerIfConsented(): Partial<BookingDetails> | null {
+  if (!hasConsentFor("functional")) return null;
+  return loadReturningCustomer();
+}
 
 export function BookingExperience() {
   // This component is client-only (ssr: false), so the URL is readable at
@@ -280,7 +306,7 @@ export function BookingExperience() {
     }
     prefillAttemptedRef.current = true;
 
-    const stored = loadReturningCustomer();
+    const stored = loadReturningCustomerIfConsented();
     if (!stored) {
       return;
     }
@@ -491,7 +517,7 @@ export function BookingExperience() {
       });
       setSubmittedBookingId(result.bookingId);
       setSubmittedManageUrl(result.manageUrl);
-      saveReturningCustomer(values as BookingDetailsFormValues);
+      saveReturningCustomerIfConsented(values as BookingDetailsFormValues);
       clearStepErrors();
       setAttemptedStep(null);
       setNavDirection(1);
