@@ -24,6 +24,7 @@ import {
   recordConsentChoices,
   registerReplayGate,
   resetConsentStoreForTests,
+  unregisterReplayGateForTests,
 } from "../consent-store";
 
 const reload = vi.fn();
@@ -170,6 +171,32 @@ describe("withdrawing analytics", () => {
 
     expect(replayGate).not.toHaveBeenCalled();
     expect(analyticsUpdates()).toEqual(["granted"]);
+  });
+
+  // Phase D's independent verifier (redesign/evidence/C-18/phase-d-verify-full.md,
+  // finding F1): replayGate?.() at consent-store.ts is a silent no-op when
+  // nothing has registered it yet — SentryProvider.tsx's dynamic import of
+  // sentry.client.config.ts (where registerReplayGate is called) has no
+  // .catch(), so a chunk-load failure (ad-blocker, network) leaves it
+  // unregistered for the rest of that page's life. Every other test in this
+  // file registers a gate in beforeEach; this is the one that does not, and it
+  // has to prove the withdrawal still completes rather than throwing partway
+  // through and leaving Consent Mode, the _ga cookies, or the reload undone.
+  it("still denies, clears the _ga cookies, and reloads — without throwing — when no replay gate is registered", () => {
+    document.cookie = "_ga=GA1.1.123.456; Path=/";
+    storedChoice(ALL_GRANTED);
+    // Undoes this suite's beforeEach registerReplayGate(replayGate), so the
+    // module-level gate is back to unregistered for this one test.
+    unregisterReplayGateForTests();
+
+    expect(() =>
+      recordConsentChoices({ analytics: false, functional: true })
+    ).not.toThrow();
+
+    expect(replayGate).not.toHaveBeenCalled();
+    expect(analyticsUpdates()).toEqual(["denied"]);
+    expect(cookieNames()).not.toContain("_ga");
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -263,6 +263,20 @@ export function resetConsentStoreForTests(): void {
   panelListeners.clear();
 }
 
+/**
+ * Test-only, and deliberately separate from resetConsentStoreForTests above:
+ * this suite's storedChoice() helper calls that function mid-test (to make the
+ * store re-read a just-written cookie), and every withdrawal test relies on
+ * the gate registered in beforeEach still being there afterwards. Only the one
+ * test that needs an unregistered gate — proving a withdrawal survives
+ * SentryProvider.tsx's dynamic import never resolving (its `.then()` has no
+ * `.catch()`, so a blocked/failed chunk load leaves replayGate permanently
+ * undefined for that page) — should call this.
+ */
+export function unregisterReplayGateForTests(): void {
+  replayGate = undefined;
+}
+
 export function useConsent(): ConsentSnapshot {
   return useSyncExternalStore(subscribeConsent, getConsentSnapshot, getServerConsentSnapshot);
 }
