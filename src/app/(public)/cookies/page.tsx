@@ -43,8 +43,11 @@ export default function CookiesPage() {
               Choosing Accept all, Reject all, or saving your own settings stores that answer
               in a small cookie on your device — a random reference number that isn&apos;t
               linked to your name, the version of this page that was shown to you, and what
-              you chose. It stays for six months and then we ask you again. It never includes
-              your IP address, your name, or anything else that identifies you.
+              you chose. It stays for six months and then we ask you again. We also keep an
+              internal record of that same choice — the reference number, the version shown,
+              and what you chose — for as long as we rely on it as evidence of your consent.
+              Neither the cookie nor that record ever includes your IP address, your name, or
+              anything else that identifies you.
             </p>
           </article>
           <article className="rounded-2xl border border-rahma-border bg-rahma-ivory p-6">

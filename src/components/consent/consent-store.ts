@@ -151,6 +151,96 @@ function consentModeUpdate(analyticsStorage: "granted" | "denied") {
   });
 }
 
+/** The four proof-log actions — matches consent_events.action's CHECK constraint. */
+type ConsentEventAction = "granted" | "rejected" | "updated" | "withdrawn";
+
+/**
+ * C-18 Phase E Step 10's route. Same path regardless of environment; the
+ * route itself always answers 204 and never blocks the caller (brief §4.7) —
+ * see src/app/api/consent-events/route.ts.
+ */
+const CONSENT_EVENTS_ENDPOINT = "/api/consent-events/";
+
+/**
+ * C-18 Phase E Step 11 — what to log for a choice, decided the same way
+ * applyChoiceTransition (below) decides what to DO about one: by comparing
+ * against the previously stored choice, never the new one alone.
+ *
+ *   - Any purpose that was granted and is now denied is a withdrawal, even if
+ *     another purpose was granted in the same click.
+ *   - Otherwise, no prior record at all is a first choice: 'granted' if
+ *     anything non-essential was switched on, 'rejected' if nothing was.
+ *   - Otherwise a prior record existed and nothing was withdrawn: 'updated'.
+ */
+function determineConsentAction(
+  hadPriorRecord: boolean,
+  previous: ConsentChoices,
+  next: ConsentChoices
+): ConsentEventAction {
+  const purposes = Object.keys(next) as Array<keyof ConsentChoices>;
+
+  if (purposes.some((purpose) => previous[purpose] && !next[purpose])) {
+    return "withdrawn";
+  }
+
+  if (!hadPriorRecord) {
+    return purposes.some((purpose) => next[purpose]) ? "granted" : "rejected";
+  }
+
+  return "updated";
+}
+
+/**
+ * Fire-and-forget: the consent-proof beacon. navigator.sendBeacon is
+ * preferred because it is designed to survive the page going away, which
+ * matters on the withdrawal path below — this is called BEFORE
+ * applyChoiceTransition, which is what performs that path's
+ * window.location.reload(), specifically so the beacon is queued before the
+ * reload begins rather than raced against it. fetch(keepalive) is the
+ * fallback for contexts without sendBeacon, or when it declines the payload.
+ * Never throws, and never awaited by the caller — a slow or down logging
+ * endpoint must never affect consent UX (brief §4.7).
+ *
+ * purposes_offered is Object.keys(state.choices), not a hand-typed list:
+ * ConsentChoices has exactly one key per non-essential CookiePurpose by
+ * construction (see the interface's own doc-comment in consent-state.ts —
+ * adding a purpose to the registry means adding a key there), so this can
+ * never drift from what ConsentPreferencesPanel.tsx's own GATED_PURPOSES
+ * renders. Importing COOKIE_REGISTRY itself here to derive the same list
+ * would pull its per-cookie descriptions into this module — see the
+ * GatedPurpose note above for why that import is avoided in this file.
+ */
+function logConsentEvent(action: ConsentEventAction, state: ConsentState): void {
+  const body = JSON.stringify({
+    consent_id: state.id,
+    banner_version: state.v,
+    purposes_offered: Object.keys(state.choices),
+    choices: state.choices,
+    action,
+  });
+
+  try {
+    const queued =
+      typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function"
+        ? navigator.sendBeacon(
+            CONSENT_EVENTS_ENDPOINT,
+            new Blob([body], { type: "application/json" })
+          )
+        : false;
+
+    if (!queued) {
+      void fetch(CONSENT_EVENTS_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        keepalive: true,
+      }).catch(() => undefined);
+    }
+  } catch {
+    // A logging failure must never surface as a consent-flow error.
+  }
+}
+
 /**
  * C-18 Phase C Step 7 — what a choice actually does, decided by comparing it
  * with the PREVIOUS stored choice rather than with the new one alone.
@@ -239,12 +329,21 @@ async function applyChoiceTransition(previous: ConsentChoices, next: ConsentChoi
  * actually means.
  */
 export function recordConsentChoices(choices: ConsentChoices): ConsentState {
-  const previous = getConsentSnapshot()?.choices ?? ALL_DENIED;
+  const previousSnapshot = getConsentSnapshot();
+  const previous = previousSnapshot?.choices ?? ALL_DENIED;
   const state = writeConsent(choices);
 
   hasRead = true;
   snapshot = state;
   notify(consentListeners);
+
+  // Logged before applyChoiceTransition, which is what performs the
+  // withdrawal path's window.location.reload() — see logConsentEvent for why
+  // that ordering is load-bearing rather than incidental.
+  logConsentEvent(
+    determineConsentAction(previousSnapshot != null, previous, state.choices),
+    state
+  );
 
   void applyChoiceTransition(previous, state.choices);
 

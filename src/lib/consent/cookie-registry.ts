@@ -28,6 +28,15 @@
 // typo fix that changes nothing substantive does not require a bump.
 export const CONSENT_BANNER_VERSION = "2026-07-16.1";
 
+// C-18 Phase E Step 10 — every banner_version POST /api/consent-events
+// (src/app/api/consent-events/route.ts) still accepts, so a beacon fired from
+// a page that loaded BEFORE a version bump — and therefore still carries the
+// pre-bump version string in its inline consent-default script and its
+// in-memory consent-store snapshot until the visitor reloads — still gets
+// logged instead of silently dropped. A version is added here, never
+// removed, in the SAME change that bumps CONSENT_BANNER_VERSION above.
+export const KNOWN_BANNER_VERSIONS: readonly string[] = [CONSENT_BANNER_VERSION];
+
 // "essential" — strictly necessary for a function the visitor themselves
 //   requested; exempt from consent under PECR. Every "essential" entry's
 //   description must name that specific function, or it does not belong in
