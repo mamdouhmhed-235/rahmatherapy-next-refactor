@@ -14,11 +14,12 @@ import {
   CONSENT_BANNER_VERSION,
   COOKIE_REGISTRY,
   type CookiePurpose,
+  NON_ESSENTIAL_PURPOSES,
   formatBannerVersionDate,
   groupRegistryByPurpose,
   type StorageMechanism,
 } from "../cookie-registry";
-import { CONSENT_COOKIE } from "../consent-state";
+import { CONSENT_COOKIE, type ConsentChoices } from "../consent-state";
 
 const INVENTORY_NAMES = [
   "zam-therapy-booking-draft-v3",
@@ -180,5 +181,21 @@ describe("groupRegistryByPurpose", () => {
       expect(group.label, group.purpose).toBeTruthy();
       expect(group.description, group.purpose).toBeTruthy();
     }
+  });
+});
+
+describe("ConsentChoices cannot silently drift from the registry", () => {
+  it("has exactly one ConsentChoices key per purpose in NON_ESSENTIAL_PURPOSES", () => {
+    // consent-store.ts's logConsentEvent derives the consent-proof beacon's
+    // purposes_offered from NON_ESSENTIAL_PURPOSES rather than
+    // Object.keys(state.choices) precisely so a purpose added to the registry
+    // without a matching ConsentChoices key (consent-state.ts) fails here,
+    // loudly, instead of silently producing an incomplete purposes_offered on
+    // every beacon fired from then on. `sample` only needs to satisfy
+    // ConsentChoices as it stands today — if a future purpose is added there
+    // without a matching registry entry, TypeScript itself fails first,
+    // before this test ever runs.
+    const sample: ConsentChoices = { analytics: false, functional: false };
+    expect(new Set(Object.keys(sample))).toEqual(new Set(NON_ESSENTIAL_PURPOSES));
   });
 });

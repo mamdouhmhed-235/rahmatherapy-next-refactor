@@ -19,7 +19,7 @@ vi.mock("@/features/booking/utils/returning-customer", () => ({
 }));
 
 import { writeConsent, type ConsentChoices, type ConsentState } from "@/lib/consent/consent-state";
-import { CONSENT_BANNER_VERSION } from "@/lib/consent/cookie-registry";
+import { CONSENT_BANNER_VERSION, NON_ESSENTIAL_PURPOSES } from "@/lib/consent/cookie-registry";
 import {
   ALL_DENIED,
   ALL_GRANTED,
@@ -175,14 +175,16 @@ describe("what gets sent", () => {
     expect(body.choices).toEqual(state.choices);
   });
 
-  it("derives purposes_offered from the choices actually recorded, not a separate list", async () => {
+  it("derives purposes_offered from the registry's non-essential purposes, not the choices recorded", async () => {
+    // Pinned against NON_ESSENTIAL_PURPOSES itself, not a hand-written array:
+    // what was "offered" is what the registry actually offers, independent of
+    // what this particular visitor chose — see NON_ESSENTIAL_PURPOSES' own
+    // doc comment in cookie-registry.ts and the parity test in
+    // src/lib/consent/__tests__/registry-completeness.test.ts.
     recordConsentChoices({ analytics: true, functional: false });
 
     const body = await lastBeaconBody();
-    expect(body.purposes_offered).toEqual(
-      expect.arrayContaining(["analytics", "functional"])
-    );
-    expect((body.purposes_offered as string[]).length).toBe(2);
+    expect(body.purposes_offered).toEqual(NON_ESSENTIAL_PURPOSES);
   });
 
   it("posts to /api/consent-events/", async () => {

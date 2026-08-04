@@ -281,6 +281,29 @@ export const PURPOSE_DESCRIPTIONS: Record<CookiePurpose, string> = {
 // CookiePurpose.
 const PURPOSE_ORDER: CookiePurpose[] = ["essential", "functional", "analytics"];
 
+/**
+ * Every purpose a visitor can actually be asked about — CookiePurpose minus
+ * "essential" — as a plain runtime value, not just a type.
+ *
+ * consent-store.ts's consent-proof beacon uses this for `purposes_offered`
+ * instead of `Object.keys(state.choices)` (ConsentChoices,
+ * consent-state.ts): the interface is hand-typed and documented as requiring
+ * manual sync with this list, so deriving from the registry directly means a
+ * purpose added here without a matching ConsentChoices key shows up as a
+ * mismatch instead of silently going missing from the log. See
+ * registry-completeness.test.ts for the test that pins the two stay in
+ * agreement.
+ *
+ * Built from PURPOSE_ORDER, not by scanning COOKIE_REGISTRY's entries: this
+ * constant is imported by consent-store.ts, which ships on every public
+ * page, and COOKIE_REGISTRY's six prose descriptions are kept out of that
+ * bundle on purpose — see the GatedPurpose note in consent-store.ts for the
+ * same trade-off made the same way.
+ */
+export const NON_ESSENTIAL_PURPOSES: readonly CookiePurpose[] = PURPOSE_ORDER.filter(
+  (purpose) => purpose !== "essential"
+);
+
 export interface CookieRegistryGroup {
   purpose: CookiePurpose;
   label: string;

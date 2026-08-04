@@ -27,7 +27,7 @@ import {
   type ConsentChoices,
   type ConsentState,
 } from "@/lib/consent/consent-state";
-import type { CookiePurpose } from "@/lib/consent/cookie-registry";
+import { NON_ESSENTIAL_PURPOSES, type CookiePurpose } from "@/lib/consent/cookie-registry";
 
 /**
  * Every purpose a visitor can actually choose — the registry minus "essential".
@@ -201,20 +201,22 @@ function determineConsentAction(
  * Never throws, and never awaited by the caller — a slow or down logging
  * endpoint must never affect consent UX (brief §4.7).
  *
- * purposes_offered is Object.keys(state.choices), not a hand-typed list:
- * ConsentChoices has exactly one key per non-essential CookiePurpose by
- * construction (see the interface's own doc-comment in consent-state.ts —
- * adding a purpose to the registry means adding a key there), so this can
- * never drift from what ConsentPreferencesPanel.tsx's own GATED_PURPOSES
- * renders. Importing COOKIE_REGISTRY itself here to derive the same list
- * would pull its per-cookie descriptions into this module — see the
- * GatedPurpose note above for why that import is avoided in this file.
+ * purposes_offered comes from cookie-registry.ts's NON_ESSENTIAL_PURPOSES,
+ * not Object.keys(state.choices): ConsentChoices is a hand-typed interface
+ * documented as requiring manual sync with the registry's non-essential
+ * purposes, so reading it from the registry directly — the actual source of
+ * truth — means a purpose added there without a matching ConsentChoices key
+ * shows up as a mismatch instead of silently going missing from the log. See
+ * registry-completeness.test.ts for the pin. NON_ESSENTIAL_PURPOSES is a
+ * plain purposes array, not COOKIE_REGISTRY's full six-entry array of prose
+ * descriptions — see the GatedPurpose note above for why that heavier import
+ * is kept out of this module, which ships on every public page.
  */
 function logConsentEvent(action: ConsentEventAction, state: ConsentState): void {
   const body = JSON.stringify({
     consent_id: state.id,
     banner_version: state.v,
-    purposes_offered: Object.keys(state.choices),
+    purposes_offered: NON_ESSENTIAL_PURPOSES,
     choices: state.choices,
     action,
   });
