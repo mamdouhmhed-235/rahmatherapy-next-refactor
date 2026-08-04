@@ -36,6 +36,26 @@ const gtag = vi.fn();
 // src/components/__tests__/SentryProvider.test.tsx.
 const replayGate = vi.fn();
 
+// Every recordConsentChoices call in this file now also fires the consent-
+// proof beacon (consent-store.ts's logConsentEvent, wired up in Phase E) —
+// this suite predates that and never stubbed navigator.sendBeacon or fetch,
+// unlike its sibling consent-logging.test.ts, which pins what that beacon
+// actually sends. Stubbed here the same way, so this file's tests keep
+// exercising only the transition logic they're named for, and this suite
+// stops being a test run that attempts a real network call on every test.
+const sendBeacon = vi.fn<(url: string, data?: BodyInit | null) => boolean>(() => true);
+const fetchMock = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>(() =>
+  Promise.resolve(new Response(null, { status: 204 }))
+);
+
+function enableSendBeacon() {
+  Object.defineProperty(window.navigator, "sendBeacon", {
+    value: sendBeacon,
+    writable: true,
+    configurable: true,
+  });
+}
+
 function cookieNames(): string[] {
   return document.cookie
     .split(";")
@@ -70,6 +90,13 @@ beforeEach(() => {
   replayGate.mockClear();
   registerReplayGate(replayGate);
 
+  sendBeacon.mockClear();
+  sendBeacon.mockReturnValue(true);
+  fetchMock.mockClear();
+  fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+  vi.stubGlobal("fetch", fetchMock);
+  enableSendBeacon();
+
   (window as { gtag?: unknown }).gtag = gtag;
   Object.defineProperty(window, "location", {
     configurable: true,
@@ -86,6 +113,7 @@ beforeEach(() => {
 afterEach(() => {
   clearAllCookies();
   delete (window as { gtag?: unknown }).gtag;
+  vi.unstubAllGlobals();
 });
 
 describe("granting", () => {
