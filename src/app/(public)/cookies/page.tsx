@@ -30,7 +30,7 @@ export default function CookiesPage() {
         <SectionHeading
           eyebrow="Cookies & site storage"
           title="What we store on your device, and why"
-          description="This page lists every cookie and browser-storage item rahmatherapy.uk uses when you visit as a member of the public or use our booking system — what it does and how long it lasts. We keep this list in one place so it always matches what your browser actually receives."
+          description="This page lists every cookie and browser-storage item our own code sets on rahmatherapy.uk when you visit as a member of the public or use our booking system — what it does and how long it lasts. We keep this list in one place so it always matches what your browser actually receives."
         />
       </SectionContainer>
 
@@ -52,7 +52,7 @@ export default function CookiesPage() {
           </article>
           <article className="rounded-2xl border border-rahma-border bg-rahma-ivory p-6">
             <h2 className="font-display text-xl font-semibold text-rahma-charcoal sm:text-2xl">
-              Change your choices
+              How you&apos;ll change your choices
             </h2>
             <p className="mt-3 text-sm leading-7 text-rahma-muted sm:text-base">
               There&apos;s no live control for this yet — non-essential items currently run
