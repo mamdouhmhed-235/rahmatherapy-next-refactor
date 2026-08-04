@@ -85,6 +85,100 @@ The divergence is instructive: **`availability.ts` has not moved a single line s
 
 ---
 
-## 1 — ▶ Position
+## 1 — Phase B (Steps 3–4) — **VERIFIED FULL — PASS**
 
-**HELD at pre-flight #4 (⛔).** Pre-flight items 1, 2, 3, 5, 6 and the C-14 serialization check all pass. Nothing implemented; no commits; working tree clean over every C-23 path.
+| Commit | What | Model |
+|---|---|---|
+| `61111ee` | Step 3 — additive `{ ignoreBookingWindow?, ignorePublicPause? }` on `calculateAvailableDays`; two guarded sites; defaults preserve behaviour | `opus` |
+| `16c700e` | Step 4 — `POST /api/admin/availability/month`, authenticated + permission-gated; first route under `src/app/api/admin/` | `opus` |
+
+**Opus justification (§5):** `availability.ts` and `/api/availability/month` serve the **live public customer calendar** (`ScheduleStep.tsx:94-104`, unauthenticated, service-role) — decision D25 makes this a production customer surface.
+
+**How "nothing changed" was actually proved** (not asserted): the implementer wrote `src/lib/booking/__tests__/availability-options.test.ts` **first**, ran it against the **unmodified** engine so its `FROZEN_DEFAULTS` literal is captured pre-change output, and observed the two new-behaviour assertions failing red before editing. The clock is frozen with `toFake: ["Date"]` only, so the guard test genuinely calls `calculateAvailableDays(input, client)` with **two arguments**, exactly as the one production caller does.
+
+### Independent verification (FULL, fresh verifier, `model: sonnet`) — `redesign/evidence/C-23/phase-b-verify-full.md`
+- **Options-omitted path CONFIRMED by executed mutation testing**, not by reading: a scratchpad harness ran the real test shape against two hostile mutant engines plus an unmutated control. Control **7/7 pass**; guard 1 broken (`&&`→`||`) → **5/7 fail**; guard 2 broken (`||`→`&&`) → **4/7 fail** — both regression guards catching it each time. `FROZEN_DEFAULTS` confirmed a genuine literal, not derived from the function under test.
+- **Diff minimality CONFIRMED** — the +14/−7 in `availability.ts` is fully accounted for by the two guards plus the type-literal expansion. `calculateAvailableSlots` and both public routes **byte-unchanged** in both commits.
+- **`ManualBookingForm.tsx` absent from both commits** (`git show --stat`) — the condition the Owner's re-sequencing approval rests on.
+- **Admin route:** auth ordering correct (`getStaffProfile()` before `createSupabaseAdminClient()`); tests exercise real branches with non-tautological assertions; zod shape and `datesOfMonth` byte-identical to the public route and timezone/leap-year safe (pure UTC arithmetic); the rate-limit omission is deliberate, commented and tested.
+- **Gates by identity:** tsc 0 · new suites 18/18 · full vitest **5 failed / 1993 passed (1998)**, identities exact · eslint 59E/7W in exactly the six baseline files · isolation clean.
+
+### Two corrections the verifier made
+1. **The orchestrator's dispatch was imprecise about the permission gate.** It claimed `createManualBooking` uses the broader `canManageBookings`. It does not — a second explicit check at `src/app/admin/bookings/actions.ts:1471` enforces `canManageAllBookings` and overrides the broader first check. **All three surfaces — page render, actual submission, and the new route — converge on the same permission.** The implementer's choice of `canManageAllBookings` is coherent for a better reason than either agent originally gave.
+2. **Gate §3.2 was re-run in the wrong place, by orchestrator error.** It is a **pre-condition** — the plan requires the parity diff be clean *before Phase B starts*, and it was (§0.1). Re-running it *after* Phase B is meaningless, because Phase B intentionally edits `availability.ts` on master. The 7 "insertions" the post-hoc run reports are git rendering an inline additive edit as delete+add; every one is character-for-character identical to pre-Phase-B code. **No code defect. Do not re-run this gate again — it is spent.**
+
+### Judgement calls recorded
+- **`datesOfMonth` duplicated (8 lines)** rather than exported from the live public route — declining to edit a customer-facing file for a non-behavioural reason. The brief's "no duplicated logic" requirement is about the availability **engine**, which is fully reused. Verifier confirmed the duplicate is behaviourally byte-equivalent.
+- **`calculateAvailableDays` now has two production callers by design** (the public month route and the new admin route). `calculateAvailableSlots` still has exactly one and its contract is untouched.
+
+## 2 — Phase C (Steps 5–6) — IMPLEMENTED, **NOT YET INDEPENDENTLY VERIFIED**
+
+| Commit | What | Model |
+|---|---|---|
+| `a345d99` | Step 5 `AvailabilityCalendarField.tsx` (+11 tests) · Step 6 `use-month-availability.ts` (+3 tests) | `sonnet` |
+
+All four files are **new**; nothing existing was edited. `ManualBookingForm.tsx` and the public flow are absent from the diff (`git show a345d99 --stat`).
+
+**Self-gates at `a345d99`:** tsc 0 · new suites 14/14 · full vitest **5 failed / 2007 passed (2012)**, identities exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3 · eslint 59E/7W, none of the four new files appearing. Bundle not measured (builds forbidden to agents this session — see §3.1); the component is wired nowhere yet, so its route delta is structurally 0 this phase.
+
+**The admin-idiom gap, solved deliberately.** `CalendarDatePopover.tsx` — Step 5's stylistic reference — uses **no** `disabled`, `modifiers` or `modifiersClassNames`, and the only in-repo precedent for that combination is the **public** `DatePickerField.tsx`, which does exactly what Step 5 forbids. So there was no admin precedent to copy. Marker styling was built from `--admin-*` tokens directly, reusing the `--admin-status-confirmed-*` / `--admin-status-attention-*` tokens `AdminStatusBadge` already uses, with `--rdp-*` custom properties nudged via Tailwind arbitrary properties rather than a new CSS module. Documented in a header comment.
+
+**Non-colour encoding (gate §3.9) — two independent mechanisms:** a custom `DayButton` rendering a distinct shape glyph (filled circle = available, rotated square = partial), and `labels.labelDayButton` wrapping react-day-picker's own default label function so the availability suffix reaches the `aria-label` without losing the library's today/selected text.
+
+---
+
+# ▶▶ INTERRUPT CHECKPOINT — 2026-08-04 — READ THIS FIRST ON RESUME
+
+**Owner ended the session here deliberately to continue in a fresh one. Nothing is mid-flight; no agent is running; the tree is clean over every C-23 path.**
+
+| Field | Value |
+|---|---|
+| Plan | **C-23** (admin availability calendar) |
+| Phase / step | **Phase C (Steps 5–6) committed. NOT independently verified.** Phase D (Steps 7–10) not started |
+| Last-good commit | **`a345d99`** — this checkpoint commit follows it |
+| Files mid-flight | **NONE.** Only `src/lib/maintenance.ts` (standing Owner change — never stage) |
+| Programme | **18 of 22 shipped.** C-23 in progress; then C-19 (unblocked), C-14, C-10, C-20 |
+
+### EXACT NEXT ACTION
+**Dispatch a TARGETED-tier independent verifier for Phase C** (`a345d99`), `model: sonnet`, writing to `redesign/evidence/C-23/phase-c-verify.md`. Tier TARGETED was declared in advance (§0.4) because the component is presentational and wired nowhere. Lead it on:
+1. **`disabled` never exceeds `{ before: min }`** — the calendar must *inform*, never block. An operator with a requested date in hand must always be able to pick it (brief finding 3).
+2. **Marker resolution** — 2 cohorts: both → available, exactly one → **partial**, neither → de-emphasised; 1 cohort: available / de-emphasised.
+3. **Non-colour encoding genuinely reaches assistive tech** — verify the `aria-label` suffix and the shape glyph, and that wrapping `labelDayButton` did not drop react-day-picker's own today/selected text.
+4. **The hook** — cache keyed `month|services|genders|city`, `AbortController` firing on key change *and* unmount, failure → `null` (silent, unmarked), and `enabled` introducing **no new preconditions** (brief finding 4).
+5. **Renders unmarked but not broken** when `cohorts` is empty or `loading`.
+
+### THEN Phase D — and it is ⛔ BLOCKED
+Phase D (Steps 7–9) rewires the three date-input branches. **It must not start until the ⛔ behavioural baseline in §0.2 is captured**, because gate §3.3 compares the admin form's submitted payload before and after, and Phase D is what changes it. Phases B and C were explicitly allowed ahead of the baseline *because they leave `ManualBookingForm.tsx` untouched* — verified true for both.
+
+**Branch anchors for Phase D, re-verified at `7b1db05`** (the plan's 1445/1498/1630 are stale):
+| Branch | Line | Condition | `onChange` |
+|---|---|---|---|
+| single/same-gender | **1639** | `canCheckAvailability && !overrideAvailability && !isMixedGenderGroup` | `const d = e.target.value; setBookingDate(d); setStartTime(""); if (d) checkAvailability(d);` |
+| mixed-gender | **1692** | `canCheckAvailability && !overrideAvailability && !femaleOverride && !maleOverride && isMixedGenderGroup` | identical to above |
+| fallback/override | **1824** | `overrideAvailability \|\| (isMixedGenderGroup && (femaleOverride \|\| maleOverride))` — **not** `!canCheckAvailability` as the plan says | `(e) => setBookingDate(e.target.value)` — **materially different: no `setStartTime("")`, no `checkAvailability`** |
+
+**⚠️ That third row is a real trap.** Step 7 requires the replacement to run an *identical* handler body, and branch 3's body is genuinely different. Copy-pasting branch 1's handler into branch 3 would silently change behaviour. Step 9 explicitly permits keeping branch 3's plain `AdminInput` (zero risk, recommended) — **record whichever choice is made.**
+
+Full surface map, including the 13-item non-removal checklist with a `file:line` for every item: `redesign/evidence/C-23/implementation-surface-map.md`.
+
+### INHERITED BASELINE — BY IDENTITY (use this, never plan text)
+- tsc **0 errors** · build clean; public routes prerendered.
+- vitest → failures exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3. Totals at `a345d99`: **5 failed / 2007 passed (2012)**. **Judge by identity, never by count.** Three of the five sit in `ManualBookingForm.test.tsx` — Phase D's primary file — so diff the named failure list, never the exit code.
+- eslint → **59 errors / 7 warnings** in exactly `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`.
+- The plan's own §0/§3 baseline text (485/491, six failures incl. `createBookingTransaction`) is a **frozen 2026-07 snapshot and is superseded**.
+
+## 3 — Standing facts a fresh session must not relearn the hard way
+
+- **`src/lib/maintenance.ts` is deliberately dirty** (`MAINTENANCE_MODE = false`, Owner-authorised). Never stage, commit or revert it; exclude from isolation checks. **HEAD carries `true`** — for any claim about *deployed* behaviour read `git show HEAD:<path>`, never the working tree. That distinction already caused one false public statement in C-18.
+- **The dev server is Owner-run** at `localhost:3000` (never `127.0.0.1`). Agents must never spawn, restart or kill it. `/` 308s to `/home/`; paths 308 to trailing-slash form — normal.
+
+### 3.1 — Agents must NOT run production builds
+`pnpm build` / `next build` in this tree while `next dev` holds it **knocked the Owner's dev server over twice** in this session. Builds were banned in every later dispatch and run **once by the orchestrator, last** — which the server survived (200 in 0.13 s immediately after). Keep that rule.
+
+### 3.2 — No in-place mutation testing while another agent runs
+A prep agent read a verifier's transient in-place mutation as a shipped defect and reported a green phase as broken. It was not: the committed blob and working tree were byte-identical and the suite was green. **Scratchpad copies only.** Later agents complied and proved non-vacuity via scratchpad harnesses instead.
+
+### 3.3 — The agent cannot authenticate, and Owner authorisation does not change it
+The Owner authorised agents to use the admin logins directly (repeatedly, 2026-08-04). **That authorisation cannot be accepted** — entering a password is prohibited for the agent regardless of who grants it, which protocol §3b records independently. **The workable substitute, offered and not yet completed: the Owner signs in once at `http://localhost:3000/admin/login/` in their own Chrome, and the orchestrator drives that already-authenticated session** (operating a session the Owner created is not credential entry). A tab was left open at `/admin/login/?redirectTo=%2Fadmin%2Fdashboard%2F`. As of session end **no session existed** — a probe of `/admin/dashboard/` still redirected to login. The Owner's earlier "I logged in" referred to a tab sitting on `http://localhost:3000/home/admin/`, which is a 404 (`/home/admin/`, not `/admin/`).
+
+**Blocked on that single sign-in:** C-23's ⛔ baseline (§0.2) and **all** of C-10 Phase A.

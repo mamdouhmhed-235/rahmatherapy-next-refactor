@@ -17,7 +17,7 @@ The plan's single ⏸ bundles three copy inputs. Two are answered; two remain ou
 |---|---|---|
 | (a) | contact details to publish (email/phone; postal optional) | **✅ ANSWERED 2026-08-04** |
 | (b) | retention number (7-year insurance default unless their policy says otherwise) | **✅ ANSWERED 2026-08-04** |
-| (c) | business/trading name line for "Who we are" | **◐ PARTIALLY ANSWERED** — structure decided, exact values still needed |
+| (c) | business/trading name line for "Who we are" | **✅ ANSWERED 2026-08-04** |
 
 ### (a) Contact details — Owner decision, 2026-08-04, in chat
 
@@ -32,19 +32,27 @@ Both come from `src/content/site/contact.ts:10-23`, which already publishes them
 
 **Relevant history:** C-21 established that the previously published `hello@rahmatherapy.co.uk` **did not exist** — customers emailing it reached nobody — and replaced it with the live `rahmatherapy@outlook.com`. A privacy notice whose contact route is dead would be worse than no notice, so the working address is the one that matters here.
 
-### (c) Controller identity — structure decided, values OUTSTANDING
+### (c) Controller identity — Owner answer 2026-08-04, VERIFIED against the public register
 
-**Owner decision 2026-08-04: the business is a LIMITED COMPANY.**
+**The data controller is a limited company:**
 
-So the controller is the company, not the individual, and the "Who we are" section must name it with its registered company number — e.g. "Rahma Therapy Ltd (company no. NNNNNNNN)".
+- **Registered name: `RAHMATHERAPY LIMITED`** (all caps is the registered form)
+- **Company number: `16769945`**
 
-**⏳ Still needed before C-19 can be written:**
-1. The **registered company name exactly as it appears at Companies House** ("Ltd" vs "Limited" matters — the notice should match the register).
-2. The **company number** (8 digits).
+**Independently verified** against Companies House (`find-and-update.company-information.service.gov.uk/company/16769945`) rather than taken on trust, because this becomes a public legal statement identifying who is responsible for visitors' personal data under Art 13(1)(a). The register returns an exact match: name `RAHMATHERAPY LIMITED`, number `16769945`, status **Active**, type **Private limited company**, incorporated **7 October 2025**.
 
-The orchestrator will not invent or infer either value (protocol §1.4: never proceed on placeholder values).
+**Implementation notes for the page copy:**
+- The **legal entity** is `RAHMATHERAPY LIMITED`; the **brand/trading name** used throughout the site is "Rahma Therapy". The "Who we are" section must name the legal entity with its company number — the brand may appear alongside, but must not stand in place of it.
+- Because the controller is a **company and not an individual**, the lawful-basis, rights and complaints sections must read consistently with a corporate controller. This is not a find-and-replace of one line.
+- The ICO registration referred to in the brief belongs to the **company**.
 
-**Knock-on for the flagged business item:** the brief's ICO fee figure (`brief:37`, "Tier 1 £52") was written assuming the smallest tier. ICO fees are banded by organisation size and turnover, so the tier should be checked against the company rather than carried over from the brief. Business action, not code — recorded, not actioned.
+**Knock-on for the flagged business item:** the brief's ICO fee figure (`brief:37`, "Tier 1 £52") was written assuming the smallest tier. ICO fees are banded by organisation size and turnover, so the tier should be confirmed against the company rather than carried over from the brief. Business action, not code — recorded, not actioned.
+
+---
+
+## 1.1 — ⏸ GATE CLEARED
+
+All three copy inputs are answered: **(a)** email + phone as already published, **(b)** 7 years / ~12 months, **(c)** `RAHMATHERAPY LIMITED`, company number `16769945`. **C-19 is unblocked and may proceed** — protocol §1.4 is satisfied; no value is a placeholder.
 
 ### (b) Retention — Owner decision, 2026-08-04, in chat
 
@@ -63,13 +71,9 @@ The orchestrator will not invent or infer either value (protocol §1.4: never pr
 
 ---
 
-## 2 — Still needed before C-19 can start
+## 2 — Nothing outstanding
 
-**One item only:** the registered company name (exact Companies House spelling) and the 8-digit company number, per §1(c) above.
-
-Per protocol §1.4, C-19 does **not** proceed on a placeholder controller identity. If the values are not available when C-18 closes, the orchestrator continues to C-20 and returns to C-19 afterwards rather than publishing a controller identity that cannot be stood behind — nothing else in the programme is blocked by this.
-
-**Also note for the page copy:** the business being a limited company changes more than one line. "Who we are" names the company; the lawful-basis and rights sections should read consistently with a corporate controller rather than an individual; and the ICO registration referred to in the brief belongs to the company.
+All ⏸ inputs are answered and verified (§1.1). C-19 requires no further Owner input to be implemented.
 
 ---
 
