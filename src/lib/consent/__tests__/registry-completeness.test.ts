@@ -199,3 +199,27 @@ describe("ConsentChoices cannot silently drift from the registry", () => {
     expect(new Set(Object.keys(sample))).toEqual(new Set(NON_ESSENTIAL_PURPOSES));
   });
 });
+
+describe("purposes_offered (consent-proof log) cannot silently drift from the panel", () => {
+  // public.consent_events.purposes_offered is a legal record of which
+  // non-essential purposes a visitor was actually offered. logConsentEvent
+  // (consent-store.ts) builds it from NON_ESSENTIAL_PURPOSES — the static
+  // purpose TAXONOMY (cookie-registry.ts) — while the preferences panel
+  // (ConsentPreferencesPanel.tsx, GATED_PURPOSES) renders one toggle per
+  // purpose that groupRegistryByPurpose() actually returns, which drops any
+  // purpose with zero live COOKIE_REGISTRY entries. The two sets are
+  // member-identical today, but nothing enforces that: if the last registry
+  // entry for a purpose were ever removed while the purpose stayed in the
+  // taxonomy, the panel would render no toggle for it while the proof log
+  // kept recording it as offered — a false statement in a legal record. This
+  // is the opposite direction from "ConsentChoices cannot silently drift from
+  // the registry" above, which pins NON_ESSENTIAL_PURPOSES against
+  // ConsentChoices, not against what the panel actually renders — do not
+  // delete this as a duplicate of that test.
+  it("has exactly one NON_ESSENTIAL_PURPOSES entry per purpose with a live registry entry", () => {
+    const offeredByPanel = groupRegistryByPurpose()
+      .map((group) => group.purpose)
+      .filter((purpose) => purpose !== "essential");
+    expect(new Set(offeredByPanel)).toEqual(new Set(NON_ESSENTIAL_PURPOSES));
+  });
+});
