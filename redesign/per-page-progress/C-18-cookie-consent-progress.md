@@ -78,6 +78,10 @@ All four of the plan's hypotheses confirmed accurate: `zam-therapy-booking-draft
 | 5 | **Phase B's consent script reads the cookie CLIENT-side, not via `cookies()`.** Server-reading opted the whole `(public)` route group out of static generation (Next 16.2.4: `next/dist/server/request/cookies.js:88` → `throwToInterruptStaticGeneration`), taking 15 prerendered public pages dynamic. It is also *wrong behind a CDN*: an edge-cached page would carry one visitor's consent state to the next. The same single inline script now reads `document.cookie` at parse time — still before hydration, still before any Google code, no flash. **Plan Step 4's "server-read" wording is superseded.** |
 | 6 | **`rahma-booking-contact-v1` stays `functional` and gets a REAL gate.** The panel's Functional toggle must actually skip the write, so **C-18's files-touched list extends to `src/features/booking/BookingExperience.tsx` (~:494)** — third approved extension. A visitor who declines loses form pre-fill on a later booking; that is the intended consequence. Rationale: nothing about the *current* booking depends on it, it is a cross-visit convenience, and it holds the registry's most sensitive fields (gender, access notes) for 180 days. **A toggle that did not gate the write would be a control that lies** — the exact defect class Phase A produced twelve times. |
 
+| 7 | **The `consent_events` migration is approved.** Presented verbatim in chat with the orchestrator's added `GRANT INSERT` and approved 2026-08-04. Applied as version `20260804182200`, recorded at `032bdca`. See §3.5 for why the grant was not optional. |
+| 8 | **The +5 kB public bundle ceiling overage is ratified, not fixed.** C-18's cumulative gzipped delta is ≈5.19 kB against a 5 kB ceiling — and probably more, since Phase C's term was ratio-derived and Phase D's verifier showed that shortcut underestimates by ~38% when checked against directly measured numbers. Owner accepted rather than reverting. Rationale recorded: the ceiling is an engineering guardrail, not a legal or performance requirement; there is no recorded pre-C-18 baseline anywhere in the programme (C-16 and C-17 both log the bundle gate as NOT RUN, making C-18 the first plan to measure at all); settling it properly would need a `pnpm install` in a worktree, a prohibited Zone-2 package install; and the bytes buy the consent gate itself — the thing that makes running GA lawful. |
+| 9 | **Sentry Session Replay is switched OFF on `/admin` entirely** (2026-08-04), not consent-gated there. Reasoning accepted in chat: staff never see a banner, so a consent gate on admin is an elaborate way of disabling it — if it should be off, turn it off plainly and describe it honestly. `/admin` holds the most sensitive data in the system (client records, health notes, safeguarding notes); text is masked by default, but layout, click paths and URLs carrying record UUIDs are still captured and uploaded to a third party. **Error monitoring stays fully on everywhere** — only Replay is affected, and it is a convenience rather than the thing that catches bugs. Replay's remaining scope after this: `(public)` behind analytics consent, nowhere else. **Folded into C-18 closeout**, and the `sentryReplaySession` registry entry's copy must change with it. |
+
 **Scope this adds beyond the plan's text, all recorded so the diff stays auditable:** a third registry purpose category · a second gated loader in Phase D (GA is a script mount; Replay is an SDK integration that must start late without breaking error capture) · a wider Phase C withdrawal path (Replay stop as well as GA cookie clearing) · `sentry.client.config.ts` + `SentryProvider.tsx` in files-touched.
 
 ---
@@ -218,7 +222,9 @@ So the table as specified would leave `service_role` **without INSERT**, every c
 
 ---
 
-# ▶▶ INTERRUPT CHECKPOINT — 2026-08-04 — READ THIS FIRST ON RESUME
+# ▶▶ INTERRUPT CHECKPOINT — 2026-08-04 — ⚠️ HISTORICAL, FULLY DISCHARGED
+
+> **Do not act on this block.** It was written mid-flight when Phase B awaited verification, and every action it names has since been completed. **C-18 SHIPPED — read §5 at the foot of this file for the final position.** Preserved verbatim below only as the record of how the run was resumed.
 
 **Position: C-18 Phase B complete and committed; NOT independently verified. Nothing is mid-flight.**
 
@@ -269,8 +275,96 @@ The consolidated **PHASE D OBLIGATION** comment in `src/lib/consent/cookie-regis
 
 ## 4 — ▶ Position
 
-**Superseded by the INTERRUPT CHECKPOINT above — read that first.** Phase 0 ✅ verified · Phase A ✅ verified (five fix rounds) · Phase B implemented at `5259ae6`, **awaiting independent verification** · Phases C–G not started.
+**Superseded — see §5.** C-18 is complete.
 
-**⛔ Still ahead:** the `consent_events` migration at Phase E Step 9 — orchestrator-only, exact SQL shown verbatim in chat, per-action Owner approval. §1.3's backup precondition was discharged once at C-06 and does not re-fire.
+---
 
-**⏳ Owner actions outstanding:** start `pnpm dev` for the inventory browser pass; Sentry-console mitigations (§2).
+# 5 — ✅ C-18 SHIPPED — 2026-08-04
+
+**29 commits, `70e2103..f38e56a`.** Plan #18 of 22. Co-shipped with C-17 as required.
+
+## 5.1 — Phases and commits
+
+| Phase | Commits | Model | Tier | Verified |
+|---|---|---|---|---|
+| **0** — Sentry Replay token leak (not in the plan; found by pre-flight) | `09b2e26`, `2cb2949` | opus | FULL | ✅ |
+| **A** — registry + `/cookies` notice page | `6ef68a7` + 5 fix rounds (`60114d3`, `a5b5d9c`, `7d83d38`, `d7ee2bb`, `93a3185`) | sonnet | FULL (upgraded) | ✅ |
+| **B** — consent state + Consent Mode default-denied | `6dd05e5`, `5259ae6` | opus | FULL | ✅ §3.3 |
+| **C** — banner, panel, wiring, functional gate | `cc78365`, `e5a0532`, `9689213` | opus | FULL | ✅ §3.4 |
+| **D** — consent-gated GA + Sentry Replay | `eed2aeb`, `d29958f` | opus | FULL | ✅ |
+| **E** — migration + route + client logging | `032bdca` (migration), `3e9f8b5` | orchestrator / sonnet | FULL | ✅ |
+| **F** — "Cookie settings" everywhere | `295f4d2` | sonnet | TARGETED | ✅ |
+| **Fix round** — admin Replay off, `purposes_offered`, test hygiene, flaky test | `c327973`, `7873693`, `0d2246c`, `7daee77`, `26a7d3f`, `f38e56a` | sonnet | FULL | ✅ |
+
+Bookkeeping commits: `1f20efe`, `c8c37d6`, `dd9163b`, `971736a`, `4c25588`.
+
+## 5.2 — Final gate results (§3), by identity
+
+| Gate | Result |
+|---|---|
+| tsc | **0 errors** |
+| build | **PASS** — 54/54 static; every public route `○`/`●`; `/admin/*`, `/api/*`, `/booking/manage` all `ƒ`. (Count moved 53→54 because `/api/consent-events` is a new route in the table; the identity is unchanged.) |
+| vitest | **5 failed / 1975 passed (1980)** — failures exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3. **Zero new failures.** |
+| eslint | **59 errors / 7 warnings** in exactly the six baseline files |
+| **#2 regulator test** (the plan's identity) | **PASS, live** — fresh state, zero clicks, 3 page loads: zero requests to any Google host. After Reject-all + 2 further navigations: still zero. Repeated with the booking dialog open |
+| **#3 grant path** | **PASS, live** — real Accept-all → cookie + POST 204 → row confirmed in `consent_events` |
+| **#4 withdrawal** | **PASS, live** — planted `_ga`/`_ga_TEST`/`_ga_plain` + a real `sentryReplaySession`, withdrew, all gone, clean reload, zero Google requests after |
+| **#5 parity + no pre-tick** | **PASS** — computed-style equality on every property at 375/768/1280/1440; both non-essential toggles default off |
+| **#6 version-bump re-prompt** | **PASS** — stale `v` written directly as a cookie; banner re-appeared. `CONSENT_BANNER_VERSION` never edited |
+| **#7 a11y** | **PASS** — axe 4.11.3: banner 0 violations/11 passes, panel 0/30, `/cookies` 42 passes + 1 pre-existing site-wide `h1` violation. Focus trap held across 13 sequential Tabs; ESC returns focus to the opener |
+| **#8 no cookie wall** | **PASS** — no backdrop, `pointer-events:none` wrapper, page scrollable; at 375 with the booking dialog open the banner does not overlap the dialog's action row |
+| **#9 RLS** | **PASS** — table exists, `relrowsecurity` true, **zero policies**, `service_role` INSERT-only (no SELECT), `anon`/`authenticated` denied both |
+| **#10 registry accuracy** | **PASS** — registry ↔ `/cookies` ↔ panel all render from `groupRegistryByPurpose()`, no hand-maintained copies; all six entries checked against the code that actually writes them; a full `src/` sweep for cookie/storage writes found **nothing unregistered** |
+| **#1 bundle** | **OVER CEILING, Owner-ratified** — see §5.4 |
+
+**Consent proof, verified live end to end** — six rows, including two withdrawals each carrying the same `consent_id` as the grant they revoke:
+
+| `consent_id` | action | choices |
+|---|---|---|
+| `760bef18-8d64-4694-a2c9-5ce2cf931b9e` | rejected | both false |
+| `3ae8e616-cd37-4c6b-a4d6-a5d75ccf3bfc` | granted → **withdrawn** | both true → both false |
+| `f846ffc4-9eee-46bf-8eb9-a558088b2ed4` | granted → **withdrawn** | both true → both false |
+| `da8a97c4-fe70-4b9f-b507-e4cbe3129d0c` | granted | analytics false, functional **true** |
+
+This mattered more than it looks: Step 10 locks the route to **always return 204**, so a failing insert is externally indistinguishable from a working one. Until a row was seen, the consent-proof log was unproven. See §3.5 for the grant that made it work.
+
+## 5.3 — INHERITED BASELINE for the next plan — BY IDENTITY
+
+- tsc **0 errors** · build clean, **54/54 static**, public routes static.
+- vitest → failures exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3. Totals at `f38e56a`: **5 failed / 1975 passed (1980)**. **Judge by identity, never by count.**
+- eslint → **59 errors / 7 warnings** in exactly `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`. 93% sit in an untracked directory, so this baseline is not reproducible from a fresh clone.
+- **Expected shrinkage: none.** C-18 named no baseline entry it would fix, and fixed none.
+
+## 5.4 — Deviations and ratified decisions
+
+1. **Bundle ceiling breached, Owner-ratified** (decision 8). Cumulative ≈**5.19 kB** gzipped against a **+5 kB** ceiling — and probably more: Phase C's term was ratio-derived, and Phase D's verifier showed that shortcut underestimates by ~38% when checked against directly measured numbers. Phase E/F added a further **+1.53 kB** (independently re-measured), so the true figure is likely **≈6.7 kB**. No pre-C-18 baseline exists anywhere in the programme (C-16 and C-17 both record the bundle gate as NOT RUN), and establishing one needs a `pnpm install` in a worktree — a prohibited Zone-2 package install. Ratified rather than fixed; there was nothing left to cut without changing C-17's `next/script` mechanism.
+2. **Reduced motion is CSS, not the framer-motion hook** the dispatch specified. Measured: the hook cost 0.6 kB raw on *every* public page, because the component lives in the layout, to do what one media query already does.
+3. **`PURPOSE_DESCRIPTIONS.analytics` was edited although the dispatch said not to — and the dispatch was wrong.** Its clause "There's no cookie choice on this site yet" is falsified the instant a banner ships. Rewritten twice: first to disclose that analytics still ran regardless of the toggle, then again in Phase D once the gate made that false in the other direction.
+4. **Phase C ran solo rather than pipelined against Phase B's verification**, and Phase D likewise. Logged deviation from §2.9(b): both phases edit the exact files under FULL-tier verification, and concurrent mutation would have corrupted the verdict. §2.9's own "speed never buys thinner verification or isolation relaxation" dominates. Vindicated in practice — see §5.5.
+5. **Two commits were `--amend`ed** (`3e9f8b5`, `f38e56a`), both unpushed, self-authored, same session, to correct a commit message that misdescribed its own contents and an em-dash mismatch. Recorded rather than hidden.
+6. **Phase D committed over the bundle ceiling instead of halting** as its dispatch required. Disclosed by the implementer, escalated to the Owner, ratified.
+
+## 5.5 — Process failures worth carrying forward
+
+- **Concurrent in-place mutation testing produced a false alarm.** A prep agent read a verifier's transient mutation as a shipped defect and reported Phase B as broken. It was not: the committed blob and working tree were byte-identical (`879c9a1`) and the suite was 11/11. **Rule added and enforced for the rest of the run: in-place mutation testing is forbidden while any other agent is running — scratchpad copies only.** Later agents complied and proved non-vacuity via scratchpad harnesses instead.
+- **Agent-run production builds knocked over the Owner's dev server twice.** Several agents ran `pnpm build` in the same tree as a live `next dev`. Builds were then banned in all dispatches and run once by the orchestrator, last — which the server survived (200 in 0.13 s immediately after).
+- **A working-copy/HEAD split produced a false public statement.** `MAINTENANCE_MODE` is `true` at HEAD but `false` in the Owner's standing uncommitted change; every Phase A pass read the working copy and so shipped a `dormant` flag telling visitors a storage item was switched off. Fixed in Phase C. **Lesson: for any claim about deployed behaviour, read `git show HEAD:<path>`, never the working tree.**
+
+## 5.6 — Disclosed residuals (not defects, but do not let them be forgotten)
+
+- **Channel 4 (`Meta.data.href`) has no regression test** — it rests on verified-but-unpinned Sentry SDK defaults at 10.51.0. A future upgrade could silently reopen the booking-token leak. In `OWNER-ACTION-BACKLOG.md`.
+- **Session-mode Replay flushes on withdrawal either way.** Investigation of the pinned package established that buffer mode (~90% of sessions) transmits nothing on `stop()`, but session mode flushes on unload regardless — so `stop()` transmits no more than doing nothing and strictly less content. Nothing at this SDK version prevents that final flush.
+- **The `@sentry-internal/replay` chunk still downloads before consent** (statically imported for `Sentry.replayIntegration`). No session is created and nothing is stored; but if zero third-party *code* pre-consent is wanted, that is a separate change.
+- **`/cookies` has no `<h1>`** — `SectionHeading` hardcodes `<h2>`, shared across all public pages. Pre-existing, site-wide, not C-18's to fix.
+- **The `_ga` 13-month duration is Google's documented default, not independently verified in production** — the registry entry says so in its own text.
+- **`/booking/manage`'s link to `/cookies` was not click-tested live.** It renders only in the valid-token branch, and reaching it would require touching a real customer's booking or minting a token as admin. Confirmed by source read; the "no banner on that route" half **is** live-confirmed.
+- **`prefers-reduced-motion` could not be OS-emulated** by the available tooling. Substituted with live evidence one level down: the served compiled CSS contains the `@media (prefers-reduced-motion: reduce)` rule and the banner card carries the class.
+
+## 5.7 — ⏳ Owner actions outstanding
+
+1. **Prune six test rows from `consent_events`** — the `consent_id`s in §5.2. Real rows in production, created deliberately through the app's own route to prove the log works.
+2. **Sentry console (external, Owner-only):** the ingest-side Advanced Data Scrubbing rule — the only thing that stops new booking-token captures **before the deploy**, since the code fix reaches production only when deployed. Plus consideration of already-stored replays containing live tokens, and retention.
+3. **The deferred deploy.** Nothing in C-17 or C-18 has reached production. The Cloudflare deploy remains ⛔ Owner-gated and is three-in-one (C-22's Durable Object migration, the cron trigger, and the cancellation-email queue drain).
+4. **`NEXT_PUBLIC_GA_MEASUREMENT_ID` in the Cloudflare BUILD environment** (C-17) — `NEXT_PUBLIC_*` is inlined at build time, so a runtime-only dashboard setting is insufficient.
+5. **`src/lib/maintenance.ts` must be restored to `true` before any deploy.** It is `false` in the working copy under standing authorisation and was never staged or committed at any point in this plan.
+6. **A retention/pruning process for `consent_events`** — the migration's own rule is not to drop the table while consent is relied upon. A periodic prune is a C-12+ item.
