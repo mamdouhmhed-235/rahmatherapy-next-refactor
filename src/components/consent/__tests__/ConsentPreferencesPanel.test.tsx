@@ -6,7 +6,7 @@
 //
 // The https origin is load-bearing — see the note in CookieBanner.test.tsx.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CONSENT_COOKIE, readConsent } from "@/lib/consent/consent-state";
 import {
@@ -261,11 +261,18 @@ describe("saving from the panel", () => {
 
 describe("dialog accessibility", () => {
   it("moves focus into the dialog when it opens", async () => {
+    // Base UI moves focus into the popup asynchronously after it mounts (its
+    // own focus-management effect, scheduled after the DOM update rather than
+    // synchronously inside the click handler) — asserting immediately after
+    // `openPanelFromBanner` resolves races that effect and is flaky rather
+    // than order-dependent: it fails whenever this task hasn't been flushed
+    // yet, regardless of what ran before it. waitFor polls for the real
+    // condition instead of asserting on a fixed tick.
     const user = userEvent.setup();
     render(<CookieBanner />);
     const dialog = await openPanelFromBanner(user);
 
-    expect(dialog.contains(document.activeElement)).toBe(true);
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
   });
 
   it("closes on Escape and puts focus back on the control that opened it", async () => {
