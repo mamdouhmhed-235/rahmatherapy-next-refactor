@@ -95,7 +95,7 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     type: "localStorage",
     purpose: "essential",
     duration:
-      "No fixed expiry — cleared automatically when your booking is submitted, or you can clear it yourself by clearing your browser's site data",
+      "No fixed expiry — stays on this device even after you submit a booking. It's only cleared when you click \"Start a new request\" on the confirmation screen, or when you clear your browser's site data yourself",
     description:
       "Remembers which treatment package(s) you've selected while you're filling in the booking form you opened, so an accidental page reload, or closing and reopening the booking dialog, doesn't lose your in-progress selection. It stores only the package selection itself — never your name, contact details, health information, or anything else you enter.",
   },
@@ -109,7 +109,7 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     purpose: "functional",
     duration: "180 days, or until you clear it",
     description:
-      "After you complete a booking, stores your name, phone number, email and address on this device so they can be pre-filled automatically if you book with us again within 180 days. This is a convenience for a future visit — completing your current booking does not depend on it.",
+      "After you complete a booking, stores your name, phone number, email address, gender, home address (house/street, town, area and postcode), and any access or parking notes you gave, on this device so they can be pre-filled automatically if you book with us again within 180 days. This is a convenience for a future visit — completing your current booking does not depend on it.",
     provisionalNote:
       "PROVISIONAL classification pending an explicit Owner ruling before Phase C gates any consent behaviour on this entry (raised in redesign/evidence/C-18/cookie-inventory-source.md §2 and recorded as an open question in redesign/per-page-progress/C-18-cookie-consent-progress.md §1). It stores personal data (full name, phone, email, address) purely for cross-visit convenience, so it is not \"essential\" in the strict PECR sense — nothing about the booking in progress depends on it — but it is not tracking either, hence the new \"functional\" bucket rather than defaulting it into \"essential\" or \"analytics\". Do not treat this note's presence as a decision either way.",
   },
@@ -118,14 +118,23 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     // hosted gtag.js, gated on NEXT_PUBLIC_GA_MEASUREMENT_ID + production;
     // mounted from src/app/(public)/layout.tsx. Set by Google, not by this
     // repo's code, so the exact attributes are Google's own defaults.
+    //
+    // Like sentryReplaySession below, this is NOT consent-gated today —
+    // GoogleAnalytics.tsx loads gtag.js whenever GA_ID is set and
+    // NODE_ENV === "production", with only a "// C-18 consent insertion
+    // point" code comment marking where a future gate goes (verified by
+    // reading the file, C-18 Phase A fix round). The description states
+    // that present-tense fact instead of the end-state claim it previously
+    // made. Phase D must add the actual gate here AND update this sentence
+    // together.
     name: "_ga / _ga_*",
     provider: "Google (Google Analytics 4)",
     type: "cookie",
     purpose: "analytics",
     duration:
-      "Up to 13 months (Google's documented default for this cookie family; this site does not set a custom expiry)",
+      "Up to 13 months (Google's documented default for this cookie family; this site does not set a custom expiry, and this figure has not been independently verified in production)",
     description:
-      "Google Analytics 4 cookies used to distinguish visitors and sessions so we can see aggregate website-traffic patterns — for example, which pages are popular and how visitors move through the site. Only set once you accept analytics cookies.",
+      "Google Analytics 4 cookies used to distinguish visitors and sessions so we can see aggregate website-traffic patterns — for example, which pages are popular and how visitors move through the site. It currently loads automatically in production whenever analytics is configured for this site — it does not yet wait for a cookie choice.",
   },
   {
     // src/components/shared/MaintenanceModal.tsx:14,20-21 — gated behind
@@ -156,24 +165,24 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     // registered here and gated under analytics consent — the same purpose
     // as GA — rather than given its own purpose bucket.
     //
-    // PHASE D DEPENDENCY: the description's closing sentence, "Only starts
-    // once you accept analytics cookies," is end-state copy — Phase D
-    // (consent-gated script/feature loading) has not shipped as of C-18
-    // Phase A, so today Replay starts for every visitor regardless of
-    // consent (SentryProvider.tsx mounts unconditionally). C-18 ships as one
-    // plan, so this becomes true at closeout — but if Phase D does not end
-    // up gating Replay before C-18 closes, this sentence must change to
-    // describe present-tense reality instead. Do not remove this marker
-    // without also revisiting the sentence:
-    // registry-completeness.test.ts asserts this exact marker text stays
-    // present in this file for as long as the claim does.
+    // Replay is NOT consent-gated today: SentryProvider.tsx mounts it
+    // unconditionally, and neither it nor sentry.client.config.ts contains
+    // any reference to "consent" (verified by grep, C-18 Phase A fix round).
+    // The description below states that present-tense fact rather than the
+    // end-state claim ("only starts once you accept analytics cookies")
+    // that a prior draft asserted before it was true. Phase D
+    // (consent-gated script/feature loading) must add BOTH the actual
+    // gating in SentryProvider.tsx/sentry.client.config.ts AND this
+    // sentence's replacement, together, in the same change — a test in
+    // Phase D's own work should assert the gate genuinely exists, not just
+    // that copy mentions it.
     name: "sentryReplaySession",
     provider: "Sentry (Functional Software, Inc.)",
     type: "sessionStorage",
     purpose: "analytics",
     duration: "Session — cleared when you close your browser tab",
     description:
-      "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. Every visit is recorded; what varies is whether that recording is sent to us: about 10% of visits are sent automatically, and any visit where an error occurs is sent too, even if it wasn't one of that 10%. Only starts once you accept analytics cookies.",
+      "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. Every visit is recorded; what varies is whether that recording is sent to us: about 10% of visits are sent automatically, and any visit where an error occurs is sent too, even if it wasn't one of that 10%. It starts automatically for every visitor today — it does not yet wait for a cookie choice.",
   },
 ];
 
