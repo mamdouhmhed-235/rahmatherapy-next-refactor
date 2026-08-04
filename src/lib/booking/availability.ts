@@ -867,7 +867,13 @@ export async function calculateAvailableSlots(
 export async function calculateAvailableDays(
   input: CalculateAvailableDaysInput,
   supabase: SupabaseClient,
-  options: { now?: Date } = {}
+  options: {
+    now?: Date;
+    /** Admin-only: report true therapist availability beyond the customer booking window. */
+    ignoreBookingWindow?: boolean;
+    /** Admin-only: staff keep booking while public online booking is paused. */
+    ignorePublicPause?: boolean;
+  } = {}
 ): Promise<AvailableDaysResult> {
   const requiredStaffByGender = countRequiredStaff(input.participantGenders);
   const unavailable = (reason?: string): AvailableDaysResult => ({
@@ -884,7 +890,7 @@ export async function calculateAvailableDays(
     return unavailable("Booking settings unavailable.");
   }
 
-  if (!settings.booking_status_enabled) {
+  if (!settings.booking_status_enabled && !options.ignorePublicPause) {
     return unavailable("Online booking is currently paused.");
   }
 
@@ -896,11 +902,12 @@ export async function calculateAvailableDays(
   const datesInWindow = input.dates.filter(
     (date) =>
       DATE_PATTERN.test(date) &&
-      isDateInBusinessWindow({
-        date,
-        now,
-        bookingWindowDays: settings.booking_window_days,
-      })
+      (options.ignoreBookingWindow ||
+        isDateInBusinessWindow({
+          date,
+          now,
+          bookingWindowDays: settings.booking_window_days,
+        }))
   );
 
   if (datesInWindow.length === 0) {
