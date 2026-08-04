@@ -161,6 +161,61 @@ A concurrent read-only prep agent reported "Phase B is not green — 3 failures,
 ### ⚠️ Finding for Phase C — a Phase A copy claim that is false at HEAD
 `src/lib/maintenance.ts` is `MAINTENANCE_MODE = true` **at HEAD**; only the Owner's standing uncommitted working copy is `false`. The registry's `maintenance-modal-seen` entry carries `dormant: true`, whose rendered copy in `CookieRegistryGroups.tsx` tells visitors the feature is "switched off" and "starts again when switched back on". Every Phase A pass read the working copy rather than the committed value, so this survived five fix rounds. **Any deploy ships `true`** (the standing rule requires restoring it before deploying), so the modal mounts and the key IS written. `/cookies` is a public legal statement — the flag is wrong for the deployable state. **Phase C removes `dormant: true` from that entry.** In scope: it is C-18's own file and C-18's own shipped copy, not a rule-6(a) unrelated issue.
 
+## 3.4 — Phase C (banner + panel + wiring + the functional gate) — **VERIFIED FULL — PASS**
+
+| Commit | What | Model |
+|---|---|---|
+| `cc78365` | `ConsentState.choices` gains `functional`; both parsers updated in lockstep; equivalence corpus 31→38 | `opus` |
+| `e5a0532` | Banner + preferences panel + module consent store + mount in `(public)/layout.tsx` | `opus` |
+| `9689213` | Step 7 wiring, the real functional gate, truthfulness sweep, `provisionalNote` + `dormant` removals | `opus` |
+
+**Opus justification (§5):** the phase changes the consent record's shape — the second-source-of-truth risk Phase B's entire equivalence apparatus exists to contain — and edits a live public customer surface with dark-pattern parity and withdrawal-sequencing requirements.
+
+**New files:** `consent-store.ts`, `ConsentActionButton.tsx`, `ConsentPreferencesPanel.tsx`, `CookieBanner.tsx` (+ 4 test files). **Edited:** both consent libs and their tests, `ConsentScripts.tsx`, `(public)/layout.tsx`, `/cookies` page + `CookieRegistryGroups.tsx`, `BookingExperience.tsx` (approved extension).
+
+### Independent verification (FULL, fresh verifier, `model: sonnet`) — evidence `redesign/evidence/C-18/phase-c-verify-full.md`
+1. **The gate is WIRED, not merely testable — CONFIRMED at the call sites.** This was the lead risk: the implementer built the gate as exported module-scope functions for testability, which invites a gate that passes its own tests while never being invoked. Verifier read the real call sites: `handleConfirmSubmit` (`BookingExperience.tsx:520`) and the pre-fill `useEffect` (`:309`) both call the `*IfConsented` variants. Fail-closed hand-traced across five cookie states (absent, malformed, version-mismatched, functional-denied, functional-granted) and confirmed live. **Disclosed honestly by both agents:** the tests prove the gate's logic, not its wiring — wiring rests on source reading.
+2. **Equivalence — CONFIRMED.** 38 entries, expected values still literal pins. Independent scratchpad-only Node/`vm` harness: baseline clean, 3/4 mutations caught; the 4th (truthy vs `===true`) is unreachable behind a preceding type guard, i.e. not a corpus gap.
+3. **Withdrawal transitions — CONFIRMED**, including live proof the pseudonymous `id` survives a withdrawal (Phase E's proof log needs old and new events to join).
+4. **Parity is enforced by the TYPE SYSTEM, better than asked.** `className`/`style` were removed from `ConsentActionButton`'s prop type, so giving one button a different look is a compile error rather than a convention someone can drift from. Live `getComputedStyle` diff: zero divergence.
+5. **No pre-ticks, no cookie wall — CONFIRMED** live and by test.
+6. **Truthfulness sweep regenerated independently — 38 strings, all TRUE at `9689213`.**
+7. **Static generation 53/53 CONFIRMED** by a build the verifier ran itself. **Bundle MEASURED, not estimated:** real gzip via its own `zlib`, home route 260.7 kB gzip, measured ratio 3.27:1, delta ≈ **+4.68 kB against the +5 kB ceiling**. Reduced-motion CSS confirmed shipped and correctly scoped.
+8. **Isolation CONFIRMED** — `src/lib/maintenance.ts` absent from all three commits, no new packages, commit format correct.
+
+**Gates by identity:** tsc 0 · consent + gate suites 96/96 · full vitest **5 failed / 1923 passed (1928)**, identities exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3 · eslint 59E/7W in exactly the six baseline files, `BookingExperience.tsx` delta **zero** (same three rule ids, line numbers shifted only by the inserted block).
+
+### Two deviations, both correct, both disclosed rather than hidden
+1. **Reduced motion is CSS (`motion-reduce:animate-none`), not framer-motion's `useReducedMotion()`** as the dispatch specified. The implementer built it with the hook first and measured: 0.6 kB raw on *every* public page, because this component lives in the layout, to do what one media query already does. Compiled `@media (prefers-reduced-motion: reduce)` rule verified present in the built CSS.
+2. **`PURPOSE_DESCRIPTIONS.analytics` was edited although the dispatch (D6) said leave it unchanged — and the dispatch was WRONG.** The original clause read "There's no cookie choice on this site yet", which Phase C falsifies the instant it ships a banner. Rewritten to "Items in this group still load and run automatically today, even if you switch this off" — true, and the more honest disclosure, since it tells a visitor the analytics toggle does not yet do anything. **⚠️ This string must flip AGAIN in Phase D**, or it becomes false in the opposite direction once analytics is genuinely gated.
+
+### Other judgement calls recorded
+- The panel uses Base UI primitives directly (as `BookingDialog.tsx` does) rather than `ui/dialog.tsx`, whose backdrop is hard-coded `z-50` with no class passthrough — it would have dimmed the page while leaving the `z-100` header on top of it.
+- `/cookies` stays a **server component**: the banner answers `[data-cookie-settings-trigger]` clicks and `?cookie-settings=1` by delegation from the layout, exactly as Phase A's seam comment predicted. **Phase F's footer link therefore needs no client island either.**
+- **A browser-only defect jsdom structurally could not catch:** the "Cookie settings" button rendered with the UA's grey fill and outset border, because this project loads `tailwindcss/theme.css` + `utilities.css` but **no preflight**, so a `<button>` setting neither border nor background inherits the user agent's. Found and fixed in the browser pass.
+- Two strings written in commit 2 were false ("we'd like your permission first"; "Nothing in the groups below is on unless you turn it on") — both blanket promises true of functional and not of analytics. **Caught by the implementer's own commit-3 sweep, not shipped.**
+- `dormant?` and `provisionalNote?` interface fields and their `/cookies` renderers were removed as dead code once the last entries using them were cleared.
+
+### Disclosed residuals
+- **The bundle "before" figure (832.6 kB raw) is the implementer's, not independently reproduced** — the verifier's read-only git allowance (`log`/`diff`/`show`/`status`) forbids checking out the prior commit to rebuild it. The *after* figure and the compression ratio were measured directly. Delta ≈ 4.68 kB vs a 5 kB ceiling is **close enough that the unverified baseline matters** — recorded rather than smoothed over. Note this is nonetheless the first plan in this run where the bundle gate was measured at all (C-16 and C-17 both record it NOT RUN).
+- Real-browser focus-trap/ESC verified via jsdom tests the verifier ran itself; the browser pane never composited a frame this session.
+- `/cookies` still has no `<h1>` — `SectionHeading` hardcodes `<h2>`, shared across all public pages. Pre-existing, recorded in §3.1, not C-18's to fix.
+
+## 3.5 — ⛔ Phase E pre-flight finding: the brief's migration SQL would ship a silently broken feature
+
+`SELECT to_regclass('public.consent_events')` → **null** (still absent, re-confirmed).
+
+The brief's §2.4 SQL is `CREATE TABLE` + `ENABLE ROW LEVEL SECURITY` and **no GRANT**. Live check of `pg_default_acl` for `public` tables:
+
+| Created by | `service_role` receives |
+|---|---|
+| `postgres` — **what migrations run as** | `Dxtm` = TRUNCATE, REFERENCES, TRIGGER, MAINTAIN. **No INSERT, SELECT, UPDATE or DELETE** |
+| `supabase_admin` | `arwdDxtm` — full DML |
+
+So the table as specified would leave `service_role` **without INSERT**, every consent log would fail 42501, and because Step 10 specifies the route *always returns 204*, nothing would ever surface it — C-04a's failure mode exactly (§3b). Confirmed against live tables that the per-table grant pattern really is explicit and uneven: `bookings`/`clients`/`email_delivery_events` full DML; `audit_logs`/`blocked_dates` no UPDATE; `staff_permission_overrides` no INSERT and no UPDATE (why its upsert is broken).
+
+`service_role` has `rolbypassrls = true`, so **RLS-with-no-policies is correct as specified** — the gap is the GRANT alone. `GRANT INSERT ON public.consent_events TO service_role;` must be part of the migration. INSERT only (least privilege): the route inserts and never reads, so Step 10 must not chain `.select()` on the insert.
+
 ---
 
 # ▶▶ INTERRUPT CHECKPOINT — 2026-08-04 — READ THIS FIRST ON RESUME
