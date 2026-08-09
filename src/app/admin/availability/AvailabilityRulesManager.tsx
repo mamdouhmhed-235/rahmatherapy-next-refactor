@@ -9,7 +9,13 @@ import { Switch } from "@/components/ui/switch";
 import { AdminPanel } from "../components/admin-ui";
 import { ConfirmActionModal } from "../components/admin-ui-interactions";
 import {
-  saveAvailabilityRule,
+  rowsToSchedule,
+  validateSchedule,
+  type DaySchedule,
+} from "@/lib/booking/working-hours-segments";
+import { WorkingHoursDayEditor } from "./WorkingHoursDayEditor";
+import {
+  saveAvailabilityDay,
   type AvailabilityActionState,
 } from "./actions";
 
@@ -28,11 +34,8 @@ interface AvailabilityRulesManagerProps {
 }
 
 type DayState = {
-  ruleId: string;
   dayOfWeek: number;
-  isWorkingDay: boolean;
-  startTime: string;
-  endTime: string;
+  schedule: DaySchedule;
 };
 
 // Brief renders the week as Mon → Sun. day_of_week column convention is 0 = Sunday.
@@ -48,20 +51,22 @@ const DAY_NAMES: Record<number, string> = {
   6: "Saturday",
 };
 
-function formatTime(value: string) {
-  return value.slice(0, 5);
-}
-
+/**
+ * C-14 Phase A Step 8 — a day is now ALL of its rows, not the first one. Each
+ * row is a bookable segment and every gap between two of them is a break, so
+ * `.find()` would have silently shown only the morning of a day with a lunch
+ * break — and then written that back on the next save.
+ */
 function buildInitialState(initialRules: AvailabilityRule[]): Record<number, DayState> {
   const next: Record<number, DayState> = {};
   for (const day of WEEK_ORDER) {
-    const rule = initialRules.find((r) => r.day_of_week === day);
+    const rows = initialRules.filter((rule) => rule.day_of_week === day);
+    const schedule = rowsToSchedule(rows);
     next[day] = {
-      ruleId: rule?.id ?? "",
       dayOfWeek: day,
-      isWorkingDay: rule?.is_working_day ?? (day !== 0),
-      startTime: rule ? formatTime(rule.start_time) : "09:00",
-      endTime: rule ? formatTime(rule.end_time) : "18:00",
+      // No stored rows at all: keep the previous default of open everywhere but
+      // Sunday, on the helper's default 09:00–18:00.
+      schedule: rows.length > 0 ? schedule : { ...schedule, isWorkingDay: day !== 0 },
     };
   }
   return next;
@@ -85,10 +90,10 @@ export function AvailabilityRulesManager({
     [days]
   );
 
-  function updateDay(day: number, patch: Partial<DayState>) {
+  function updateDay(day: number, schedule: DaySchedule) {
     setDays((prev) => ({
       ...prev,
-      [day]: { ...prev[day], ...patch },
+      [day]: { ...prev[day], schedule },
     }));
     if (errors[day]) {
       setErrors((prev) => {
@@ -99,20 +104,20 @@ export function AvailabilityRulesManager({
     }
   }
 
+  /**
+   * Gate only. Each day's specific problem is already spelled out inline by its
+   * own `WorkingHoursDayEditor`, so repeating it here would say the same thing
+   * twice; `errors` stays reserved for what the server sends back.
+   */
   function validate(): boolean {
-    const next: Record<number, string> = {};
-    for (const day of orderedDays) {
-      if (!day.isWorkingDay) continue;
-      if (!day.startTime || !day.endTime) {
-        next[day.dayOfWeek] = "Set opening and closing times, or toggle the day off.";
-        continue;
-      }
-      if (day.endTime <= day.startTime) {
-        next[day.dayOfWeek] = "End time has to be after start time.";
-      }
+    const blocked = orderedDays.some(
+      (day) => validateSchedule(day.schedule).errors.length > 0
+    );
+    if (blocked) {
+      setFormError("Fix the highlighted days before saving.");
+      return false;
     }
-    setErrors(next);
-    return Object.keys(next).length === 0;
+    return true;
   }
 
   function copyMondayToWeekdays() {
@@ -123,20 +128,29 @@ export function AvailabilityRulesManager({
       for (const target of [2, 3, 4, 5, 6]) {
         next[target] = {
           ...prev[target],
-          isWorkingDay: monday.isWorkingDay,
-          startTime: monday.startTime,
-          endTime: monday.endTime,
+          // The WHOLE schedule, breaks included — copying opens/closes alone
+          // would quietly drop Monday's breaks from every day it claims to
+          // have copied. `breaks` is re-created so the six days never share a
+          // mutable array.
+          schedule: {
+            ...monday.schedule,
+            breaks: monday.schedule.breaks.map((entry) => ({ ...entry })),
+          },
         };
       }
       return next;
     });
     setErrors({});
     setFormError(null);
-    toast.success("Copied Monday hours to Tue–Sat.");
+    toast.success(
+      monday.schedule.breaks.length > 0
+        ? "Copied Monday hours and breaks to Tue–Sat."
+        : "Copied Monday hours to Tue–Sat."
+    );
   }
 
   const allDaysClosed = useMemo(
-    () => orderedDays.every((d) => !d.isWorkingDay),
+    () => orderedDays.every((d) => !d.schedule.isWorkingDay),
     [orderedDays]
   );
 
@@ -147,13 +161,10 @@ export function AvailabilityRulesManager({
     startTransition(async () => {
       const results = await Promise.all(
         orderedDays.map(async (day) => {
-          const fd = new FormData();
-          fd.set("rule_id", day.ruleId);
-          fd.set("day_of_week", String(day.dayOfWeek));
-          fd.set("start_time", day.startTime);
-          fd.set("end_time", day.endTime);
-          if (day.isWorkingDay) fd.set("is_working_day", "on");
-          const result: AvailabilityActionState = await saveAvailabilityRule({}, fd);
+          const result: AvailabilityActionState = await saveAvailabilityDay(
+            day.dayOfWeek,
+            day.schedule
+          );
           return { day: day.dayOfWeek, result };
         })
       );
@@ -221,7 +232,7 @@ export function AvailabilityRulesManager({
           type="button"
           onClick={copyMondayToWeekdays}
           disabled={isPending}
-          title="Copy Monday's switch state and times to Tuesday through Saturday"
+          title="Copy Monday's switch state, times and breaks to Tuesday through Saturday"
           className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-transparent px-3 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-canvas)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50 sm:w-auto"
         >
           <Copy className="size-3.5 shrink-0" aria-hidden="true" />
@@ -240,14 +251,12 @@ export function AvailabilityRulesManager({
             error={errors[day.dayOfWeek]}
             disabled={isPending}
             onToggle={(checked) =>
-              updateDay(day.dayOfWeek, { isWorkingDay: checked })
+              updateDay(day.dayOfWeek, {
+                ...day.schedule,
+                isWorkingDay: checked,
+              })
             }
-            onStartChange={(value) =>
-              updateDay(day.dayOfWeek, { startTime: value })
-            }
-            onEndChange={(value) =>
-              updateDay(day.dayOfWeek, { endTime: value })
-            }
+            onScheduleChange={(schedule) => updateDay(day.dayOfWeek, schedule)}
           />
         ))}
       </div>
@@ -288,35 +297,32 @@ function DayRow({
   error,
   disabled,
   onToggle,
-  onStartChange,
-  onEndChange,
+  onScheduleChange,
 }: {
   day: DayState;
   error?: string;
   disabled: boolean;
   onToggle: (checked: boolean) => void;
-  onStartChange: (value: string) => void;
-  onEndChange: (value: string) => void;
+  onScheduleChange: (schedule: DaySchedule) => void;
 }) {
-  const startId = useId();
-  const endId = useId();
   const labelId = useId();
   const errorId = `${labelId}-error`;
   const dayName = DAY_NAMES[day.dayOfWeek];
+  const isWorkingDay = day.schedule.isWorkingDay;
 
   return (
     <div
       role="listitem"
       className={cn(
         "grid min-h-[3.5rem] gap-3 px-4 py-3 transition-colors duration-[var(--motion-duration-fast)] ease-gentle sm:grid-cols-[9rem_minmax(0,28rem)_1fr] sm:items-center sm:gap-6",
-        day.isWorkingDay
+        isWorkingDay
           ? "bg-[oklch(93.5%_0.038_155)]"
           : "bg-[oklch(94.0%_0.008_280)]"
       )}
     >
       <div className="flex items-center gap-3">
         <Switch
-          checked={day.isWorkingDay}
+          checked={isWorkingDay}
           disabled={disabled}
           aria-label={`${dayName}, open`}
           onCheckedChange={onToggle}
@@ -334,69 +340,20 @@ function DayRow({
         // (animatable in modern browsers; display:none would cancel transitions).
         className={cn(
           "grid transition-[grid-template-rows,opacity] duration-[var(--motion-duration-fast)] ease-gentle motion-reduce:transition-none",
-          day.isWorkingDay
+          isWorkingDay
             ? "[grid-template-rows:1fr] opacity-100"
             : "pointer-events-none [grid-template-rows:0fr] select-none opacity-0"
         )}
-        aria-hidden={!day.isWorkingDay}
+        aria-hidden={!isWorkingDay}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="grid items-center gap-2 sm:grid-cols-[1fr_auto_1fr] sm:gap-3">
-            <div className="grid gap-1">
-              <label
-                htmlFor={startId}
-                className="text-xs font-medium text-[var(--admin-text-muted)]"
-              >
-                Opens
-              </label>
-              <input
-                id={startId}
-                name={`start_time_${day.dayOfWeek}`}
-                type="time"
-                value={day.startTime}
-                onChange={(event) => onStartChange(event.target.value)}
-                disabled={disabled || !day.isWorkingDay}
-                tabIndex={day.isWorkingDay ? 0 : -1}
-                aria-invalid={error ? "true" : undefined}
-                aria-describedby={error ? errorId : undefined}
-                className={cn(
-                  "h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
-                  error
-                    ? "border-[oklch(26%_0.14_25)]"
-                    : "border-[var(--admin-border-form)]"
-                )}
-              />
-            </div>
-            <span
-              aria-hidden="true"
-              className="hidden text-sm text-[var(--admin-text-muted)] sm:block"
-            >
-              –
-            </span>
-            <div className="grid gap-1">
-              <label
-                htmlFor={endId}
-                className="text-xs font-medium text-[var(--admin-text-muted)]"
-              >
-                Closes
-              </label>
-              <input
-                id={endId}
-                name={`end_time_${day.dayOfWeek}`}
-                type="time"
-                value={day.endTime}
-                onChange={(event) => onEndChange(event.target.value)}
-                disabled={disabled || !day.isWorkingDay}
-                tabIndex={day.isWorkingDay ? 0 : -1}
-                className={cn(
-                  "h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
-                  error
-                    ? "border-[oklch(26%_0.14_25)]"
-                    : "border-[var(--admin-border-form)]"
-                )}
-              />
-            </div>
-          </div>
+          {/* The editor disables every control while the day is closed, which
+              also takes them out of the tab order — no tabIndex needed here. */}
+          <WorkingHoursDayEditor
+            schedule={day.schedule}
+            onChange={onScheduleChange}
+            disabled={disabled}
+          />
         </div>
       </div>
 
