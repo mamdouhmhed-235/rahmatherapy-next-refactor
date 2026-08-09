@@ -55,6 +55,15 @@ const recurringSchema = z.object({
   consent_acknowledged: z.literal(true, {
     error: "Confirm the consent box before creating repeat visits.",
   }),
+  // Email-defect fix (2026-08-09) — the shared "Send confirmation email to
+  // client" checkbox (ManualBookingForm.tsx step 4) already posts this field
+  // on both submit paths, because the single-booking fields and
+  // RecurringSection sit in one <form> with only the action swapped. This
+  // schema simply never read it, so a series was emailed unconditionally
+  // regardless of the operator's tick. Mirrors manualBookingSchema's
+  // `sendConfirmationEmail` in ./actions.ts — same wire name ("on"/""), same
+  // truthiness gate below.
+  send_confirmation_email: z.boolean(),
 });
 
 export interface RecurringActionState {
@@ -111,6 +120,8 @@ export async function createRecurringSeries(
     // The form emits "on"/"" from the same consent checkbox the single-booking
     // path uses — there is no second tick to keep in sync.
     consent_acknowledged: formData.get("consent_acknowledged") === "on",
+    // Same for the confirmation-email checkbox — one tick, shared form.
+    send_confirmation_email: formData.get("send_confirmation_email") === "on",
   });
 
   if (!parsed.success) {
@@ -194,9 +205,20 @@ export async function createRecurringSeries(
   // C-02 Phase D — fire-and-forget with .catch(), matching createManualBooking's
   // posture (actions.ts): a failed send must never roll back a series that was
   // already created successfully.
-  await sendRecurringSeriesCreatedEmail(result.templateId, adminClient).catch((error) => {
-    console.error("Unable to send recurring series created email.", error);
-  });
+  //
+  // Email-defect fix (2026-08-09) — gated on the operator's tick, mirroring
+  // createManualBooking's `sendConfirmationEmail && details.email.trim()`
+  // check (actions.ts ~:1689). There's no email string in this schema to
+  // double-check against a hand-crafted post the way that path does — the
+  // client's email lives in the DB, not in recurringSchema — so
+  // sendRecurringSeriesCreatedEmail's own "client has no email address" guard
+  // (it throws; caught below, same as any other send failure) plays that
+  // role instead.
+  if (parsed.data.send_confirmation_email) {
+    await sendRecurringSeriesCreatedEmail(result.templateId, adminClient).catch((error) => {
+      console.error("Unable to send recurring series created email.", error);
+    });
+  }
 
   updateTag("report-data");
   updateTag("dashboard-data");

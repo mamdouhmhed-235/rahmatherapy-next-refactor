@@ -148,6 +148,12 @@ function recurringFormData(overrides: Record<string, string> = {}): FormData {
   // C-02 Phase E — the form emits this from the step-4 consent checkbox and the
   // action now refuses without it, so every spec below has to carry it.
   formData.set("consent_acknowledged", "on");
+  // Email-defect fix (2026-08-09) — mirrors the shared "Send confirmation
+  // email to client" checkbox, ticked by default in ManualBookingForm.tsx
+  // (`useState(true)`). Kept "on" here so the existing happy-path specs below
+  // still exercise the email send; the "confirmation email checkbox" block
+  // overrides it to prove the unticked case.
+  formData.set("send_confirmation_email", "on");
   for (const [key, value] of Object.entries(overrides)) {
     formData.set(key, value);
   }
@@ -479,6 +485,47 @@ describe("createRecurringSeries — happy path", () => {
 
     expect(redirect).toHaveBeenCalledWith(`/admin/bookings/series/${TEMPLATE_ID}?created=1`);
     expect(updateTag).toHaveBeenCalled();
+  });
+});
+
+describe("createRecurringSeries — confirmation email checkbox", () => {
+  // Email-defect fix (2026-08-09) — recurringSchema had no field for the
+  // shared "Send confirmation email to client" checkbox, so the send fired
+  // unconditionally regardless of the operator's tick. Mirrors
+  // createManualBooking's `sendConfirmationEmail` gate (actions.ts).
+  it("sends the email when the checkbox is ticked", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+
+    await createRecurringSeries(
+      {},
+      recurringFormData({ send_confirmation_email: "on" })
+    );
+
+    expect(sendRecurringSeriesCreatedEmail).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(sendRecurringSeriesCreatedEmail).mock.calls[0][0]).toBe(TEMPLATE_ID);
+  });
+
+  it("does not attempt the send when the checkbox is unticked", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+
+    await createRecurringSeries({}, recurringFormData({ send_confirmation_email: "" }));
+
+    expect(sendRecurringSeriesCreatedEmail).not.toHaveBeenCalled();
+    // The series itself must still be created — only the email is gated.
+    expect(redirect).toHaveBeenCalledWith(`/admin/bookings/series/${TEMPLATE_ID}?created=1`);
+  });
+
+  it("does not attempt the send when the form never posts the field at all", async () => {
+    // Covers a hand-crafted post, same posture as createManualBooking's
+    // second gate (actions.ts): `formData.get(...) === "on"` reads a missing
+    // field as false, never as "trust the caller".
+    stubAdminClient(RECURRABLE_SERVICE);
+    const formData = recurringFormData();
+    formData.delete("send_confirmation_email");
+
+    await createRecurringSeries({}, formData);
+
+    expect(sendRecurringSeriesCreatedEmail).not.toHaveBeenCalled();
   });
 });
 
