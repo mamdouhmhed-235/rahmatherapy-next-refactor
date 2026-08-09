@@ -32,6 +32,14 @@ import type { PlaceAddressComponent } from "@/lib/address/parse-place";
 
 const TEST_KEY = "test-key-not-a-real-credential";
 
+// Fix-round (Phase B blocking finding 1): listClassName/optionClassName/
+// activeOptionClassName are now required props with no default — every
+// render call below must supply them, and the styling-plumbing test further
+// down asserts these exact literals actually reach the rendered elements.
+const TEST_LIST_CLASS_NAME = "test-list-class";
+const TEST_OPTION_CLASS_NAME = "test-option-class";
+const TEST_ACTIVE_OPTION_CLASS_NAME = "test-active-option-class";
+
 async function setup() {
   vi.resetModules();
   const mod = await import("./AddressAutocompleteField");
@@ -146,6 +154,9 @@ describe("AddressAutocompleteField — no API key: fallback", () => {
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const input = getByRole("combobox") as HTMLInputElement;
@@ -173,6 +184,9 @@ describe("AddressAutocompleteField — lazy script loading (cost + privacy)", ()
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address A" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const inputA = getByRoleA("combobox") as HTMLInputElement;
@@ -191,6 +205,9 @@ describe("AddressAutocompleteField — lazy script loading (cost + privacy)", ()
         onChange={vi.fn()}
         onAddressSelected={vi.fn()}
         inputProps={{ "aria-label": "Address B" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const inputB = getByRoleB("combobox") as HTMLInputElement;
@@ -213,6 +230,9 @@ describe("AddressAutocompleteField — debounce (cost control)", () => {
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const input = getByRole("combobox") as HTMLInputElement;
@@ -227,7 +247,15 @@ describe("AddressAutocompleteField — debounce (cost control)", () => {
     await advanceDebounce(AUTOCOMPLETE_DEBOUNCE_MS);
 
     expect(fetchAutocompleteSuggestions).toHaveBeenCalledTimes(1);
-    expect(fetchAutocompleteSuggestions.mock.calls[0][0]).toMatchObject({ input: "Luton" });
+    // Also pins the UK-flat fix-round: includedPrimaryTypes must cover
+    // premise/subpremise (not just street_address), or a flat/apartment
+    // suggestion would never surface (plan gate §3.2 case 2). toMatchObject
+    // requires an array value to match exactly (same length + elements), so
+    // reverting to ["street_address"] alone fails this assertion.
+    expect(fetchAutocompleteSuggestions.mock.calls[0][0]).toMatchObject({
+      input: "Luton",
+      includedPrimaryTypes: ["street_address", "premise", "subpremise"],
+    });
   });
 });
 
@@ -245,6 +273,9 @@ describe("AddressAutocompleteField — session tokens (cost-critical)", () => {
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const input = getByRole("combobox") as HTMLInputElement;
@@ -295,6 +326,9 @@ describe("AddressAutocompleteField — selecting a suggestion", () => {
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const input = getByRole("combobox") as HTMLInputElement;
@@ -331,6 +365,9 @@ describe("AddressAutocompleteField — selecting a suggestion", () => {
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const input = getByRole("combobox") as HTMLInputElement;
@@ -365,6 +402,9 @@ describe("AddressAutocompleteField — free typing", () => {
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const input = getByRole("combobox") as HTMLInputElement;
@@ -401,6 +441,9 @@ describe("AddressAutocompleteField — keyboard navigation", () => {
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const input = getByRole("combobox") as HTMLInputElement;
@@ -430,6 +473,64 @@ describe("AddressAutocompleteField — keyboard navigation", () => {
   });
 });
 
+describe("AddressAutocompleteField — host-supplied list/option classes (theming contract)", () => {
+  // Fix-round (Phase B blocking finding 1): the suggestion list must never
+  // hardcode colour — listClassName/optionClassName/activeOptionClassName
+  // are REQUIRED props with no default specifically so a host that forgets
+  // to theme the list fails to compile. This test proves the plumbing is
+  // non-vacuous: the host-supplied literals must actually land on the
+  // rendered <ul> and <li> elements, with activeOptionClassName applied only
+  // to the currently-active option.
+  it("applies listClassName to the listbox and optionClassName/activeOptionClassName to the right options", async () => {
+    setApiKeyPresent();
+    const suggestionA = makeSuggestion("place-a", "12 Dunstable Road, Luton, UK", LUTON_COMPONENTS);
+    const suggestionB = makeSuggestion("place-b", "1 Meadow Rise, Houghton Regis", NEWBUILD_COMPONENTS);
+    const fetchAutocompleteSuggestions = vi
+      .fn()
+      .mockResolvedValue({ suggestions: [suggestionA, suggestionB] });
+    seedGoogle(fetchAutocompleteSuggestions);
+    const { AddressAutocompleteField, onChange, onAddressSelected, AUTOCOMPLETE_DEBOUNCE_MS } = await setup();
+
+    const { getByRole } = render(
+      <AddressAutocompleteField
+        value=""
+        onChange={onChange}
+        onAddressSelected={onAddressSelected}
+        inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
+      />
+    );
+    const input = getByRole("combobox") as HTMLInputElement;
+
+    vi.useFakeTimers();
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "a" } });
+    await advanceDebounce(AUTOCOMPLETE_DEBOUNCE_MS);
+
+    const listbox = document.querySelector('[role="listbox"]') as HTMLElement;
+    expect(listbox).not.toBeNull();
+    expect(listbox.className.split(" ")).toContain(TEST_LIST_CLASS_NAME);
+
+    const options = document.querySelectorAll('[role="option"]');
+    expect(options.length).toBe(2);
+    // Neither option is active yet: both carry the base class, neither carries the active one.
+    expect(options[0].className.split(" ")).toContain(TEST_OPTION_CLASS_NAME);
+    expect(options[0].className.split(" ")).not.toContain(TEST_ACTIVE_OPTION_CLASS_NAME);
+    expect(options[1].className.split(" ")).toContain(TEST_OPTION_CLASS_NAME);
+    expect(options[1].className.split(" ")).not.toContain(TEST_ACTIVE_OPTION_CLASS_NAME);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+
+    // Now option 0 is active: base class stays, active class is added ONLY there.
+    expect(options[0].className.split(" ")).toContain(TEST_OPTION_CLASS_NAME);
+    expect(options[0].className.split(" ")).toContain(TEST_ACTIVE_OPTION_CLASS_NAME);
+    expect(options[1].className.split(" ")).toContain(TEST_OPTION_CLASS_NAME);
+    expect(options[1].className.split(" ")).not.toContain(TEST_ACTIVE_OPTION_CLASS_NAME);
+  });
+});
+
 describe("AddressAutocompleteField — Escape", () => {
   it("dismisses only the suggestion list; once already closed, Escape propagates to an ancestor (the future dialog)", async () => {
     setApiKeyPresent();
@@ -448,6 +549,9 @@ describe("AddressAutocompleteField — Escape", () => {
           onChange={onChange}
           onAddressSelected={onAddressSelected}
           inputProps={{ "aria-label": "Address" }}
+          listClassName={TEST_LIST_CLASS_NAME}
+          optionClassName={TEST_OPTION_CLASS_NAME}
+          activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
         />
       </div>
     );
@@ -500,6 +604,9 @@ describe("AddressAutocompleteField — unmount safety", () => {
         onChange={onChange}
         onAddressSelected={onAddressSelected}
         inputProps={{ "aria-label": "Address" }}
+        listClassName={TEST_LIST_CLASS_NAME}
+        optionClassName={TEST_OPTION_CLASS_NAME}
+        activeOptionClassName={TEST_ACTIVE_OPTION_CLASS_NAME}
       />
     );
     const input = getByRole("combobox") as HTMLInputElement;

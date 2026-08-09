@@ -20,10 +20,16 @@
 //     https://developers.google.com/maps/documentation/javascript/reference/autocomplete-data
 //     https://developers.google.com/maps/documentation/javascript/reference/place
 //     https://developers.google.com/maps/documentation/javascript/examples/places-autocomplete-addressform
-//   - `includedPrimaryTypes: ["street_address"]` is lifted directly from
-//     Google's own address-form example (`included-primary-types` on the
-//     web-component version of the same idea) — the documented way to keep
-//     an address-autocomplete field from surfacing business names etc.
+//   - `includedPrimaryTypes: ["street_address", "premise", "subpremise"]` —
+//     broadened from the single value in Google's address-form example
+//     because `street_address` alone excludes `premise`/`subpremise`
+//     results (Google's own documented type for "an apartment, unit, or
+//     suite"), which would silently drop UK flats from the suggestion list.
+//     All three are confirmed Table B values, explicitly supported by
+//     `includedPrimaryTypes` for Autocomplete (New) requests (verified live,
+//     not from memory):
+//     https://developers.google.com/maps/documentation/places/web-service/place-types
+//     Still excludes businesses/POIs, matching the plan's address-only intent.
 //
 // COST-CRITICAL (plan §1 deviations table, progress §0.2): Place Details
 // fields are `addressComponents` + `location` ONLY. NEVER `displayName` — it
@@ -42,10 +48,15 @@
 // Step 3 contract ("styling is entirely the host's ... so the same
 // component looks native in both trees"). The suggestion list itself is
 // this component's own DOM (option B, progress §0.2a) and is SHARED by a
-// `--rahma-*`-themed public form and an `--admin-*`-themed admin form, so it
-// is styled with Tailwind's built-in neutral gray/white scale only — no
-// brand token from either tree. That keeps it legible and unopinionated in
-// both hosts without a hardcoded hex value anywhere in this file.
+// `--rahma-*`-themed public form and an `--admin-*`-themed admin form — the
+// two trees use disjoint colour systems, and admin defaults to DARK for any
+// staff member with no saved preference (ThemeProvider.tsx), so this file
+// must never hardcode a colour for the list either. Colour, border colour,
+// and shadow for the list are REQUIRED host props (`listClassName`,
+// `optionClassName`, `activeOptionClassName`) — no default, so a host that
+// forgets to theme the list fails to compile instead of silently shipping a
+// bright-white box into a dark form. Only structural chrome (position,
+// z-index, sizing, border-radius, motion) is owned by this file.
 //
 // ACCESSIBILITY (progress §0.2a point 2 — ours to build; `PlaceAutocompleteElement`
 // would have supplied this for free): WAI-ARIA 1.2 combobox pattern — input
@@ -227,6 +238,19 @@ export interface AddressAutocompleteFieldProps {
   onAddressSelected: (parts: AddressParts) => void;
   /** id/name/aria/className etc. from the host — styling is entirely the host's. */
   inputProps?: InputHTMLAttributes<HTMLInputElement>;
+  /**
+   * Host-owned colour, border colour, and shadow classes for the suggestion
+   * `<ul>`. Required, no default: the list is shared by a `--rahma-*` public
+   * tree and an `--admin-*` admin tree (which defaults to dark), so a host
+   * that forgets to theme it must fail to compile, not ship a hardcoded
+   * white box into a dark form. Structural chrome (position, sizing,
+   * radius, motion) stays owned by this component.
+   */
+  listClassName: string;
+  /** Host-owned colour classes for each `<li role="option">`, applied to every option. Required — see `listClassName`. */
+  optionClassName: string;
+  /** Host-owned colour classes applied on top of `optionClassName` for the active/highlighted option only. Required — see `listClassName`. */
+  activeOptionClassName: string;
 }
 
 export function AddressAutocompleteField({
@@ -234,6 +258,9 @@ export function AddressAutocompleteField({
   onChange,
   onAddressSelected,
   inputProps,
+  listClassName,
+  optionClassName,
+  activeOptionClassName,
 }: AddressAutocompleteFieldProps) {
   const listboxId = useId();
   const [open, setOpen] = useState(false);
@@ -292,7 +319,7 @@ export function AddressAutocompleteField({
         input: query,
         sessionToken: token,
         includedRegionCodes: ["gb"],
-        includedPrimaryTypes: ["street_address"],
+        includedPrimaryTypes: ["street_address", "premise", "subpremise"],
         region: "gb",
         language: "en-GB",
       });
@@ -421,9 +448,9 @@ export function AddressAutocompleteField({
           role="listbox"
           aria-label="Address suggestions"
           className={cn(
-            "absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto",
-            "rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg",
-            "animate-in fade-in-0 zoom-in-95 duration-100 motion-reduce:animate-none"
+            "absolute left-0 right-0 top-full z-50 mt-1 max-h-60 overflow-auto rounded-md py-1 text-sm",
+            "animate-in fade-in-0 zoom-in-95 duration-100 motion-reduce:animate-none",
+            listClassName
           )}
         >
           {suggestions.map((prediction, index) => (
@@ -438,8 +465,9 @@ export function AddressAutocompleteField({
               onMouseDown={(e) => e.preventDefault()} // keep the input focused through the click
               onClick={() => void selectSuggestion(prediction)}
               className={cn(
-                "cursor-pointer px-3 py-2 text-gray-900",
-                index === activeIndex ? "bg-gray-100" : "bg-white"
+                "cursor-pointer px-3 py-2",
+                optionClassName,
+                index === activeIndex ? activeOptionClassName : undefined
               )}
             >
               {prediction.text.text}
