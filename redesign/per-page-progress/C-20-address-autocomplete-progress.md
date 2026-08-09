@@ -269,7 +269,17 @@ What *is* verified at 375: no horizontal overflow, and the admin-side calendar/l
 
 ## 2 — ▶ Position (corrected 2026-08-09 — drift checkpoint #4 finding 2)
 
-**Phases A, B, C and D are committed and verified** (§1a, §1b). **Phase E (closeout) is next** — the §3.2 real-address matrix has 2 of 5 cases done live (Luton terrace, Dunstable), leaving flat/apartment, new-build without `postal_town`, and out-of-covered-area.
+**All implementation phases (A, B, C, D) are committed and verified** (§1a, §1b, §1c), plus the `includedRegionCodes` test guard at `56bcd65`. **Gate §3.2 — all five real-address cases PASS LIVE (§1d). Gate §3.5 (key sign-off) is SATISFIED** — both of the plan's *unwaivable* gates are closed.
+
+### ⏸ C-20 is NOT marked ✅, and deliberately so — one plan STEP is genuinely unimplemented
+
+**Step 9's second half — the `cookie-registry.ts` entry + `CONSENT_BANNER_VERSION` bump — has not been done**, because it needs the Owner's classification decision (functional-on-interaction vs consent-gated) and the bump re-prompts every returning visitor.
+
+This is **more than a deferral, and it should not be waved through as one.** Google Maps JS sets client-side storage. C-18 built the cookie registry precisely so `/cookies` discloses everything the site loads — so shipping the autocomplete without a registry entry leaves the public cookies page **understating what the site actually loads**, which is the same class of defect C-18 itself was written to fix and which C-19's closeout caught twice.
+
+**Nothing is live yet** — the deploy is deferred to end-of-programme — so there is no current disclosure gap for real visitors. But the row stays ⏳ until the entry lands, rather than shipping a compliance hole behind a ✅.
+
+**To close C-20 the Owner needs to answer one question:** is Google Maps **functional-on-interaction** (the plan's recommendation — it loads only when a user focuses the address field, in service of a task they explicitly started) or **consent-gated** (it does not load until the visitor accepts)? Either answer takes ~20 minutes to implement and re-verify.
 
 ⏸ **Open items:** the key-rotation decision is **ANSWERED** (§0.4 item 1 — do not rotate). Still open: the **C-18 consent classification** (§0.4 item 2), which blocks the `cookie-registry.ts` half of Step 9; plus two observations awaiting an Owner view — the `area == city` duplication on unitary-authority addresses and the `autoComplete="street-address"` vs `off` choice (§1a.2).
 
