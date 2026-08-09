@@ -202,3 +202,120 @@ C-10 measures **final** page heights, and C-14's remaining phases add the workin
 6. Restore `src/lib/maintenance.ts` to `MAINTENANCE_MODE = true` **before any deploy**, and state its state in the final report.
 
 **Gates by identity at `4583573`:** tsc 0 · vitest **5 failed / 2070 passed (2075)**, the five inherited by name · lint **59E/7W** in exactly the six baseline files. Build NOT RUN (banned).
+
+---
+
+# ▶▶ THE INTERRUPT CHECKPOINT ABOVE IS SUPERSEDED — C-14 COMPLETED 2026-08-09
+
+All four decisions it lists were answered by the Owner in chat on 2026-08-09, and every remaining phase shipped in the same session. **This section is the current record; read it in preference to the checkpoint above.**
+
+## 4 — Phase A's ⛔ live round-trip: PERFORMED, PASSED, REVERTED
+
+§2.5 recorded this as *"the largest outstanding item on the plan"*. It is now closed.
+
+**Owner decision #2 was option B — the FULL test with a real break**, overriding the orchestrator's recommendation of the safe no-op variant. Performed by the orchestrator through the **real admin UI** on the Owner's own authenticated session (Minhaj rahman · Owner / Main Admin · `01582c5d-…`), identity confirmed against the account menu rather than inferred from the page rendering.
+
+| Stage | Evidence |
+|---|---|
+| **Before** | Monday 2026-08-31 → **23 slots**, 08:00–19:00 continuous, no gap |
+| **Save** (Opens 08:00 · Break 12:30–15:00 · Closes 20:00) | `availability_rules` day 1 held exactly **2** `is_working_day = true` rows: `08:00–12:30`, `15:00–20:00` — the plan's checkpoint requirement, met exactly |
+| **Customer surface** | `08:00 … 11:30` then `15:00 … 19:00`. **Nothing at 12:00 / 12:30 / 13:00 / 13:30 / 14:00 / 14:30.** 11:30 is correctly the last morning slot — a 60-minute service starting 11:30 ends exactly at 12:30 and fits inside the window; 12:00 would end 13:00 and cross the break |
+| **Control** | Tuesday 2026-09-01 unchanged at 23 slots |
+| **Round-trip** | A full page reload re-rendered the break from the database (`Break 1` 12:30–15:00, "Bookable: 08:00–12:30 · 15:00–20:00"), and attribution updated from "Test Admin on 16 May 2026" to "**Minhaj rahman on 9 Aug 2026**" |
+| **Revert** | 7 rows restored, content identical to the original (Sun closed; Mon–Sat 08:00–20:00). Monday back to **23 slots**, list identical to the "before" capture |
+| **Emails** | `email_delivery_events` in the hour = **0** |
+
+**This retires everything §2.5 listed as unverifiable**: `save_availability_day` executed for real against production, its atomicity and advisory lock exercised in practice, and cache invalidation confirmed by the customer surface changing immediately.
+
+**Disclosed honestly:** "Save hours" issues seven RPC calls, one per day, so the whole rota's row ids churn on every save — content-identical, ids new. Flagged in §2.6 already; the live test confirmed it in practice.
+
+> **⚠️ Note for readers of the closeout review.** The adversarial reviewer recorded that brief AC1's live round-trip *"appears never to have been executed"*. **That finding is incorrect, and its cause is this file.** The round-trip *was* executed, twice (here and again in §7), but had not yet been written down when the review ran — the reviewer's own finding #6 (progress file silent since the Phase A checkpoint) is what produced finding #5. Recorded rather than quietly dropped, because a review is only as good as the record it reads.
+
+## 5 — Phase B (Steps 10–11) — `233a61e`, `opus` — FULL-verified PASS
+
+**Opus justification (§5):** per-staff segments save feeding the live availability engine, plus an RPC contract.
+
+`saveStaffAvailabilityDay` added to `src/app/admin/staff/actions.ts`; `StaffAvailabilityRulesForm` rewritten around `WorkingHoursDayEditor`; 27 new specs. `src/lib/booking/availability.ts` is **not in the commit**.
+
+**Step 11's answer: no engine change was required, and it was proven rather than assumed.** `loadContextRest` (`availability.ts:535-541`) *appends* into `Map<staff_id, rule[]>`; `resolveStaffWindows:309-311` passes the whole array to `getRuleWindowsForDay:275-282`, which filters by day and hands survivors to `normalizeWindows:204-213` (`flatMap`, every record becomes a window); `containsWindow:215-217` uses `.some()`. The plan §9 first-row-wins problem is confined to the **override** path — Phase C's scope. A new spec drives a two-row staff day through the **real** `calculateAvailableSlots` with only the Supabase layer faked, and its **negative control** (feeding only the first row) asserts a mutually exclusive outcome, so it genuinely fails under the bug rather than passing incidentally.
+
+**The privilege trap did not fire, and was checked live rather than assumed:** `staff_availability_rules` still has no `service_role` UPDATE; the delete-then-insert model routes around it by construction. RPC signature confirmed against `pg_proc`: `save_staff_availability_day(p_staff_id uuid, p_day_of_week integer, p_segments jsonb)`.
+
+**Four judgement calls, all upheld by the verifier:** `normalizeSchedule` duplicated rather than widening scope into a file outside the assignment; audit `target_id = staffId` (a day is several rows, so no row is *the* target); three deliberate UI differences from the global editor forced by staff semantics; and — scrutinised hardest — **closed staff days now write `is_working_day = false` rows where the old UI deleted them**. Three consumers key off row *presence*; all three independently re-traced and confirmed **admin-display-only, unable to reach the slot engine** (0 rows and N closed rows produce identical empty windows). Ruled benign, and in two of three cases more accurate.
+
+**Also disclosed:** `createStaffAvailabilityRule` / `deleteStaffAvailabilityRule` are now orphaned exports with no UI caller, mirroring Phase A's `deleteAvailabilityRule`.
+
+## 6 — Phase C (Steps 12–14) — `9f41430`, `opus` — FULL-verified PASS, migration applied
+
+**Opus justification (§5):** production schema change plus a live-customer slot-engine change, shipped atomically.
+
+### 6.1 — ⛔ The approved SQL could not execute, and the correction needed its own approval
+
+The Owner approved `DROP INDEX IF EXISTS public.availability_overrides_override_date_key`. **That statement cannot run.** Verified independently by the orchestrator, not taken from the implementer: the object is a UNIQUE **constraint** (`pg_constraint.contype = 'u'`, definition `UNIQUE (override_date)`) which **owns** the same-named index (`pg_depend.deptype = 'i'`). Postgres refuses `DROP INDEX` on a constraint-owned index, and `IF EXISTS` does not help because the object exists.
+
+Re-presented to the Owner as the corrected form — the same single operation on the same single object, same end state, same rollback, and the form already approved for the staff table — and **re-approved in chat**. Applied as migration **`c14_override_breaks`**:
+
+```sql
+ALTER TABLE public.availability_overrides
+  DROP CONSTRAINT IF EXISTS availability_overrides_override_date_key;
+ALTER TABLE public.staff_availability_overrides
+  DROP CONSTRAINT IF EXISTS staff_availability_overrides_staff_id_override_date_key;
+```
+
+**Post-apply verification:** both constraints **and** their indexes gone (0 of each by name); `availability_overrides_pkey`, `staff_availability_overrides_pkey`, both `_time_check` CHECKs and the staff `_fkey` all intact; **zero data change** — both override tables held **0 rows** before and after, `availability_rules` 7, `bookings` 15. Rollback is recreating the two uniques.
+
+### 6.2 — Atomic co-deploy (D12), all in the one commit
+
+`createAvailabilityOverride` rewritten off `.upsert(onConflict:"override_date")` (PostgREST's ON CONFLICT errors the instant the unique is gone); `addStaffAvailabilityOverride`'s `PG_UNIQUE_VIOLATION` guard replaced by an explicit pre-check returning byte-identical error text; `assignment-eligibility.ts` widened off `.maybeSingle()` with its staff Map widened record → record[]. Slot-engine widening covers the bucketing loop, the Map value type **and** `resolveStaffWindows` — not `resolveStaffWindows` alone. Blocking rows keep full-day-closure behaviour. Phase B's recurring append, C-23's options bag and Phase D's window guard were all confirmed outside every diff hunk.
+
+**Privilege pre-flight passed:** `service_role` holds SELECT/INSERT/UPDATE/DELETE on both override tables — the C-04a trap did not fire.
+
+**Proven by execution:** new specs drive the **real** engine and `getStaffAssignmentPreviews` with only Supabase faked; the implementer applied a first-row-wins mutation, ran the specs, and reverted it — **8 mutants killed** (6 engine, 2 eligibility), with permanent data-level negative controls left in place. The verifier confirmed no mutation residue survived in the committed code.
+
+**Disclosed non-atomicity, and the claim was checked rather than accepted:** the global override save is delete-then-insert with no RPC (the approved migration could contain only the two drops). The argument is that a failed insert leaves the date on the ordinary weekly schedule — mild and visible — whereas insert-first would leave old and new windows side by side, i.e. *more* availability than intended. The verifier traced the fallthrough itself and confirmed the load-bearing part: **zero override rows for a date reads as the recurring weekly schedule, never as closed.** Unlike the recurring case, there is no silent-closure failure mode here.
+
+## 7 — Follow-ups the live testing and reviews forced
+
+| Commit | What | Why it exists |
+|---|---|---|
+| `5e79506` | availability page multi-row consumers | **A defect I observed live**, not one predicted on paper |
+| `88f4d80` | Step 13a — a column that does not exist | Step 13a's checkpoint was unachievable without it |
+| `0bc2a02` | week-adjustments chip counts dates | Same bug class, one level up |
+
+### 7.1 — ⚠️ Rule 6(b): `src/app/admin/availability/page.tsx` was added to the files-touched list, with Owner approval
+
+During the live round-trip the capacity strip displayed **"Mon 3 · 15:00–20:00"** — one arbitrary segment — where the day was `08:00–12:30 · 15:00–20:00`. The plan's own page was misreporting the feature the plan had just built. Three consumers in that one file:
+
+1. `rules.find(r => r.day_of_week === dayOfWeek)` — one row per weekday, and since the query ordered only by `day_of_week`, **which** segment showed was unspecified. *Observed live.*
+2. `new Map(weekAdjustments.map(row => [row.override_date, row]))` — last-row-wins, safe only while the unique existed. **Phase C's migration removes exactly that guarantee**, so this made the file's inclusion unavoidable rather than merely desirable.
+3. The staff "has custom rules?" Set — assessed and **deliberately left unchanged**: its only consumer is a display badge, and post-Phase-B it is arguably more accurate.
+
+Fixed with a `resolveWeekdayRule` helper, `groupOverridesByDate`, a secondary `start_time` ordering, and `formatSegments` copied from `WorkingHoursDayEditor`'s "Bookable:" line so the two agree. 10 unit tests.
+
+**Verified live against the original defect** — the strongest form of proof available: with the same Monday break re-applied under a second Owner approval, the strip read **`Mon 3 · 08:00–12:30 · 15:00–20:00`**, then the break was removed and the rota restored. Screenshot `redesign/evidence/C-14/capacity-strip-multi-segment-AFTER.png`.
+
+### 7.2 — `assignment-eligibility.ts` selected a column that does not exist
+
+`.select("start_time, end_time, override_type")` against **`availability_overrides`**, which has columns `id, override_date, start_time, end_time, reason` — **no `override_type`**. Reproduced live: `ERROR: 42703`. Because that file checks `.error` on none of its ten queries, the failure was silent: the override vanished and eligibility fell back to the weekly rules. **Global overrides had therefore always been ignored by admin assignment eligibility**, and Step 13a's verify checkpoint could not have been true as written.
+
+Pre-existing, but in scope — the file is on C-14's list under Step 13a. Fixed by dropping the column from the **global** select only and splitting the row types; the staff select keeps `override_type`, which is real there. **The live customer engine was checked and is clean** (`availability.ts:596` selects only `override_date, start_time, end_time`), so admin and engine now agree. The regression test wraps the fake client in a **schema-checking** layer that answers a 42703 the way PostgREST really does — the plain fake is a passthrough and structurally could not catch this.
+
+## 8 — Closeout: adversarial review — **PASS**, zero blocking
+
+`redesign/evidence/C-14/closeout-adversarial.md`. Swept `ecc1d0d..0bc2a02`, re-ran all three gates independently, grepped the codebase for surviving single-row assumptions against all four multi-row tables, and walked the brief's acceptance list criterion by criterion.
+
+**Non-blocking findings, and what was done with each:**
+1. **The override "past"/"upcoming" pagination queries have no secondary sort by `start_time`**, so a `.limit()` boundary could theoretically split one date's segments and display it with wrong hours. Unreachable today (0 rows), genuinely new, and nobody had named it. **Logged to the Owner backlog** with the caps cluster it belongs to.
+2. The "N past adjustments" banner still counts rows; the reviewer refined the earlier diagnosis, showing `pastShown: past.length` is correctly *paired* with a row-based `pastTotal` — the gap is one level up, in what `pastTotal` counts. Logged.
+3. A second orphaned pre-segments pair (`createStaffAvailabilityRule`/`deleteStaffAvailabilityRule`) — disclosed by the Phase B implementer but not in this file until now. **Recorded above in §5.**
+4. Plan §4.4 screenshots / brief AC12's Playwright sweep only partly delivered. **Partly addressed:** `working-hours-editor-{1280,375}.png` and the capacity-strip before/after now exist; a full authenticated multi-viewport sweep remains Owner-performed by necessity.
+5. "The live round-trip appears never to have been executed" — **incorrect; see the note in §4.**
+6. Progress file silent since the Phase A checkpoint — **this section is the remedy**, and it is what caused finding 5.
+
+## 9 — ✅ C-14 SHIPPED — final state
+
+**Commits:** `4583573` (D) · `17aade6` + `d9d252a` (A) · `233a61e` (B) · `9f41430` (C) · `5e79506`, `88f4d80`, `0bc2a02` (follow-ups). **Migrations applied:** `c14_save_availability_day`, `c14_override_breaks`.
+**Tiers, declared in advance:** D FULL · A FULL · B FULL · C FULL. Every one independently verified; zero blocking findings across all four.
+**Gates by identity at `0bc2a02`:** tsc **0** · vitest **5 failed / 2211 passed (2216)**, the five inherited by name · lint **59E/7W** in exactly the six baseline files. **Build rides the single end-of-programme build**, which must still confirm §1.3's named check: **54/54 static** after `PublicLayout` became `async`.
+**Deviations:** two rule-6(b) file additions, both Owner-approved — `src/app/(public)/layout.tsx` (Phase D, self-flagged but not halted on, recorded as a process failure) and `src/app/admin/availability/page.tsx` (halted on correctly, approved, then implemented).
+**Open, logged, none blocking:** the override caps/date-counting cluster (needs a view or RPC, i.e. its own ⛔), the missing secondary sort, the non-atomic global override save, and the staff duplicate-date TOCTOU.
