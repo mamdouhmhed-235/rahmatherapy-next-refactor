@@ -1,6 +1,6 @@
 "use client";
 
-import type { UseFormReturn } from "react-hook-form";
+import { Controller, type UseFormReturn } from "react-hook-form";
 import {
   Car,
   DoorOpen,
@@ -12,6 +12,8 @@ import {
   UserCheck,
   Users,
 } from "lucide-react";
+import { AddressAutocompleteField } from "@/components/address/AddressAutocompleteField";
+import type { AddressParts } from "@/lib/address/parse-place";
 import {
   BOOKING_ALLOWED_CITIES,
   type BookingDetailsFormValues,
@@ -55,6 +57,17 @@ const COVERED_TOWNS = BOOKING_ALLOWED_CITIES.map((city) =>
   city.replace(/\b\w/g, (letter) => letter.toUpperCase())
 );
 
+// AddressAutocompleteField renders its own suggestion list and deliberately
+// ships NO default colours for it — the same component is also used by the
+// `--admin-*`-themed admin form (which defaults to dark), so each host must
+// theme the list itself. This is the public booking flow, so these are
+// `--rahma-*` tokens only, mirroring the .chip / .field surfaces in
+// BookingExperience.module.css. Never `--admin-*`, never a colour literal.
+const ADDRESS_LIST_CLASS =
+  "border border-rahma-border bg-rahma-surface shadow-card";
+const ADDRESS_OPTION_CLASS = "text-rahma-charcoal hover:bg-rahma-ivory";
+const ADDRESS_ACTIVE_OPTION_CLASS = "bg-rahma-ivory text-rahma-green";
+
 function normalizeStringList(count: number, current: string[]) {
   return Array.from({ length: count }, (_, index) => current[index] ?? "");
 }
@@ -81,6 +94,7 @@ export function AboutYouStep({
   onClearPrefill,
 }: AboutYouStepProps) {
   const {
+    control,
     register,
     setValue,
     watch,
@@ -192,6 +206,26 @@ export function AboutYouStep({
       shouldDirty: true,
       shouldValidate: true,
     });
+  }
+
+  // A confirmed address pick fills all four location fields through the same
+  // setValue path a covered-town chip uses, so everything downstream reacts
+  // exactly as it does to typing: the covered-area notice re-reads
+  // watch("city"), and BookingExperience's availabilityInputsKey effect still
+  // clears a previously chosen date when the city changes.
+  function applyAddressParts(parts: AddressParts) {
+    const apply = (
+      key: "address" | "city" | "area" | "postcode",
+      value: string
+    ) => {
+      if (!value) return; // never blank an existing value (brief §3.3)
+      setValue(key, value, { shouldValidate: true, shouldDirty: true });
+    };
+
+    apply("address", parts.address);
+    apply("city", parts.city);
+    apply("area", parts.area);
+    apply("postcode", parts.postcode);
   }
 
   return (
@@ -540,11 +574,25 @@ export function AboutYouStep({
           error={errors.address?.message}
           icon={<MapPin size={16} />}
         >
-          <input
-            autoComplete="street-address"
-            placeholder="House number and street"
-            aria-invalid={Boolean(errors.address)}
-            {...register("address")}
+          <Controller
+            control={control}
+            name="address"
+            render={({ field }) => (
+              <AddressAutocompleteField
+                value={field.value}
+                onChange={field.onChange}
+                onAddressSelected={applyAddressParts}
+                inputProps={{
+                  name: field.name,
+                  autoComplete: "street-address",
+                  placeholder: "House number and street",
+                  "aria-invalid": Boolean(errors.address),
+                }}
+                listClassName={ADDRESS_LIST_CLASS}
+                optionClassName={ADDRESS_OPTION_CLASS}
+                activeOptionClassName={ADDRESS_ACTIVE_OPTION_CLASS}
+              />
+            )}
           />
         </Field>
 
