@@ -405,3 +405,28 @@ Recorded at the Owner's request as the closing act of the session. **No code cha
 **Environment at session end:** dev server **DOWN** (`curl` → 000; needs `pnpm dev`). **No admin session exists.** Working tree clean over `src/` and `supabase/` apart from the standing `maintenance.ts` change. HEAD `0ade989` at the time of writing.
 
 **Nothing was left uncommitted.** The only modified tracked file is `src/lib/maintenance.ts` (never to be staged); all other working-tree entries are pre-existing untracked material from earlier plans (C-21 evidence screenshots, `design_handoff_area_pages/`, `photos-rahma-therapy/`, `test-results/`), none of it produced by this session.
+
+---
+
+## 5 — Both outstanding Owner items CLOSED — 2026-08-09
+
+### 5.1 — §3.4b gate rulings: Owner accepts the code-level proof for both
+
+**Owner decision, in chat 2026-08-09: option A — accept the code-level proof; do not mutate production to observe either gate.** This closes the last two of the plan's ten gates, so **C-23's gate tally is now 10 of 10**.
+
+- **Gate 6, paused half** — accepted on the Phase B verifier's executed mutation testing (breaking guard 2 `||`→`&&` failed 4 of 7 tests). Observing it live would have required flipping `business_settings.booking_status_enabled` to `false` on production, during which **real customers cannot book**. Disproportionate for a screenshot.
+- **Gate 7, partial marker** — accepted on the Phase C mutation testing (inverting the thresholds failed the real assertions), with the "Partial — only one group" legend confirmed rendering live. No naturally-partial day exists: every bookable staff member is `use_global` (3 female + 2 male), so the cohorts coincide on every working day, and manufacturing one meant inserting and then deleting `staff_blocked_dates` rows for both male staff.
+
+Recorded as *accepted on proof*, **not** as *observed* — the distinction is the point, and neither is claimed as a check that ran.
+
+### 5.2 — ⛔ Zone-2 cleanup COMPLETE: the three baseline bookings are deleted
+
+**Owner approved in chat 2026-08-09**; executed by the orchestrator (Zone-2 actions are never delegated to a subagent).
+
+Pre-flight, SELECT-only, before touching anything: 0 `email_delivery_events` referencing the three bookings, 0 other bookings for the three clients, 0 `recurring_booking_templates` (a `RESTRICT` FK — would have blocked the delete), 0 enquiries, 0 client notes; all three clients confirmed `*.example.test` **and** `Audit Test*`, satisfying the DO-NOT-TOUCH exception in both directions.
+
+Executed as two explicit statements — `DELETE FROM bookings WHERE id IN (…)` then `DELETE FROM clients WHERE id IN (…)`, ids listed verbatim, no wildcards. `booking_participants`, `booking_items` and `booking_assignments` (4 rows each) cascaded via their `ON DELETE CASCADE` FKs; `clients` had to follow `bookings` because that FK is `NO ACTION`.
+
+**Verified after:** 0 of the 3 target bookings remain · 0 of the 3 target clients remain · 0 orphaned participants · **Badar's `9d55ce2a` intact** · total bookings 15.
+
+**Nothing else in §0.2a's cleanup list survives.** The Owner's standing approval for three real notifications to `rahmatherapy@outlook.com` was never spent and remains in reserve.
