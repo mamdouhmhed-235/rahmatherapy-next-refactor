@@ -168,6 +168,10 @@ It does resolve an open question. `OWNER-ACTION-BACKLOG.md` recorded that a live
 
 **This does not reopen the decision.** The Owner ruled on 2026-08-09 not to rotate, and that ruling stands (§0.4). It is recorded only because the backlog explicitly flagged the question as open, and it is now answered. The mitigating facts are unchanged: a `NEXT_PUBLIC_*` Maps key is inlined into client bundles and is public by nature — it is visible to any visitor who opens dev tools, exactly as it was visible here — so the load-bearing control is the referrer restriction, which is in place and correct.
 
-## 2 — ▶ Position
+## 2 — ▶ Position (corrected 2026-08-09 — drift checkpoint #4 finding 2)
 
-Phase A in flight. Phases B–E not started. Both ⏸ items in §0.4 open.
+**Phases A, B and C are committed and verified** (see §1a for commits, verification rounds and live gate evidence). **Phase D is in flight.** Phase E (closeout) not started.
+
+⏸ **Open items:** the key-rotation decision is **ANSWERED** (§0.4 item 1 — do not rotate). Still open: the **C-18 consent classification** (§0.4 item 2), which blocks the `cookie-registry.ts` half of Step 9; plus two observations awaiting an Owner view — the `area == city` duplication on unitary-authority addresses and the `autoComplete="street-address"` vs `off` choice (§1a.2).
+
+> **Why this section was wrong, recorded rather than quietly corrected.** Until this edit, §2 still read *"Phase A in flight. Phases B–E not started"* — written at plan start and never updated as §1a was appended above it, so the file contradicted itself by three sections. Drift checkpoint #4 caught it and rated it BLOCKING, correctly: a progress file that misreports its own plan's state is the same defect class this programme keeps finding in product code — **the record asserting something untrue about the thing beneath it.** The lesson is that appending a new section is not the same as updating the position marker, and the position marker is the part a resuming session reads first.
