@@ -479,7 +479,13 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
         maleCapacity={maleCapacity}
         femaleCapacity={femaleCapacity}
         weekClosures={weekClosures.length}
-        weekAdjustments={weekAdjustments.length}
+        // C-14 — a date's break splits it into several `availability_overrides`
+        // rows; `weekAdjustments.length` counted those rows, so a single
+        // adjusted date with a break read as "2 adjustments". `.size` of the
+        // already-computed by-date map counts DATES, matching what the chip
+        // label ("N adjustments this week") actually claims. `blocked_dates`
+        // (weekClosures) is untouched by C-14 and stays one row per date.
+        weekAdjustments={weekAdjustmentsByDate.size}
       />
 
       <AvailabilityManagersTabs

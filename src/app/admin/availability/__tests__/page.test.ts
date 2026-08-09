@@ -155,4 +155,13 @@ describe("groupOverridesByDate", () => {
     const result = groupOverridesByDate(rows);
     expect(result.size).toBe(2);
   });
+
+  it("a single date with a break is one adjustment via .size, not two — the 'adjustments this week' chip counts dates, not rows", () => {
+    const rows = [
+      override({ id: "a", override_date: "2026-08-10", start_time: "08:00:00", end_time: "12:30:00" }),
+      override({ id: "b", override_date: "2026-08-10", start_time: "15:00:00", end_time: "20:00:00" }),
+    ];
+    const result = groupOverridesByDate(rows);
+    expect(result.size).toBe(1);
+  });
 });
