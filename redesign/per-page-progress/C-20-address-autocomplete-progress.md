@@ -168,9 +168,44 @@ It does resolve an open question. `OWNER-ACTION-BACKLOG.md` recorded that a live
 
 **This does not reopen the decision.** The Owner ruled on 2026-08-09 not to rotate, and that ruling stands (§0.4). It is recorded only because the backlog explicitly flagged the question as open, and it is now answered. The mitigating facts are unchanged: a `NEXT_PUBLIC_*` Maps key is inlined into client bundles and is public by nature — it is visible to any visitor who opens dev tools, exactly as it was visible here — so the load-bearing control is the referrer restriction, which is in place and correct.
 
+## 1b — Phase D (Steps 7–8 + the `.env.example` half of Step 9) — `83c670f`, `opus`
+
+**Opus justification (§5):** `ManualBookingForm.tsx` is the shared file five Band-C plans edit, and Step 7's typed-behaviour parity is a documented trap.
+
+**Anchors were stale AGAIN — C-23 had shifted them since §0.1 was written.** Setters were at **589–592** (not 587–590); typed handlers at **1633 / 1646 / 1661 / 1672** (not 1543/1556/1571/1582). Re-located by symbol before editing, as rule 7 requires. *Second time in this plan that recorded line numbers went stale inside a single session — the "re-locate by symbol, never by line number" rule keeps earning its place.*
+
+### 1b.1 — The C20-F6 trap, closed and proven live
+
+Finding C20-F6 lists **four** pieces of state to reset on a city change. The live typed handler clears **six** — `setBookingDate("")`, `setStartTime("")`, `setAvailChecked(false)`, `setAvailSlots([])`, **`setFemaleAvailChecked(false)`**, **`setMaleAvailChecked(false)`**. The implementer confirmed six independently and found the same six at the override toggle, corroborating that six is canonical. `applyAddressParts` replicates all six, guarded by `parts.city !== city` so a same-city pick never wipes a date the operator already chose.
+
+**Five mutants, all killed** (copies only; real files never mutated): dropping the two gender flags; replacing the city guard with `true`; dropping all `markEdited`; dropping `setPostcodeLookupError("")`; removing the empty-part guard.
+
+**✅ CONFIRMED LIVE by the orchestrator against the real Google API**, driving the Owner's session:
+
+| | Before selection | After |
+|---|---|---|
+| `booking_date` | `2026-08-10` | **cleared** |
+| `start_time` | `08:00` | **cleared** |
+| slot buttons rendered | **23** | **0** |
+
+Selecting "10 High Street North, Dunstable" filled all four fields from a real Google response — `address="10 High Street North"`, `city="Dunstable"`, `area="Central Bedfordshire"`, `postcode="LU6 1LA"` — and the slot count collapsing 23 → 0 proves `availChecked` **and** `availSlots` both reset. A four-field implementation would have left both stale. Address input confirmed live as `role="combobox"` with `autocomplete="off"`; **0** Maps requests on page load.
+
+**This also resolves the `area == city` observation from §1a.2 — and downgrades it.** Dunstable returns `area="Central Bedfordshire"`, a proper county, *not* a duplicate of the city. The duplication is specific to **unitary authorities** such as Luton, whose `administrative_area_level_2` genuinely *is* the town name. The fallback chain is correct; this is a data characteristic, not a mapping bug. No change recommended.
+
+### 1b.2 — Four disclosures from the implementer, none blocking, all worth keeping
+
+1. **`stepErrors.address/postcode/city` are unreachable through the UI.** Both Continue buttons are `disabled={!isStepReady}`, and step-3 readiness already requires `address && postcode && city && bookingDate && startTime` — the exact fields whose absence `validateStep(3)` reports. So those keys can never be set. The clearing was implemented as dispatched but **is dead defensive code**, and the plan's stated rationale is doubly wrong: the typed handlers do not clear `stepErrors` either, so clearing them is *more* than typed parity, not parity. Flagged rather than silently dropped.
+2. **`setAvailSlots([])` is not individually observable by a mutant** — with `availChecked` false, both single-cohort branches are hidden. Dropping `setAvailChecked(false)` *is* caught, and the mixed-gender pair is fully observable, which is where the trap actually lives. An honest statement of a mutation-testing limit rather than a claim of total coverage.
+3. **`autoComplete="off"` on the admin address input** (it previously had no attribute, i.e. browser default on). Deliberate and, on reflection, clearly right: **staff enter a *client's* address**, so the browser's saved-address dropdown would offer the wrong person's data alongside ours. This differs from Phase C, which kept `street-address` for customers entering their own address — and that asymmetry is the correct answer to §1a.2's open ⏸, not an inconsistency.
+4. **Pre-existing dark-theme defect avoided, not inherited.** This file's local `FieldLabel`/`FieldError` hardcode `oklch(26% 0.14 25)` — a dark red near-invisible on the dark admin default. The implementer replicated `AdminInput`'s own token-based markup instead rather than reuse them. **The literal is pre-existing elsewhere in the file** (~3 sites) — logged, not fixed (rule 6a).
+
+**Minor deviation, logged:** mutation copies had to live at `src/app/admin/bookings/new-mut/` rather than the scratchpad, because vitest's `include` glob is `src/**` and the module's relative imports only resolve at that depth. The tree was untracked and deleted immediately; verified gone, and `git status --porcelain -- src/` shows only the standing `maintenance.ts`. It nonetheless bends the "scratchpad copies only" rule, and no real file was ever mutated.
+
+**Deferred as instructed:** the `cookie-registry.ts` entry and `CONSENT_BANNER_VERSION` bump (Step 9's other half) — blocked on the Owner's ⏸ consent classification, and a bump re-prompts every returning visitor. `git status -- src/lib/consent` confirmed empty.
+
 ## 2 — ▶ Position (corrected 2026-08-09 — drift checkpoint #4 finding 2)
 
-**Phases A, B and C are committed and verified** (see §1a for commits, verification rounds and live gate evidence). **Phase D is in flight.** Phase E (closeout) not started.
+**Phases A, B, C and D are committed and verified** (§1a, §1b). **Phase E (closeout) is next** — the §3.2 real-address matrix has 2 of 5 cases done live (Luton terrace, Dunstable), leaving flat/apartment, new-build without `postal_town`, and out-of-covered-area.
 
 ⏸ **Open items:** the key-rotation decision is **ANSWERED** (§0.4 item 1 — do not rotate). Still open: the **C-18 consent classification** (§0.4 item 2), which blocks the `cookie-registry.ts` half of Step 9; plus two observations awaiting an Owner view — the `area == city` duplication on unitary-authority addresses and the `autoComplete="street-address"` vs `off` choice (§1a.2).
 
