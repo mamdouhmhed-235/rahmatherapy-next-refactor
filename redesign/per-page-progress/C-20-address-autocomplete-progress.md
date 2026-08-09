@@ -125,6 +125,49 @@ Gate §3.5's referrer half **stands DONE** (2026-07-16: `https://rahmatherapy.uk
 
 ---
 
+## 1a — Phases A, B, C — implemented
+
+| Commit | Phase | Model |
+|---|---|---|
+| `92f031d` | A — parser + fixtures | `sonnet` |
+| `cc32657` | A hardening — closed two **proven-vacuous** assertions found by the Phase A verifier | `sonnet` |
+| `ac0a283` | B — shared autocomplete component + tests | `sonnet` |
+| `af2c5b1` | B fix round — host-themed list + widened primary types (2 BLOCKING) | `sonnet` |
+| `9593a74` | C — customer booking form wiring + new `AboutYouStep.test.tsx` | `opus` |
+
+**Opus justification for Phase C (§5):** it edits `AboutYouStep.tsx` inside the **live public booking flow** — the business's revenue path — behind a hard covered-area validation gate.
+
+### 1a.1 — Phase B's two BLOCKING findings, and why they mattered
+1. **The suggestion list shipped hardcoded light** (`bg-white`/`text-gray-900`). Contrast was *fine* (17.74:1) — the defect was the opposite of the expected one: dark is the **default** admin theme, so Phase D would have mounted a bright white panel into a dark form. Fixed by making `listClassName`/`optionClassName`/`activeOptionClassName` **required with no defaults**, so a host that forgets to theme the list fails `tsc` rather than shipping the bug.
+2. **`includedPrimaryTypes: ["street_address"]` would have excluded flats.** Google's Place Types doc defines `subpremise` as "an apartment, unit, or suite" — a distinct primary type. Plan gate §3.2 case 2 explicitly requires a flat to work. Widened to `["street_address","premise","subpremise"]`.
+
+### 1a.2 — ✅ LIVE verification of Phase C, run by the orchestrator against the real Google API
+
+The plan sanctions real (billed) Places calls at gate §3.2. Cost incurred: one autocomplete session + one Place Details Essentials event.
+
+| Check | Result |
+|---|---|
+| **§3.3 lazy load** | ✅ **0** `maps.googleapis.com` requests on page load, **0** on booking-dialog render, **0** on reaching the About step — the script loads only on **first focus** of the address field |
+| **§3.3 debounce (cost control)** | ✅ **24 keystrokes → exactly 1 `AutocompletePlaces` RPC.** This is the control the plan's arithmetic rests on (~7,200/month debounced vs ~14,400 un-debounced against a 10,000 free allowance) |
+| **§3.3 UK restriction** | ✅ every suggestion a real Luton address — `includedRegionCodes: ["gb"]` doing the work |
+| **§3.2 case 1 — standard Luton terrace** | ✅ selecting "12 Dunstable Road, Luton" filled **all four** fields from a real Google response: `address="12 Dunstable Road"`, `city="Luton"`, `area="Luton"`, `postcode="LU1 1DY"` |
+| **Step 4a spike (BLOCKING, D20)** | ✅ **PASSES on both halves.** `listInsideDialog: true` — the suggestion list renders inside the Base UI dialog's own DOM, so the `.pac-container` z-index / outside-click / inert failure class is gone **by construction**. And selecting a suggestion left `dialogStillOpen: true` — the click was not read as an outside-click dismissal |
+| ARIA | ✅ live `role="combobox"` input with a `role="listbox"` popup of `role="option"` items; list dismissed on selection |
+
+**Observation, not a defect:** for "12 Dunstable Road, Luton", **`area` and `city` both resolve to "Luton"**. That is *correct* per the plan's mapping — Luton is a unitary authority, so its `administrative_area_level_2` genuinely is "Luton" — but it means the Area field duplicates City for most of this business's catchment. The field stays visible and editable, so it is cosmetic. Recorded because it is exactly what gate §3.2's matrix exists to surface; the Owner may want Area left blank when it equals City.
+
+**Residual flagged by the implementer, not yet settled:** `.contentGrid` is the dialog's scroll container, so a list opened with the address input at the very bottom of the viewport could clip until the user scrolls. Inherent to any in-flow dropdown inside a scroll box; to be settled by gate §3.4's 375/1280 checks at closeout.
+
+**⏸ Open decision — `autoComplete` on the address input.** Phase C kept the existing `autoComplete="street-address"` (the component itself defaults to `"off"`, overridable). Keeping it preserves native browser address autofill, which matters most on the no-key fallback path; the trade-off is that the browser's own autofill dropdown can appear alongside ours. **To be settled by observation during the §3.4 live pass**, not by argument — if both dropdowns appear together, switch to `off`.
+
+### 1a.3 — 🔴 The `.env` key IS the key that was exposed. Now confirmed, previously unknown.
+
+While confirming the lazy load, the loader's script URL was captured and it **contained the key value**. That was an avoidable slip on the orchestrator's part — the standing instruction is never to read or print it — and it is not repeated anywhere in this record.
+
+It does resolve an open question. `OWNER-ACTION-BACKLOG.md` recorded that a live key with prefix `AIzaSyBZ…` had been pasted into the chat transcript during the 2026-08-04 session, but that **whether the key in `.env` was that same one was "unconfirmed — no agent read the value."** It is the same key.
+
+**This does not reopen the decision.** The Owner ruled on 2026-08-09 not to rotate, and that ruling stands (§0.4). It is recorded only because the backlog explicitly flagged the question as open, and it is now answered. The mitigating facts are unchanged: a `NEXT_PUBLIC_*` Maps key is inlined into client bundles and is public by nature — it is visible to any visitor who opens dev tools, exactly as it was visible here — so the load-bearing control is the referrer restriction, which is in place and correct.
+
 ## 2 — ▶ Position
 
 Phase A in flight. Phases B–E not started. Both ⏸ items in §0.4 open.
