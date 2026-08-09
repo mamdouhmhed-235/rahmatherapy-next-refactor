@@ -31,6 +31,25 @@ Phases B and C remain.
 
 ## 2 — ⛔/⏸ OWNER DECISIONS OUTSTANDING — this is what unblocks the programme
 
+> **These six were put to the Owner in plain language on 2026-08-09 with explicit choices and a recommendation for each. The Owner has not yet answered.** The wording below is the version they were shown, so a successor can act the moment an answer arrives without re-deriving anything. **If the Owner replies "go with your recommendations", that authorises items 1, 4, 5, 6 and the *safe* variant of 2 — but NOT item 3**, which must still be presented as exact SQL for its own per-action approval (rule 2: approval is per-action, never inferred).
+
+### Decision summary — choices as presented, and the recommendation given
+
+| # | Decision | Options offered | **Recommended** | Unblocks |
+|---|---|---|---|---|
+| 1 | Google Maps consent classification | **A** functional-on-interaction (loads on address-field focus, listed as functional) · **B** consent-gated (no load until accepted; decliners get a plain input) | **A** — the visitor actively clicked into an address field asking for help; that is not tracking. B is stricter than needed and silently degrades the feature for decliners. **Either way the cookie-banner version bumps, so every returning visitor sees the banner once more.** | **C-20 → ✅** (~20 min) |
+| 2 | C-14 Phase A live save round-trip | **A** safe test — re-save Monday with its **current** hours (proves the machinery, customers see nothing) · **B** full test — add a real break, verify customers cannot book across it, then remove (**Monday afternoons unbookable for minutes**) · **C** skip, Owner tests later | **A** — proves the risky part (save works, nothing lost) at zero customer cost. B only adds confidence about behaviour already mutation-tested. | Phase A's verify checkpoint |
+| 3 | C-14 Phase C migration | yes / no | **Yes** — required for the feature and reversible. **Must ship atomically with its code.** Present the exact SQL and take a fresh approval; do not treat any blanket yes as covering this. | Phase C → then **C-10** |
+| 4 | C-23's two unrunnable gates | **A** accept the code-level proof · **B** mutate production to observe them (pause live bookings; block therapists' availability) | **A** — both behaviours are already proven by executed mutation testing. Sabotaging a live site for a screenshot is disproportionate. | closeout tidiness only |
+| 5 | Delete the 3 C-23 test bookings | delete now / leave | **Delete** — they are clutter in the bookings list. Ids in §2.5 below. | nothing |
+| 6 | Recurring-series email defect | **A** fix it (~4 lines) · **B** leave logged | **A** — two admin submit paths disagree about the same visible control, and it ships on the next deploy. | nothing |
+
+**Plain-language framing used for the Owner, worth reusing:** #1 "your cookies page needs to say Maps exists, because Maps stores things in the visitor's browser"; #2 "I haven't tested it end-to-end because that writes your real schedule"; #3 "your system only allows one entry per date, breaks need two or more, so a restriction has to be removed"; #6 "when you create a repeat booking series, the 'Send confirmation email to client' checkbox is ignored — the email sends anyway".
+
+---
+
+### Full detail on each
+
 ### 2.1 ⏸ C-20 — Google Maps consent classification *(the only thing between C-20 and ✅)*
 **Is Maps *functional-on-interaction* (loads only when a user focuses the address field — the plan's recommendation) or *consent-gated* (does not load until accepted)?**
 Unblocks Step 9's second half: a `cookie-registry.ts` entry + `CONSENT_BANNER_VERSION` bump. ~20 minutes to implement and re-verify.

@@ -6,6 +6,8 @@ Consolidated tracking of every item across the programme that only the Owner can
 
 ---
 
+> **2026-08-09 — SIX OPEN DECISIONS PUT TO THE OWNER, WITH OPTIONS AND RECOMMENDATIONS, AWAITING ANSWER.** They are tabulated in full — choices as offered, recommendation given, and what each unblocks — at the top of §2 of **`redesign/HANDOFF-2026-08-09-ORCHESTRATOR.md`**. In short: **(1)** Maps consent classification → *recommend functional-on-interaction*; **(2)** C-14 Phase A live round-trip → *recommend the safe no-op variant*; **(3)** C-14 Phase C migration → *recommend yes, but re-present the exact SQL for its own approval*; **(4)** C-23's two unrunnable gates → *recommend accepting the code-level proof*; **(5)** delete the three C-23 test bookings → *recommend delete*; **(6)** the recurring-series email defect → *recommend fixing (~4 lines)*. **A blanket "go with your recommendations" covers 1, 4, 5, 6 and the safe variant of 2 — it does NOT cover 3**, which is a per-action ⛔ that must never be inferred.
+
 ## ⛔ Zone-2 — awaiting explicit chat approval (not just sign-in)
 
 | Item | From | Status | Detail |
