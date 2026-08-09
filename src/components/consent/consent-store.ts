@@ -208,7 +208,7 @@ function determineConsentAction(
  * truth — means a purpose added there without a matching ConsentChoices key
  * shows up as a mismatch instead of silently going missing from the log. See
  * registry-completeness.test.ts for the pin. NON_ESSENTIAL_PURPOSES is a
- * plain purposes array, not COOKIE_REGISTRY's full six-entry array of prose
+ * plain purposes array, not COOKIE_REGISTRY's full array of prose
  * descriptions — see the GatedPurpose note above for why that heavier import
  * is kept out of this module, which ships on every public page.
  */

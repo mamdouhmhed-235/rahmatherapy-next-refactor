@@ -8,10 +8,12 @@
 // visitor-consent scope, and outside this registry) and 5 reach an
 // anonymous visitor.
 //
-// COOKIE_REGISTRY below is those 5 plus one the inventory could not have
-// found, because C-18 itself introduces it: `rahma_consent`, the cookie that
-// stores the visitor's own choice (added in Phase B, Step 3 —
-// src/lib/consent/consent-state.ts). Six entries in total.
+// COOKIE_REGISTRY below is those 5 plus two later plans each introduced,
+// because no inventory pass could have found either: `rahma_consent`, the
+// cookie that stores the visitor's own choice (C-18 Phase B, Step 3 —
+// src/lib/consent/consent-state.ts), and the Google Maps Platform entry
+// (C-20 Step 9 — src/components/address/AddressAutocompleteField.tsx).
+// Seven entries in total.
 //
 // This file drives THREE surfaces from one array: the /cookies notice page
 // (src/app/(public)/cookies/page.tsx) and the preferences panel's control list
@@ -26,7 +28,10 @@
 // previously-stored consent choice (Phase B's readConsent treats a version
 // mismatch as "no consent") and re-prompts every visitor. A wording-only
 // typo fix that changes nothing substantive does not require a bump.
-export const CONSENT_BANNER_VERSION = "2026-07-16.1";
+// Bumped 2026-08-09 (C-20 Step 9): the Google Maps Platform entry below is a
+// new disclosure a returning visitor was never shown, so this is exactly the
+// "a new entry" case the bump policy above requires a bump for.
+export const CONSENT_BANNER_VERSION = "2026-08-09.1";
 
 // C-18 Phase E Step 10 — every banner_version POST /api/consent-events
 // (src/app/api/consent-events/route.ts) still accepts, so a beacon fired from
@@ -35,7 +40,7 @@ export const CONSENT_BANNER_VERSION = "2026-07-16.1";
 // in-memory consent-store snapshot until the visitor reloads — still gets
 // logged instead of silently dropped. A version is added here, never
 // removed, in the SAME change that bumps CONSENT_BANNER_VERSION above.
-export const KNOWN_BANNER_VERSIONS: readonly string[] = [CONSENT_BANNER_VERSION];
+export const KNOWN_BANNER_VERSIONS: readonly string[] = ["2026-07-16.1", CONSENT_BANNER_VERSION];
 
 // "essential" — strictly necessary for a function the visitor themselves
 //   requested; exempt from consent under PECR. Every "essential" entry's
@@ -220,6 +225,55 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
     duration: "Session — cleared when you close your browser tab",
     description:
       "Written by Sentry Session Replay, which records a replay of what you did on this site — the pages you viewed, where you clicked and scrolled, and a masked version of what you typed — so we can review it when investigating errors. It only runs on our public pages, and only once you switch Analytics on; switching Analytics back off stops it. Where it is running, every visit is recorded; what varies is whether that recording is sent to us: about 10% of visits are sent automatically, and any visit where an error occurs is sent too, even if it wasn't one of that 10%. It never runs at all on our staff-only admin area, whatever anyone's choice — we've switched it off there outright because of how sensitive the information handled on those pages is. Sentry's separate error-reporting tool, which does not use this storage item, keeps working everywhere, admin included, so we can still catch and fix bugs.",
+  },
+  {
+    // C-20 Step 9. src/components/address/AddressAutocompleteField.tsx —
+    // loadMapsApi() injects <script src="https://maps.googleapis.com/maps/api/js?...">
+    // ONLY from handleFocus(), which fires the first time a visitor focuses
+    // the address field on the booking form
+    // (src/features/booking/components/AboutYouStep.tsx:581) — never on page
+    // load, never anywhere else on the site. This component's own code
+    // writes no cookie and no browser-storage entry of its own, and never
+    // reads document.cookie, localStorage or sessionStorage. What follows is
+    // what GOOGLE's script may do once it runs — outside this repo's code and
+    // outside our control.
+    //
+    // Owner decision, 2026-08-09: classified functional-on-interaction, not
+    // consent-gated — the script loads whenever a visitor focuses the
+    // address field while making a booking they have already started.
+    // Filed as "essential" below, not "functional": this file's own
+    // "functional" group description (PURPOSE_DESCRIPTIONS.functional,
+    // below) promises "Nothing in this group is stored, or read back, unless
+    // you switch it on" — a claim backed, per the GATING OBLIGATIONS note
+    // above, by a real code gate for every other entry in that bucket. No
+    // such gate exists or is being added here: Maps loads on interaction
+    // regardless of the visitor's functional-consent choice, so filing it as
+    // "functional" would make that group's blanket promise false for this
+    // entry. "Essential — strictly necessary for a function the visitor
+    // themselves requested; exempt from consent under PECR" is the bucket
+    // that actually describes this behaviour; the specific function is named
+    // in the description below, as that bucket's rule requires.
+    //
+    // No cookie name is asserted below because none is knowable without
+    // guessing. Verified against Google's current published position, not
+    // from memory: the Maps JavaScript API, loaded this way (a script tag
+    // from maps.googleapis.com; this integration never instantiates a
+    // google.maps.Map — it only calls the Places Autocomplete / Place
+    // Details web service), is documented by Google as not relying on the
+    // exchange of cookies with Google. Separately, Google's Maps Platform
+    // Terms of Service state, more broadly and without naming a specific API
+    // or cookie, that certain Maps API(s) store and access cookies and other
+    // information on end users' devices. Google does not publish a specific
+    // cookie name for this exact combination (JS API loader + Places API
+    // (New) Autocomplete), so none is invented here.
+    name: "Google Maps Platform (Google does not publish a cookie name for this API)",
+    provider: "Google (Google Maps Platform)",
+    type: "cookie",
+    purpose: "essential",
+    duration:
+      "Not published by Google for this API, and not independently verified by us — set, and controlled, entirely by Google, not by this site",
+    description:
+      "The moment you tap or click into the address field while making a booking, loads Google's address-lookup service so we can suggest matching UK addresses as you type and fill in your house/street, town, area and postcode from the one you pick — saving you typing it all out. It never loads anywhere else on the site, and not until you've started typing an address yourself while booking. Our own code doesn't set or read any cookie or browser storage for this feature; once Google's script is running it is under Google's control, not ours, and we don't rely on anything it might store in your browser. If the service can't load — for example if it's blocked — the address field just stays a normal text box and your booking isn't affected.",
   },
 ];
 

@@ -37,13 +37,24 @@ const INVENTORY_NAMES = [
 // can be diffed against it without this entry looking like a discrepancy.
 const SELF_INTRODUCED_NAMES = ["rahma_consent"] as const;
 
-const EXPECTED_NAMES: readonly string[] = [...INVENTORY_NAMES, ...SELF_INTRODUCED_NAMES];
+// C-20 Step 9 adds the Google Maps Platform disclosure — likewise a name no
+// C-18 inventory pass could have found, because the address-autocomplete
+// feature didn't exist when that inventory ran.
+const GOOGLE_MAPS_ENTRY_NAME =
+  "Google Maps Platform (Google does not publish a cookie name for this API)";
+const C20_INTRODUCED_NAMES = [GOOGLE_MAPS_ENTRY_NAME] as const;
+
+const EXPECTED_NAMES: readonly string[] = [
+  ...INVENTORY_NAMES,
+  ...SELF_INTRODUCED_NAMES,
+  ...C20_INTRODUCED_NAMES,
+];
 
 const VALID_PURPOSES: CookiePurpose[] = ["essential", "functional", "analytics"];
 const VALID_TYPES: StorageMechanism[] = ["cookie", "localStorage", "sessionStorage"];
 
 describe("registry completeness (inventory <-> registry parity)", () => {
-  it("has exactly the 5 inventoried entries plus the consent cookie C-18 adds", () => {
+  it("has exactly the 5 inventoried entries plus what C-18 and C-20 each add", () => {
     expect(COOKIE_REGISTRY.length).toBe(EXPECTED_NAMES.length);
   });
 
@@ -136,11 +147,26 @@ describe("registry completeness (inventory <-> registry parity)", () => {
     expect(entry?.purpose).toBe("analytics");
     expect(entry?.type).toBe("cookie");
   });
+
+  it("the Google Maps Platform entry is classified essential, not functional", () => {
+    // Owner decision 2026-08-09: functional-on-interaction, not consent-gated
+    // — Maps loads on address-field focus regardless of the visitor's
+    // functional-consent choice. "functional" would falsely imply the real
+    // gate that entry's PURPOSE_DESCRIPTIONS group promises (see the entry's
+    // own comment in cookie-registry.ts); "essential" is the bucket whose
+    // definition — strictly necessary for a function the visitor themselves
+    // requested, exempt from consent — actually matches this behaviour.
+    const entry = COOKIE_REGISTRY.find((e) => e.name === GOOGLE_MAPS_ENTRY_NAME);
+    expect(entry).toBeDefined();
+    expect(entry?.purpose).toBe("essential");
+    expect(entry?.type).toBe("cookie");
+    expect(entry?.provider).toBe("Google (Google Maps Platform)");
+  });
 });
 
 describe("CONSENT_BANNER_VERSION", () => {
-  it("is the locked value from the plan/brief", () => {
-    expect(CONSENT_BANNER_VERSION).toBe("2026-07-16.1");
+  it("is the current value, bumped by C-20 Step 9's Google Maps entry (2026-08-09)", () => {
+    expect(CONSENT_BANNER_VERSION).toBe("2026-08-09.1");
   });
 
   it("matches the documented date + counter format", () => {
@@ -149,8 +175,8 @@ describe("CONSENT_BANNER_VERSION", () => {
 });
 
 describe("formatBannerVersionDate", () => {
-  it("formats the locked version's date in plain English", () => {
-    expect(formatBannerVersionDate(CONSENT_BANNER_VERSION)).toBe("16 July 2026");
+  it("formats the current version's date in plain English", () => {
+    expect(formatBannerVersionDate(CONSENT_BANNER_VERSION)).toBe("9 August 2026");
   });
 
   it("falls back to the raw string if the format is unrecognised", () => {
