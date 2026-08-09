@@ -111,7 +111,7 @@ The divergence is instructive: **`availability.ts` has not moved a single line s
 - **`datesOfMonth` duplicated (8 lines)** rather than exported from the live public route — declining to edit a customer-facing file for a non-behavioural reason. The brief's "no duplicated logic" requirement is about the availability **engine**, which is fully reused. Verifier confirmed the duplicate is behaviourally byte-equivalent.
 - **`calculateAvailableDays` now has two production callers by design** (the public month route and the new admin route). `calculateAvailableSlots` still has exactly one and its contract is untouched.
 
-## 2 — Phase C (Steps 5–6) — IMPLEMENTED, **NOT YET INDEPENDENTLY VERIFIED**
+## 2 — Phase C (Steps 5–6) — **VERIFIED TARGETED — PASS**
 
 | Commit | What | Model |
 |---|---|---|
@@ -124,6 +124,32 @@ All four files are **new**; nothing existing was edited. `ManualBookingForm.tsx`
 **The admin-idiom gap, solved deliberately.** `CalendarDatePopover.tsx` — Step 5's stylistic reference — uses **no** `disabled`, `modifiers` or `modifiersClassNames`, and the only in-repo precedent for that combination is the **public** `DatePickerField.tsx`, which does exactly what Step 5 forbids. So there was no admin precedent to copy. Marker styling was built from `--admin-*` tokens directly, reusing the `--admin-status-confirmed-*` / `--admin-status-attention-*` tokens `AdminStatusBadge` already uses, with `--rdp-*` custom properties nudged via Tailwind arbitrary properties rather than a new CSS module. Documented in a header comment.
 
 **Non-colour encoding (gate §3.9) — two independent mechanisms:** a custom `DayButton` rendering a distinct shape glyph (filled circle = available, rotated square = partial), and `labels.labelDayButton` wrapping react-day-picker's own default label function so the availability suffix reaches the `aria-label` without losing the library's today/selected text.
+
+### Independent verification (TARGETED, fresh verifier) — 2026-08-09 — `redesign/evidence/C-23/phase-c-verify.md`
+
+**VERDICT: PASS. Zero blocking findings.** All five led points from the interrupt checkpoint confirmed with self-produced evidence:
+
+1. **`disabled` never exceeds `{ before: min }`** — `AvailabilityCalendarField.tsx:200` is exactly `disabled={[{ before: minDate }]}`. Proved **non-vacuous by executed mutation of a scratchpad COPY** (widened the matcher; the real assertion failed against the broken copy). The calendar informs and never blocks — brief finding 3 holds.
+2. **Marker resolution** — `resolveMarkerState` traced by hand against both cohort counts; matches the spec exactly (2 cohorts: both → available, one → partial, neither → de-emphasised; 1 cohort: available / de-emphasised). Non-vacuity proved the same way, by inverting thresholds on a copy.
+3. **Non-colour encoding genuinely reaches AT** — `MarkerDayButton` and the `labelDayButton` wrapper compared **line-by-line against react-day-picker 9.14.0's actual shipped source in `node_modules`**. The roving-focus effect is reproduced verbatim; the label wrapper calls the real default function first, so today/selected text survives and the availability suffix is appended; the shape glyphs are genuinely non-colour and `aria-hidden` (no double announcement).
+4. **The hook** — cache key uses all four components; the `AbortController` cleanup is unconditional, so it fires identically on key change and unmount; failures resolve to `null` silently with no throw; `enabled` is the only gate and adds no new preconditions (brief finding 4 holds).
+5. **Empty cohorts / loading** — renders unmarked but not broken, by code trace and passing tests.
+
+**Gates by identity:** tsc 0 · vitest 5 failed / 2007 passed (2012), identities exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3 · eslint 59E/7W in exactly the six baseline files, neither new file appearing · the two new suites 14/14 green. **Diff scope:** exactly the four new files, all insertions; `ManualBookingForm.tsx`, `availability.ts`, `src/app/api/availability/**` and the public booking flow all absent.
+
+**One NON-BLOCKING finding:** days with no confirmed availability carry no explicit de-emphasis CSS modifier — de-emphasis is achieved by contrast with marked days rather than an active dimming class. A wording mismatch with the commit message, not a behavioural defect; gate §3.9 and brief finding 3 both still hold. **Not fixed** — it is cosmetic and outside the phase's steps.
+
+**Checks the verifier could not run, recorded rather than glossed:** a live browser/assistive-tech check (the component has no caller until Phase D), a dedicated unmount-specific abort test (cleanup verified by code semantics instead), and `pnpm build` (banned for agents this session).
+
+**Routing note:** the dispatch pinned `model: sonnet` per §5, but the agent self-reported running as Opus 5. Subagent self-reports of their own model are not reliable, so this is recorded as an unverified self-report rather than a confirmed routing breach. It does not weaken the verification either way — §5's de-escalation ban only forbids *downgrading* a routed model, and verification quality is unaffected by running stronger.
+
+### ▶ Phase D remains ⛔ BLOCKED — unchanged
+
+Phase D still cannot start until the §0.2 behavioural baseline is captured, which needs an Owner sign-in. Probed 2026-08-09: `/admin/dashboard/` → **307 to `/admin/login/`**, so no session exists. Dev server itself is **UP** (`/` → 308 `/home`, the documented normal form).
+
+**Phase D anchors re-verified at `425556b` — all still exact, file untouched since `7b1db05`** (`git log 7b1db05..HEAD -- ManualBookingForm.tsx` empty): three `type="date"` branches at **1639 / 1692 / 1824**; state at **593–595**; `canCheckAvailability` **742**; `checkAvailability` **748**; hidden `booking_date` **1075** / `override_availability` **1078**. File is 2,254 lines. The branch-3 handler trap stands exactly as recorded.
+
+**Baseline capture can now proceed with ZERO real emails — one Zone-2 trigger removed.** `createManualBooking` (`src/app/admin/bookings/actions.ts:1466`–~1753) contains exactly **one** email send in its entire body: `sendBookingCreatedEmails` at `:1701`, double-gated at `:1689` behind `sendConfirmationEmail && details.email.trim()`. The form drives that flag from a UI toggle (`ManualBookingForm.tsx:1083`, `emailProvided && sendConfirmationEmail`). Capturing the three baseline bookings with the toggle **off** therefore sends nothing at all — no client mail, no business notification — so rule 2's effect-based email catch-all does not fire. The Owner's standing approval for three real notifications to `rahmatherapy@outlook.com` is **held in reserve, not spent**. Gate §3.3 compares `booking_date` / `start_time` / `override_availability`, so the toggle is irrelevant to it provided it is held constant before and after.
 
 ---
 
