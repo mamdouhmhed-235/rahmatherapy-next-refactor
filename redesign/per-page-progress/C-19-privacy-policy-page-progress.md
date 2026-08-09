@@ -85,6 +85,64 @@ All ⏸ inputs are answered and verified (§1.1). C-19 requires no further Owner
 
 ---
 
-## 4 — ▶ Position
+## 4 — Implementation — **SHIPPED 2026-08-09**
 
-**Not started.** Awaiting C-18 completion, plus ⏸ answers (a) and (c).
+| Commit | What | Model |
+|---|---|---|
+| `e70bef8` | Steps 1–2 — `src/app/(public)/privacy/page.tsx` (220 lines) + 375/1280 evidence screenshots | `sonnet` |
+| `ab80687` | **Fix round** — `what-we-collect` corrected: town/city and the booker's own gender disclosed | `sonnet` |
+
+**Verification tier:** FULL closeout (four independent read-only dimensions in parallel + one adversarial sweep), all `model: sonnet` per §5. No `opus` dispatch on this plan — a static server-rendered content page needs no capability beyond Sonnet, and every reviewer judges against plan text rather than taste.
+
+**Diff scope held exactly to the Owner's lock:** one new source file, zero edits anywhere else, across both commits. Confirmed independently four times (`git show --stat` + `git diff 425556b..ab80687`).
+
+### 4.1 — Closeout verification FAILED first time. Two BLOCKING findings, both real.
+
+The truthfulness dimension returned **FAIL**; the adversarial reviewer then **re-derived both findings from the code independently rather than trusting the first report, and refuted nothing.** Evidence in `redesign/evidence/C-19/closeout-{content-legal,truthfulness,gates-scope,a11y-responsive,adversarial}.md`.
+
+1. **The page under-disclosed a required field.** The booking request collects **four** separate location fields — `postcode`, `address`, **`city`**, `area` — and `AboutYouStep.tsx` renders a dedicated required **"City / Town"** input distinct from **"Area / County"**. The page said only *"Your postcode, address and area"*. A public legal notice omitting a category of data the code genuinely collects is the notice being wrong, not a copy nit.
+2. **The page under-disclosed whose gender is collected.** It said *"the names and genders of anyone else included"* — third parties only. But for a self-booking the gender `<fieldset>`'s `<legend>` reads **"Your gender"** and the value is stored as `clientGender`. The booker's own gender was collected and undisclosed.
+
+**Root cause, named by the adversarial reviewer:** plan Step 2's required cross-check against the booking schema (`plan:36`) was performed but **not exhaustively** against the current `details` object. This is a lost step, not merely a content bug — the plan named the exact verification action that would have caught both.
+
+### 4.2 — Fix round and re-verification
+
+`ab80687` corrected both bullets, +5/−4 in the one file:
+- *"Your **address, town or city, area and postcode**, plus any access or parking notes…"*
+- *"…plus **the gender of the person being treated — including your own if the booking is for you** — and the names and genders of anyone else included."*
+
+**Re-verified by a fresh verifier (`sonnet`) with an exhaustive field-by-field mapping — `redesign/evidence/C-19/fix-round-reverify.md`.** This time the cross-check enumerated **every** field in `bookingRequestSchema` *and* `manualBookingSchema`, cross-read against `AboutYouStep`, `ConfirmStep`, `ScheduleStep`, `PackageSelectionStep` and `createBookingTransaction`, and checked **both directions**: **zero MISSING, zero OVER-DISCLOSED.** Over-disclosure was checked deliberately, because an over-correction is exactly what a hurried fix round would introduce, and a notice claiming to collect what the code does not is equally wrong.
+
+Two non-blocking observations recorded rather than acted on: `numberOfPeople` has no dedicated bullet (inferable from the group wording, not a real gap), and `bookingSource` — an admin-only channel tag — is unmentioned because it is staff-entered operational metadata, not customer-supplied personal data, and was outside the brief's audited field list.
+
+### 4.3 — Gate results (all BY IDENTITY, re-run after the fix)
+
+| Gate | Result |
+|---|---|
+| `npx tsc --noEmit` | **0 errors** |
+| `pnpm vitest run` | 5 failed / 2014 passed (2019) — identities **exactly** `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3. The passed total grew from 2007 because C-20 Phase A landed 7 new tests in the same window; judged by identity, not count |
+| `pnpm lint` | **59E / 7W** in exactly the six baseline files; the privacy page absent from the output |
+| `pnpm build` | **NOT RUN** — banned for agents this session (it twice knocked over the Owner's dev server). Recorded, not glossed |
+| Live render 375 + 1280 | ✅ `redesign/evidence/C-19/privacy-{375,1280}.png`; all nine sections and the last-updated line present |
+| Isolation | ✅ nothing staged or modified outside the one file (excluding the standing `maintenance.ts` change and pre-existing untracked dirt) |
+
+**Accessibility / responsive, on measured evidence not impressions:** body contrast **7.09:1**, links **5.18:1** (both on computed colours against the actual rendered background); the `65ch` measure holds at **646.9px at both 375 and 1280**, never stretching; zero horizontal overflow at either width; all nine deep-link anchors land the section at a consistent 94px offset clearing the sticky header; `--rahma-*` public tokens throughout with **zero `--admin-*`** hits.
+
+### 4.4 — Deliberately NOT fixed (out of the Owner-locked one-file scope; all in `OWNER-ACTION-BACKLOG.md`)
+
+- **Sentry's `SENSITIVE_KEY_PATTERN` does not key-match `notes` / `participantNotes`** (`sentry-scrubbing.ts:4`). **Latent, not firing** — all 7 `Sentry.capture*` call sites were enumerated and none attaches those fields, and `sendDefaultPii: false` keeps the request body out of the automatic path. So the page's "personal information is scrubbed before it reaches Sentry" is **accurate about what actually reaches Sentry today**, which is why the copy was left alone rather than softened. It becomes false the moment any future capture attaches those fields.
+- **No `<h1>` on `/privacy` or `/cookies`** — `SectionHeading.tsx:60` hardcodes `<h2>` and legal pages have no Hero. A real WCAG gap, but **sitewide and pre-existing**, with the fix in a shared component outside this plan's lock. The plan asked for the "existing public heading pattern" and that is precisely what was built.
+- **The `<title>` em-dash where every other public page uses a pipe.** `plan:32` specifies that string verbatim; changing Owner-reviewed plan copy unasked is the deviation this programme guards against. Owner's call.
+
+### 4.5 — Standing caveat, restated because it is now public
+
+**No code enforces the published retention periods.** A `src/` sweep found no pruning process for bookings, clients or enquiries; the only booking deletion is a rollback path in the recurring-horizons cron. The page states 7 years / ~12 months as the practice's **policy** and makes **no claim of automatic deletion** — verified in both closeout passes. Enforcement is a manual, operational commitment the Owner now holds publicly. Building a retention job was explicitly out of C-19's scope.
+
+Also still open from §1: the brief's **ICO Tier 1 £52** figure assumed the smallest band. Now that the controller is known to be an incorporated company, the band should be confirmed against it. Business action, not code.
+
+---
+
+## 5 — ▶ Position
+
+**✅ SHIPPED.** Final code SHA `ab80687`. No Owner input outstanding for this plan.
+
