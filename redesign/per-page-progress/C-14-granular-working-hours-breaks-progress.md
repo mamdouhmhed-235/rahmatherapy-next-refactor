@@ -82,8 +82,56 @@ The implementer observed **HEAD moving under it mid-run** and an unexpected dirt
 
 ---
 
+### 1.5 — Independent FULL verification — **PASS**, zero BLOCKING — `redesign/evidence/C-14/phase-d-verify-full.md`
+
+- **Boundary independently re-derived, then confirmed live in both directions.** The verifier computed `addBusinessDays("2026-08-09", 29)` → `2026-09-07` from the code without relying on the implementer's figure, then probed the running server read-only: `2026-08-08` and `2026-09-08` **rejected** with *"Date is outside the booking window."*; `2026-08-09` and `2026-09-07` **accepted**. Picker bound and server bound agree exactly — the off-by-one this phase exists to prevent is genuinely absent.
+- **The sweep test's baseline was audited, not assumed** — this was the check most worth making, because a sweep against a *wrong* "pre-refactor algorithm" proves nothing. The verifier quoted the real pre-refactor `isDateInBusinessWindow` from `git show 4583573^:src/lib/time/london.ts` against the test's inline `legacy` function: identical logic. The equivalence claim stands.
+- **Notice semantics confirmed:** `isDateInBusinessWindow` passes no notice argument (lower bound stays `today`), and the per-slot 4-hour check remains in `isOutsideMinimumNotice` (`availability.ts:735-743`), untouched. Had the refactor accidentally made the server guard notice-aware, same-day evening slots would have broken — it did not.
+- **Step 5 cross-plan hazard clear:** `AvailabilityCalendarField.tsx:231` is `disabled={[{ before: minDate }]}`, no `after`, no C-14 import — the file is **not even in the commit's diff**.
+- **Both mutants killed:** exclusive upper bound → 2 tests failed; +1-day off-by-one → 6 failed.
+- **Both deviations audited and upheld on the merits.** Deviation 1: no `cookies()`/`headers()` anywhere in the path, `unstable_cache`-wrapped, `try/catch → null`, all bounds optional, only two JSON-safe numbers cross the cache boundary, and `ScheduleStep` is confirmed `"use client"` deriving dates **without** `now` — so no "today" can be baked into a prerendered page. Deviation 2: the circular-import claim is **real** — `london.ts` uniquely exports `getBusinessDate`/`addBusinessDays` and already holds `isDateInBusinessWindow`, so the plan's location would have created a direct two-file cycle.
+- **Informational:** the verifier's live probe returned 24 slots on 2026-09-07 vs the implementer's 23 — a different service/gender combination, not a boundary discrepancy. Recorded so a later reader does not mistake it for drift.
+
+**Non-blocking, carried forward:** the `layout.tsx` edit remains an unexcused rule 6(b) halt violation (self-flagged, §1.3), and **the 54/54-static prerender check is genuinely unverified** until the single end-of-programme build.
+
+---
+
 ## 2 — ▶ Position
 
-**Phase D implemented (`4583573`), not yet independently verified.** Phases A, B and C **not started** — both remaining phases run into the ⛔ gates in §0.2.
+**Phase D ✅ implemented (`4583573`) and FULL-verified.** Phases A, B and C **not started** — both run into the ⛔ gates in §0.2.
+
+---
+
+# ▶▶ PROGRAMME INTERRUPT CHECKPOINT — 2026-08-09 — READ FIRST ON RESUME
+
+**Everything still open is blocked on an Owner decision. No agent is running; nothing is mid-flight; the tree is clean apart from the standing `maintenance.ts`.**
+
+| Field | Value |
+|---|---|
+| Last-good commit | **`4611ee7`** (this checkpoint commit follows it) |
+| Files mid-flight | **NONE.** Only `src/lib/maintenance.ts` (standing Owner change — never stage) |
+| Master-plan rows | **20 of 23 ✅.** Remaining: **C-20** (implementation complete, held on one decision), **C-14** (Phase D done; A/B/C blocked on ⛔), **C-10** (not started, and correctly so) |
+| Drift checkpoint #4 | **DONE** — `DRIFT-CHECKPOINT-4-FORMAL.md`, verdict FAIL, all three findings remediated or logged |
+| Baseline BY IDENTITY | tsc **0** · vitest failures exactly `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3 (totals at `4583573`: **5 failed / 2070 passed / 2075**) · eslint **59E/7W** in exactly the six baseline files |
+
+### The four Owner decisions that unblock everything
+
+1. **C-20 consent classification** — Maps as *functional-on-interaction* or *consent-gated*? Unblocks Step 9's registry half, the last thing between C-20 and ✅. Bumps `CONSENT_BANNER_VERSION` (re-prompts returning visitors).
+2. **C-14 Phase C migration (⛔)** — the two `DROP`s in §0.2, shipping atomically with the `createAvailabilityOverride` rewrite.
+3. **C-23's two gate rulings** (§3.4b of the C-23 progress file) — recommendation: accept the code-level proof.
+4. **The recurring-series email defect** (`OWNER-ACTION-BACKLOG.md`) — a ~4-line fix no remaining plan owns.
+
+### Why C-10 has NOT been started, deliberately
+
+C-10 measures **final** page heights, and C-14's remaining phases add the working-hours editor to the admin availability pages. Cataloguing now would record geometry C-14 then invalidates — precisely the failure C-10's own pre-flight #4 warns about for C-16. **C-10 must run after C-14 completes.** It needs the dev server plus an Owner admin session, both currently available.
+
+### EXACT NEXT ACTIONS, in order
+
+1. Get decision #1 → implement C-20 Step 9's registry half + `CONSENT_BANNER_VERSION` bump → re-verify → flip C-20 to ✅.
+2. C-14 Phase A Steps 6–8 (`working-hours-segments.ts`, `WorkingHoursDayEditor`, wire into `AvailabilityRulesManager`) — **no ⛔ until Step 9's RPC choice**; §0.1(a) shows the schema does not force an RPC.
+3. C-14 Phase B, then Phase C behind decision #2.
+4. C-10 Phases A and B last.
+5. **The single orchestrator build, last of all** — and it must specifically confirm **54/54 static** (§1.3's named check) plus C-20's +3 kB and C-23's +6 kB bundle ceilings, none of which any agent could measure.
+6. Restore `src/lib/maintenance.ts` to `MAINTENANCE_MODE = true` **before any deploy**, and state its state in the final report.
 
 **Gates by identity at `4583573`:** tsc 0 · vitest **5 failed / 2070 passed (2075)**, the five inherited by name · lint **59E/7W** in exactly the six baseline files. Build NOT RUN (banned).
