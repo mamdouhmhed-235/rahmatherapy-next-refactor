@@ -343,7 +343,7 @@ export function AdminTopNav({
       <main
         id="admin-main"
         tabIndex={-1}
-        className="min-w-0 px-4 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] pt-5 text-[var(--admin-heading)] outline-none sm:px-6 lg:px-8 md:pb-8"
+        className="min-w-0 px-4 pb-[calc(3.5rem+1.5rem+env(safe-area-inset-bottom,0px))] pt-5 text-[var(--admin-heading)] outline-none sm:px-6 lg:px-8 md:pb-8"
       >
         <div className="mx-auto w-full min-w-0 max-w-[100rem]">
           {children}
