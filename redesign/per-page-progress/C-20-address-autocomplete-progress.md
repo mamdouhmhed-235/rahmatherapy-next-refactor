@@ -203,6 +203,38 @@ Selecting "10 High Street North, Dunstable" filled all four fields from a real G
 
 **Deferred as instructed:** the `cookie-registry.ts` entry and `CONSENT_BANNER_VERSION` bump (Step 9's other half) — blocked on the Owner's ⏸ consent classification, and a bump re-prompts every returning visitor. `git status -- src/lib/consent` confirmed empty.
 
+## 1c — Closeout verification (4 read-only agents) — and one BLOCKING finding REFUTED by live test
+
+`redesign/evidence/C-20/closeout-{gates-scope,cost-mechanics,a11y-tokens,adversarial}.md`.
+
+- **Gates + scope + isolation: PASS, zero findings.** Scope confirmed per-commit (not by range diff, correctly avoiding the interleaved C-19/C-23 commits): only the six expected paths. **Zero `AIza` matches across all six commits** — no key literal committed. No consent file touched. No dependency added. Gates by identity: tsc 0 · vitest 5 failed / 2055 passed (2060), the five inherited by name · lint 59E/7W in exactly the six baseline files, **no seventh**, and none of C-20's own files carry a diagnostic.
+- **Cost mechanics: PASS.** All seven blocking requirements verified, and items 1–3 proven **non-vacuous by executed mutants**: adding `displayName` to the field list, minting a token per fetch, and removing the debounce each failed exactly the expected assertion. One NON-BLOCKING gap — see §1c.2.
+
+### 1c.1 — ⚠️ A BLOCKING finding was raised, argued in depth, and is WRONG. Settled empirically.
+
+The a11y dimension returned **FAIL**, claiming Escape while the suggestion list is open would **also close the booking dialog**, losing the customer's progress on the revenue path. The argument was unusually well sourced: Base UI's `useDismiss` registers a **native** `document`-level bubble listener (`useDismiss.js:397`); Next.js App Router hydrates React onto `document` too, so React's delegated listeners sit on the **same node**; React's synthetic `stopPropagation()` calls only native `stopPropagation()`, never `stopImmediatePropagation()`; and per the DOM spec plain `stopPropagation()` cannot stop a separately-registered listener on the same node. It also **directly contradicted** the Phase B FULL verifier, which had read the same file and concluded the opposite.
+
+**Two verifiers disagreeing on the same mechanism is not resolvable by more source-reading. It was settled with a real key press.**
+
+Live result, Owner's browser, real `Escape` (not a synthetic dispatch — synthetic events would not reproduce native listener ordering, which was the whole crux):
+
+| Condition | Suggestion list | Booking dialog | Typed value |
+|---|---|---|---|
+| Escape, **list open** | **dismissed** | **stayed open** | **preserved** (`12 Dunstable Road, Luton`) |
+| Escape, **list closed** | — | **closed normally** (`?booking=1&services=…` → `/home/`) | — |
+
+Both branches behave exactly as designed. **Finding refuted.**
+
+**Why the analysis was wrong, since a refutation without a mechanism is only half an answer:** the handler calls **`e.preventDefault()`** at `AddressAutocompleteField.tsx:402`, immediately before `stopPropagation()`. That sets `defaultPrevented`, and Base UI's dismiss handler honours it — so listener registration order and `stopImmediatePropagation` semantics, the entire basis of the chain, never come into play. The verifier reasoned meticulously about the one line and never accounted for the line above it.
+
+**Lesson worth keeping:** a deeply-sourced argument is not evidence. This finding cited react-dom internals, Base UI source and the DOM spec, and was still wrong — while a two-minute live key press was decisive. Where a claim is about *observable runtime behaviour* and the surface is reachable, test it before accepting or acting on it.
+
+### 1c.2 — One NON-BLOCKING gap, worth closing
+
+**`includedRegionCodes: ["gb"]` — the UK restriction — has no unit test pinning it.** The code is correct (`AddressAutocompleteField.tsx:321`, correctly separate from the formatting-only `region`/`language`), and `includedPrimaryTypes` *is* test-pinned in the debounce test — but grepping the test file for `includedRegionCodes` returns zero matches. Its only verification is the one-off **live, billed** check recorded in §1a.2 ("every suggestion a real Luton address"), which is not a repeatable regression guard. A future rename or accidental drop would be caught only by another manual live check. **Fix: pin it alongside `includedPrimaryTypes`.**
+
+**Tooling constraint hit twice, recorded:** two separate agents found they could not stage mutation copies in the scratchpad, because vitest's `include` glob is `src/**` and Vite's bare-import resolution needs the file inside the project tree. Both used a transient, immediately-deleted directory under `src/` instead, and both verified `git status --porcelain -- src/` clean afterwards. No real file was ever mutated, but it bends the "scratchpad copies only" rule and will recur — worth solving properly if mutation testing continues.
+
 ## 2 — ▶ Position (corrected 2026-08-09 — drift checkpoint #4 finding 2)
 
 **Phases A, B, C and D are committed and verified** (§1a, §1b). **Phase E (closeout) is next** — the §3.2 real-address matrix has 2 of 5 cases done live (Luton terrace, Dunstable), leaving flat/apartment, new-build without `postal_town`, and out-of-covered-area.
