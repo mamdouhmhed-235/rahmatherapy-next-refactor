@@ -245,6 +245,31 @@ Driven against the Owner's authenticated session. **No booking was created, modi
 
 **Noticed, NOT fixed — pre-existing, not C-23's (rule 6a):** at 375px, eight page-level containers on `/admin/bookings/new/` (`HEADER`, the step progress bar, the `grid gap-6` wrapper, the `FORM`) measure 374px wide starting at x=16, so their right edge lands at 390 against a 375 viewport. No horizontal scrollbar results and the calendar is unaffected. `/admin/dashboard/` does not share the pattern (its only overhangs are intentional `snap-start` carousel items). This is admin chrome layout, outside C-23's files-touched — **logged for C-10**, which owns page-layout polish and runs last.
 
+### 3.4a — Phase E gate results (plan §3's ten items), run by the orchestrator against the live Owner session
+
+| # | Gate | Result |
+|---|---|---|
+| 1 | Static gates | ✅ by identity (tsc 0 · vitest 5 failed/2041 passed, the five inherited by name · lint 59E/7W, six baseline files). **Build + the +6 kB bundle ceiling NOT RUN** — builds are banned for agents this session; the orchestrator runs ONE build last, programme-wide |
+| 2 | Port fidelity (blocking) | ✅ **SPENT** — a pre-condition, satisfied before Phase B at `7b1db05` (§0.1). Re-running post-Phase-B is meaningless because Phase B intentionally edits `availability.ts`; see §1's second correction. Do not re-run |
+| 3 | No-discrepancy proof (blocking) | ✅ **branches 1 and 2 confirmed LIVE** (§3.4); branch 3 confirmed by byte-identical code. Every field matched the captured baseline |
+| 4 | Non-removal audit (blocking) | ✅ all 13 items, derived **twice independently** (implementer, then FULL verifier) |
+| 5 | Month ↔ day equivalence | ✅ **6 sampled dates, all agree** between the admin month route's `hasSlots` and `/api/availability`'s slot presence — `2026-08-09` (0 slots / false), `-10` (23 / true), `-12` (23 / true), `-16` (0 / false), `-30` (0 / false), `-31` (23 / true). Incidentally confirms Phase B's finding that the admin route's zod shape is byte-identical to the public route's: it rejects `genders` and requires `participantGenders` |
+| 6 | Admin relaxation — **window half** | ✅ **PROVEN LIVE, read-only, no mutation.** Same month/inputs to both routes: admin marks **26** September days, public marks **6**; admin's last available is `2026-09-30`, public's is **`2026-09-07`** — exactly `today (2026-08-09) + booking_window_days (29)`. 20 divergent dates, all from `2026-09-08` on. `ignoreBookingWindow` works precisely and the public route still enforces the customer window unchanged |
+| 6 | Admin relaxation — **paused half** | ⏸ **NOT RUN — needs a Zone-2 production toggle** (see §3.4b) |
+| 7 | Mixed-gender "partial" marker | ⚠️ **NOT OBSERVABLE without a production mutation** (see §3.4b). Logic proven at unit level by the Phase C verifier's executed mutation testing, and the three-state legend renders live: *Available / Partial — only one group / No confirmed availability* |
+| 8 | Degradation | ◑ Covered by tests (month fetch failure → unmarked, never blocking). Live forcing of an endpoint failure not attempted |
+| 9 | A11y + responsive | ✅ AT announcement confirmed in the **live accessibility tree** (`"Monday, August 10th, 2026 — availability confirmed"`, and `"Today, Sunday, August 9th, 2026"` retaining its today text). Non-colour encoding confirmed visually — three distinct glyphs (filled circle / diamond / hollow ring), not three colours. 375 + 1280 screenshots captured for branch 2; branches 1 and 3 outstanding |
+| 10 | RBAC | ✅ unauthenticated `POST /api/admin/availability/month/` → **401 `{"error":"Not signed in."}`**; wrong method → **405**. The under-permissioned half is Owner-performed by necessity (no agent may sign in as another role); the permission gate itself was confirmed in code at Phase B (`canManageAllBookings`, all three surfaces converging) |
+
+**Marker correctness corroborated by arithmetic, not just eyeballing.** August rendered **19 marked / 12 unmarked**; the 12 are exactly 1–9 (past, plus today's closed Sunday) and Sundays 16, 23, 30. September rendered 26 marked; the 4 unmarked are exactly its four Sundays. Both match `availability_rules` day 0 `is_working_day = false`.
+
+### 3.4b — ⏸ Two gate items need an Owner decision, because both require mutating production
+
+Neither is a defect; both are gates that cannot be *observed* without changing live data. **Recommendation: accept the code-level proof for both rather than mutate production.**
+
+1. **Gate 6, paused half** — "with public booking paused, the admin calendar still marks days". Requires flipping `business_settings.booking_status_enabled` to `false` on the **production** database, during which **real customers cannot book**. The `ignorePublicPause` guard was already proven by the Phase B verifier's executed mutation testing (breaking guard 2 `||`→`&&` failed 4 of 7 tests). **Recommend: accept the mutation-proof, do not pause live booking for a screenshot.**
+2. **Gate 7, partial marker** — needs a day servable for exactly one cohort. **No such day exists naturally:** every bookable staff member uses `availability_mode = use_global` (3 female + 2 male), so female and male availability coincide on every working day. The one exception, `Test Therapist Fresh`, is `custom` with **zero** rules, i.e. never available. Manufacturing a partial day means inserting `staff_blocked_dates` rows for both male staff on a future date and deleting them after. The partial branch of `resolveMarkerState` was already mutation-tested at Phase C (inverting the thresholds failed the real assertions), and the "Partial — only one group" legend renders live. **Recommend: accept unit-level proof.** If you would rather see it rendered, say so and I will raise the ⛔ with the exact SQL.
+
 ### 3.5 — Still outstanding for Phase D/E
 
 - Independent **FULL** verification of `d701d9a` + `d142897` (dispatched).
