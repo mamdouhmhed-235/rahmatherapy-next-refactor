@@ -60,6 +60,17 @@ export interface AvailabilityCalendarFieldProps {
   loading: boolean;
   /** today, preserved as the only disabled boundary. */
   min: string;
+  /**
+   * Displayed month as `yyyy-MM`, passed straight through to react-day-picker's
+   * own `month`. Omit (or pass an unparseable value) and month navigation stays
+   * uncontrolled, exactly as before this prop existed.
+   */
+  month?: string;
+  /**
+   * Fires with the newly-displayed `yyyy-MM` when the operator pages the
+   * calendar. Paging NEVER changes the selected date — only `onChange` does.
+   */
+  onMonthChange?: (month: string) => void;
 }
 
 type MarkerState = "available" | "partial" | "none";
@@ -79,6 +90,17 @@ function toLocalDateKey(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
+}
+
+function parseLocalMonth(value: string): Date | undefined {
+  const match = /^(\d{4})-(\d{2})$/.exec(value);
+  if (!match) return undefined;
+  const [, y, m] = match;
+  return new Date(Number(y), Number(m) - 1, 1);
+}
+
+function toLocalMonthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function resolveMarkerState(dateKey: string, cohorts: CohortMarkers[]): MarkerState {
@@ -157,11 +179,16 @@ export function AvailabilityCalendarField({
   cohorts,
   loading,
   min,
+  month,
+  onMonthChange,
 }: AvailabilityCalendarFieldProps) {
   const legendId = useId();
   const hintId = useId();
   const minDate = parseLocalDate(min) ?? new Date();
   const selected = parseLocalDate(value);
+  // undefined ⇒ react-day-picker falls back to its uncontrolled month state and
+  // `defaultMonth` below, i.e. exactly the behaviour before these props existed.
+  const displayedMonth = month ? parseLocalMonth(month) : undefined;
 
   const { availableDays, partialDays } = useMemo(() => {
     // Loading (or no data yet) means every day renders unmarked, not broken —
@@ -195,6 +222,10 @@ export function AvailabilityCalendarField({
         mode="single"
         selected={selected}
         onSelect={(date) => onChange(date ? toLocalDateKey(date) : "")}
+        month={displayedMonth}
+        onMonthChange={
+          onMonthChange ? (next) => onMonthChange(toLocalMonthKey(next)) : undefined
+        }
         defaultMonth={selected ?? minDate}
         weekStartsOn={1}
         disabled={[{ before: minDate }]}

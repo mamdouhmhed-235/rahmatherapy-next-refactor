@@ -433,9 +433,11 @@ function seedStep3Draft(draft: Record<string, unknown>) {
 }
 
 /**
- * Month endpoint: 2026-08-12 servable by female therapists only, 2026-08-13 by
- * neither. With one cohort that reads available / unmarked; with two it reads
- * partial / unmarked — the two cases the markers must distinguish.
+ * Month endpoint: the 12th of whichever month was asked for is servable by
+ * female therapists only, the 13th by neither. With one cohort that reads
+ * available / unmarked; with two it reads partial / unmarked — the two cases the
+ * markers must distinguish. Answering per requested month is what lets the
+ * month-navigation specs tell a stale answer from a fresh one.
  */
 function stubFetch() {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -449,8 +451,8 @@ function stubFetch() {
         json: async () => ({
           month: body.month,
           days: [
-            { date: "2026-08-12", hasSlots: female, slotCount: female ? 3 : 0 },
-            { date: "2026-08-13", hasSlots: false, slotCount: 0 },
+            { date: `${body.month}-12`, hasSlots: female, slotCount: female ? 3 : 0 },
+            { date: `${body.month}-13`, hasSlots: false, slotCount: 0 },
           ],
         }),
       } as unknown as Response;
@@ -484,6 +486,8 @@ const hidden = (container: HTMLElement, name: string) =>
 
 const dayButton = (container: HTMLElement, isoDate: string) =>
   container.querySelector<HTMLButtonElement>(`[data-day="${isoDate}"] button`);
+
+const nextMonthButton = () => screen.getByRole("button", { name: "Go to the Next Month" });
 
 describe("ManualBookingForm availability calendar (C-23 Phase D)", () => {
   beforeEach(() => {
@@ -669,5 +673,118 @@ describe("ManualBookingForm availability calendar (C-23 Phase D)", () => {
       "availability confirmed"
     );
     expect(dayButton(container, "2026-08-12")?.disabled).toBe(false);
+  });
+
+  it("paging to the next month fetches THAT month and marks it — the calendar keeps informing while the operator explores", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchMock = stubFetch();
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(1));
+
+    await user.click(nextMonthButton());
+
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(2));
+    expect(bodiesOf(fetchMock, MONTH_ENDPOINT)[1]).toEqual({
+      month: "2026-09",
+      serviceIds: ["hijama-package"],
+      participantGenders: ["female"],
+      city: "Luton",
+    });
+
+    // September is displayed AND marked — before this, paging showed a
+    // completely unmarked month until a date in it happened to be picked.
+    await waitFor(() =>
+      expect(dayButton(container, "2026-09-12")?.getAttribute("aria-label")).toContain(
+        "availability confirmed"
+      )
+    );
+    expect(dayButton(container, "2026-09-13")?.getAttribute("aria-label")).not.toContain(
+      "availability confirmed"
+    );
+    expect(dayButton(container, "2026-09-13")?.disabled).toBe(false);
+  });
+
+  it("paging aborts the month request still in flight for the month left behind", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const signals: AbortSignal[] = [];
+    const months: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(MONTH_ENDPOINT);
+        months.push(JSON.parse(String(init?.body ?? "{}")).month);
+        signals.push(init?.signal as AbortSignal);
+        // Never resolves — the point is to observe the abort, not a response.
+        return new Promise<Response>(() => {});
+      })
+    );
+    seedStep3Draft({});
+    render(<ManualBookingForm services={services} prefillClient={null} enquiry={null} />);
+    await waitFor(() => expect(signals.length).toBe(1));
+    expect(signals[0].aborted).toBe(false);
+
+    await user.click(nextMonthButton());
+
+    await waitFor(() => expect(signals.length).toBe(2));
+    expect(months).toEqual(["2026-08", "2026-09"]);
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(false);
+  });
+
+  it("paging the calendar never changes the selected date or the chosen start time", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchMock = stubFetch();
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    await waitFor(() => expect(dayButton(container, "2026-08-12")).not.toBeNull());
+
+    await user.click(dayButton(container, "2026-08-12")!);
+    await waitFor(() => expect(hidden(container, "booking_date")?.value).toBe("2026-08-12"));
+    await user.click(await screen.findByRole("button", { name: /10:00/ }));
+    await waitFor(() => expect(hidden(container, "start_time")?.value).toBe("10:00"));
+    const dayCallsBefore = callsTo(fetchMock, DAY_ENDPOINT).length;
+
+    await user.click(nextMonthButton());
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(2));
+
+    // The submitted payload is untouched by browsing — no auto-select, no
+    // auto-clear, and no second per-day check (brief §4.5 / §5.5).
+    expect(hidden(container, "booking_date")?.value).toBe("2026-08-12");
+    expect(hidden(container, "start_time")?.value).toBe("10:00");
+    expect(callsTo(fetchMock, DAY_ENDPOINT).length).toBe(dayCallsBefore);
+  });
+
+  it("branch 2 — paging drives BOTH cohorts from the one displayed month", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchMock = stubFetch();
+    seedStep3Draft({
+      bookingForMode: "group",
+      participants: [participant("female", "Aisha"), participant("male", "Bilal")],
+    });
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(2));
+
+    await user.click(nextMonthButton());
+
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(4));
+    const refetched = bodiesOf(fetchMock, MONTH_ENDPOINT).slice(2);
+    expect(refetched.map((b) => b.month)).toEqual(["2026-09", "2026-09"]);
+    expect(refetched.map((b) => b.participantGenders)).toContainEqual(["female"]);
+    expect(refetched.map((b) => b.participantGenders)).toContainEqual(["male"]);
+
+    // Still one calendar, and the female-only day in the NEW month reads partial.
+    expect(container.querySelectorAll('[data-day="2026-09-12"]').length).toBe(1);
+    await waitFor(() =>
+      expect(dayButton(container, "2026-09-12")?.getAttribute("aria-label")).toContain(
+        "availability for one participant group only"
+      )
+    );
   });
 });

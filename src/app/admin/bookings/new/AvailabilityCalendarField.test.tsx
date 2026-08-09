@@ -12,7 +12,7 @@
 // DayPicker.js) — tests key off that `data-day` attribute rather than
 // locale-formatted button text, which would be brittle across environments.
 
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -178,6 +178,92 @@ describe("AvailabilityCalendarField — interaction", () => {
     const button = dayButton(container, "2026-08-12");
     await user.click(button as HTMLButtonElement);
     expect(onChange).toHaveBeenCalledWith("2026-08-12");
+  });
+});
+
+describe("AvailabilityCalendarField — month navigation", () => {
+  // 2026-08-15 only ever appears in August's grid and 2026-09-15 only in
+  // September's, so either one's presence identifies the displayed month
+  // without depending on locale-formatted caption text.
+  const nextMonthButton = () =>
+    screen.getByRole("button", { name: "Go to the Next Month" });
+
+  it("keeps month navigation uncontrolled when month/onMonthChange are omitted", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <AvailabilityCalendarField value="" onChange={vi.fn()} cohorts={[]} loading={false} min={MIN} />
+    );
+    expect(dayCell(container, "2026-08-15")).not.toBeNull();
+    expect(dayCell(container, "2026-09-15")).toBeNull();
+
+    await user.click(nextMonthButton());
+
+    // Behaviour with the props omitted is exactly as before they existed: the
+    // library moves its own month state.
+    expect(dayCell(container, "2026-09-15")).not.toBeNull();
+    expect(dayCell(container, "2026-08-15")).toBeNull();
+  });
+
+  it("reports the new month and stays on the controlled one until the owner moves it", async () => {
+    const user = userEvent.setup();
+    const onMonthChange = vi.fn();
+    const { container, rerender } = render(
+      <AvailabilityCalendarField
+        value=""
+        onChange={vi.fn()}
+        cohorts={[]}
+        loading={false}
+        min={MIN}
+        month="2026-08"
+        onMonthChange={onMonthChange}
+      />
+    );
+
+    await user.click(nextMonthButton());
+
+    expect(onMonthChange).toHaveBeenCalledWith("2026-09");
+    // Controlled: the owner has not moved `month`, so the grid has not moved.
+    expect(dayCell(container, "2026-08-15")).not.toBeNull();
+    expect(dayCell(container, "2026-09-15")).toBeNull();
+
+    rerender(
+      <AvailabilityCalendarField
+        value=""
+        onChange={vi.fn()}
+        cohorts={[]}
+        loading={false}
+        min={MIN}
+        month="2026-09"
+        onMonthChange={onMonthChange}
+      />
+    );
+    expect(dayCell(container, "2026-09-15")).not.toBeNull();
+    expect(dayCell(container, "2026-08-15")).toBeNull();
+  });
+
+  it("never changes the selected date when the displayed month changes", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const props = {
+      value: "2026-08-12",
+      onChange,
+      cohorts: [] as CohortMarkers[],
+      loading: false,
+      min: MIN,
+      onMonthChange: vi.fn(),
+    };
+    const { container, rerender } = render(
+      <AvailabilityCalendarField {...props} month="2026-08" />
+    );
+
+    await user.click(nextMonthButton());
+    rerender(<AvailabilityCalendarField {...props} month="2026-09" />);
+
+    expect(onChange).not.toHaveBeenCalled();
+    // Back on August the selection is still exactly where the operator left it.
+    rerender(<AvailabilityCalendarField {...props} month="2026-08" />);
+    expect(dayCell(container, "2026-08-12")?.getAttribute("data-selected")).toBe("true");
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

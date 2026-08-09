@@ -816,13 +816,17 @@ export function ManualBookingForm({
   // where the existing `canCheckAvailability` gate already allows a per-day one
   // — no new preconditions (brief finding 4).
   //
-  // KNOWN LIMIT: the month shown is derived from the picked date (today's month
-  // until one is picked). AvailabilityCalendarField (Phase C) exposes no
-  // month/onMonthChange prop, so paging the calendar forward cannot refetch;
-  // that month renders unmarked until a date in it is picked. Never blocking —
-  // every day stays selectable and the per-day check still runs.
+  // The month key follows the month the calendar is DISPLAYING, not the picked
+  // date, so paging forward fetches that month's markers (brief §4.3/§5.6). The
+  // hook's cache key is `month|services|genders|city`, so a month change is a
+  // key change: it aborts any in-flight request and refetches. Both mixed-gender
+  // cohorts read the same `displayedMonth`, so one calendar shows two marker
+  // sets for one month. Paging never touches `bookingDate` — the operator's
+  // selection is only ever changed by the operator (brief §4.5).
   const calendarMin = new Date().toISOString().split("T")[0];
-  const calendarMonthKey = (bookingDate || calendarMin).slice(0, 7);
+  const [displayedMonth, setDisplayedMonth] = useState(() =>
+    (bookingDate || calendarMin).slice(0, 7)
+  );
   const singleCalendarEnabled =
     canCheckAvailability && !overrideAvailability && !isMixedGenderGroup;
   const mixedCalendarEnabled =
@@ -837,13 +841,13 @@ export function ManualBookingForm({
   const maleCohortGenders = maleParticipants.map(() => "male" as const);
 
   const singleMonth = useMonthAvailability(
-    calendarMonthKey, allSelectedSlugs, singleCohortGenders, city.trim(), singleCalendarEnabled
+    displayedMonth, allSelectedSlugs, singleCohortGenders, city.trim(), singleCalendarEnabled
   );
   const femaleMonth = useMonthAvailability(
-    calendarMonthKey, allSelectedSlugs, femaleCohortGenders, city.trim(), mixedCalendarEnabled
+    displayedMonth, allSelectedSlugs, femaleCohortGenders, city.trim(), mixedCalendarEnabled
   );
   const maleMonth = useMonthAvailability(
-    calendarMonthKey, allSelectedSlugs, maleCohortGenders, city.trim(), mixedCalendarEnabled
+    displayedMonth, allSelectedSlugs, maleCohortGenders, city.trim(), mixedCalendarEnabled
   );
 
   const singleCohorts = useMemo(
@@ -1705,6 +1709,8 @@ export function ManualBookingForm({
               cohorts={singleCohorts}
               loading={singleMonth.loading}
               min={calendarMin}
+              month={displayedMonth}
+              onMonthChange={setDisplayedMonth}
             />
             {availLoading && (
               <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
@@ -1765,6 +1771,8 @@ export function ManualBookingForm({
               cohorts={mixedCohorts}
               loading={femaleMonth.loading || maleMonth.loading}
               min={calendarMin}
+              month={displayedMonth}
+              onMonthChange={setDisplayedMonth}
             />
             {bookingDate && (
               <p className="text-xs text-[var(--admin-text-muted)] -mt-2">

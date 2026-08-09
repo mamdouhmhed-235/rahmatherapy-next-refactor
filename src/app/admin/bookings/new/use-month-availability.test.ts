@@ -72,6 +72,26 @@ describe("useMonthAvailability", () => {
     expect(capturedSignal?.aborted).toBe(true);
   });
 
+  it("aborts the in-flight request on unmount", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      capturedSignal = init.signal as AbortSignal;
+      return new Promise(() => {});
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { unmount } = renderHook(() =>
+      useMonthAvailability("2026-08", ["hijama-package"], ["female"], "Luton", true)
+    );
+
+    await waitFor(() => expect(capturedSignal).toBeDefined());
+    expect(capturedSignal?.aborted).toBe(false);
+
+    unmount();
+
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
   it("resolves to null on a failed response — never blocking booking", async () => {
     const fetchMock = vi.fn().mockImplementation(() => jsonResponse({ error: "boom" }, false));
     vi.stubGlobal("fetch", fetchMock);
