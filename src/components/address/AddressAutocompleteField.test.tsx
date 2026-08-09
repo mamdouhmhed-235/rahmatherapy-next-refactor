@@ -252,9 +252,19 @@ describe("AddressAutocompleteField — debounce (cost control)", () => {
     // suggestion would never surface (plan gate §3.2 case 2). toMatchObject
     // requires an array value to match exactly (same length + elements), so
     // reverting to ["street_address"] alone fails this assertion.
+    //
+    // C-20 fix-round (closeout-cost-mechanics.md finding 4, NON-BLOCKING):
+    // includedRegionCodes is the actual UK restriction (region/language are
+    // formatting-only) — previously only verified by a one-off live/billed
+    // check. Pinned here alongside the rest of the cost/correctness-critical
+    // request shape: region, language, and that a sessionToken is sent.
     expect(fetchAutocompleteSuggestions.mock.calls[0][0]).toMatchObject({
       input: "Luton",
+      includedRegionCodes: ["gb"],
       includedPrimaryTypes: ["street_address", "premise", "subpremise"],
+      region: "gb",
+      language: "en-GB",
+      sessionToken: expect.anything(),
     });
   });
 });
