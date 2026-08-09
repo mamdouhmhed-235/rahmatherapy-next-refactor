@@ -45,7 +45,7 @@ src/app/api/availability/route.ts       |  15 ---
 
 **Gate §3.2 is therefore re-stated as:** `git diff master redesign/start-state -- src/lib/booking/availability.ts src/app/api/availability/` shows **zero insertions**, and `src/lib/booking/availability.ts` specifically is **byte-identical**. Both true at `7b1db05`.
 
-### 0.2 — ⛔ Pre-flight #4 — HELD, awaiting Owner approval
+### 0.2 — ⛔ Pre-flight #4 — ✅ **CLOSED 2026-08-09 — BASELINE CAPTURED. Phase D is UNBLOCKED.** (historical account of the hold follows)
 
 Plan `:34-39`. Submitting three real admin bookings end-to-end against the **production** database, via the live admin form (no SQL), to capture the behavioural baseline that blocking gate §3.3 compares against. Fixture guard: `*.example.test` clients and standard test staff only; every created row id recorded here for cleanup; Badar's `9d55ce2a` and all real customer rows untouched.
 
@@ -53,7 +53,44 @@ Plan `:34-39`. Submitting three real admin bookings end-to-end against the **pro
 1. **No agent may authenticate** (password entry is prohibited; protocol §3b records the same). The Owner authorised agents to use the admin logins directly on 2026-08-04; **that authorisation cannot be accepted** — the prohibition holds regardless of who grants it. **Substitute offered:** the Owner signs in once in their own Chrome and the orchestrator drives the already-authenticated session, which is not credential entry.
 2. **Open question raised with the ⛔, not yet answered:** does completing an admin booking send a real confirmation email? If so that is a second Zone-2 trigger (rule 2's effect-based catch-all). `*.example.test` addresses do not receive mail, but the send would still occur.
 
-**Re-sequencing proposed to the Owner, not acted on unilaterally:** pre-flight #4's baseline is load-bearing only for gate §3.3, which compares the admin form's *submitted payload* before and after. Phases B and C do not touch that form — B adds a defaulted options bag to the engine plus a new admin route, C builds a component that is not wired in until Phase D. So the baseline could be captured after B and C and remain a valid "before", provided the diff confirms `ManualBookingForm.tsx` was untouched (trivially checkable). That would unblock 3 of 5 commits. **Awaiting the Owner's decision; nothing proceeds without it.**
+**Re-sequencing proposed to the Owner, not acted on unilaterally:** pre-flight #4's baseline is load-bearing only for gate §3.3, which compares the admin form's *submitted payload* before and after. Phases B and C do not touch that form — B adds a defaulted options bag to the engine plus a new admin route, C builds a component that is not wired in until Phase D. So the baseline could be captured after B and C and remain a valid "before", provided the diff confirms `ManualBookingForm.tsx` was untouched (trivially checkable). That would unblock 3 of 5 commits. **The Owner accepted this; B and C shipped first, and the diff confirmed `ManualBookingForm.tsx` untouched in both.**
+
+---
+
+### 0.2a — ✅ BASELINE CAPTURED, 2026-08-09 — the "before" gate §3.3 measures against
+
+**How the sign-in blocker was resolved.** Both blockers in §0.2 are closed. The agent still did **not** authenticate — the prohibition held, and the Owner's repeated offers of the credentials (again on 2026-08-09) were declined again. The Owner signed in themselves and the orchestrator drove that existing session, which is not credential entry.
+
+**The session had to be found, not assumed.** The Owner said "I logged in"; a `curl` probe still 307'd to `/admin/login/`, and the **Playwright** MCP browser showed a single `about:blank` tab that also redirected to login. The authenticated session was in the **chrome-devtools**-attached Chrome — a different browser profile entirely. Identity was then confirmed against the database rather than inferred from the page: **`Minhaj rahman` · `rahmatherapy@outlook.com` · role `Owner` · profile `01582c5d-bd75-4c49-b207-6f5597e15218`**, exactly the Part 0 Owner account. *(Lesson worth keeping: "logged in" is ambiguous across MCP browser profiles — probe the specific browser you intend to drive, not just the URL.)*
+
+**⛔ ZERO EMAILS SENT — the Zone-2 email trigger never fired, and this was verified, not assumed.** All three bookings were submitted with the **"Send confirmation email to client" checkbox unchecked**, which empties the `send_confirmation_email` field and short-circuits the double gate at `src/app/admin/bookings/actions.ts:1689` (`sendConfirmationEmail && details.email.trim()`) — the sole email send in the whole of `createManualBooking`. Confirmed empirically afterwards: `SELECT count(*) FROM email_delivery_events WHERE created_at > '2026-08-09 10:55:00+00'` → **0**, run after all three submissions. **The Owner's standing approval for three real notifications to `rahmatherapy@outlook.com` was therefore never spent and remains in reserve.**
+
+**The three baselines map exactly onto the three date-input branches Phase D rewires:**
+
+| # | Booking id | Date | Start | `override_availability` | Branch exercised | Screenshot |
+|---|---|---|---|---|---|---|
+| 1 | `29779a0c-e29b-4209-ac15-d80b0e004dc9` | 2026-08-10 | 10:00 | *(absent)* | **Branch 1** — single/same-gender (`:1639`) | `baseline-step3-branch1-single-same-gender-BEFORE.png`, `baseline-step3-branch1-with-availability-BEFORE.png` |
+| 2 | `836d6da6-9bb4-48f2-a36c-d7e9673ebfe2` | 2026-08-11 | 14:30 | **`on`** | **Branch 3** — fallback/override (`:1824`) | `baseline-step3-branch3-override-fallback-BEFORE.png` |
+| 3 | `98a676ca-44ac-44d0-a274-f8917e6a84c7` | 2026-08-12 | 11:00 | *(absent)* | **Branch 2** — mixed-gender group (`:1692`) | `baseline-step3-branch2-mixed-gender-BEFORE.png` |
+
+All three `status = pending`, all clients `*.example.test`, all phones in Ofcom's `07700 900xxx` range reserved for fictional use. Screenshots in `redesign/evidence/C-23/`.
+
+**Submitted-payload identity — this is the literal "before" for gate §3.3.** Captured from the live form's hidden inputs immediately before each submit:
+- **#1** `booking_date=2026-08-10` · `start_time=10:00` · `override_availability=null` *(the hidden input renders only when override is on — `ManualBookingForm.tsx:1078`)* · `city=Luton` · `service_slugs=hijama-package` · `booking_for=self`
+- **#2** `booking_date=2026-08-11` · `start_time=14:30` · `override_availability=on` · `booking_for=self`
+- **#3** `booking_date=2026-08-12` · `start_time=11:00` · `override_availability=null` · `booking_for=group` · `number_of_people=2`
+
+**Environment facts the baseline was taken against** (Phase D verification must hold these constant): global `availability_rules` — Sunday closed, Mon–Sat 08:00–20:00; `business_settings` — `booking_window_days=29`, `minimum_notice_hours=4`, `buffer_time_mins=30`, `booking_status_enabled=true`, `allowed_cities=[Luton, Dunstable]`. On 2026-08-12 the mixed cohorts resolved to **3 female / 2 male** therapists per slot — a genuine "both cohorts available" day, which is the marker case the calendar must render as *available* rather than *partial*.
+
+**⚠️ Two mechanical findings for Phase D and for anyone driving this form again:**
+1. **The visible inputs carry no `name`; the submitted values live in separate hidden mirror inputs.** Setting `input[name="city"]` programmatically writes to the mirror and React re-renders it away — the value looks set and is silently discarded. Drive the **visible** control, then read the hidden mirror to confirm the state actually took.
+2. **`<input type="date">` and `<input type="time">` ignore the MCP fill helper.** The value appears in the DOM and in the accessibility tree while the hidden `booking_date` mirror stays empty — a convincing false positive. Part 0's documented native-setter pattern (`HTMLInputElement.prototype.value` setter, then dispatch bubbling `input` + `change`) is required, and its effect must be confirmed by reading the hidden mirror.
+
+**🧹 CLEANUP LIST — every row created, for deletion once gate §3.3's before/after comparison completes (plan §6):**
+- **bookings:** `29779a0c-e29b-4209-ac15-d80b0e004dc9`, `836d6da6-9bb4-48f2-a36c-d7e9673ebfe2`, `98a676ca-44ac-44d0-a274-f8917e6a84c7`
+- **clients:** `7259cefa-9588-4169-8383-224cf124dde2`, `c51b98f1-2690-44b7-bed6-bf222b7b45d2`, `f6991be3-adbf-4612-b143-2b21d17704a0`
+- **booking_participants:** `b1536446-31df-4693-8162-dc3bd59bcd28`, `512a5fd9-a1a5-4fd3-98a3-647bbfcbf6e5`, `c65cdd64-ed51-466d-bd97-15a2026b025d`, `69aa0501-9ad6-4768-ac74-ba0855857a67`
+- Deletion is a **Zone-2 action** requiring its own per-action Owner approval when the time comes. Badar's `9d55ce2a` and every real customer row untouched throughout.
 
 ### 0.3 — Anchors, re-located by symbol (plan line numbers are 2026-07-16 vintage)
 
