@@ -162,9 +162,13 @@ interface ContextFailure {
 
 interface DayRecords {
   globalBlocked: boolean;
-  globalOverride?: DateOverrideRecord;
+  // C-14 Phase C Step 13 — a date is now ALL of its override rows, not the
+  // first one. Each row is a bookable window and every gap between two of them
+  // is a break on that date. Plural on purpose: a singular name over an array
+  // is exactly how the first-row-wins assumption survived this long.
+  globalOverrides: DateOverrideRecord[];
   staffBlockedIds: Set<string>;
-  staffOverrideByStaffId: Map<string, StaffDateOverrideRecord>;
+  staffOverridesByStaffId: Map<string, StaffDateOverrideRecord[]>;
   bookings: BookingRecord[];
   assignments: BookingAssignmentRecord[];
 }
@@ -286,32 +290,36 @@ function resolveStaffWindows({
   dayOfWeek,
   globalBlocked,
   globalRules,
-  globalOverride,
+  globalOverrides,
   staffRulesByStaffId,
   staffBlockedIds,
-  staffOverrideByStaffId,
+  staffOverridesByStaffId,
 }: {
   staff: StaffRecord;
   dayOfWeek: number;
   globalBlocked: boolean;
   globalRules: AvailabilityRuleRecord[];
-  globalOverride?: DateOverrideRecord;
+  globalOverrides: DateOverrideRecord[];
   staffRulesByStaffId: Map<string, StaffAvailabilityRuleRecord[]>;
   staffBlockedIds: Set<string>;
-  staffOverrideByStaffId: Map<string, StaffDateOverrideRecord>;
+  staffOverridesByStaffId: Map<string, StaffDateOverrideRecord[]>;
 }) {
   if (globalBlocked || staffBlockedIds.has(staff.id)) return [];
 
-  const staffOverride = staffOverrideByStaffId.get(staff.id);
-  if (isBlockingOverride(staffOverride)) return [];
-  if (staffOverride) return normalizeWindows([staffOverride]);
+  // C-14 Phase C Step 13. ANY blocking row closes the date: a closure and a
+  // set of hours on the same date contradict each other, and the safe reading
+  // of a contradiction is the one that cannot over-offer a slot. (Before the
+  // widening whichever row happened to arrive first decided it.)
+  const staffOverrides = staffOverridesByStaffId.get(staff.id) ?? [];
+  if (staffOverrides.some((override) => isBlockingOverride(override))) return [];
+  if (staffOverrides.length > 0) return normalizeWindows(staffOverrides);
 
   if (staff.availability_mode === "custom") {
     return getRuleWindowsForDay(staffRulesByStaffId.get(staff.id) ?? [], dayOfWeek);
   }
 
-  if (isBlockingOverride(globalOverride)) return [];
-  if (globalOverride) return normalizeWindows([globalOverride]);
+  if (globalOverrides.some((override) => isBlockingOverride(override))) return [];
+  if (globalOverrides.length > 0) return normalizeWindows(globalOverrides);
 
   return getRuleWindowsForDay(globalRules, dayOfWeek);
 }
@@ -556,9 +564,15 @@ interface DayRecordsFailure {
 
 /**
  * Loads every date-scoped record for the given dates in one round trip per
- * table, bucketed by date. Note: the original single-date code used
- * maybeSingle() for the global override (erroring on duplicate rows); this
- * variant takes the first row per date instead.
+ * table, bucketed by date.
+ *
+ * C-14 Phase C Step 13 — override rows are bucketed in FULL, per date and per
+ * staff+date. The single-date predecessor used maybeSingle() (which errors on
+ * a duplicate row) and this batched rewrite then kept the first row per date;
+ * both encoded one-window-per-date, which the segments model breaks by design.
+ * Everything downstream already handled arrays: `normalizeWindows` maps each
+ * record to a window and `containsWindow` requires a slot to fit inside ONE of
+ * them, so the extra rows become breaks without any further engine change.
  */
 async function loadDayRecords(
   supabase: SupabaseClient,
@@ -636,8 +650,9 @@ async function loadDayRecords(
   for (const date of dates) {
     byDate.set(date, {
       globalBlocked: false,
+      globalOverrides: [],
       staffBlockedIds: new Set<string>(),
-      staffOverrideByStaffId: new Map<string, StaffDateOverrideRecord>(),
+      staffOverridesByStaffId: new Map<string, StaffDateOverrideRecord[]>(),
       bookings: [],
       assignments: [],
     });
@@ -649,10 +664,10 @@ async function loadDayRecords(
   }
 
   for (const row of globalOverrideResult.data ?? []) {
-    const day = byDate.get(row.override_date);
-    if (day && !day.globalOverride) {
-      day.globalOverride = { start_time: row.start_time, end_time: row.end_time };
-    }
+    byDate.get(row.override_date)?.globalOverrides.push({
+      start_time: row.start_time,
+      end_time: row.end_time,
+    });
   }
 
   for (const row of staffBlockedResult.data ?? []) {
@@ -661,14 +676,16 @@ async function loadDayRecords(
 
   for (const row of staffOverrideResult.data ?? []) {
     const day = byDate.get(row.override_date);
-    if (day && !day.staffOverrideByStaffId.has(row.staff_id)) {
-      day.staffOverrideByStaffId.set(row.staff_id, {
+    if (!day) continue;
+    day.staffOverridesByStaffId.set(row.staff_id, [
+      ...(day.staffOverridesByStaffId.get(row.staff_id) ?? []),
+      {
         staff_id: row.staff_id,
         start_time: row.start_time,
         end_time: row.end_time,
         override_type: row.override_type,
-      });
-    }
+      },
+    ]);
   }
 
   for (const booking of bookings) {
@@ -711,10 +728,10 @@ function computeDaySlots(
         dayOfWeek,
         globalBlocked: day.globalBlocked,
         globalRules: context.globalRules,
-        globalOverride: day.globalOverride,
+        globalOverrides: day.globalOverrides,
         staffRulesByStaffId: context.staffRulesByStaffId,
         staffBlockedIds: day.staffBlockedIds,
-        staffOverrideByStaffId: day.staffOverrideByStaffId,
+        staffOverridesByStaffId: day.staffOverridesByStaffId,
       }),
     ])
   );

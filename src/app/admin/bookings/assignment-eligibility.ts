@@ -40,6 +40,17 @@ interface TimeWindow {
   end: number;
 }
 
+/** C-14 Phase C Step 13a — one bookable window on a specific date. */
+interface DateOverrideRow {
+  start_time: string | null;
+  end_time: string | null;
+  override_type: string | null;
+}
+
+interface StaffDateOverrideRow extends DateOverrideRow {
+  staff_id: string;
+}
+
 const BOOKING_ELIGIBILITY_PERMISSIONS = new Set(["claim_assignments"]);
 
 function timeToMinutes(value: string) {
@@ -108,6 +119,22 @@ function isBlockingOverride(override: { override_type?: string | null } | undefi
   );
 }
 
+/**
+ * C-14 Phase C Step 13a — every row on a date becomes a window, so the gaps
+ * between them are breaks. Rows without both times are skipped rather than
+ * parsed: `timeToMinutes` here splits the string unguarded, and the old
+ * single-row code guarded the same way (`override.start_time && …`).
+ */
+function overrideWindows(rows: DateOverrideRow[]) {
+  return normalizeWindows(
+    rows.flatMap((row) =>
+      row.start_time && row.end_time
+        ? [{ start_time: row.start_time, end_time: row.end_time }]
+        : []
+    )
+  );
+}
+
 export async function getStaffAssignmentPreviews({
   booking,
   requiredGender,
@@ -159,11 +186,16 @@ export async function getStaffAssignmentPreviews({
       .from("blocked_dates")
       .select("id")
       .eq("blocked_date", booking.booking_date),
+    // C-14 Phase C Step 13a — an override date can now hold SEVERAL rows (the
+    // gap between two of them is a break), so this can no longer be
+    // maybeSingle(): PostgREST answers a multi-row match with an error, and
+    // nothing here inspects `.error`, so the override would silently vanish and
+    // eligibility would be computed from the weekly rules instead.
     supabase
       .from("availability_overrides")
       .select("start_time, end_time, override_type")
       .eq("override_date", booking.booking_date)
-      .maybeSingle<{ start_time: string; end_time: string; override_type: string | null }>(),
+      .returns<DateOverrideRow[]>(),
     supabase
       .from("availability_rules")
       .select("day_of_week, start_time, end_time, is_working_day")
@@ -178,7 +210,8 @@ export async function getStaffAssignmentPreviews({
       .from("staff_availability_overrides")
       .select("staff_id, start_time, end_time, override_type")
       .eq("override_date", booking.booking_date)
-      .in("staff_id", staffIds),
+      .in("staff_id", staffIds)
+      .returns<StaffDateOverrideRow[]>(),
     supabase
       .from("staff_availability_rules")
       .select("staff_id, day_of_week, start_time, end_time, is_working_day")
@@ -200,14 +233,20 @@ export async function getStaffAssignmentPreviews({
   const rolePermissions = rolePermissionsResult.data ?? [];
   const staffOverrides = staffOverridesResult.data ?? [];
   const globalBlocked = (globalBlockedResult.data ?? []).length > 0;
-  const globalOverride = globalOverrideResult.data ?? undefined;
+  const globalOverrideWindows = overrideWindows(globalOverrideResult.data ?? []);
   const globalWindows = normalizeWindows(globalRulesResult.data ?? []);
   const blockedStaffIds = new Set(
     (staffBlockedResult.data ?? []).map((row) => row.staff_id as string)
   );
-  const staffOverridesById = new Map(
-    (staffOverrideResult.data ?? []).map((row) => [row.staff_id as string, row])
-  );
+  // Every row for a staff+date, not the last one the Map constructor happened
+  // to keep (C-14 Phase C Step 13a).
+  const staffOverridesById = new Map<string, StaffDateOverrideRow[]>();
+  for (const row of staffOverrideResult.data ?? []) {
+    staffOverridesById.set(row.staff_id, [
+      ...(staffOverridesById.get(row.staff_id) ?? []),
+      row,
+    ]);
+  }
   const staffRulesById = new Map<string, Array<{ start_time: string; end_time: string }>>();
   for (const rule of staffRulesResult.data ?? []) {
     const staffId = rule.staff_id as string;
@@ -250,18 +289,23 @@ export async function getStaffAssignmentPreviews({
       return { staff: candidate, eligible: false, reason: "Blocked date" };
     }
 
-    const staffOverride = staffOverridesById.get(candidate.id);
-    if (isBlockingOverride(staffOverride)) {
+    // Any blocking row closes the date for this candidate — the same reading
+    // the slot engine takes (`resolveStaffWindows`), and the one that cannot
+    // over-offer when a date carries both a closure and some hours.
+    // (`staffOverrides` above is the PERMISSION overrides — different table.)
+    const staffDateOverrides = staffOverridesById.get(candidate.id) ?? [];
+    if (staffDateOverrides.some((override) => isBlockingOverride(override))) {
       return { staff: candidate, eligible: false, reason: "Staff unavailable" };
     }
 
+    const staffOverrideWindows = overrideWindows(staffDateOverrides);
     const windows =
-      staffOverride && staffOverride.start_time && staffOverride.end_time
-        ? normalizeWindows([staffOverride])
+      staffOverrideWindows.length > 0
+        ? staffOverrideWindows
         : candidate.availability_mode === "custom"
           ? normalizeWindows(staffRulesById.get(candidate.id) ?? [])
-          : globalOverride && globalOverride.start_time && globalOverride.end_time
-            ? normalizeWindows([globalOverride])
+          : globalOverrideWindows.length > 0
+            ? globalOverrideWindows
             : globalWindows;
 
     if (!containsWindow(windows, bookingStart, bookingEnd)) {

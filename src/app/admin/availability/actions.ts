@@ -17,21 +17,11 @@ export interface AvailabilityActionState {
   success?: boolean;
 }
 
-const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 async function requireGlobalAvailabilityManager() {
   const supabase = await createSupabaseServerClient();
   return requirePermission(PERMISSIONS.MANAGE_AVAILABILITY_GLOBAL, supabase);
-}
-
-function validateTimeRange(startTime: string, endTime: string) {
-  if (!TIME_PATTERN.test(startTime) || !TIME_PATTERN.test(endTime)) {
-    return "Use valid start and end times.";
-  }
-  if (endTime <= startTime) {
-    return "End time must be after start time.";
-  }
-  return null;
 }
 
 /**
@@ -258,9 +248,30 @@ export async function deleteBlockedDate(blockedDateId: string) {
   return {};
 }
 
-export async function createAvailabilityOverride(
-  _previousState: AvailabilityActionState,
-  formData: FormData
+/**
+ * C-14 Phase C Step 12a — replaces the whole of one date's adjusted hours.
+ *
+ * This WAS `createAvailabilityOverride`, an
+ * `.upsert(…, { onConflict: "override_date" })`. The Step 12 migration drops
+ * the unique on `override_date` so a date can hold several bookable windows
+ * (the gap between two of them is a break), and PostgREST's ON CONFLICT needs
+ * that index to exist — it fails with 42P10 the moment it is gone. The two
+ * therefore ship together (D12), and the upsert becomes replace-the-date:
+ * delete its rows, insert the new segments.
+ *
+ * NOT atomic, unlike the recurring-rules save, and deliberately so. There is no
+ * RPC here because the failure it would guard against is mild: if the delete
+ * commits and the insert fails, the date simply has no adjustment left and
+ * falls back to the clinic's weekly hours — the ordinary schedule, visibly
+ * reported to the admin as a failed save. (The recurring case needed the RPC
+ * because zero rows there means the weekday reads as CLOSED.) Deleting first is
+ * what makes that the failure mode: inserting first would leave the old and new
+ * windows side by side, i.e. MORE availability than anyone asked for.
+ */
+export async function saveAvailabilityOverride(
+  overrideDate: string,
+  schedule: DaySchedule,
+  reason: string
 ): Promise<AvailabilityActionState> {
   let actor;
   try {
@@ -269,43 +280,66 @@ export async function createAvailabilityOverride(
     return { error: "Insufficient permissions." };
   }
 
-  const fieldErrors: Record<string, string> = {};
-  const overrideDate = String(formData.get("override_date") ?? "").trim();
-  const startTime = String(formData.get("start_time") ?? "");
-  const endTime = String(formData.get("end_time") ?? "");
-  const reason = String(formData.get("reason") ?? "").trim();
+  // Untrusted: a server action is a public endpoint whatever its types say, and
+  // this string drives a DELETE.
+  const date = String(overrideDate ?? "").trim();
+  if (!DATE_PATTERN.test(date)) {
+    return { fieldErrors: { override_date: "Choose an override date." } };
+  }
 
-  if (!overrideDate) fieldErrors.override_date = "Choose an override date.";
-  const timeError = validateTimeRange(startTime, endTime);
-  if (timeError) fieldErrors.start_time = timeError;
+  // An adjustment is always a set of hours — a whole-day closure is a blocked
+  // date, not an override (brief §5.6) — so the closed branch never applies.
+  const normalized = { ...normalizeSchedule(schedule), isWorkingDay: true };
+  const { errors } = validateSchedule(normalized);
+  if (errors.length > 0) {
+    return { fieldErrors: { start_time: errors[0] } };
+  }
 
-  if (Object.keys(fieldErrors).length > 0) {
-    return { fieldErrors };
+  const segments = scheduleToRows(normalized);
+  if (segments.length === 0) {
+    // Unreachable via validateSchedule, which rejects every shape that yields
+    // no rows. Kept because the alternative is deleting the date's rows and
+    // writing nothing back.
+    return { fieldErrors: { start_time: "Set opening and closing times." } };
   }
 
   const adminClient = createSupabaseAdminClient();
+  const { data: beforeState } = await adminClient
+    .from("availability_overrides")
+    .select("*")
+    .eq("override_date", date);
+
+  const { error: deleteError } = await adminClient
+    .from("availability_overrides")
+    .delete()
+    .eq("override_date", date);
+
+  if (deleteError) return { error: deleteError.message };
+
   const { data, error } = await adminClient
     .from("availability_overrides")
-    .upsert(
-      {
-        override_date: overrideDate,
-        start_time: startTime,
-        end_time: endTime,
-        reason: reason || null,
-      },
-      { onConflict: "override_date" }
+    .insert(
+      segments.map((segment) => ({
+        override_date: date,
+        start_time: segment.start_time,
+        end_time: segment.end_time,
+        reason: reason.trim() || null,
+      }))
     )
-    .select()
-    .single();
+    .select();
 
   if (error) return { error: error.message };
+
+  const after = data ?? [];
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
     action_type: "availability_override_upserted",
     target_type: "availability_overrides",
-    target_id: data.id,
-    after_state: data,
+    // A date is now several rows, so there is no single target row.
+    target_id: after[0]?.id ?? null,
+    before_state: beforeState ?? [],
+    after_state: after,
   });
 
   updateTag("report-data");
@@ -317,7 +351,12 @@ export async function createAvailabilityOverride(
   return { success: true };
 }
 
-export async function deleteAvailabilityOverride(overrideId: string) {
+/**
+ * C-14 Phase C Step 14 — removes the adjustment for a whole DATE, not one row.
+ * A date with a break is several rows and "remove this adjustment" means all of
+ * them; deleting by id would strip the morning and leave the afternoon.
+ */
+export async function deleteAvailabilityOverride(overrideDate: string) {
   let actor;
   try {
     actor = await requireGlobalAvailabilityManager();
@@ -325,19 +364,25 @@ export async function deleteAvailabilityOverride(overrideId: string) {
     return { error: "Insufficient permissions." };
   }
 
+  const date = String(overrideDate ?? "").trim();
+  if (!DATE_PATTERN.test(date)) {
+    return { error: "Availability override not found." };
+  }
+
   const adminClient = createSupabaseAdminClient();
   const { data: beforeState } = await adminClient
     .from("availability_overrides")
     .select("*")
-    .eq("id", overrideId)
-    .single();
+    .eq("override_date", date);
 
-  if (!beforeState) return { error: "Availability override not found." };
+  if (!beforeState || beforeState.length === 0) {
+    return { error: "Availability override not found." };
+  }
 
   const { error } = await adminClient
     .from("availability_overrides")
     .delete()
-    .eq("id", overrideId);
+    .eq("override_date", date);
 
   if (error) return { error: error.message };
 
@@ -345,7 +390,7 @@ export async function deleteAvailabilityOverride(overrideId: string) {
     actor_staff_id: actor.id,
     action_type: "availability_override_deleted",
     target_type: "availability_overrides",
-    target_id: overrideId,
+    target_id: beforeState[0]?.id ?? null,
     before_state: beforeState,
   });
 

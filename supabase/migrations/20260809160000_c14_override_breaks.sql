@@ -1,0 +1,153 @@
+-- C-14 Phase C Step 12 — let ONE override date hold SEVERAL bookable windows.
+--
+-- Plan:  redesign/plans/C-phase/C-14-granular-working-hours-breaks-plan.md  Step 12
+-- Brief: redesign/briefs/C-14-granular-working-hours-breaks-brief.md        §2.5, §6
+-- Date:  2026-08-09
+--
+-- ⛔ ZONE-2. WRITTEN, NOT APPLIED. Owner approval is per-action; this file ships
+-- in the SAME commit as every code change that depends on it (D12) so the pair
+-- can be read together before either is run.
+--
+--
+-- WHY THESE TWO DROPS
+--
+-- Under the segments model (brief §2.1) a break is the GAP BETWEEN two bookable
+-- rows, so a date with a lunch break is two rows on the same date:
+--     2026-09-12  08:00–12:30
+--     2026-09-12  15:00–20:00
+-- Both uniques below permit exactly one row per date (per staff+date), so
+-- override breaks are impossible until they are gone. Nothing else about the
+-- tables changes: no columns, no data, no new tables, no RLS or grant changes.
+--
+--
+-- ⚠️ DEVIATION FROM THE APPROVED STATEMENT TEXT — READ BEFORE APPLYING.
+--
+-- The statements approved in chat on 2026-08-09 were, verbatim:
+--     DROP INDEX IF EXISTS public.availability_overrides_override_date_key;
+--     ALTER TABLE public.staff_availability_overrides
+--       DROP CONSTRAINT IF EXISTS staff_availability_overrides_staff_id_override_date_key;
+-- The second is used unchanged. The FIRST one cannot run: re-confirmed live
+-- read-only on 2026-08-09, `availability_overrides_override_date_key` is not a
+-- bare index — it is a UNIQUE CONSTRAINT (pg_constraint.contype = 'u',
+-- UNIQUE (override_date)) whose index of the same name is owned by it
+-- (pg_depend.deptype = 'i'). Postgres refuses to drop a constraint's index
+-- directly:
+--     ERROR: cannot drop index availability_overrides_override_date_key because
+--            constraint availability_overrides_override_date_key on table
+--            availability_overrides requires it
+--     HINT:  You can drop constraint ... instead.
+-- `IF EXISTS` does not help — it suppresses only the does-not-exist error, and
+-- the object does exist. So statement 1 is written here in the form that works,
+-- ALTER TABLE ... DROP CONSTRAINT, which is the same single operation on the
+-- same single object with the same end state (dropping the constraint drops its
+-- index) and the same rollback. It is the form already approved for the staff
+-- table. No third operation was added.
+--
+-- This is a statement-FORM correction, not a scope change — but it is a
+-- deviation from approved text, so it needs a nod before the file is applied.
+--
+--
+-- LIVE STATE, captured read-only 2026-08-09 immediately before authoring
+-- (pre-flight §5(b)+(c) re-confirmed rather than taken from the plan text):
+--   availability_overrides
+--     availability_overrides_pkey                              PRIMARY KEY (id)
+--     availability_overrides_override_date_key                 UNIQUE (override_date)   <- dropped here
+--     availability_overrides_time_check                        CHECK (end_time > start_time)
+--   staff_availability_overrides
+--     staff_availability_overrides_pkey                        PRIMARY KEY (id)
+--     staff_availability_overrides_staff_id_override_date_key  UNIQUE (staff_id, override_date)  <- dropped here
+--     staff_availability_overrides_staff_id_fkey               FK -> staff_profiles(id) ON DELETE CASCADE
+--     staff_availability_overrides_time_check                  CHECK (end_time > start_time)
+--   service_role privileges (both tables): SELECT ✓ INSERT ✓ UPDATE ✓ DELETE ✓
+--     — checked because the code shipping with this file switches both save
+--       paths to delete-then-insert, and a missing GRANT fails silently in this
+--       codebase (protocol §3b; the trap that cost C-04a a cycle).
+--
+-- The two CHECK constraints stay, and they still do useful work per segment:
+-- every inserted row is still individually required to end after it starts.
+-- What is no longer enforced is one-row-per-date, which is the whole point.
+--
+--
+-- ⛔ WHY THIS FILE CANNOT BE APPLIED ON ITS OWN (D12 — the atomic co-deploy)
+--
+-- Three call sites are bound to the constraints being dropped. All three are
+-- rewritten in the SAME commit as this file:
+--
+--   1. createAvailabilityOverride (src/app/admin/availability/actions.ts)
+--      used .upsert(…, { onConflict: "override_date" }). PostgREST turns that
+--      into INSERT ... ON CONFLICT (override_date), which Postgres REJECTS the
+--      moment no matching unique index exists (42P10, "there is no unique or
+--      exclusion constraint matching the ON CONFLICT specification"). Applying
+--      this migration without the rewrite breaks EVERY global override save
+--      immediately. Rewritten to delete-the-date's-rows + insert-segments.
+--
+--   2. addStaffAvailabilityOverride
+--      (src/app/admin/staff/[staffId]/availability/actions.ts) caught SQLSTATE
+--      23505 to raise its "That date already has an adjustment" field error.
+--      After the drop that violation can never fire, so the guard does not
+--      error — it silently stops guarding, which is worse. Replaced with an
+--      explicit pre-check on (staff_id, override_date).
+--
+--   3. getStaffAssignmentPreviews (src/app/admin/bookings/assignment-eligibility.ts)
+--      did .maybeSingle() on availability_overrides for the booking date.
+--      PostgREST returns an error (PGRST116) when more than one row matches,
+--      and that error is never inspected here — the value would just become
+--      undefined and eligibility would be computed from the wrong windows,
+--      silently. Widened to an array fetch.
+--
+-- The slot engine (src/lib/booking/availability.ts) does not error on extra
+-- rows, but it kept only the FIRST row per date and per staff+date, so without
+-- its widening (also in the same commit) a saved break would simply never
+-- reach customers.
+--
+--
+-- POST-APPLY VERIFICATION (re-run pre-flight §5(b)+(c)):
+--   SELECT rel.relname, con.conname, pg_get_constraintdef(con.oid)
+--     FROM pg_constraint con
+--     JOIN pg_class rel ON rel.oid = con.conrelid
+--     JOIN pg_namespace n ON n.oid = rel.relnamespace
+--    WHERE n.nspname = 'public'
+--      AND rel.relname IN ('availability_overrides','staff_availability_overrides')
+--      AND con.contype = 'u';
+--   -- expect ZERO rows (both uniques gone; PK/CHECK/FK untouched)
+--
+--   SELECT indexname FROM pg_indexes
+--    WHERE schemaname = 'public'
+--      AND tablename IN ('availability_overrides','staff_availability_overrides');
+--   -- expect only the two *_pkey indexes
+--
+-- Then, with the co-shipped code deployed: saving a global override succeeds
+-- (no 42P10), a duplicate-date staff override still shows the duplicate-date
+-- field error, and an override date carrying two rows offers slots either side
+-- of the gap and none across it.
+--
+--
+-- ROLLBACK (plan §6.2). Re-adding a unique FAILS while any date holds more than
+-- one row, so dedupe first:
+--   BEGIN;
+--   -- keep the widest window per date, drop the rest, THEN:
+--   ALTER TABLE public.availability_overrides
+--     ADD CONSTRAINT availability_overrides_override_date_key UNIQUE (override_date);
+--   ALTER TABLE public.staff_availability_overrides
+--     ADD CONSTRAINT staff_availability_overrides_staff_id_override_date_key
+--     UNIQUE (staff_id, override_date);
+--   COMMIT;
+-- Recommended instead: leave the uniques dropped and revert the code. A relaxed
+-- constraint is harmless on its own; the reverted save paths write one row per
+-- date again. Applying this file changes NO data and drops no column, so there
+-- is nothing to restore.
+--
+-- IDEMPOTENCY: both statements are DROP ... IF EXISTS. Re-appliable as written.
+
+BEGIN;
+
+-- Global per-date hours: a date may now hold several bookable windows, and the
+-- gaps between them are the clinic's breaks on that date.
+ALTER TABLE public.availability_overrides
+  DROP CONSTRAINT IF EXISTS availability_overrides_override_date_key;
+
+-- The same, per therapist per date.
+ALTER TABLE public.staff_availability_overrides
+  DROP CONSTRAINT IF EXISTS staff_availability_overrides_staff_id_override_date_key;
+
+COMMIT;

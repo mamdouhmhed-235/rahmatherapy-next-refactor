@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { requirePermission } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
-  createAvailabilityOverride,
   createBlockedDate,
   deleteAvailabilityOverride,
   deleteAvailabilityRule,
   deleteBlockedDate,
   saveAvailabilityDay,
+  saveAvailabilityOverride,
 } from "../actions";
 import type { DaySchedule } from "@/lib/booking/working-hours-segments";
 
@@ -59,6 +59,12 @@ function stubAdminClient() {
     error: null,
   }));
 
+  // C-14 Phase C Step 12a — the override save is a plain delete-then-insert,
+  // not the RPC. Every insert is recorded so a spec can assert the SEGMENTS
+  // that reach the table, which is the whole point of the rewrite.
+  const overrideInserts: unknown[] = [];
+  const overrideDeletes: unknown[] = [];
+
   const from = vi.fn((table: string) => {
     if (table === "audit_logs") {
       return {
@@ -68,9 +74,30 @@ function stubAdminClient() {
         }),
       };
     }
-    // availability_rules / blocked_dates / availability_overrides — all three
-    // tables get the same shape of query from this file (select/eq/single,
-    // insert/update + select/single, delete/eq).
+    if (table === "availability_overrides") {
+      // A date is now N rows: read them, delete them all, insert the new set.
+      const rows = [{ id: "override-1", override_date: "2099-01-01" }];
+      return {
+        select: () => ({
+          eq: async () => ({ data: rows, error: null }),
+        }),
+        delete: () => ({
+          eq: async (_column: string, value: unknown) => {
+            overrideDeletes.push(value);
+            return { error: null };
+          },
+        }),
+        insert: (payload: unknown) => {
+          overrideInserts.push(payload);
+          return {
+            select: async () => ({ data: [{ id: "override-new" }], error: null }),
+          };
+        },
+      };
+    }
+    // availability_rules / blocked_dates — both get the same shape of query
+    // from this file (select/eq/single, insert/update + select/single,
+    // delete/eq).
     return {
       select: () => ({
         eq: () => ({
@@ -100,7 +127,7 @@ function stubAdminClient() {
     };
   });
 
-  return { client: { from, rpc }, audits, rpc };
+  return { client: { from, rpc }, audits, rpc, overrideInserts, overrideDeletes };
 }
 
 /** Monday 08:00–20:00 with a 12:30–15:00 break. */
@@ -118,14 +145,7 @@ function blockedDateFormData() {
   return data;
 }
 
-function overrideFormData() {
-  const data = new FormData();
-  data.set("override_date", "2099-01-01");
-  data.set("start_time", "09:00");
-  data.set("end_time", "12:00");
-  data.set("reason", "Half day");
-  return data;
-}
+const OVERRIDE_DATE = "2099-01-01";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -173,11 +193,15 @@ describe("availability/actions.ts — cache tag invalidation", () => {
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual(EXPECTED_TAGS);
   });
 
-  it("createAvailabilityOverride invalidates staff + bookings + audit", async () => {
+  it("saveAvailabilityOverride invalidates staff + bookings + audit", async () => {
     const stub = stubAdminClient();
     vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
 
-    const result = await createAvailabilityOverride({}, overrideFormData());
+    const result = await saveAvailabilityOverride(
+      OVERRIDE_DATE,
+      MONDAY_WITH_BREAK,
+      "Half day"
+    );
 
     expect(result.error).toBeUndefined();
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual(EXPECTED_TAGS);
@@ -187,10 +211,151 @@ describe("availability/actions.ts — cache tag invalidation", () => {
     const stub = stubAdminClient();
     vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
 
-    const result = await deleteAvailabilityOverride("override-1");
+    const result = await deleteAvailabilityOverride(OVERRIDE_DATE);
 
     expect(result.error).toBeUndefined();
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual(EXPECTED_TAGS);
+  });
+});
+
+/**
+ * C-14 Phase C Step 12a — the migration drops the unique on `override_date`,
+ * which is what the old `.upsert(…, { onConflict: "override_date" })` needed to
+ * exist: PostgREST's ON CONFLICT fails with 42P10 the moment it is gone. These
+ * specs pin the replacement shape — replace the whole DATE, as segments.
+ */
+describe("saveAvailabilityOverride — segments", () => {
+  it("writes one row per bookable segment, so a break survives the save", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    await saveAvailabilityOverride(OVERRIDE_DATE, MONDAY_WITH_BREAK, "Half day");
+
+    expect(stub.overrideInserts).toEqual([
+      [
+        {
+          override_date: OVERRIDE_DATE,
+          start_time: "08:00",
+          end_time: "12:30",
+          reason: "Half day",
+        },
+        {
+          override_date: OVERRIDE_DATE,
+          start_time: "15:00",
+          end_time: "20:00",
+          reason: "Half day",
+        },
+      ],
+    ]);
+  });
+
+  it("clears the date's existing rows before inserting the new set", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    await saveAvailabilityOverride(OVERRIDE_DATE, MONDAY_WITH_BREAK, "");
+
+    // Deleting FIRST is deliberate: a failed insert then leaves the date on the
+    // clinic's ordinary weekly hours, where inserting first would leave the old
+    // and new windows side by side — more availability than anyone asked for.
+    expect(stub.overrideDeletes).toEqual([OVERRIDE_DATE]);
+  });
+
+  it("stores a no-break date as the single row it has always been", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    await saveAvailabilityOverride(
+      OVERRIDE_DATE,
+      { ...MONDAY_WITH_BREAK, breaks: [] },
+      ""
+    );
+
+    expect(stub.overrideInserts).toEqual([
+      [
+        {
+          override_date: OVERRIDE_DATE,
+          start_time: "08:00",
+          end_time: "20:00",
+          reason: null,
+        },
+      ],
+    ]);
+  });
+
+  it("audits every row on either side of the swap, not one target row", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    await saveAvailabilityOverride(OVERRIDE_DATE, MONDAY_WITH_BREAK, "");
+
+    expect(stub.audits).toHaveLength(1);
+    expect(stub.audits[0]).toMatchObject({
+      action_type: "availability_override_upserted",
+      target_type: "availability_overrides",
+      target_id: "override-new",
+    });
+    expect(stub.audits[0].before_state).toEqual([
+      { id: "override-1", override_date: OVERRIDE_DATE },
+    ]);
+  });
+
+  it("refuses a break that falls outside the date's hours", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await saveAvailabilityOverride(
+      OVERRIDE_DATE,
+      { ...MONDAY_WITH_BREAK, breaks: [{ start: "12:30", end: "23:00" }] },
+      ""
+    );
+
+    expect(result.fieldErrors?.start_time).toBe(
+      "Break 1 has to sit between 08:00 and 20:00."
+    );
+    // Nothing was deleted: a rejected save must not clear the date's hours.
+    expect(stub.overrideDeletes).toEqual([]);
+    expect(stub.overrideInserts).toEqual([]);
+  });
+
+  it("refuses a malformed date before it reaches a DELETE", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await saveAvailabilityOverride("", MONDAY_WITH_BREAK, "");
+
+    expect(result.fieldErrors?.override_date).toBe("Choose an override date.");
+    expect(stub.overrideDeletes).toEqual([]);
+  });
+});
+
+/**
+ * A date with a break is several rows, so "remove this adjustment" has to mean
+ * all of them — deleting by row id would strip the morning and leave the
+ * afternoon standing as if it were the whole day's hours.
+ */
+describe("deleteAvailabilityOverride — by date", () => {
+  it("deletes by override_date and audits every row it removed", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await deleteAvailabilityOverride(OVERRIDE_DATE);
+
+    expect(result.error).toBeUndefined();
+    expect(stub.overrideDeletes).toEqual([OVERRIDE_DATE]);
+    expect(stub.audits[0].before_state).toEqual([
+      { id: "override-1", override_date: OVERRIDE_DATE },
+    ]);
+  });
+
+  it("rejects a non-date reference instead of deleting", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await deleteAvailabilityOverride("override-1");
+
+    expect(result.error).toBe("Availability override not found.");
+    expect(stub.overrideDeletes).toEqual([]);
   });
 });
 
