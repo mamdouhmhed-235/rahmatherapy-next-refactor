@@ -51,6 +51,37 @@ const londonNoLevel2: PlaceAddressComponent[] = [
   { longText: "NW1 6XE", shortText: "NW1 6XE", types: ["postal_code"] },
 ];
 
+// Both postal_town AND locality present, with DIFFERENT values — a realistic
+// Luton case (Leagrave is a locality/ward within the town of Luton). Proves
+// the fallback chain actually prefers postal_town; every other fixture in
+// this file has at most one of the two candidates present, which left the
+// chain's ORDER unproven (mutation testing: swapping the chain to
+// `locality || postal_town` left 7/7 tests passing before this fixture).
+const lutonWithLocalityAndPostalTown: PlaceAddressComponent[] = [
+  { longText: "22", shortText: "22", types: ["street_number"] },
+  { longText: "Leagrave High Street", shortText: "Leagrave High St", types: ["route"] },
+  { longText: "Leagrave", shortText: "Leagrave", types: ["locality"] },
+  { longText: "Luton", shortText: "Luton", types: ["postal_town"] },
+  { longText: "Bedfordshire", shortText: "Bedfordshire", types: ["administrative_area_level_2"] },
+  { longText: "LU4 0QA", shortText: "LU4 0QA", types: ["postal_code"] },
+];
+
+// postal_code longText and shortText DIFFER — every other fixture in this
+// file uses an identical string for both, which left the short-vs-long
+// choice unproven (mutation testing: switching `pick("postal_code", true)`
+// to `pick("postal_code")` left 7/7 tests passing before this fixture).
+// Google's shortText for a UK postcode is the compact form; longText can
+// carry a fuller/expanded rendering. Values below are illustrative, not a
+// literal live API capture (this file's fixtures are constructed, not
+// captured — see the file-level comment above).
+const postcodeShortLongDiffer: PlaceAddressComponent[] = [
+  { longText: "5", shortText: "5", types: ["street_number"] },
+  { longText: "Wardown Park Road", shortText: "Wardown Park Rd", types: ["route"] },
+  { longText: "Luton", shortText: "Luton", types: ["postal_town"] },
+  { longText: "Bedfordshire", shortText: "Bedfordshire", types: ["administrative_area_level_2"] },
+  { longText: "Luton LU2 7HA", shortText: "LU2 7HA", types: ["postal_code"] },
+];
+
 describe("parsePlaceToAddressParts", () => {
   it("parses a standard Luton terrace: all four fields populate", () => {
     expect(parsePlaceToAddressParts(lutonTerrace)).toEqual({
@@ -94,6 +125,24 @@ describe("parsePlaceToAddressParts", () => {
       city: "London",
       area: "England",
       postcode: "NW1 6XE",
+    });
+  });
+
+  it("prefers postal_town over locality when both are present and differ (Leagrave/Luton)", () => {
+    expect(parsePlaceToAddressParts(lutonWithLocalityAndPostalTown)).toEqual({
+      address: "22 Leagrave High Street",
+      city: "Luton",
+      area: "Bedfordshire",
+      postcode: "LU4 0QA",
+    });
+  });
+
+  it("takes the short postcode text, not the long text, when they differ", () => {
+    expect(parsePlaceToAddressParts(postcodeShortLongDiffer)).toEqual({
+      address: "5 Wardown Park Road",
+      city: "Luton",
+      area: "Bedfordshire",
+      postcode: "LU2 7HA",
     });
   });
 
