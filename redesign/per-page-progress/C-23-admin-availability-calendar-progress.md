@@ -190,7 +190,71 @@ Phase D still cannot start until the §0.2 behavioural baseline is captured, whi
 
 ---
 
-# ▶▶ INTERRUPT CHECKPOINT — 2026-08-04 — READ THIS FIRST ON RESUME
+## 3 — Phase D (Steps 7–10) — IMPLEMENTED, awaiting independent FULL verification
+
+| Commit | What | Model |
+|---|---|---|
+| `d701d9a` | Steps 7–10 — calendar wired into branches 1 and 2; branch 3 untouched; +6 test cases | `opus` |
+| `d142897` | Month-navigation fix — brief §4.3 compliance; +8 test cases | `opus` |
+
+**Opus justification (§5):** `ManualBookingForm.tsx` is the shared file five Band-C plans edit, this is the live availability surface, and submitted-payload identity (blocking gate §3.3) is what is at risk.
+
+### 3.1 — Step 9 decision, recorded as the plan requires
+
+**Branch 3 (fallback/override) keeps its plain `AdminInput` and was not touched at all.** Proven byte-identical by `md5sum` of the line at HEAD~1 and after (`958f42abbd7575e9580391f99e846e2c` both times), then again after `d142897` (shifted +8 lines, content unchanged). Rationale: its handler is `setBookingDate(e.target.value)` **only** — no `setStartTime("")`, no `checkAvailability` — so copying branch 1's handler in would have silently changed behaviour, and with override on, availability markers are meaningless anyway. **Note the plan's text describes this branch's condition incorrectly** (`!canCheckAvailability`); the real condition is `overrideAvailability || (isMixedGenderGroup && (femaleOverride || maleOverride))`.
+
+### 3.2 — ⚠️ The plan says "replace the date input". It was NOT replaced, deliberately — the BRIEF wins.
+
+Plan Step 7 says to *replace* the `AdminInput type="date"` with the calendar. The implementer declined and **was right to**; the orchestrator ruled in its favour after reading the brief. A pure replace would have removed four things:
+
+1. `error={stepErrors.booking_date}` — the **only** render site of "Pick a date from today onwards". `stepErrors.booking_date` appears at exactly three places, all of them these date inputs, and there is no error summary that would catch it.
+2. The "Date" label and its required marker.
+3. **Typed date entry — which brief §4.3 explicitly requires:** *"Direct date entry preserved alongside the calendar — staff usually have a customer's requested date in hand."* The Phase-C component has no text input, so this clause can only be honoured here.
+4. `min` enforcement on the typed path.
+
+**Resolution: keep both — the typed input AND the calendar beneath it.** Brief §2's non-removal list is a hard blocking gate and §4.3 is explicit, so a pure replace would have tripped Step 10 as a STOP. This keeps the diff purely additive. Recorded as a plan-vs-brief conflict resolved in the brief's favour, not as a deviation.
+
+### 3.3 — ⚠️ Phase C shipped incomplete against its own brief. Found at Phase D, fixed at `d142897`.
+
+Brief §4.3 requires **"Month navigation triggers a fetch"** (and §5.6 depends on it). `AvailabilityCalendarField` shipped with **no `month`/`onMonthChange` props**, so nothing outside it could learn which month was displayed — Phase D had to derive the month from the selected date, meaning **paging the calendar forward showed that month completely unmarked** until the operator happened to pick a date in it. The calendar stopped informing exactly when the operator was exploring.
+
+**This was an orchestrator miss, not a worker's.** The Phase C verification was TARGETED and led on five specific points; month navigation was not among them, so the pass confirmed everything asked and never looked at the brief clause that mattered. *Lesson: a led verification only ever finds what it is pointed at — the led points must be checked against the brief's requirement list, not just the risk list.*
+
+Fixed additively: optional `month?: string` / `onMonthChange?: (month: string) => void` passed straight through to react-day-picker's own props, with `ManualBookingForm` now owning `displayedMonth` state that feeds the hook's cache key. **Backwards compatibility was proven structurally, not just by test** — by reading `react-day-picker@9.14.0`'s `useCalendar`/`useControlledValue` source to confirm that omitting the props leaves the library's own month state governing exactly as before.
+
+**Five mutants, all killed** (scratchpad copies only): dropping `month`, dropping `onMonthChange`, restoring the exact pre-fix month derivation, making paging move the selected date, and dropping the abort cleanup.
+
+### 3.4 — Live verification by the orchestrator (the checks agents were forbidden to run)
+
+Driven against the Owner's authenticated session. **No booking was created, modified or submitted** — the form was filled to the point of submission and the hidden mirrors read directly.
+
+**✅ Gate §3.3 payload identity — branch 1 CONFIRMED, and via the calendar path rather than the typed input:**
+
+| Field | Baseline (before, typed) | After (calendar) |
+|---|---|---|
+| `booking_date` | `2026-08-10` | **`2026-08-10`** |
+| `start_time` | `10:00` | **`10:00`** |
+| `override_availability` | absent | **absent** |
+| `city` / `service_slugs` / `booking_for` | `Luton` / `hijama-package` / `self` | **identical** |
+
+**✅ Non-colour encoding (gate §3.9) confirmed in the live accessibility tree**, not by reading code: `"Monday, August 10th, 2026 — availability confirmed"` — react-day-picker's own date text preserved with the availability suffix appended, and `"Today, Sunday, August 9th, 2026"` retains its today text. Past dates and the closed Sunday carry no suffix, correctly.
+
+**✅ Month navigation confirmed live, with corroborating arithmetic:** paging August → September fetched fresh data and marked **26 of 30** days. The four unmarked are exactly September's four Sundays (6, 13, 20, 27), matching `availability_rules` day 0 `is_working_day=false`. Selected date and start time were **unchanged** by paging (§4.5 no-auto-hop, §5.5 keep-the-selection both hold). September also sits **beyond the 29-day customer booking window** yet still marks — confirming Phase B's `ignoreBookingWindow` option works and demonstrating brief §5.8's deliberate admin-over-public capability.
+
+**✅ 375px — the implementer's flagged concern does not materialise.** At a true emulated 375×812 viewport: calendar **308px wide**, right edge **357** (inside the 375 frame), day buttons 42×42, and **zero** document-level horizontal overflow (`scrollWidth === clientWidth === 375`).
+
+**Noticed, NOT fixed — pre-existing, not C-23's (rule 6a):** at 375px, eight page-level containers on `/admin/bookings/new/` (`HEADER`, the step progress bar, the `grid gap-6` wrapper, the `FORM`) measure 374px wide starting at x=16, so their right edge lands at 390 against a 375 viewport. No horizontal scrollbar results and the calendar is unaffected. `/admin/dashboard/` does not share the pattern (its only overhangs are intentional `snap-start` carousel items). This is admin chrome layout, outside C-23's files-touched — **logged for C-10**, which owns page-layout polish and runs last.
+
+### 3.5 — Still outstanding for Phase D/E
+
+- Independent **FULL** verification of `d701d9a` + `d142897` (dispatched).
+- Gate §3.3 payload identity for **branches 2 and 3** (branch 1 done above).
+- Phase E closeout: three blocking gates (§3.2 spent — see §1's correction, §3.3, §3.4), none waivable.
+- Cleanup of the three baseline bookings + clients + participants (§0.2a) — a Zone-2 action needing its own approval.
+
+---
+
+# ▶▶ INTERRUPT CHECKPOINT — 2026-08-04 — ⚠️ SUPERSEDED 2026-08-09 (kept for history; Phase C is verified and Phase D has landed — read §2 and §3 above instead)
 
 **Owner ended the session here deliberately to continue in a fresh one. Nothing is mid-flight; no agent is running; the tree is clean over every C-23 path.**
 
