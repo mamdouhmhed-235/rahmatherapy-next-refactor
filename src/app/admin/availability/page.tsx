@@ -123,6 +123,67 @@ interface StaffRow {
   availability_mode: string;
 }
 
+/** Shape shared by any stored `HH:MM[:SS]` segment row — recurring rule or override. */
+interface TimeSegment {
+  start_time: string;
+  end_time: string;
+}
+
+function sortByStartTime<T extends TimeSegment>(segments: T[]): T[] {
+  return [...segments].sort((a, b) => a.start_time.localeCompare(b.start_time));
+}
+
+/**
+ * C-14 — segments model: a day/date is stored as MULTIPLE rows, one per
+ * bookable window, with the gaps between them being breaks. Renders every
+ * segment in time order, formatted the same way WorkingHoursDayEditor's
+ * "Bookable:" line and AvailabilityOverridesManager's OverrideRow do — "–"
+ * inside a segment, " · " between segments (WorkingHoursDayEditor.tsx:184-190,
+ * AvailabilityOverridesManager.tsx:479-482).
+ */
+export function formatSegments(segments: TimeSegment[]): string {
+  return sortByStartTime(segments)
+    .map((segment) => `${formatTime(segment.start_time)}–${formatTime(segment.end_time)}`)
+    .join(" · ");
+}
+
+/**
+ * One weekday's recurring-rule rows -> whether the clinic is open that day
+ * and its working segments in time order. Open = ANY row for the day has
+ * `is_working_day` true; a closed day still keeps one memo row (segments
+ * model — working-hours-segments.ts), so `.find()` reading a single row was
+ * wrong the moment a working day had more than one segment.
+ */
+export function resolveWeekdayRule(
+  rules: AvailabilityRuleRow[],
+  dayOfWeek: number
+): { isOpen: boolean; segments: AvailabilityRuleRow[] } {
+  const dayRules = rules.filter((rule) => rule.day_of_week === dayOfWeek);
+  return {
+    isOpen: dayRules.some((rule) => rule.is_working_day),
+    segments: sortByStartTime(dayRules.filter((rule) => rule.is_working_day)),
+  };
+}
+
+/**
+ * Week-window override rows -> a map of `override_date` to that date's
+ * segment rows. A unique constraint currently forbids two rows per date, but
+ * C-14 Phase C's migration drops it — the old `new Map(rows.map(...))` was
+ * last-row-wins and would silently drop segments the moment that lands.
+ */
+export function groupOverridesByDate(rows: OverrideRow[]): Map<string, OverrideRow[]> {
+  const byDate = new Map<string, OverrideRow[]>();
+  for (const row of rows) {
+    const existing = byDate.get(row.override_date);
+    if (existing) {
+      existing.push(row);
+    } else {
+      byDate.set(row.override_date, [row]);
+    }
+  }
+  return byDate;
+}
+
 export default async function AvailabilityPage({ searchParams }: AvailabilityPageProps) {
   const supabase = await createSupabaseServerClient();
   const profile = await getStaffProfile(supabase);
@@ -170,7 +231,11 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
     supabase
       .from("availability_rules")
       .select("*")
-      .order("day_of_week", { ascending: true }),
+      // C-14 segments model: a day is multiple rows now, one per bookable
+      // window. `day_of_week` alone leaves segment order within a day
+      // unspecified — the secondary order makes it deterministic.
+      .order("day_of_week", { ascending: true })
+      .order("start_time", { ascending: true }),
     supabase
       .from("blocked_dates")
       .select("*")
@@ -307,9 +372,7 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
   const weekClosuresByDate = new Map(
     weekClosures.map((row) => [row.blocked_date, row])
   );
-  const weekAdjustmentsByDate = new Map(
-    weekAdjustments.map((row) => [row.override_date, row])
-  );
+  const weekAdjustmentsByDate = groupOverridesByDate(weekAdjustments);
   const resolvedWeek = WEEK_ORDER.map((dayOfWeek) => {
     const date = new Date(weekStart);
     const startDow = weekStart.getDay();
@@ -317,15 +380,19 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
     date.setDate(weekStart.getDate() + offset);
     const isoDate = toIsoDate(date);
     const closure = weekClosuresByDate.get(isoDate);
-    const adjustment = weekAdjustmentsByDate.get(isoDate);
-    const rule = rules.find((r) => r.day_of_week === dayOfWeek);
+    const adjustments = weekAdjustmentsByDate.get(isoDate) ?? [];
+    const { isOpen: ruleIsOpen, segments: ruleSegments } = resolveWeekdayRule(
+      rules,
+      dayOfWeek
+    );
     return {
       dayOfWeek,
       isoDate,
       shortLabel: `${DAY_SHORT[dayOfWeek]} ${date.getDate()}`,
       closure,
-      adjustment,
-      rule,
+      adjustments,
+      ruleIsOpen,
+      ruleSegments,
     };
   });
 
@@ -458,8 +525,9 @@ interface ResolvedDay {
   isoDate: string;
   shortLabel: string;
   closure?: BlockedDateRow;
-  adjustment?: OverrideRow;
-  rule?: AvailabilityRuleRow;
+  adjustments: OverrideRow[];
+  ruleIsOpen: boolean;
+  ruleSegments: AvailabilityRuleRow[];
 }
 
 function CapacityPreview({
@@ -529,14 +597,21 @@ function CapacityPreview({
         >
           <ul className="grid min-w-[40rem] list-none grid-cols-7 gap-2 pl-0 md:min-w-0 md:max-w-[56rem] md:[grid-template-columns:repeat(7,minmax(0,1fr))]">
             {resolvedWeek.map((day) => {
-              const ruleIsOpen = day.rule?.is_working_day ?? false;
-              const ruleTimes =
-                day.rule && day.rule.is_working_day
-                  ? `${formatTime(day.rule.start_time)}–${formatTime(day.rule.end_time)}`
-                  : null;
+              const ruleTimes = day.ruleIsOpen
+                ? formatSegments(day.ruleSegments)
+                : null;
               const isClosure = Boolean(day.closure);
-              const isAdjustment = Boolean(day.adjustment) && !isClosure;
-              const isOpen = !isClosure && ruleIsOpen;
+              const isAdjustment = day.adjustments.length > 0 && !isClosure;
+              const isOpen = !isClosure && day.ruleIsOpen;
+              // Every segment of a date is saved with the same reason;
+              // tolerate older rows where only one of them carries it
+              // (mirrors AvailabilityOverridesManager.tsx's groupByDate).
+              const adjustmentTimes = isAdjustment
+                ? formatSegments(day.adjustments)
+                : null;
+              const adjustmentReason = isAdjustment
+                ? (day.adjustments.find((row) => row.reason)?.reason ?? null)
+                : null;
 
               // Tones: closure → Restricted; adjustment → Pending (Attention); open → Confirmed/selected; recurring-closed → Restricted.
               const tone = isClosure
@@ -550,7 +625,7 @@ function CapacityPreview({
               const tooltip = isClosure
                 ? `Closed ${day.shortLabel}${day.closure?.reason ? `: ${day.closure.reason}` : ""}`
                 : isAdjustment
-                  ? `Adjusted ${day.shortLabel}: ${formatTime(day.adjustment!.start_time)}–${formatTime(day.adjustment!.end_time)}${day.adjustment!.reason ? ` (${day.adjustment!.reason})` : ""}`
+                  ? `Adjusted ${day.shortLabel}: ${adjustmentTimes}${adjustmentReason ? ` (${adjustmentReason})` : ""}`
                   : isOpen
                     ? `Open ${day.shortLabel} ${ruleTimes}`
                     : `Closed every ${DAY_LONG[day.dayOfWeek]}`;
@@ -573,8 +648,7 @@ function CapacityPreview({
                     </span>
                   ) : isAdjustment ? (
                     <span className="font-mono text-xs text-[oklch(28%_0.120_55)]">
-                      {formatTime(day.adjustment!.start_time)}–
-                      {formatTime(day.adjustment!.end_time)}
+                      {adjustmentTimes}
                     </span>
                   ) : isOpen && ruleTimes ? (
                     <span className="font-mono text-xs text-[var(--admin-heading)]">
