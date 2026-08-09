@@ -67,7 +67,31 @@ The plan is written around the classic `google.maps.places.Autocomplete` (the Ow
 
 **This is not an improvisation around a contradiction.** The plan's own pre-flight #4 delegates this decision — *"verify … whether this project should use the classic `google.maps.places.Autocomplete` … or the newer `PlaceAutocompleteElement`. Record the answer; implement whichever the account supports. The component's external contract is identical either way."* The external contract (`onAddressSelected(parts)`) is preserved; only the internals and the parser's input shape change. Recorded here as pre-flight #4's answer.
 
-**Widget choice — Step 4a's spike is preserved, not pre-empted.** Phase B builds on `PlaceAutocompleteElement` (Google renders its own input and dropdown; session tokens handled automatically; accessibility supplied by Google). That is precisely what Step 4a's BLOCKING spike is designed to test inside the Base UI modal dialog, and D20 already sanctions the fallback — an in-dialog suggestion list built on `AutocompleteSuggestion.fetchAutocompleteSuggestions`, which keeps the same `onAddressSelected` contract and is dialog-safe by construction because we own the DOM. **If the spike fails, the fallback requires hand-managed session tokens and hand-built combobox ARIA** — both cost-critical and a11y-critical, and both must then be verified explicitly rather than inherited from Google.
+### 0.2a — Widget choice: `AutocompleteSuggestion` + our own input, NOT `PlaceAutocompleteElement`
+
+Resolved at Phase B dispatch, 2026-08-09, after working through what the plan's own Step 3 contract actually requires. **This is D20's sanctioned fallback shape, reached before the spike rather than after it — and the reasoning is that the plan's stated component contract is incompatible with the alternative.**
+
+The two candidates on the new API:
+
+| | **A — `PlaceAutocompleteElement`** | **B — `AutocompleteSuggestion` + our own input/list** |
+|---|---|---|
+| Who owns the input | Google (a web component) | **We do** |
+| Who owns the dropdown | Google, its own DOM | **We do — inside the dialog** |
+| Session tokens | automatic | hand-managed |
+| Combobox ARIA | supplied by Google | **we build it** |
+| Host styling | constrained to CSS parts | **exact, via `inputProps.className`** |
+
+**Why B.** The plan's Step 3 interface is `{ value, onChange, onAddressSelected, inputProps }`, annotated *"free typing — host owns the value"* and *"`id`/`name`/`aria`/`className` from the host"*, plus *"Styling is entirely the host's … so the same component looks native in both trees."* **That contract only exists if we own the `<input>`** — option A cannot satisfy it, because Google's web component renders and owns its own field. The plan's Step 3 spec is, in substance, a description of option B.
+
+Two corroborating reasons:
+- **Step 4a's spike was written for the classic API too.** It tests `.pac-container`, the *classic* widget's body-mounted dropdown, against the Base UI modal dialog's backdrop/z-index/outside-click handling (C20-F3). That specific failure mode **cannot occur under option B**, because our suggestion list lives inside the dialog's own DOM. D20 pre-sanctions exactly this outcome: *"FAIL on either check → the approach shifts to an in-dialog suggestion list (fetch predictions via the Places API and render them in our own list inside the dialog DOM, keeping the same `onAddressSelected` contract)."* Step 4a is therefore **not skipped** — it is re-pointed from "does Google's dropdown survive the dialog?" to "does our own list behave correctly in the dialog?", which is still a blocking Phase C check with screenshot evidence.
+- **Both host forms are bespoke-designed.** An unstyleable Google-rendered field would look foreign in the public booking dialog *and* in the admin form — the one thing the plan's styling clause exists to prevent.
+
+**What option B costs, and what must therefore be verified explicitly rather than inherited from Google:**
+1. **Session tokens are ours to manage.** One `AutocompleteSessionToken` per typing session, passed on every `fetchAutocompleteSuggestions` call, consumed automatically by the subsequent `fetchFields()` on the place derived from the prediction, then **a fresh token created for the next session**. Getting this wrong is the difference between one billed Place Details event per booking and a billed request per keystroke. This is a **blocking** Phase B verification item, not a code-review nicety.
+2. **Combobox accessibility is ours to build** — WAI-ARIA combobox with a listbox popup, arrow-key traversal, Enter to select, Escape to dismiss the list **without closing the surrounding dialog**. Gate §3.4 already requires all of this; under option A it would have come free.
+
+The cost rule is unchanged and unaffected by the choice: `addressComponents` + `location` only, **never `displayName`**.
 
 ### 0.3 — Verification tiers and model routing, declared in advance (§2.9c, §5)
 
@@ -81,7 +105,10 @@ The plan is written around the classic `google.maps.places.Autocomplete` (the Ow
 
 ### 0.4 — ⏸ HARD-STOP forecast (§2.9e) — two Owner items, both still OPEN
 
-1. **⏸ Key rotation (pre-flight #3a / gate §3.5).** The key was shared in plaintext during planning, **and a live key was pasted into the chat transcript during the 2026-08-04 session** (embedded twice in a Google reference snippet). Whether the key now in `.env` is that same one is **unconfirmed — no agent has read the value, by design.** §3.5 is a blocking sign-off: C-20 cannot be marked done without a recorded rotation decision. Raised early so the Owner can pre-answer; it hard-blocks at closeout regardless.
+1. **⏸ Key rotation (pre-flight #3a / gate §3.5) — ✅ ANSWERED 2026-08-09, in chat: DO NOT ROTATE.**
+   **Owner decision, recorded verbatim in intent: "no need to rotate it".** This closes the last open half of gate §3.5 — the referrer/API half already stood DONE from 2026-07-16 — so **§3.5 is now fully satisfied** and C-20 has no remaining rotation blocker.
+   **Context the decision was made against, recorded once for the audit trail and not re-argued:** the key was shared in plaintext during planning, and a live key was pasted into the 2026-08-04 chat transcript (embedded twice inside a Google reference snippet). Whether the key currently in `.env` is that same one remains **unconfirmed — no agent has read the value, by design, and none will.**
+   **Why the decision is defensible on the facts:** the load-bearing cost control for a Maps key is not secrecy but the **HTTP-referrer restriction**, which is already in place and correct — `https://rahmatherapy.uk/*`, `https://*.rahmatherapy.uk/*`, `http://localhost:3000/*`, limited to Maps JavaScript + Places + Places (New). A `NEXT_PUBLIC_*` Maps key is inlined into client bundles and is public by nature in any case, so exposure in a transcript does not change its threat model materially; a third party cannot bill this key from their own origin while the referrer list holds. **Residual risk, stated once:** referrer headers are spoofable outside a browser, so the restriction deters casual abuse rather than a determined actor — which is why the plan's §3.6 post-deploy Metrics check (usage inside the free allowance, not merely a £0 invoice, since the 90-day trial credit can mask overage) stays on the Owner's list regardless.
 2. **⏸ C-18 consent classification (Step 9).** C-18 has landed, so the conditional branch is live: Google Maps needs a `cookie-registry.ts` entry, a `CONSENT_BANNER_VERSION` bump, and an explicit **functional-on-interaction vs consent-gated** classification decision — which the plan requires be made *with the Owner*, not inferred. The plan recommends functional-on-interaction.
 
 Gate §3.5's referrer half **stands DONE** (2026-07-16: `https://rahmatherapy.uk/*`, `https://*.rahmatherapy.uk/*`, `http://localhost:3000/*`, three APIs). The 2026-07-26 D19 re-mark and its `.co.uk` referrer step were withdrawn the same day — the site serves only on `rahmatherapy.uk`. Do not re-litigate either.
