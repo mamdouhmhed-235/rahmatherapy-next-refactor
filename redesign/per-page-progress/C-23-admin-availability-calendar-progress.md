@@ -137,7 +137,7 @@ All four files are **new**; nothing existing was edited. `ManualBookingForm.tsx`
 | Phase / step | **Phase C (Steps 5–6) committed. NOT independently verified.** Phase D (Steps 7–10) not started |
 | Last-good commit | **`a345d99`** — this checkpoint commit follows it |
 | Files mid-flight | **NONE.** Only `src/lib/maintenance.ts` (standing Owner change — never stage) |
-| Programme | **18 of 22 shipped.** C-23 in progress; then C-19 (unblocked), C-14, C-10, C-20 |
+| Programme | **18 plans shipped ✅** (counted directly from the master-plan checklist, not from memory). **5 remain:** C-23 (in progress), C-19, C-14, C-10, C-20. Note the "22" in the §4 order table counts C-17+C-18 as ONE row, so "N of 22" and "N plans shipped" are different denominators — an earlier chat statement of "19 of 22" was wrong; 18 shipped is the verified figure |
 
 ### EXACT NEXT ACTION
 **Dispatch a TARGETED-tier independent verifier for Phase C** (`a345d99`), `model: sonnet`, writing to `redesign/evidence/C-23/phase-c-verify.md`. Tier TARGETED was declared in advance (§0.4) because the component is presentational and wired nowhere. Lead it on:
@@ -182,3 +182,23 @@ A prep agent read a verifier's transient in-place mutation as a shipped defect a
 The Owner authorised agents to use the admin logins directly (repeatedly, 2026-08-04). **That authorisation cannot be accepted** — entering a password is prohibited for the agent regardless of who grants it, which protocol §3b records independently. **The workable substitute, offered and not yet completed: the Owner signs in once at `http://localhost:3000/admin/login/` in their own Chrome, and the orchestrator drives that already-authenticated session** (operating a session the Owner created is not credential entry). A tab was left open at `/admin/login/?redirectTo=%2Fadmin%2Fdashboard%2F`. As of session end **no session existed** — a probe of `/admin/dashboard/` still redirected to login. The Owner's earlier "I logged in" referred to a tab sitting on `http://localhost:3000/home/admin/`, which is a 404 (`/home/admin/`, not `/admin/`).
 
 **Blocked on that single sign-in:** C-23's ⛔ baseline (§0.2) and **all** of C-10 Phase A.
+
+### 3.4 — Addendum: what changed after the checkpoint commit (`0ade989`)
+
+Recorded at the Owner's request as the closing act of the session. **No code changed** — everything below is state, decisions and one correction.
+
+**C-19 is now FULLY UNBLOCKED.** The controller identity arrived and was **verified against Companies House** rather than taken on trust: **`RAHMATHERAPY LIMITED`, company number `16769945`** — Active, private limited company, incorporated 7 October 2025. With contact details and retention already answered, all three of C-19's ⏸ inputs are closed. It needs nothing further from the Owner and is the most immediately runnable plan remaining: one new file, one commit. Detail in `C-19-privacy-policy-page-progress.md` §1.1.
+
+**C-20's key blocker is cleared, but a security item replaced it.** `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is now in `.env` — verified present, 39 chars, `AIza` prefix, not a placeholder, with `.env` confirmed gitignored and untracked. Pre-flight #3 will now pass. **However, a live key was pasted into the chat transcript during this session** (embedded twice in a Google reference snippet the Owner shared), so the ⏸ rotation decision the plan already carried is now materially more urgent. Whether the key in `.env` is that same one is **unconfirmed — no agent read the value.** See the C-20 row in `OWNER-ACTION-BACKLOG.md`.
+
+**Two proposed shortcuts for C-20 were assessed and rejected, with reasons**, so a future session does not re-litigate them:
+- **Google's sample HTML** (the Quick Builder "Address Selection" page) — requests the `name` field, which is **Pro tier**: free allowance halves 10,000→5,000/month and unit price triples $5→$17 per 1,000. Also US-shaped (`administrative_area_level_1`/`postal_code` rather than `postal_town`/`administrative_area_level_2`), hardcodes the key, loads from a CDN, uses `window.alert`, has no session tokens, no debounce and no `componentRestrictions:{country:'gb'}`. It is the same snippet the plan already quotes **and corrects**.
+- **Embedding Google's hosted demo in an `<iframe>`** — fatal on its own: the iframe is cross-origin (`storage.googleapis.com`), so the parent page **cannot read the selected address**, and that page does not `postMessage`. The four form fields would stay empty. It would also **break C-18's regulator test** by loading Google code before any consent, depends on an SLA-less demo bucket, renders its own US-shaped form, and exposes a key in a page the Owner cannot rotate.
+
+**`NEXT_PUBLIC_GA_MEASUREMENT_ID` does NOT belong in local `.env`** — question raised and settled. `GoogleAnalytics.tsx:47-48` gates on three conditions: the ID is set, `NODE_ENV === "production"`, **and** stored consent grants analytics. `next dev` is always development, so setting it locally has no effect whatever; that is deliberate, so dev and test runs never pollute real analytics. It is needed **only in the Cloudflare BUILD environment** (already tracked), because `NEXT_PUBLIC_*` is inlined at build time.
+
+**Programme count corrected.** A chat statement of "19 of 22" was wrong. Verified by counting the master-plan checklist directly: **18 plans shipped**, 5 remaining.
+
+**Environment at session end:** dev server **DOWN** (`curl` → 000; needs `pnpm dev`). **No admin session exists.** Working tree clean over `src/` and `supabase/` apart from the standing `maintenance.ts` change. HEAD `0ade989` at the time of writing.
+
+**Nothing was left uncommitted.** The only modified tracked file is `src/lib/maintenance.ts` (never to be staged); all other working-tree entries are pre-existing untracked material from earlier plans (C-21 evidence screenshots, `design_handoff_area_pages/`, `photos-rahma-therapy/`, `test-results/`), none of it produced by this session.
