@@ -16,6 +16,11 @@ import {
 } from "./profile-access";
 import { getStaffTeamAccess, getStaffTeamSelect, staffProfilesFrom } from "./team-access";
 import { TAGS } from "@/lib/cache/tag-taxonomy";
+import {
+  scheduleToRows,
+  validateSchedule,
+  type DaySchedule,
+} from "@/lib/booking/working-hours-segments";
 
 type AvailabilityMode = "use_global" | "custom" | "global_with_overrides";
 type StaffGender = "male" | "female";
@@ -448,6 +453,120 @@ export async function updateStaffAvailabilityMode(
   revalidatePath(`/admin/staff/${staffId}`);
 
   return { data };
+}
+
+export interface StaffAvailabilityDayState {
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  success?: boolean;
+}
+
+/**
+ * Server actions are public endpoints, so the schedule that arrives here is
+ * untrusted whatever its TypeScript type says. Normalise before validating —
+ * `validateSchedule` maps over `breaks` and would throw on a non-array.
+ * (Same guard as `saveAvailabilityDay`'s in availability/actions.ts; the two
+ * live apart because `working-hours-segments.ts` is the shared *pure* module
+ * and this is server-action input hardening.)
+ */
+function normalizeSchedule(schedule: DaySchedule): DaySchedule {
+  return {
+    isWorkingDay: schedule?.isWorkingDay === true,
+    opens: typeof schedule?.opens === "string" ? schedule.opens : "",
+    closes: typeof schedule?.closes === "string" ? schedule.closes : "",
+    breaks: (Array.isArray(schedule?.breaks) ? schedule.breaks : []).map(
+      (entry) => ({
+        start: typeof entry?.start === "string" ? entry.start : "",
+        end: typeof entry?.end === "string" ? entry.end : "",
+      })
+    ),
+  };
+}
+
+/**
+ * C-14 Phase B Step 10 — replaces the whole of one staff member's weekday.
+ *
+ * The per-staff mirror of `saveAvailabilityDay` (availability/actions.ts). A
+ * day is now N rows — a break is the gap between two of them — so a save has
+ * to delete the day's rows and insert the new ones, and that pair MUST be
+ * atomic: a delete that commits without its insert leaves the day with zero
+ * rows, which `getRuleWindowsForDay` reads as CLOSED. Hence the RPC, whose
+ * body is one transaction (supabase/migrations/20260809120000_c14_save_
+ * availability_day.sql, applied 2026-08-09).
+ *
+ * Delete-then-insert also sidesteps a live privilege gap: `service_role` holds
+ * SELECT/INSERT/DELETE on `staff_availability_rules` but NOT UPDATE.
+ */
+export async function saveStaffAvailabilityDay(
+  staffId: string,
+  dayOfWeek: number,
+  schedule: DaySchedule
+): Promise<StaffAvailabilityDayState> {
+  const supabase = await createSupabaseServerClient();
+  const actor = await getAvailabilityActor(staffId, supabase);
+
+  if (!actor) {
+    return { error: "Insufficient permissions." };
+  }
+
+  if (!Number.isInteger(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) {
+    return { fieldErrors: { day_of_week: "Choose a valid day." } };
+  }
+
+  const normalized = normalizeSchedule(schedule);
+  const { errors } = validateSchedule(normalized);
+  if (errors.length > 0) {
+    return { fieldErrors: { start_time: errors[0] } };
+  }
+
+  const segments = scheduleToRows(normalized);
+  if (segments.length === 0) {
+    // Unreachable via validateSchedule, which rejects every shape that yields
+    // no rows. Kept because the alternative is writing a day with no rows.
+    return {
+      fieldErrors: { start_time: "Set opening and closing times, or close the day." },
+    };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+  const { data, error } = await adminClient.rpc("save_staff_availability_day", {
+    p_staff_id: staffId,
+    p_day_of_week: dayOfWeek,
+    p_segments: segments,
+  });
+
+  if (error) return { error: error.message };
+
+  const swap = (data ?? {}) as {
+    before?: Array<{ id: string }>;
+    after?: Array<{ id: string }>;
+  };
+  const before = Array.isArray(swap.before) ? swap.before : [];
+  const after = Array.isArray(swap.after) ? swap.after : [];
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "staff_availability_rules_updated",
+    target_type: "staff_availability_rules",
+    // A day is several rows now, so no single row is the target; the staff
+    // member is. (`staff_availability_rules_updated` is the bulk-update event
+    // name reserved for exactly this in admin/audit/format.ts.)
+    target_id: staffId,
+    before_state: before,
+    after_state: after,
+  });
+
+  updateTag("report-data");
+  updateTag("dashboard-data");
+  updateTag(TAGS.STAFF);
+  // C-09 Phase B fix round: per-staff availability affects booking
+  // eligibility, same rationale as the global-scope siblings in
+  // availability/actions.ts.
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
+  revalidatePath(`/admin/staff/${staffId}/availability`);
+
+  return { success: true };
 }
 
 export async function createStaffAvailabilityRule(
