@@ -270,7 +270,58 @@ Neither is a defect; both are gates that cannot be *observed* without changing l
 1. **Gate 6, paused half** — "with public booking paused, the admin calendar still marks days". Requires flipping `business_settings.booking_status_enabled` to `false` on the **production** database, during which **real customers cannot book**. The `ignorePublicPause` guard was already proven by the Phase B verifier's executed mutation testing (breaking guard 2 `||`→`&&` failed 4 of 7 tests). **Recommend: accept the mutation-proof, do not pause live booking for a screenshot.**
 2. **Gate 7, partial marker** — needs a day servable for exactly one cohort. **No such day exists naturally:** every bookable staff member uses `availability_mode = use_global` (3 female + 2 male), so female and male availability coincide on every working day. The one exception, `Test Therapist Fresh`, is `custom` with **zero** rules, i.e. never available. Manufacturing a partial day means inserting `staff_blocked_dates` rows for both male staff on a future date and deleting them after. The partial branch of `resolveMarkerState` was already mutation-tested at Phase C (inverting the thresholds failed the real assertions), and the "Partial — only one group" legend renders live. **Recommend: accept unit-level proof.** If you would rather see it rendered, say so and I will raise the ⛔ with the exact SQL.
 
-### 3.5 — Still outstanding for Phase D/E
+### 3.4c — Adversarial closeout review — **PASS**, and it found what four phase verifications missed
+
+`redesign/evidence/C-23/closeout-adversarial.md`. Swept C-23's cumulative range (`7b1db05..8eb2d8a`, 9 files, 1,633 insertions / 10 deletions). **Zero BLOCKING findings.** It also caught that the dispatch quoted a stale HEAD and re-ran every gate against the real tree rather than the stale reference.
+
+**All three orchestrator rulings independently re-derived and upheld:** branch 3's real condition confirmed verbatim at source; the typed date input confirmed as the sole render site of `stepErrors.booking_date` (exactly 3 occurrences, no error-summary fallback); and gate §3.2's "spent" ruling upheld by **recomputing the master↔start-state diff** — the non-zero 7/14 numstat is git rendering an inline additive edit as delete+add, not content start-state has that master lacks.
+
+**One genuine cross-phase seam defect — fixed at `2ad93d0`.** The calendar's displayed month did not follow a date typed into the **native** input. The date stored correctly (payload and gate §3.3 unaffected), but the calendar kept showing the old month, so the typed date was not visible as selected **and that month's markers were never fetched** — the hook keys on `displayedMonth`. **No test in any phase drove the native input's `onChange`**, which is exactly why Phase B, C, D and the month-nav fix all passed over it. A defect that lives *between* two components is invisible to any review scoped to one of them.
+
+**The fix, and why it is not the forbidden auto-hop.** Brief §4.5 bans auto-selecting the first available day and auto-hopping when a month is empty — both cases of the calendar *overriding* the operator; §4.5's stated concern is that auto-jumping "would fight the operator and silently overwrite a date they just typed". Following a date the operator **explicitly typed** does the opposite: it reflects their action, exactly as clicking that date on the calendar already would. Nothing selects a date; nothing reacts to emptiness. Recorded in a code comment so it is not "corrected" later.
+
+The effect is keyed on `bookingDate` **alone**, deliberately excluding `displayedMonth` — the real risk was a two-way sync in which paging away from the selected month would immediately re-fire and snap the view back. **Mutant 2 proved that risk is real**: widening the dependency array made the "paging must not snap back" test fail exactly as predicted. Mutant 1 (sync deleted) failed the new typed-month test. Diff is **29 insertions, 0 deletions** — a pure addition; hidden inputs, state declarations, `checkAvailability`, `canCheckAvailability` and branch 3 all byte-unchanged.
+
+**Confirmed live by the orchestrator:** typing `2026-10-14` while the calendar showed August moved it to **October 2026**, fired **one** month-endpoint call, and rendered **27 of 31** days marked — October 2026 has exactly four Sundays (4, 11, 18, 25), so 31 − 4 = 27. Day 14 rendered selected.
+
+**Two documentation gaps it raised, neither a code defect:**
+- §3.4a's line about branch 1/3 screenshots being outstanding was already closed by `8eb2d8a`, which landed after that text was written. Paperwork lag, corrected here: **all three branches now have 375 + 1280 evidence**, plus four "before" captures.
+- **Brief §8's acceptance criterion 9** ("ported files byte-identical to `redesign/start-state`") was never amended the way the plan's parallel gate §3.2 was, so post-Phase-B it is **literally false**. Recorded here rather than edited into the brief — briefs are the historical plan-writing record, and silently rewriting one after the fact is worse than annotating it. The criterion's *intent* (start-state contains nothing master lacks) holds; see §0.1.
+
+---
+
+## 4 — ✅ C-23 SHIPPED — 2026-08-09
+
+**Final code SHA `2ad93d0`.** Commits, in order:
+
+| Commit | Phase | Model |
+|---|---|---|
+| `61111ee` | B step 3 — additive engine options bag | `opus` |
+| `16c700e` | B step 4 — authenticated admin month route | `opus` |
+| `a345d99` | C — calendar component + month hook | `sonnet` |
+| `d701d9a` | D — wired into branches 1 and 2 | `opus` |
+| `d142897` | month navigation fetches (brief §4.3) | `opus` |
+| `2ad93d0` | closeout seam — month follows a typed date | `sonnet` |
+
+**Verification tiers as declared in advance (§0.4):** B FULL, C TARGETED, D FULL, E FULL fan-out. Every phase independently verified; two fix rounds, both re-verified.
+
+**Gate summary:** 8 of 10 closed, 2 held for an Owner ruling (§3.4b), 0 blocking defects outstanding. **Build + the +6 kB bundle ceiling NOT RUN** — builds are banned for agents this session; it rides the single orchestrator build at programme end.
+
+**Outstanding Owner items for this plan:**
+1. §3.4b's two gate rulings (public-paused half of gate 6; the partial marker of gate 7) — recommendation on both is to accept the code-level proof.
+2. **Cleanup of the three baseline bookings + their clients and participants** (§0.2a) — a Zone-2 deletion needing its own per-action approval.
+
+**Noticed, NOT fixed (rule 6a):** changing the participant cohort (group ↔ self) leaves `start_time` populated, because the clearing is tied to date and city changes rather than gender changes. **Pre-existing** — C-23 changed only how dates are displayed, and brief §4.4 forbids touching form state. Logged, not touched.
+
+### 4.1 — Updated baseline identity list, for the next plan
+
+- **tsc** 0 errors.
+- **vitest** → failures **exactly** `admin-access.test.ts` ×2 + `ManualBookingForm.test.tsx` ×3. Totals at `2ad93d0`: **5 failed / 2044 passed (2049)**. Judge by name, never count. C-23 added 17 passing tests across its phases.
+- **eslint** → **59 errors / 7 warnings** in exactly `design_handoff_area_pages/prototype/{area-page,shared,site-chrome}.jsx` + `src/features/booking/{BookingExperience.tsx,BookingExperienceLoader.tsx,utils/returning-customer.ts}`.
+
+---
+
+## 5 — Superseded: earlier "still outstanding" list
 
 - Independent **FULL** verification of `d701d9a` + `d142897` (dispatched).
 - Gate §3.3 payload identity for **branches 2 and 3** (branch 1 done above).
