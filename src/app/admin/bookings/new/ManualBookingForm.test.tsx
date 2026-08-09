@@ -1,6 +1,6 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createManualBooking } from "../actions";
 import { ManualBookingForm } from "./ManualBookingForm";
 
@@ -385,3 +385,289 @@ async function submitFromStep4(
   await waitFor(() => expect(createManualBooking).toHaveBeenCalledTimes(1));
   return { submitButton };
 }
+
+// ─── C-23 Phase D — availability calendar wired into the date branches ────────
+//
+// The governing constraint is that the calendar changes how staff SEE dates,
+// never what the form SUBMITS. These specs therefore assert on the hidden
+// mirror inputs (`booking_date`, `start_time`, `override_availability`) — the
+// literal payload — rather than on what the visible controls display.
+//
+// react-day-picker renders each day as `<td data-day="yyyy-MM-dd"><button>`
+// (the convention AvailabilityCalendarField.test.tsx established); days are
+// addressed through that attribute, never locale-formatted text.
+
+const MONTH_ENDPOINT = "/api/admin/availability/month";
+const DAY_ENDPOINT = "/api/availability";
+/** Frozen "today" — `min` and the month key are both derived from `new Date()`. */
+const TODAY = "2026-08-10";
+
+function participant(gender: "male" | "female", name: string) {
+  return {
+    name,
+    gender,
+    packageSlug: "hijama-package",
+    massageEnabled: false,
+    massageSlug: "",
+    differentAddress: false,
+    overrideAddress: "",
+    overridePostcode: "",
+  };
+}
+
+function seedStep3Draft(draft: Record<string, unknown>) {
+  sessionStorage.setItem(
+    "bookings-new-draft:scratch",
+    JSON.stringify({
+      step: 3,
+      fullName: "Aisha Khan",
+      phone: "07123456789",
+      address: "10 Test Street",
+      postcode: "LU1 1AA",
+      city: "Luton",
+      bookingForMode: "self",
+      participants: [participant("female", "Aisha")],
+      ...draft,
+    })
+  );
+}
+
+/**
+ * Month endpoint: 2026-08-12 servable by female therapists only, 2026-08-13 by
+ * neither. With one cohort that reads available / unmarked; with two it reads
+ * partial / unmarked — the two cases the markers must distinguish.
+ */
+function stubFetch() {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const body = JSON.parse(String(init?.body ?? "{}"));
+
+    if (url === MONTH_ENDPOINT) {
+      const female = body.participantGenders.includes("female");
+      return {
+        ok: true,
+        json: async () => ({
+          month: body.month,
+          days: [
+            { date: "2026-08-12", hasSlots: female, slotCount: female ? 3 : 0 },
+            { date: "2026-08-13", hasSlots: false, slotCount: 0 },
+          ],
+        }),
+      } as unknown as Response;
+    }
+
+    if (url === DAY_ENDPOINT) {
+      return {
+        ok: true,
+        json: async () => ({
+          slots: [{ time: "10:00", availableStaffByGender: { male: 1, female: 2 } }],
+        }),
+      } as unknown as Response;
+    }
+
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+function callsTo(fetchMock: ReturnType<typeof stubFetch>, url: string) {
+  return fetchMock.mock.calls.filter(([input]) => String(input) === url);
+}
+
+function bodiesOf(fetchMock: ReturnType<typeof stubFetch>, url: string) {
+  return callsTo(fetchMock, url).map(([, init]) => JSON.parse(String(init?.body ?? "{}")));
+}
+
+const hidden = (container: HTMLElement, name: string) =>
+  container.querySelector<HTMLInputElement>(`input[name="${name}"]`);
+
+const dayButton = (container: HTMLElement, isoDate: string) =>
+  container.querySelector<HTMLButtonElement>(`[data-day="${isoDate}"] button`);
+
+describe("ManualBookingForm availability calendar (C-23 Phase D)", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.mocked(createManualBooking).mockReset();
+    // Earlier describes leave their trees mounted; a second copy of the form
+    // would double every [data-day] query below.
+    cleanup();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(`${TODAY}T09:00:00Z`));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("branch 1 — keeps the native date input and adds a marked calendar, fetching the month from the admin endpoint", async () => {
+    const fetchMock = stubFetch();
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(1));
+    // Reuses the existing canCheckAvailability inputs verbatim — no new
+    // preconditions, and the month is the one the picker opens on.
+    expect(bodiesOf(fetchMock, MONTH_ENDPOINT)[0]).toEqual({
+      month: "2026-08",
+      serviceIds: ["hijama-package"],
+      participantGenders: ["female"],
+      city: "Luton",
+    });
+
+    // Direct date entry survives alongside the calendar (brief §4.3): same id,
+    // same type, same min floor, same inline error slot.
+    const dateInput = container.querySelector<HTMLInputElement>("input#booking_date");
+    expect(dateInput?.type).toBe("date");
+    expect(dateInput?.min).toBe(TODAY);
+
+    await waitFor(() =>
+      expect(dayButton(container, "2026-08-12")?.getAttribute("aria-label")).toContain(
+        "availability confirmed"
+      )
+    );
+    // A day with no availability is marked differently but stays selectable —
+    // the calendar informs, it never blocks.
+    expect(dayButton(container, "2026-08-13")?.getAttribute("aria-label")).not.toContain(
+      "availability confirmed"
+    );
+    expect(dayButton(container, "2026-08-13")?.disabled).toBe(false);
+  });
+
+  it("branch 1 — picking a day on the calendar runs the same handler body as the date input: sets the date, clears the start time, and re-checks availability", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchMock = stubFetch();
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    await waitFor(() => expect(dayButton(container, "2026-08-12")).not.toBeNull());
+
+    await user.click(dayButton(container, "2026-08-12")!);
+
+    await waitFor(() => expect(hidden(container, "booking_date")?.value).toBe("2026-08-12"));
+    expect(bodiesOf(fetchMock, DAY_ENDPOINT)[0]).toEqual({
+      date: "2026-08-12",
+      serviceIds: ["hijama-package"],
+      participantGenders: ["female"],
+      city: "Luton",
+    });
+
+    // Slot buttons still render with their slotLabel staff counts, and picking
+    // one still fills the submitted start_time.
+    const slot = await screen.findByRole("button", { name: /10:00/ });
+    expect(slot.textContent).toContain("1 male therapist, 2 female therapists");
+    await user.click(slot);
+    await waitFor(() => expect(hidden(container, "start_time")?.value).toBe("10:00"));
+
+    // Changing the date on the calendar must clear the chosen time exactly as
+    // the native input does — otherwise a stale time is submitted against a
+    // new date.
+    await user.click(dayButton(container, "2026-08-13")!);
+    await waitFor(() => expect(hidden(container, "booking_date")?.value).toBe("2026-08-13"));
+    expect(hidden(container, "start_time")?.value).toBe("");
+    expect(hidden(container, "override_availability")).toBeNull();
+  });
+
+  it("branch 2 — mixed-gender renders ONE calendar with two cohorts' markers and one shared start time", async () => {
+    const fetchMock = stubFetch();
+    seedStep3Draft({
+      bookingForMode: "group",
+      participants: [participant("female", "Aisha"), participant("male", "Bilal")],
+    });
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(2));
+    const genderSets = bodiesOf(fetchMock, MONTH_ENDPOINT).map((b) => b.participantGenders);
+    expect(genderSets).toContainEqual(["female"]);
+    expect(genderSets).toContainEqual(["male"]);
+
+    // One date, one calendar — a second would break the shared start_time
+    // (brief finding 1).
+    expect(container.querySelectorAll('[data-day="2026-08-12"]').length).toBe(1);
+    expect(container.querySelectorAll("input#booking_date").length).toBe(1);
+    expect(container.querySelectorAll('input[name="booking_date"]').length).toBe(1);
+
+    // Female-only day reads "partial", not "available".
+    await waitFor(() =>
+      expect(dayButton(container, "2026-08-12")?.getAttribute("aria-label")).toContain(
+        "availability for one participant group only"
+      )
+    );
+    expect(dayButton(container, "2026-08-12")?.getAttribute("aria-label")).not.toContain(
+      "availability confirmed"
+    );
+
+    // Both per-cohort slot sections are still the detailed answer below.
+    expect(screen.getByText("Female participants (1)")).toBeTruthy();
+    expect(screen.getByText("Male participants (1)")).toBeTruthy();
+  });
+
+  it("branch 3 — override keeps the plain date input, renders no calendar, and never clears the manually-typed start time", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchMock = stubFetch();
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    await waitFor(() => expect(dayButton(container, "2026-08-12")).not.toBeNull());
+
+    await user.click(screen.getByRole("button", { name: /Override availability/i }));
+    await user.click(screen.getByRole("button", { name: /^Override$/ }));
+
+    // Calendar gone with the branch; the plain date + time pair is what remains.
+    await waitFor(() => expect(container.querySelectorAll("[data-day]").length).toBe(0));
+    const dateInput = container.querySelector<HTMLInputElement>("input#booking_date");
+    expect(dateInput?.type).toBe("date");
+    expect(container.querySelector<HTMLInputElement>("input#start_time")?.type).toBe("time");
+    expect(hidden(container, "override_availability")?.value).toBe("on");
+
+    fireEvent.change(container.querySelector<HTMLInputElement>("input#start_time")!, {
+      target: { value: "14:30" },
+    });
+    const dayCallsBefore = callsTo(fetchMock, DAY_ENDPOINT).length;
+    fireEvent.change(dateInput!, { target: { value: "2026-08-11" } });
+
+    // Branch 3's handler is only setBookingDate — no setStartTime(""), no
+    // availability check. Copying branch 1's handler here would break both.
+    await waitFor(() => expect(hidden(container, "booking_date")?.value).toBe("2026-08-11"));
+    expect(hidden(container, "start_time")?.value).toBe("14:30");
+    expect(callsTo(fetchMock, DAY_ENDPOINT).length).toBe(dayCallsBefore);
+  });
+
+  it("adds no new preconditions — with canCheckAvailability false there is no month fetch and no calendar", async () => {
+    const fetchMock = stubFetch();
+    seedStep3Draft({ city: "" });
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(/Fill in the city, participant genders, and services/)).toBeTruthy()
+    );
+    expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(0);
+    expect(container.querySelectorAll("[data-day]").length).toBe(0);
+  });
+
+  it("a failed month fetch leaves the calendar unmarked and every day still selectable", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, json: async () => ({ error: "nope" }) }) as unknown as Response)
+    );
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+
+    await waitFor(() => expect(dayButton(container, "2026-08-12")).not.toBeNull());
+    expect(dayButton(container, "2026-08-12")?.getAttribute("aria-label")).not.toContain(
+      "availability confirmed"
+    );
+    expect(dayButton(container, "2026-08-12")?.disabled).toBe(false);
+  });
+});

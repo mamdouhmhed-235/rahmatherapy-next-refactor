@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useEffect, useRef, useCallback } from "react";
+import { useActionState, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
@@ -27,6 +27,8 @@ import { DuplicateWarningBanner } from "@/app/admin/clients/components/Duplicate
 import { createManualBooking, type ManualBookingState } from "../actions";
 import { createRecurringSeries, type RecurringActionState } from "../recurring-actions";
 import { RecurringSection } from "./RecurringSection";
+import { AvailabilityCalendarField } from "./AvailabilityCalendarField";
+import { useMonthAvailability } from "./use-month-availability";
 
 // ─── Step-4 review helpers (hoisted so React doesn't re-create the component
 //     on every render of the parent form) ─────────────────────────────────────
@@ -804,6 +806,61 @@ export function ManualBookingForm({
     },
     [canCheckAvailability, allSelectedSlugs, city, participants, isMixedGenderGroup,
      femaleParticipants, maleParticipants]
+  );
+
+  // ─── C-23 Phase D — month markers for the availability calendar ─────────────
+  // A hint layer, nothing more. `checkAvailability` above stays the source of
+  // truth on selection; none of this touches form state, validation, step
+  // gating or the submitted payload. Each `enabled` flag mirrors its own date
+  // branch's render condition exactly, so a month request is only ever made
+  // where the existing `canCheckAvailability` gate already allows a per-day one
+  // — no new preconditions (brief finding 4).
+  //
+  // KNOWN LIMIT: the month shown is derived from the picked date (today's month
+  // until one is picked). AvailabilityCalendarField (Phase C) exposes no
+  // month/onMonthChange prop, so paging the calendar forward cannot refetch;
+  // that month renders unmarked until a date in it is picked. Never blocking —
+  // every day stays selectable and the per-day check still runs.
+  const calendarMin = new Date().toISOString().split("T")[0];
+  const calendarMonthKey = (bookingDate || calendarMin).slice(0, 7);
+  const singleCalendarEnabled =
+    canCheckAvailability && !overrideAvailability && !isMixedGenderGroup;
+  const mixedCalendarEnabled =
+    canCheckAvailability && !overrideAvailability && !femaleOverride && !maleOverride &&
+    isMixedGenderGroup;
+
+  // Same cohort shapes checkAvailability builds for its per-day fetches.
+  const singleCohortGenders = participants
+    .map((p) => p.gender)
+    .filter((g): g is "male" | "female" => g === "male" || g === "female");
+  const femaleCohortGenders = femaleParticipants.map(() => "female" as const);
+  const maleCohortGenders = maleParticipants.map(() => "male" as const);
+
+  const singleMonth = useMonthAvailability(
+    calendarMonthKey, allSelectedSlugs, singleCohortGenders, city.trim(), singleCalendarEnabled
+  );
+  const femaleMonth = useMonthAvailability(
+    calendarMonthKey, allSelectedSlugs, femaleCohortGenders, city.trim(), mixedCalendarEnabled
+  );
+  const maleMonth = useMonthAvailability(
+    calendarMonthKey, allSelectedSlugs, maleCohortGenders, city.trim(), mixedCalendarEnabled
+  );
+
+  const singleCohorts = useMemo(
+    () => (singleMonth.days ? [{ label: "", days: singleMonth.days }] : []),
+    [singleMonth.days]
+  );
+  // Both cohorts or none: one cohort alone would resolve to "available" markers
+  // that silently ignore the other group.
+  const mixedCohorts = useMemo(
+    () =>
+      femaleMonth.days && maleMonth.days
+        ? [
+            { label: "Female participants", days: femaleMonth.days },
+            { label: "Male participants", days: maleMonth.days },
+          ]
+        : [],
+    [femaleMonth.days, maleMonth.days]
   );
 
   // Session storage draft
@@ -1642,6 +1699,13 @@ export function ManualBookingForm({
               min={new Date().toISOString().split("T")[0]}
               onChange={(e) => { const d = e.target.value; setBookingDate(d); setStartTime(""); if (d) checkAvailability(d); }}
             />
+            <AvailabilityCalendarField
+              value={bookingDate}
+              onChange={(d) => { setBookingDate(d); setStartTime(""); if (d) checkAvailability(d); }}
+              cohorts={singleCohorts}
+              loading={singleMonth.loading}
+              min={calendarMin}
+            />
             {availLoading && (
               <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]">
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability…
@@ -1694,6 +1758,13 @@ export function ManualBookingForm({
               error={stepErrors.booking_date}
               min={new Date().toISOString().split("T")[0]}
               onChange={(e) => { const d = e.target.value; setBookingDate(d); setStartTime(""); if (d) checkAvailability(d); }}
+            />
+            <AvailabilityCalendarField
+              value={bookingDate}
+              onChange={(d) => { setBookingDate(d); setStartTime(""); if (d) checkAvailability(d); }}
+              cohorts={mixedCohorts}
+              loading={femaleMonth.loading || maleMonth.loading}
+              min={calendarMin}
             />
             {bookingDate && (
               <p className="text-xs text-[var(--admin-text-muted)] -mt-2">
