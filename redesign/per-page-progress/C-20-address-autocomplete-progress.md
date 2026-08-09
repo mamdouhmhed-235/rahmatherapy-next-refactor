@@ -235,6 +235,38 @@ Both branches behave exactly as designed. **Finding refuted.**
 
 **Tooling constraint hit twice, recorded:** two separate agents found they could not stage mutation copies in the scratchpad, because vitest's `include` glob is `src/**` and Vite's bare-import resolution needs the file inside the project tree. Both used a transient, immediately-deleted directory under `src/` instead, and both verified `git status --porcelain -- src/` clean afterwards. No real file was ever mutated, but it bends the "scratchpad copies only" rule and will recur — worth solving properly if mutation testing continues.
 
+## 1d — ✅ Gate §3.2, the real-address matrix — ALL FIVE CASES PASS LIVE
+
+One of the plan's **two unwaivable gates**. Run by the orchestrator against the real Google Places API (agents are barred from billed calls). Cost: five autocomplete sessions plus five Place Details Essentials events.
+
+| # | Plan case | Typed | `address` / `city` / `area` / `postcode` | Verdict |
+|---|---|---|---|---|
+| 1 | Standard Luton terrace | 12 Dunstable Road, Luton | `12 Dunstable Road` / Luton / Luton / LU1 1DY | ✅ all four fill |
+| 2 | **Flat / apartment** | Flat 1, 1 Napier Road, Luton | `1 Napier Road` / Luton / Luton / LU1 1RF | ✅ street fills; flat detail is the user's to add, exactly as the plan specifies |
+| 3 | **Village with no postal town of its own** | 1 Church Road, Slip End | `1 Church Road` / **Luton** / Central Bedfordshire / LU1 4JW | ✅ fallback chain fills city, nothing blanked |
+| 4 | **London** | 10 Downing Street, London | `10 Downing Street` / London / **Greater London** / SW1A 2AA | ✅ area falls back sensibly |
+| 5 | **Out-of-covered-area town** | 1 Midsummer Boulevard, Milton Keynes | `1 Midsummer Boulevard` / Milton Keynes / Milton Keynes / MK9 3HP | ✅ fields fill **and the hard gate blocks** |
+
+**Three of these resolve open questions rather than merely passing:**
+
+1. **Case 2 proves the Phase B fix round mattered.** The flat appeared in the suggestion list at all — under the originally-shipped `includedPrimaryTypes: ["street_address"]` it would have been **excluded**, silently failing the very case the plan names. The widening to `["street_address","premise","subpremise"]` is what makes this case pass.
+2. **Case 3 is the textbook justification for the UK mapping.** Slip End's `locality` is "Slip End" but its `postal_town` is **"Luton"**. Preferring `postal_town` produced the correct billing town; preferring `locality` — the US model the reference snippet uses — would have produced a village name. This is the plan's third deliberate deviation, demonstrated on live data.
+3. **Case 4 settles the Phase A verifier's open recommendation, and it needs no change.** That verifier flagged that a London address might fall through to `administrative_area_level_1` and yield the useless constant "England", and recommended truncating the chain at level_2. Real London returns **`administrative_area_level_2 = "Greater London"`** — the fallback never fires. Deferring this to live data rather than acting on a synthetic fixture was the right call; **no code change.**
+
+**Case 5 is the one that mattered most, and it was the biggest risk in the plan.** An autocomplete-filled out-of-area city had to behave *identically to typing* against a **hard** validation gate. It does:
+
+> *"Outside current home visit area: We currently cover Luton, Dunstable, Houghton Regis, Harpenden and St Albans. Use a covered town before choosing a time."*
+
+and on pressing Continue: **`advancedPastAbout: false`**, `city` carries `aria-invalid="true"`, the value is preserved, the notice persists. **The autocomplete does not bypass the gate.** This also confirms C20-F4's *corrected* mechanism — the notice re-evaluates via `watch("city")` on any `setValue`, not via `shouldValidate`.
+
+### 1d.1 — One §3.4 check NOT completed, stated plainly
+
+**The in-dialog suggestion-list clipping check at 375px was not completed.** The implementer flagged an honest residual: `.contentGrid` is the booking dialog's scroll container, so a list opened with the address input at the very bottom of the viewport could clip until the user scrolls — inherent to any in-flow dropdown inside a scroll box.
+
+Attempting it revealed a **tooling** obstacle, not a product one: the MCP viewport-emulation call **reloads the page** (it fires `beforeunload` each time), so the booking wizard reopens at step 1 and the whole flow must be re-walked at the new width. Recorded explicitly so nobody mistakes the reset for a mobile-layout bug — **a real user resizing or rotating would not hit it.**
+
+What *is* verified at 375: no horizontal overflow, and the admin-side calendar/list geometry (§ C-23's records). **Outstanding as a small manual check for the Owner:** open the booking dialog on a phone, scroll so the address field sits at the bottom, and confirm the suggestion list is usable. Low risk, easily corrected with a scroll-into-view on open if it bites.
+
 ## 2 — ▶ Position (corrected 2026-08-09 — drift checkpoint #4 finding 2)
 
 **Phases A, B, C and D are committed and verified** (§1a, §1b). **Phase E (closeout) is next** — the §3.2 real-address matrix has 2 of 5 cases done live (Luton terrace, Dunstable), leaving flat/apartment, new-build without `postal_town`, and out-of-covered-area.
