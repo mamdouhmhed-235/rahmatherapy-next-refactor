@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import { Loader2, XCircle } from "lucide-react";
 import { AdminPanel } from "@/app/admin/components/admin-ui";
 import {
-  NOTIFICATION_ALERT_TYPES,
   saveNotificationSettings,
   type SaveNotificationSettingsState,
 } from "./actions";
+import { NOTIFICATION_ALERT_TYPES } from "./alert-types";
 
 // C-08 Phase D Step 17 (brief §2.8) — labels for the locked alert-type keys.
 const ALERT_TYPE_LABELS: Record<(typeof NOTIFICATION_ALERT_TYPES)[number], string> = {
