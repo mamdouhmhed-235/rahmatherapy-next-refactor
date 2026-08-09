@@ -827,6 +827,35 @@ export function ManualBookingForm({
   const [displayedMonth, setDisplayedMonth] = useState(() =>
     (bookingDate || calendarMin).slice(0, 7)
   );
+
+  // Closeout fix (adversarial review, non-blocking finding 1) — the native
+  // typed date input (brief §4.3) and the calendar are two entry points onto
+  // the SAME `bookingDate`, but only paging (`onMonthChange` above) moved
+  // `displayedMonth`. Typing a date in a different month left it stored
+  // correctly but visually unreflected: the calendar kept the old month, so
+  // the typed date wasn't shown as selected and that month's markers were
+  // never fetched. This follows `bookingDate` into view whenever it lands in
+  // a month the calendar isn't already showing.
+  //
+  // This is NOT the auto-hop/auto-select brief §4.5 forbids — §4.5's concern
+  // is the calendar overriding the operator (jumping months on its own,
+  // picking a day nobody chose). This does the opposite: it reflects a date
+  // the operator just typed, exactly as clicking that date on the calendar
+  // already would. Nothing here selects a date or reacts to emptiness.
+  //
+  // Keyed on `bookingDate` alone, deliberately excluding `displayedMonth`: if
+  // it also fired on `displayedMonth` changes, paging away from the selected
+  // date's month would immediately re-fire and snap the view straight back —
+  // fighting the operator, which is the exact failure mode §4.5 warns about.
+  // The functional update only sets state when the month actually differs,
+  // so paging (which never touches `bookingDate`) can't retrigger this at all.
+  useEffect(() => {
+    if (!bookingDate) return;
+    const bookingMonth = bookingDate.slice(0, 7);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDisplayedMonth((prev) => (prev === bookingMonth ? prev : bookingMonth));
+  }, [bookingDate]);
+
   const singleCalendarEnabled =
     canCheckAvailability && !overrideAvailability && !isMixedGenderGroup;
   const mixedCalendarEnabled =

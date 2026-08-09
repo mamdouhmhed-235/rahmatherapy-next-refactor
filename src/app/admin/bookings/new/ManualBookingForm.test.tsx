@@ -576,6 +576,55 @@ describe("ManualBookingForm availability calendar (C-23 Phase D)", () => {
     expect(hidden(container, "override_availability")).toBeNull();
   });
 
+  // Closeout fix regression coverage — the seam the adversarial review found:
+  // no prior test drove the native input's onChange at all, so the calendar
+  // silently kept showing the wrong month whenever staff typed a date instead
+  // of clicking one.
+  it("typing a date into a different month follows the calendar there and fetches that month", async () => {
+    const fetchMock = stubFetch();
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(1));
+
+    const dateInput = container.querySelector<HTMLInputElement>("input#booking_date")!;
+    fireEvent.change(dateInput, { target: { value: "2026-09-15" } });
+
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(2));
+    expect(bodiesOf(fetchMock, MONTH_ENDPOINT)[1]).toEqual({
+      month: "2026-09",
+      serviceIds: ["hijama-package"],
+      participantGenders: ["female"],
+      city: "Luton",
+    });
+
+    // The calendar now shows September — the typed date's month, not the one
+    // it opened on — so the typed date is actually visible as selected.
+    expect(dayButton(container, "2026-08-12")).toBeNull();
+    await waitFor(() =>
+      expect(dayButton(container, "2026-09-12")?.getAttribute("aria-label")).toContain(
+        "availability confirmed"
+      )
+    );
+  });
+
+  it("typing a date within the already-displayed month does not trigger a redundant month refetch", async () => {
+    const fetchMock = stubFetch();
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(1));
+
+    const dateInput = container.querySelector<HTMLInputElement>("input#booking_date")!;
+    fireEvent.change(dateInput, { target: { value: "2026-08-20" } });
+
+    await waitFor(() => expect(hidden(container, "booking_date")?.value).toBe("2026-08-20"));
+    // Same month as already displayed — same cache key, no second fetch.
+    expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(1);
+  });
+
   it("branch 2 — mixed-gender renders ONE calendar with two cohorts' markers and one shared start time", async () => {
     const fetchMock = stubFetch();
     seedStep3Draft({
@@ -757,6 +806,39 @@ describe("ManualBookingForm availability calendar (C-23 Phase D)", () => {
     expect(hidden(container, "booking_date")?.value).toBe("2026-08-12");
     expect(hidden(container, "start_time")?.value).toBe("10:00");
     expect(callsTo(fetchMock, DAY_ENDPOINT).length).toBe(dayCallsBefore);
+  });
+
+  // Closeout fix regression guard — the fix's main risk: syncing the calendar
+  // to a TYPED date must not turn into syncing it to the SELECTED date on
+  // every render, which would fight the operator by snapping paging back.
+  it("paging away from the selected date's month does not snap the calendar back to it", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const fetchMock = stubFetch();
+    seedStep3Draft({});
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    await waitFor(() => expect(dayButton(container, "2026-08-12")).not.toBeNull());
+
+    await user.click(dayButton(container, "2026-08-12")!);
+    await waitFor(() => expect(hidden(container, "booking_date")?.value).toBe("2026-08-12"));
+
+    await user.click(nextMonthButton());
+    await waitFor(() => expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(2));
+
+    // September must stay displayed. A wrong fix that also re-syncs whenever
+    // `displayedMonth` changes would immediately fire again here, jump the
+    // view straight back to August (the selected date's month), and issue a
+    // THIRD month fetch.
+    expect(dayButton(container, "2026-08-12")).toBeNull();
+    expect(dayButton(container, "2026-09-12")).not.toBeNull();
+    await waitFor(() =>
+      expect(dayButton(container, "2026-09-12")?.getAttribute("aria-label")).toContain(
+        "availability confirmed"
+      )
+    );
+    expect(callsTo(fetchMock, MONTH_ENDPOINT).length).toBe(2);
+    expect(hidden(container, "booking_date")?.value).toBe("2026-08-12");
   });
 
   it("branch 2 — paging drives BOTH cohorts from the one displayed month", async () => {
