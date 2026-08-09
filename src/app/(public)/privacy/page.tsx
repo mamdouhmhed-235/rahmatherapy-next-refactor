@@ -76,12 +76,13 @@ export default function PrivacyPolicyPage() {
             <ul className={listClass}>
               <li>Your name, phone number and email address.</li>
               <li>
-                Your postcode, address and area, plus any access or parking notes, so we can
-                find and reach you.
+                Your address, town or city, area and postcode, plus any access or parking
+                notes, so we can find and reach you.
               </li>
               <li>
-                Whether the booking is for yourself, someone else, or a group, plus the names
-                and genders of anyone else included.
+                Whether the booking is for yourself, someone else, or a group, plus the gender
+                of the person being treated — including your own if the booking is for you —
+                and the names and genders of anyone else included.
               </li>
               <li>The treatments you choose and your preferred date and time.</li>
               <li>Any treatment notes you add about what you&apos;d like help with.</li>
