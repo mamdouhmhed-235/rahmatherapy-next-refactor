@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { addMonths, format, parseISO, startOfMonth } from "date-fns";
+import { getBookingDateBounds } from "@/lib/time/london";
 import type { BookingTimeSlot } from "../data/time-slots";
 import { DatePickerField } from "./DatePickerField";
 import { TimeSlotPicker } from "./TimeSlotPicker";
@@ -17,6 +18,13 @@ interface ScheduleStepProps {
   onDateChange: (date: Date | undefined) => void;
   onTimeClear: () => void;
   onTimeChange: (time: BookingTimeSlot) => void;
+  /**
+   * business_settings, threaded from the public layout (C-14 Phase D). Absent
+   * when the settings read failed; the picker then keeps its previous, purely
+   * availability-driven bounds.
+   */
+  bookingWindowDays?: number;
+  minimumNoticeHours?: number;
 }
 
 interface AvailabilityApiResponse {
@@ -47,6 +55,8 @@ export function ScheduleStep({
   onDateChange,
   onTimeClear,
   onTimeChange,
+  bookingWindowDays,
+  minimumNoticeHours,
 }: ScheduleStepProps) {
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [availabilityError, setAvailabilityError] = useState<string | undefined>();
@@ -221,6 +231,19 @@ export function ScheduleStep({
   const monthHasNoDays =
     !monthLoading && monthDays !== null && !monthDays.some((day) => day.hasSlots);
 
+  // Same helper the server's isDateInBusinessWindow uses, so the last clickable
+  // day is exactly the last day /api/availability accepts. Computed on the
+  // visitor's clock (not the server's) so a cached page can never bake in a
+  // stale "today"; parseISO reads a date-only string as local midnight, which
+  // is what DatePickerField compares against.
+  const bounds =
+    bookingWindowDays === undefined
+      ? null
+      : getBookingDateBounds({
+          bookingWindowDays,
+          minimumNoticeHours: minimumNoticeHours ?? 0,
+        });
+
   return (
     <section className={styles.stepSection} aria-labelledby="schedule-heading">
       <div className={styles.stepHeader}>
@@ -242,6 +265,8 @@ export function ScheduleStep({
           monthDays={monthDays}
           monthLoading={monthLoading}
           monthEmpty={monthHasNoDays}
+          earliestBookable={bounds ? parseISO(bounds.earliest) : undefined}
+          latestBookable={bounds ? parseISO(bounds.latest) : undefined}
         />
         <TimeSlotPicker
           selectedTime={preferredTime}

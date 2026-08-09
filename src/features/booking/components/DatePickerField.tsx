@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { CalendarDays } from "lucide-react";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, type Matcher } from "react-day-picker";
 import { parseISO, startOfDay } from "date-fns";
 import styles from "../BookingExperience.module.css";
 
@@ -20,6 +20,14 @@ interface DatePickerFieldProps {
   monthDays: MonthDaySummary[] | null;
   monthLoading: boolean;
   monthEmpty: boolean;
+  /**
+   * Booking-window guard (C-14 Phase D). Both inclusive: `earliestBookable`
+   * and `latestBookable` stay clickable, everything outside them does not.
+   * Omitted — settings unavailable — leaves the previous behaviour intact:
+   * past days and fully-booked days disabled, no window bound.
+   */
+  earliestBookable?: Date;
+  latestBookable?: Date;
 }
 
 export function DatePickerField({
@@ -30,6 +38,8 @@ export function DatePickerField({
   monthDays,
   monthLoading,
   monthEmpty,
+  earliestBookable,
+  latestBookable,
 }: DatePickerFieldProps) {
   const today = startOfDay(new Date());
 
@@ -50,6 +60,16 @@ export function DatePickerField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthDays]);
 
+  // Two separate matchers rather than react-day-picker's `{ before, after }`
+  // interval form: that one flips meaning when `before` sorts after `after`,
+  // so a pathological settings combination (notice pushing the first bookable
+  // day past the window) would silently enable every date instead of none.
+  const disabled: Matcher[] = [
+    { before: earliestBookable ?? today },
+    ...(latestBookable ? [{ after: latestBookable }] : []),
+    ...fullDates,
+  ];
+
   return (
     <div className={styles.calendarCard}>
       <div className={styles.cardHeaderLine}>
@@ -62,7 +82,7 @@ export function DatePickerField({
         onSelect={onSelect}
         month={month}
         onMonthChange={onMonthChange}
-        disabled={[{ before: today }, ...fullDates]}
+        disabled={disabled}
         modifiers={{ hasTimes: availableDates }}
         modifiersClassNames={{ hasTimes: styles.dayHasTimes }}
         weekStartsOn={1}

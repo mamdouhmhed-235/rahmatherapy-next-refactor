@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
+import type { BookingExperienceProps } from "./BookingExperience";
 
 const BookingExperience = dynamic(
   () =>
@@ -19,7 +20,10 @@ function hasBookingParam() {
   return new URL(window.location.href).searchParams.get("booking") === "1";
 }
 
-export function BookingExperienceLoader() {
+export function BookingExperienceLoader({
+  bookingWindowDays,
+  minimumNoticeHours,
+}: BookingExperienceProps = {}) {
   const [shouldLoad, setShouldLoad] = useState(false);
 
   // Deep-link check happens in an effect (not a state initializer) so the
@@ -82,5 +86,10 @@ export function BookingExperienceLoader() {
     };
   }, [shouldLoad]);
 
-  return shouldLoad ? <BookingExperience /> : null;
+  return shouldLoad ? (
+    <BookingExperience
+      bookingWindowDays={bookingWindowDays}
+      minimumNoticeHours={minimumNoticeHours}
+    />
+  ) : null;
 }

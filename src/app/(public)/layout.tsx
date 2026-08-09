@@ -1,4 +1,5 @@
 import { BookingExperienceLoader } from "@/features/booking/BookingExperienceLoader";
+import { getPublicBookingWindow } from "@/lib/booking/booking-window-settings";
 import { PublicScrollbar } from "@/components/layout/PublicScrollbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
@@ -9,11 +10,16 @@ import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { ConsentScripts } from "@/components/consent/ConsentScripts";
 import { CookieBanner } from "@/components/consent/CookieBanner";
 
-export default function PublicLayout({
+export default async function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // C-14 Phase D — the booking dialog mounts client-only, so its date picker's
+  // window settings enter the tree here. Cached + null-tolerant; see
+  // src/lib/booking/booking-window-settings.ts.
+  const bookingWindow = MAINTENANCE_MODE ? null : await getPublicBookingWindow();
+
   return (
     <>
       {/* First, unconditionally — including under MAINTENANCE_MODE below, where
@@ -31,7 +37,12 @@ export default function PublicLayout({
         {children}
       </main>
       <SiteFooter />
-      {!MAINTENANCE_MODE && <BookingExperienceLoader />}
+      {!MAINTENANCE_MODE && (
+        <BookingExperienceLoader
+          bookingWindowDays={bookingWindow?.bookingWindowDays}
+          minimumNoticeHours={bookingWindow?.minimumNoticeHours}
+        />
+      )}
       {MAINTENANCE_MODE && <MaintenanceModal />}
       <PublicScrollbar />
       {/* Last in the tree, and unconditional like ConsentScripts above: the

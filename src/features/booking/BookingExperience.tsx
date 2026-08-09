@@ -71,7 +71,21 @@ export function loadReturningCustomerIfConsented(): Partial<BookingDetails> | nu
   return loadReturningCustomer();
 }
 
-export function BookingExperience() {
+export interface BookingExperienceProps {
+  /**
+   * business_settings.booking_window_days + minimum_notice_hours, read once by
+   * the public layout and threaded down to the date picker (C-14 Phase D).
+   * Both absent when that read failed — the picker then falls back to its
+   * availability-only bounds.
+   */
+  bookingWindowDays?: number;
+  minimumNoticeHours?: number;
+}
+
+export function BookingExperience({
+  bookingWindowDays,
+  minimumNoticeHours,
+}: BookingExperienceProps = {}) {
   // This component is client-only (ssr: false), so the URL is readable at
   // first render. Initializing synchronously keeps the URL-sync effect from
   // ever seeing an open deep link while `open` is still false — the dev
@@ -687,6 +701,8 @@ export function BookingExperience() {
                 setPreferredTime(time);
                 clearStepErrors();
               }}
+              bookingWindowDays={bookingWindowDays}
+              minimumNoticeHours={minimumNoticeHours}
             />
           </MotionStep>
         )}

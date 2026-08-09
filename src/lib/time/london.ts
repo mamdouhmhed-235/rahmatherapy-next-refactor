@@ -94,6 +94,40 @@ export function toBusinessDateTime(date: string, time: string) {
   return new Date(utcGuess - offsetMs);
 }
 
+/**
+ * The single source of truth for the customer booking window (C-14 Phase D):
+ * the first and last dates a customer may pick, as London `YYYY-MM-DD`.
+ *
+ * `latest` is today + `bookingWindowDays`, inclusive — so the last clickable
+ * day in the picker is exactly the last day the slots API accepts.
+ *
+ * `earliest` is the London date of `now + minimumNoticeHours`: the first day
+ * that contains any moment satisfying the notice rule. It defaults to 0 hours,
+ * which makes `earliest` today — the lower bound the server has always used.
+ * The server keeps doing the finer per-slot notice check separately, in
+ * `isOutsideMinimumNotice`, so a same-day evening slot stays bookable while
+ * the picker (which cannot disable half a day) uses the coarser day floor.
+ */
+export function getBookingDateBounds({
+  now = new Date(),
+  bookingWindowDays,
+  minimumNoticeHours = 0,
+}: {
+  now?: Date;
+  bookingWindowDays: number;
+  minimumNoticeHours?: number;
+}) {
+  const today = getBusinessDate(now);
+  const earliest =
+    minimumNoticeHours > 0
+      ? getBusinessDate(
+          new Date(now.getTime() + minimumNoticeHours * 60 * 60 * 1000)
+        )
+      : today;
+
+  return { earliest, latest: addBusinessDays(today, bookingWindowDays) };
+}
+
 export function isDateInBusinessWindow({
   date,
   now = new Date(),
@@ -103,10 +137,9 @@ export function isDateInBusinessWindow({
   now?: Date;
   bookingWindowDays: number;
 }) {
-  const today = getBusinessDate(now);
-  const lastBookableDate = addBusinessDays(today, bookingWindowDays);
+  const { earliest, latest } = getBookingDateBounds({ now, bookingWindowDays });
 
-  return date >= today && date <= lastBookableDate;
+  return date >= earliest && date <= latest;
 }
 
 export function isOutsideMinimumNotice({
