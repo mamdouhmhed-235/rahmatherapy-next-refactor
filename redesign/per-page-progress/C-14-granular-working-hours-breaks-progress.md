@@ -96,9 +96,76 @@ The implementer observed **HEAD moving under it mid-run** and an unexpected dirt
 
 ---
 
-## 2 — ▶ Position
+## 2 — Phase A (Steps 6–9) — IMPLEMENTED + MIGRATION APPLIED
 
-**Phase D ✅ implemented (`4583573`) and FULL-verified.** Phases A, B and C **not started** — both run into the ⛔ gates in §0.2.
+| Commit | What | Model |
+|---|---|---|
+| `17aade6` | Steps 6–7 — `working-hours-segments.ts` (+24 tests) and `WorkingHoursDayEditor.tsx` (+13 tests), **imported by nothing** | `opus` |
+| `d9d252a` | Steps 8–9 — segments-aware `saveAvailabilityDay`, editor wired into `AvailabilityRulesManager`, migration file written | `opus` |
+| *(applied)* | `c14_save_availability_day` — **applied to production 2026-08-09 under Owner approval** | orchestrator |
+
+**Opus justification (§5):** RPC/transaction design and the segments contract feeding the live availability engine.
+
+### 2.1 — Steps 6–7 were split from 8–9 deliberately, and it mattered
+
+Steps 6–7 shipped **wired to nothing** (verified by grep across `src/`, `e2e/`, `scripts/`). Wiring the editor before the segments-aware save existed would have let staff enter a break, see it accepted, and have it **silently discarded** by a save path that still wrote one row per day. Steps 8 and 9 then shipped in **one** commit for the same reason. The cost of that choice is stated plainly: between `d9d252a` and the migration being applied, "Save hours" called an RPC that did not exist and failed loudly. **A loud failure is strictly better than silent data loss** — that is the trade, made on purpose.
+
+### 2.2 — The engine premise was proven by execution, not asserted
+
+The whole segments design rests on `getRuleWindowsForDay` already returning an **array** of windows and `containsWindow` booking only slots that fit inside one — which is why breaks need **zero engine change**. Rather than assert shape compatibility, the implementer fed real `scheduleToRows` output through the **real `calculateAvailableSlots`** (only the Supabase data layer faked): an 08:00–20:00 Monday broken 12:30–15:00 offered 11:30 and 15:00, **nothing** at 12:00/12:30/13:00/13:30/14:00/14:30, ending 19:00 — with a no-break control and a closed-day control alongside. The verifier independently confirmed that test imports the real engine rather than a stub, and that `availability.ts` is untouched by both commits.
+
+### 2.3 — The privilege trap that did NOT fire, and why
+
+Protocol §3b lists `staff_availability_rules` as still lacking `service_role` **UPDATE**, warning that tsc, lint and vitest are all blind to a missing GRANT while this codebase's habit of discarding the Supabase `error` makes it fail silently — the trap that cost C-04a a full verification cycle. Checked live before implementing:
+
+| Table | SELECT | INSERT | UPDATE | DELETE |
+|---|---|---|---|---|
+| `availability_rules` | ✓ | ✓ | ✓ | ✓ |
+| `staff_availability_rules` | ✓ | ✓ | **✗** | ✓ |
+
+**The segments model routes around it by construction** — delete-then-insert never updates. So Phase B is not blocked either. An argument in the storage model's favour that nobody had made.
+
+### 2.4 — ⛔ Migration applied, and the post-apply verification
+
+**Owner approved in chat, 2026-08-09**, after an adversarial SQL review returned PASS with zero blocking findings. That review re-derived the concurrency race independently (under READ COMMITTED a concurrent DELETE's EvalPlanQual recheck revisits only tuples it originally found, never rescanning for freshly-INSERTed rows — so two unlocked concurrent saves of one day really can leave **both** schedules present) and re-verified every claim in the migration header against live read-only queries.
+
+**Applied. Verified live immediately after:**
+
+| Function | `SECURITY DEFINER` | `search_path` | service_role | authenticated | anon |
+|---|---|---|---|---|---|
+| `assert_availability_day_segments(int, jsonb)` | **false** | `public` | ✓ | ✗ | ✗ |
+| `save_availability_day(int, jsonb)` | **false** | `public` | ✓ | ✗ | ✗ |
+| `save_staff_availability_day(uuid, int, jsonb)` | **false** | `public` | ✓ | ✗ | ✗ |
+
+`SECURITY INVOKER` throughout (not DEFINER — `service_role` already holds every privilege the bodies need, so DEFINER would add an escalation surface for nothing). `search_path` pinned regardless, to satisfy the `function_search_path_mutable` advisor and match the existing idiom. EXECUTE granted to `service_role` **only**.
+
+**Design points recorded so they are not re-litigated:** the advisory lock is load-bearing, not decoration; the empty-array guard is the single most important check in the file (without it a save could delete a day's rows and insert none, leaving **zero rows, which the engine reads as CLOSED** — silent and customer-facing); and `save_staff_availability_day` is a **separate** function rather than one with a nullable `p_staff_id` meaning "global", because a NULL-means-everyone overload turns one forgotten argument into an unnoticed rewrite of the clinic-wide schedule.
+
+**Rollback if ever needed:** `DROP FUNCTION` ×3. Applying altered **no data** — the `DELETE`s live inside the functions and run only when someone saves a day, always paired with their INSERT in the same transaction.
+
+### 2.5 — ⛔ NOT DONE: the Phase A verify checkpoint needs a SECOND approval
+
+The plan's Phase A checkpoint is a live round-trip: set Monday to 08:00–20:00 with a 12:30–15:00 break, save, confirm the DB holds **2** `is_working_day = true` Monday rows, then confirm customer slots appear either side of the break and none across it.
+
+**Not performed.** It writes to `availability_rules` — the clinic's **real global schedule** — and would immediately stop customers booking Monday afternoons until reverted. The Owner approved *applying the migration*, not *changing the live rota*; per-action approval does not carry forward. **This is the largest outstanding item on the plan and needs its own ⛔.**
+
+A lower-risk variant worth offering: call `save_availability_day(1, <Monday's CURRENT segments>)`, which exercises the RPC end-to-end and is semantically a no-op (it re-inserts identical hours). It still churns row ids and is still a production write, so it still needs approval — but it proves the function works without altering what customers see.
+
+**Also unverifiable until such a round-trip runs:** every SQL-level `RAISE EXCEPTION` path (only their TypeScript mirrors in `validateSchedule` are tested), atomicity and the advisory lock in practice, and `save_staff_availability_day`, which has no caller until Phase B Step 10.
+
+### 2.6 — Noted, left alone (rule 6a)
+
+- Pre-existing hardcoded `oklch(...)` literals in `AvailabilityRulesManager.tsx` (~4 sites), including a **light** day-row background pair in a dark-default admin theme. Predates C-14.
+- `audit_logs` inserts in `availability/actions.ts` do not check their own error — pre-existing across every action in that file.
+- `deleteAvailabilityRule` is now an orphaned export (no UI caller since the segments editor replaced the per-row delete flow). Harmless today; **if ever re-wired it would need the same advisory lock**.
+- "Save hours" issues **seven** RPC calls, one per day. Each *day* is atomic; the seven together are not. Unchanged in kind (it was seven row-writes before) and the plan scopes atomicity to the day — flagged so it is not mistaken for a new guarantee.
+
+---
+
+## 3 — ▶ Position
+
+**Phase D ✅ implemented and FULL-verified. Phase A ✅ implemented, FULL-verified, migration applied** — except its live round-trip checkpoint (§2.5), which needs its own ⛔.
+**Phase B not started** (Steps 10–11 — reuse the editor for per-staff rules; the RPC it needs is already deployed). **Phase C not started** — needs the second ⛔ migration in §0.2.
 
 ---
 
