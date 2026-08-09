@@ -23,6 +23,8 @@ import {
   AdminMobileActionBar,
   AdminPanel,
 } from "@/app/admin/components/admin-ui";
+import { AddressAutocompleteField } from "@/components/address/AddressAutocompleteField";
+import type { AddressParts } from "@/lib/address/parse-place";
 import { DuplicateWarningBanner } from "@/app/admin/clients/components/DuplicateWarningBanner";
 import { createManualBooking, type ManualBookingState } from "../actions";
 import { createRecurringSeries, type RecurringActionState } from "../recurring-actions";
@@ -488,6 +490,20 @@ function TextareaField({
     </div>
   );
 }
+
+// C-20 Phase D — AddressAutocompleteField renders its own suggestion list and
+// ships NO default colours for it: the same component also serves the
+// `--rahma-*`-themed public booking dialog, so each host themes the list
+// itself. This is the admin tree, which defaults to DARK for any staff member
+// with no saved theme preference, so these are `--admin-*` tokens only — never
+// a colour literal, never a `--rahma-*` token. Surface mirrors the admin
+// popover precedent (CalendarDatePopover's panel/border/overlay-shadow trio).
+const ADDRESS_LIST_CLASS =
+  "border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)]";
+const ADDRESS_OPTION_CLASS =
+  "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)]";
+const ADDRESS_ACTIVE_OPTION_CLASS =
+  "bg-[var(--admin-panel-muted)] text-[var(--admin-heading)]";
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -1033,6 +1049,67 @@ export function ManualBookingForm({
       setPostcodeLookupError("");
     } catch {
       setPostcodeLookupError("Couldn't check postcode. Fill in city and area manually.");
+    }
+  }
+
+  // C-20 Phase D — a confirmed autocomplete pick must land exactly as if the
+  // four Location fields had been typed: same setters, same draft/edit
+  // tracking, same city-change availability reset, same error clearing.
+  //
+  // Coexistence with handlePostcodeBlur above: that lookup only ever fills an
+  // EMPTY city (`if (!city.trim())`) and never touches area. An explicit
+  // selection is the operator's most specific statement about where the visit
+  // is, so it fills all four unconditionally and wins. It does not fire the
+  // postcodes.io lookup itself (no blur on the postcode input), and a later
+  // blur there can no longer overwrite the city, which is now non-empty.
+  function applyAddressParts(parts: AddressParts) {
+    // Fields whose stepErrors entry a fill makes stale. Not `area` — it has no
+    // validation rule, so it never has an error to clear.
+    const filled: string[] = [];
+
+    // `if (!v) return` per part (brief §3.3): a place missing a component must
+    // never blank a value the operator already has.
+    if (parts.address) {
+      setAddress(parts.address);
+      markEdited("address");
+      filled.push("address");
+    }
+    if (parts.postcode) {
+      setPostcode(parts.postcode);
+      markEdited("postcode");
+      // Parity with the typed postcode handler: a new postcode invalidates any
+      // stale postcodes.io message still on screen.
+      setPostcodeLookupError("");
+      filled.push("postcode");
+    }
+    if (parts.area) {
+      setArea(parts.area);
+      markEdited("area");
+    }
+    if (parts.city) {
+      setCity(parts.city);
+      markEdited("city");
+      filled.push("city");
+      if (parts.city !== city) {
+        // All SIX pieces of state the typed City handler clears — availability
+        // was computed for the previous city and is now wrong. Clearing only
+        // the single-cohort four would leave a mixed-gender group still
+        // showing "checked" per-gender availability for the old city.
+        setBookingDate("");
+        setStartTime("");
+        setAvailChecked(false);
+        setAvailSlots([]);
+        setFemaleAvailChecked(false);
+        setMaleAvailChecked(false);
+      }
+    }
+
+    if (filled.length > 0) {
+      setStepErrors((prev) => {
+        const next = { ...prev };
+        for (const key of filled) delete next[key];
+        return next;
+      });
     }
   }
 
@@ -1660,17 +1737,62 @@ export function ManualBookingForm({
             className={isPrefilled("area") ? "[&_input]:bg-[var(--admin-selected-sky)]" : ""}
             onChange={(e) => { setArea(e.target.value); markEdited("area"); }}
           />
-          <AdminInput
-            id="address"
-            label="Address"
-            required
-            placeholder="Street name and number"
-            maxLength={200}
-            value={address}
-            error={stepErrors.address}
-            className={isPrefilled("address") ? "[&_input]:bg-[var(--admin-selected-sky)]" : ""}
-            onChange={(e) => { setAddress(e.target.value); markEdited("address"); }}
-          />
+          {/* C-20 Phase D — the same field AdminInput would render (label,
+              input chrome, error slot, pre-fill highlight), with the input
+              swapped for the shared autocomplete so a pick fills all four
+              Location fields. Free typing still reaches setAddress unchanged,
+              and the submitted payload is still the hidden `address` input.
+              `autoComplete` is left at the component's "off" default: staff
+              enter a CLIENT's address, so the browser's own saved-address
+              dropdown would offer the wrong data on top of ours. */}
+          <div className="grid gap-1.5">
+            <label
+              htmlFor="address"
+              className="text-sm font-medium text-[var(--admin-heading)]"
+            >
+              Address
+              <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
+                *
+              </span>
+            </label>
+            <AddressAutocompleteField
+              value={address}
+              onChange={(v) => { setAddress(v); markEdited("address"); }}
+              onAddressSelected={applyAddressParts}
+              inputProps={{
+                id: "address",
+                required: true,
+                placeholder: "Street name and number",
+                maxLength: 200,
+                "aria-describedby": stepErrors.address ? "address-error" : undefined,
+                "aria-invalid": stepErrors.address ? "true" : undefined,
+                className: cn(
+                  "flex h-10 w-full rounded-[var(--admin-radius-control)] border px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
+                  stepErrors.address
+                    ? "border-[var(--admin-status-cancelled-text)]"
+                    : "border-[var(--admin-border-form)]",
+                  isPrefilled("address")
+                    ? "bg-[var(--admin-selected-sky)]"
+                    : "bg-[var(--admin-surface-input)]"
+                ),
+              }}
+              listClassName={ADDRESS_LIST_CLASS}
+              optionClassName={ADDRESS_OPTION_CLASS}
+              activeOptionClassName={ADDRESS_ACTIVE_OPTION_CLASS}
+            />
+            {stepErrors.address ? (
+              <div
+                id="address-error"
+                role="alert"
+                aria-live="polite"
+                aria-atomic="true"
+                className="flex items-center gap-1.5 text-xs text-[var(--admin-status-cancelled-text)]"
+              >
+                <X className="size-3.5 shrink-0" aria-hidden="true" />
+                {stepErrors.address}
+              </div>
+            ) : null}
+          </div>
           <TextareaField
             id="access_notes"
             label="Access notes"

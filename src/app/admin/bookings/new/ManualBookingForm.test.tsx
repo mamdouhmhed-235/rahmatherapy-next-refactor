@@ -1,6 +1,8 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AUTOCOMPLETE_DEBOUNCE_MS } from "@/components/address/AddressAutocompleteField";
+import type { PlaceAddressComponent } from "@/lib/address/parse-place";
 import { createManualBooking } from "../actions";
 import { ManualBookingForm } from "./ManualBookingForm";
 
@@ -868,5 +870,336 @@ describe("ManualBookingForm availability calendar (C-23 Phase D)", () => {
         "availability for one participant group only"
       )
     );
+  });
+});
+
+// ─── C-20 Phase D — address autocomplete on the Location step ─────────────────
+//
+// No live Google Places call happens anywhere below: `window.google` is always
+// a hand-built fake, and the address components are CONSTRUCTED to the
+// documented `AddressComponent` shape. Every expected value is a hardcoded
+// literal — nothing is derived by calling the code under test.
+//
+// AddressAutocompleteField caches its Maps-loader promise in a module-level
+// singleton, so — mirroring AboutYouStep.test.tsx — each render goes through
+// `vi.resetModules()` + a dynamic import. That gives every test a clean loader
+// and its own fake `google.maps` library instead of the first test's.
+//
+// The governing constraint is PARITY: a confirmed pick must leave the form in
+// the same state typing the four values by hand would. The typed City handler
+// clears SIX pieces of availability state, not the four the plan's C20-F6
+// finding lists, so the reset specs below are split across a single-gender and
+// a mixed-gender group — that is the only way all six are observable in the UI.
+
+const ADDRESS_TEST_KEY = "test-key-not-a-real-credential";
+
+/** Standard Luton terrace — the draft's own city, so a pick must NOT reset. */
+const LUTON_COMPONENTS: PlaceAddressComponent[] = [
+  { longText: "12", shortText: "12", types: ["street_number"] },
+  { longText: "Dunstable Road", shortText: "Dunstable Rd", types: ["route"] },
+  { longText: "Luton", shortText: "Luton", types: ["postal_town"] },
+  { longText: "Bedfordshire", shortText: "Bedfordshire", types: ["administrative_area_level_2"] },
+  { longText: "LU1 1EY", shortText: "LU1 1EY", types: ["postal_code"] },
+];
+
+/** A different city — the pick that must reset availability. */
+const MILTON_KEYNES_COMPONENTS: PlaceAddressComponent[] = [
+  { longText: "5", shortText: "5", types: ["street_number"] },
+  { longText: "Silbury Boulevard", shortText: "Silbury Blvd", types: ["route"] },
+  { longText: "Milton Keynes", shortText: "Milton Keynes", types: ["postal_town"] },
+  { longText: "Buckinghamshire", shortText: "Buckinghamshire", types: ["administrative_area_level_2"] },
+  { longText: "MK9 3AA", shortText: "MK9 3AA", types: ["postal_code"] },
+];
+
+/**
+ * No postal_town, no locality, no administrative_area_level_3 — the parsed
+ * `city` is "". This is the fixture the "never blank an existing value" guard
+ * exists for.
+ */
+const NO_TOWN_COMPONENTS: PlaceAddressComponent[] = [
+  { longText: "8", shortText: "8", types: ["street_number"] },
+  { longText: "Chapel Lane", shortText: "Chapel Ln", types: ["route"] },
+  { longText: "Hertfordshire", shortText: "Hertfordshire", types: ["administrative_area_level_2"] },
+  { longText: "AL3 4AA", shortText: "AL3 4AA", types: ["postal_code"] },
+];
+
+class FakeAutocompleteSessionToken {}
+
+function makeSuggestion(placeId: string, text: string, components: PlaceAddressComponent[]) {
+  const fetchFields = vi.fn().mockResolvedValue({ place: { addressComponents: components } });
+  return { placePrediction: { placeId, text: { text }, toPlace: () => ({ fetchFields }) } };
+}
+
+interface TestGoogleWindow extends Window {
+  google?: { maps?: { importLibrary: ReturnType<typeof vi.fn> } };
+}
+
+function seedGoogle(suggestions: ReturnType<typeof makeSuggestion>[]) {
+  (window as unknown as TestGoogleWindow).google = {
+    maps: {
+      importLibrary: vi.fn().mockResolvedValue({
+        AutocompleteSuggestion: {
+          fetchAutocompleteSuggestions: vi.fn().mockResolvedValue({ suggestions }),
+        },
+        AutocompleteSessionToken: FakeAutocompleteSessionToken,
+      }),
+    },
+  };
+}
+
+async function renderFresh(
+  props: Partial<React.ComponentProps<typeof ManualBookingForm>> = {}
+) {
+  vi.resetModules();
+  const { ManualBookingForm: Fresh } = await import("./ManualBookingForm");
+  return render(
+    <Fresh services={services} prefillClient={null} enquiry={null} {...props} />
+  );
+}
+
+const addressField = () => document.querySelector<HTMLInputElement>("#address")!;
+
+/** A date the `min` floor always accepts, without freezing the clock. */
+const FUTURE_DATE = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * Types into the address field, waits out the debounce, then clicks the
+ * suggestion whose label contains `optionText`. Fake timers cover only the
+ * component's own debounce, exactly as AboutYouStep.test.tsx does.
+ */
+async function pickAddress(query: string, optionText: string) {
+  const input = addressField();
+  vi.useFakeTimers();
+  fireEvent.focus(input);
+  fireEvent.change(input, { target: { value: query } });
+  await act(async () => {
+    vi.advanceTimersByTime(AUTOCOMPLETE_DEBOUNCE_MS);
+  });
+  await act(async () => {}); // fetchAutocompleteSuggestions resolution
+
+  const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find(
+    (el) => el.textContent?.includes(optionText)
+  );
+  expect(option).toBeTruthy();
+  fireEvent.mouseDown(option!); // keeps focus on the input, as a real click does
+  fireEvent.click(option!);
+
+  await act(async () => {}); // fetchFields -> onAddressSelected
+  await act(async () => {}); // the setState calls it schedules
+  vi.useRealTimers();
+}
+
+/** Picks a date, then the 10:00 slot the stub offers, on the single-cohort branch. */
+async function chooseDateAndTime(container: HTMLElement) {
+  fireEvent.change(container.querySelector<HTMLInputElement>("input#booking_date")!, {
+    target: { value: FUTURE_DATE },
+  });
+  await waitFor(() => expect(hidden(container, "booking_date")?.value).toBe(FUTURE_DATE));
+  const slots = await screen.findAllByRole("button", { name: /10:00/ });
+  fireEvent.click(slots[0]);
+  await waitFor(() => expect(hidden(container, "start_time")?.value).toBe("10:00"));
+}
+
+describe("ManualBookingForm address autocomplete (C-20 Phase D)", () => {
+  beforeEach(() => {
+    sessionStorage.clear();
+    vi.mocked(createManualBooking).mockReset();
+    // Earlier describes leave their trees mounted; a second copy of the form
+    // would double every #address query below.
+    cleanup();
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = ADDRESS_TEST_KEY;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    delete process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    delete (window as unknown as TestGoogleWindow).google;
+    delete (window as unknown as { __rahmaGoogleMapsCallback?: unknown }).__rahmaGoogleMapsCallback;
+    document.querySelectorAll('script[src*="maps.googleapis.com"]').forEach((el) => el.remove());
+  });
+
+  it("fills all four Location fields from one confirmed pick", async () => {
+    stubFetch();
+    seedGoogle([makeSuggestion("place-mk", "5 Silbury Boulevard, Milton Keynes", MILTON_KEYNES_COMPONENTS)]);
+    seedStep3Draft({ address: "", postcode: "", city: "", area: "" });
+    const { container } = await renderFresh();
+
+    // The submitted payload is the hidden mirror, so that is what is asserted —
+    // a pick that only moved the visible input would be a silent data bug.
+    expect(hidden(container, "address")?.value).toBe("");
+    expect(hidden(container, "postcode")?.value).toBe("");
+    expect(hidden(container, "city")?.value).toBe("");
+    expect(hidden(container, "area")?.value).toBe("");
+
+    await pickAddress("5 Silbury", "Silbury Boulevard");
+
+    expect(hidden(container, "address")?.value).toBe("5 Silbury Boulevard");
+    expect(hidden(container, "postcode")?.value).toBe("MK9 3AA");
+    expect(hidden(container, "city")?.value).toBe("Milton Keynes");
+    expect(hidden(container, "area")?.value).toBe("Buckinghamshire");
+
+    // The assist never replaces manual entry: the three sibling inputs stay
+    // rendered and editable.
+    for (const id of ["postcode", "city", "area"]) {
+      const el = container.querySelector<HTMLInputElement>(`#${id}`)!;
+      expect(el.disabled).toBe(false);
+      expect(el.readOnly).toBe(false);
+    }
+  });
+
+  it("marks every filled field as edited, so the pre-fill highlight clears exactly as typing clears it", async () => {
+    stubFetch();
+    seedGoogle([makeSuggestion("place-mk", "5 Silbury Boulevard, Milton Keynes", MILTON_KEYNES_COMPONENTS)]);
+    // A prefilled client suppresses draft restore entirely, so this test walks
+    // the steps rather than seeding one — which also proves the field works
+    // where operators actually meet it.
+    const { container } = await renderFresh({ prefillClient });
+
+    const continueButton = () =>
+      screen.getAllByRole("button", { name: /Continue/i })[0] as HTMLButtonElement;
+    await waitFor(() => expect(continueButton().disabled).toBe(false));
+    fireEvent.click(continueButton());
+    await waitFor(() =>
+      expect(container.querySelector('[title="Step 2: current"]')).not.toBeNull()
+    );
+    fireEvent.change(container.querySelector<HTMLSelectElement>("#participant_gender_0")!, {
+      target: { value: "female" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /Hijama Package/i }));
+    await waitFor(() => expect(continueButton().disabled).toBe(false));
+    fireEvent.click(continueButton());
+    await waitFor(() =>
+      expect(container.querySelector('[title="Step 3: current"]')).not.toBeNull()
+    );
+
+    // `isPrefilled(field)` is only observable through the highlight class:
+    // AdminInput carries it on the wrapper (`[&_input]:bg-…`), while the
+    // address field — no longer an AdminInput — carries it on the input itself.
+    const wrapperOf = (id: string) =>
+      container.querySelector<HTMLInputElement>(`#${id}`)!.parentElement!.className;
+    expect(addressField().className).toContain("admin-selected-sky");
+    expect(wrapperOf("postcode")).toContain("admin-selected-sky");
+    expect(wrapperOf("city")).toContain("admin-selected-sky");
+    expect(wrapperOf("area")).toContain("admin-selected-sky");
+
+    await pickAddress("5 Silbury", "Silbury Boulevard");
+
+    // Every field the pick wrote is now the operator's value, not the client
+    // profile's — so none of them may still claim to be pre-filled.
+    expect(addressField().className).not.toContain("admin-selected-sky");
+    expect(wrapperOf("postcode")).not.toContain("admin-selected-sky");
+    expect(wrapperOf("city")).not.toContain("admin-selected-sky");
+    expect(wrapperOf("area")).not.toContain("admin-selected-sky");
+  });
+
+  it("resets the single-cohort availability state when the picked city differs — and leaves it alone when it does not", async () => {
+    stubFetch();
+    seedGoogle([
+      makeSuggestion("place-luton", "12 Dunstable Road, Luton", LUTON_COMPONENTS),
+      makeSuggestion("place-mk", "5 Silbury Boulevard, Milton Keynes", MILTON_KEYNES_COMPONENTS),
+    ]);
+    seedStep3Draft({}); // city: "Luton", one female participant
+    const { container } = await renderFresh();
+
+    await chooseDateAndTime(container);
+
+    // Control: same city as the draft, so the typed handler's reset would not
+    // have fired either. A pick that reset unconditionally would wipe a date
+    // the operator had already chosen.
+    await pickAddress("12 Dun", "Dunstable Road");
+    expect(hidden(container, "city")?.value).toBe("Luton");
+    expect(hidden(container, "booking_date")?.value).toBe(FUTURE_DATE);
+    expect(hidden(container, "start_time")?.value).toBe("10:00");
+    expect(screen.queryAllByRole("button", { name: /10:00/ }).length).toBeGreaterThan(0);
+
+    // Now a genuinely different city: bookingDate, startTime, availChecked and
+    // availSlots must all go.
+    await pickAddress("5 Silbury", "Silbury Boulevard");
+
+    expect(hidden(container, "city")?.value).toBe("Milton Keynes");
+    expect(hidden(container, "booking_date")?.value).toBe("");
+    expect(hidden(container, "start_time")?.value).toBe("");
+    expect(screen.queryAllByRole("button", { name: /10:00/ }).length).toBe(0);
+    // availChecked specifically: left true with availSlots emptied, the form
+    // would assert "No therapists available" about a city nobody checked.
+    expect(screen.queryByText(/No therapists available on this date/)).toBeNull();
+  });
+
+  it("resets BOTH mixed-gender availability flags too — six pieces of state, not four", async () => {
+    stubFetch();
+    seedGoogle([makeSuggestion("place-mk", "5 Silbury Boulevard, Milton Keynes", MILTON_KEYNES_COMPONENTS)]);
+    seedStep3Draft({
+      bookingForMode: "group",
+      participants: [participant("female", "Aisha"), participant("male", "Bilal")],
+    });
+    const { container } = await renderFresh();
+
+    fireEvent.change(container.querySelector<HTMLInputElement>("input#booking_date")!, {
+      target: { value: FUTURE_DATE },
+    });
+    await waitFor(() => expect(hidden(container, "booking_date")?.value).toBe(FUTURE_DATE));
+    // One 10:00 button per cohort once both checks have come back.
+    await waitFor(() =>
+      expect(screen.queryAllByRole("button", { name: /10:00/ }).length).toBe(2)
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: /10:00/ })[0]);
+    await waitFor(() => expect(hidden(container, "start_time")?.value).toBe("10:00"));
+
+    await pickAddress("5 Silbury", "Silbury Boulevard");
+
+    expect(hidden(container, "city")?.value).toBe("Milton Keynes");
+    expect(hidden(container, "booking_date")?.value).toBe("");
+    expect(hidden(container, "start_time")?.value).toBe("");
+    // The C20-F6 trap. femaleAvailSlots/maleAvailSlots are NOT cleared by the
+    // City handler — only the two `…Checked` flags are — so dropping either
+    // flag leaves that cohort's slot buttons on screen, still offering times
+    // computed for the previous city.
+    expect(screen.queryAllByRole("button", { name: /10:00/ }).length).toBe(0);
+    expect(screen.queryByText(/No female therapists available on this date/)).toBeNull();
+    expect(screen.queryByText(/No male therapists available on this date/)).toBeNull();
+  });
+
+  it("clears a stale postcode-lookup message when it fills the postcode", async () => {
+    // Every lookup fails, which is what puts the message on screen.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, json: async () => ({}) }) as unknown as Response)
+    );
+    seedGoogle([makeSuggestion("place-mk", "5 Silbury Boulevard, Milton Keynes", MILTON_KEYNES_COMPONENTS)]);
+    seedStep3Draft({ postcode: "ZZ99 9ZZ" });
+    const { container } = await renderFresh();
+
+    fireEvent.blur(container.querySelector<HTMLInputElement>("#postcode")!);
+    await screen.findByText("Postcode not found. Fill in city and area manually.");
+
+    await pickAddress("5 Silbury", "Silbury Boulevard");
+
+    // The message described the old postcode; leaving it up would tell the
+    // operator a postcode they never typed could not be found.
+    expect(hidden(container, "postcode")?.value).toBe("MK9 3AA");
+    expect(screen.queryByText("Postcode not found. Fill in city and area manually.")).toBeNull();
+  });
+
+  it("never blanks a value the operator already has when the picked place has no equivalent part", async () => {
+    stubFetch();
+    seedGoogle([makeSuggestion("place-no-town", "8 Chapel Lane", NO_TOWN_COMPONENTS)]);
+    seedStep3Draft({ area: "Bury Park" }); // city "Luton" from the shared draft
+    const { container } = await renderFresh();
+
+    await chooseDateAndTime(container);
+
+    await pickAddress("8 Chapel", "Chapel Lane");
+
+    // The guard: an empty part is skipped, so the existing city survives...
+    expect(hidden(container, "city")?.value).toBe("Luton");
+    // ...and because the city never changed, neither did the availability state.
+    expect(hidden(container, "booking_date")?.value).toBe(FUTURE_DATE);
+    expect(hidden(container, "start_time")?.value).toBe("10:00");
+
+    // ...while the parts that ARE present still fill.
+    expect(hidden(container, "address")?.value).toBe("8 Chapel Lane");
+    expect(hidden(container, "area")?.value).toBe("Hertfordshire");
+    expect(hidden(container, "postcode")?.value).toBe("AL3 4AA");
   });
 });
