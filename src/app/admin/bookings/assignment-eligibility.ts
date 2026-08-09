@@ -40,15 +40,22 @@ interface TimeWindow {
   end: number;
 }
 
-/** C-14 Phase C Step 13a — one bookable window on a specific date. */
+/**
+ * C-14 Phase C Step 13a — one bookable window on a specific date.
+ * `availability_overrides` (global) has no `override_type` column (confirmed
+ * live: id, override_date, start_time, end_time, reason) — a global date
+ * can't express "blocking" through this table; `blocked_dates` does that.
+ * `override_type` is real only on `staff_availability_overrides`, so it
+ * lives on `StaffDateOverrideRow`, not here.
+ */
 interface DateOverrideRow {
   start_time: string | null;
   end_time: string | null;
-  override_type: string | null;
 }
 
 interface StaffDateOverrideRow extends DateOverrideRow {
   staff_id: string;
+  override_type: string | null;
 }
 
 const BOOKING_ELIGIBILITY_PERMISSIONS = new Set(["claim_assignments"]);
@@ -113,7 +120,10 @@ function hasBookingEligibilityPermission(
   );
 }
 
-function isBlockingOverride(override: { override_type?: string | null } | undefined) {
+// Only ever called with staff rows below — global overrides have no
+// `override_type` to check (see `DateOverrideRow` above), so this can't be
+// meaningful for them.
+function isBlockingOverride(override: StaffDateOverrideRow | undefined) {
   return ["blocked", "closed", "off", "unavailable"].includes(
     override?.override_type?.toLowerCase() ?? ""
   );
@@ -191,9 +201,16 @@ export async function getStaffAssignmentPreviews({
     // maybeSingle(): PostgREST answers a multi-row match with an error, and
     // nothing here inspects `.error`, so the override would silently vanish and
     // eligibility would be computed from the weekly rules instead.
+    //
+    // `override_type` is dropped from this select: `availability_overrides`
+    // has no such column, so naming it here answered every call with that
+    // exact same silent-failure shape (PostgREST 42703, unread `.error`,
+    // override falls through to the weekly rules). Mirrors the live slot
+    // engine, which selects only `override_date, start_time, end_time` from
+    // this table (`src/lib/booking/availability.ts`).
     supabase
       .from("availability_overrides")
-      .select("start_time, end_time, override_type")
+      .select("start_time, end_time")
       .eq("override_date", booking.booking_date)
       .returns<DateOverrideRow[]>(),
     supabase
