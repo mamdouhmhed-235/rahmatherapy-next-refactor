@@ -601,7 +601,8 @@ Every item below is **measured, not inferred**. This is the work list; §7.6–7
 
 | # | Defect | Worst | Reach | Class | Fix type |
 |---|---|---|---|---|---|
-| **D1** | **Active nav item — foreground and background resolve in *different themes*** | **1.01:1** | **Every admin page, every role, both themes** | Theme resolution | ⚠️ *see below — root cause not yet established* |
+| **D1** | **Active nav item — frozen alias token + inert colour class** | **1.01:1** | **Every admin page, every role, both themes** | Theme resolution | ✅ Root-caused — **de-alias**, not substitution |
+| **D12** | **⚠️ NEW — cascade-layer inversion: unlayered `a { color: inherit }` defeats every Tailwind text-colour utility on any `<a>`** | — | **SITE-WIDE — admin *and* public** | Architecture | Layer fix; reach unmeasured |
 | **D2** | Shared `button.tsx` outline/ghost `active:` — themed fg on hardcoded light bg | 1.07:1 dark | Every admin page | 1 | Substitution |
 | **D3** | Shared `input.tsx:116,143` — required asterisk + **field error text**, hardcoded dark red on dark panel | 1.15:1 dark | Every admin form | 2 | Substitution |
 | **D4** | `admin-ui-interactions.tsx:342` — destructive confirm button | 1.47 / 1.91:1 dark | Destructive dialogs | 1 | Substitution |
@@ -609,11 +610,53 @@ Every item below is **measured, not inferred**. This is the work list; §7.6–7
 | **D6** | `operations/event-row.tsx:171-173` + `calendar/page.tsx:650,660` — status tokens on hardcoded light bgs | 1.01–1.14:1 dark | Operations, calendar | 1 | Substitution |
 | **D7** | Header notification badge — white on amber | 3.65:1 both themes | Every admin page | 3 | Substitution or token |
 | **D8** | **`--admin-warning` on `--admin-warning-bg`** | **3.41:1 light** | Wherever warnings render | **Token value** | ⚠️ Design decision |
-| **D9** | Dashboard KPI figures (`0`, `£0.00`, `—`) | 1.05:1 dark | Dashboard | 2 | Substitution |
+| **D9** | Dashboard KPI figures (`0`, `£0.00`, `—`) — **`--admin-text` frozen alias**, not a literal | 1.05:1 dark | Dashboard | Theme resolution | **De-alias** *(re-classified — see below)* |
 | **D10** | `/admin/staff` onboarding badges | 1.05:1 dark | Staff list | 3 | Substitution |
 | **D11** | 16 prose contrast claims in `tokens.css` unverified | — | Documentation integrity | — | Extend verifier |
 
-#### D1 deserves its own note — it is the highest-reach defect and the least understood
+#### ✅ D1 ROOT-CAUSED — and it is **two** independent bugs, neither fixable by substitution
+
+*(Investigated live in the browser, 2026-08-10; full computed-style evidence in `redesign/evidence/admin-contrast/root-cause-D1.md`. Both causes independently re-verified by the orchestrator.)*
+
+**Cause 1 — `:root`-only alias tokens are frozen in light mode, permanently.**
+
+`--admin-nav-text: var(--admin-body)` (`tokens.css:129`) and `--admin-nav-active-text: var(--admin-primary)` (`:132`) are declared **only** in the `:root` block. But **`:root` (`<html>`) never carries `data-theme`** — `layout.tsx:66` sets only font classes, and `data-theme` lives on a `<div data-admin-theme-root>` further down (`ThemeProvider.tsx:105`).
+
+A custom-property alias is substituted **at the element where it is declared**. So `--admin-nav-text` resolves once, on `:root`, against `:root`'s `--admin-body` — the **light** value `#313731` — and every descendant inherits that already-resolved colour. It can never track the theme. `#313731` **is** the measured `rgb(49,55,49)`.
+
+**The design comment in `tokens.css` asserts these aliases "track the theme automatically". That claim is false**, and it is why the bug survived review.
+
+**Cause 2 — a cascade-layer inversion makes the nav's own colour class inert, site-wide.**
+
+`globals.css:1` declares `@layer theme, base, components, utilities;` and imports Tailwind's utilities into `layer(utilities)` (`:6`). But `src/styles/site-parity.css` is imported **unlayered** (`layout.tsx:4`), and it contains:
+
+```css
+a { color: inherit; text-decoration: none; }
+```
+
+Under CSS Cascade Layers, **unlayered styles beat layered styles regardless of specificity**. So that rule defeats *every* Tailwind text-colour utility applied to an `<a>` — including the nav's own `text-[var(--admin-nav-active-text)]`, which is therefore **dead code**. The link falls back to inheriting from `<nav>`, which is itself frozen by Cause 1.
+
+**⚠️ This second bug is NOT admin-only. It affects every `<a>` on the site, public pages included.** Its full reach has **not** been measured. Fixing it will *change* link colours anywhere a utility was previously inert — so it needs its own before/after sweep across **both** the admin and the public site, and it must not be bundled with the substitution work.
+
+#### Consequences for the register — three entries were mis-classified
+
+| Was | Now |
+|---|---|
+| **D9** dashboard KPI figures — "Substitution" | ❌ Wrong. Same alias-freeze bug, via `--admin-text` (`PersonalContributionStripe.tsx:90`). **Not a literal.** |
+| **D7** notification badge 3.65:1 | Explained: `--notif-badge-warning-bg`, another frozen alias — white on `#b77900`, computed 3.65:1 exactly |
+| **D8** `--admin-warning` 3.41:1 light | Proposed fix: `#b77900` → **`#986400`**, preserving hue/saturation, **3.41:1 → 4.72:1**. All consumers checked; no regression found |
+
+**11 `:root`-only alias tokens share the freeze mechanism.** `tokens.css`'s own comment lists only **8** — it misses all three `--notif-badge-*-bg` aliases. Confirmed broken *and* consumed: `--admin-nav-text`, `--admin-nav-active-text`, `--admin-text`, `--notif-badge-warning-bg`. **Five remain unmeasured**: `--admin-nav-text-muted`, `--admin-surface`, `--admin-surface-muted`, `--admin-cormorant-color`, and the user-menu-button variant of `--admin-nav-active-text`.
+
+#### The fix shape — de-alias, then un-invert
+
+1. **De-alias the frozen tokens.** Give each a real per-theme value in the `:root` / `[data-theme="dark"]` / `[data-theme="light"]` blocks instead of `var(--other-token)`. This is the correct fix and it is **independent of the 677-literal substitution** — do it as its own commit, before or after, never mixed in.
+2. **Correct the layer inversion** — wrap `site-parity.css` in `@layer base` (or remove the `a` rule). **Highest-risk change in this plan**: it re-enables utilities that have been silently inert, potentially altering links across the whole site. Requires its own before/after evidence on admin **and** public.
+3. **D8's token value change**, as above.
+
+**Explicitly still unknown, and must not be assumed away:** the site-wide reach of Cause 2; live contrast for the five unmeasured aliases; and why `site-parity.css` was imported unlayered in the first place — **find that out before changing it**, because it may have been deliberate.
+
+#### Original note, superseded — retained for the reasoning
 
 Measured: foreground `rgb(49,55,49)`, background `rgb(34,56,75)`. Resolved against the token file:
 
