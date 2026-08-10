@@ -541,7 +541,17 @@ The Owner asked for every role to be signed into and checked top to bottom. Two 
 
 **Therefore the role sweep is a *coverage confirmation*, not the discovery mechanism.** Its job is to catch role-exclusive UI that still holds a literal, and to sanity-check the result with human eyes. That is a far cheaper and more reliable use of it than hunting for the bug by looking.
 
-**⛔ The agent cannot sign in.** Entering credentials to authenticate is prohibited and has been refused throughout this programme; the established substitute is that **the Owner signs in and the agent drives that existing session**. So the role sweep is structured as: the Owner signs in as one role → the agent runs the automated audit (7.9) across that role's pages → Owner switches to the next role. Four short, scripted passes, not four exploratory ones.
+**(c) The role sweep is automated, and no agent ever handles a password.** An agent may not type credentials — that limit does not lift on request. It does not need to: **the repo already has the mechanism**, and using it is both permitted and better than manual sweeps.
+
+`e2e/helpers.ts` provides `getCredentials(prefix)`, which reads `E2E_<PREFIX>_EMAIL` / `E2E_<PREFIX>_PASSWORD` **from the environment**, and `loginAs(page, credentials)`, which performs a real Supabase `signInWithPassword` and injects the resulting auth cookies into the Playwright context. `e2e/admin-roles.spec.ts` already drives all of this. The **Owner** puts real values in an untracked env file; the **harness** authenticates; the agent writes only `getCredentials("THERAPIST_A")` and never sees a secret.
+
+Prefixes already supported: **`OWNER`, `ADMIN`, `COORDINATOR`, `THERAPIST_A`, `THERAPIST_B`, `REPORTING`, `INACTIVE`, `NON_STAFF`.**
+
+This is strictly better than a human clicking through:
+- **repeatable** — re-run after the fix to prove the baseline moved from 86 failures to 0;
+- **exhaustive** — every route × every role × both themes, with no attention fatigue;
+- **self-documenting** — evidence files are a build artefact, not a chore;
+- **permanent** — it can gate CI, so contrast cannot silently regress the way the literals did.
 
 ### 7.5 The solution — eliminate, prove, prevent
 
@@ -587,16 +597,48 @@ Add a **guard test**, matching the idiom this codebase already uses for exactly 
 
 **(a) Static token-pair proof — exhaustive, role-independent, no browser.** Parse `tokens.css`, compute the WCAG contrast ratio for every foreground/background token pair the design system actually uses, in **both** `[data-theme="dark"]` and `[data-theme="light"]`, and assert **AA: ≥4.5:1 for normal text, ≥3:1 for large text and UI boundaries**. Several tokens already document their ratio in a comment — **verify those comments are true**, since a stale comment is worse than none. This is the check that covers every page and every role at once.
 
-**(b) Live DOM audit — catches what static analysis cannot**, namely wrong *pairings* (a compliant foreground token on the wrong background) and stacking/opacity effects. Run in the browser on the Owner's session:
-- walk visible text nodes; compute effective foreground and the first opaque ancestor background;
-- resolve every colour to sRGB by painting to a 1×1 canvas and reading the pixel — this handles `oklch` and any other CSS colour syntax without hand-written conversion;
-- composite semi-transparent layers before comparing;
-- compute the contrast ratio and flag failures with their text sample and selector;
-- run it **twice per page — once per theme**. Switch theme by setting `data-theme` on the `[data-admin-theme-root]` element directly, so **no `theme_preference` write reaches the database**.
+**(b) Automated live sweep — every route × every role × both themes.** This is the item the Owner asked for, built as a **new Playwright spec, `e2e/admin-contrast.spec.ts`**, reusing the existing harness rather than inventing one.
 
-Also check, per best practice and cheap to add: focus-visible rings meet 3:1 against their adjacent surface, and disabled/placeholder text is not the *only* signal of state.
+Shape:
 
-**Output:** `redesign/evidence/admin-contrast/<role>-<theme>.md`, one file per role/theme so nothing clobbers.
+1. Gate with `requireCredentials([...])` so the spec **skips cleanly** when a role's credentials are absent — never fails the suite for a missing secret, exactly as the existing role specs do.
+2. For each role in `OWNER`, `ADMIN`, `COORDINATOR`, `THERAPIST_A`, `THERAPIST_B`, `REPORTING`: `loginAs(page, getCredentials(role))`.
+3. For each admin route (**all 31 `page.tsx` routes**, dynamic ones fed real ids — reuse the `E2E_CLAIMABLE_BOOKING_PATH` convention for anything id-dependent):
+   - navigate; **skip and record** any route this role cannot reach — a 307 to login or a permission redirect is *expected* coverage data, not a failure;
+   - for **each theme** (`dark`, `light`): set `data-theme` on `[data-admin-theme-root]` directly — **never** through the theme control, so **no `theme_preference` write reaches the database**;
+   - run the audit function via `page.evaluate`.
+4. The audit function itself: walk visible text nodes; effective foreground from computed style; effective background by walking ancestors to the first opaque `background-color`, compositing alpha; resolve **every** colour by painting to a 1×1 canvas and reading the pixel — this handles `oklch`, `lab`, `oklab` and anything else exactly, with no hand-written colour maths to get wrong; then compute the WCAG ratio and flag against **4.5:1 normal / 3:1 large (≥24px, or ≥18.66px bold)**.
+   - **Exclude `.sr-only` and otherwise clipped nodes.** The baseline audit counted them and said so; the production auditor must not.
+5. Also assert, cheap and worth having: focus-visible rings meet **3:1** against their adjacent surface, and no state is signalled by colour alone.
+
+**Two modes:** *report-only* while the fix is in progress (captures the ratchet), then *asserting* once complete, so the suite fails on any new failure.
+
+**Output:** `redesign/evidence/admin-contrast/<role>-<theme>.md` — one file per role/theme, unique names so parallel runs cannot clobber each other.
+
+**Owner setup, one time — verified against this repo, not assumed:**
+
+- **`.gitignore` already protects this.** It carries `.env*` with a `!.env.example` exception, and `git ls-files` shows `.env.example` as the only tracked env file. Real credentials in `.env.e2e` **cannot** be committed by accident. *(Re-confirm before writing secrets; if that ever changes, stop.)*
+- **⚠️ `playwright.config.ts` loads no env file.** It only reads `process.env.E2E_BASE_URL`. Creating `.env.e2e` alone will **not** work — the variables must reach the Playwright process.
+- **`dotenv` is not installed and must not be added** (a package install is Zone-2). It is unnecessary: **Node 24 supports `--env-file` natively** (confirmed on the installed v24.16.0). Run the sweep as:
+
+```bash
+node --env-file=.env.e2e ./node_modules/playwright/cli.js test e2e/admin-contrast.spec.ts
+```
+
+- Contents of `.env.e2e` — the Owner fills the values; **no agent reads, echoes or logs them**:
+
+```
+E2E_BASE_URL=http://localhost:3000
+E2E_OWNER_EMAIL=…            E2E_OWNER_PASSWORD=…
+E2E_ADMIN_EMAIL=…            E2E_ADMIN_PASSWORD=…
+E2E_COORDINATOR_EMAIL=…      E2E_COORDINATOR_PASSWORD=…
+E2E_THERAPIST_A_EMAIL=…      E2E_THERAPIST_A_PASSWORD=…
+E2E_THERAPIST_B_EMAIL=…      E2E_THERAPIST_B_PASSWORD=…
+E2E_REPORTING_EMAIL=…        E2E_REPORTING_PASSWORD=…
+```
+
+- **Add the variable *names* to `.env.example`** as documentation. **Never the values** — `.env.example` is the one tracked env file.
+- **Standing prohibition, unchanged:** no agent may type a credential into a form, echo one to a log, or paste one into a report. The harness authenticates; agents reference `getCredentials(prefix)` only. A spec that would print a credential on failure is a defect — assert on the *role name*, never on the secret.
 
 ### 7.10 Explicitly NOT in scope
 
