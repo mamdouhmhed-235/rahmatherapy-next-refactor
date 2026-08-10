@@ -595,6 +595,37 @@ AST pairing (TypeScript compiler API, no new dependency) both **removed** false 
 
 **Role coverage is complete, and this was verified against the database rather than assumed.** Only five roles exist — Owner, Admin, Booking Coordinator, Therapist, Inactive — and all five have credentials. **There is no Reporting role in this system**, so `E2E_REPORTING_*` can never resolve and the corresponding e2e test has always been skipping; that is not a coverage gap. `THERAPIST_B` serves two-therapist claim scenarios only, and `NON_STAFF`/`INACTIVE` are negative-path accounts with no admin UI to audit.
 
+### 7.4b THE CONFIRMED DEFECT REGISTER — what the three layers actually found
+
+Every item below is **measured, not inferred**. This is the work list; §7.6–7.8 is how it gets done.
+
+| # | Defect | Worst | Reach | Class | Fix type |
+|---|---|---|---|---|---|
+| **D1** | **Active nav item — foreground and background resolve in *different themes*** | **1.01:1** | **Every admin page, every role, both themes** | Theme resolution | ⚠️ *see below — root cause not yet established* |
+| **D2** | Shared `button.tsx` outline/ghost `active:` — themed fg on hardcoded light bg | 1.07:1 dark | Every admin page | 1 | Substitution |
+| **D3** | Shared `input.tsx:116,143` — required asterisk + **field error text**, hardcoded dark red on dark panel | 1.15:1 dark | Every admin form | 2 | Substitution |
+| **D4** | `admin-ui-interactions.tsx:342` — destructive confirm button | 1.47 / 1.91:1 dark | Destructive dialogs | 1 | Substitution |
+| **D5** | `ManualBookingForm.tsx:1486` — `hover:` pairing | 1.02:1 dark | Booking form | 1 | Substitution |
+| **D6** | `operations/event-row.tsx:171-173` + `calendar/page.tsx:650,660` — status tokens on hardcoded light bgs | 1.01–1.14:1 dark | Operations, calendar | 1 | Substitution |
+| **D7** | Header notification badge — white on amber | 3.65:1 both themes | Every admin page | 3 | Substitution or token |
+| **D8** | **`--admin-warning` on `--admin-warning-bg`** | **3.41:1 light** | Wherever warnings render | **Token value** | ⚠️ Design decision |
+| **D9** | Dashboard KPI figures (`0`, `£0.00`, `—`) | 1.05:1 dark | Dashboard | 2 | Substitution |
+| **D10** | `/admin/staff` onboarding badges | 1.05:1 dark | Staff list | 3 | Substitution |
+| **D11** | 16 prose contrast claims in `tokens.css` unverified | — | Documentation integrity | — | Extend verifier |
+
+#### D1 deserves its own note — it is the highest-reach defect and the least understood
+
+Measured: foreground `rgb(49,55,49)`, background `rgb(34,56,75)`. Resolved against the token file:
+
+- `rgb(49,55,49)` = `#313731` = **`--admin-body`'s LIGHT value** (`tokens.css:74`)
+- `rgb(34,56,75)` = `oklch(33% 0.045 247)` = **`--admin-nav-active-bg`'s DARK value** (`tokens.css:379`)
+
+**The same element resolved its background in dark and its foreground in light.** Both sides are `var(--admin-*)` tokens, and both are individually themed correctly — `--admin-body` dark is `oklch(90% 0.010 88)`, `--admin-primary` dark is `oklch(76% 0.098 240)`. So this is **not** a hardcoded-literal defect and **substitution will not fix it**.
+
+**The static analyser reports ZERO nav-active findings**, because it evaluates both sides in the same theme and they pass. Only the live sweep caught it. That divergence is itself the diagnostic signal, and it is why the three layers are not redundant.
+
+**Do not guess the mechanism.** Candidate causes worth investigating, in order: the token blocks are selected by `[data-theme="dark"]` **and** `[data-admin-theme-root][data-theme="dark"] ~ *` — a **general-sibling** combinator (`tokens.css:331-332`), whose stated purpose is portalled content; `--admin-nav-active-text` is declared **once**, in `:root` only, as an alias `var(--admin-primary)` (`tokens.css:132`), as is `--admin-nav-text: var(--admin-body)` (`:129`); and an alias declared in `:root` resolves against the *element's* computed value of the referenced token, which behaves differently for descendants versus siblings of the theme root. **This must be root-caused empirically in the browser — computed styles on the real element — before any fix is written.** A wrong theory here would be applied across every admin page.
+
 ### 7.5 The solution — eliminate, prove, prevent
 
 A durable fix needs all three. Substitution alone would be undone within weeks: **11 brand-new files created during Band C carried this debt from their first commit**, each citing the match-the-surrounding-style rule. There is currently **no guard of any kind** against adding another literal.
