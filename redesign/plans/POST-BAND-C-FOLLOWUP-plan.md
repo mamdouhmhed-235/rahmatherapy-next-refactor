@@ -468,6 +468,31 @@ Theme is applied via `data-theme` on a `[data-admin-theme-root]` wrapper (`Theme
 
 **The critical property, verified directly:** the highest-frequency literals are **byte-identical to the light-mode value of an existing token**. `--admin-status-cancelled-text` is `oklch(26% 0.14 25)` in light (`tokens.css:155`) and `oklch(88% 0.058 25)` in dark (`:393`). So replacing the literal with `var(--admin-status-cancelled-text)` renders **pixel-identically in light mode** and **correctly in dark**. For the bulk of this work, *"no visual change in light mode"* is a provable fact, not a hope.
 
+### 7.2a Measured live, before any code was written — `redesign/evidence/admin-contrast/baseline-owner-2026-08-10.md`
+
+The static analysis above predicted the failures; the live DOM was then audited on the Owner's own session, both themes, and **confirmed them**. This is the baseline the fix must beat.
+
+| Page | Nodes | **Dark** fails | **Light** fails | Worst |
+|---|---|---|---|---|
+| `/admin/dashboard` | 89 | **8** | **15** | **1.01:1** |
+| `/admin/bookings` | 147 | **8** | **8** | 1.88:1 |
+| `/admin/staff` | 177 | **41** | 1 | **1.05:1** |
+| `/admin/emails` | 72 | **13** | 2 | 1.88:1 |
+| `/admin/settings` | 56 | **9** | 1 | **1.15:1** |
+| `/admin/bookings/new` | 28 | **7** | 1 | **1.15:1** |
+| **Total** | **569** | **86** | **28** | |
+
+**1.0:1 is identical colour.** These are not low-contrast, they are invisible.
+
+- **`/admin/staff` fails on 23% of its text in dark mode.**
+- **The dashboard's KPI figures (`0`, `£0.00`, `—`) are invisible in dark mode** at 1.05:1 — the most-read content on the most-visited page.
+- **Light mode is worse than dark on the dashboard** (15 vs 8), worst 1.01:1, on a surface that is still *dark* while in light mode. Literals fail in **both** directions.
+- **The failing selector names its own cause:** `1.15:1 "*" span.ml-0.5.text-[oklch(26%_0.14_25)]` — `input.tsx:116` verbatim, on every form.
+- **`"New booking"` — a primary CTA — fails in both themes** (1.88:1 dark, 2.51:1 light).
+- The header notification badge is 3.65:1 **on every page, in both themes**.
+
+*Method and its one disclosed limitation (clipped `.sr-only` nodes are counted and must be excluded by the production auditor) are in the evidence file. Theme was switched via the `data-theme` attribute, so no `theme_preference` write reached the database.*
+
 ### 7.3 The four failure classes — this is what "unreadable" actually is
 
 Every complaint reduces to one of four mechanical patterns. Naming them matters, because each has a different fix and only two of them are true readability failures.
