@@ -553,9 +553,40 @@ This is strictly better than a human clicking through:
 - **self-documenting** — evidence files are a build artefact, not a chore;
 - **permanent** — it can gate CI, so contrast cannot silently regress the way the literals did.
 
+### 7.4a Verification tooling — BUILT, before any fix *(2026-08-10)*
+
+All three verification layers exist and run **before** a single colour is changed, so the fix has a baseline to be measured against rather than an opinion to be judged by.
+
+| Layer | Artefact | State |
+|---|---|---|
+| 1 — static source analyser | `scripts/measure-admin-contrast.mjs` + `.test.ts` (10 tests) | ✅ `d2efdfb` |
+| 2 — token-pair proof | `scripts/verify-admin-token-contrast.mjs` + `.test.ts` | ✅ `b97e707` |
+| 3 — live per-role sweep | `e2e/admin-contrast.spec.ts` | in progress |
+| Layer 3 setup | `.env.example` documents the per-role variables | ✅ `6800fce` |
+
+**Layer 1 current reading: 456 failures (377 dark / 79 light), 76 explicit-pair, 380 assumed-surface, and 239 `unresolvedElements`.** That last metric is the honest one — class strings it cannot resolve statically are counted and reported rather than silently skipped.
+
+AST pairing (TypeScript compiler API, no new dependency) both **removed** false positives and **found true positives line-based pairing could not reach** — notably `admin-ui-interactions.tsx:342`, a destructive confirm button at **1.47:1 / 1.91:1 dark**, missed previously only because the formatter had split the foreground and its ternary-branch background across physical lines. Ternary branches are treated as distinct rendering states and never paired with each other.
+
+**Role coverage is complete, and this was verified against the database rather than assumed.** Only five roles exist — Owner, Admin, Booking Coordinator, Therapist, Inactive — and all five have credentials. **There is no Reporting role in this system**, so `E2E_REPORTING_*` can never resolve and the corresponding e2e test has always been skipping; that is not a coverage gap. `THERAPIST_B` serves two-therapist claim scenarios only, and `NON_STAFF`/`INACTIVE` are negative-path accounts with no admin UI to audit.
+
 ### 7.5 The solution — eliminate, prove, prevent
 
 A durable fix needs all three. Substitution alone would be undone within weeks: **11 brand-new files created during Band C carried this debt from their first commit**, each citing the match-the-surrounding-style rule. There is currently **no guard of any kind** against adding another literal.
+
+### 7.5a Layer 2 built and run — one token pair genuinely fails AA *(2026-08-10, `b97e707`)*
+
+`scripts/verify-admin-token-contrast.mjs` now proves the token layer. 92 tokens resolved in both themes; **83 unique pairs × 2 themes = 166 checks**, derived by naming convention, by documented pairings, and by every foreground-ish token against the four real surfaces.
+
+**Two results that change Phase A:**
+
+1. **All 14 self-declared ratio comments are accurate** (max delta ±0.03). The design system's claims about itself hold — good news, and it means those comments can be trusted as intent when choosing substitutions.
+
+2. **⚠️ One real AA failure in the tokens themselves: `--admin-warning` on `--admin-warning-bg` = 3.41:1 in the light theme** (needs 4.5:1). **This means ITEM 7 is not purely mechanical.** Substitution alone would faithfully reproduce a genuinely non-compliant pair. Fixing it is a **token value change** — design work, not find-and-replace — and per §7.10 it must be its own reviewed change with the before/after ratio quoted, not folded into a substitution commit.
+
+**Known coverage gap, logged not closed:** the verifier checks the **14 machine-readable inline comments** (`/* N:1 vs X */`). `tokens.css` contains a further **16 contrast claims written in prose** that nothing verifies — several load-bearing, e.g. *"fails WCAG text contrast at 1.42:1 on canvas; **never use as body text**"*, *"danger 5.39:1, warning 4.71:1, info 7.18:1"*, and *"all six sit 5.55–9.75:1 against `--admin-panel`"*. A prose safety warning that silently stops being true is exactly the defect class this programme keeps finding. **Worth extending the verifier to parse these too** — a contained follow-up, and the natural next increment.
+
+*(Correction for the record: this plan previously said "18 such comments". That was a loose line-count and was wrong; the verifiable inline form numbers 14 across the four blocks. The executing agent caught the discrepancy and reported it rather than quietly adjusting — the correct behaviour.)*
 
 ### 7.6 Phase A — complete the token vocabulary
 
