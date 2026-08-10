@@ -660,7 +660,7 @@ For each of the 94 distinct literals, classify:
 
 **Order by user impact, not by file size:**
 
-1. **`src/components/ui/{input,button,badge}.tsx`** — 3 files, 25 literals, and they fix Classes 1 and 2 **everywhere at once**. Ship this first and alone: the biggest readability win in the smallest, most reviewable diff.
+1. **`src/components/ui/input.tsx` and `button.tsx`** — 2 files, 14 literals, fixing Classes 1 and 2 (defects **D2** and **D3**) **everywhere at once**. Ship these first and alone: the biggest readability win in the smallest, most reviewable diff. **⚠️ Both render on the live customer page `/booking/manage` — see §7.7a; capture it as a control first.** *(`badge.tsx` was originally grouped here; §7.7a demotes it — 0 admin call sites.)*
 2. The top-10 literal values across `src/app/admin/**` — ~71% of remaining occurrences.
 3. The long tail, batched by directory so each commit is reviewable.
 
@@ -669,6 +669,51 @@ For each of the 94 distinct literals, classify:
 - **Light mode is the control.** For every byte-identical substitution, light-mode rendering must be unchanged. Any light-mode difference means a mis-mapping.
 - Do **not** touch `src/app/(public)/**` or `src/features/**` — verified zero literals, and out of scope.
 - `AdminTopNav.tsx` (13 literals) also carries the C-10 padding fix from item 3/6's neighbourhood — re-grep anchors before editing.
+
+### 7.7a ⚠️ BLAST RADIUS — verified, and it changes Phase B's order
+
+*(Independent review, 2026-08-10; full working in `redesign/evidence/admin-contrast/surgical-review.md`. Each claim below was re-verified by the orchestrator.)*
+
+#### ⛔ The three "shared primitives" are NOT admin-only. A live customer page renders all three.
+
+`src/app/booking/manage/` — the customer booking-management page — imports every primitive Phase B edits **first**:
+
+| Import | File |
+|---|---|
+| `Button` | `src/app/booking/manage/ManageBookingForms.tsx:5` |
+| `Input` | `src/app/booking/manage/ManageBookingForms.tsx:6` |
+| `Badge` | `src/app/booking/manage/page.tsx:9` |
+
+It sits **outside both `src/app/(public)/**` and `src/app/admin/**`**, so the plan's "the public site measured at zero literals" statement — while true — **does not cover it**. This is a real, live, unauthenticated customer surface. *(It is also the route C-17 deliberately withheld Google Analytics from, because its URL carries a booking-management bearer token.)*
+
+Current analysis says the exposure is **safe**: the tokens resolve identically there via `:root`, which non-admin pages also read. **But that reasoning was written down nowhere, and no verification layer visits the route.**
+
+**Binding requirements:**
+1. **Before** editing any primitive, capture `/booking/manage` in **both** themes as a control.
+2. After each primitive change, **re-check it** — a visual diff there is a **STOP**, not a note.
+3. Add `/booking/manage` to the Layer 3 sweep as an unauthenticated route (it needs a token in the URL; if none can be obtained without a production write, record it **unreachable** and verify manually — do **not** silently omit it).
+
+#### `badge.tsx` is nearly dead in admin — its priority was wrong
+
+Measured: **0 `<Badge` call sites in `src/app/admin/**`**, against **141 uses of `AdminStatusBadge`** (`admin-ui.tsx`), which is a separate, already-token-clean component.
+
+So `badge.tsx`'s 11 hardcoded variants are **not** what admin renders. Fixing it is **dead-code hygiene with essentially zero visible admin benefit — while carrying real risk to the customer page above.**
+
+**Revised guidance:** ship **`input.tsx` and `button.tsx` first** — they carry D2 and D3, the two genuine readability defects, and are genuinely everywhere. Treat `badge.tsx` as a **separate, later, low-priority commit**, justified as consistency rather than as a fix. Do not bundle it with the other two.
+
+#### Correction: the `AdminTopNav.tsx` collision claim was wrong
+
+This plan previously warned that ITEM 3/6 and ITEM 7 collide on `AdminTopNav.tsx`. **They do not — items 3 and 6 never touch that file.** *(The confusion was with C-10's padding fix, a different programme.)*
+
+**The real collision, previously unstated:** items 3 and 6 edit **six availability files that already carry 23 `oklch()` literals** which item 7 must also change. **Sequence items 3 and 6 fully before item 7 touches those files**, and re-grep anchors after — otherwise the two efforts will conflict in the same lines.
+
+#### The cheap tripwire — the single highest-value new check
+
+§7.7 states "light mode is the control", relying on the fact that the highest-frequency literals are **byte-identical** to their token's light value. Make that a test rather than a discipline:
+
+> For every substitution, resolve the **new token's light-mode value** from `tokens.css` and assert it **equals the literal it replaced**.
+
+Pure string/colour comparison — no browser, no server, milliseconds. It catches the one mistake that matters most (a mis-mapped token silently changing appearance) at effectively zero cost, and it converts the plan's most important safety rule from prose into CI.
 
 ### 7.8 Phase C — the guard, so this is fixed *once*
 
@@ -808,7 +853,7 @@ This was flagged rather than guessed at because the two readings led to material
 **Baselines BY IDENTITY at `33f895f`** — a matching total with a different failure swapped in is a **FAIL**:
 
 - `npx tsc --noEmit` → **0**
-- `npx vitest run` → **5 failed / 2214 passed (2219)**, the failures being exactly:
+- `npx vitest run` → **5 failed / 2236 passed (2241)** *(corrected 2026-08-10 — the previous figure of 2214 was stale, predating the three tooling test files)*, the failures being exactly:
   - `src/lib/auth/admin-access.test.ts` ×2
   - `src/app/admin/bookings/new/ManualBookingForm.test.tsx` ×3
 - `pnpm lint` → **59 errors / 7 warnings** in exactly:
