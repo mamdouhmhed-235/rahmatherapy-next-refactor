@@ -493,6 +493,31 @@ The static analysis above predicted the failures; the live DOM was then audited 
 
 *Method and its one disclosed limitation (clipped `.sr-only` nodes are counted and must be excluded by the production auditor) are in the evidence file. Theme was switched via the `data-theme` attribute, so no `theme_preference` write reached the database.*
 
+### 7.2b FULL SWEEP COMPLETE — every route, every role, both themes *(2026-08-10)*
+
+`e2e/admin-contrast.spec.ts` ran end to end: **6 tests, 3.8 minutes, all four contrast roles plus the unauthenticated surfaces.** This supersedes §7.2a's six-page baseline.
+
+| Role | Theme | Routes audited | Denied inline | Unreachable | **Failures** |
+|---|---|---|---|---|---|
+| OWNER | dark / light | 24 | 0 | 5 | **595 / 467** |
+| ADMIN | dark / light | 22 | 1 | 6 | **577 / 441** |
+| COORDINATOR | dark / light | 15 | 8 | 6 | **202 / 216** |
+| THERAPIST_A | dark / light | 8 | 12 | 9 | **59 / 56** |
+| UNAUTHENTICATED | dark / light | 2 | 0 | 0 | 2 / 0 |
+| | | | | **TOTAL** | **2,615** |
+
+**82 findings sit at exactly 1.01:1 — identical foreground and background.** Not low contrast: invisible.
+
+**The single biggest offender is the navigation.** Ranked by frequency across every role and both themes, the most-failing text is: **"Clients" ×23, "Bookings" ×15, "Enquiries" ×7, "Dashboard" ×6, "Team" ×5, "Staff" ×3, "My bookings" ×3** — the *active* nav item, at 1.01:1, `rgb(49,55,49)` on `rgb(34,56,75)`. It is on every admin page, for every role, in both themes. Whichever section a user is currently in, its label is the one they cannot read.
+
+**Every role is affected, proportionally.** Therapist shows 59 dark failures across only 8 reachable routes — the same density as Owner's 595 across 24. **This is not an Owner-only or a dark-mode-only problem.** Coordinator is in fact *worse in light* (216) than dark (202).
+
+**The sweep doubles as an RBAC coverage map** — Owner reaches 24 routes, Admin 22 (1 denied inline), Coordinator 15 (8 denied), Therapist 8 (12 denied); 5–9 dynamic routes per role are unreachable for lack of data, recorded as such rather than counted as passes. That is the per-role variant coverage the Owner asked for, captured as data.
+
+**Evidence:** `redesign/evidence/admin-contrast/<ROLE>-<theme>.md` (8 files) + `summary.md`, each with a per-route table, the worst findings with full CSS selector paths, and explicit unreachable/denied lists.
+
+**This is the number the fix must move: 2,615 → 0.**
+
 ### 7.3 The four failure classes — this is what "unreadable" actually is
 
 Every complaint reduces to one of four mechanical patterns. Naming them matters, because each has a different fix and only two of them are true readability failures.
