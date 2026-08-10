@@ -31,7 +31,11 @@ import {
  * secret value, only on role names.
  *
  * Run (playwright.config.ts loads no env file itself):
- *   node --env-file=.env ./node_modules/playwright/cli.js test e2e/admin-contrast.spec.ts
+ *   node --env-file=.env ./node_modules/@playwright/test/cli.js test e2e/admin-contrast.spec.ts
+ *
+ * (This is a pnpm repo: there is no node_modules/playwright/cli.js — only
+ * @playwright/test is a direct dependency, and its CLI lives at the path
+ * above. Confirmed against node_modules/.bin/playwright's shim.)
  *
  * Scoping for a partial/smoke run:
  *   CONTRAST_ROLES=OWNER,ADMIN            (default: all four contrast roles)
@@ -72,6 +76,19 @@ const routeFilter = routeFilterEnv
 const roleResults: RoleRunResult[] = [];
 const unauthenticatedResults: RoleRunResult[] = [];
 let inactiveOutcome: "redirected" | "not-redirected" | "skipped" = "skipped";
+
+// Use the installed Google Chrome rather than Playwright's bundled Chromium.
+// @playwright/test@1.59.1 pins chromium_headless_shell revision 1217; this
+// machine's cache holds only 1228 and 1234, so the bundled binary cannot
+// launch. Fetching revision 1217 is a network download outside the lockfile,
+// and editing playwright.config.ts would change every other e2e spec — so the
+// channel is pinned HERE, scoped to this file alone.
+//
+// Safe for this particular suite: contrast is computed from resolved sRGB
+// pixel values, which are deterministic across Chromium builds. If Chrome is
+// ever absent, remove this line and run `npx playwright install
+// chromium-headless-shell` instead.
+test.use({ channel: "chrome" });
 
 test.describe("Admin contrast sweep", () => {
   test.skip(!hasBaseUrl(), "Set E2E_BASE_URL to run the admin contrast sweep.");
