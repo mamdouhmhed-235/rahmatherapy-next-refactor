@@ -595,6 +595,20 @@ Add a **guard test**, matching the idiom this codebase already uses for exactly 
 
 **Do not sign this off by eye.** Two complementary checks:
 
+**(a0) Static SOURCE analyser — the exhaustive layer, and the only one that needs no authentication at all.** *(Prototyped 2026-08-10; findings below are real output, not a proposal.)*
+
+Parse `tokens.css` into `{token: {light, dark}}`, walk every `.tsx`/`.ts` under `src/app/admin/**` and `src/components/ui/**`, extract Tailwind arbitrary colour utilities (`text-[…]`, `bg-[…]`, including `hover:`/`active:`/`focus-visible:`/`data-[…]:` prefixes **and `/NN` alpha modifiers**), resolve each to sRGB — implementing oklch→oklab→linear-sRGB→sRGB — composite alpha, and compute the WCAG ratio **per theme**.
+
+**Prototype result: 309 files scanned, 92 tokens resolved, 495 pairings below 4.5:1 (411 dark / 84 light).** It independently reproduced the failures found by code reading and by the live audit, including `button.tsx:29` and `:35` at **1.07:1 in dark** (`var(--admin-body)` on `oklch(92% 0.022 155)` — the outline/ghost `active:` state), the `operations/event-row.tsx:171-173` status-text-on-hardcoded-light cluster at 1.01–1.10:1, and the same shape at `calendar/page.tsx:650,660`.
+
+**Why this layer is essential, not redundant:** it is the **only** method that reaches **interaction states**. A live DOM audit measures the resting page; it can never see `hover:`, `active:`, `focus-visible:` or `data-[error=true]:` colours unless every such state is driven on every element. The analyser found `ManualBookingForm.tsx:1486` — `hover:bg-[var(--admin-panel-muted)] hover:text-[oklch(26%_0.14_25)]`, **1.02:1 on hover in dark mode** — which the live sweep had no way to surface.
+
+**Two accuracy limits, both real and both to be closed in the production version:**
+1. **Same-line pairing is a heuristic.** Colours on one source line are assumed to belong to one element. Usually true in Tailwind, not always — validation found `badge.tsx:56` (`bg-[var(--admin-primary)]/12` beside `text-[var(--admin-primary)]`) reported as `1:1` before alpha support was added, and a residue of same-line/different-element artifacts remains. **The production version should parse the JSX `className` expression via AST rather than by line**, which removes this class entirely.
+2. **416 of the 495 are "assumed-surface"** — a foreground with no background on the same line, evaluated against `--admin-panel` and `--admin-canvas`. Directionally right, since those are the real admin surfaces, but not proof for any specific element.
+
+**Treat (a0) as the exhaustive *finder* and (b) as the *confirmer*.** Neither alone is sufficient; together they cover breadth, states, and runtime truth.
+
 **(a) Static token-pair proof — exhaustive, role-independent, no browser.** Parse `tokens.css`, compute the WCAG contrast ratio for every foreground/background token pair the design system actually uses, in **both** `[data-theme="dark"]` and `[data-theme="light"]`, and assert **AA: ≥4.5:1 for normal text, ≥3:1 for large text and UI boundaries**. Several tokens already document their ratio in a comment — **verify those comments are true**, since a stale comment is worse than none. This is the check that covers every page and every role at once.
 
 **(b) Automated live sweep — every route × every role × both themes.** This is the item the Owner asked for, built as a **new Playwright spec, `e2e/admin-contrast.spec.ts`**, reusing the existing harness rather than inventing one.
