@@ -669,9 +669,24 @@ Measured: foreground `rgb(49,55,49)`, background `rgb(34,56,75)`. Resolved again
 
 **Do not guess the mechanism.** Candidate causes worth investigating, in order: the token blocks are selected by `[data-theme="dark"]` **and** `[data-admin-theme-root][data-theme="dark"] ~ *` — a **general-sibling** combinator (`tokens.css:331-332`), whose stated purpose is portalled content; `--admin-nav-active-text` is declared **once**, in `:root` only, as an alias `var(--admin-primary)` (`tokens.css:132`), as is `--admin-nav-text: var(--admin-body)` (`:129`); and an alias declared in `:root` resolves against the *element's* computed value of the referenced token, which behaves differently for descendants versus siblings of the theme root. **This must be root-caused empirically in the browser — computed styles on the real element — before any fix is written.** A wrong theory here would be applied across every admin page.
 
-### 7.5 The solution — eliminate, prove, prevent
+### 7.5 The solution — TWO workstreams, not one
 
-A durable fix needs all three. Substitution alone would be undone within weeks: **11 brand-new files created during Band C carried this debt from their first commit**, each citing the match-the-surrounding-style rule. There is currently **no guard of any kind** against adding another literal.
+**This section was rewritten after D1 was root-caused.** The plan originally assumed one problem — hardcoded literals — and one remedy: substitution. The measurement proved otherwise. There are **two independent defect classes**, with different causes, different fixes, and different risk profiles. **Conflating them is the main way this work goes wrong.**
+
+| | **Workstream 1 — theme resolution** | **Workstream 2 — hardcoded literals** |
+|---|---|---|
+| Defects | **D1, D7, D9, D8, D12** | D2, D3, D4, D5, D6, D10 |
+| Cause | `:root`-only aliases frozen in light; a cascade-layer inversion; one bad token value | 677 literals bypassing the token system |
+| Fix | **De-alias tokens; correct the layer; change one token value** | Mechanical substitution |
+| Size | ~11 tokens, 1 CSS import, 1 value | 677 occurrences / 99 files |
+| Risk | **Low volume, HIGH blast radius** (one is site-wide) | High volume, low blast radius per edit |
+| Phase | **Phase 0 (§7.5b)** | Phases A–B (§7.6–7.7) |
+
+**Substitution cannot fix Workstream 1** — those colours are already correctly-themed tokens. An implementer who treats the register as one undifferentiated list will edit literals that were never the problem and leave the highest-reach defect in place.
+
+**Recommended sequence: Workstream 1 first.** It is far smaller, it clears the defect with the widest reach (D1 — every admin page, every role, both themes), and it is independent of the substitution work. Doing it first also means the Layer 3 baseline drops sharply and cleanly, making the remaining substitution progress easier to read. *(The plan does not mandate this order — but if the substitution runs first, expect 2,615 to barely move, because the nav defect alone recurs on every route.)*
+
+**And for both workstreams: eliminate, prove, prevent.** A durable fix needs all three. Substitution alone would be undone within weeks: **11 brand-new files created during Band C carried this debt from their first commit**, each citing the match-the-surrounding-style rule. There is currently **no guard of any kind** against adding another literal.
 
 ### 7.5a Layer 2 built and run — one token pair genuinely fails AA *(2026-08-10, `b97e707`)*
 
@@ -687,6 +702,87 @@ A durable fix needs all three. Substitution alone would be undone within weeks: 
 
 *(Correction for the record: this plan previously said "18 such comments". That was a loose line-count and was wrong; the verifiable inline form numbers 14 across the four blocks. The executing agent caught the discrepancy and reported it rather than quietly adjusting — the correct behaviour.)*
 
+### 7.5b PHASE 0 — the theme-resolution fixes *(Workstream 1: D1, D7, D9, D8, D12)*
+
+**Four commits, strictly in this order.** Each is independently revertable. **None of them touches a single hardcoded literal** — if you find yourself editing an `oklch(` value in Phase 0, stop: you are in the wrong workstream.
+
+Full evidence: `redesign/evidence/admin-contrast/root-cause-D1.md`.
+
+---
+
+#### Step 0.1 — De-alias the frozen tokens *(fixes D1's Cause 1, D9, D7)*
+
+**The bug:** a token declared in the `:root` block as `var(--other-token)` is substituted **at `:root`**, and `:root` (`<html>`) **never carries `data-theme`** — that attribute lives on a `<div data-admin-theme-root>` (`ThemeProvider.tsx:105`). So the alias resolves once against `:root`'s light value and every descendant inherits that frozen colour. It can never track the theme.
+
+**The fix:** replace each alias with a **real value in each theme block** — `:root`, `[data-theme="dark"]`, `[data-theme="light"]`, and `@media print`.
+
+**All 11 affected tokens must be assessed. `tokens.css`'s own comment names only 8 — it omits the three `--notif-badge-*-bg` aliases. Do not trust that comment as the list.**
+
+| Token | Status |
+|---|---|
+| `--admin-nav-text` | ✅ confirmed broken + consumed (**D1**) |
+| `--admin-nav-active-text` | ✅ confirmed broken + consumed (**D1**) |
+| `--admin-text` | ✅ confirmed broken + consumed (**D9** — `PersonalContributionStripe.tsx:90`) |
+| `--notif-badge-warning-bg` | ✅ confirmed broken + consumed (**D7**, computed 3.65:1) |
+| `--notif-badge-*-bg` (other two) | ⚠️ same mechanism, **unmeasured** |
+| `--admin-nav-text-muted` · `--admin-surface` · `--admin-surface-muted` · `--admin-cormorant-color` · user-menu variant of `--admin-nav-active-text` | ⚠️ **unmeasured — measure before deciding** |
+
+**Do not assume the five unmeasured aliases are benign, and do not fix them blind.** Measure each first; a token that happens to be consumed only on a light surface may be correct today and still worth de-aliasing for consistency — but that is a judgement to record, not to skip.
+
+**Also correct the false comment in `tokens.css`** asserting these aliases "track the theme automatically". It is wrong, and it is why the bug survived review. A stale comment that misleads the next reader is a defect in its own right.
+
+**Verify:** Layer 3 on `/admin/dashboard` + any two other routes, both themes — D1's 1.01:1 findings must be **gone**, and the light-theme numbers must not worsen. Layer 2 must still report its single known failure (D8) and no new one.
+
+---
+
+#### Step 0.2 — Fix the `--admin-warning` token value *(D8)*
+
+`--admin-warning` on `--admin-warning-bg` = **3.41:1 in light**, below AA. Proposed: `#b77900` → **`#986400`**, preserving hue and saturation, computed **3.41:1 → 4.72:1**. All consumers were checked; no regression found — **re-verify that yourself before applying.**
+
+This is a **genuine appearance change**, the only one sanctioned anywhere in ITEM 7. It must be its own commit with before/after ratios quoted, and it is the **one place where "light mode is unchanged" does not apply** — say so explicitly in the commit message so it is not mistaken for a mis-mapping.
+
+**Verify:** Layer 2 reports **0** failures afterwards.
+
+---
+
+#### Step 0.3 — ⚠️ Correct the cascade-layer inversion *(D1's Cause 2 / D12) — HIGHEST-RISK CHANGE IN THIS PLAN*
+
+`src/styles/site-parity.css` is imported **unlayered** (`layout.tsx:4`) while Tailwind utilities sit in `layer(utilities)` (`globals.css:1,6`). Unlayered CSS beats layered regardless of specificity, so its `a { color: inherit; text-decoration: none; }` **defeats every Tailwind text-colour utility on every `<a>` — site-wide, admin and public.**
+
+**⛔ STOP-AND-ASK before implementing. Three preconditions, all mandatory:**
+
+1. **Establish why it was imported unlayered.** Check the git history of `layout.tsx` and `site-parity.css` and any accompanying note. **It may have been deliberate** — the filename suggests it exists to match a design handoff. If it was intentional, the fix may be to scope the `a` rule rather than re-layer the file.
+2. **Measure the reach first.** Enumerate `<a>` elements carrying a Tailwind text-colour utility across **both** the admin and the public site. This has **not** been done. The change will alter link colours wherever a utility has been silently inert — and that is the intended effect, which makes an unmeasured blast radius unacceptable.
+3. **Capture before/after evidence on the public site**, not just admin. ITEM 7 is otherwise admin-only; **this step is the single exception, and it is why it cannot ride along with anything else.**
+
+**Options:** wrap the import in `@layer base`; or move the `a` rule into an existing layer; or narrow its selector so it no longer competes with utilities. **Prefer the narrowest change that fixes the nav without repainting the public site.**
+
+**Do NOT bundle this with Step 0.1.** If 0.1 lands alone and D1's ratio improves but the nav's own colour class is still inert, that is expected — 0.1 fixes the inherited colour, 0.3 restores the element's own.
+
+---
+
+#### Step 0.4 — Regression guard for the alias class
+
+Add a check that fails if any `--admin-*` or `--notif-*` token is declared **only** in `:root` with a `var(--…)` value. This is the exact shape that froze D1/D7/D9, and nothing currently prevents a new one.
+
+Belongs with the Layer 2 verifier (`scripts/verify-admin-token-contrast.test.ts`). **Disclose its limit**, per C-17's precedent: it is a source-level check and will not catch an alias introduced through a different mechanism.
+
+---
+
+---
+
+#### Step 0.5 — Extend the Layer 2 verifier to the prose ratio claims *(D11)*
+
+The verifier checks the **14 machine-readable inline comments** (`/* N:1 vs X */`) and confirmed all 14 accurate. `tokens.css` carries a further **16 contrast claims written in prose** that nothing verifies — several load-bearing, e.g. *"fails WCAG text contrast at 1.42:1 on canvas; **never use as body text**"*, *"danger 5.39:1, warning 4.71:1, info 7.18:1"*, *"all six sit 5.55–9.75:1 against `--admin-panel`"*.
+
+**This belongs in Phase 0 specifically because Steps 0.1 and 0.2 change token values** — so any prose claim about those tokens is at risk of becoming false *as a result of this very work*. Extend the parser, re-verify all 30 claims, and **correct any that Phase 0 invalidates**.
+
+A prose safety warning that silently stops being true is precisely the defect class this programme keeps finding. **Where a claim cannot be machine-parsed, say so in the tool's output** rather than quietly checking only the easy ones.
+
+---
+
+**Phase 0 exit criteria:** D1, D7, D9 findings absent from a Layer 3 re-run; Layer 2 at **0** failures; all 30 ratio claims (14 inline + 16 prose) verified or corrected; the alias guard passing; `/booking/manage` and the public site unchanged **except** where Step 0.3 deliberately changed them, with evidence; and the five unmeasured aliases each **resolved or explicitly deferred with a reason** — not silently dropped.
+
 ### 7.6 Phase A — complete the token vocabulary
 
 For each of the 94 distinct literals, classify:
@@ -699,7 +795,9 @@ For each of the 94 distinct literals, classify:
 
 **⚠️ Any new token must be added to every block that needs it** — `:root`, `[data-theme="dark"]`, `[data-theme="light"]`, and `@media print`. The print block deliberately forces light values; a token missing there will print wrong. This is the easiest omission to make.
 
-### 7.7 Phase B — substitute, in risk order, in reviewable batches
+### 7.7 Phase B — substitute, in risk order, in reviewable batches *(Workstream 2: D2, D3, D4, D5, D6, D10)*
+
+**Scope check before you start:** Phase B fixes **only** hardcoded-literal defects — **D2** (`button.tsx` outline/ghost `active:`), **D3** (`input.tsx` asterisk + field error), **D4** (`admin-ui-interactions.tsx:342`), **D5** (`ManualBookingForm.tsx:1486` hover), **D6** (`event-row.tsx` / `calendar/page.tsx` status-on-light), **D10** (staff onboarding badges), plus the long tail. **D1, D7, D8, D9 and D12 are NOT Phase B work** — see §7.5b.
 
 **Order by user impact, not by file size:**
 
@@ -832,9 +930,11 @@ E2E_REPORTING_EMAIL=…        E2E_REPORTING_PASSWORD=…
 ### 7.10 Explicitly NOT in scope
 
 - **No redesign.** No new palette, no layout, spacing or typography changes, no component restructuring. This is "make the existing design render correctly in both themes".
-- **No public-site changes** — measured at zero literals.
-- **No token *value* changes** unless a pair provably fails AA, and then as its own reviewed change with the ratio quoted.
+- **No public-site changes** — the public site measured at zero literals. **Two documented exceptions:** `/booking/manage` renders the shared primitives and is a required before/after **control** (§7.7a); and Phase 0's **Step 0.3** deliberately reaches site-wide, which is precisely why it is gated behind its own ⛔.
+- **No token *value* changes** unless a pair provably fails AA, and then as its own reviewed change with the ratio quoted. **Exactly one is sanctioned today: D8** (§7.5b Step 0.2).
 - Not an accessibility programme (no ARIA/keyboard/screen-reader audit) — colour and contrast only.
+- **⛔ Do not attempt to fix D1, D7, D9 or D12 by editing colour literals.** They are theme-resolution faults in correctly-themed tokens; substitution cannot fix them and would corrupt working code. They belong to Phase 0 (§7.5b) exclusively.
+- **Do not "tidy" `site-parity.css` opportunistically.** It is load-bearing and site-wide; only Step 0.3 touches it, under its own approval.
 
 ### 7.11 Risks
 
@@ -846,20 +946,34 @@ E2E_REPORTING_EMAIL=…        E2E_REPORTING_PASSWORD=…
 | The sweep is undone by future code | Phase C guard, ratcheted |
 | Tuning colours while moving them | Forbidden in 7.7 — substitution only |
 | Role-exclusive UI missed | Phase D role passes, plus the static token proof that is role-independent by construction |
+| **Workstreams conflated — literals edited to chase a theme-resolution bug** | §7.5's two-workstream split; §7.10's explicit prohibition; Phase 0 ships separately and first |
+| **Step 0.3 repaints links across the public site** | ⛔ stop-and-ask, reach measured **before** implementing, before/after evidence on public as well as admin, narrowest-fix preference |
+| **A live customer page (`/booking/manage`) regresses from a "primitive" edit** | §7.7a: captured as a control before Phase B; a visual diff there is a STOP |
+| **A new frozen alias is introduced later** | Step 0.4's guard on `:root`-only `var()` aliases |
 
 ### 7.12 Verification
 
-Gates by identity per §8, plus: the guard test passes at zero; the static token-pair proof reports no AA failure in either theme; the live audit reports no failure on any swept page in either theme; and light-mode screenshots of the three primitives are unchanged before/after.
+Gates by identity per §8, plus: the guard tests pass; the static token-pair proof reports **0** AA failures in either theme; the live sweep reports no failure on any swept route in either theme; light-mode rendering of the shared primitives is unchanged before/after; and **`/booking/manage` is unchanged** (§7.7a).
 
-**Suggested commits** — never one giant commit:
+**Suggested commits** — never one giant commit. **Phase 0 first, and never mixed with substitution work:**
 
 ```
-fix(admin-ui): token-drive colour in the shared input, button and badge primitives
+# ── Phase 0 — Workstream 1: theme resolution (§7.5b) ──────────────────
+fix(admin-theme): de-alias :root-only tokens frozen in light mode      # D1c1, D7, D9
+fix(admin-theme): raise --admin-warning to meet AA on its own tint     # D8  (appearance change — say so)
+fix(css): correct the cascade-layer inversion hiding colour utilities  # D12 ⛔ own approval, site-wide
+test(admin-theme): guard against :root-only var() alias tokens         # 0.4
+
+# ── Phases A–C — Workstream 2: hardcoded literals (§7.6–7.8) ─────────
+fix(admin-ui): token-drive colour in the shared input and button primitives   # D2, D3
+fix(admin-ui): token-drive colour in the badge primitive                      # low priority — 0 admin call sites
 fix(admin): replace the ten highest-frequency colour literals with tokens
 fix(admin): token-drive remaining colour literals in <area>      (repeated per area)
-test(admin): guard against new hardcoded oklch literals
-docs(redesign): admin contrast audit evidence, both themes, all roles
+test(admin): guard against new hardcoded oklch literals                       # ratcheted
+docs(redesign): admin contrast evidence — both themes, all roles
 ```
+
+**Expected trajectory, so progress can be judged rather than guessed:** Phase 0 should move the Layer 3 total **sharply** (D1 alone recurs on every route, every role, both themes) while barely moving Layer 1's static count — Phase 0 removes no literals. Phases A–B invert that. **If Phase 0 does not visibly dent 2,615, the de-alias fix has not actually taken — stop and re-measure rather than proceeding.**
 
 ---
 
@@ -877,7 +991,11 @@ Items 2, 4 and 5 are independent of everything else. **Items 3 and 6 are ordered
 | 6 | 1 | `feat(email): cap review requests to once per client per 6 months + manual admin send` |
 | 7 | 7 | Admin theming — **multiple commits**, see §7.12. Largest item; runs last so it rebases over a settled tree |
 
-One coherent unit per commit. Never batch items. Items 3 and 6 touch the same files, so they must not run concurrently with each other. **Item 7 touches `AdminTopNav.tsx`, which item 3's neighbourhood also touched — run item 7 after items 3 and 6 have landed**, and re-grep anchors. Everything else is disjoint.
+One coherent unit per commit. Never batch items. Items 3 and 6 touch the same files, so they must not run concurrently with each other.
+
+**Item 7's real collision, corrected:** items 3 and 6 edit **six availability files that already carry 23 `oklch()` literals** item 7 must also change — so **run item 7 after 3 and 6 have landed**, and re-grep anchors. *(An earlier version of this line claimed the collision was on `AdminTopNav.tsx`; that was wrong — items 3 and 6 never touch that file. See §7.7a.)*
+
+**⚠️ Item 7's Phase 0 (§7.5b) is the exception to "item 7 runs last."** Phase 0 touches only `tokens.css`, `site-parity.css`/`layout.tsx` and the Layer 2 verifier — **none of which any other item goes near**. It is disjoint from items 1–6 and can run at any point, including first. Given it clears the highest-reach defect in the product for ~11 token edits, running it early is reasonable; only Phase 0's **Step 0.3** carries site-wide risk, and that step has its own ⛔ stop-and-ask.
 
 ---
 
