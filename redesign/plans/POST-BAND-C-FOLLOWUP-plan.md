@@ -21,15 +21,14 @@ This is a **post-programme plan**. The Band C execution protocol (`redesign/plan
 | 3 | Override lists: add the missing secondary sort | Correctness | No |
 | 4 | `bookings` table: add the indexes it will need before real volume | Migration | **YES** |
 | 5 | Bundle measurement: make the existing script able to answer the question | Tooling | No |
+| 6 | Adjustment lists: count and cap by **date**, not by segment row | Correctness | No *(on the recommended option)* |
 
 ### 0.2 Explicitly OUT of scope — do not touch
 
 The Owner declined these. Leave them exactly as they are.
 
 - **The Google Maps cookie label.** It stays `purpose: "essential"` in `src/lib/consent/cookie-registry.ts`. Confirmed by the Owner twice. Do not "correct" it to `functional` — that would make the Functional group's blanket promise false, which is precisely why it is filed as it is.
-- **Override list caps counting segment rows instead of distinct dates.** Needs a database view or RPC; deferred. *(See §7 — one line in the Owner's instruction was ambiguous here. Read §7 before assuming.)*
 - **SEO:** no `sitemap.ts` / `robots.ts`, and 5 of 6 public pages emit no canonical tag.
-- **The `pastShown` / `pastTotal` unit mismatch** in both override managers.
 - **Non-atomic global override save**, and the **staff duplicate-date TOCTOU**. Both verified low-severity and disclosed.
 - **The `area == city` duplication** on unitary-authority addresses, and the `autoComplete` choice on the booking address field.
 - **Automatic data deletion / retention enforcement.** The Owner will handle retention manually — which is exactly why item 2 exists.
@@ -235,7 +234,7 @@ Unit tests for both orderings; `npx tsc --noEmit`. Both override tables currentl
 
 ---
 
-## ITEM 4 — `bookings` indexes ⛔ (the only Zone-2 item)
+## ITEM 4 — `bookings` indexes ⛔ (the only Zone-2 item, unless item 6 takes Option B)
 
 ### 4.1 The problem
 
@@ -329,31 +328,137 @@ The script runs clean and emits every discovered route with non-zero gzip figure
 
 ---
 
-## 6 — Suggested order and commits
+## ITEM 6 — Adjustment lists must count and cap by DATE, not by segment row
 
-Items 1–5 are independent and touch disjoint files. Recommended order is smallest-risk-first, with the email work last because it is the only one that can reach a customer:
+*(Added 2026-08-10 at the Owner's confirmation — this replaces the mistaken "Maps cookie label" line in their list. §7 records the resolution.)*
 
-| # | Commit |
-|---|---|
-| 3 | `fix(availability): order override lists by start_time within a date` |
-| 2 | `fix(privacy): describe retention by criteria rather than a schedule we do not enforce` |
-| 5 | `chore(tooling): auto-discover routes in the bundle measurement script + re-baseline` |
-| 4 | `chore(supabase): bookings indexes for projected query shapes` ⛔ *(migration file only; Owner approves, orchestrator applies)* |
-| 1 | `feat(email): cap review requests to once per client per 6 months + manual admin send` |
+### 6.1 The problem
 
-One coherent unit per commit. Never batch items.
+Before C-14, a unique constraint guaranteed **one row per override date**, so "rows" and "dates" were the same number and every cap, count and badge could use rows interchangeably. **C-14 Phase C dropped those uniques.** A date with a break is now 2+ rows. Every row-based number on these surfaces silently became wrong:
+
+- `AVAILABILITY_PAST_CAP = 25` now means "25 **segment rows**", so "25 past adjustments" can be as few as ~8 actual dates.
+- The `count: "exact", head: true` totals count rows, so the "view all N" figure overstates how many dates exist.
+- `.limit()` is row-based, so a cap boundary can fall **mid-date** and render a date with only some of its hours.
+
+Both override tables hold **0 rows** today, so nothing is currently mis-displayed. This is a latent correctness bug, not a live one.
+
+### 6.2 What is already correct — do not re-fix it
+
+- The week-capacity chip on `/admin/availability` was fixed in `0bc2a02` (`weekAdjustmentsByDate.size`). **Leave it.**
+- `resolveAvailabilityBannerState` and `resolveStaffAvailabilityBannerState` are **pure and unit-agnostic** — they take `pastTotal` / `pastShown` / `viewAll` and compare them. Feed them date counts and they behave correctly **with no change to the functions themselves**. Do not touch their logic; in particular do not reorder the `cappedOut`-before-`hidden` check, which is deliberate and has already regressed twice historically.
+- Both managers already compute `groupByDate(...)` into `upcomingDays` / `pastDays`. **The date-grouped structure exists** — it is simply not the thing being counted.
+
+### 6.3 Two options — recommendation first
+
+**➤ OPTION A (RECOMMENDED) — group in code under a defensive row ceiling, with saturation disclosure. No migration, no Zone-2.**
+
+Fetch override rows under a defensive **row** ceiling, group them by date in the page, slice to N **dates**, and pass the flattened rows plus honest date totals to the manager.
+
+Why this is the right call here, rather than a bigger fix:
+
+1. **Proportionate to the real data.** `availability-data.ts`'s own header projects **~25–100 overrides over 5 years**. Even at 3 segments each that is a few hundred rows. This is not `bookings`.
+2. **It is the idiom this very file already established.** The header defines the upcoming bucket as *"a defensive ceiling, not a truly unbounded read"*, citing the `SCOPED_BRANCH_ROW_CAP` / `PRIVACY_NOTES_VIEW_ALL_CAP` precedent. Option A reuses that exact pattern rather than importing a new one.
+3. **It matches how the codebase already resolved the identical trade-off.** C-16 accepted a capped-not-paginated `getClientCandidates` precisely because the exact fix required Zone-2. Same reasoning, same conclusion.
+4. **It cannot silently lie** — see 6.5.
+
+**OPTION B (escalation, only if the Owner wants exactness at any scale) — a grouped view per table.**
+
+```sql
+CREATE VIEW public.availability_override_dates
+  WITH (security_invoker = true) AS
+  SELECT override_date, count(*) AS segment_count
+  FROM public.availability_overrides GROUP BY override_date;
+```
+…and a `(staff_id, override_date)` equivalent, each with `GRANT SELECT … TO service_role`. PostgREST would then `.limit()` and `count: "exact", head: true` over **dates** natively, exactly, forever.
+
+`security_invoker = true` is not optional — it matches the deliberate `SECURITY INVOKER` choice made for the C-14 RPCs (service_role already holds every needed privilege, so a definer-rights object would add an escalation surface for nothing).
+
+**Costs:** a Zone-2 migration, two new database objects, and a second query per bucket to fetch the segments for the visible dates. **Note PostgREST aggregates are disabled on this project** (`PGRST123`, confirmed by four agents during C-16) — which is *why* a view is the mechanism rather than a `count(distinct)` query, and also why Option B cannot be simplified further.
+
+**Implement Option A unless the Owner explicitly asks for B.**
+
+### 6.4 Option A — exact changes
+
+**Constants** — `src/app/admin/availability/availability-data.ts` and, duplicated, `src/app/admin/staff/[staffId]/availability/lib.ts`:
+
+- Keep `*_PAST_CAP = 25` and `*_PAST_VIEW_ALL_CAP = 200` with the same values, but **their unit changes from rows to dates**. Update the surrounding comments to say so explicitly — a constant whose meaning silently changed is exactly the trap this fix exists to remove.
+- Add a row-fetch ceiling, e.g. `AVAILABILITY_PAST_ROW_FETCH_CEILING = 800`, with its reasoning in a comment: it must comfortably cover `PAST_VIEW_ALL_CAP` (200 dates) × a realistic worst-case segments-per-date (~4).
+- Add a grouping/slicing helper (pure, no I/O — that is what this file is for).
+
+**⚠️ Duplicate, do not share.** `availability-data.ts`'s header states the shape is *"duplicated (not shared)"* in the staff tree, and that the two directory trees deliberately keep independent Manager components. **Do not introduce a shared module** — that would be new cross-tree coupling the codebase explicitly chose against.
+
+**Queries** — `src/app/admin/availability/page.tsx` and `src/app/admin/staff/[staffId]/availability/page.tsx`:
+
+- Past bucket: replace `.limit(viewAll ? PAST_VIEW_ALL_CAP : PAST_CAP)` with `.limit(PAST_ROW_FETCH_CEILING)`, then group and slice to the date cap in code.
+- Keep the existing `count: "exact", head: true` row-count queries. **Their role changes**: they are no longer the displayed total, they are the **saturation detector** (6.5).
+- Upcoming bucket: leave the 500-row defensive fetch as-is. Only its *displayed* number changes to dates.
+- Ordering must be `override_date` then `start_time` — **this is item 3**, and item 6 depends on it: grouping is only deterministic once segments of a date are contiguous and in time order. Do item 3 first.
+
+**Managers** — `AvailabilityOverridesManager.tsx` and `StaffAvailabilityOverridesManager.tsx` (identical shape; sites at `33f895f`, re-locate by symbol):
+
+| Site | Now | Becomes |
+|---|---|---|
+| `:153-155` / `:156-158` | `pastShown: past.length` | `pastShown: pastDays.length` |
+| `:261-264` / `:272-275` | `upcoming.length` / `upcomingTotal` in the badge | date-based equivalents (`upcomingDays.length`) |
+| `:264` / `:275` | `` `· ${pastTotal} past` `` | date-based `pastTotal` |
+| `:421` / `:458` | `` `${past.length} of ${pastTotal}` `` | `` `${pastDays.length} of ${pastTotal}` `` |
+| staff `:455` | `past.length > 0` | `pastDays.length > 0` |
+
+`pastTotal` and `upcomingTotal` must arrive from the page already expressed in **dates**.
+
+### 6.5 The failure mode this must not reproduce — and how it is prevented
+
+A previous attempt at this was **correctly halted** on the grounds that shipping the totals half alone could make the "view all N" link **silently fail to appear** when older dates genuinely exist beyond the cap — trading a visible overcount for an invisible undercount. That reasoning was verified and stands.
+
+Option A prevents it structurally:
+
+- The date total is derived from rows actually fetched, so it is exact **whenever the fetch was complete**.
+- Completeness is not assumed — it is **measured**. The existing exact row-count query gives the true row total; if `rowTotal > rowsFetched`, the fetch was truncated and the date total is a **lower bound**.
+- In that case the UI must render it as a lower bound (e.g. `200+`) and never as an exact figure, and the condition must be logged. **A silent truncation here is a plan failure, not an acceptable simplification.**
+- At the projected volume the saturated branch is unreachable — but it must still be implemented and unit-tested, because "unreachable" is what was said about one-row-per-date.
+
+### 6.6 Verification
+
+Unit tests, both trees:
+- a date with 3 segments counts as **1** toward the cap and the total;
+- exactly `PAST_CAP` dates render when more exist, and the banner offers "view all";
+- `viewAll` raises the limit to `PAST_VIEW_ALL_CAP` **dates**;
+- the `cappedOut` branch still fires beyond the view-all cap (guarding the bug that shipped twice);
+- **the saturated branch** renders a lower bound rather than a wrong exact number;
+- a date's segments are never split across the cap boundary.
+
+`npx tsc --noEmit`; gates by identity per §8. Both tables hold **0 rows**, so there is nothing to observe live — state that rather than claiming a live check.
+
+### 6.7 Relationship to item 3
+
+Item 3 (secondary sort) is a **prerequisite**, not a duplicate. Item 3 alone leaves the cap able to split a date; item 6 removes that by paging in dates. Doing 6 without 3 would group non-contiguous rows. **Ship 3 first, then 6.** Once 6 lands, item 3's disclosed caveat ("does not stop a `.limit()` boundary falling mid-date") is fully resolved, and §3.4 should be read as superseded.
 
 ---
 
-## 7 — ⚠️ One instruction to confirm before executing item 3
+## Suggested order and commits
 
-The Owner's list of items to fix opened with **"The Maps cookie label"** — but an earlier instruction in the same message said to **leave the Maps label exactly as it is**. §0.2 treats the "leave it" instruction as authoritative.
+Items 2, 4 and 5 are independent of everything else. **Items 3 and 6 are ordered — 3 is a prerequisite for 6** (§6.7). Item 1 goes last because it is the only one that can reach a customer.
 
-The likely intent is that the first bullet was meant to be **"Adjustment lists count segments, not dates"**, because the Owner's next bullet reads "a missing sort on **the same lists**" — a phrase that only parses if the preceding item concerned those same lists.
+| Order | # | Commit |
+|---|---|---|
+| 1 | 3 | `fix(availability): order override lists by start_time within a date` |
+| 2 | 6 | `fix(availability): count and cap adjustment lists by date, not segment row` |
+| 3 | 2 | `fix(privacy): describe retention by criteria rather than a schedule we do not enforce` |
+| 4 | 5 | `chore(tooling): auto-discover routes in the bundle measurement script + re-baseline` |
+| 5 | 4 | `chore(supabase): bookings indexes for projected query shapes` ⛔ *(migration file only; Owner approves, orchestrator applies)* |
+| 6 | 1 | `feat(email): cap review requests to once per client per 6 months + manual admin send` |
 
-**This has not been assumed either way.** The date-counting fix is currently **out of scope** (§0.2) because it needs a database view or RPC — a Zone-2 change materially larger than a sort. **If the Owner confirms they meant it, it should be added as a sixth item with its own ⛔ approval**, and it pairs naturally with item 3 since both touch the same queries.
+One coherent unit per commit. Never batch items. Items 3 and 6 touch the same files, so they must not run concurrently with each other; everything else is disjoint.
 
-Until confirmed: **implement item 3 only, and change nothing about the Maps registry entry.**
+---
+
+## 7 — ✅ RESOLVED: the ambiguous instruction
+
+The Owner's list of items to fix opened with **"The Maps cookie label"**, while an earlier instruction in the same message said to leave that label alone. The two could not both be actioned.
+
+**Owner confirmed, 2026-08-10:** the Maps line was a mistake. The earlier instruction stands — **the Google Maps cookie-registry entry is NOT to be touched** (§0.2) — and the intended item was **"Adjustment lists count segments, not dates"**, now specified in full as **ITEM 6**.
+
+This was flagged rather than guessed at because the two readings led to materially different work: one meant leaving a compliance-facing label alone, the other meant a correctness fix that (on its rejected option) would have added database objects. Recorded here so the resolution is part of the plan rather than lost in chat.
 
 ---
 
@@ -378,9 +483,9 @@ Until confirmed: **implement item 3 only, and change nothing about the Maps regi
 
 ## 9 — Final report should state
 
-- Which of the five items shipped, with commit SHAs.
+- Which of the six items shipped, with commit SHAs.
 - The item 4 migration: exact SQL applied, and the post-apply `pg_indexes` output.
 - Item 5: the new baseline figures, and whether C-20's `+3 kB` and C-23's `+6 kB` ceilings can now finally be evaluated.
 - Item 1: explicit confirmation that **zero real emails** were sent at any point.
-- Whether §7's ambiguity was resolved, and how.
+- Item 6: which option was taken (A or B), and — if the saturated branch was implemented as specified — confirmation that it renders a lower bound rather than a wrong exact number.
 - The state of `src/lib/maintenance.ts` (expected: working copy `false`, `HEAD` `true`, unstaged).
