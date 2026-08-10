@@ -61,6 +61,91 @@ export interface RoleRunResult {
 }
 
 /**
+ * The 29 role-loop route templates `sweepAdminRoutes` knows how to visit
+ * (21 static minus login/password-reset, plus 10 dynamic) — must be kept in
+ * sync with the `want("...")` call sites below (same disclosure as this
+ * codebase's other guard tests, e.g. C-17's import guard: this is a literal
+ * list, not derived, so an added route needs both updated together).
+ * Exported so `resolveRouteFilter` can validate CONTRAST_ROUTES against it.
+ */
+export const ADMIN_CONTRAST_ROUTE_TEMPLATES: readonly string[] = [
+  "/admin/dashboard",
+  "/admin/bookings",
+  "/admin/bookings/new",
+  "/admin/bookings/[bookingId]",
+  "/admin/bookings/series/[templateId]",
+  "/admin/clients",
+  "/admin/clients/new",
+  "/admin/clients/[clientId]",
+  "/admin/clients/[clientId]/edit",
+  "/admin/enquiries",
+  "/admin/calendar",
+  "/admin/staff",
+  "/admin/staff/[staffId]",
+  "/admin/staff/[staffId]/availability",
+  "/admin/staff/[staffId]/performance",
+  "/admin/availability",
+  "/admin/services",
+  "/admin/settings",
+  "/admin/operations",
+  "/admin/emails",
+  "/admin/emails/templates/[templateId]",
+  "/admin/roles",
+  "/admin/roles/[roleId]",
+  "/admin/privacy",
+  "/admin/account-password-requests",
+  "/admin/audit",
+  "/admin/reports",
+  "/admin/me",
+  "/admin/password-reset/[token]",
+];
+
+export interface RouteFilterResolution {
+  matched: Set<string>;
+  unmatched: string[];
+}
+
+/**
+ * Resolves raw CONTRAST_ROUTES entries against ADMIN_CONTRAST_ROUTE_TEMPLATES.
+ *
+ * Handles a real, reproduced environment artifact: on Git Bash/MSYS
+ * (Windows), a bare leading-slash argument like `/admin/dashboard` gets
+ * silently rewritten to a Windows path anchored at the Git install root
+ * (e.g. `C:/Program Files/Git/admin/dashboard`) before Node ever sees it —
+ * confirmed via `[DEBUG] routeFilter= [ 'C:/Program Files/Git/admin/dashboard' ]`
+ * when reproducing the dropped-dashboard defect. The original route survives
+ * intact as a SUFFIX of the mangled string, so a suffix match recovers it
+ * without needing the caller to change shells or quote differently.
+ *
+ * Anything that matches neither exactly nor by suffix is reported in
+ * `unmatched` so the caller can fail loudly instead of silently sweeping
+ * nothing — a filter value that matches no known route must be a hard error,
+ * never a quiet no-op.
+ */
+export function resolveRouteFilter(rawEntries: string[]): RouteFilterResolution {
+  const matched = new Set<string>();
+  const unmatched: string[] = [];
+
+  for (const raw of rawEntries) {
+    if (ADMIN_CONTRAST_ROUTE_TEMPLATES.includes(raw)) {
+      matched.add(raw);
+      continue;
+    }
+    const suffixMatches = ADMIN_CONTRAST_ROUTE_TEMPLATES.filter((route) => raw.endsWith(route));
+    if (suffixMatches.length > 0) {
+      // Longest match wins — templates are distinct enough that this only
+      // matters as a tie-breaker, never a false positive in practice.
+      const best = suffixMatches.reduce((a, b) => (b.length > a.length ? b : a));
+      matched.add(best);
+      continue;
+    }
+    unmatched.push(raw);
+  }
+
+  return { matched, unmatched };
+}
+
+/**
  * Runs entirely inside the page via `page.evaluate` — must stay fully
  * self-contained (no closures over Node-side variables). Walks every visible
  * text node, resolves foreground/effective background by painting to a 1x1

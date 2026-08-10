@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { getCredentials, hasBaseUrl, loginAs, requireCredentials } from "./helpers";
 import {
+  ADMIN_CONTRAST_ROUTE_TEMPLATES,
   THEMES,
   renderRoleThemeReport,
   renderSummaryReport,
+  resolveRouteFilter,
   sweepAdminRoutes,
   visitAndAudit,
   writeEvidenceFile,
@@ -64,14 +66,14 @@ const rolesToRun: ContrastRole[] = parsedRoleFilter
   : [...CONTRAST_ROLES];
 
 const routeFilterEnv = process.env.CONTRAST_ROUTES;
-const routeFilter = routeFilterEnv
-  ? new Set(
-      routeFilterEnv
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    )
+const rawRouteFilterEntries = routeFilterEnv
+  ? routeFilterEnv
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
   : null;
+const routeFilterResolution = rawRouteFilterEntries ? resolveRouteFilter(rawRouteFilterEntries) : null;
+const routeFilter = routeFilterResolution ? routeFilterResolution.matched : null;
 
 const roleResults: RoleRunResult[] = [];
 const unauthenticatedResults: RoleRunResult[] = [];
@@ -92,6 +94,24 @@ test.use({ channel: "chrome" });
 
 test.describe("Admin contrast sweep", () => {
   test.skip(!hasBaseUrl(), "Set E2E_BASE_URL to run the admin contrast sweep.");
+
+  // An unrecognised CONTRAST_ROUTES entry must be a hard error, never a
+  // silent no-op — this is what would have caught the dropped-/admin/dashboard
+  // defect immediately instead of a report-only spec quietly measuring
+  // nothing for that route while every other test still passed.
+  test.beforeAll(() => {
+    if (routeFilterResolution && routeFilterResolution.unmatched.length > 0) {
+      throw new Error(
+        `CONTRAST_ROUTES has ${routeFilterResolution.unmatched.length} entr` +
+          `${routeFilterResolution.unmatched.length === 1 ? "y" : "ies"} matching no known route: ` +
+          `${routeFilterResolution.unmatched.map((entry) => JSON.stringify(entry)).join(", ")}. ` +
+          `Known routes: ${ADMIN_CONTRAST_ROUTE_TEMPLATES.join(", ")}. ` +
+          "(On Git Bash/MSYS, a bare leading-slash value can be silently rewritten to a Windows path — " +
+          "this is recovered automatically via a suffix match when the rewritten form still ends with a " +
+          "known route, so an entry reaching this error genuinely matched nothing.)"
+      );
+    }
+  });
 
   // /admin/login and /admin/password-reset are unauthenticated but still
   // admin-themed (tokens.css --admin-* vars). ThemeProvider never mounts for
@@ -139,6 +159,20 @@ test.describe("Admin contrast sweep", () => {
 
       await loginAs(page, credentials);
       const entries = await sweepAdminRoutes(page, routeFilter);
+
+      // A sweep that produced zero route entries measured nothing — that must
+      // never pass silently, however many routes were requested. (Unmatched
+      // CONTRAST_ROUTES entries are already caught earlier, in beforeAll; this
+      // is the last-resort net for any other way the sweep could come back
+      // empty.) Deliberately thrown before writing evidence, so an empty
+      // sweep leaves no file behind to be mistaken for a real result.
+      if (entries.length === 0) {
+        throw new Error(
+          `${role}: sweepAdminRoutes returned zero route entries — refusing to report success. ` +
+            `routeFilter=${routeFilter ? JSON.stringify([...routeFilter]) : "null (no filter; should cover all 29 routes)"}.`
+        );
+      }
+
       roleResults.push({ role, entries });
 
       for (const theme of THEMES) {
