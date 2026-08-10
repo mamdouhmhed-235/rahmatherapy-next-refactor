@@ -22,6 +22,7 @@ This is a **post-programme plan**. The Band C execution protocol (`redesign/plan
 | 4 | `bookings` table: add the indexes it will need before real volume | Migration | **YES** |
 | 5 | Bundle measurement: make the existing script able to answer the question | Tooling | No |
 | 6 | Adjustment lists: count and cap by **date**, not by segment row | Correctness | No *(on the recommended option)* |
+| 7 | **Admin theming: colour, contrast and readability fixed at the root** — admin backend only | UI correctness | No |
 
 ### 0.2 Explicitly OUT of scope — do not touch
 
@@ -435,6 +436,177 @@ Item 3 (secondary sort) is a **prerequisite**, not a duplicate. Item 3 alone lea
 
 ---
 
+## ITEM 7 — Admin theming: colour, contrast and readability, fixed at the root
+
+*(Added 2026-08-10 at the Owner's request. **Admin backend only** — the public customer site is explicitly out of scope, and measurement confirms it is already clean.)*
+
+### 7.1 What was reported
+
+Colours and contrast across the admin pages are poor and in places **outright unreadable** — persistently, in **both** dark and light mode, and down to button labels being unclear. The Owner wants it fixed everywhere, once, properly.
+
+### 7.2 Root cause — measured, not guessed
+
+**677 hardcoded `oklch(…)` colour literals across 99 files in `src/app/admin/`, plus 3 shared primitives in `src/components/ui/`. Zero in the public site** — which is exactly why the complaint is admin-only.
+
+The admin design system is **not** the problem. `src/styles/tokens.css` defines **92 `--admin-*` tokens** across four blocks — `:root`, `[data-theme="dark"]`, `[data-theme="light"]`, and an `@media print` block — and several carry their measured contrast ratio in a comment (e.g. `--admin-danger-text-strong: … /* 9.21:1 vs danger-bg-strong */`). The system was designed correctly. **677 places bypass it.**
+
+Theme is applied via `data-theme` on a `[data-admin-theme-root]` wrapper (`ThemeProvider.tsx:105`), so a literal simply cannot respond to it. **Dark is the effective default for staff accounts**, which is why the dark-mode failures dominate.
+
+**The problem is far more tractable than 677 suggests:** those occurrences are only **94 distinct colour values**, and the **top ten account for ~483 of them — roughly 71% of the entire problem is ten colours.**
+
+| Occurrences | Literal | Note |
+|---|---|---|
+| **171** | `oklch(26% 0.14 25)` | byte-identical to `--admin-status-cancelled-text`'s **light** value |
+| 74 | `oklch(95.5% 0.028 20)` | byte-identical to `--admin-status-cancelled-bg`'s **light** value |
+| 58 | `oklch(26% 0.13 55)` | |
+| 40 | `oklch(95% 0.05 65)` | |
+| 33 | `oklch(22% 0.085 155)` | |
+| 30 | `oklch(93.5% 0.038 155)` | |
+| 24 | `oklch(30% 0.02 280)` | |
+| 21 | `oklch(94% 0.008 280)` | |
+| 16 | `oklch(88% 0.045 20)` · `oklch(28% 0.12 55)` · `oklch(12% 0.01 165)` | |
+
+**The critical property, verified directly:** the highest-frequency literals are **byte-identical to the light-mode value of an existing token**. `--admin-status-cancelled-text` is `oklch(26% 0.14 25)` in light (`tokens.css:155`) and `oklch(88% 0.058 25)` in dark (`:393`). So replacing the literal with `var(--admin-status-cancelled-text)` renders **pixel-identically in light mode** and **correctly in dark**. For the bulk of this work, *"no visual change in light mode"* is a provable fact, not a hope.
+
+### 7.3 The four failure classes — this is what "unreadable" actually is
+
+Every complaint reduces to one of four mechanical patterns. Naming them matters, because each has a different fix and only two of them are true readability failures.
+
+**Class 1 — themed foreground + hardcoded light background → text disappears in dark mode.** The worst class, and it is in the shared button primitive, so it is on every admin page simultaneously:
+
+```
+// src/components/ui/button.tsx — outline and ghost variants
+"... text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] ..."
+```
+
+`--admin-body` flips to a light colour in dark mode; the hover background stays near-white at 95.5% lightness. **Hovering an outline or ghost button in dark mode paints light text on a near-white fill.** This is precisely the reported "even buttons have unclear text in them".
+
+**Class 2 — hardcoded dark foreground on a themed dark surface → text disappears in dark mode.**
+
+```
+// src/components/ui/input.tsx
+:116  className="ml-1 text-[oklch(26%_0.14_25)]"                     // required asterisk
+:143  className="... text-xs text-[oklch(26%_0.14_25)]"              // field error message
+```
+
+A 26%-lightness red on the dark admin panel. Independently rated **"functionally invisible, not merely low-contrast"** during drift checkpoint #3. This is a shared primitive: **it is every admin form's error text**. A user can be blocked by a validation error they cannot see.
+
+**Class 3 — hardcoded light background + hardcoded dark foreground → legible, but a glaring light island in dark mode.** All 11 badge variants (`src/components/ui/badge.tsx`) pair a ~95% background with a ~26% foreground. Internally high-contrast, so not unreadable — but theme-blind, and the main source of "looks wrong / inconsistent". C-14 logged the same shape in `AvailabilityRulesManager.tsx` ("a **light** day-row background pair in a dark-default admin theme").
+
+**Class 4 — `var(--token, <light literal>)` fallbacks.** e.g. `input.tsx:27-38`. Harmless while the token exists, but it hides the real dependency and inflates the literal count. Cleanup, not a defect.
+
+**Classes 1 and 2 are the readability bugs. Class 3 is the ugliness. Class 4 is noise.** Fix 1 and 2 first — they are the ones that make the product unusable.
+
+### 7.4 On roles — what the measurement shows, and what it means for the sweep
+
+The Owner asked for every role to be signed into and checked top to bottom. Two facts change the shape of that:
+
+**(a) The role-variant surfaces are already clean.** `BusinessDashboard.tsx`, `CoordinatorDashboard.tsx`, `TherapistDashboard.tsx`, `PractitionerTodaySection.tsx` and `dashboard-variant-shared.tsx` contain **zero** `oklch` literals between them. The whole `dashboard/` directory holds only 10, all in shared support files. The debt is concentrated in **role-independent** surfaces:
+
+| Literals | File |
+|---|---|
+| 57 | `bookings/new/ManualBookingForm.tsx` |
+| 22 | `settings/SettingsForm.tsx` |
+| 19 | `staff/page.tsx` |
+| 17 | `emails/page.tsx` |
+| 15 | `clients/[clientId]/page.tsx` |
+| 13 | `components/AdminTopNav.tsx` · `calendar/page.tsx` · `bookings/[bookingId]/page.tsx` |
+
+**(b) Once the literals are gone, contrast becomes a property of the 92 token pairs, not of any page or role.** Every compliant component draws its colours from the same tokens, so proving the token pairs meet WCAG AA in both themes proves it **for every page and every role at once** — exhaustively, and without a single login.
+
+**Therefore the role sweep is a *coverage confirmation*, not the discovery mechanism.** Its job is to catch role-exclusive UI that still holds a literal, and to sanity-check the result with human eyes. That is a far cheaper and more reliable use of it than hunting for the bug by looking.
+
+**⛔ The agent cannot sign in.** Entering credentials to authenticate is prohibited and has been refused throughout this programme; the established substitute is that **the Owner signs in and the agent drives that existing session**. So the role sweep is structured as: the Owner signs in as one role → the agent runs the automated audit (7.9) across that role's pages → Owner switches to the next role. Four short, scripted passes, not four exploratory ones.
+
+### 7.5 The solution — eliminate, prove, prevent
+
+A durable fix needs all three. Substitution alone would be undone within weeks: **11 brand-new files created during Band C carried this debt from their first commit**, each citing the match-the-surrounding-style rule. There is currently **no guard of any kind** against adding another literal.
+
+### 7.6 Phase A — complete the token vocabulary
+
+For each of the 94 distinct literals, classify:
+
+1. **Byte-identical to an existing token's light value** → substitute directly. Provably no light-mode change. This covers the bulk.
+2. **Near-identical to an existing token** → substitute, and record the delta explicitly in the commit. Example: the button hover literal `oklch(95.5% 0.012 155)` has **no token**, while `--admin-hover-mist` is `oklch(95.5% 0.022 247)` — same lightness, different hue.
+3. **No reasonable token** → add a new token **pair**, with light and dark values, and a comment recording the measured contrast ratio against its intended background, matching the existing convention.
+
+**Recommendation for the button hover case specifically:** add a dedicated token pair rather than reusing `--admin-hover-mist`, so the light-mode rendering stays **byte-identical**. Reusing hover-mist shifts the hue green→blue; imperceptible in all likelihood, but "imperceptible" is a judgement and "byte-identical" is a fact — and this programme prefers the fact.
+
+**⚠️ Any new token must be added to every block that needs it** — `:root`, `[data-theme="dark"]`, `[data-theme="light"]`, and `@media print`. The print block deliberately forces light values; a token missing there will print wrong. This is the easiest omission to make.
+
+### 7.7 Phase B — substitute, in risk order, in reviewable batches
+
+**Order by user impact, not by file size:**
+
+1. **`src/components/ui/{input,button,badge}.tsx`** — 3 files, 25 literals, and they fix Classes 1 and 2 **everywhere at once**. Ship this first and alone: the biggest readability win in the smallest, most reviewable diff.
+2. The top-10 literal values across `src/app/admin/**` — ~71% of remaining occurrences.
+3. The long tail, batched by directory so each commit is reviewable.
+
+**Rules for the executing agent:**
+- **Never change a colour's appearance and its location in the same step.** Substitution only — if a token's value seems wrong, log it, do not tune it here.
+- **Light mode is the control.** For every byte-identical substitution, light-mode rendering must be unchanged. Any light-mode difference means a mis-mapping.
+- Do **not** touch `src/app/(public)/**` or `src/features/**` — verified zero literals, and out of scope.
+- `AdminTopNav.tsx` (13 literals) also carries the C-10 padding fix from item 3/6's neighbourhood — re-grep anchors before editing.
+
+### 7.8 Phase C — the guard, so this is fixed *once*
+
+Add a **guard test**, matching the idiom this codebase already uses for exactly this purpose (C-21's anti-drift domain test; C-17's recursive GA-import guard). It should fail if a new `oklch(` literal appears in `src/app/admin/**` or `src/components/ui/**`.
+
+- Start it at the **current count as a ratchet** if the sweep lands in stages, so the number can only go down; flip to zero-tolerance on completion.
+- A guard test is preferred over an ESLint rule: no config risk, it runs in the existing suite, and the precedent exists. An ESLint rule can follow later if wanted.
+- **Disclose its limit in a comment:** it is a source-text match, so a computed string or an alias would evade it. Say so rather than implying it is airtight — the C-17 guard makes exactly this disclosure.
+
+### 7.9 Phase D — prove it objectively, in both themes
+
+**Do not sign this off by eye.** Two complementary checks:
+
+**(a) Static token-pair proof — exhaustive, role-independent, no browser.** Parse `tokens.css`, compute the WCAG contrast ratio for every foreground/background token pair the design system actually uses, in **both** `[data-theme="dark"]` and `[data-theme="light"]`, and assert **AA: ≥4.5:1 for normal text, ≥3:1 for large text and UI boundaries**. Several tokens already document their ratio in a comment — **verify those comments are true**, since a stale comment is worse than none. This is the check that covers every page and every role at once.
+
+**(b) Live DOM audit — catches what static analysis cannot**, namely wrong *pairings* (a compliant foreground token on the wrong background) and stacking/opacity effects. Run in the browser on the Owner's session:
+- walk visible text nodes; compute effective foreground and the first opaque ancestor background;
+- resolve every colour to sRGB by painting to a 1×1 canvas and reading the pixel — this handles `oklch` and any other CSS colour syntax without hand-written conversion;
+- composite semi-transparent layers before comparing;
+- compute the contrast ratio and flag failures with their text sample and selector;
+- run it **twice per page — once per theme**. Switch theme by setting `data-theme` on the `[data-admin-theme-root]` element directly, so **no `theme_preference` write reaches the database**.
+
+Also check, per best practice and cheap to add: focus-visible rings meet 3:1 against their adjacent surface, and disabled/placeholder text is not the *only* signal of state.
+
+**Output:** `redesign/evidence/admin-contrast/<role>-<theme>.md`, one file per role/theme so nothing clobbers.
+
+### 7.10 Explicitly NOT in scope
+
+- **No redesign.** No new palette, no layout, spacing or typography changes, no component restructuring. This is "make the existing design render correctly in both themes".
+- **No public-site changes** — measured at zero literals.
+- **No token *value* changes** unless a pair provably fails AA, and then as its own reviewed change with the ratio quoted.
+- Not an accessibility programme (no ARIA/keyboard/screen-reader audit) — colour and contrast only.
+
+### 7.11 Risks
+
+| Risk | Mitigation |
+|---|---|
+| A mis-mapped token silently changes light mode | Light mode is the control; byte-identical substitutions must render identically. Any diff = mis-map |
+| 677 edits is a large diff to review | Batch by risk (7.7); primitives ship alone first |
+| A new token missing from the print block | Explicit checklist item in 7.6 |
+| The sweep is undone by future code | Phase C guard, ratcheted |
+| Tuning colours while moving them | Forbidden in 7.7 — substitution only |
+| Role-exclusive UI missed | Phase D role passes, plus the static token proof that is role-independent by construction |
+
+### 7.12 Verification
+
+Gates by identity per §8, plus: the guard test passes at zero; the static token-pair proof reports no AA failure in either theme; the live audit reports no failure on any swept page in either theme; and light-mode screenshots of the three primitives are unchanged before/after.
+
+**Suggested commits** — never one giant commit:
+
+```
+fix(admin-ui): token-drive colour in the shared input, button and badge primitives
+fix(admin): replace the ten highest-frequency colour literals with tokens
+fix(admin): token-drive remaining colour literals in <area>      (repeated per area)
+test(admin): guard against new hardcoded oklch literals
+docs(redesign): admin contrast audit evidence, both themes, all roles
+```
+
+---
+
 ## Suggested order and commits
 
 Items 2, 4 and 5 are independent of everything else. **Items 3 and 6 are ordered — 3 is a prerequisite for 6** (§6.7). Item 1 goes last because it is the only one that can reach a customer.
@@ -447,8 +619,9 @@ Items 2, 4 and 5 are independent of everything else. **Items 3 and 6 are ordered
 | 4 | 5 | `chore(tooling): auto-discover routes in the bundle measurement script + re-baseline` |
 | 5 | 4 | `chore(supabase): bookings indexes for projected query shapes` ⛔ *(migration file only; Owner approves, orchestrator applies)* |
 | 6 | 1 | `feat(email): cap review requests to once per client per 6 months + manual admin send` |
+| 7 | 7 | Admin theming — **multiple commits**, see §7.12. Largest item; runs last so it rebases over a settled tree |
 
-One coherent unit per commit. Never batch items. Items 3 and 6 touch the same files, so they must not run concurrently with each other; everything else is disjoint.
+One coherent unit per commit. Never batch items. Items 3 and 6 touch the same files, so they must not run concurrently with each other. **Item 7 touches `AdminTopNav.tsx`, which item 3's neighbourhood also touched — run item 7 after items 3 and 6 have landed**, and re-grep anchors. Everything else is disjoint.
 
 ---
 
@@ -483,9 +656,10 @@ This was flagged rather than guessed at because the two readings led to material
 
 ## 9 — Final report should state
 
-- Which of the six items shipped, with commit SHAs.
+- Which of the seven items shipped, with commit SHAs.
 - The item 4 migration: exact SQL applied, and the post-apply `pg_indexes` output.
 - Item 5: the new baseline figures, and whether C-20's `+3 kB` and C-23's `+6 kB` ceilings can now finally be evaluated.
 - Item 1: explicit confirmation that **zero real emails** were sent at any point.
 - Item 6: which option was taken (A or B), and — if the saturated branch was implemented as specified — confirmation that it renders a lower bound rather than a wrong exact number.
+- Item 7: the literal count before and after (target **0**); the guard test's state (ratchet or zero-tolerance); the static token-pair proof result for **both** themes; which roles were live-swept and by whom; and any token whose documented contrast comment turned out to be stale.
 - The state of `src/lib/maintenance.ts` (expected: working copy `false`, `HEAD` `true`, unstaged).
