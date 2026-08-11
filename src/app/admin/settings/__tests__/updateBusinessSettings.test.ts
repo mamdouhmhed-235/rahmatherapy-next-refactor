@@ -1,6 +1,6 @@
 import { updateTag } from "next/cache";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { requirePermission } from "@/lib/auth/rbac";
+import { PERMISSIONS, requirePermission } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { updateBusinessSettings } from "../actions";
 
@@ -29,9 +29,30 @@ vi.mock("@/lib/auth/rbac", async (importOriginal) => ({
   requirePermission: vi.fn(),
 }));
 
-const ACTOR = { id: "staff-owner", name: "Owner" };
+// Real `StaffProfile`s carry `permissions: Set<string>` (rbac.ts). The action
+// reads it directly for the owner-only mileage-origin gate, so the fixtures
+// must too — a bare `{ id, name }` actor would throw on `.permissions.has`.
+const OWNER = {
+  id: "staff-owner",
+  name: "Owner",
+  permissions: new Set<string>([
+    PERMISSIONS.MANAGE_SETTINGS,
+    PERMISSIONS.MANAGE_TRAVEL_ORIGIN,
+  ]),
+};
+const ADMIN = {
+  id: "staff-admin",
+  name: "Admin",
+  permissions: new Set<string>([PERMISSIONS.MANAGE_SETTINGS]),
+};
 
-function stubAdminClient() {
+function stubAdminClient(
+  beforeState: Record<string, unknown> = {
+    id: 1,
+    company_name: "Rahma Therapy",
+    booking_window_days: 14,
+  }
+) {
   const audits: Record<string, unknown>[] = [];
   const upserts: Record<string, unknown>[] = [];
 
@@ -49,7 +70,7 @@ function stubAdminClient() {
       select: () => ({
         eq: () => ({
           single: async () => ({
-            data: { id: 1, company_name: "Rahma Therapy", booking_window_days: 14 },
+            data: beforeState,
             error: null,
           }),
         }),
@@ -80,14 +101,22 @@ function formData(overrides: Record<string, string> = {}) {
     "customer_cancellation_cutoff_hours",
     overrides.customer_cancellation_cutoff_hours ?? "24"
   );
-  data.set("allowed_cities", overrides.allowed_cities ?? "Luton, Dunstable");
+  data.set(
+    "free_travel_cities",
+    overrides.free_travel_cities ?? "Luton, Dunstable"
+  );
   data.set("booking_status_enabled", overrides.booking_status_enabled ?? "on");
+  // Left ABSENT unless a test opts in — a disabled input is omitted from
+  // FormData, which is exactly how an admin's form submits.
+  if (overrides.mileage_origin !== undefined) {
+    data.set("mileage_origin", overrides.mileage_origin);
+  }
   return data;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requirePermission).mockResolvedValue(ACTOR as never);
+  vi.mocked(requirePermission).mockResolvedValue(OWNER as never);
 });
 
 describe("updateBusinessSettings — cache tag invalidation (B-149 fix)", () => {
@@ -117,5 +146,114 @@ describe("updateBusinessSettings — cache tag invalidation (B-149 fix)", () => 
     expect(result.fieldErrors).toBeDefined();
     expect(stub.upserts).toHaveLength(0);
     expect(updateTag).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Item 8 Phase 1. `free_travel_cities` is the column the app reads, but the
+ * live `create_booking_request` gate still reads `allowed_cities`, so the save
+ * must write BOTH until Step Z drops the old column after the deploy.
+ */
+describe("updateBusinessSettings — free-travel areas dual-write", () => {
+  it("writes the town list to free_travel_cities and allowed_cities together", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await updateBusinessSettings({}, formData());
+
+    expect(result).toEqual({ success: true });
+    expect(stub.upserts[0]).toMatchObject({
+      free_travel_cities: ["Luton", "Dunstable"],
+      allowed_cities: ["Luton", "Dunstable"],
+    });
+  });
+
+  it("rejects an empty free-travel list with the reworded message", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await updateBusinessSettings(
+      {},
+      formData({ free_travel_cities: "" })
+    );
+
+    expect(result.fieldErrors?.free_travel_cities).toBe(
+      "Enter at least one free-travel area."
+    );
+    expect(stub.upserts).toHaveLength(0);
+  });
+});
+
+describe("updateBusinessSettings — owner-only mileage origin", () => {
+  it("allows the owner to change the mileage origin", async () => {
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await updateBusinessSettings(
+      {},
+      formData({ mileage_origin: "Luton town centre" })
+    );
+
+    expect(result).toEqual({ success: true });
+    expect(stub.upserts[0]).toMatchObject({
+      mileage_origin: "Luton town centre",
+    });
+  });
+
+  it("rejects a mileage-origin change from an admin and writes nothing", async () => {
+    vi.mocked(requirePermission).mockResolvedValue(ADMIN as never);
+    const stub = stubAdminClient();
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await updateBusinessSettings(
+      {},
+      formData({ mileage_origin: "Dunstable depot" })
+    );
+
+    expect(result.fieldErrors?.mileage_origin).toBe(
+      "Only the practice owner can change the mileage origin."
+    );
+    expect(stub.upserts).toHaveLength(0);
+    expect(updateTag).not.toHaveBeenCalled();
+  });
+
+  // The partial-save regression: an admin's form omits the disabled origin
+  // field entirely, so the save must succeed AND must not blank the stored
+  // value the owner set.
+  it("lets an admin save other settings while the origin field is absent, without clearing it", async () => {
+    vi.mocked(requirePermission).mockResolvedValue(ADMIN as never);
+    const stub = stubAdminClient({
+      id: 1,
+      company_name: "Rahma Therapy",
+      booking_window_days: 14,
+      mileage_origin: "Luton town centre",
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await updateBusinessSettings({}, formData());
+
+    expect(result).toEqual({ success: true });
+    expect(stub.upserts[0]).not.toHaveProperty("mileage_origin");
+  });
+
+  // "" from the form and NULL in the column mean the same thing. Comparing
+  // them un-normalised would mark every save as a change and lock admins out.
+  it("treats a blank submitted origin as unchanged when none is stored", async () => {
+    vi.mocked(requirePermission).mockResolvedValue(ADMIN as never);
+    const stub = stubAdminClient({
+      id: 1,
+      company_name: "Rahma Therapy",
+      booking_window_days: 14,
+      mileage_origin: null,
+    });
+    vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
+
+    const result = await updateBusinessSettings(
+      {},
+      formData({ mileage_origin: "" })
+    );
+
+    expect(result).toEqual({ success: true });
+    expect(stub.upserts[0]).toMatchObject({ mileage_origin: null });
   });
 });

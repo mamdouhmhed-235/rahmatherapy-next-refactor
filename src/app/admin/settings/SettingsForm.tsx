@@ -24,7 +24,8 @@ interface BusinessSettings {
   buffer_time_mins: number;
   minimum_notice_hours: number;
   customer_cancellation_cutoff_hours: number;
-  allowed_cities: string[];
+  free_travel_cities: string[];
+  mileage_origin: string | null;
   booking_status_enabled: boolean;
 }
 
@@ -37,6 +38,9 @@ interface LastChange {
 interface SettingsFormProps {
   settings: BusinessSettings;
   lastChange?: LastChange | null;
+  /** Owner-only. The server action enforces this independently — hiding the
+   *  field here is presentation, not the gate. */
+  canManageTravelOrigin?: boolean;
 }
 
 const requiredMark = (
@@ -48,7 +52,11 @@ const requiredMark = (
   </span>
 );
 
-export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
+export function SettingsForm({
+  settings,
+  lastChange,
+  canManageTravelOrigin = false,
+}: SettingsFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<SettingsActionState>({});
@@ -56,8 +64,11 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
   const [intakeOn, setIntakeOn] = useState(settings.booking_status_enabled);
   const [pauseModalOpen, setPauseModalOpen] = useState(false);
 
-  const [cities, setCities] = useState<string[]>(settings.allowed_cities);
+  const [cities, setCities] = useState<string[]>(settings.free_travel_cities);
   const [cityDraft, setCityDraft] = useState("");
+  const [mileageOrigin, setMileageOrigin] = useState(
+    settings.mileage_origin ?? ""
+  );
 
   const [windowDays, setWindowDays] = useState(String(settings.booking_window_days));
   const [noticeHours, setNoticeHours] = useState(String(settings.minimum_notice_hours));
@@ -73,7 +84,8 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
   const initial = useMemo(
     () => ({
       intakeOn: settings.booking_status_enabled,
-      cities: settings.allowed_cities,
+      cities: settings.free_travel_cities,
+      mileageOrigin: settings.mileage_origin ?? "",
       windowDays: String(settings.booking_window_days),
       noticeHours: String(settings.minimum_notice_hours),
       bufferMins: String(settings.buffer_time_mins),
@@ -88,6 +100,7 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
   const isDirty =
     intakeOn !== initial.intakeOn ||
     cities.join("\n") !== initial.cities.join("\n") ||
+    mileageOrigin !== initial.mileageOrigin ||
     windowDays !== initial.windowDays ||
     noticeHours !== initial.noticeHours ||
     bufferMins !== initial.bufferMins ||
@@ -125,6 +138,7 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
     setIntakeOn(initial.intakeOn);
     setCities(initial.cities);
     setCityDraft("");
+    setMileageOrigin(initial.mileageOrigin);
     setWindowDays(initial.windowDays);
     setNoticeHours(initial.noticeHours);
     setBufferMins(initial.bufferMins);
@@ -374,8 +388,8 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
         <AdminPanel>
           <div className="grid gap-4">
             <AdminPanelHeader
-              title="Service areas"
-              description="Cities and towns where the team will travel. Customers booking outside these areas see a helpful message instead of a closed door."
+              title="Free-travel areas"
+              description="Cities and towns the team travels to at no extra charge. Addresses outside them can still be booked — an admin sets the travel charge by hand."
             />
 
             <ServiceAreaField
@@ -385,15 +399,30 @@ export function SettingsForm({ settings, lastChange }: SettingsFormProps) {
               onKeyDown={handleCityKeyDown}
               onAdd={() => addCity(cityDraft)}
               onRemove={removeCity}
-              error={state.fieldErrors?.allowed_cities}
+              error={state.fieldErrors?.free_travel_cities}
               disabled={isPending}
             />
 
             {/* Hidden input preserves the original server contract: newline-delimited. */}
             <input
               type="hidden"
-              name="allowed_cities"
+              name="free_travel_cities"
               value={cities.join("\n")}
+            />
+
+            <FieldRow
+              name="mileage_origin"
+              label="Mileage origin"
+              helper={
+                canManageTravelOrigin
+                  ? "Where travel is measured from when a booking falls outside the free-travel areas. Descriptive only — nothing is calculated from it."
+                  : "Where travel is measured from outside the free-travel areas. Only the practice owner can change this."
+              }
+              error={state.fieldErrors?.mileage_origin}
+              value={mileageOrigin}
+              onChange={setMileageOrigin}
+              placeholder="e.g. Luton town centre"
+              disabled={isPending || !canManageTravelOrigin}
             />
           </div>
         </AdminPanel>
@@ -697,7 +726,7 @@ function ServiceAreaField({
   return (
     <div className="grid gap-3">
       <label htmlFor={autoId} className="sr-only">
-        Service areas
+        Free-travel areas
       </label>
 
       {cities.length === 0 ? (
@@ -706,8 +735,8 @@ function ServiceAreaField({
           className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-2 text-xs text-[oklch(26%_0.13_55)]"
         >
           <span>
-            No service areas yet. The booking form will currently turn every
-            customer away. Add at least one city below.
+            No free-travel areas yet. Every booking will count as chargeable
+            travel. Add at least one city below.
           </span>
         </div>
       ) : (
@@ -715,7 +744,7 @@ function ServiceAreaField({
           {cities.map((city, index) => (
             <li key={`${city}-${index}`}>
               <span
-                title="Service area. Customers within this area can book."
+                title="Free-travel area. Visits here carry no travel charge."
                 className="inline-flex items-center gap-1 rounded-full border border-[oklch(88%_0.012_280)] bg-[oklch(94%_0.008_280)] py-1 pl-3 pr-1 text-xs text-[oklch(30%_0.02_280)] transition-colors hover:bg-[oklch(91%_0.012_280)]"
               >
                 <span>{city}</span>

@@ -44,7 +44,8 @@ export interface BusinessSettingsRow {
   buffer_time_mins: number;
   minimum_notice_hours: number;
   customer_cancellation_cutoff_hours: number;
-  allowed_cities: string[];
+  free_travel_cities: string[];
+  mileage_origin: string | null;
   booking_status_enabled: boolean;
 }
 

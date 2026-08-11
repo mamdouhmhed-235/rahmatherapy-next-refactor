@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
+import { canManageTravelOrigin, getStaffProfile, PERMISSIONS } from "@/lib/auth/rbac";
 import { AdminAccessDenied, AdminPageHeader } from "../components/admin-ui";
 import { SettingsForm } from "./SettingsForm";
 import { getSettingsPageData } from "./settings-data";
@@ -16,7 +16,8 @@ const fallbackSettings = {
   booking_window_days: 30,
   buffer_time_mins: 30,
   minimum_notice_hours: 24,
-  allowed_cities: ["Luton", "Dunstable", "Houghton Regis"],
+  free_travel_cities: ["Luton", "Dunstable", "Houghton Regis"],
+  mileage_origin: null,
   booking_status_enabled: true,
   customer_cancellation_cutoff_hours: 24,
 };
@@ -50,6 +51,7 @@ export default async function SettingsPage() {
       <SettingsForm
         settings={settings ?? fallbackSettings}
         lastChange={lastChange}
+        canManageTravelOrigin={canManageTravelOrigin(profile)}
       />
     </div>
   );

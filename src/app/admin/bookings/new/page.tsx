@@ -72,7 +72,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
       // server-side; fetched here so the form can warn inline before submit.
       adminClient
         .from("business_settings")
-        .select("allowed_cities")
+        .select("free_travel_cities")
         .eq("id", 1)
         .single(),
     ]);
@@ -81,7 +81,7 @@ export default async function NewAdminBookingPage({ searchParams }: Props) {
   const prefillClient = prefillClientResult.data ?? null;
   const enquiry = enquiryResult.data ?? null;
   const assignableStaff = assignableStaffResult.data ?? [];
-  const allowedCities = (settingsResult.data?.allowed_cities ?? []) as string[];
+  const allowedCities = (settingsResult.data?.free_travel_cities ?? []) as string[];
 
   // C-03 B-106: re-conversion guard — a stale/bookmarked URL for an enquiry
   // that has already been converted must not let the operator create a

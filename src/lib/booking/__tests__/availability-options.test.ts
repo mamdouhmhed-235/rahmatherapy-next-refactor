@@ -46,7 +46,7 @@ function tables(options: { bookingStatusEnabled: boolean }) {
         booking_window_days: 30,
         buffer_time_mins: 15,
         minimum_notice_hours: 24,
-        allowed_cities: ["Luton"],
+        free_travel_cities: ["Luton"],
         booking_status_enabled: options.bookingStatusEnabled,
       },
       error: null,

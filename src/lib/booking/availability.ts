@@ -55,7 +55,7 @@ interface BusinessSettingsRecord {
   booking_window_days: number;
   buffer_time_mins: number;
   minimum_notice_hours: number;
-  allowed_cities: unknown;
+  free_travel_cities: unknown;
   booking_status_enabled: boolean;
 }
 
@@ -430,7 +430,7 @@ async function loadSettings(supabase: SupabaseClient) {
   const settingsResult = await supabase
     .from("business_settings")
     .select(
-      "booking_window_days, buffer_time_mins, minimum_notice_hours, allowed_cities, booking_status_enabled"
+      "booking_window_days, buffer_time_mins, minimum_notice_hours, free_travel_cities, booking_status_enabled"
     )
     .eq("id", 1)
     .single<BusinessSettingsRecord>();
@@ -451,7 +451,7 @@ async function loadContextRest(
   settings: BusinessSettingsRecord,
   input: { serviceIds: string[]; participantGenders: TherapistGender[]; city: string }
 ): Promise<AvailabilityContext | ContextFailure> {
-  if (!isCityAllowed(input.city, getAllowedCities(settings.allowed_cities))) {
+  if (!isCityAllowed(input.city, getAllowedCities(settings.free_travel_cities))) {
     return { reason: "Location is outside the service area.", durationMins: 0 };
   }
 

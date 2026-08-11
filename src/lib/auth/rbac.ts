@@ -38,6 +38,7 @@ export const PERMISSIONS = {
   MANAGE_ENQUIRIES: "manage_enquiries",
   MANAGE_SERVICES: "manage_services",
   MANAGE_SETTINGS: "manage_settings",
+  MANAGE_TRAVEL_ORIGIN: "manage_travel_origin",
   MANAGE_AVAILABILITY_GLOBAL: "manage_availability_global",
   MANAGE_AVAILABILITY_OWN: "manage_availability_own",
   MANAGE_AUDIT_LOGS: "manage_audit_logs",
@@ -212,6 +213,10 @@ export function canManagePermissionOverrides(profile: StaffProfile | null) {
 
 export function canManageRoleTemplates(profile: StaffProfile | null) {
   return hasPermission(profile, PERMISSIONS.MANAGE_ROLE_TEMPLATES);
+}
+
+export function canManageTravelOrigin(profile: StaffProfile | null) {
+  return hasPermission(profile, PERMISSIONS.MANAGE_TRAVEL_ORIGIN);
 }
 
 export function canViewEmailLogs(profile: StaffProfile | null) {

@@ -544,9 +544,10 @@ export function ManualBookingForm({
   currentUserIsBookable?: boolean;
   /** C-02 Phase E — service slug → services.allow_recurrence. */
   allowRecurrenceMap?: Record<string, boolean>;
-  /** C-07 Step 5 (W02-E-1) — business_settings.allowed_cities, for the
+  /** C-07 Step 5 (W02-E-1) — business_settings.free_travel_cities, for the
    * inline (non-blocking) city warning below; create_booking_request still
-   * enforces this server-side. */
+   * enforces this server-side, reading the `allowed_cities` column the
+   * settings form keeps in step with it until item 8 Phase 2 removes the gate. */
   allowedCities?: string[];
 }) {
   // C-02 Phase E — the two actions return different state shapes and

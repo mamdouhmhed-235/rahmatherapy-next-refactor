@@ -285,7 +285,7 @@ function engineClient(rules: SegmentRow[]) {
         booking_window_days: 30,
         buffer_time_mins: 0,
         minimum_notice_hours: 0,
-        allowed_cities: ["Luton"],
+        free_travel_cities: ["Luton"],
         booking_status_enabled: true,
       },
       error: null,
