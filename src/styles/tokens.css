@@ -167,13 +167,23 @@
   --admin-status-completed-text: oklch(30% 0.018 270);
   --admin-status-completed-border: oklch(88% 0.012 270);
   /* Notification-bell badge severity tints (R4 redesign 2026-05-21).
-   * Separate family from AdminStatusBadge: bell badge is rendered at ~11px on a
-   * saturated background, so reuses the canonical danger/warning/info hues with
-   * white foreground. All three exceed WCAG 4.5:1 contrast on white fg
-   * (danger 5.39:1, warning 4.71:1, info 7.18:1). */
+   * Separate family from AdminStatusBadge: the bell badge is a small saturated
+   * chip rendered at ~11px with a white foreground.
+   *
+   * These three are declared as the SAME literal in all four blocks, and that is
+   * deliberate — do not "fix" them to track --admin-danger/-warning/-info. Those
+   * tokens are FOREGROUND colours: in the dark theme they are light (a badge
+   * tracking them would paint white text on a light chip). Measured, white on
+   * each target's dark value: critical 2.26:1, warning 1.65:1, info 1.90:1 --
+   * all far below AA. The badge is a fill, so it stays theme-invariant.
+   *
+   * Measured contrast on the white foreground, same in every theme:
+   * critical 5.60:1, warning 5.05:1, info 6.97:1 -- all above AA 4.5:1.
+   * (The previous note claimed 5.39 / 4.71 / 7.18; none of the three was right,
+   * and warning was actually failing at 3.65:1 until 2026-08-11.) */
   --notif-badge-critical-bg: #c52b28;
   --notif-badge-critical-fg: #ffffff;
-  --notif-badge-warning-bg: #b77900;
+  --notif-badge-warning-bg: #986400;
   --notif-badge-warning-fg: #ffffff;
   --notif-badge-info-bg: #0f5e8e;
   --notif-badge-info-fg: #ffffff;
@@ -472,9 +482,9 @@
   --admin-nav-text-muted: oklch(74% 0.010 88);
   --admin-nav-active-text: oklch(76% 0.098 240);
   --admin-cormorant-color: oklch(78% 0.145 62);
-  --notif-badge-critical-bg: oklch(76% 0.130 25);
-  --notif-badge-warning-bg: oklch(84% 0.135 82);
-  --notif-badge-info-bg: oklch(79% 0.088 240);
+  --notif-badge-critical-bg: #c52b28;
+  --notif-badge-warning-bg: #986400;
+  --notif-badge-info-bg: #0f5e8e;
 }
 
 /* Redundant with :root by value, but explicit: an admin user who picks "light"

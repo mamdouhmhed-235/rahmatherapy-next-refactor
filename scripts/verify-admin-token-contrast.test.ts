@@ -234,6 +234,49 @@ describe("findFrozenRootAliases — regression guard for the alias-freeze class"
   });
 });
 
+describe("--notif-badge-*-bg — white-foreground chips must pass AA in every block", () => {
+  // These three are the one place where de-aliasing a frozen token made things
+  // WORSE, so they are pinned as theme-invariant literals. --admin-danger,
+  // --admin-warning and --admin-info are FOREGROUND colours and are light in the
+  // dark theme; a badge tracking them would paint white text on a light chip
+  // (measured: 2.26:1, 1.65:1, 1.90:1). Asserting every declaration — rather than
+  // one per block — also catches a fourth block being added later without one.
+  //
+  // Note this cannot go through parseTokensCss: DECL_RE only matches --admin-*,
+  // so the whole --notif-* family is invisible to it.
+  it("keeps every --notif-badge-*-bg declaration above AA against its white foreground", () => {
+    const css = readFileSync(TOKENS_PATH, "utf8");
+    const decls = [...css.matchAll(/(--notif-badge-(?:critical|warning|info)-bg)\s*:\s*([^;]+);/g)];
+
+    // 3 tokens x 4 blocks (:root, dark, light, @media print).
+    expect(decls.length).toBe(12);
+
+    const white = resolveColour("#ffffff", {});
+    for (const [, token, rawValue] of decls) {
+      const value = rawValue.trim();
+      expect(value).not.toMatch(/^var\(/); // must stay a literal, never re-aliased
+      const ratio = contrastRatio(resolveColour(value, {}), white);
+      expect(
+        ratio,
+        `${token}: ${value} on #ffffff is ${ratio.toFixed(2)}:1`
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("declares each --notif-badge-*-bg with the same value in every block", () => {
+    const css = readFileSync(TOKENS_PATH, "utf8");
+    const byToken: Record<string, Set<string>> = {};
+    for (const [, token, rawValue] of css.matchAll(
+      /(--notif-badge-(?:critical|warning|info)-bg)\s*:\s*([^;]+);/g
+    )) {
+      (byToken[token] ??= new Set()).add(rawValue.trim());
+    }
+    for (const [token, values] of Object.entries(byToken)) {
+      expect(values.size, `${token} has ${values.size} distinct values: ${[...values].join(", ")}`).toBe(1);
+    }
+  });
+});
+
 describe("--admin-warning / --admin-warning-bg — Step 0.2 regression guard (D8)", () => {
   it("fails when the light-theme --admin-warning / --admin-warning-bg pair is below 4.5:1", () => {
     // Synthetic CSS carrying the PRE-fix (D8-failing) value, proving the guard
