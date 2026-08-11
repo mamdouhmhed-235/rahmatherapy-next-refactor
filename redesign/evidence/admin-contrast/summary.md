@@ -1,6 +1,6 @@
 # Admin contrast sweep — combined summary
 
-Generated 2026-08-10T22:13:18.166Z. Mode: report-only (no failure ceiling set — always passes, findings recorded for the ratchet).
+Generated 2026-08-11T15:20:40.175Z. Mode: report-only (no failure ceiling set — always passes, findings recorded for the ratchet).
 
 ## Per role / theme totals
 
@@ -8,14 +8,14 @@ Generated 2026-08-10T22:13:18.166Z. Mode: report-only (no failure ceiling set �
 |---|---|---|---|---|---|---|
 | UNAUTHENTICATED | dark | 2 | 0 | 0 | 0 | 2 |
 | UNAUTHENTICATED | light | 2 | 0 | 0 | 0 | 0 |
-| OWNER | dark | 24 | 0 | 0 | 5 | 595 |
-| OWNER | light | 24 | 0 | 0 | 5 | 467 |
-| ADMIN | dark | 22 | 0 | 1 | 6 | 577 |
-| ADMIN | light | 22 | 0 | 1 | 6 | 441 |
-| COORDINATOR | dark | 15 | 0 | 8 | 6 | 202 |
-| COORDINATOR | light | 15 | 0 | 8 | 6 | 216 |
-| THERAPIST_A | dark | 8 | 0 | 12 | 9 | 59 |
-| THERAPIST_A | light | 8 | 0 | 12 | 9 | 56 |
+| OWNER | dark | 24 | 0 | 0 | 5 | 383 |
+| OWNER | light | 24 | 0 | 0 | 5 | 572 |
+| ADMIN | dark | 22 | 0 | 1 | 6 | 381 |
+| ADMIN | light | 22 | 0 | 1 | 6 | 594 |
+| COORDINATOR | dark | 15 | 0 | 8 | 6 | 63 |
+| COORDINATOR | light | 15 | 0 | 8 | 6 | 299 |
+| THERAPIST_A | dark | 8 | 0 | 12 | 9 | 15 |
+| THERAPIST_A | light | 8 | 0 | 12 | 9 | 82 |
 
 ## Roles not included in this run
 
