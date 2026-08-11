@@ -1,0 +1,14 @@
+
+ RUN  v4.1.5 C:/Users/mamdo/Desktop/rahmatherapy - Copy/rahmatherapy-next-refactor
+
+ ✓ redesign/evidence/post-band-c-impl/item-2/R2-scratch/privacy-page.test.tsx > PrivacyPolicyPage — section 6 (How long we keep it) > keeps the how-long-we-keep-it anchor 21ms
+ ✓ redesign/evidence/post-band-c-impl/item-2/R2-scratch/privacy-page.test.tsx > PrivacyPolicyPage — section 6 (How long we keep it) > keeps section headings numbered contiguously with no gap 7ms
+ ✓ redesign/evidence/post-band-c-impl/item-2/R2-scratch/privacy-page.test.tsx > PrivacyPolicyPage — section 6 (How long we keep it) > describes retention by criteria, not a fixed date 3ms
+ ✓ redesign/evidence/post-band-c-impl/item-2/R2-scratch/privacy-page.test.tsx > PrivacyPolicyPage — section 6 (How long we keep it) > does not promise a specific retention duration in section 6 3ms
+ ✓ redesign/evidence/post-band-c-impl/item-2/R2-scratch/privacy-page.test.tsx > PrivacyPolicyPage — section 6 (How long we keep it) > keeps the analytics retention sentence in section 6 3ms
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  19:14:40
+   Duration  1.20s (transform 87ms, setup 0ms, import 302ms, tests 38ms, environment 694ms)
+

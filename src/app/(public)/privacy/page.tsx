@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   },
 };
 
-const LAST_UPDATED = "9 August 2026";
+const LAST_UPDATED = "11 August 2026";
 
 const bodyText = "text-sm leading-7 text-rahma-muted sm:text-base";
 const listClass = `grid list-disc gap-2 pl-5 marker:text-rahma-green ${bodyText}`;
@@ -165,10 +165,14 @@ export default function PrivacyPolicyPage() {
           <section id="how-long-we-keep-it" className="flex flex-col gap-3">
             <h3 className={headingClass}>6. How long we keep it</h3>
             <p className={bodyText}>
-              Our policy is to keep booking and treatment records for 7 years after your last
-              visit with us. If you make an enquiry that doesn&apos;t turn into a booking, we
-              keep it for around 12 months. Analytics information, where you&apos;ve given
-              consent for it, is kept according to Google&apos;s own retention settings.
+              We keep booking, treatment and enquiry records for as long as they&apos;re
+              needed — for the care we&apos;ve given you, and to meet our legal, insurance
+              and accounting obligations. How long that is depends on the type of record
+              and which of those obligations applies to it, rather than a fixed period. You
+              can ask what we hold about you, or ask us to delete it, using the contact
+              details in &ldquo;Who we are&rdquo; above. Analytics information, where
+              you&apos;ve given consent for it, is kept according to Google&apos;s own
+              retention settings.
             </p>
           </section>
 
