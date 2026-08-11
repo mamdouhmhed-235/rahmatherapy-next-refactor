@@ -23,6 +23,7 @@ This is a **post-programme plan**. The Band C execution protocol (`redesign/plan
 | 5 | Bundle measurement: make the existing script able to answer the question | Tooling | No |
 | 6 | Adjustment lists: count and cap by **date**, not by segment row | Correctness | No *(on the recommended option)* |
 | 7 | **Admin theming: colour, contrast and readability fixed at the root** — admin backend only | UI correctness | No |
+| 8 | **Travel-charge model** — free-travel areas + manually-set mileage fee; also fixes the live 3-way service-area contradiction | Feature + defect fix | **YES** (4 migrations) |
 
 ### 0.2 Explicitly OUT of scope — do not touch
 
@@ -977,6 +978,195 @@ docs(redesign): admin contrast evidence — both themes, all roles
 
 ---
 
+## ITEM 8 — Travel-charge model: free-travel areas + manually-set mileage fee
+
+*(Added 2026-08-11. Owner-decided design. Research: three parallel code reviews + a feasibility study that rejected full automation — see §8.11.)*
+
+### 8.1 What the Owner decided
+
+1. **`allowed_cities` inverts its meaning.** It stops being a *gate* ("who may book") and becomes the **free-travel zone** ("where we travel at no charge"). Addresses outside it remain **bookable**.
+2. **The fee is set by hand, per booking, by an admin** — no distance API, no automated calculation.
+3. **A new setting names where mileage is measured from** — an origin **chosen freely by the Owner**, not constrained to the free-travel towns.
+4. **No hard outer boundary in code.** A far-away request simply arrives as `pending`; the admin declines it. **Admin discretion is the boundary.**
+5. **The one-click confirm chip must be hidden** when an address is outside the free-travel zone and no fee is set.
+6. **Recurring series repeat the same charge** — the fee from the first booking applies to every occurrence, not just one.
+7. Consistency is the point: **change the towns in admin, and the booking page, admin alert and emails all follow.**
+
+### 8.2 The contradiction this also fixes
+
+The town list exists in **three places that disagree**, which is why a Harpenden customer gets a green "covered" tick and then an empty calendar:
+
+| # | Enforcement point | Allows | Behaviour |
+|---|---|---|---|
+| 1 | `src/features/booking/schemas/booking-schema.ts:5-11` (`BOOKING_ALLOWED_CITIES`) | **5 towns**, hardcoded | `validateServiceArea` (`:139-164`, wired at `:174`) raises a zod issue; `BookingExperience.tsx:429` `goToTime` then **refuses to advance past step 2** |
+| 2 | `src/lib/booking/availability.ts:454` `isCityAllowed()` | **2 towns**, from `business_settings` | Returns **no slots** — the empty calendar |
+| 3 | `create_booking_request` — `supabase/migrations/20260727120000_c06_client_crud_hardening.sql:399-410` | **2 towns** | `raise exception 'Location is outside the service area'` |
+
+**Verified live:** `create_booking_request` is the **only** DB function referencing `allowed_cities`, and **no RLS policy** does. Match is exact-or-contains (`lower(city) like '%luton%'`), so *"Houghton Regis"* fails. Gate 3 sits **after** `end if; -- end IF NOT p_override_availability`, so **admins cannot bypass it either** — there is currently no way to create an out-of-area booking anywhere in the product.
+
+`create_recurring_booking_series` (`20260802122636_c02_recurring_bookings.sql:187`) deliberately never checked the city. **Leave it alone** — and note it, so nobody "fixes" it by adding a check that then has to be removed.
+
+### 8.3 The model in one line
+
+> **Two settings → one source of truth → three surfaces.**
+> Free-travel areas + mileage origin, read by the booking page, the admin booking view, and the emails.
+
+---
+
+### 8.4 Phase 1 — Settings
+
+**Rename the column** `allowed_cities` → `free_travel_cities` via `alter table business_settings rename column`. **Do not edit the historical migrations.** Consumers (~8 files, all internal, no external API, always destructured into a local name before use): `availability.ts:433`, `settings-data.ts:39-49`, `admin/bookings/new/page.tsx:73-84`, `settings/actions.ts:48-50,92`, `SettingsForm.tsx:395`, plus the TS interfaces and `settings/page.tsx:19`'s fallback default.
+
+*Rationale for renaming rather than redefining: a column named "allowed" that means "free" is the exact defect class ITEM 7 exists to clean up. Historical `audit_logs.before_state` snapshots will still say `allowed_cities`; that is correct — audit logs are append-only history.*
+
+**Add the origin setting** — e.g. `business_settings.mileage_origin text`. Free-form (Owner's choice, not restricted to the free-travel list). It is **descriptive, not computational**: nothing calculates from it. It exists so the published rule is honest and specific — *"travel charged from Luton"* — and so the admin has a stated basis when typing a number.
+- ⏸ **Decide:** should editing the origin be **Owner-role only**, while other settings stay Admin-editable? The Owner's wording suggests yes. `settings/actions.ts` currently has one permission gate for the whole form — a per-field restriction would be net-new.
+- ⏸ **Decide:** is an **empty** free-travel list legal? Under the new meaning it means "charge mileage everywhere", which is a legitimate state — so `actions.ts:67-69`'s *"Enter at least one allowed service area"* requirement should probably be relaxed.
+
+**Rewrite the settings copy.** `SettingsForm.tsx` (`ServiceAreaField`, `:373-397`, `:674-786`) describes the list purely in permission language and would become **actively false**: `:378` *"Customers booking outside these areas see a helpful message instead of a closed door"*; `:709-710` *"No service areas yet. The booking form will currently turn every customer away"*; `:718` *"Customers within this area can book"*. All three must go.
+
+### 8.5 Phase 2 — Remove the three gates, create one source of truth
+
+| Gate | Change |
+|---|---|
+| SQL `c06…sql:399-410` | **Stop raising.** Keep the city-**required** check at `:399-401`. Optionally compute a boolean for reporting; do not block |
+| `availability.ts:454-456` | **Delete the block.** Verified: nothing else in `loadContextRest` reads `city` — services, gender checks, staff eligibility and weekly rules are all city-independent. `getAllowedCities`/`isCityAllowed` (`:243-257`) may be **retained and repurposed** to compute an `isFreeTravelZone` flag returned with the slots |
+| `booking-schema.ts:139-164` | **Stop failing submission.** Out-of-zone is now a *valid* booking. Keep empty/too-short validation |
+
+**Feed the real list to the public form.** Delete the hardcoded `BOOKING_ALLOWED_CITIES`. Copy the **existing proven pattern**: `src/lib/booking/booking-window-settings.ts` (`getPublicBookingWindow`) already reads `business_settings` through `unstable_cache` keyed `["public-booking-window"]`, `revalidate: 60`, tagged `TAGS.SETTINGS` — **the exact tag `settings/actions.ts:112` already invalidates on save**, so cache correctness is free. It uses the admin client (no `cookies()`, so `unstable_cache` stays legal) and fails safe to `null`.
+
+Thread it down the **same prop path** `bookingWindowDays`/`minimumNoticeHours` already travel: `(public)/layout.tsx:21,42-44` → `BookingExperienceLoader.tsx:23-26,89-93` → `BookingExperience.tsx` → `AboutYouStep`. This is a mechanical extension of an existing chain, not new architecture.
+
+⚠️ **The zod schema is a pure module and cannot fetch.** Once out-of-zone stops being rejected, the list is needed only for *display*, so it should arrive as a prop and the refine should simply go.
+
+**`booking-schema.test.ts:39-47`** currently asserts *"rejects unsupported service areas before time selection"* with Manchester. **Rewriting this test is the canonical proof the client gate is gone** — Manchester must now parse successfully.
+
+### 8.6 Phase 3 — The fee on a single booking
+
+**Storage: `bookings.travel_fee numeric not null default 0`, folded into `total_price` and `amount_due` at write time.**
+
+The fee is written as a **delta**: `newTotal = total_price − oldFee + newFee`, same for `amount_due`. `travel_fee` is retained **only** so the UI and emails can print a labelled line.
+
+**Why folding is the decisive choice — this is the single most important design call in ITEM 8.** At least **15 read sites** consume `total_price`/`amount_due` as a flat number and **none of them sum anything**: outstanding balance (`nav-notifications.ts:287`, `reporting.ts:434,512`), mark-paid (`actions.ts:764,783`), revenue and series (`reporting.ts:402-480, 499-518`), net collection (`:1313-1323`), average booking value (`:1329-1338`), client LTV (`client-metrics.ts:73,84`), dashboard (`dashboard-data.ts:75,597`), CSV export (`export/route.ts:70-86,104`), the customer's own manage page (`customer-manage.ts:206`, `booking/manage/page.tsx:227`), booking cards and detail. **Fold it in and every one is correct with zero edits. Store it outside and all 15 need `+ travel_fee`, where one miss silently under-reports a customer's balance or your revenue.**
+
+**⛔ Never put the fee in `booking_items`.** `total_price` is never derived by summing items, and `getServicePerformance` (`reporting.ts:534-547`), `getStaffRevenueAttribution` (`:566-588`) and `preferredService` (`client-metrics.ts:76-79`) all read `service_price_snapshot` — a fee row would corrupt per-service and per-therapist analytics with a fake service, and `booking_items.service_id` is an FK a mileage charge cannot satisfy.
+
+**Participant multiplication is safe by construction.** `c06…sql:230` does `v_total_price := v_service_price * v_participant_count` at creation only. An **additive delta never re-derives** that, so the fee is naturally excluded from the multiply — **one journey, one fee**, however many people are treated.
+
+**Write path:** extend `updateBookingManagement` (`src/app/admin/bookings/actions.ts:284-464`), adding to the existing `payload` (`:417-455`). Permission: **`canManageAllBookings`** (`rbac.ts:86-88`, `MANAGE_BOOKINGS_ALL`) — already this action's gate; match the file's `requireBookingManager()` idiom, don't introduce a second pattern. Audit: the existing `booking_management_updated` row (`:500-526`) already snapshots full before/after state. **If a distinct `action_type` is wanted, it must be registered in `src/app/admin/audit/format.ts:22-35` or the audit timeline renders it unlabelled.**
+
+**Leave `amount_paid` untouched** — a part-paid booking correctly shows a larger outstanding balance after a fee is added.
+
+⏸ **Decide:** should the fee be editable after the booking is `completed`, `cancelled`, or fully paid? Today `updateBookingManagement` guards *status* transitions (`:352-369`) but places **no restriction on payment-field edits at any status**. Any such guard is net-new.
+
+### 8.7 Phase 4 — Recurring series: the charge must repeat
+
+**Verified problem.** `recurring_booking_templates` stores the address (`service_address_line1`, `service_city`, `service_postcode`, `service_area`) but **no money whatsoever** — confirmed against the live schema. The horizon cron rebuilds **every** future occurrence from scratch (`src/app/api/cron/extend-recurring-horizons/route.ts:407-431`):
+
+```ts
+total_price: service.price,
+amount_due: service.price,
+```
+
+So a fee set on occurrence #1 of a standing out-of-area series **silently vanishes from every occurrence thereafter**, even though the address — and the reason for the charge — is unchanged.
+
+**Design — the template carries the standing charge:**
+
+1. **Add `recurring_booking_templates.travel_fee numeric not null default 0`.** The address already lives here; the charge that follows from the address belongs beside it.
+2. **The cron adds it** (`route.ts:419-420`): `total_price: service.price + template.travel_fee`, and the same for `amount_due`. *(Note the cron does **not** multiply by participant count — recurring sets `group_booking: false`. Confirm that still holds before editing.)*
+3. **`create_recurring_booking_series`** (`20260802122636_c02_recurring_bookings.sql`, price snapshot ~`:794-818`) should accept and apply the same fee for the first materialised batch.
+4. **Setting the series fee must also update already-materialised future occurrences.** The cron creates a batch ahead (12 weekly / 6 fortnightly / 3 monthly), so those bookings already exist. Updating only the template would leave the customer with a mix of charged and uncharged visits. Apply the same delta to occurrences where `status IN ('pending','confirmed')` **and** `booking_date >= today`. **Never touch past, completed or cancelled occurrences** — they are financial history.
+5. **Per-occurrence override remains possible.** The template fee is the *default for new occurrences*; a fee set on an individual booking is the *actual* for that visit. This falls out of the design for free and handles "that week they're elsewhere."
+
+**Where the admin sets it:** the series view `/admin/bookings/series/[templateId]`, and/or a *"apply to all future visits in this series"* checkbox beside the per-booking fee field. ⏸ **Decide which** — the series page is cleaner; the checkbox is fewer clicks.
+
+### 8.8 Phase 5 — Telling everyone, consistently
+
+**Customer, before sending the request** — `AboutYouStep.tsx:520-529`. The `isOutsideCoverage` branch currently renders `styles.noticeError` (red) saying *"Use a covered town before choosing a time."* It becomes an **informational** notice using the same treatment as the covered case (`:510-518`), reading roughly: *"This address is outside our free-travel areas. A travel charge applies, measured from {origin}. We'll confirm the exact amount before your booking is confirmed."* `COVERED_TOWNS` (`:56-58`) and `isCovered` (`:123-131`) must read the **live list**, not the constant. Restate it plainly on `ConfirmStep` beside the existing payment reassurance.
+
+**Admin, on the booking** — `BookingManagementForm.tsx`, `StatusAndPaymentSection` (`:689-938`), which already houses the `pending → confirmed` status select (`:807-832`). Add:
+- an **alert** that the address is outside the free-travel areas (⚠️ the booking detail page does **not** currently fetch the town list — it must be added to `getBookingDetailData`);
+- a **travel-charge input** mirroring `AmountPaidInput` (`:443-515`) exactly — £ prefix, live state, and a **"New total: £X" preview**, matching the existing `total > 0` preview idiom.
+
+**⛔ Close the bypass.** `QUICK_ACTIONS` "confirm" (`:336-346`) → `quickUpdateBooking` (`actions.ts:732-798`, `:777-778`) confirms **and sends the confirmation email** (`:893-898`) with **no form fields at all**. **Hide that chip when the address is outside the free-travel zone and `travel_fee = 0`** (Owner-decided).
+
+**The email timing already works — verified, not assumed.** Both confirm paths fire `sendBookingConfirmedClientEmail` on the same transition (`actions.ts:560-565` and `:893-898`, identical guard). Because the fee is written in the same `updateBookingManagement` payload **before** the send at `:562`, the confirmation email already renders the correct total. **No race, no second email, and the customer is never shown a price that later rises — it is a quote being confirmed.**
+
+**Emails — one shared renderer covers everything.** `renderSummary` (`templates.ts:243-259`, total at `:255-257`) is called from **13 sites**; `renderBookingPlainText` (`:635`, total at `:668`) from **9 more**. If the fee is folded into `total_price`, **every one is numerically correct with zero email edits.** For a labelled *"Travel charge: £X"* line — recommended for transparency — the touch points are: `renderSummary`, `renderBookingPlainText`, `BookingEmailTemplateInput` (`templates.ts:16-30`), `buildVarMap` (`:87-103`), `BOOKING_EMAIL_SELECT` (`notifications.ts:123-138`), `getBookingTemplateInput` (`:216-265`, total at `:255`), and `sample-data.ts:173`. **7 spots covering all 22 send sites.**
+
+⚠️ **The request-received email shows the pre-fee total.** `booking_confirmation` (`sendBookingCreatedEmails`, `notifications.ts:608-677`) sends immediately on submission, before any fee exists. The customer would see £45, then £59 on confirmation. Lawful — it is a request, not a contract — but it reads badly. **Reword it to say a travel charge will be confirmed** rather than implying the total is final.
+
+**Customer's manage page** — `booking/manage/page.tsx:206-243`, `Row label="Total"` at `:227`, fed by `customer-manage.ts:37,206`. Numerically correct automatically; needs the same line-item split to explain *why*.
+
+---
+
+### 8.9 Pre-implementation review — the sweep that must happen FIRST
+
+**Do not start coding from this section alone.** Its file:line references were gathered on 2026-08-11 and this repo has repeatedly proven that **anchors drift**. Run this review first and reconcile any difference against the plan **before** the first edit.
+
+**A. Re-derive the enforcement map.** Independently re-locate all three gates by symbol. Re-run `SELECT proname FROM pg_proc WHERE prosrc ILIKE '%allowed_cities%'` and the RLS check — **if a second consumer has appeared since, stop and re-plan.**
+
+**B. Enumerate every reader of the town list and every money reader**, and diff that list against §8.4/§8.6. Anything present in the code and absent here is a **gap in the plan, not a detail** — report it before proceeding.
+
+**C. Trace the money path end-to-end for one worked example.** £45 service, 2 participants, £14 travel: assert `total_price` = (45 × 2) + 14 = **104**, *not* (45 + 14) × 2 = 118. **This single assertion is the guard against the most expensive possible mistake** and belongs in the test suite permanently.
+
+**D. Audit every customer-facing statement about service area or travel charges** — booking form, `ConfirmStep`, emails, manage page. Produce the list of statements that would be false under the new model *before* changing behaviour, so copy and code ship together. *(Marketing/area pages are explicitly out of scope per the Owner — but list them so the omission is deliberate and recorded.)*
+
+**E. Confirm the email-timing guarantee still holds** by reading both confirm paths at their current lines. If the send ever moves before the DB write, the design breaks silently and the customer gets a stale total.
+
+**F. Verify the recurring cron's shape** — whether it still bypasses the participant multiply, and whether any other writer creates occurrences.
+
+**G. Record the live `business_settings` row before touching anything**, so the semantic flip can be reversed exactly.
+
+### 8.10 Tests and guards
+
+**Guards against re-introducing the contradiction** — this is how it stays fixed:
+- A test that **fails if a hardcoded town/city list appears** under `src/features/booking/` or `src/lib/booking/`. The 5-town constant is what caused this; nothing currently prevents another. *Disclose its limit: a source-text check can be evaded by a computed list.*
+- A test asserting the **public booking form's town list and `business_settings` agree** — i.e. one source of truth, enforced.
+
+**Behavioural tests:**
+- An out-of-zone city (Manchester) **parses, generates slots, and creates a booking** — the inverse of today's `booking-schema.test.ts:39-47`.
+- **Participant × price × fee** arithmetic (review step C).
+- Delta correctness: set → change → clear a fee; `total_price`/`amount_due` track; `amount_paid` never moves.
+- Outstanding balance and mark-paid remain correct after a fee is added to a part-paid booking.
+- The confirmation email contains the fee-inclusive total (mailer mocked — **no real sends**).
+- Quick-confirm chip **hidden** when outside the zone with no fee; visible otherwise.
+- Recurring: template fee propagates to newly-generated occurrences; applying it updates future materialised occurrences **only**, never past or cancelled ones.
+- Changing the free-travel list in settings changes the booking-page notice **without a deploy** (cache-tag invalidation works).
+
+### 8.11 Non-goals and recorded decisions
+
+- **No automated distance calculation, no distance API, no geocoding.** A feasibility study rejected it: zero recorded out-of-area bookings (the three non-Luton rows in the DB were created **309 ms apart** — seed data); no origin to measure from; **therapists claim jobs voluntarily and there is no pay/rate/payout table anywhere**, so automation would price the customer side of a journey nobody is paid to make. Estimated 5–8+ days versus 2–3, capturing the same revenue.
+- **No hard outer service boundary.** Owner decision: admin discretion. If ever needed, add `serviceable_areas` enforced by **the same single check** — never a second one.
+- **`mileage_origin` is descriptive, not computational.** Nothing calculates from it.
+- **Marketing/area-page copy is out of scope** for this item, at the Owner's direction — recorded so the omission is deliberate. Note that several such statements are already false today, independently of this work.
+- **No travel-time-aware availability.** Opening the zone means the slot engine may still offer back-to-back appointments far apart. Mitigated by admin review of every `pending` booking; flagged as the known residual risk.
+
+### 8.12 Effort and commit shape
+
+| Phase | Scope | Files |
+|---|---|---|
+| 1 | Settings: rename, origin field, copy rewrite | ~6–8 + 1 migration |
+| 2 | Remove 3 gates, single source of truth, prop threading | ~8–10 + 1 migration |
+| 3 | `travel_fee` on bookings, write path, audit | ~4–5 + 1 migration |
+| 4 | Recurring propagation | ~3–4 + 1 migration |
+| 5 | Customer notice, admin field, chip gating, emails | ~10–12 |
+
+**Realistically 2–3 days.** Phases 1–2 are worth doing on their own merits: they fix a live defect that turns away customers in towns the site says it covers.
+
+```
+feat(settings): free-travel areas + mileage origin, replacing the allowed-cities gate
+feat(booking): out-of-area addresses are bookable, with one source of truth for the town list
+feat(bookings): admin-set travel charge folded into the booking total
+feat(bookings): recurring series carry their travel charge to every occurrence
+feat(booking): communicate the travel charge on the booking page, admin view and emails
+test(booking): guards against a second hardcoded town list
+```
+
+**Ordering note:** Phase 2 must not ship before Phase 1 (the form needs the setting to read), and Phase 5's chip-gating must land with Phase 3 (or the bypass exists in between).
+
+---
+
 ## Suggested order and commits
 
 Items 2, 4 and 5 are independent of everything else. **Items 3 and 6 are ordered — 3 is a prerequisite for 6** (§6.7). Item 1 goes last because it is the only one that can reach a customer.
@@ -990,6 +1180,7 @@ Items 2, 4 and 5 are independent of everything else. **Items 3 and 6 are ordered
 | 5 | 4 | `chore(supabase): bookings indexes for projected query shapes` ⛔ *(migration file only; Owner approves, orchestrator applies)* |
 | 6 | 1 | `feat(email): cap review requests to once per client per 6 months + manual admin send` |
 | 7 | 7 | Admin theming — **multiple commits**, see §7.12. Largest item; runs last so it rebases over a settled tree |
+| 8 | 8 | Travel-charge model — **multiple commits**, see §8.12. ⛔ 4 migrations, each Owner-approved. **Phases 1–2 fix a live defect and are worth doing first regardless of the fee** |
 
 One coherent unit per commit. Never batch items. Items 3 and 6 touch the same files, so they must not run concurrently with each other.
 
