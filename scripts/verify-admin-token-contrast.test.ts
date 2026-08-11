@@ -174,6 +174,71 @@ describe("parseTokensCss — @media print must not be confused with an earlier p
   });
 });
 
+describe("--admin-warning / --admin-warning-bg — Step 0.2 regression guard (D8)", () => {
+  it("fails when the light-theme --admin-warning / --admin-warning-bg pair is below 4.5:1", () => {
+    // Synthetic CSS carrying the PRE-fix (D8-failing) value, proving the guard
+    // actually flags a regression rather than being trivially green.
+    const failingCss = `
+:root {
+  --admin-warning: #b77900;
+  --admin-warning-bg: #fff7df;
+}
+[data-theme="dark"] {
+  --admin-warning: #b77900;
+  --admin-warning-bg: #fff7df;
+}
+[data-theme="light"] {
+  --admin-warning: #b77900;
+  --admin-warning-bg: #fff7df;
+}
+@media print {
+  :root {
+    --admin-warning: #b77900;
+    --admin-warning-bg: #fff7df;
+  }
+}
+`;
+    const parsed = parseTokensCss(failingCss);
+    const pairs = derivePairs(parsed.tokens, parsed.ratioComments);
+    const results = checkPairs(pairs, parsed.tokens);
+    const lightWarning = results.find(
+      (r) => r.fg === "--admin-warning" && r.bg === "--admin-warning-bg" && r.theme === "light"
+    );
+
+    expect(lightWarning?.ratio).toBeCloseTo(3.41, 1);
+    expect(lightWarning?.pass).toBe(false);
+  });
+
+  it("passes at the fixed 4.72:1 in the real, post-Step-0.2 tokens.css", () => {
+    const css = readFileSync(TOKENS_PATH, "utf8");
+    const parsed = parseTokensCss(css);
+    const pairs = derivePairs(parsed.tokens, parsed.ratioComments);
+    const results = checkPairs(pairs, parsed.tokens);
+    const lightWarning = results.find(
+      (r) => r.fg === "--admin-warning" && r.bg === "--admin-warning-bg" && r.theme === "light"
+    );
+
+    expect(lightWarning?.ratio).toBeCloseTo(4.72, 1);
+    expect(lightWarning?.pass).toBe(true);
+  });
+
+  it("checks the @media print block's own --admin-warning / --admin-warning-bg pair, not the dark block's", () => {
+    // checkPairs() only ever iterates the dark and light scopes, so the print
+    // block's copy of this pair is invisible to the pair checker. The print
+    // block is documented to render "the light set exactly", so assert it
+    // directly against light — this is the automated form of the manual diff
+    // Step 0.2 would otherwise depend on a human remembering to run.
+    const css = readFileSync(TOKENS_PATH, "utf8");
+    const parsed = parseTokensCss(css);
+
+    expect(parsed.scopes.print["--admin-warning"]).toBe(parsed.scopes.light["--admin-warning"]);
+    expect(parsed.scopes.print["--admin-warning-bg"]).toBe(parsed.scopes.light["--admin-warning-bg"]);
+    // Pin the value too, so a future edit that changes BOTH blocks in step
+    // still has to be a deliberate, reviewed change rather than a silent drift.
+    expect(parsed.scopes.print["--admin-warning"]).toBe("#986400");
+  });
+});
+
 describe("verifyRatioComments — self-consistency logic", () => {
   it("flags a match and a mismatch correctly on synthetic, deliberately-crafted CSS", () => {
     const css = `
