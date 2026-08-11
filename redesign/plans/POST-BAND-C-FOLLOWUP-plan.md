@@ -1895,7 +1895,11 @@ Both are real `<a>` elements at runtime (`next/link` always renders one), both c
 2. Wrap just the `a { color: inherit; text-decoration: none; }` rule in `@layer base` (or a new, narrowly-scoped layer) rather than the whole file.
 3. Wrap the entire `site-parity.css` import in `@layer base` — **only if 1 and 2 are shown to be insufficient**, and only with the ~30-classed-rules caveat above explicitly accepted and evidenced, since it repriorities all of them, not just the `a` rule.
 
-**Do NOT bundle this with Step 0.1.** If 0.1 lands alone and D1's ratio improves but the nav's own colour class is still inert, that is expected — 0.1 fixes the inherited colour, 0.3 restores the element's own.
+**✅ IMPLEMENTED 2026-08-11 (`ad0db14`). Result: dark −46, light −194, total −240.**
+
+**⚠️ CORRECTED — Steps 0.1 and 0.3 are NOT independent.** The previous text said "Do NOT bundle this with Step 0.1", on the theory that 0.1 fixes the inherited colour and 0.3 restores the element's own, separably. **Measurement disproved that.** Shipping 0.1 alone made light-mode contrast measurably *worse* (+184 against a same-day control), because the de-alias made backgrounds theme-correct while anchor text colour stayed frozen by D12 — so pairs that had been uniformly frozen-light, and therefore accidentally consistent, became mismatched. Step 0.3 removed the mismatch (−194) and returned light to neutral.
+
+**They must ship together.** Landing 0.1 without 0.3 leaves the product worse in light mode than not starting. Keep them as separate commits for reviewability and revertability, but never as separate releases. Full working: `redesign/evidence/admin-contrast/ab-phase0-2026-08-11.md`.
 
 **Verify:**
 ```bash
