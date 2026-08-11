@@ -1,5 +1,12 @@
 /* Legacy Webflow parity layer. Keep existing visual contracts here; prefer scoped CSS modules or Tailwind tokens for new/touched components. */
 
+/* This file is imported from layout.tsx BEFORE globals.css, which is where the
+ * canonical layer order is declared. Re-declaring the identical order here is a
+ * no-op for globals.css but guarantees `base` is registered in the right place
+ * when the `a` reset below uses it — otherwise `@layer base` here would register
+ * `base` ahead of `theme` and silently reorder the cascade. */
+@layer theme, base, components, utilities;
+
 html {
   background: var(--background);
   font-family: var(--font-work-sans), Arial, sans-serif;
@@ -36,9 +43,20 @@ body :focus-visible {
   box-shadow: var(--focus-ring-token);
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+/* Scoped into @layer base so a Tailwind text-colour utility on the same <a> wins.
+ * Unlayered CSS beats layered CSS regardless of specificity, so while this rule
+ * sat outside the layer system it defeated EVERY text-colour utility on EVERY
+ * anchor, site-wide — admin and public. Measured before the fix: /booking/manage's
+ * `bg-[var(--rahma-green)] text-white` CTA rendered its label in inherited dark
+ * blue at 1.78:1 instead of white at 5.18:1.
+ * Only this one rule is layered. The ~30 other colour-bearing rules in this file
+ * are all class-qualified and do not compete with same-element utilities, so
+ * layering the whole file would reprioritise them for no reason. */
+@layer base {
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 }
 
 img,
