@@ -5,7 +5,7 @@ Nothing is mid-flight. No agent is running. The tree is clean apart from the two
 
 | | |
 |---|---|
-| **HEAD** | `0ec700c` + the plan-deepening commit |
+| **HEAD** | `5a6cb78` (plan deepening) |
 | **Branch** | `master` |
 | **Band C programme** | ✅ **COMPLETE — 23 of 23 rows** |
 | **Post-Band-C follow-up plan** | `redesign/plans/POST-BAND-C-FOLLOWUP-plan.md` — **8 items, 3,537 lines, ZERO implemented** |
