@@ -5,12 +5,29 @@ Nothing is mid-flight. No agent is running. The tree is clean apart from the two
 
 | | |
 |---|---|
-| **HEAD** | `86b8b22` |
+| **HEAD** | `0ec700c` + the plan-deepening commit |
 | **Branch** | `master` |
 | **Band C programme** | ✅ **COMPLETE — 23 of 23 rows** |
-| **Post-Band-C follow-up plan** | `redesign/plans/POST-BAND-C-FOLLOWUP-plan.md` — **8 items, 1,265 lines, ZERO implemented** |
+| **Post-Band-C follow-up plan** | `redesign/plans/POST-BAND-C-FOLLOWUP-plan.md` — **8 items, 3,537 lines, ZERO implemented** |
 | **Deploy** | Still deferred. Live site runs OLDER code |
-| **Next action** | Deepen the plan (see the handoff prompt). **Do NOT implement.** |
+| **Next action** | **Implement.** The plan was deepened on 2026-08-11 and all five open decisions are closed — nothing is blocked. Start with item 7 Phase 0 or item 3 (§10.3 gives the order) |
+
+### Update — 2026-08-11, plan deepening complete
+
+The plan was rewritten from 1,265 → 3,537 lines by a 34-agent verification pass (14 auditors, 10 adversaries, 10 drafters). **29 of the plan's own claims failed verification and were corrected in place.** Every item now carries exact symbols with drift instructions, full blast radius *plus* a "proven NOT affected" list, `/booking/manage` checked by name, ordering and shared-file callouts, exact per-batch verification commands, named tests with real file paths, numbered stop conditions, and rollback.
+
+Per-item audits, adversarial verdicts and section drafts: `redesign/evidence/plan-deepening/` (14 reports + 10 drafts).
+
+**The seven corrections most likely to have caused an incident:**
+1. `resendDeliveryEvent` does not exist — the function to mirror is `resendEmail`.
+2. The manual review-send cannot go "beside `ReminderResendForm`" — that list is filtered to `pending`/`confirmed`, so a completed booking can never appear in it.
+3. "Nothing in the codebase deletes anything" is false — 17 delete sites exist including a wired GDPR-erasure path. The true claim is that nothing deletes **by age**.
+4. **Item 3 is NOT a correctness prerequisite for item 6** — `ORDER BY override_date` already gives contiguity and both `groupByDate`s are Map-keyed. The 3→6 edge survives only as file contention.
+5. **Ordering defect:** item 7 was scheduled before item 8, but five of item 7's Phase B files cannot be finished until item 8 lands. Phase B is now split, with those five as a trailing batch.
+6. **A real bug in shipped tooling:** `scripts/verify-admin-token-contrast.mjs` finds `@media print` with `indexOf` and matches a prose comment at `tokens.css:317` before the real rule at `:543`. **The print block has never been verified.** This also means "Layer 2 → 0 failures" is *not* sufficient proof that D8 is fixed, because `@media print` holds its own copy of the failing pair.
+7. `--env-file=.env.e2e` and `node_modules/playwright/cli.js` are both wrong; `.env.example` carries the same two stale errors.
+
+**Five Owner decisions closed 2026-08-11** (all folded into the plan at §0.0a): privacy section 6 is **rewritten, kept general, promising nothing the site does not do**; the analytics-retention sentence is **kept**; the manual review send is **exempt from quiet hours**; the HTML form field `name="allowed_cities"` **is renamed** with the column; and both ordering changes are **sanctioned**.
 
 ---
 
@@ -115,7 +132,12 @@ node --env-file=.env ./node_modules/@playwright/test/cli.js test e2e/admin-contr
 11. **Anchors drift constantly.** Re-locate by symbol, never by stored line number.
 12. **`vitest`'s include is `src/**` AND `scripts/**/*.test.{ts,tsx}`** — tests in `scripts/` DO run. Playwright specs do not.
 13. **Zone-2 = migrations, any data-mutating SQL, deploys, package installs, env changes, real emails.** Owner-approved per action, orchestrator-performed, never delegated to a subagent.
-14. **Read-only agents must be told explicitly not to write.** One left five `scratch_*` files in the repo root, which polluted the lint baseline.
+14. **Read-only agents must be told explicitly not to write.** One left five `scratch_*` files in the repo root, which polluted the lint baseline. *(`redesign/**` is excluded from lint, so evidence files are safe — anywhere else is not.)*
+15. **Quoting does NOT defeat the Git Bash leading-slash mangling** — tested and disproved. `MSYS_NO_PATHCONV=1` does. PowerShell is immune and is the preferred shell. Only `CONTRAST_ROUTES` self-heals (via `resolveRouteFilter`).
+16. **Bracket paths miscount under raw shell glob.** `src/app/admin/staff/[staffId]/…` returned 26 where ripgrep returned 23. Count with ripgrep, never shell bracket expansion.
+17. **Both contrast scripts exit `0` regardless of failures** unless `--max-failures=N` is passed. A bare run gates nothing.
+18. **Lint identity must be keyed on the `{file, ruleId}` multiset, not `file:line:column`.** Item 8's own specified edits to `BookingExperience.tsx`/`BookingExperienceLoader.tsx` are *guaranteed* to shift pre-existing errors' line numbers — a line-keyed check would report a false regression.
+19. **`pnpm build` writes to the same `.next/` the Owner's dev server serves from** (no `distDir` override). Item 5's one sanctioned build may disturb it, and agents may not restart the server — coordinate it.
 
 ---
 
@@ -146,7 +168,7 @@ node --env-file=.env ./node_modules/@playwright/test/cli.js test e2e/admin-contr
 
 ## 8 — What must NOT happen next
 
-- **No implementation.** The next session deepens the plan only.
+- **Do not start implementing from an item section alone.** Read §1 (binding rules), §10 (ordering and collisions) and §11 (gate identity) first — several items edit files another item also edits, and two of them edit lint-baseline files.
 - **No `git add .`**, no stashing, no "cleaning" the tree.
 - **No migrations, no data writes, no deploy, no package installs** without per-action Owner approval.
 - **No credential entry**, ever, by any agent.
