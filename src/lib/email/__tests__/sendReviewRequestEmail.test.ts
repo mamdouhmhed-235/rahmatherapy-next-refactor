@@ -8,7 +8,13 @@ import {
   type ReviewMessageVariant,
   type ReviewRequestEmailInput,
 } from "../templates";
-import { sendReviewRequestEmail } from "../notifications";
+import {
+  REVIEW_REQUEST_CLIENT_COOLDOWN_MONTHS,
+  classifyReviewClient,
+  getClientsAskedForReviewSince,
+  reviewCooldownStart,
+  sendReviewRequestEmail,
+} from "../notifications";
 
 /**
  * C-01 Phase C. `sendReviewRequestEmail` takes its `supabase` client as a
@@ -68,6 +74,7 @@ const SETTINGS = {
 function baseBooking(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: "booking-1",
+    client_id: "client-1",
     contact_full_name: "Aisha Khan",
     contact_email: CUSTOMER_EMAIL,
     contact_phone: "07123456789",
@@ -132,10 +139,17 @@ function stubClient({
   booking,
   bookingItemsRows = [{ services: { group_category: "massage" } }],
   settings = SETTINGS,
+  reviewAskRows = [] as Record<string, unknown>[],
 }: {
   booking: Record<string, unknown> | null;
   bookingItemsRows?: Record<string, unknown>[];
   settings?: Record<string, unknown>;
+  /**
+   * Rows the cooldown lookup sees, shaped as the `bookings!inner(client_id)`
+   * embed returns them. Empty means "this client has not been asked inside
+   * the window", which is the default and preserves pre-cooldown behaviour.
+   */
+  reviewAskRows?: Record<string, unknown>[];
 }) {
   const state: Record<string, unknown> | null = booking ? { ...booking } : null;
   const ops: RecordedOp[] = [];
@@ -173,6 +187,9 @@ function stubClient({
       if (table === "booking_items") {
         return { data: bookingItemsRows, error: null };
       }
+      if (table === "email_delivery_events") {
+        return { data: reviewAskRows, error: null };
+      }
       return { data: null, error: null };
     }
 
@@ -184,6 +201,14 @@ function stubClient({
       },
       is: (column: string, value: unknown) => {
         entry.filters.push(`is:${column}=${value === null ? "null" : String(value)}`);
+        return chain;
+      },
+      gte: (column: string, value: unknown) => {
+        entry.filters.push(`gte:${column}=${String(value)}`);
+        return chain;
+      },
+      in: (column: string, values: unknown[]) => {
+        entry.filters.push(`in:${column}=${values.join("|")}`);
         return chain;
       },
       select: () => chain,
@@ -397,6 +422,93 @@ describe("sendReviewRequestEmail", () => {
       expect(text).toContain(`- ${variant.text}`);
     }
   });
+
+  // ---- Item 1: the per-client cooldown ----
+
+  it("suppresses a send inside the 6-month cooldown window and returns reason: client_recently_asked", async () => {
+    const stub = stubClient({
+      booking: baseBooking(),
+      reviewAskRows: [{ bookings: { client_id: "client-1" } }],
+    });
+
+    const result = await sendReviewRequestEmail("booking-1", stub.client);
+
+    expect(result).toEqual({ sent: false, reason: "client_recently_asked" });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("permits a send once the cooldown window has elapsed", async () => {
+    // The window is enforced server-side by the gte filter; an empty result
+    // set is what "the last ask is older than the window" looks like here.
+    const stub = stubClient({ booking: baseBooking(), reviewAskRows: [] });
+
+    const result = await sendReviewRequestEmail("booking-1", stub.client);
+
+    expect(result).toEqual({ sent: true });
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not write review_email_sent_at when suppressed for cooldown", async () => {
+    // The named easiest-mistake in this item: writing the sentinel on a
+    // cooldown skip would permanently retire a booking a later manual send
+    // may legitimately want.
+    const stub = stubClient({
+      booking: baseBooking(),
+      reviewAskRows: [{ bookings: { client_id: "client-1" } }],
+    });
+
+    await sendReviewRequestEmail("booking-1", stub.client);
+
+    expect(stub.state?.review_email_sent_at).toBeNull();
+    expect(stub.find("bookings", "update")).toHaveLength(0);
+  });
+
+  it("queries the cooldown scoped to this client, the review event type and accepted sends only", async () => {
+    const stub = stubClient({ booking: baseBooking(), reviewAskRows: [] });
+
+    await sendReviewRequestEmail("booking-1", stub.client);
+
+    const lookup = stub.find("email_delivery_events", "select").at(-1)!;
+    expect(lookup.filters).toEqual([
+      "eq:event_type=review_request_client",
+      "eq:delivery_status=accepted",
+      expect.stringMatching(/^gte:created_at=/),
+      "in:bookings.client_id=client-1",
+    ]);
+  });
+
+  it("ignoreClientCooldown bypasses the cooldown but still honours the per-booking sentinel", async () => {
+    // Bypass sends when no sentinel exists...
+    const fresh = stubClient({
+      booking: baseBooking(),
+      reviewAskRows: [{ bookings: { client_id: "client-1" } }],
+    });
+
+    const bypassed = await sendReviewRequestEmail("booking-1", fresh.client, {
+      ignoreClientCooldown: true,
+    });
+
+    expect(bypassed).toEqual({ sent: true });
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    // ...and the cooldown lookup is skipped entirely, not just ignored.
+    expect(fresh.find("email_delivery_events", "select")).toHaveLength(0);
+
+    // ...but the per-booking sentinel still wins. One review request per
+    // booking, always.
+    vi.mocked(sendEmail).mockClear();
+    const alreadySent = stubClient({
+      booking: baseBooking({ review_email_sent_at: "2026-07-20T12:00:00.000Z" }),
+      reviewAskRows: [{ bookings: { client_id: "client-1" } }],
+    });
+
+    const blocked = await sendReviewRequestEmail("booking-1", alreadySent.client, {
+      ignoreClientCooldown: true,
+    });
+
+    expect(blocked).toEqual({ sent: false, reason: "already_sent" });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
 });
 
 /**
@@ -516,5 +628,83 @@ describe("renderReviewRequestPlainText", () => {
     expect(withoutCity).toContain(
       "It really helps people out, for your Swedish Massage."
     );
+  });
+});
+
+describe("classifyReviewClient", () => {
+  // The count is INCLUSIVE of the candidate booking itself: by the time the
+  // cron reads a candidate its status is already `completed`, so it is one of
+  // the rows the batched count returns. Getting this off by one would call
+  // every genuine second visit a first visit.
+  it("classifies as series when recurring_template_id is set, regardless of completed-booking count", () => {
+    expect(
+      classifyReviewClient({ recurringTemplateId: "tpl-1", completedBookingCount: 1 })
+    ).toBe("series");
+    expect(
+      classifyReviewClient({ recurringTemplateId: "tpl-1", completedBookingCount: 9 })
+    ).toBe("series");
+  });
+
+  it("classifies as first_time when the client's completed-booking count, including this booking, is 1", () => {
+    expect(
+      classifyReviewClient({ recurringTemplateId: null, completedBookingCount: 1 })
+    ).toBe("first_time");
+  });
+
+  it("classifies as returning when the client's completed-booking count, including this booking, is 2 or more", () => {
+    expect(
+      classifyReviewClient({ recurringTemplateId: null, completedBookingCount: 2 })
+    ).toBe("returning");
+    expect(
+      classifyReviewClient({ recurringTemplateId: null, completedBookingCount: 5 })
+    ).toBe("returning");
+  });
+});
+
+describe("reviewCooldownStart", () => {
+  it("returns an instant exactly the cooldown's worth of calendar months back", () => {
+    const now = new Date("2026-08-11T12:00:00.000Z");
+    expect(REVIEW_REQUEST_CLIENT_COOLDOWN_MONTHS).toBe(6);
+    expect(reviewCooldownStart(now)).toBe("2026-02-11T12:00:00.000Z");
+  });
+});
+
+describe("getClientsAskedForReviewSince", () => {
+  it("returns an empty set without querying when the client list is empty", async () => {
+    // Never rely on the client translating an empty IN-list into an
+    // always-false predicate: if it returned every row instead, every send
+    // that tick would be wrongly suppressed.
+    const from = vi.fn();
+    const client = { from } as unknown as SupabaseClient;
+
+    await expect(getClientsAskedForReviewSince([], "2026-02-11T00:00:00.000Z", client)).resolves
+      .toEqual(new Set());
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("reads the client id out of the embed whether it arrives as an object or an array", async () => {
+    // A to-one embed resolves to an object, but guessing wrong here would
+    // fail silently as an empty set — which under-suppresses and sends a
+    // duplicate — so both shapes are handled and both are pinned here.
+    const rows = [
+      { bookings: { client_id: "client-a" } },
+      { bookings: [{ client_id: "client-b" }] },
+      { bookings: null },
+    ];
+    const chain: Record<string, unknown> = {};
+    for (const method of ["select", "eq", "gte", "in"]) {
+      chain[method] = () => chain;
+    }
+    chain.then = (onFulfilled: (value: unknown) => unknown) =>
+      Promise.resolve({ data: rows, error: null }).then(onFulfilled);
+    const client = { from: () => chain } as unknown as SupabaseClient;
+
+    const asked = await getClientsAskedForReviewSince(
+      ["client-a", "client-b"],
+      "2026-02-11T00:00:00.000Z",
+      client
+    );
+
+    expect(asked).toEqual(new Set(["client-a", "client-b"]));
   });
 });

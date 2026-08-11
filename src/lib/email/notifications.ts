@@ -1334,6 +1334,7 @@ export async function sendEnquiryLoggedEmail(
 
 interface ReviewEmailBookingRow {
   id: string;
+  client_id: string | null;
   contact_email: string | null;
   completed_at: string | null;
   review_email_sent_at: string | null;
@@ -1345,6 +1346,153 @@ interface BookingItemGroupCategoryRow {
   services: { group_category: string | null } | null;
 }
 
+// Item 1 — how often a client may be asked for a review.
+//
+// The sentinel that stops a repeat ask lives on the BOOKING
+// (`review_email_sent_at`), not the client, so a standing weekly series used
+// to generate one review request per completed visit, forever. This caps it
+// per client instead.
+//
+// The cap is derived from `email_delivery_events`, not from a new column on
+// `clients`: the data already exists, a column would be a second source of
+// truth that can drift from the delivery log, and it would need a migration.
+// It is not derived from `bookings.review_email_sent_at` either — that column
+// is also written as a "handled" marker for a booking with no email address
+// (see `sendReviewRequestEmail`'s `no_email` branch), so a client who had no
+// address on file in March would be wrongly suppressed in June once they
+// added one. The delivery log has no such false positive.
+export const REVIEW_REQUEST_CLIENT_COOLDOWN_MONTHS = 6;
+
+export type ReviewClientClass = "series" | "returning" | "first_time";
+
+/**
+ * The start of the cooldown window, i.e. "ask again only if the last ask was
+ * before this instant".
+ *
+ * Calendar-month arithmetic, so the window tracks months rather than a fixed
+ * 180 days. Month-end clamping applies (31 August minus 6 months lands in
+ * early March, not 28 February) — irrelevant at this granularity, noted so
+ * nobody reads it as a bug.
+ *
+ * UTC arithmetic deliberately: `setMonth` works in the host's local zone, so
+ * on a London machine crossing the BST/GMT boundary the same input produced
+ * an instant an hour off from what a UTC server produced. Immaterial against
+ * a six-month window, but a function whose output depends on where it runs is
+ * not one worth keeping.
+ */
+export function reviewCooldownStart(now: Date = new Date()): string {
+  const start = new Date(now.getTime());
+  start.setUTCMonth(start.getUTCMonth() - REVIEW_REQUEST_CLIENT_COOLDOWN_MONTHS);
+  return start.toISOString();
+}
+
+interface ReviewAskRow {
+  bookings: { client_id: string } | { client_id: string }[] | null;
+}
+
+/**
+ * Which of `clientIds` have actually been asked for a review since `since`.
+ *
+ * One query for the whole batch — the cron processes up to 50 candidates a
+ * tick and must not turn that into 50 round trips. `email_delivery_events
+ * .booking_id -> bookings.id` is a real foreign key
+ * (`email_delivery_events_booking_id_fkey`), so the client id is reachable
+ * through a PostgREST embed rather than a second query.
+ *
+ * Only `delivery_status = 'accepted'` counts as "asked". That is exhaustive
+ * for this event type *today* because `sendReviewRequestEmail` never passes
+ * `delaySeconds` to `sendTrackedEmail`, so a review request can never sit in
+ * the `queued` -> `sent` path other email types use. If review sends are ever
+ * routed through that delayed path, this filter must widen to include `sent`
+ * — otherwise a real send becomes invisible here and the client is asked
+ * twice.
+ */
+export async function getClientsAskedForReviewSince(
+  clientIds: string[],
+  since: string,
+  supabase: SupabaseClient
+): Promise<Set<string>> {
+  // An empty `.in()` list is not worth relying on: skip the round trip and
+  // return the empty answer directly rather than trusting the client to
+  // translate `IN ()` into an always-false predicate.
+  if (clientIds.length === 0) return new Set();
+
+  const { data, error } = await supabase
+    .from("email_delivery_events")
+    .select("bookings!inner(client_id)")
+    .eq("event_type", "review_request_client")
+    .eq("delivery_status", "accepted")
+    .gte("created_at", since)
+    .in("bookings.client_id", clientIds);
+
+  if (error) {
+    throw new Error(`getClientsAskedForReviewSince: ${error.message}`);
+  }
+
+  const asked = new Set<string>();
+  for (const row of (data ?? []) as ReviewAskRow[]) {
+    // A to-one embed resolves to an object, but normalise both shapes rather
+    // than depend on that: guessing wrong here fails silently as an empty
+    // set, which under-suppresses and sends a duplicate.
+    const embedded = Array.isArray(row.bookings) ? row.bookings : [row.bookings];
+    for (const booking of embedded) {
+      if (booking?.client_id) asked.add(booking.client_id);
+    }
+  }
+  return asked;
+}
+
+/**
+ * Completed-booking count per client, for the whole batch in one query.
+ *
+ * PostgREST has no GROUP BY, and this repo has no aggregate RPC precedent —
+ * the established shape (see `getRetentionRate`, `getClientLifetimeMetrics`)
+ * is to select the rows and count them in JS. At the projected volume that is
+ * the right trade: still one round trip per tick, which is the rule that
+ * matters.
+ */
+export async function getCompletedBookingCountsByClient(
+  clientIds: string[],
+  supabase: SupabaseClient
+): Promise<Map<string, number>> {
+  if (clientIds.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("client_id")
+    .eq("status", "completed")
+    .in("client_id", clientIds);
+
+  if (error) {
+    throw new Error(`getCompletedBookingCountsByClient: ${error.message}`);
+  }
+
+  const counts = new Map<string, number>();
+  for (const row of (data ?? []) as { client_id: string | null }[]) {
+    if (!row.client_id) continue;
+    counts.set(row.client_id, (counts.get(row.client_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Repeat vs one-off, for copy and for the audit trail.
+ *
+ * `completedBookingCount` is INCLUSIVE of the candidate booking itself. By the
+ * time the cron reads a candidate its status is already `completed`, so it is
+ * one of the rows `getCompletedBookingCountsByClient` returns. A client having
+ * their first completed visit counts 1 and is `first_time`; their second
+ * counts 2 and is `returning`. Do not subtract the candidate before comparing
+ * — that would misclassify every genuine second visit as a first.
+ */
+export function classifyReviewClient(input: {
+  recurringTemplateId: string | null;
+  completedBookingCount: number;
+}): ReviewClientClass {
+  if (input.recurringTemplateId) return "series";
+  return input.completedBookingCount >= 2 ? "returning" : "first_time";
+}
+
 /**
  * C-01 — sends the "leave us a review" email once a booking has sat
  * `completed` for 2+ hours (the cron route enforces the delay; this function
@@ -1352,14 +1500,31 @@ interface BookingItemGroupCategoryRow {
  * `review_email_sent_at`: a no-email booking is marked as handled so the cron
  * never retries it forever, and the closing UPDATE is guarded by
  * `.is("review_email_sent_at", null)` to survive a parallel cron tick.
+ *
+ * Item 1 — the per-client cooldown guard lives HERE rather than only in the
+ * cron, so it protects every caller including the manual admin send and
+ * anything added later. A guard that lives only in the cron is one new caller
+ * away from being bypassed. The cron still pre-filters in a batch; this is a
+ * cheap per-booking re-check, not a duplicate cost.
+ *
+ * `ignoreClientCooldown` is for the manual admin send only: a human choosing
+ * to ask this client now overrides the frequency heuristic. It does NOT
+ * bypass the per-booking `review_email_sent_at` sentinel — one review request
+ * per booking, always.
  */
 export async function sendReviewRequestEmail(
   bookingId: string,
-  supabase: SupabaseClient
-): Promise<{ sent: boolean; reason?: "no_email" | "already_sent" | "send_failed" }> {
+  supabase: SupabaseClient,
+  options: { ignoreClientCooldown?: boolean } = {}
+): Promise<{
+  sent: boolean;
+  reason?: "no_email" | "already_sent" | "send_failed" | "client_recently_asked";
+}> {
   const { data: booking, error: bookingErr } = await supabase
     .from("bookings")
-    .select("id, contact_email, completed_at, review_email_sent_at, status, clients(email, city)")
+    .select(
+      "id, client_id, contact_email, completed_at, review_email_sent_at, status, clients(email, city)"
+    )
     .eq("id", bookingId)
     .maybeSingle<ReviewEmailBookingRow>();
 
@@ -1381,6 +1546,24 @@ export async function sendReviewRequestEmail(
       .update({ review_email_sent_at: new Date().toISOString() })
       .eq("id", bookingId);
     return { sent: false, reason: "no_email" };
+  }
+
+  // Ordered after `no_email` deliberately: a booking with no address can never
+  // bother anyone, so retiring it is right regardless of the cooldown, and
+  // leaving it un-retired would keep it in the candidate set for months.
+  if (!options.ignoreClientCooldown && booking.client_id) {
+    const asked = await getClientsAskedForReviewSince(
+      [booking.client_id],
+      reviewCooldownStart(),
+      supabase
+    );
+    if (asked.has(booking.client_id)) {
+      // ⛔ Do NOT write the review_email_sent_at sentinel here. This booking
+      // has not been handled, it has been skipped for now — writing the
+      // sentinel would permanently retire a booking a later manual send may
+      // legitimately want.
+      return { sent: false, reason: "client_recently_asked" };
+    }
   }
 
   const { input } = await getBookingTemplateInput(bookingId, supabase);
