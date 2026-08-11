@@ -271,12 +271,14 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
       .select("*")
       .gte("override_date", weekStartIso)
       .lte("override_date", weekEndIso)
-      .order("override_date", { ascending: true }),
+      .order("override_date", { ascending: true })
+      .order("start_time", { ascending: true }),
     supabase
       .from("availability_overrides")
       .select("*")
       .gte("override_date", today)
       .order("override_date", { ascending: true })
+      .order("start_time", { ascending: true })
       .limit(AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
     // Fix round (verify-FAIL Check 2, non-blocking) — same head-count as the
     // blocked-dates upcoming bucket above.
@@ -289,6 +291,7 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
       .select("*")
       .lt("override_date", today)
       .order("override_date", { ascending: false })
+      .order("start_time", { ascending: true })
       .limit(adjPastViewAll ? AVAILABILITY_PAST_VIEW_ALL_CAP : AVAILABILITY_PAST_CAP),
     supabase
       .from("availability_overrides")

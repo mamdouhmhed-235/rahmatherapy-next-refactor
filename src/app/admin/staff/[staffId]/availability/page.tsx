@@ -152,6 +152,7 @@ export default async function AvailabilityPage({
       .eq("staff_id", staffId)
       .gte("override_date", today)
       .order("override_date", { ascending: true })
+      .order("start_time", { ascending: true })
       .limit(STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP),
     // Fix round (verify-FAIL Check 2, non-blocking) — same head-count as the
     // staff blocked-dates upcoming bucket above.
@@ -166,6 +167,7 @@ export default async function AvailabilityPage({
       .eq("staff_id", staffId)
       .lt("override_date", today)
       .order("override_date", { ascending: false })
+      .order("start_time", { ascending: true })
       .limit(adjPastViewAll ? STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP : STAFF_AVAILABILITY_PAST_CAP),
     supabase
       .from("staff_availability_overrides")

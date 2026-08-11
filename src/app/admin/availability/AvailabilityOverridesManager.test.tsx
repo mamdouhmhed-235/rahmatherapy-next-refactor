@@ -88,6 +88,19 @@ describe("AvailabilityOverridesManager — a date is all of its rows", () => {
     expect(entries[0].textContent).toContain("08:00–12:30 · 15:00–20:00");
   });
 
+  it("renders a date's segments in start-time order even when the input rows arrive out of order", () => {
+    // Item 3 adds `.order("start_time")` as a secondary key on the page queries,
+    // because dropping the one-row-per-date unique made `ORDER BY override_date`
+    // alone a non-total ordering. That is defence in depth, not the guarantee:
+    // this component must render a day's hours in time order regardless of the
+    // order rows arrive in. Feed the PM segment first to prove it.
+    renderManager({ upcoming: [UPCOMING[1], UPCOMING[0]] });
+
+    const entries = screen.getAllByRole("listitem");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].textContent).toContain("08:00–12:30 · 15:00–20:00");
+  });
+
   it("names the gap between the windows as the break", () => {
     renderManager();
 
