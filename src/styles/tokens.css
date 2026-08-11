@@ -76,7 +76,9 @@
   --admin-text-muted: #5e625e;
   /* Brand re-theme 2026-05-20: clinic green → therapy blue.
    * Logo's blue "therapy" word carries the action axis. Darker variant of
-   * brand #127ebe lifts to AAA 7.2:1 vs white for primary buttons + active states. */
+   * brand #127ebe lifts to 6.97:1 vs white for primary buttons + active states.
+   * (Measured 2026-08-11. The previous note said "AAA 7.2:1" — it is 6.97:1,
+   * which clears AA comfortably but does NOT reach the AAA 7:1 bar.) */
   --admin-primary: #0f5e8e;
   --admin-primary-hover: #0a4870;
   /* Foreground colour for text/icons rendered on --admin-primary surfaces.
@@ -86,7 +88,9 @@
   --admin-on-primary: oklch(99.5% 0.003 88);
   /* Brand re-theme: accent shifts from Admin Amber to literal brand orange.
    * Decoration only (Cormorant numerals, chart accents, illustration) —
-   * fails WCAG text contrast at 1.42:1 on canvas; never use as body text. */
+   * fails WCAG text contrast at 2.17:1 on canvas; never use as body text.
+   * (Measured 2026-08-11; the previous note said 1.42:1. The number was wrong,
+   * the warning was not — it still falls far short of AA 4.5:1.) */
   --admin-accent: #f7931e;
   /* Burnt orange focus ring — high contrast, ties to brand, distinct from
    * the new primary blue hue. Replaces Focus Azure to avoid blue-on-blue
@@ -445,7 +449,8 @@
    * pale band across the top of every admin page. */
   --admin-shell-ambient: oklch(42% 0.030 60 / 0.30);
   /* --admin-primary lightens in dark, so its foreground darkens with it;
-   * white-on-fill would land at ~1.5:1. 8.88:1 on the dark primary fill. */
+   * white-on-fill would land at 2.11:1 (measured 2026-08-11; the previous note
+   * said ~1.5:1). 8.88:1 on the dark primary fill. */
   --admin-action-primary-text: oklch(18% 0.012 88);
   --admin-action-outline-bg: oklch(22% 0.008 88);
   /* Continues the hover direction: 76% → 85% (hover) → 91% (active). */
@@ -453,7 +458,9 @@
   --admin-danger-solid: oklch(72% 0.145 25);        /* 7.12:1 vs on-primary */
   --admin-danger-solid-hover: oklch(81% 0.100 25);  /* 10.02:1 vs on-primary */
   /* Chart fills lift into the 68–82% band so slices keep the "pop" they were
-   * tuned for on cream. All six sit 5.55–9.75:1 against --admin-panel; the
+   * tuned for on cream. All six sit 5.57–9.81:1 against --admin-panel
+   * (measured 2026-08-11; the previous note said 5.55–9.75:1 — the upper
+   * bound was understated); the
    * closest luminance pair is 1.04:1 (completed/unknown), which matches the
    * light set's own closest pair (1.05:1) — hue does the separating in both. */
   --admin-chart-status-confirmed: oklch(76% 0.160 155);
@@ -468,7 +475,9 @@
    * in BOTH themes, so the light values are already the dark-mode answer. Held
    * verbatim rather than "darkened for symmetry", which would make them
    * unreadable. Measured against dark --admin-nav-bg oklch(24% 0.010 75):
-   * white 16.5:1; the .84 mint 9.74:1; the .72 mint 7.70:1. */
+   * white 16.5:1; the .84 mint 9.51:1; the .72 mint 7.31:1.
+   * (Measured 2026-08-11 with the alpha actually composited against
+   * --admin-nav-bg; the previous note said 9.74:1 / 7.70:1.) */
   --admin-nav-surface-text: #ffffff;
   --admin-nav-surface-link: rgba(209, 234, 223, 0.84);
   --admin-nav-surface-link-icon: rgba(209, 234, 223, 0.72);
