@@ -121,6 +121,59 @@ describe("parseTokensCss — block extraction, structure only", () => {
   });
 });
 
+describe("parseTokensCss — @media print must not be confused with an earlier prose mention", () => {
+  // Mirrors the real tokens.css shape that caused the bug: a comment that
+  // mentions the literal words "@media print" sits BETWEEN the :root and
+  // [data-theme="dark"] blocks (tokens.css:317), well before the real
+  // @media print rule (tokens.css:543). A naive css.indexOf("@media print")
+  // matches the comment and then greedily consumes the next block's braces
+  // (the dark block) as if they belonged to print.
+  const SYNTHETIC_CSS_WITH_PRINT_DECOY = `
+:root {
+  --admin-canvas: #ffffff;
+}
+
+/* Historical note: these blocks MUST stay after :root, and @media print MUST stay last. */
+
+[data-theme="dark"],
+[data-admin-theme-root][data-theme="dark"] ~ * {
+  --admin-canvas: #111111;
+}
+
+[data-theme="light"],
+[data-admin-theme-root][data-theme="light"] ~ * {
+  --admin-canvas: #ffffff;
+}
+
+@media print {
+  :root,
+  [data-theme="dark"],
+  [data-theme="light"] {
+    --admin-canvas: #eeeeee;
+  }
+}
+`;
+
+  it("parses the @media print block from its own selector, not from the word 'print' inside an earlier comment", () => {
+    const parsed = parseTokensCss(SYNTHETIC_CSS_WITH_PRINT_DECOY);
+    // The real print block declares --admin-canvas: #eeeeee. A parser that
+    // mistakes the earlier comment for the print selector will instead
+    // return the dark block's body (#111111) under the "print" label.
+    expect(parsed.scopes.print["--admin-canvas"]).toBe("#eeeeee");
+  });
+
+  it("reports exactly 2 ratio comments attributed to the print block, not 5", () => {
+    const css = readFileSync(TOKENS_PATH, "utf8");
+    const parsed = parseTokensCss(css);
+    const printRatios = parsed.ratioComments.filter((c) => c.block === "print");
+    expect(printRatios.map((c) => c.token)).toEqual([
+      "--admin-danger-text-strong",
+      "--admin-warning-text-strong",
+    ]);
+    expect(printRatios.length).toBe(2);
+  });
+});
+
 describe("verifyRatioComments — self-consistency logic", () => {
   it("flags a match and a mismatch correctly on synthetic, deliberately-crafted CSS", () => {
     const css = `

@@ -194,7 +194,12 @@ export function parseTokensCss(css) {
   const rootBody = extractBraceBlock(css, css.indexOf(":root {"), ":root");
   const darkBody = extractBraceBlock(css, css.indexOf('[data-theme="dark"]'), '[data-theme="dark"]');
   const lightBody = extractBraceBlock(css, css.indexOf('[data-theme="light"]'), '[data-theme="light"]');
-  const printBody = extractBraceBlock(css, css.indexOf("@media print"), "@media print");
+  // Search for the selector WITH its opening brace: the file also contains the
+  // literal words "@media print" inside a prose comment (tokens.css:317) that
+  // sits before the real rule, and a bare indexOf("@media print") matches the
+  // comment and then consumes the next block's braces — i.e. it silently
+  // returned the [data-theme="dark"] body under the "print" label.
+  const printBody = extractBraceBlock(css, css.indexOf("@media print {"), "@media print");
 
   const rootDecl = harvestDeclarations(rootBody);
   const darkDecl = harvestDeclarations(darkBody);
