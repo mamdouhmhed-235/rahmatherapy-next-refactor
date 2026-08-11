@@ -991,6 +991,10 @@ docs(redesign): admin contrast evidence — both themes, all roles
 5. **The one-click confirm chip must be hidden** when an address is outside the free-travel zone and no fee is set.
 6. **Recurring series repeat the same charge** — the fee from the first booking applies to every occurrence, not just one.
 7. Consistency is the point: **change the towns in admin, and the booking page, admin alert and emails all follow.**
+8. **Only the Owner role may edit the mileage origin.** Other settings stay Admin-editable.
+9. **The free-travel list must keep its minimum of one entry.** An empty list is not a valid state.
+10. **The fee may not be edited once a booking is `completed` or fully paid.**
+11. **Series-level travel charge is in scope** — set on the series, applying to every occurrence.
 
 ### 8.2 The contradiction this also fixes
 
@@ -1020,8 +1024,18 @@ The town list exists in **three places that disagree**, which is why a Harpenden
 *Rationale for renaming rather than redefining: a column named "allowed" that means "free" is the exact defect class ITEM 7 exists to clean up. Historical `audit_logs.before_state` snapshots will still say `allowed_cities`; that is correct — audit logs are append-only history.*
 
 **Add the origin setting** — e.g. `business_settings.mileage_origin text`. Free-form (Owner's choice, not restricted to the free-travel list). It is **descriptive, not computational**: nothing calculates from it. It exists so the published rule is honest and specific — *"travel charged from Luton"* — and so the admin has a stated basis when typing a number.
-- ⏸ **Decide:** should editing the origin be **Owner-role only**, while other settings stay Admin-editable? The Owner's wording suggests yes. `settings/actions.ts` currently has one permission gate for the whole form — a per-field restriction would be net-new.
-- ⏸ **Decide:** is an **empty** free-travel list legal? Under the new meaning it means "charge mileage everywhere", which is a legitimate state — so `actions.ts:67-69`'s *"Enter at least one allowed service area"* requirement should probably be relaxed.
+**✅ DECIDED — the mileage origin is Owner-only.** Everything else on the settings form stays Admin-editable.
+
+**How to implement it, verified against the live permission model.** `settings/actions.ts:24` gates the whole form with `requirePermission(PERMISSIONS.MANAGE_SETTINGS)`, and `manage_settings` is held by **Admin AND Owner** (confirmed live). The codebase achieves Owner-exclusivity **through permissions, not role names** — `manage_role_templates` is held by **Owner only** and is the working precedent.
+
+So: **add a new permission** (e.g. `manage_travel_origin`), granted to **Owner only**, and check it *specifically for the origin field* inside the existing action — the form keeps its single `MANAGE_SETTINGS` gate for every other field.
+
+- ⛔ **This needs a migration** (insert into `permissions` + `role_permissions`) — Zone-2, Owner-approved.
+- **Do not check the role name** (`profile.role === 'Owner'`). Every gate in this codebase is permission-based; a role-name check would be the only one of its kind and would silently break if roles are ever renamed.
+- **Server-side enforcement is the real gate.** Hiding the field in the UI is presentation only — an Admin must be rejected by the action even if they craft the request. Return a field-level error, not a thrown 500.
+- **Partial-save behaviour must be explicit:** if an Admin submits the form with an unchanged origin, that must **succeed**, not fail. Compare against the stored value and only enforce the permission when the origin has actually changed — otherwise Admins cannot save any setting at all.
+
+**✅ DECIDED — the free-travel list keeps its minimum of one entry.** `actions.ts:67-69`'s *"Enter at least one allowed service area"* validation **stays**, with the message reworded to the new meaning (e.g. *"Enter at least one free-travel area"*). An empty list is not a valid state.
 
 **Rewrite the settings copy.** `SettingsForm.tsx` (`ServiceAreaField`, `:373-397`, `:674-786`) describes the list purely in permission language and would become **actively false**: `:378` *"Customers booking outside these areas see a helpful message instead of a closed door"*; `:709-710` *"No service areas yet. The booking form will currently turn every customer away"*; `:718` *"Customers within this area can book"*. All three must go.
 
@@ -1057,7 +1071,15 @@ The fee is written as a **delta**: `newTotal = total_price − oldFee + newFee`,
 
 **Leave `amount_paid` untouched** — a part-paid booking correctly shows a larger outstanding balance after a fee is added.
 
-⏸ **Decide:** should the fee be editable after the booking is `completed`, `cancelled`, or fully paid? Today `updateBookingManagement` guards *status* transitions (`:352-369`) but places **no restriction on payment-field edits at any status**. Any such guard is net-new.
+**✅ DECIDED — the fee is locked once the booking is `completed` or fully paid.**
+
+This guard is **net-new**: `updateBookingManagement` today guards *status* transitions (`:352-369`) but places **no restriction on payment-field edits at any status**. Specify it precisely:
+
+- **Locked when** `status = 'completed'` **or** the booking is fully paid (`amount_paid >= amount_due`, with `amount_due > 0`).
+- **Not locked when** `cancelled` — the Owner named only completed and fully-paid. A cancelled booking may still need its record corrected, and `restoreBooking` can bring it back. *(If the Owner wants cancelled locked too, it is one extra condition.)*
+- **Reject in the server action, not just the UI** — disable the input *and* refuse the write, returning a field-level error such as *"This booking is completed — the travel charge can no longer be changed."* A disabled input alone is presentation.
+- **Edge case that must not fail:** an unchanged fee submitted alongside another edit must **succeed**. Enforce only when `newTravelFee !== beforeState.travel_fee`, or an admin cannot record a payment note on a completed booking.
+- **Ordering matters:** evaluate the lock against the booking's state **before** this submit. Setting the fee and marking it paid in the same save must be allowed — otherwise the natural "add fee, take payment, done" flow is blocked by its own guard.
 
 ### 8.7 Phase 4 — Recurring series: the charge must repeat
 
@@ -1078,7 +1100,13 @@ So a fee set on occurrence #1 of a standing out-of-area series **silently vanish
 4. **Setting the series fee must also update already-materialised future occurrences.** The cron creates a batch ahead (12 weekly / 6 fortnightly / 3 monthly), so those bookings already exist. Updating only the template would leave the customer with a mix of charged and uncharged visits. Apply the same delta to occurrences where `status IN ('pending','confirmed')` **and** `booking_date >= today`. **Never touch past, completed or cancelled occurrences** — they are financial history.
 5. **Per-occurrence override remains possible.** The template fee is the *default for new occurrences*; a fee set on an individual booking is the *actual* for that visit. This falls out of the design for free and handles "that week they're elsewhere."
 
-**Where the admin sets it:** the series view `/admin/bookings/series/[templateId]`, and/or a *"apply to all future visits in this series"* checkbox beside the per-booking fee field. ⏸ **Decide which** — the series page is cleaner; the checkbox is fewer clicks.
+**✅ DECIDED — the series gets its own travel-charge control**, on the series view `/admin/bookings/series/[templateId]`. That is the surface that owns the standing arrangement, and it keeps the per-booking field meaning "this visit only".
+
+- The series control writes `recurring_booking_templates.travel_fee` **and** applies the delta to future occurrences (rules in step 4 above).
+- The per-booking field stays exactly as specified in §8.6 and remains a **single-visit override** — the two do not fight, because the template is the *default for occurrences yet to be created* and the booking row is the *actual charged*.
+- **Show the inheritance in the UI**, or it becomes confusing fast: a booking that took its fee from the series should say so (e.g. *"£14 travel charge — from the series"*) rather than looking like someone typed it. Without this, an admin editing one visit cannot tell whether they are changing one week or all of them.
+- The same **completed / fully-paid lock** (§8.6) applies per occurrence: a series-level change must **skip** occurrences that are completed or fully paid rather than failing the whole operation. Report how many were updated and how many skipped.
+- *(A "apply to all future visits" checkbox on the individual booking was the alternative; it is not needed now the series has its own control, and could be added later as a convenience.)*
 
 ### 8.8 Phase 5 — Telling everyone, consistently
 
@@ -1132,6 +1160,13 @@ So a fee set on occurrence #1 of a standing out-of-area series **silently vanish
 - The confirmation email contains the fee-inclusive total (mailer mocked — **no real sends**).
 - Quick-confirm chip **hidden** when outside the zone with no fee; visible otherwise.
 - Recurring: template fee propagates to newly-generated occurrences; applying it updates future materialised occurrences **only**, never past or cancelled ones.
+
+**Tests for the four Owner decisions (8–11) — each is a permission or money guard, so each needs proving, not assuming:**
+- **Owner-only origin:** an Admin changing the origin is **rejected by the server action** (not merely hidden in the UI); an Owner succeeds; **an Admin saving the form with the origin unchanged still succeeds** — this is the regression that would otherwise lock Admins out of settings entirely.
+- **Minimum one free-travel area:** submitting an empty list fails with the reworded message.
+- **Completed / fully-paid lock:** changing the fee on a `completed` booking is refused server-side; on a fully-paid booking likewise; **an unchanged fee submitted alongside another edit still succeeds**; and **setting the fee and marking it paid in the same save is allowed** (the guard must not block its own natural flow).
+- **`cancelled` is NOT locked** — asserted explicitly, so the narrower rule is deliberate rather than an oversight a later reader "fixes".
+- **Series control:** writing the series fee updates the template and future occurrences, **skips** completed/fully-paid ones rather than failing the batch, and reports the counts; a per-booking override still wins for that visit; the UI marks an inherited fee as coming from the series.
 - Changing the free-travel list in settings changes the booking-page notice **without a deploy** (cache-tag invalidation works).
 
 ### 8.11 Non-goals and recorded decisions
@@ -1146,10 +1181,10 @@ So a fee set on occurrence #1 of a standing out-of-area series **silently vanish
 
 | Phase | Scope | Files |
 |---|---|---|
-| 1 | Settings: rename, origin field, copy rewrite | ~6–8 + 1 migration |
+| 1 | Settings: rename, origin field, Owner-only permission, copy rewrite | ~6–8 + **2 migrations** (rename + new permission) |
 | 2 | Remove 3 gates, single source of truth, prop threading | ~8–10 + 1 migration |
 | 3 | `travel_fee` on bookings, write path, audit | ~4–5 + 1 migration |
-| 4 | Recurring propagation | ~3–4 + 1 migration |
+| 4 | Recurring propagation + series-level control | ~4–6 + 1 migration |
 | 5 | Customer notice, admin field, chip gating, emails | ~10–12 |
 
 **Realistically 2–3 days.** Phases 1–2 are worth doing on their own merits: they fix a live defect that turns away customers in towns the site says it covers.
