@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   bookingDetailsSchema,
   bookingLocationSchema,
@@ -36,14 +38,45 @@ describe("booking schema", () => {
     expect(bookingLocationSchema.safeParse(baseLocation).success).toBe(true);
   });
 
-  it("rejects unsupported service areas before time selection", () => {
+  // Item 8 Phase 2 — this assertion is inverted on purpose. It is the canonical
+  // proof the client-side service-area gate is gone: an out-of-zone address is
+  // now bookable, arrives as `pending`, and an admin sets the travel charge.
+  it("accepts an out-of-zone city and lets the customer continue to time selection", () => {
     const result = bookingLocationSchema.safeParse({
       ...baseLocation,
       city: "Manchester",
     });
 
-    expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.message).toMatch(/outside our current/i);
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts an out-of-zone city on the full details schema too", () => {
+    // bookingLocationSchema and bookingDetailsSchema each carried their own
+    // copy of the refine. Removing only one would leave the other rejecting,
+    // so both wire points are asserted.
+    const result = bookingDetailsSchema.safeParse({
+      ...baseParticipant,
+      ...baseLocation,
+      city: "Manchester",
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("no longer exports a hardcoded town list or a service-area refinement", async () => {
+    // Anti-drift guard, mirroring src/content/site/__tests__/canonical-domain.test.ts:
+    // the free-travel towns live in business_settings and reach the form as a
+    // prop. A constant reappearing here would silently recreate the three-way
+    // disagreement item 8 exists to remove.
+    const moduleExports = await import("./booking-schema");
+    expect(Object.keys(moduleExports)).not.toContain("BOOKING_ALLOWED_CITIES");
+
+    const source = readFileSync(
+      join(process.cwd(), "src/features/booking/schemas/booking-schema.ts"),
+      "utf8"
+    );
+    expect(source).not.toMatch(/validateServiceArea/);
+    expect(source).not.toMatch(/houghton regis/i);
   });
 
   it("requires a participant label when booking for someone else", () => {

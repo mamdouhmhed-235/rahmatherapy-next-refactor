@@ -14,10 +14,7 @@ import {
 } from "lucide-react";
 import { AddressAutocompleteField } from "@/components/address/AddressAutocompleteField";
 import type { AddressParts } from "@/lib/address/parse-place";
-import {
-  BOOKING_ALLOWED_CITIES,
-  type BookingDetailsFormValues,
-} from "../schemas/booking-schema";
+import type { BookingDetailsFormValues } from "../schemas/booking-schema";
 import type { BookingFor, ParticipantGenderInput } from "../types";
 import { Field } from "./Field";
 import { StepDisclosure } from "./StepDisclosure";
@@ -27,6 +24,13 @@ interface AboutYouStepProps {
   form: UseFormReturn<BookingDetailsFormValues>;
   prefilled?: boolean;
   onClearPrefill?: () => void;
+  /**
+   * business_settings.free_travel_cities, threaded from the public layout
+   * (item 8 Phase 2). DISPLAY ONLY — nothing here blocks an address outside
+   * the list. Empty when the read failed, which hides the town names rather
+   * than rendering an empty sentence.
+   */
+  freeTravelCities?: string[];
 }
 
 const PEOPLE_OPTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -53,9 +57,10 @@ const BOOKING_FOR_OPTIONS: Array<{
   },
 ];
 
-const COVERED_TOWNS = BOOKING_ALLOWED_CITIES.map((city) =>
-  city.replace(/\b\w/g, (letter) => letter.toUpperCase())
-);
+function formatTownList(towns: string[]) {
+  if (towns.length <= 1) return towns.join("");
+  return `${towns.slice(0, -1).join(", ")} and ${towns[towns.length - 1]}`;
+}
 
 // AddressAutocompleteField renders its own suggestion list and deliberately
 // ships NO default colours for it — the same component is also used by the
@@ -92,6 +97,7 @@ export function AboutYouStep({
   form,
   prefilled = false,
   onClearPrefill,
+  freeTravelCities = [],
 }: AboutYouStepProps) {
   const {
     control,
@@ -124,10 +130,15 @@ export function AboutYouStep({
   const hasCityValue = normalizedCity.length > 1;
   const isCovered =
     hasCityValue &&
-    BOOKING_ALLOWED_CITIES.some(
-      (allowed) =>
-        normalizedCity === allowed || normalizedCity.includes(allowed)
-    );
+    freeTravelCities.some((town) => {
+      const allowed = town.trim().toLowerCase();
+      return (
+        allowed !== "" &&
+        (normalizedCity === allowed || normalizedCity.includes(allowed))
+      );
+    });
+  // Informational only. Nothing downstream blocks on this — an address outside
+  // the free-travel areas is bookable (item 8 Phase 2).
   const isOutsideCoverage = hasCityValue && !isCovered;
 
   function setParticipantCount(count: number) {
@@ -491,7 +502,7 @@ export function AboutYouStep({
       <div className={styles.stepBlock}>
         <h3 className={styles.blockTitle}>Where should we visit?</h3>
         <div className={styles.chipRow}>
-          {COVERED_TOWNS.map((town) => {
+          {freeTravelCities.map((town) => {
             const active = normalizedCity === town.toLowerCase();
             return (
               <button
@@ -518,12 +529,14 @@ export function AboutYouStep({
         ) : null}
 
         {isOutsideCoverage ? (
-          <div className={styles.noticeError}>
+          <div className={styles.notice}>
             <MapPin aria-hidden="true" size={18} />
             <p>
-              <strong>Outside current home visit area:</strong> We currently
-              cover Luton, Dunstable, Houghton Regis, Harpenden and St Albans.
-              Use a covered town before choosing a time.
+              <strong>Outside our free-travel areas:</strong> This address can
+              still be booked.
+              {freeTravelCities.length > 0
+                ? ` We travel to ${formatTownList(freeTravelCities)} at no extra charge.`
+                : ""}
             </p>
           </div>
         ) : null}

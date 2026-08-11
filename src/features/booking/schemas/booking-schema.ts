@@ -2,14 +2,6 @@ import { z } from "zod/v4";
 import { isDateInBusinessWindow } from "@/lib/time/london";
 import type { BookingDetails } from "../types";
 
-export const BOOKING_ALLOWED_CITIES = [
-  "luton",
-  "dunstable",
-  "houghton regis",
-  "harpenden",
-  "st albans",
-] as const;
-
 const requiredString = (message: string) =>
   z.string().trim().min(1, { error: message });
 const genderInputSchema = z.union([z.enum(["male", "female"]), z.literal("")]);
@@ -136,32 +128,12 @@ const bookingLocationFieldsSchema = z.object({
   parkingNotes: z.string(),
 });
 
-function validateServiceArea(
-  value: { city: string },
-  context: z.RefinementCtx
-) {
-  const normalizedCity = value.city.trim().toLowerCase();
-  if (normalizedCity.length < 2) {
-    return;
-  }
-
-  const covered = BOOKING_ALLOWED_CITIES.some(
-    (allowed) =>
-      normalizedCity === allowed || normalizedCity.includes(allowed)
-  );
-
-  if (!covered) {
-    context.addIssue({
-      code: "custom",
-      path: ["city"],
-      message:
-        "This location is outside our current home visit area. Please use a covered town before choosing a time.",
-    });
-  }
-}
-
-export const bookingLocationSchema =
-  bookingLocationFieldsSchema.superRefine(validateServiceArea);
+// Item 8 Phase 2 — there is deliberately no service-area refinement here.
+// Addresses outside the free-travel areas are BOOKABLE: they arrive as
+// `pending` and an admin sets the travel charge by hand. The free-travel town
+// list lives in business_settings and is threaded to AboutYouStep for display
+// only; it must never come back as a hardcoded constant in this module.
+export const bookingLocationSchema = bookingLocationFieldsSchema;
 
 export const bookingDetailsSchema = bookingParticipantFieldsSchema
   .merge(bookingLocationFieldsSchema)
@@ -171,7 +143,6 @@ export const bookingDetailsSchema = bookingParticipantFieldsSchema
     // booking. The server reads the hoisted top-level copy, not this one.
     company_website: z.string().optional(),
   })
-  .superRefine(validateServiceArea)
   .superRefine(validateParticipantGenders);
 
 export const bookingVisitSchema = bookingDetailsSchema.extend({

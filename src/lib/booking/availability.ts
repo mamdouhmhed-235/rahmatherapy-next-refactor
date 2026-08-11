@@ -55,7 +55,6 @@ interface BusinessSettingsRecord {
   booking_window_days: number;
   buffer_time_mins: number;
   minimum_notice_hours: number;
-  free_travel_cities: unknown;
   booking_status_enabled: boolean;
 }
 
@@ -240,22 +239,6 @@ function countRequiredStaff(genders: TherapistGender[]) {
   );
 }
 
-function getAllowedCities(value: unknown) {
-  return Array.isArray(value)
-    ? value
-        .filter((city): city is string => typeof city === "string")
-        .map((city) => city.trim().toLowerCase())
-    : [];
-}
-
-function isCityAllowed(city: string, allowedCities: string[]) {
-  const normalizedCity = city.trim().toLowerCase();
-  return allowedCities.some(
-    (allowedCity) =>
-      normalizedCity === allowedCity || normalizedCity.includes(allowedCity)
-  );
-}
-
 function servicesAllowParticipants(
   services: ServiceRecord[],
   participantGenders: TherapistGender[]
@@ -430,7 +413,7 @@ async function loadSettings(supabase: SupabaseClient) {
   const settingsResult = await supabase
     .from("business_settings")
     .select(
-      "booking_window_days, buffer_time_mins, minimum_notice_hours, free_travel_cities, booking_status_enabled"
+      "booking_window_days, buffer_time_mins, minimum_notice_hours, booking_status_enabled"
     )
     .eq("id", 1)
     .single<BusinessSettingsRecord>();
@@ -451,10 +434,11 @@ async function loadContextRest(
   settings: BusinessSettingsRecord,
   input: { serviceIds: string[]; participantGenders: TherapistGender[]; city: string }
 ): Promise<AvailabilityContext | ContextFailure> {
-  if (!isCityAllowed(input.city, getAllowedCities(settings.free_travel_cities))) {
-    return { reason: "Location is outside the service area.", durationMins: 0 };
-  }
-
+  // Item 8 Phase 2 — no city gate. An address outside the free-travel areas
+  // still gets slots; the travel charge is an admin decision after the request
+  // arrives, not a reason to show an empty calendar. `input.city` is retained
+  // on the input type because callers still pass it and later phases will want
+  // it for a non-blocking free-travel hint.
   const serviceResult = await supabase
     .from("services")
     .select("slug, duration_mins, gender_restrictions")

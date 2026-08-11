@@ -80,11 +80,19 @@ export interface BookingExperienceProps {
    */
   bookingWindowDays?: number;
   minimumNoticeHours?: number;
+  /**
+   * business_settings.free_travel_cities, read by the public layout and
+   * threaded to AboutYouStep (item 8 Phase 2). Display only — an address
+   * outside these towns is still bookable, at a charge an admin sets by hand.
+   * Empty when the read failed, which renders the notice without a town list.
+   */
+  freeTravelCities?: string[];
 }
 
 export function BookingExperience({
   bookingWindowDays,
   minimumNoticeHours,
+  freeTravelCities,
 }: BookingExperienceProps = {}) {
   // This component is client-only (ssr: false), so the URL is readable at
   // first render. Initializing synchronously keeps the URL-sync effect from
@@ -678,6 +686,7 @@ export function BookingExperience({
               form={form}
               prefilled={prefilled}
               onClearPrefill={clearPrefill}
+              freeTravelCities={freeTravelCities}
             />
           </MotionStep>
         )}

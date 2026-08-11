@@ -23,6 +23,7 @@ function hasBookingParam() {
 export function BookingExperienceLoader({
   bookingWindowDays,
   minimumNoticeHours,
+  freeTravelCities,
 }: BookingExperienceProps = {}) {
   const [shouldLoad, setShouldLoad] = useState(false);
 
@@ -90,6 +91,7 @@ export function BookingExperienceLoader({
     <BookingExperience
       bookingWindowDays={bookingWindowDays}
       minimumNoticeHours={minimumNoticeHours}
+      freeTravelCities={freeTravelCities}
     />
   ) : null;
 }

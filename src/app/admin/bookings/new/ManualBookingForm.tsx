@@ -1678,11 +1678,11 @@ export function ManualBookingForm({
     </div>
   );
 
-  // C-07 Step 5 (W02-E-1) — mirrors create_booking_request's own check
-  // (`lower(v_clean_city) like '%' || lower(trim(allowed.city)) || '%'`):
-  // the entered city must equal or contain an allowed city, case-insensitive.
-  // Kept permissive to match the server exactly — a stricter client check
-  // would warn on cities the server actually accepts.
+  // C-07 Step 5 (W02-E-1), repurposed by item 8 Phase 2. This used to mirror
+  // create_booking_request's city gate; that gate no longer exists, so the
+  // check now answers a different question: is this address inside the
+  // free-travel areas, or will it need a travel charge? Still advisory only —
+  // it blocks nothing, here or on the server.
   const cityTrimmed = city.trim();
   const cityNormalised = cityTrimmed.toLowerCase();
   const isCityKnown =
@@ -1724,8 +1724,8 @@ export function ManualBookingForm({
               onChange={(e) => { setCity(e.target.value); markEdited("city"); setBookingDate(""); setStartTime(""); setAvailChecked(false); setAvailSlots([]); setFemaleAvailChecked(false); setMaleAvailChecked(false); }}
             />
             {!isCityKnown ? (
-              <p className="text-xs text-[oklch(26%_0.14_25)]" role="alert">
-                &ldquo;{cityTrimmed}&rdquo; is outside our current service area. We deliver to: {allowedCities.join(", ")}.
+              <p className="text-xs text-[var(--admin-text-muted)]" role="status">
+                &ldquo;{cityTrimmed}&rdquo; is outside the free-travel areas ({allowedCities.join(", ")}), so this visit may need a travel charge. It can still be booked.
               </p>
             ) : null}
           </div>

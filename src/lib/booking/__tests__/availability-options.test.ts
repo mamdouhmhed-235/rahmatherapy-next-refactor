@@ -153,6 +153,21 @@ describe("calculateAvailableDays — options omitted (public-path regression gua
     expect(result).toStrictEqual(FROZEN_DEFAULTS);
   });
 
+  // Item 8 Phase 2 — the free-travel list is not a gate. A city absent from
+  // free_travel_cities must produce byte-identical availability to one inside
+  // it; before this phase it returned zero days and
+  // "Location is outside the service area.", which is the empty-calendar
+  // defect a Harpenden customer hit after being told the area was covered.
+  it("returns the same availability for a city outside the free-travel list", async () => {
+    const outOfZone = await calculateAvailableDays(
+      { ...INPUT, city: "Manchester" },
+      client()
+    );
+
+    expect(outOfZone).toStrictEqual(FROZEN_DEFAULTS);
+    expect(outOfZone.reason).toBeUndefined();
+  });
+
   it("still refuses every day when public booking is paused and no option is passed", async () => {
     const result = await calculateAvailableDays(INPUT, client(false));
 

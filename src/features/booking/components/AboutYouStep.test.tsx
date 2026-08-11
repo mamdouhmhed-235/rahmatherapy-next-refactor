@@ -112,7 +112,10 @@ async function renderStep(defaults: Partial<BookingDetailsFormValues> = {}) {
       mode: "onSubmit",
     });
     formRef.current = form;
-    return <AboutYouStep form={form} />;
+    // Item 8 Phase 2 — the town list is a prop now, sourced from
+    // business_settings rather than a hardcoded constant. These are the two
+    // towns the live row actually holds.
+    return <AboutYouStep form={form} freeTravelCities={["Luton", "Dunstable"]} />;
   }
 
   render(<Harness />);
@@ -189,8 +192,10 @@ describe("AboutYouStep — address autocomplete fills the location fields", () =
     expect(inputByName("area").value).toBe("Bedfordshire");
     expect(inputByName("postcode").value).toBe("LU1 1EY");
 
-    // What the About -> Time hard gate reads (bookingDetailsSchema.safeParse
-    // runs against form.getValues() in BookingExperience).
+    // What the About -> Time step reads (bookingDetailsSchema.safeParse runs
+    // against form.getValues() in BookingExperience). Since item 8 Phase 2 that
+    // schema no longer refuses an out-of-zone city — it only validates the
+    // fields themselves.
     const values = formRef.current!.getValues();
     expect(values.address).toBe("12 Dunstable Road");
     expect(values.city).toBe("Luton");
@@ -260,7 +265,7 @@ describe("AboutYouStep — address autocomplete fills the location fields", () =
     expect(values.postcode).toBe("LU5 4AA");
   });
 
-  it("surfaces the outside-coverage notice when the selected address is out of area", async () => {
+  it("surfaces an informational, non-blocking notice when the selected address is out of area", async () => {
     process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = TEST_KEY;
     seedGoogle([
       makeSuggestion("place-mk", "5 Silbury Boulevard, Milton Keynes", OUT_OF_AREA_COMPONENTS),
@@ -272,11 +277,26 @@ describe("AboutYouStep — address autocomplete fills the location fields", () =
     await selectFirstSuggestion();
 
     expect(inputByName("city").value).toBe("Milton Keynes");
-    // The city that the About -> Time gate will reject is the one now in form
-    // state — a selection reaches the gate exactly as typing does.
+    // A selection reaches form state exactly as typing does.
     expect(formRef.current!.getValues().city).toBe("Milton Keynes");
-    expect(screen.getByText("Outside current home visit area:")).toBeTruthy();
+
+    // Item 8 Phase 2 — informational, not a refusal.
+    expect(screen.getByText("Outside our free-travel areas:")).toBeTruthy();
     expect(screen.queryByText("Covered area:")).toBeNull();
+
+    // The old copy commanded the customer to pick a different town. It must be
+    // gone, not merely restyled — out-of-zone addresses are bookable now.
+    expect(screen.queryByText(/Use a covered town before choosing a time/i)).toBeNull();
+    expect(screen.queryByText(/Outside current home visit area/i)).toBeNull();
+
+    // And the schema that used to block the step raises no city issue. The
+    // harness form is otherwise empty, so it still fails on name/phone/email —
+    // the point is that "city" is no longer among the reasons.
+    const { bookingDetailsSchema } = await import("../schemas/booking-schema");
+    const parsed = bookingDetailsSchema.safeParse(formRef.current!.getValues());
+    expect(
+      parsed.error?.issues.some((issue) => issue.path[0] === "city") ?? false
+    ).toBe(false);
   });
 
   it("is a plain, fully usable input when no API key is configured", async () => {

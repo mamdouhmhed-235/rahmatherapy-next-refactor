@@ -1,5 +1,6 @@
 import { BookingExperienceLoader } from "@/features/booking/BookingExperienceLoader";
 import { getPublicBookingWindow } from "@/lib/booking/booking-window-settings";
+import { getFreeTravelCities } from "@/lib/booking/free-travel-cities";
 import { PublicScrollbar } from "@/components/layout/PublicScrollbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
@@ -18,7 +19,11 @@ export default async function PublicLayout({
   // C-14 Phase D — the booking dialog mounts client-only, so its date picker's
   // window settings enter the tree here. Cached + null-tolerant; see
   // src/lib/booking/booking-window-settings.ts.
-  const bookingWindow = MAINTENANCE_MODE ? null : await getPublicBookingWindow();
+  // Item 8 Phase 2 — the free-travel town list enters the same way, for display
+  // only. Both are skipped under maintenance, where the loader never mounts.
+  const [bookingWindow, freeTravelCities] = MAINTENANCE_MODE
+    ? [null, [] as string[]]
+    : await Promise.all([getPublicBookingWindow(), getFreeTravelCities()]);
 
   return (
     <>
@@ -41,6 +46,7 @@ export default async function PublicLayout({
         <BookingExperienceLoader
           bookingWindowDays={bookingWindow?.bookingWindowDays}
           minimumNoticeHours={bookingWindow?.minimumNoticeHours}
+          freeTravelCities={freeTravelCities}
         />
       )}
       {MAINTENANCE_MODE && <MaintenanceModal />}
