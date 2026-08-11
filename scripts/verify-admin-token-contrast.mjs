@@ -236,6 +236,83 @@ export function parseTokensCss(css) {
 }
 
 // ---------------------------------------------------------------------------
+// 1a-bis. Regression guard for the alias-freeze defect class — the exact shape
+// that froze D1/D7/D9 (see redesign/evidence/admin-contrast/root-cause-D1.md).
+// A token declared in :root as a bare `var(--other-token)` is substituted once,
+// at :root, against :root's permanently-light environment — :root is <html>, and
+// <html> never carries data-theme (that lives on the [data-admin-theme-root]
+// wrapper, see ThemeProvider.tsx). Every descendant then inherits that
+// already-frozen value, forever, in both themes.
+//
+// Deliberately independent of DECL_RE above: DECL_RE only matches "--admin-*",
+// so it silently never sees a "--notif-*" declaration. Three of the eleven real
+// instances were --notif-badge-*-bg tokens, so a guard reusing DECL_RE would
+// have missed exactly the ones that caused D7.
+// ---------------------------------------------------------------------------
+
+const ALIAS_DECL_RE = /(--(?:admin|notif)-[a-z0-9-]+)\s*:\s*([^;]+);/g;
+
+function harvestAliasDeclarations(blockBody) {
+  const out = {};
+  for (const m of blockBody.matchAll(ALIAS_DECL_RE)) out[m[1]] = m[2].trim();
+  return out;
+}
+
+// Matches a value that is NOTHING BUT a single, fallback-free var() reference.
+// Deliberately narrow:
+//   - var() WITH a fallback ("var(--x, #fff)") does NOT match. None of the
+//     eleven real instances used one, and treating that form as in-scope would
+//     be an unverified expansion beyond the confirmed defect shape.
+//   - a var() wrapped in another function ("calc(var(--x))", "color-mix(...)")
+//     does NOT match — that is "the value USES a token", a different and very
+//     common shape here, and matching it would be false-positive noise.
+const BARE_ALIAS_RE = /^var\(\s*(--[a-z0-9-]+)\s*\)$/i;
+
+/**
+ * Flags every --admin-* / --notif-* token declared in :root as a bare var()
+ * reference that is NOT also declared in BOTH the dark and the light block.
+ *
+ * Presence of a per-block declaration is the right criterion, not "is the
+ * redeclared value a literal": redeclaring the alias line itself inside a theme
+ * block forces re-resolution in that theme's own scope, which also breaks the
+ * freeze. This checks for that structural escape hatch, not for a value shape.
+ *
+ * Scope, disclosed: :root against dark AND light only. It does not check
+ * @media print. A token fixed in :root/dark/light but left aliased in print
+ * would not be caught — an accepted gap, not an oversight: print renders the
+ * light palette, so a print-side alias resolves to the light value anyway.
+ *
+ * Disclosed limit: this is a SOURCE-TEXT check against tokens.css's own
+ * declared text. It cannot catch an alias introduced by any other mechanism —
+ * element.style.setProperty() at runtime, a CSS-in-JS layer, or any
+ * non-declarative source outside this file. It is also not comment-aware: a
+ * comment containing a verbatim `--admin-foo: var(--bar);` example would
+ * false-positive, the same characteristic every regex parser in this file has.
+ *
+ * @param {string} css full tokens.css source (or CSS sharing its block shape)
+ * @returns {Array<{token: string, target: string}>} frozen-shaped tokens found
+ */
+export function findFrozenRootAliases(css) {
+  const rootBody = extractBraceBlock(css, css.indexOf(":root {"), ":root");
+  const darkBody = extractBraceBlock(css, css.indexOf('[data-theme="dark"]'), '[data-theme="dark"]');
+  const lightBody = extractBraceBlock(css, css.indexOf('[data-theme="light"]'), '[data-theme="light"]');
+
+  const rootDecl = harvestAliasDeclarations(rootBody);
+  const darkDecl = harvestAliasDeclarations(darkBody);
+  const lightDecl = harvestAliasDeclarations(lightBody);
+
+  const frozen = [];
+  for (const [name, value] of Object.entries(rootDecl)) {
+    const m = value.match(BARE_ALIAS_RE);
+    if (!m) continue; // not a bare var() alias — out of scope
+    const inDark = Object.prototype.hasOwnProperty.call(darkDecl, name);
+    const inLight = Object.prototype.hasOwnProperty.call(lightDecl, name);
+    if (!inDark || !inLight) frozen.push({ token: name, target: m[1] });
+  }
+  return frozen;
+}
+
+// ---------------------------------------------------------------------------
 // 1b. Verify the self-declared ratio comments, in the theme block each sits in.
 // ---------------------------------------------------------------------------
 

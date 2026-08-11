@@ -4,6 +4,7 @@ import {
   checkPairs,
   contrastRatio,
   derivePairs,
+  findFrozenRootAliases,
   oklchToRgb,
   parseTokensCss,
   resolveColour,
@@ -171,6 +172,65 @@ describe("parseTokensCss — @media print must not be confused with an earlier p
       "--admin-warning-text-strong",
     ]);
     expect(printRatios.length).toBe(2);
+  });
+});
+
+describe("findFrozenRootAliases — regression guard for the alias-freeze class", () => {
+  // Disclosed limit: this is a SOURCE-TEXT check against tokens.css's declared
+  // text. It cannot catch an alias introduced by any other mechanism — a value
+  // set at runtime via element.style.setProperty(), a CSS-in-JS layer, or any
+  // non-declarative source outside that file. See findFrozenRootAliases's own
+  // doc comment for the full scope statement (dark + light only, not print;
+  // no fallback var(); no var() wrapped in another function).
+
+  it("flags a token declared only in :root as a bare var() alias", () => {
+    // Synthetic fixture — proves the detector's OWN logic works, independent of
+    // tokens.css's current state. Required because a test that only asserted
+    // "zero found in the real file" would pass whether or not detection works,
+    // now that the eleven real instances have been fixed.
+    const css = `
+:root {
+  --admin-real-fine: #ffffff;
+  --admin-frozen: var(--admin-real-fine);
+  --notif-badge-frozen-bg: var(--admin-real-fine);
+  --admin-not-frozen: var(--admin-real-fine);
+  --admin-with-fallback: var(--admin-real-fine, #000000);
+  --admin-not-alias: #123456;
+}
+[data-theme="dark"] {
+  --admin-real-fine: #111111;
+  --admin-not-frozen: #222222;
+}
+[data-theme="light"] {
+  --admin-real-fine: #ffffff;
+  --admin-not-frozen: #f0f0f0;
+}
+`;
+    const frozen = findFrozenRootAliases(css);
+    const flaggedNames = frozen.map((f) => f.token).sort();
+
+    // Caught: declared only in :root, bare var(), missing from BOTH theme blocks.
+    expect(flaggedNames).toContain("--admin-frozen");
+    // Caught on a --notif-* name too — proves the guard is not scoped to
+    // --admin-* only, which is the gap the shared DECL_RE still has.
+    expect(flaggedNames).toContain("--notif-badge-frozen-bg");
+    // NOT caught: redeclared with its own value in both dark and light.
+    expect(flaggedNames).not.toContain("--admin-not-frozen");
+    // NOT caught: not an alias at all.
+    expect(flaggedNames).not.toContain("--admin-not-alias");
+    // NOT caught by design: var() WITH a fallback is outside this guard's
+    // declared scope — asserted so the omission reads as intentional.
+    expect(flaggedNames).not.toContain("--admin-with-fallback");
+
+    expect(flaggedNames).toEqual(["--admin-frozen", "--notif-badge-frozen-bg"]);
+  });
+
+  it("finds zero frozen :root-only alias tokens in the real tokens.css", () => {
+    // Real-file assertion — meaningful only paired with the synthetic test
+    // above. Before the de-alias commit this found exactly 11.
+    const css = readFileSync(TOKENS_PATH, "utf8");
+    const frozen = findFrozenRootAliases(css);
+    expect(frozen).toEqual([]);
   });
 });
 
