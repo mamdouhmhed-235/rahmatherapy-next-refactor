@@ -66,6 +66,41 @@ The deepening pass surfaced five genuinely open decisions. **All five were answe
 
 *Decision 4 was answered as "as you suggest" against a question where no explicit recommendation had been given. It is recorded here as **rename**, on the Owner's stated rationale of consistency with the rest of the system, and because the change is contained to files Phase 1 already edits. It is a three-line revert if that reading was wrong.*
 
+### 0.0b Owner decisions, 2026-08-11 (implementation session) — three more
+
+| # | Decision | Answer | Folded into |
+|---|---|---|---|
+| 6 | Item 1 Step 1e — vary review-request copy by client class? | **Yes — vary it.** *(Overrides the implementer's recommendation to keep one version; recorded as the Owner's explicit call.)* The class is already computed and written to the audit trail by the shipped Batch A, so this is purely a template change | §1.6 |
+| 7 | Where the manual review-send control lives | **A new tab on `/admin/emails`**, not a subsection of Reminders. Review requests target `completed` bookings; the Reminders tab lists only upcoming `pending`/`confirmed` ones, which is why the original "beside `ReminderResendForm`" instruction was unbuildable | §1.7 |
+| 8 | What runs next | **Item 8**, ahead of item 1's Batch B and item 7. The live 3-way service-area contradiction is costing bookings now; item 1's remaining half is an addition, not a fix | §10.3 |
+
+**⚠️ Ordering consequence of decision 8, which SIMPLIFIES §10.2.** The Phase B / Phase B-tail split exists *only* because item 7 was scheduled before item 8. With item 8 landing first, item 7 can tokenize all its files in one pass — including `SettingsForm.tsx`, `BookingManagementForm.tsx`, `bookings/[bookingId]/page.tsx`, `ManualBookingForm.tsx` and `SeriesActions.tsx` — because item 8's new UI will already exist to be tokenized. **Do not carve out the five-file tail if item 8 has already shipped.** The Phase C ratchet then flips once, at the end of item 7, as originally intended.
+
+**Ordering consequence for item 1.** §1.10's `1 → 8` edge on `notifications.ts` now runs the other way: item 8 lands first, so **item 1's Batch B must re-grep before editing that file**. In practice Batch B barely touches it — it adds a new action in `src/app/admin/emails/actions.ts` that *calls* `sendReviewRequestEmail`; the cooldown guard itself shipped in Batch A (`0863573`).
+
+### 0.0c ⛔ Decision 9 — the `allowed_cities` rename is EXPAND-CONTRACT, not a rename *(Owner decision, 2026-08-11)*
+
+**§8.4's `alter table … rename column allowed_cities to free_travel_cities` MUST NOT be executed.** Verification found two independent breakages, one of which no migration can fix:
+
+1. **`create_booking_request` reads `v_settings.allowed_cities` by field name.** Postgres does not rewrite PL/pgSQL bodies on a rename, so the `ALTER` succeeds silently and then *every* booking call — public and admin — fails at execution time, surfacing raw Postgres error text to the customer as a 400. It is reached unconditionally, before every `INSERT` in the function, so no partial rows are written and a rename-back fully restores it. Confirmed independently by two passes; `create_booking_request` is the **only** database object of any kind referencing the column (functions, views, policies, triggers, indexes, constraints, defaults all swept).
+2. **`src/lib/booking/availability.ts:433` selects the column in a raw PostgREST string.** That is *application* code on a separate deploy cadence. Renaming the column makes `loadSettings()` return null and the booking calendar shows **zero availability for every visitor**. A perfectly atomic migration does not help — and **the live site runs older code**, so the migration would break the deployed app the moment it landed.
+
+**The decided shape — additive first, destructive last:**
+
+| Step | What | Risk |
+|---|---|---|
+| **Phase 1a** | `ADD COLUMN free_travel_cities` (backfilled from `allowed_cities`) + `ADD COLUMN mileage_origin`. Both columns coexist | **Purely additive. Nothing can break** — old deployed code keeps reading `allowed_cities`, which keeps its value |
+| **Phase 1b** | Insert the `manage_travel_origin` permission and grant it to Owner | Purely additive |
+| Phase 1 app code | Read `free_travel_cities`; **write BOTH columns** in `settings/actions.ts`'s upsert | See the sync note below |
+| Phase 2 | `CREATE OR REPLACE create_booking_request` removing the city gate — this removes the **last database reference** to `allowed_cities` | Unchanged from the plan |
+| **Step Z — DEFERRED TO THE VERY END** | `ALTER TABLE public.business_settings DROP COLUMN allowed_cities;` and delete the dual-write | Safe by then: no DB object and no shipped code reads it |
+
+**Why the dual write is not optional while it lasts.** Until Phase 2 replaces `create_booking_request`, the SQL gate still reads `allowed_cities`. If the admin UI wrote only `free_travel_cities`, the Owner could edit the free-travel list and the live booking gate would silently keep enforcing the stale one. Write both in the single upsert that owns this row, and delete that line as part of Step Z.
+
+**✅ DEFERRED, Owner decision: the deploy and Step Z both happen at the very end of this plan.** The local branch is the current truth; the live site is to be replaced wholesale once every item here has landed. Until then the old column simply stays, costing nothing. **Do not schedule Step Z earlier as a tidy-up** — its whole safety argument is that it runs after the deploy.
+
+**Consequence for §8.12's migration count:** item 8 now mints **7**, not 6 — Phase 1's two are unchanged in number, and Step Z adds one at the end.
+
 ---
 
 ## 0.1 In scope (8 items)
