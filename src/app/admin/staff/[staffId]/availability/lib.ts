@@ -67,10 +67,72 @@ export const CONFIRMED_BG_SOFT = "bg-[oklch(93.5%_0.038_155)]";
 // `availability_overrides` tables — the two directory trees already keep
 // independent Manager components (this step doesn't introduce new
 // cross-tree coupling).
+/**
+ * Counts DATES, not rows. C-14 Phase C dropped the unique constraint on
+ * (staff_id, override_date), so an adjusted date is now 1+ rows. Staff
+ * blocked-dates consumers are unaffected — that table still has one row per date.
+ */
 export const STAFF_AVAILABILITY_PAST_CAP = 25;
+/** See STAFF_AVAILABILITY_PAST_CAP above — same DATES-not-rows distinction. */
 export const STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP = 200;
 /** Defensive-only — see comment above. Never paginated. */
 export const STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP = 500;
+/**
+ * Row-fetch ceiling for the past-overrides query — NOT a displayed cap.
+ * STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP (200 dates) x 4 segments-per-date = 800.
+ * The per-staff filter (.eq("staff_id", ...)) narrows the row set further, so
+ * this is if anything more generous here than in the clinic-wide tree.
+ * Saturation, not this number, is what makes the design safe — see
+ * groupAndCapStaffOverridesByDate.
+ */
+export const STAFF_AVAILABILITY_PAST_ROW_FETCH_CEILING = 800;
+
+export type StaffDateTotal =
+  | { kind: "exact"; value: number }
+  | { kind: "atLeast"; value: number };
+
+/**
+ * Staff-tree twin of availability-data.ts's groupAndCapOverridesByDate.
+ *
+ * ⚠️ DELIBERATELY DUPLICATED, NOT IMPORTED. This file's header records that the
+ * two directory trees keep independent Managers and helpers on purpose; sharing
+ * this would introduce exactly the cross-tree coupling that choice avoids.
+ *
+ * Groups rows by `override_date`, keeps the first `dateCap` distinct dates
+ * (whole dates only — the flatten is a set-membership filter, so a date is never
+ * split across the cap boundary), and flattens back to rows. Omit `dateCap` to
+ * keep every date. If `rowTotal` exceeds `rows.length` the fetch was truncated
+ * by its row ceiling, so `dateTotal` is a LOWER BOUND and callers must render it
+ * as "N+", never as an exact figure.
+ */
+export function groupAndCapStaffOverridesByDate<T extends { override_date: string }>(
+  rows: T[],
+  opts: { dateCap?: number; rowTotal: number }
+): { flattenedRows: T[]; dateTotal: StaffDateTotal } {
+  const { dateCap, rowTotal } = opts;
+  const saturated = rowTotal > rows.length;
+
+  const datesInOrder: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!seen.has(row.override_date)) {
+      seen.add(row.override_date);
+      datesInOrder.push(row.override_date);
+    }
+  }
+
+  const keptDates = new Set(
+    dateCap === undefined ? datesInOrder : datesInOrder.slice(0, dateCap)
+  );
+  const flattenedRows = rows.filter((row) => keptDates.has(row.override_date));
+
+  return {
+    flattenedRows,
+    dateTotal: saturated
+      ? { kind: "atLeast", value: datesInOrder.length }
+      : { kind: "exact", value: datesInOrder.length },
+  };
+}
 
 export type StaffAvailabilityBannerState =
   | { kind: "none" }

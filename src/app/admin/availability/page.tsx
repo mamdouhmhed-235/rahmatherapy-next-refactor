@@ -19,8 +19,10 @@ import { AvailabilityRulesManager } from "./AvailabilityRulesManager";
 import { BlockedDatesManager } from "./BlockedDatesManager";
 import {
   AVAILABILITY_PAST_CAP,
+  AVAILABILITY_PAST_ROW_FETCH_CEILING,
   AVAILABILITY_PAST_VIEW_ALL_CAP,
   AVAILABILITY_UPCOMING_DEFENSIVE_CAP,
+  groupAndCapOverridesByDate,
 } from "./availability-data";
 
 export const metadata = {
@@ -292,7 +294,7 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
       .lt("override_date", today)
       .order("override_date", { ascending: false })
       .order("start_time", { ascending: true })
-      .limit(adjPastViewAll ? AVAILABILITY_PAST_VIEW_ALL_CAP : AVAILABILITY_PAST_CAP),
+      .limit(AVAILABILITY_PAST_ROW_FETCH_CEILING),
     supabase
       .from("availability_overrides")
       .select("id", { count: "exact", head: true })
@@ -344,10 +346,44 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
   const blockedPast = (blockedPastResult.data ?? []) as BlockedDateRow[];
   const blockedPastTotal = blockedPastCountResult.count ?? 0;
   const weekClosures = (blockedWeekResult.data ?? []) as BlockedDateRow[];
-  const overridesUpcoming = (overridesUpcomingResult.data ?? []) as OverrideRow[];
-  const overridesUpcomingTotal = overridesUpcomingCountResult.count ?? 0;
-  const overridesPast = (overridesPastResult.data ?? []) as OverrideRow[];
-  const overridesPastTotal = overridesPastCountResult.count ?? 0;
+  // Item 6 — C-14 Phase C dropped the unique constraint on `override_date`, so
+  // an adjusted date is now 1+ rows. AVAILABILITY_PAST_CAP/_VIEW_ALL_CAP count
+  // DATES, so group the row-ceiling-limited fetch by date and slice to the date
+  // cap. The exact row-count queries are no longer the displayed total — they
+  // are the saturation detector: if the true row count exceeds what the ceiling
+  // returned, the fetch was truncated and the date total is a lower bound.
+  const overridesUpcomingRowTotal = overridesUpcomingCountResult.count ?? 0;
+  const {
+    flattenedRows: overridesUpcoming,
+    dateTotal: overridesUpcomingDateTotal,
+  } = groupAndCapOverridesByDate((overridesUpcomingResult.data ?? []) as OverrideRow[], {
+    rowTotal: overridesUpcomingRowTotal,
+  });
+  const overridesUpcomingTotal = overridesUpcomingDateTotal.value;
+  const overridesUpcomingTotalIsLowerBound = overridesUpcomingDateTotal.kind === "atLeast";
+
+  const overridesPastRowTotal = overridesPastCountResult.count ?? 0;
+  const { flattenedRows: overridesPast, dateTotal: overridesPastDateTotal } =
+    groupAndCapOverridesByDate((overridesPastResult.data ?? []) as OverrideRow[], {
+      dateCap: adjPastViewAll ? AVAILABILITY_PAST_VIEW_ALL_CAP : AVAILABILITY_PAST_CAP,
+      rowTotal: overridesPastRowTotal,
+    });
+  const overridesPastTotal = overridesPastDateTotal.value;
+  const overridesPastTotalIsLowerBound = overridesPastDateTotal.kind === "atLeast";
+
+  // No read-path logging sink exists in this tree; console.warn is cheap and
+  // shows up in server logs. Unreachable at projected volume — implemented and
+  // tested anyway, because "unreachable" is what was said about one-row-per-date.
+  if (overridesUpcomingTotalIsLowerBound) {
+    console.warn(
+      `[admin/availability] upcoming override row ceiling (${AVAILABILITY_UPCOMING_DEFENSIVE_CAP}) hit — date total is a lower bound (${overridesUpcomingTotal}+).`
+    );
+  }
+  if (overridesPastTotalIsLowerBound) {
+    console.warn(
+      `[admin/availability] past override row ceiling (${AVAILABILITY_PAST_ROW_FETCH_CEILING}) hit — date total is a lower bound (${overridesPastTotal}+).`
+    );
+  }
   const weekAdjustments = (overridesWeekResult.data ?? []) as OverrideRow[];
   const staffList = ((staffResult.data ?? []) as StaffRow[]).filter(
     (staff) => staff.active
@@ -515,8 +551,10 @@ export default async function AvailabilityPage({ searchParams }: AvailabilityPag
           <AvailabilityOverridesManager
             upcoming={overridesUpcoming}
             upcomingTotal={overridesUpcomingTotal}
+            upcomingTotalIsLowerBound={overridesUpcomingTotalIsLowerBound}
             past={overridesPast}
             pastTotal={overridesPastTotal}
+            pastTotalIsLowerBound={overridesPastTotalIsLowerBound}
             pastViewAll={adjPastViewAll}
             pastAllHref={adjPastAllHref}
             pastRecentHref={adjPastRecentHref}

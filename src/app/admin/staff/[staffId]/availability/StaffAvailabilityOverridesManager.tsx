@@ -103,12 +103,18 @@ interface StaffAvailabilityOverridesManagerProps {
   upcoming: StaffAvailabilityOverride[];
   /** Fix round (verify-FAIL Check 2, non-blocking) — true count of
    *  `override_date >= today` for this staff. Only differs from
-   *  `upcoming.length` once the defensive cap is actually hit. */
+   *  `upcoming.length` once the defensive cap is actually hit. Counts distinct
+   *  DATES, not rows. */
   upcomingTotal: number;
+  /** True when the fetch was truncated, so `upcomingTotal` is a LOWER BOUND. */
+  upcomingTotalIsLowerBound?: boolean;
   /** `< today`, capped (or view-all capped). Query-sorted newest-first. */
   past: StaffAvailabilityOverride[];
   /** True count of `override_date < today` for this staff — see lib.ts. */
   pastTotal: number;
+  /** True when the row-fetch ceiling truncated the fetch, so `pastTotal` is a
+   *  LOWER BOUND. Renders as "N+" and must never be shown as an exact figure. */
+  pastTotalIsLowerBound?: boolean;
   pastViewAll: boolean;
   pastAllHref: string;
   pastRecentHref: string;
@@ -121,8 +127,10 @@ export function StaffAvailabilityOverridesManager({
   staffId,
   upcoming,
   upcomingTotal,
+  upcomingTotalIsLowerBound = false,
   past,
   pastTotal,
+  pastTotalIsLowerBound = false,
   pastViewAll,
   pastAllHref,
   pastRecentHref,
@@ -153,9 +161,16 @@ export function StaffAvailabilityOverridesManager({
   // `upcoming` is query-sorted ascending already (`>= today`, defensive-cap
   // only — see lib.ts) and is the ONLY bucket a new entry (min={today} on
   // the date input below) could ever collide with.
+  /** Renders a total that may be a lower bound as "N+", never a bare "N". */
+  const showTotal = (total: number, isLowerBound: boolean) =>
+    `${total}${isLowerBound ? "+" : ""}`;
+
+  // Item 6 — pastTotal counts DATES, so pastShown must too. Feeding it row
+  // counts would compare rows against dates and mis-fire the "view all" banner
+  // the moment any date has more than one segment.
   const bannerState = resolveStaffAvailabilityBannerState({
     pastTotal,
-    pastShown: past.length,
+    pastShown: pastDays.length,
     viewAll: pastViewAll,
   });
 
@@ -269,10 +284,10 @@ export function StaffAvailabilityOverridesManager({
           {/* Fix round (verify-FAIL Check 2, non-blocking) — silent at 501+
               before this: the badge just showed `upcoming.length` with no
               way to tell a cap had been hit. */}
-          {upcomingTotal > upcoming.length
-            ? `${upcoming.length} of ${upcomingTotal} upcoming`
-            : `${upcoming.length} upcoming`}
-          {pastTotal ? ` · ${pastTotal} past` : ""}
+          {upcomingTotal > upcomingDays.length
+            ? `${upcomingDays.length} of ${showTotal(upcomingTotal, upcomingTotalIsLowerBound)} upcoming`
+            : `${upcomingDays.length} upcoming`}
+          {pastTotal ? ` · ${showTotal(pastTotal, pastTotalIsLowerBound)} past` : ""}
         </span>
       }
     >
@@ -452,10 +467,10 @@ export function StaffAvailabilityOverridesManager({
           </ul>
         )}
 
-        {past.length > 0 ? (
+        {pastDays.length > 0 ? (
           <details className="group mt-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-canvas)] px-4 py-3">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-[var(--admin-body)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden">
-              <span>Past overrides ({pastViewAll ? past.length : `${past.length} of ${pastTotal}`})</span>
+              <span>Past overrides ({pastViewAll ? pastDays.length : `${pastDays.length} of ${showTotal(pastTotal, pastTotalIsLowerBound)}`})</span>
               <ChevronDown
                 className="size-4 text-[var(--admin-text-muted)] transition-transform duration-[var(--motion-duration-fast)] ease-gentle group-open:rotate-180"
                 aria-hidden="true"
@@ -470,7 +485,7 @@ export function StaffAvailabilityOverridesManager({
                 order as StaffBlockedDatesManager's (cappedOut before hidden). */}
             {bannerState.kind === "cappedOut" ? (
               <p className="mt-3 border-t border-[var(--admin-border)] pt-3 text-xs text-[var(--admin-text-muted)]">
-                Showing the first {STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP} of {bannerState.total} past
+                Showing the first {STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP} of {showTotal(bannerState.total, pastTotalIsLowerBound)} past
                 overrides. The rest aren&rsquo;t reachable from this list.{" "}
                 <Link
                   href={pastRecentHref}
@@ -485,7 +500,7 @@ export function StaffAvailabilityOverridesManager({
                   href={pastAllHref}
                   className="font-semibold text-[var(--admin-primary)] underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                 >
-                  View all {bannerState.total} past overrides
+                  View all {showTotal(bannerState.total, pastTotalIsLowerBound)} past overrides
                 </Link>
               </p>
             ) : bannerState.kind === "viewingAll" ? (

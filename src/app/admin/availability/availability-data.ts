@@ -41,10 +41,95 @@
 // vs StaffBlockedDatesManager), and this step doesn't introduce new
 // cross-tree coupling.
 
+/**
+ * For hour-adjustment ("override") consumers this counts DATES, not rows.
+ * C-14 Phase C dropped the unique constraint on `override_date`, so an
+ * adjusted date is now 1+ rows (one per bookable segment). For blocked-dates
+ * consumers (BlockedDatesManager) rows and dates are still identical —
+ * `blocked_dates` was not touched by that migration — so the same value and
+ * meaning continues to apply there unchanged.
+ */
 export const AVAILABILITY_PAST_CAP = 25;
+/** See AVAILABILITY_PAST_CAP above — same DATES-not-rows distinction. */
 export const AVAILABILITY_PAST_VIEW_ALL_CAP = 200;
 /** Defensive-only — see file header. Never paginated. */
 export const AVAILABILITY_UPCOMING_DEFENSIVE_CAP = 500;
+/**
+ * Row-fetch ceiling for the past-overrides query — NOT a displayed cap.
+ * The caps above count DATES; a date is now 1+ rows, so the query must fetch
+ * more ROWS than the largest date cap needs for grouping-then-slicing in code
+ * to still find that many distinct dates.
+ *
+ * Arithmetic: AVAILABILITY_PAST_VIEW_ALL_CAP (200 dates) x 4 segments-per-date
+ * = 800. Four is already generous — most adjusted dates are one segment and a
+ * handful have a single lunch break, i.e. two.
+ *
+ * Note this leaves zero slack at exactly 200x4. That is acceptable BECAUSE the
+ * saturation flag, not this number, is what makes the design safe: if the
+ * ceiling truncates, groupAndCapOverridesByDate reports `atLeast` and the UI
+ * renders a lower bound rather than a wrong exact figure. If this ever fires
+ * at real volume it is a signal to re-evaluate with the Owner, not to silently
+ * raise the number.
+ */
+export const AVAILABILITY_PAST_ROW_FETCH_CEILING = 800;
+
+export type DateTotal =
+  | { kind: "exact"; value: number }
+  | { kind: "atLeast"; value: number };
+
+/**
+ * Groups override rows by `override_date`, keeps only the first `dateCap`
+ * distinct dates, and flattens back to rows in their original order. Omit
+ * `dateCap` to keep every date found (the upcoming bucket has no date cap).
+ *
+ * A date is kept or dropped WHOLE: `keptDates` is a set of dates and the
+ * flatten is a membership filter, so there is no code path that keeps some
+ * but not all of one date's rows. That is the "never split a date across the
+ * cap boundary" guarantee, structural rather than incidental.
+ *
+ * `rowTotal` must be the exact `count: "exact", head: true` row count for the
+ * SAME filter `rows` was fetched under. If it exceeds `rows.length` the fetch
+ * was truncated by its row ceiling, so more dates may exist among rows that
+ * were never read — `dateTotal` is then a LOWER BOUND and callers must render
+ * it as one, never as a plain number.
+ *
+ * `rows` must already be ordered by `override_date` (ties broken by
+ * `start_time` — see item 3). Both callers provide that.
+ *
+ * Distinct from, and NOT to be merged with:
+ *  - AvailabilityOverridesManager's private `groupByDate`, which builds
+ *    OverrideDay[] for RENDERING and runs after this, on `flattenedRows`;
+ *  - page.tsx's `groupOverridesByDate`, which feeds only the current-week
+ *    capacity chip and has no capping or saturation concept.
+ */
+export function groupAndCapOverridesByDate<T extends { override_date: string }>(
+  rows: T[],
+  opts: { dateCap?: number; rowTotal: number }
+): { flattenedRows: T[]; dateTotal: DateTotal } {
+  const { dateCap, rowTotal } = opts;
+  const saturated = rowTotal > rows.length;
+
+  const datesInOrder: string[] = [];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (!seen.has(row.override_date)) {
+      seen.add(row.override_date);
+      datesInOrder.push(row.override_date);
+    }
+  }
+
+  const keptDates = new Set(
+    dateCap === undefined ? datesInOrder : datesInOrder.slice(0, dateCap)
+  );
+  const flattenedRows = rows.filter((row) => keptDates.has(row.override_date));
+
+  return {
+    flattenedRows,
+    dateTotal: saturated
+      ? { kind: "atLeast", value: datesInOrder.length }
+      : { kind: "exact", value: datesInOrder.length },
+  };
+}
 
 export type AvailabilityBannerState =
   | { kind: "none" }

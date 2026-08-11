@@ -14,8 +14,10 @@ import {
   RESTRICTED_BG_SOFT,
   RESTRICTED_TEXT,
   STAFF_AVAILABILITY_PAST_CAP,
+  STAFF_AVAILABILITY_PAST_ROW_FETCH_CEILING,
   STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP,
   STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP,
+  groupAndCapStaffOverridesByDate,
 } from "./lib";
 
 interface AvailabilityPageProps {
@@ -168,7 +170,7 @@ export default async function AvailabilityPage({
       .lt("override_date", today)
       .order("override_date", { ascending: false })
       .order("start_time", { ascending: true })
-      .limit(adjPastViewAll ? STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP : STAFF_AVAILABILITY_PAST_CAP),
+      .limit(STAFF_AVAILABILITY_PAST_ROW_FETCH_CEILING),
     supabase
       .from("staff_availability_overrides")
       .select("id", { count: "exact", head: true })
@@ -282,6 +284,37 @@ export default async function AvailabilityPage({
     .map((part: string) => (Array.from(part)[0] ?? "").toUpperCase())
     .join("");
 
+  // Item 6 — C-14 Phase C dropped the unique constraint on
+  // (staff_id, override_date), so an adjusted date is now 1+ rows. The caps
+  // count DATES, so group the row-ceiling-limited fetch by date and slice to the
+  // date cap. The exact row-count queries are no longer the displayed total —
+  // they are the saturation detector: if the true row count exceeds what the
+  // ceiling returned, the fetch was truncated and the date total is a lower bound.
+  const overridesUpcomingGrouped = groupAndCapStaffOverridesByDate(
+    overridesUpcomingData ?? [],
+    { rowTotal: overridesUpcomingTotal ?? 0 }
+  );
+  const overridesPastGrouped = groupAndCapStaffOverridesByDate(overridesPastData ?? [], {
+    dateCap: adjPastViewAll
+      ? STAFF_AVAILABILITY_PAST_VIEW_ALL_CAP
+      : STAFF_AVAILABILITY_PAST_CAP,
+    rowTotal: overridesPastTotal ?? 0,
+  });
+
+  // No read-path logging sink exists in this tree; console.warn is cheap and
+  // shows up in server logs. Unreachable at projected volume — implemented and
+  // tested anyway, because "unreachable" is what was said about one-row-per-date.
+  if (overridesUpcomingGrouped.dateTotal.kind === "atLeast") {
+    console.warn(
+      `[admin/staff/${staffId}/availability] upcoming override row ceiling (${STAFF_AVAILABILITY_UPCOMING_DEFENSIVE_CAP}) hit — date total is a lower bound (${overridesUpcomingGrouped.dateTotal.value}+).`
+    );
+  }
+  if (overridesPastGrouped.dateTotal.kind === "atLeast") {
+    console.warn(
+      `[admin/staff/${staffId}/availability] past override row ceiling (${STAFF_AVAILABILITY_PAST_ROW_FETCH_CEILING}) hit — date total is a lower bound (${overridesPastGrouped.dateTotal.value}+).`
+    );
+  }
+
   return (
     <div className="grid gap-6 pb-16 md:pb-8">
       {/* Breadcrumb */}
@@ -391,10 +424,12 @@ export default async function AvailabilityPage({
 
       <StaffAvailabilityOverridesManager
         staffId={staffId}
-        upcoming={overridesUpcomingData ?? []}
-        upcomingTotal={overridesUpcomingTotal ?? 0}
-        past={overridesPastData ?? []}
-        pastTotal={overridesPastTotal ?? 0}
+        upcoming={overridesUpcomingGrouped.flattenedRows}
+        upcomingTotal={overridesUpcomingGrouped.dateTotal.value}
+        upcomingTotalIsLowerBound={overridesUpcomingGrouped.dateTotal.kind === "atLeast"}
+        past={overridesPastGrouped.flattenedRows}
+        pastTotal={overridesPastGrouped.dateTotal.value}
+        pastTotalIsLowerBound={overridesPastGrouped.dateTotal.kind === "atLeast"}
         pastViewAll={adjPastViewAll}
         pastAllHref={adjPastAllHref}
         pastRecentHref={adjPastRecentHref}

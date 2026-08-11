@@ -168,3 +168,33 @@ describe("AvailabilityOverridesManager — adding an adjustment with breaks", ()
     );
   });
 });
+
+describe("AvailabilityOverridesManager — saturation is disclosed, never silently exact", () => {
+  /** One past date, two segments. */
+  const PAST = [
+    { id: "past-am", override_date: "2000-01-04", start_time: "08:00:00", end_time: "12:30:00", reason: "Closed" },
+    { id: "past-pm", override_date: "2000-01-04", start_time: "15:00:00", end_time: "20:00:00", reason: "Closed" },
+  ];
+
+  it("renders the past total as an exact figure when the fetch was complete", () => {
+    renderManager({ past: PAST, pastTotal: 30, pastTotalIsLowerBound: false });
+
+    expect(document.body.textContent).toContain("30 past");
+    expect(document.body.textContent).not.toContain("30+ past");
+  });
+
+  it("renders the past total as a lower bound when the row ceiling truncated the fetch", () => {
+    // The alternative — showing a bare "30" — is the invisible undercount the
+    // plan halted an earlier attempt over: it looks authoritative and is wrong.
+    renderManager({ past: PAST, pastTotal: 30, pastTotalIsLowerBound: true });
+
+    expect(document.body.textContent).toContain("30+ past");
+  });
+
+  it("counts a two-segment past date as ONE in the disclosure summary, not two", () => {
+    renderManager({ past: PAST, pastTotal: 30, pastTotalIsLowerBound: false });
+
+    // "1 of 30", never "2 of 30" — the row/date confusion this item fixes.
+    expect(document.body.textContent).toContain("1 of 30");
+  });
+});
