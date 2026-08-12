@@ -9,6 +9,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { getCustomerManageBooking } from "@/lib/booking/customer-manage";
 import { ManageBookingForms } from "./ManageBookingForms";
+import { formatBusinessDateLong } from "@/lib/time/london";
 
 export const metadata = {
   title: "Manage Booking - Rahma Therapy",
@@ -18,12 +19,7 @@ interface ManageBookingPageProps {
   searchParams: Promise<{ token?: string }>;
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "full",
-    timeZone: "Europe/London",
-  }).format(new Date(`${value}T00:00:00`));
-}
+const formatDate = formatBusinessDateLong;
 
 function formatTime(value: string) {
   return value.slice(0, 5);

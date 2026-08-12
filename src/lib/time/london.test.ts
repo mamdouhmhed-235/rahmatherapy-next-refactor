@@ -7,6 +7,8 @@ import {
   isDateInBusinessWindow,
   isOutsideMinimumNotice,
   toBusinessDateTime,
+  formatBusinessDate,
+  formatBusinessDateLong,
 } from "./london";
 
 describe("Europe/London time helpers", () => {
@@ -190,6 +192,39 @@ describe("isDateInBusinessWindow", () => {
           });
         }
       }
+    }
+  });
+});
+
+// ── ITEM I.1 — the long-form business date ──────────────────────────────────
+
+describe("formatBusinessDateLong", () => {
+  it("spells the date out in full", () => {
+    expect(formatBusinessDateLong("2026-06-12")).toBe("Friday, 12 June 2026");
+  });
+
+  it("keeps the calendar date across a BST boundary", () => {
+    // The two hand-rolled copies this replaced parsed local midnight, which is
+    // still the previous day in London for any host east of it. Parsing at UTC
+    // noon puts the instant far from either boundary.
+    expect(formatBusinessDateLong("2026-03-29")).toBe("Sunday, 29 March 2026");
+    expect(formatBusinessDateLong("2026-10-25")).toBe("Sunday, 25 October 2026");
+  });
+
+  it("keeps the calendar date on the first and last day of a year", () => {
+    expect(formatBusinessDateLong("2026-01-01")).toBe("Thursday, 1 January 2026");
+    expect(formatBusinessDateLong("2026-12-31")).toBe("Thursday, 31 December 2026");
+  });
+
+  it("agrees with formatBusinessDate on which DAY it is", () => {
+    // Same instant, same timezone, different dateStyle — they must never
+    // disagree about the date itself, only about how much of it they spell.
+    for (const d of ["2026-06-12", "2026-03-29", "2026-10-25", "2026-01-01"]) {
+      const long = formatBusinessDateLong(d);
+      const medium = formatBusinessDate(d);
+      const dayNumber = d.slice(8).replace(/^0/, "");
+      expect(long).toContain(dayNumber);
+      expect(medium).toContain(dayNumber);
     }
   });
 });

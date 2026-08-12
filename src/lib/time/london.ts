@@ -169,6 +169,29 @@ export function formatBusinessDate(value: string) {
   }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
+/**
+ * The same business date, spelled out in full ("Friday, 12 June 2026").
+ *
+ * ITEM I.1 — two hand-rolled copies of this existed and had already drifted:
+ * `email/templates.ts` formatted in the HOST timezone, `booking/manage/page.tsx`
+ * pinned Europe/London. Both parsed `new Date(`${value}T00:00:00`)`, which is a
+ * LOCAL-time parse, so the pinned one rendered the PREVIOUS day on any host east
+ * of London: local midnight there is still the day before in London.
+ *
+ * Parsing at UTC noon removes the class of bug rather than the instance — noon
+ * is far enough from either boundary that no offset or DST transition can move
+ * the calendar date. `formatBusinessDate` above already does exactly this; this
+ * is its long-form twin, kept separate because `dateStyle` is the one thing the
+ * two callers genuinely need to differ on.
+ */
+export function formatBusinessDateLong(value: string) {
+  const { year, month, day } = parseDate(value);
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "full",
+    timeZone: BUSINESS_TIME_ZONE,
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+}
+
 export function addMinutesToTime(time: string, minutesToAdd: number) {
   const { hour, minute } = parseTime(time);
   const totalMinutes = hour * 60 + minute + minutesToAdd;

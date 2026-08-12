@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 // it freely; the reverse (templates.ts from a client component) is what's
 // forbidden.
 import { findTemplate } from "@/app/admin/emails/components/templates-data";
+import { formatBusinessDateLong } from "@/lib/time/london";
 
 export interface EmailParticipant {
   label: string;
@@ -210,11 +211,7 @@ function formatLabel(value: string) {
   return value.replace(/_/g, " ");
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en-GB", {
-    dateStyle: "full",
-  }).format(new Date(`${value}T00:00:00`));
-}
+const formatDate = formatBusinessDateLong;
 
 function formatTime(value: string) {
   return value.slice(0, 5);
