@@ -23,6 +23,7 @@ import { getTodayIsoDate } from "../../_helpers";
 import { formatDate, formatLabel, formatTime } from "../../format";
 import type { BookingStatus } from "../../types";
 import { SeriesActions } from "./SeriesActions";
+import { SeriesTravelChargeForm } from "./SeriesTravelChargeForm";
 
 /**
  * C-02 Phase F, Step 16 — the series view (brief §4.2). Server component;
@@ -47,6 +48,7 @@ interface SeriesPageProps {
 
 const TEMPLATE_SELECT = `
   id,
+  travel_fee,
   client_id,
   service_id,
   bound_therapist_id,
@@ -72,6 +74,8 @@ const TEMPLATE_SELECT = `
 
 interface RecurringTemplateRow {
   id: string;
+  /** Item 8 Phase 4 — the standing travel charge applied to every occurrence. */
+  travel_fee: number | string | null;
   client_id: string;
   service_id: string;
   bound_therapist_id: string | null;
@@ -443,6 +447,14 @@ export default async function SeriesViewPage({ params }: SeriesPageProps) {
           <Repeat className="size-4" aria-hidden="true" />
           View all {totalCount} visit{totalCount === 1 ? "" : "s"}
         </Link>
+
+        <AdminPanel title="Travel charge">
+          <SeriesTravelChargeForm
+            templateId={template.id}
+            currentFee={Number(template.travel_fee ?? 0)}
+            disabled={isCancelled}
+          />
+        </AdminPanel>
 
         <div className="sticky bottom-3 z-20 md:static">
           <AdminPanel title="Actions">

@@ -22,6 +22,11 @@ interface ActionEntry {
 const ACTIONS: Record<string, ActionEntry> = {
   // Bookings & assignments
   booking_management_updated: { phrase: "updated booking", family: "bookings_and_assignments", chip: "pending" },
+  // Item 8 Phase 4. Registered explicitly so it does not inherit the fallback's
+  // miscategorisation — `recurring_series_cancelled` still renders through
+  // `describeAction` and lands in the wrong family, a pre-existing defect this
+  // deliberately does not repeat.
+  recurring_series_travel_fee_updated: { phrase: "updated series travel charge", family: "bookings_and_assignments", chip: "pending" },
   booking_quick_confirm: { phrase: "confirmed booking", family: "bookings_and_assignments", chip: "confirmed" },
   booking_quick_mark_paid: { phrase: "marked booking paid", family: "bookings_and_assignments", chip: "pending" },
   booking_quick_cancel: { phrase: "cancelled booking", family: "bookings_and_assignments", chip: "cancelled" },

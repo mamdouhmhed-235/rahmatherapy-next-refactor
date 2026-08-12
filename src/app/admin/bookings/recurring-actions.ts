@@ -13,6 +13,11 @@ import {
 import { canManageAllBookings } from "./access";
 import { getTodayIsoDate } from "./_helpers";
 import { TAGS } from "@/lib/cache/tag-taxonomy";
+import {
+  applyTravelFeeDelta,
+  parseTravelFee,
+  toPence,
+} from "@/lib/booking/travel-fee";
 
 /**
  * C-02 Phase C — recurring/standing bookings. Kept in their own module rather
@@ -319,4 +324,156 @@ export async function cancelRecurringSeries(
   revalidatePath(`/admin/clients/${template.client_id}`);
 
   return { ok: true, cancelledOccurrenceCount: cancelledRows?.length ?? 0 };
+}
+
+// ─── Item 8 Phase 4 — the series-level travel charge ─────────────────────────
+
+export interface SetSeriesTravelFeeState {
+  ok?: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  /** Future occurrences whose totals were adjusted. */
+  updated?: number;
+  /** Future occurrences left alone because they are already fully paid. */
+  skipped?: number;
+}
+
+/**
+ * Set the standing travel charge on a series.
+ *
+ * Deliberately NOT an extension of the disabled "Edit series" button, whose own
+ * copy scopes it to cadence, address and therapist — price is a different
+ * concern with a different safety story.
+ *
+ * Three things this has to get right:
+ *
+ *  1. **The fully-paid skip cannot be expressed as one PostgREST filter.**
+ *     PostgREST compares a column to a LITERAL, never to another column, so
+ *     there is no `.filter("amount_paid", "lt", "amount_due")` that works. The
+ *     candidates are fetched, partitioned in application code, and only the
+ *     unpaid ones updated.
+ *  2. **Past, completed and cancelled occurrences are never touched.** They are
+ *     financial history. Only `pending`/`confirmed` visits dated today onwards
+ *     move.
+ *  3. **Each occurrence's delta is computed from ITS OWN current fee**, not
+ *     from the template's old one. A visit carrying a per-booking override has
+ *     a different starting point, and using the template's figure would corrupt
+ *     its total.
+ */
+export async function setSeriesTravelFee(
+  _previousState: SetSeriesTravelFeeState | null,
+  formData: FormData
+): Promise<SetSeriesTravelFeeState> {
+  const supabase = await createSupabaseServerClient();
+  const actor = await getStaffProfile(supabase);
+  if (!actor || !actor.active || !canManageAllBookings(actor)) {
+    return { ok: false, error: "Insufficient permissions." };
+  }
+
+  const templateId = String(formData.get("template_id") ?? "").trim();
+  if (!templateId) return { ok: false, error: "Template ID is required." };
+
+  const nextFee = parseTravelFee(String(formData.get("travel_fee") ?? ""));
+  if (nextFee === null) {
+    return {
+      ok: false,
+      fieldErrors: {
+        travel_fee: "Enter a travel charge of 0 or more, to the penny.",
+      },
+    };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const { data: template, error: templateError } = await adminClient
+    .from("recurring_booking_templates")
+    .select("id, client_id, travel_fee, cancelled_at")
+    .eq("id", templateId)
+    .maybeSingle();
+
+  if (templateError || !template) {
+    return { ok: false, error: templateError?.message ?? "Series not found." };
+  }
+  if (template.cancelled_at) {
+    return { ok: false, error: "This series is cancelled." };
+  }
+
+  const previousFee = Number(template.travel_fee ?? 0);
+  if (toPence(previousFee) === toPence(nextFee)) {
+    return { ok: true, updated: 0, skipped: 0 };
+  }
+
+  const { error: writeError } = await adminClient
+    .from("recurring_booking_templates")
+    .update({ travel_fee: nextFee })
+    .eq("id", templateId);
+
+  if (writeError) return { ok: false, error: writeError.message };
+
+  // Step 1 of the two-step: fetch the candidates.
+  const today = getTodayIsoDate();
+  const { data: candidateRows, error: candidateError } = await adminClient
+    .from("bookings")
+    .select("id, total_price, amount_due, amount_paid, travel_fee")
+    .eq("recurring_template_id", templateId)
+    .in("status", ["pending", "confirmed"])
+    .gte("booking_date", today);
+
+  if (candidateError) return { ok: false, error: candidateError.message };
+
+  // Step 2: partition here, because the database cannot.
+  const candidates = candidateRows ?? [];
+  const toUpdate = candidates.filter((booking) => {
+    const due = Number(booking.amount_due ?? booking.total_price ?? 0);
+    const paid = Number(booking.amount_paid ?? 0);
+    return !(due > 0 && paid >= due);
+  });
+
+  // Step 3: each occurrence moves by its own delta.
+  for (const booking of toUpdate) {
+    const folded = applyTravelFeeDelta({
+      totalPrice: booking.total_price,
+      amountDue: booking.amount_due,
+      previousTravelFee: booking.travel_fee,
+      nextTravelFee: nextFee,
+    });
+
+    const { error: occurrenceError } = await adminClient
+      .from("bookings")
+      .update({
+        travel_fee: nextFee,
+        total_price: folded.totalPrice,
+        amount_due: folded.amountDue,
+      })
+      .eq("id", booking.id);
+
+    if (occurrenceError) return { ok: false, error: occurrenceError.message };
+  }
+
+  const updated = toUpdate.length;
+  const skipped = candidates.length - updated;
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "recurring_series_travel_fee_updated",
+    target_type: "recurring_booking_templates",
+    target_id: templateId,
+    before_state: { travel_fee: previousFee },
+    after_state: {
+      travel_fee: nextFee,
+      updated_occurrence_count: updated,
+      skipped_occurrence_count: skipped,
+    },
+  });
+
+  updateTag("report-data");
+  updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
+  revalidatePath("/admin/bookings");
+  revalidatePath(`/admin/bookings/series/${templateId}`);
+  revalidatePath("/admin/calendar");
+  revalidatePath(`/admin/clients/${template.client_id}`);
+
+  return { ok: true, updated, skipped };
 }
