@@ -844,6 +844,183 @@ would close it.
 
 ---
 
+## ITEM L — ⛔⛔ A THERAPIST CAN EXPORT EVERY CLIENT'S NAME. FIX THIS FIRST.
+
+**Evidence: VERIFIED end to end personally, at `45db023`. This is a data-exposure
+defect, not a performance one.** It surfaced from the unbounded-list design pass
+because it shares a root cause with ITEM N — it is not a pagination issue and
+must not be scheduled as one.
+
+### L.1 The chain, every link checked
+
+| # | Fact | Where |
+|---|---|---|
+| 1 | The route's only gate is `canOpenReports(profile) && (canExportOwnReports(profile) \|\| canExportRevenueReports(profile))` | `reports/export/route.ts:27` |
+| 2 | **`Therapist` is granted `view_reports_own` AND `export_reports_own`** — so it passes that gate | `supabase/migrations/20260509143000_granular_rbac_consolidation.sql:283-284` |
+| 3 | The report is chosen by an unvalidated query param — `url.searchParams.get("report")` | `export/route.ts:32` |
+| 4 | It calls `getReportData(adminClient, profile, filters)` directly | `export/route.ts:35` |
+| 5 | `getReportData` returns `clients: clientsResult.data ?? []` — **the whole clients table, unscoped, for every profile** | `reporting.ts:390` |
+| 6 | The route **never calls `filterReportDataToStaff`** — confirmed by grep; every other consumer does | `export/route.ts` (absent) |
+| 7 | `report=client_summary` maps `data.clients` straight to CSV rows: `client_id, full_name, source, created_at` | `export/route.ts:89-96` |
+| 8 | `revenueAllowed` masks **money columns only** (`"hidden"`). There is **no per-report permission check anywhere** | `export/route.ts:36-37, 64-155` |
+
+**Therefore:** any Therapist — or any custom role holding `view_reports_own` +
+`export_reports_own` — can request
+
+```
+/admin/reports/export?report=client_summary
+```
+
+and download a CSV containing **every client's full name in the clinic**,
+including clients they have never treated and are not assigned to.
+
+### L.2 Why nothing caught it
+
+- The permission gate *looks* right — it checks an export permission, and passes.
+- `filterReportDataToStaff` exists and is applied on **16 call sites in
+  `reports/page.tsx`**. The export route is the one path that skips it.
+- `calendar-data.ts:3-4` even asserts in a comment that *"getReportData applies
+  its own RBAC narrowing from the profile it is given"* — which is true **only**
+  for `bookings`/`assignments`/`bookingItems`, and false for `clients`, `staff`,
+  `enquiries`, `emailEvents` and `operationalEvents`. That comment is itself a
+  trap for the next reader.
+
+### L.3 The fix
+
+**Immediate, smallest correct change** — narrow inside `getRows()` before the
+CSV is built, for any profile without universal report scope:
+
+```ts
+// export/route.ts, before getRows
+const scoped = hasUniversalReportScope(profile)
+  ? data
+  : filterReportDataToStaff(data, profile.id);
+```
+
+⛔ **Then re-verify the other reports on the same route**, not just
+`client_summary`. `staff_workload_report` and `staff_revenue_attribution_report`
+ride on `assignments`, which *is* scoped — confirm that, do not assume it.
+
+**Belt and braces, recommended alongside:** add an explicit per-report
+permission map so a new report cannot inherit the wrong audience by default.
+Today `getRows` will happily serve any string that matches one of its branches.
+
+### L.4 Verification
+
+- As a Therapist test account, request each `report=` value and confirm every row
+  belongs to that therapist's own scope.
+- Confirm an Owner's exports are byte-identical to today (this must not narrow
+  anything for a universal-scope profile).
+- `reports/__tests__/` — add a case asserting a non-universal profile's
+  `client_summary` export contains only its own clients. There is **no test for
+  the export route today**; that absence is part of the finding.
+
+---
+
+## ITEM M — The global command palette has the same asymmetry as ITEM K.1
+
+**Evidence: CONFIRMED by the design pass, then re-verified by its critic.**
+
+`searchBookings` (`src/app/admin/search-actions.ts`) powers `AdminCommandSearch`,
+which `AdminTopNav` mounts on **every** `/admin/*` page for **every** shell.
+
+- **All-rows branch** (`VIEW_BOOKINGS_ALL` / `MANAGE_BOOKINGS_ALL`): queries
+  `bookings` directly with the predicate and `.limit(8)` — O(1) forever.
+- **Scoped branch** (assigned-only capability): calls `getOwnBookingIds(staffId)`,
+  which reads **every** `booking_assignments` row for that staff with **no
+  `.limit()`**, then feeds the entire array into `.in("id", …)`.
+
+Same shape as ITEM K.1: the privileged branch is bounded, the scoped one is not.
+**A page-by-page sweep could never find this** — it lives in global nav, not a
+page. That is precisely the Owner's point about variants, vindicated.
+
+⛔ **The critic found the reference implementation has the same latent flaw.**
+`SCOPED_BRANCH_ROW_CAP = 200` in `bookings-list-data.ts` bounds only the **final
+row fetch**; the `assignedIds` array feeding `.in()` is built from an equally
+uncapped `booking_assignments` query (`:518-521`). So ITEM K.1 and ITEM M share a
+defect, and K.1's cap does not actually cover it.
+
+**Endorsed fix:** ship **A1 now** — a documented `.limit()` on `getOwnBookingIds`,
+mirroring the existing idiom — and track the embed-filter rewrite (A2) as a
+fast-follow **gated on a regression test**, because the schema permits two
+`booking_assignments` rows for the same therapist on one booking (a
+multi-participant booking), and an `!inner` embed could fan out or dedupe
+differently. There is **no `search-actions.test.ts` anywhere in the repo**; add
+one.
+
+---
+
+## ITEM N — `getReportData` fetches five collections unscoped, for everyone
+
+**Evidence: CONFIRMED. This is the root cause behind ITEM L.**
+
+`getReportData` (`reporting.ts`) scopes only `bookings` (and derivatively
+`assignments`, `bookingItems`) to the caller. It fetches `clients`, `staff`,
+`enquiries`, `email_delivery_events` and `operational_events` as **full,
+unfiltered clinic-wide tables on every call, for every shell variant** —
+including a bare Therapist holding none of `VIEW_CLIENTS_ALL`, `VIEW_STAFF`,
+`MANAGE_ENQUIRIES` or `VIEW_EMAIL_LOGS`.
+
+It has **four** live callers, not the two first identified:
+`reports/reports-data.ts`, `performance-data.ts` (→ `/admin/me` **and**
+`/admin/staff/[staffId]/performance`), `reports/export/route.ts` (ITEM L), and
+**`calendar/calendar-data.ts:40,92`** — a fourth surface the design missed and
+the critic found.
+
+**Fix:** scope the five collections for non-universal profiles, mirroring
+`dashboard-data.ts`'s existing `plan.variant === "therapist"` branch, which
+already does exactly this. **Do ITEM L first** — L is the reachable exposure and
+needs a same-day patch; N is the structural repair underneath it.
+
+---
+
+## ITEM K — endorsed designs (updated after the design + critique pass)
+
+The critics returned **1 SOUND, 5 NEEDS-CHANGES, 0 WRONG-APPROACH**. What to
+build, per surface:
+
+**K.1 Therapist bookings** — the shape is right: resolve candidates cheaply,
+filter/sort/page **in memory**, hydrate only the current window. ⛔ But the
+critic found a **blocker**: the candidate read must apply the request's own
+from/to/status/search predicates **before** the cap, or a therapist still cannot
+search their way to a truncated booking. Extend the existing
+`buildBookingPredicatePlan`/`applyBookingPredicates` rather than writing a second
+predicate implementation. Also re-point `getVisibleViewCounts` (`page.tsx:327-332`)
+at the candidate set, or every filter chip silently under-reports once a
+therapist exceeds one page.
+
+⛔ **A test currently encodes the bug as intended behaviour:**
+`booking-view-counts.test.ts:345-367` — *"leaves the therapist-scoped branch
+un-paged (one page, no range)"* — asserts `pageCount: 1`. It must be rewritten,
+not merely kept passing.
+
+**K.2 Recent activity (ITEM J)** — the only **SOUND** verdict. Scoped cursor
+pagination: a new server action plus a minimal client island reusing
+`LoadMoreButton` and the exported `ActivityRow`. Authorises correctly for the
+people who most need it — self-view and managers **without** `MANAGE_AUDIT_LOGS`,
+for whom the "View full audit timeline" footer link is not reachable.
+
+**K.3 Calendar** — ⛔ **do nothing.** Independently confirmed: the date window is
+already the bound (`RANGE_SOFT_CAP_DAYS = 31`), and both `.slice()` calls are
+copy-before-sort. Adding a cap would risk dropping rows from the **print** path.
+The finding was real; the correct response is a no-op with the reasoning recorded.
+
+**K.4 Dashboard attention** — push the two predicates that every consumer
+**already applies in JavaScript** (`delivery_status === 'failed'`,
+`status === 'open'`) into SQL. Behaviour-preserving, uses composite indexes that
+already exist (`20260503220000_phase8_operational_visibility.sql:7-8,29-30`), and
+correctly leaves `enquiries` alone.
+
+**K.5 Slow growers — three different answers, deliberately:**
+- Client Privacy panel: **leave uncapped**. Staff-mediated, permission-gated,
+  one client's lifetime.
+- Staff directory: **delete `countStaff()`** rather than invent a job for it.
+- Email tabs: add "showing 20 of N" — but ⛔ the critic warns a second head-count
+  query inside `getReviewRequestCandidates` breaks an existing test; reuse the
+  existing split `count`/`page` helpers instead.
+
+---
+
 ## 9 — ⛔ CHECKED AND ALIVE. Do not re-flag these.
 
 The adversarial pass proved these are **not** dead. Recorded so the next audit
