@@ -8,15 +8,15 @@ The three earlier handoffs are still live and are **not** superseded:
 - `HANDOFF-2026-08-11-IMPLEMENTATION.md` §5 — gotchas 1-15.
 - `HANDOFF-2026-08-11-IMPLEMENTATION-2.md` §5 — gotchas 16-27.
 
-This file adds §5's **new** gotchas 28-40. Nothing is mid-flight. No agent is running.
+This file adds §5's **new** gotchas 28-41. Nothing is mid-flight. No agent is running.
 Every change is committed. The tree is clean apart from the one standing dirty path.
 
 | | |
 |---|---|
-| **HEAD** | `a7019fc` |
+| **HEAD** | `eb213fe` |
 | **Branch** | `master` |
-| **Shipped this session** | Item 8 **Phases 1-4 COMPLETE**, plus Phase 5's **chip gating** (in Phase 3) and **email half** |
-| **Next** | Item 8 **Phase 5's remaining customer copy** (needs Owner sign-off) → item 1 Batch B → item 7 → item 5 → Step 0.5 → Step Z |
+| **Shipped this session** | ✅ **ITEM 8 COMPLETE — all five phases** |
+| **Next** | **Item 1 Batch B** + Step 1e → item 7 (one pass) → item 5 → Step 0.5 → Step Z |
 | **Deploy** | Still deferred, **to the very end of the plan, by Owner decision** |
 
 ---
@@ -35,6 +35,8 @@ Every change is committed. The tree is clean apart from the one standing dirty p
 | `1f786b1` | Handoff revision + gotcha 39 |
 | `9e65184` ⛔Zone-2 ×2 | **Item 8 Phase 4, database + propagation.** `recurring_booking_templates.travel_fee` and a re-signatured `create_recurring_booking_series`; applied as `20260812083309` and `20260812083317` |
 | `a7019fc` | **Item 8 Phase 4, admin half** — `setSeriesTravelFee`, the series panel, audit registration |
+| `71d7ebd` | Handoff revision + gotcha 40 |
+| `eb213fe` | **Item 8 Phase 5, customer copy** — Owner-approved sentence by sentence. **ITEM 8 COMPLETE** |
 
 **The live three-way service-area contradiction is FIXED and verified end to end.**
 `POST /api/availability/` now returns identical slots for Luton, **Harpenden** and
@@ -47,7 +49,7 @@ town the plan uses to describe the defect.
 
 ```powershell
 npx tsc --noEmit    # 0, silent, exit 0
-npx vitest run      # 5 failed / 2347 passed (2352)   <-- was 2295/2300 at session start
+npx vitest run      # 5 failed / 2352 passed (2357)   <-- was 2295/2300 at session start
 pnpm lint           # 59 errors / 7 warnings, the same six files
 git status --porcelain -- src/ supabase/   # exactly:  M src/lib/maintenance.ts
 ```
@@ -63,8 +65,8 @@ npx vitest run src/lib/auth/admin-access.test.ts                       # exactly
 session edited two of those six* (`BookingExperience.tsx`, `BookingExperienceLoader.tsx`)
 and moved their line numbers. That is the `{file, ruleId}` rule working as designed.
 
-**+52 tests added this session**, all passing. **28 mutants teeth-checked**; 27 HAS_TEETH on
-the first pass, and the 28th was **found toothless and replaced** — see gotcha 39.
+**+57 tests added this session**, all passing. **33 mutants teeth-checked**; 31 HAS_TEETH on
+the first pass, and **2 were found toothless and replaced** — see gotchas 39 and 41.
 
 ---
 
@@ -97,11 +99,14 @@ dual-write in `settings/actions.ts`.** Step Z deletes it, after the deploy.
 | 10 | Phase 2 migration (remove the service-area gate) | **Approved and applied** |
 | 11 | Phase 3 migration (`bookings.travel_fee`) | **Approved and applied**, knowing it meant shipping Phase 5's chip gating in the same unit |
 | 13 | Phase 4's two migrations | **Approved and applied** |
+| 14 | Phase 5's customer copy | **Approved sentence by sentence**, drafted against the site's existing voice and reviewed before implementation |
+| 15 | `"Covered area:"` → `"Free-travel area:"` | **Yes, renamed** |
+| 16 | Does customer copy name the mileage origin? | **No — admin-only.** It is NULL today so the sentence would render broken, and since nothing computes from it, naming it implies an arithmetic we do not perform |
 | 12 | May agents authenticate using `.env`? | **Yes** — see gotcha 30. The rule was never "tests cannot log in"; it is that no agent may *handle* a credential. The Playwright harness never exposes one |
 
 ---
 
-## 5 — NEW GOTCHAS (28-40). Each cost real time this session.
+## 5 — NEW GOTCHAS (28-41). Each cost real time this session.
 
 28. **⛔ `test.use({ channel: "chrome" })` MUST be file-level in Playwright.** Inside a
     `describe` it errors out the *entire file* before a single test runs
@@ -199,6 +204,15 @@ dual-write in `settings/actions.ts`.** Step Z deletes it, after the deploy.
     and `DROP FUNCTION` the old signature **in the same transaction**, then assert
     `count(*) = 1` afterwards. `20260812010100` does this, and c06 set the precedent.
 
+41. **⛔ A SOURCE-TEXT COPY GUARD CAN MATCH THE WRONG COPY.** A guard asserting the
+    request-received email's caveat passed with the rendered default **gutted**, because
+    the identical wording also sits in that field's `placeholder` — editor affordance, not
+    customer copy. Assert against the **registry** (`findTemplate(...).fields.find(...)
+    .defaultValue`), not the file. And normalise whitespace in any copy assertion: JSX
+    wraps sentences across lines, a reflow is not a copy change, and a guard that fails on
+    formatting is noise — noisy guards get deleted, which is worse than not having one.
+    This is the second toothless guard mutation caught this session; see also gotcha 39.
+
 **Also re-confirmed:** PowerShell's working directory **persists between tool calls** and
 drifted mid-session, making `npx vitest run` report *"No test files found"* — which looks
 like a catastrophic failure and is just a wrong cwd. `Set-Location` back to the repo root
@@ -234,7 +248,17 @@ individually adjusted** — each occurrence's delta must come from its own curre
 booking carrying an override has its total corrupted. Implemented per-occurrence, with a
 mutant proving the test catches the plan's version.
 
-### NEXT: Item 8 Phase 5's remaining customer copy — NEEDS OWNER SIGN-OFF
+### ✅ ITEM 8 IS COMPLETE (`eb213fe` closes it)
+
+All five phases shipped. The customer copy was drafted against the site's existing voice,
+presented for review, and approved sentence by sentence before implementation — the plan's
+stop condition was honoured, not bypassed.
+
+**The mileage origin is deliberately absent from all customer copy** (Owner decision 16).
+It remains an admin-only field. Any future work proposing to surface it should re-read that
+decision first: it is NULL today, and nothing computes from it.
+
+### NEXT: Item 1 Batch B — the manual admin review send
 
 ### (superseded) Phase 4's original brief, retained for the record
 
