@@ -7,6 +7,34 @@
 
 @source "../**/*.{ts,tsx}";
 
+@layer base {
+  /* ⛔ WHY THIS EXISTS. Tailwind's preflight is deliberately NOT imported above
+   * — only `theme` and `utilities` are — because site-parity.css is a ported
+   * stylesheet that depends on the browser's defaults NOT being reset. The one
+   * declaration that absence costs us is this: without preflight, every
+   * `<button>` that sets no background of its own keeps the browser's
+   * `ButtonFace`, which computes to rgb(240, 240, 240).
+   *
+   * That grey is a fixed colour. It does not know the admin theme exists, so in
+   * dark mode a light label lands on a permanently-light ground — measured at
+   * 1.18:1 on "Confirm booking", "Mark paid", "Mark complete", "Cancel
+   * booking", "Add note", "Mark contacted", "Add break" and "Edit". In light
+   * mode it is subtler but equally unintended: those buttons render on grey
+   * rather than on the panel they sit in.
+   *
+   * Verified in the browser rather than assumed: an empty `<button>` appended
+   * to the live page computed `rgb(240, 240, 240)`.
+   *
+   * This restores just that one preflight declaration and nothing else. It is
+   * an element selector inside `base`, so it loses to every class — the admin's
+   * own `bg-*` utilities, and site-parity's `.button` / `.navbar31_menu-button`
+   * — which is exactly the intent: buttons that choose a background keep it,
+   * buttons that never asked for one stop being given one. */
+  button {
+    background-color: transparent;
+  }
+}
+
 html,
 body {
   margin: 0;
