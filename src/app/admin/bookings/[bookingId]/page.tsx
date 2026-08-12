@@ -33,6 +33,7 @@ import { RescheduleResponseButtons } from "./RescheduleResponseButtons";
 import { EmptyState } from "../../components/EmptyState";
 import { safeFormatDateTime } from "@/lib/time/format";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getFreeTravelCities } from "@/lib/booking/free-travel-cities";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   canAssignBookings,
@@ -229,11 +230,21 @@ export default async function BookingDetailPage({
   }
 
   const adminClient = createSupabaseAdminClient();
-  const { canOpen, booking, auditLogs, sourceEnquiry } = await getBookingDetailData({
-    bookingId,
-    profile,
-    fullScope: canManageAllBookings(profile),
-  });
+  // Item 8 Phase 3 — the free-travel areas decide whether this address needs a
+  // travel charge, which in turn decides whether the one-click confirm chip is
+  // safe to offer. Cached on TAGS.SETTINGS, so editing the towns in settings
+  // updates this without a deploy.
+  const [
+    { canOpen, booking, auditLogs, sourceEnquiry },
+    freeTravelCities,
+  ] = await Promise.all([
+    getBookingDetailData({
+      bookingId,
+      profile,
+      fullScope: canManageAllBookings(profile),
+    }),
+    getFreeTravelCities(),
+  ]);
   if (!canOpen) {
     return <BookingAccessDenied />;
   }
@@ -504,7 +515,12 @@ export default async function BookingDetailPage({
             <RescheduleRequestPanel booking={booking} />
           ) : null}
 
-          {fullScope ? <BookingManagementForm booking={bookingWithTimeline} /> : null}
+          {fullScope ? (
+            <BookingManagementForm
+              booking={bookingWithTimeline}
+              freeTravelCities={freeTravelCities}
+            />
+          ) : null}
 
           <ParticipantsPanel
             booking={bookingWithTimeline}

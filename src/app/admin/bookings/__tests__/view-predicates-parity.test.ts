@@ -140,6 +140,7 @@ function booking(overrides: Partial<FixtureRow>): FixtureRow {
     end_time: "11:00",
     total_duration_mins: 60,
     total_price: 0,
+    travel_fee: 0,
     contact_full_name: "",
     contact_email: "",
     contact_phone: "",

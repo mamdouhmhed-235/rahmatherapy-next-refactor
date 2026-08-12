@@ -94,6 +94,7 @@ function booking(overrides: Partial<BookingRecord> = {}): BookingRecord {
     end_time: "11:00:00",
     total_duration_mins: 60,
     total_price: 45,
+    travel_fee: 0,
     contact_full_name: "Aisha Khan",
     contact_email: "aisha@example.test",
     contact_phone: "07000000000",

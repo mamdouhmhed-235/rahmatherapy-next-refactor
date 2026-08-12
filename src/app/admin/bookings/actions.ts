@@ -16,6 +16,11 @@ import {
   sendStaffUnassignmentEmail,
 } from "@/lib/email/notifications";
 import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
+import {
+  applyTravelFeeDelta,
+  parseTravelFee,
+  toPence,
+} from "@/lib/booking/travel-fee";
 import { canAssignBookings, getStaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
@@ -305,6 +310,14 @@ export async function updateBookingManagement(
   const paymentNote = String(formData.get("payment_note") ?? "").trim();
   const fieldErrors: Record<string, string> = {};
   const amountPaid = amountPaidValue ? Number(amountPaidValue) : 0;
+  // Item 8 Phase 3. Absent (not empty) means the form never carried the field —
+  // the notes forms re-post a subset — so only a submitted value can change the
+  // fee. An empty submitted field means "no charge", which is 0, not an error.
+  const travelFeeRaw = formData.get("travel_fee");
+  const travelFeeSubmitted = travelFeeRaw !== null;
+  const travelFeeInput = travelFeeSubmitted
+    ? parseTravelFee(String(travelFeeRaw))
+    : null;
 
   if (!bookingId) fieldErrors.booking_id = "Booking is required.";
   if (!BOOKING_STATUSES.includes(status)) {
@@ -328,6 +341,10 @@ export async function updateBookingManagement(
   if (!Number.isFinite(amountPaid) || amountPaid < 0) {
     fieldErrors.amount_paid = "Enter a valid amount paid.";
   }
+  if (travelFeeSubmitted && travelFeeInput === null) {
+    fieldErrors.travel_fee =
+      "Enter a travel charge of 0 or more, to the penny.";
+  }
 
   if (Object.keys(fieldErrors).length > 0) return { fieldErrors };
 
@@ -339,6 +356,61 @@ export async function updateBookingManagement(
     .single();
 
   if (!beforeState) return { error: "Booking not found." };
+
+  // ── Item 8 Phase 3 — the travel charge ────────────────────────────────────
+  // Evaluated against the booking as it stands BEFORE this submit, so setting
+  // the fee and marking the visit paid in the same save still works. Only a
+  // CHANGED fee is gated: an unchanged one re-posted alongside a note edit on a
+  // completed booking must still go through. Cancelled is deliberately NOT
+  // locked — a cancelled booking is not financial history.
+  const previousTravelFee = Number(beforeState.travel_fee ?? 0);
+  const travelFeeChanged =
+    travelFeeInput !== null &&
+    toPence(travelFeeInput) !== toPence(previousTravelFee);
+
+  if (travelFeeChanged) {
+    const previousAmountDue = Number(beforeState.amount_due ?? 0);
+    const previousAmountPaid = Number(beforeState.amount_paid ?? 0);
+    const wasFullyPaid =
+      previousAmountDue > 0 && previousAmountPaid >= previousAmountDue;
+
+    if (beforeState.status === "completed") {
+      return {
+        fieldErrors: {
+          travel_fee:
+            "This booking is completed — the travel charge can no longer be changed.",
+        },
+      };
+    }
+    if (wasFullyPaid) {
+      return {
+        fieldErrors: {
+          travel_fee:
+            "This booking is fully paid — the travel charge can no longer be changed.",
+        },
+      };
+    }
+  }
+
+  // The fee is folded INTO the stored totals as a delta, never summed by a
+  // reader and never re-derived from service price x participants. See
+  // src/lib/booking/travel-fee.ts for why this is integer pence.
+  const travelFeeUpdate =
+    travelFeeChanged && travelFeeInput !== null
+      ? (() => {
+          const folded = applyTravelFeeDelta({
+            totalPrice: beforeState.total_price,
+            amountDue: beforeState.amount_due,
+            previousTravelFee,
+            nextTravelFee: travelFeeInput,
+          });
+          return {
+            travel_fee: travelFeeInput,
+            total_price: folded.totalPrice,
+            amount_due: folded.amountDue,
+          };
+        })()
+      : {};
 
   // State-machine guard (C-04a Phase B): leaving `completed` is a
   // mistake-correction path, not a routine status edit, so it needs the Status
@@ -415,6 +487,7 @@ export async function updateBookingManagement(
     beforeState.status === "cancelled" && status !== "cancelled";
 
   const payload = {
+    ...travelFeeUpdate,
     status,
     payment_status: paymentStatus,
     payment_method:

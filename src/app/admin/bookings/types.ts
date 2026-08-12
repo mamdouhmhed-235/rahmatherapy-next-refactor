@@ -96,6 +96,9 @@ export interface BookingRecord {
   end_time: string;
   total_duration_mins: number | null;
   total_price: number | string | null;
+  /** Item 8 Phase 3 — already folded into total_price and amount_due; carried
+   *  on the row so the UI and emails can print a labelled line. */
+  travel_fee: number | string | null;
   contact_full_name: string;
   contact_email: string;
   contact_phone: string;

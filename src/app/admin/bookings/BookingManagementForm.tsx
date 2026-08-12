@@ -29,10 +29,14 @@ import {
   isBookingMomentPastLondon,
   isCompletedReversal,
 } from "./_helpers";
+import { isInFreeTravelArea } from "@/lib/booking/travel-fee";
 import type { BookingRecord, BookingStatus } from "./types";
 
 interface BookingManagementFormProps {
   booking: BookingRecord;
+  /** business_settings.free_travel_cities (item 8 Phase 3). Empty means the
+   *  read failed — see isInFreeTravelArea for why that resolves to "inside". */
+  freeTravelCities?: string[];
 }
 
 const STATUS_TONES: Record<BookingStatus, AdminTone> = {
@@ -51,10 +55,16 @@ const STATUS_LABELS: Record<BookingStatus, string> = {
   no_show: "No-show",
 };
 
-export function BookingManagementForm({ booking }: BookingManagementFormProps) {
+export function BookingManagementForm({
+  booking,
+  freeTravelCities = [],
+}: BookingManagementFormProps) {
   return (
     <div className="grid gap-6">
-      <StatusAndPaymentSection booking={booking} />
+      <StatusAndPaymentSection
+        booking={booking}
+        freeTravelCities={freeTravelCities}
+      />
       <NotesSection booking={booking} />
     </div>
   );
@@ -68,6 +78,8 @@ interface StatusFormState {
   dirty: boolean;
   amountPaid: string;
   setAmountPaid: (value: string) => void;
+  travelFee: string;
+  setTravelFee: (value: string) => void;
   paymentMethod: string;
   setPaymentMethod: (value: string) => void;
   paymentNote: string;
@@ -81,6 +93,7 @@ interface StatusFormState {
       payment_status: string;
       payment_method: string;
       amount_paid: string;
+      travel_fee: string;
       payment_note: string;
     }>
   ) => void;
@@ -89,6 +102,7 @@ interface StatusFormState {
     payment_status: string;
     payment_method: string;
     amount_paid: string;
+    travel_fee: string;
     payment_note: string;
   };
 }
@@ -101,6 +115,9 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
   const [amountPaid, setAmountPaid] = useState(
     String(Number(booking.amount_paid ?? 0))
   );
+  const [travelFee, setTravelFee] = useState(
+    String(Number(booking.travel_fee ?? 0))
+  );
   const [paymentMethod, setPaymentMethod] = useState(booking.payment_method ?? "");
   const [paymentNote, setPaymentNote] = useState(booking.payment_note ?? "");
 
@@ -110,6 +127,7 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
       payment_status: booking.payment_status,
       payment_method: booking.payment_method ?? "",
       amount_paid: String(Number(booking.amount_paid ?? 0)),
+      travel_fee: String(Number(booking.travel_fee ?? 0)),
       payment_note: booking.payment_note ?? "",
     }),
     [booking]
@@ -125,6 +143,7 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
     const current = {
       payment_method: paymentMethod,
       amount_paid: amountPaid,
+      travel_fee: travelFee,
       payment_note: paymentNote,
       ...overrides,
     };
@@ -134,6 +153,7 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
           current.payment_status !== initial.payment_status) ||
         current.payment_method !== initial.payment_method ||
         Number(current.amount_paid) !== Number(initial.amount_paid) ||
+        Number(current.travel_fee) !== Number(initial.travel_fee) ||
         current.payment_note !== initial.payment_note
     );
   }
@@ -285,6 +305,8 @@ function useStatusForm(booking: BookingRecord): StatusFormState {
     dirty,
     amountPaid,
     setAmountPaid,
+    travelFee,
+    setTravelFee,
     paymentMethod,
     setPaymentMethod,
     paymentNote,
@@ -686,14 +708,34 @@ const LIFECYCLE_STEPS: Array<{
   { key: "completed", label: "Completed" },
 ];
 
-function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
+function StatusAndPaymentSection({
+  booking,
+  freeTravelCities,
+}: {
+  booking: BookingRecord;
+  freeTravelCities: string[];
+}) {
   const form = useStatusForm(booking);
   const formRef = useRef<HTMLFormElement>(null);
   const statusId = useId();
   const paymentStatusId = useId();
   const paymentMethodId = useId();
   const amountPaidId = useId();
+  const travelFeeId = useId();
   const total = Number(booking.total_price ?? 0);
+
+  // Item 8 Phase 3/5. The quick-confirm chip sends no form fields at all, so it
+  // cannot carry a travel charge. Confirming an out-of-zone booking through it
+  // would send a confirmation email quoting a fee-less total, and that fee then
+  // LOCKS the moment the booking is completed or fully paid — the charge is
+  // lost for good. So the chip is hidden until a fee has been set, and the
+  // admin has to use the form below, which can carry one.
+  const isOutsideFreeTravel = !isInFreeTravelArea(
+    booking.service_city,
+    freeTravelCities
+  );
+  const travelFee = Number(booking.travel_fee ?? 0);
+  const needsTravelFeeBeforeConfirm = isOutsideFreeTravel && travelFee === 0;
   const [paymentStatusValue, setPaymentStatusValue] = useState(
     booking.payment_status
   );
@@ -781,7 +823,10 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
 
       {/* Mobile: 2-col grid for thumb-symmetric tap targets. sm+: free-flow flex-wrap. */}
       <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center [&>*]:w-full sm:[&>*]:w-auto">
-        {QUICK_ACTIONS.map((descriptor) => (
+        {QUICK_ACTIONS.filter(
+          (descriptor) =>
+            !(descriptor.action === "confirm" && needsTravelFeeBeforeConfirm)
+        ).map((descriptor) => (
           <StateAwareQuickActionButton
             key={descriptor.action}
             booking={booking}
@@ -789,6 +834,26 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
           />
         ))}
       </div>
+
+      {needsTravelFeeBeforeConfirm ? (
+        <div
+          role="status"
+          className="mb-5 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] px-4 py-3 text-sm text-[var(--admin-body)]"
+        >
+          <strong className="font-semibold">
+            Outside the free-travel areas.
+          </strong>{" "}
+          {booking.service_city?.trim()
+            ? `${booking.service_city.trim()} is not in `
+            : "This address is not in "}
+          {freeTravelCities.length > 0
+            ? freeTravelCities.join(", ")
+            : "the free-travel areas"}
+          . Set a travel charge below before confirming — one-click confirm is
+          hidden until you do, because the charge can no longer be changed once
+          the visit is completed or fully paid.
+        </div>
+      ) : null}
 
       <form
         id="booking-status-form"
@@ -896,6 +961,48 @@ function StatusAndPaymentSection({ booking }: { booking: BookingRecord }) {
               }}
               total={total}
             />
+          </Field>
+
+          <Field
+            id={travelFeeId}
+            label="Travel charge"
+            error={form.state.fieldErrors?.travel_fee}
+          >
+            <div className="relative">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm font-medium text-[var(--admin-text-muted)]"
+              >
+                £
+              </span>
+              <input
+                id={travelFeeId}
+                name="travel_fee"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={form.travelFee}
+                onChange={(e) => {
+                  form.setTravelFee(e.target.value);
+                  form.recomputeDirty({ travel_fee: e.target.value });
+                }}
+                disabled={form.isPending}
+                aria-invalid={
+                  form.state.fieldErrors?.travel_fee ? "true" : undefined
+                }
+                className={inputClass(
+                  Boolean(form.state.fieldErrors?.travel_fee),
+                  "pl-7"
+                )}
+              />
+            </div>
+            <p className="text-[0.6875rem] leading-snug text-[var(--admin-text-muted)]">
+              {isOutsideFreeTravel
+                ? "Outside the free-travel areas. Added to the booking total and shown on the customer's emails."
+                : "Inside the free-travel areas, so normally £0."}
+            </p>
           </Field>
         </div>
 

@@ -32,6 +32,7 @@ const BOOKING: BookingRecord = {
   end_time: "15:00:00",
   total_duration_mins: 60,
   total_price: 55,
+  travel_fee: 0,
   contact_full_name: "Aisha Khan",
   contact_email: "aisha@example.test",
   contact_phone: "07123456789",
@@ -224,6 +225,80 @@ describe("BookingManagementForm — reopen-completed confirm modal", () => {
 // C-04a fix round — the chips must never offer a call `quickUpdateBooking`
 // refuses: `completed`, `cancelled` and `no_show` are terminal for the
 // one-click actions.
+// Item 8 Phase 5 — the bypass this closes is the reason Phase 3 and this
+// gating had to ship together. The quick-confirm chip posts NO form fields, so
+// it cannot carry a travel charge; confirming an out-of-zone booking through it
+// sends a confirmation email quoting a fee-less total, and the fee then locks
+// permanently once the visit is completed or fully paid.
+describe("BookingManagementForm — quick-confirm gating on the travel charge", () => {
+  afterEach(cleanup);
+
+  const PENDING_OUT_OF_ZONE: BookingRecord = {
+    ...BOOKING,
+    status: "pending",
+    service_city: "Manchester",
+    travel_fee: 0,
+  };
+
+  it("hides the quick-confirm chip when the address is outside the free-travel zone and travel_fee is 0", () => {
+    render(
+      <BookingManagementForm
+        booking={PENDING_OUT_OF_ZONE}
+        freeTravelCities={["Luton", "Dunstable"]}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: /Confirm booking/i })).toBeNull();
+    // Only the confirm chip goes quiet; the rest of the strip still works.
+    expect(screen.getByRole("button", { name: /Mark paid/i })).not.toBeNull();
+    // And the admin is told why, rather than left to wonder where it went.
+    expect(
+      screen.getByText(/one-click confirm is hidden until you do/i)
+    ).not.toBeNull();
+  });
+
+  it("shows the quick-confirm chip once a travel fee has been set", () => {
+    render(
+      <BookingManagementForm
+        booking={{ ...PENDING_OUT_OF_ZONE, travel_fee: 14 }}
+        freeTravelCities={["Luton", "Dunstable"]}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Confirm booking/i })
+    ).not.toBeNull();
+  });
+
+  it("shows the quick-confirm chip for an address inside the free-travel zone", () => {
+    render(
+      <BookingManagementForm
+        booking={{ ...PENDING_OUT_OF_ZONE, service_city: "Luton" }}
+        freeTravelCities={["Luton", "Dunstable"]}
+      />
+    );
+
+    expect(
+      screen.getByRole("button", { name: /Confirm booking/i })
+    ).not.toBeNull();
+  });
+
+  // ⛔ Fail-safe direction. An empty list means the settings read failed, not
+  // that every address is chargeable — the settings form enforces at least one
+  // entry. Reading it as "outside" would hide the confirm chip on every booking
+  // in the system on a transient fetch failure.
+  it("leaves the quick-confirm chip alone when the free-travel list is unavailable", () => {
+    render(<BookingManagementForm booking={PENDING_OUT_OF_ZONE} freeTravelCities={[]} />);
+
+    expect(
+      screen.getByRole("button", { name: /Confirm booking/i })
+    ).not.toBeNull();
+    expect(
+      screen.queryByText(/one-click confirm is hidden until you do/i)
+    ).toBeNull();
+  });
+});
+
 describe("BookingManagementForm — quick actions on terminal statuses", () => {
   afterEach(cleanup);
 
