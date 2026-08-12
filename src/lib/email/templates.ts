@@ -808,6 +808,12 @@ export async function getTemplateOverrideSummaries(): Promise<
 export interface ReviewRequestEmailInput extends BookingEmailTemplateInput {
   groupCategory: "massage" | "cupping" | null; // null for mixed-category bookings
   city: string | null;
+  /**
+   * Item 1 Step 1e. Optional: when absent the class-varied line is omitted
+   * rather than defaulted, so a caller that cannot determine the class sends
+   * the same email it always did.
+   */
+  clientClass?: "series" | "returning" | "first_time" | null;
 }
 
 export interface ReviewMessageVariant {
@@ -870,6 +876,27 @@ function substituteCity(text: string, city: string | null): string {
 // truth for both renderReviewRequestEmail (HTML) and
 // renderReviewRequestPlainText — the two legs previously hand-copied these
 // and drifted (C-01 seam-review fix).
+/**
+ * Item 1 Step 1e — the one line that varies by client class.
+ *
+ * Returns `null` when the class is unknown, and the line is then omitted
+ * entirely. Two reasons: a generic fallback would claim a familiarity we have
+ * not established, and — practically — the render-parity baseline fixture
+ * passes no `clientClass`, so an always-on line would force a deliberate
+ * re-capture of a byte-identical-output guard for no behavioural gain.
+ *
+ * An admin override wins over the default, exactly as every other field in
+ * this template does.
+ */
+export function resolveReviewClassLine(
+  clientClass: "series" | "returning" | "first_time" | null | undefined,
+  overrides: Record<string, string>
+): string | null {
+  if (!clientClass) return null;
+  const key = `class_line_${clientClass}`;
+  return overrides[key] || fieldDefault("review_request_client", key) || null;
+}
+
 function resolveReviewRequestFields(overrides: Record<string, string>) {
   const id = "review_request_client";
   return {
@@ -924,10 +951,15 @@ export async function renderReviewRequestEmail(
   const intro = substituteVars(fields.body_intro, vars);
   const ask = substituteVars(fields.body_ask, vars);
   const signoff = substituteVars(fields.body_signoff, vars);
+  const classLineRaw = resolveReviewClassLine(input.clientClass, overrides);
+  const classLine = classLineRaw ? substituteVars(classLineRaw, vars) : null;
 
   return renderLayout(
     fields.subject,
-    `<p>${escapeHtml(intro)}</p>
+    // The conditional emits NOTHING when there is no class line — not even
+    // whitespace — so a send without a class stays byte-identical to what the
+    // render-parity fixture captured. It caught this the first time.
+    `<p>${escapeHtml(intro)}</p>${classLine ? `\n      <p>${escapeHtml(classLine)}</p>` : ""}
       <p>${escapeHtml(ask)}</p>
 
       <p style="margin-top:24px;font-weight:600;">Here are a few example reviews if you'd like a starting point — or write your own, whatever feels honest:</p>
@@ -976,9 +1008,11 @@ export function renderReviewRequestPlainText(
   const intro = resolveField(fields.body_intro);
   const ask = resolveField(fields.body_ask);
   const signoff = resolveField(fields.body_signoff);
+  const classLineRaw = resolveReviewClassLine(input.clientClass, overrides);
+  const classLine = classLineRaw ? resolveField(classLineRaw) : null;
 
   return `${intro}
-
+${classLine ? `\n${classLine}\n` : ""}
 ${ask}
 
 Here are a few examples if you'd like a starting point, or write your own:

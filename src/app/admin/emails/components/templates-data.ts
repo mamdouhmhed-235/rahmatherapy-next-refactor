@@ -276,6 +276,50 @@ const REVIEW_BODY_ASK: SafeField = {
   tokens: [{ token: "{city}", label: "City", sample: SAMPLE.city }],
 };
 
+// Item 1 Step 1e — one line varied by how well we know this client
+// (Owner decision 6; wording approved 2026-08-12). Rendered between the intro
+// and the ask. `series`/`returning`/`first_time` come from
+// classifyReviewClient. When the class is unknown the line is omitted
+// entirely rather than falling back to a generic sentence — a wrong
+// familiarity claim reads worse than no claim.
+function reviewClassLineField(
+  kind: string,
+  label: string,
+  helper: string,
+  text: string
+): SafeField {
+  return {
+    kind,
+    label,
+    placeholder: text,
+    helper,
+    maxLength: 200,
+    multiline: true,
+    defaultValue: text,
+  };
+}
+
+const REVIEW_CLASS_LINE_FIRST_TIME = reviewClassLineField(
+  "class_line_first_time",
+  "Line for a first-time client",
+  "Shown when this is the client's first completed visit.",
+  "We hope this was the first visit of many."
+);
+
+const REVIEW_CLASS_LINE_RETURNING = reviewClassLineField(
+  "class_line_returning",
+  "Line for a returning client",
+  "Shown when the client has two or more completed visits.",
+  "It's good to have you back with us."
+);
+
+const REVIEW_CLASS_LINE_SERIES = reviewClassLineField(
+  "class_line_series",
+  "Line for a standing-series client",
+  "Shown when the booking is part of a recurring series.",
+  "Thank you for keeping us part of your routine."
+);
+
 const REVIEW_BODY_CTA_LABEL: SafeField = {
   kind: "body_cta_label",
   label: "CTA button label",
@@ -735,6 +779,9 @@ export const TEMPLATES: TemplateMeta[] = [
     fields: [
       subjectField("Thank you for visiting Rahma Therapy"),
       REVIEW_BODY_INTRO,
+      REVIEW_CLASS_LINE_FIRST_TIME,
+      REVIEW_CLASS_LINE_RETURNING,
+      REVIEW_CLASS_LINE_SERIES,
       REVIEW_BODY_ASK,
       REVIEW_BODY_CTA_LABEL,
       REVIEW_BODY_CTA_URL,

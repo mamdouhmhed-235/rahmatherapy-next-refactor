@@ -1338,6 +1338,8 @@ export async function sendEnquiryLoggedEmail(
 interface ReviewEmailBookingRow {
   id: string;
   client_id: string | null;
+  /** Step 1e — drives the `series` class. Required, so a select that drops it fails typecheck. */
+  recurring_template_id: string | null;
   contact_email: string | null;
   completed_at: string | null;
   review_email_sent_at: string | null;
@@ -1526,7 +1528,7 @@ export async function sendReviewRequestEmail(
   const { data: booking, error: bookingErr } = await supabase
     .from("bookings")
     .select(
-      "id, client_id, contact_email, completed_at, review_email_sent_at, status, clients(email, city)"
+      "id, client_id, recurring_template_id, contact_email, completed_at, review_email_sent_at, status, clients(email, city)"
     )
     .eq("id", bookingId)
     .maybeSingle<ReviewEmailBookingRow>();
@@ -1573,10 +1575,36 @@ export async function sendReviewRequestEmail(
   const groupCategory = await deriveGroupCategoryForBooking(bookingId, supabase);
   const city = booking.clients?.city ?? null;
 
+  // Item 1 Step 1e — vary one line by how well we know this client.
+  //
+  // Computed HERE rather than accepted as a parameter, so every caller gets
+  // the right copy without having to remember to pass it. The cron already
+  // computes the same class for its audit row from a per-tick batched query;
+  // this is one extra count query per booking that actually sends, not per
+  // candidate — the cooldown re-check above already established that shape.
+  // A failure to classify must never block a send, so it degrades to null,
+  // which omits the line rather than guessing at it.
+  let clientClass: ReviewClientClass | null = null;
+  if (booking.client_id) {
+    try {
+      const counts = await getCompletedBookingCountsByClient(
+        [booking.client_id],
+        supabase
+      );
+      clientClass = classifyReviewClient({
+        recurringTemplateId: booking.recurring_template_id,
+        completedBookingCount: counts.get(booking.client_id) ?? 1,
+      });
+    } catch {
+      clientClass = null;
+    }
+  }
+
   const reviewInput: ReviewRequestEmailInput = {
     ...input,
     groupCategory,
     city,
+    clientClass,
   };
 
   // C-C fix round (F-6) — resolve overrides and pick the 3-of-5 review
