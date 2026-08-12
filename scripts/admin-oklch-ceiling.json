@@ -1,0 +1,39 @@
+{
+  "$comment": [
+    "Item 7 Phase C ratchet. The number of raw, STATIC oklch() literals still",
+    "left in src/app/admin/** and src/components/ui/**. It may only ever go",
+    "DOWN. Lower it when you remove literals; never raise it.",
+    "",
+    "This started at 717. The Phase B sweep took it to 154 by substituting",
+    "every literal whose colour was numerically identical to an existing",
+    "token's light value.",
+    "",
+    "It cannot reach 0 — see dynamicAllowance below."
+  ],
+  "staticCeiling": 154,
+  "dynamicAllowance": {
+    "$comment": [
+      "Computed-hue literals like `oklch(88% 0.025 ${hue})`, where the hue is",
+      "derived per identity (hueFromId(staff.id)) so each person gets their own",
+      "avatar/chip colour. They live in inline style={{}} objects, not Tailwind",
+      "classes, and have NO static token equivalent — a token is one fixed",
+      "value, and the entire point of these is that the value varies per row.",
+      "",
+      "Plan section 7.8 specifies flipping this guard to zero-tolerance 'on",
+      "completion'. That is unreachable while these exist, and section 7 never",
+      "mentions them. They are allowed by count and by file here instead, so a",
+      "NEW dynamic literal in a NEW file still fails the guard."
+    ],
+    "count": 14,
+    "files": [
+      "src/app/admin/bookings/AssignmentManager.tsx",
+      "src/app/admin/bookings/[bookingId]/BookingDetailSidebar.tsx",
+      "src/app/admin/bookings/[bookingId]/page.tsx",
+      "src/app/admin/clients/[clientId]/page.tsx",
+      "src/app/admin/clients/page.tsx",
+      "src/app/admin/dashboard/dashboard-cards.tsx",
+      "src/app/admin/privacy/page.tsx",
+      "src/app/admin/staff/[staffId]/page.tsx"
+    ]
+  }
+}
