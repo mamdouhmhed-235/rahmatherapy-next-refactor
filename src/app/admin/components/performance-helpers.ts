@@ -333,3 +333,42 @@ function nzDelta(raw: number | null | undefined): number | null {
   if (raw == null || raw === 0) return null;
   return raw;
 }
+
+// ── "Recent activity" progressive disclosure (ITEM J) ─────────────────────────
+
+/** The query param that expands the Recent activity panel. */
+export const ACTIVITY_EXPAND_PARAM = "activity";
+
+/**
+ * Resolve whether the Recent activity panel is expanded, and the href that
+ * toggles it, from the route's own search params.
+ *
+ * Both routes that mount `PerformanceSurface` (`/admin/me` and
+ * `/admin/staff/[staffId]/performance`) own their query string, so this lives
+ * with them rather than in the surface — the same split `tileOptions` uses.
+ *
+ * Every OTHER param is carried across. The period filters live there, so an
+ * expand link that dropped them would silently reset the range the reader had
+ * chosen, and "Show fewer" would land them somewhere they had not been.
+ */
+export function resolveActivityExpansion(
+  params: Record<string, string | string[] | undefined>,
+  basePath: string
+): { expanded: boolean; expandHref: string } {
+  const raw = params[ACTIVITY_EXPAND_PARAM];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  const expanded = value === "all";
+
+  const next = new URLSearchParams();
+  for (const [key, entry] of Object.entries(params)) {
+    if (key === ACTIVITY_EXPAND_PARAM) continue;
+    const single = Array.isArray(entry) ? entry[0] : entry;
+    if (typeof single === "string" && single.length > 0) next.set(key, single);
+  }
+  // Collapsing drops the param rather than setting it to a falsy string, so the
+  // collapsed state stays the clean, shareable URL.
+  if (!expanded) next.set(ACTIVITY_EXPAND_PARAM, "all");
+
+  const query = next.toString();
+  return { expanded, expandHref: query ? `${basePath}?${query}` : basePath };
+}

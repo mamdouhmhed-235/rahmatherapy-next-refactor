@@ -35,6 +35,19 @@ interface ActivityTimelineProps {
   mode: "self" | "manager";
   viewerCanManageAudit: boolean;
   events: AuditEventRow[];
+  /**
+   * ITEM J — how many events exist behind `events`, which is now a preview
+   * slice. The badge counts this rather than what is rendered, so the panel
+   * never implies the shorter list is all there is.
+   */
+  totalAvailable?: number;
+  /**
+   * Href toggling between the preview and the full list, assembled by the route
+   * page (which owns the query string) like `viewInReportsHref`. Absent when
+   * there is nothing more to show.
+   */
+  expandHref?: string;
+  expanded?: boolean;
 }
 
 export function ActivityTimeline({
@@ -42,8 +55,37 @@ export function ActivityTimeline({
   mode,
   viewerCanManageAudit,
   events,
+  totalAvailable,
+  expandHref,
+  expanded = false,
 }: ActivityTimelineProps) {
-  const footer = viewerCanManageAudit ? (
+  const total = totalAvailable ?? events.length;
+
+  // ITEM J — a link, not a button. This panel is a server component and its
+  // rows carry `before_state`/`after_state` JSON; a client island would have to
+  // serialise those into the page to reveal more without a round trip, putting
+  // audit payloads in the browser to save one navigation. Progressive
+  // disclosure by URL keeps the whole timeline server-rendered, shares the
+  // parent's authorisation, needs no new endpoint, and works without JS.
+  const expandLink =
+    expandHref && total > events.length ? (
+      <Link
+        href={expandHref}
+        className="inline-flex items-center gap-1 text-sm font-medium text-[var(--admin-link)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 rounded-sm"
+      >
+        Show all {total}
+        <ChevronRight aria-hidden="true" className="size-4" />
+      </Link>
+    ) : expandHref && expanded ? (
+      <Link
+        href={expandHref}
+        className="inline-flex items-center gap-1 text-sm font-medium text-[var(--admin-link)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 rounded-sm"
+      >
+        Show fewer
+      </Link>
+    ) : null;
+
+  const auditLink = viewerCanManageAudit ? (
     <Link
       href={`/admin/audit?actor=${staffId}`}
       className="inline-flex items-center gap-1 text-sm font-medium text-[var(--admin-link)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 rounded-sm"
@@ -52,6 +94,14 @@ export function ActivityTimeline({
       <ChevronRight aria-hidden="true" className="size-4" />
     </Link>
   ) : null;
+
+  const footer =
+    expandLink || auditLink ? (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {expandLink}
+        {auditLink}
+      </div>
+    ) : null;
 
   if (events.length === 0) {
     return (
@@ -82,10 +132,10 @@ export function ActivityTimeline({
       titleAs="h3"
       badge={
         <span
-          aria-label={`${events.length} recent ${events.length === 1 ? "event" : "events"}`}
+          aria-label={`${total} recent ${total === 1 ? "event" : "events"}`}
           className="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-[var(--admin-panel-muted)] px-2 text-xs font-medium text-[var(--admin-text-muted)] tabular-nums"
         >
-          {events.length}
+          {total}
         </span>
       }
       footer={footer}

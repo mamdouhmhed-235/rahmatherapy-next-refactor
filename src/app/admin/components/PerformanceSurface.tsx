@@ -97,6 +97,11 @@ export interface PerformanceSurfaceProps {
   // URL the surface "lives at" — used by CustomDateRangeForm to build the
   // submit href without hard-coding /admin/me or /admin/staff/{id}/performance.
   basePath: string;
+  // ITEM J — "Recent activity" shows a short preview until the reader asks for
+  // the rest. Same shape as `tileOptions`: the route page owns the query string
+  // and hands down the resolved state plus the href that toggles it, so this
+  // surface never has to know the full searchParams contract.
+  activity?: { expanded?: boolean; expandHref?: string };
 }
 
 export function PerformanceSurface({
@@ -113,6 +118,7 @@ export function PerformanceSurface({
   viewInReportsHref,
   customDateRange,
   basePath,
+  activity,
 }: PerformanceSurfaceProps) {
   const viewerCanManageAudit = hasPermission(viewer, PERMISSIONS.MANAGE_AUDIT_LOGS);
   const tileCount = tilesForRole(shell, EMPTY_SCORECARD, {
@@ -161,6 +167,8 @@ export function PerformanceSurface({
               staffId={profile.id}
               mode={mode}
               viewerCanManageAudit={viewerCanManageAudit}
+              expanded={activity?.expanded ?? false}
+              expandHref={activity?.expandHref}
             />
           </Suspense>
         </div>
@@ -299,16 +307,37 @@ function TrendChartSkeleton() {
 
 // ── Activity timeline section ────────────────────────────────────────────────
 
+/**
+ * ITEM J — how many events the panel shows before it is expanded.
+ *
+ * It was 20, which made this panel taller than the KPI tiles and the chart it
+ * sits beside: an Owner screenshot showed it dominating the page. 6 is enough
+ * to answer "what have I been up to lately" at a glance, which is the panel's
+ * stated job, and the badge still reports the true count so the shorter list
+ * never reads as the whole story.
+ *
+ * ⚠️ Not a de-duplication. ~14 near-identical "updated availability rule" rows
+ * in that screenshot looked like one bulk save writing many rows, but
+ * `saveAvailabilityDay` writes exactly ONE audit row per save (its own comment
+ * says so) — they were 14 genuine saves, correctly logged. Collapsing them
+ * would have hidden a legitimate trail. See the plan's J.2a.
+ */
+const ACTIVITY_PREVIEW_COUNT = 6;
+
 interface ActivityTimelineSectionProps {
   staffId: string;
   mode: "self" | "manager";
   viewerCanManageAudit: boolean;
+  expanded: boolean;
+  expandHref?: string;
 }
 
 async function ActivityTimelineSection({
   staffId,
   mode,
   viewerCanManageAudit,
+  expanded,
+  expandHref,
 }: ActivityTimelineSectionProps) {
   // Same audit fetch as KpiTileGridSection's scorecard.admin pass — cache()
   // dedups so the single 100-row query serves both consumers. The list is
@@ -322,7 +351,15 @@ async function ActivityTimelineSection({
       staffId={staffId}
       mode={mode}
       viewerCanManageAudit={viewerCanManageAudit}
-      events={allEvents.slice(0, 20)}
+      events={expanded ? allEvents : allEvents.slice(0, ACTIVITY_PREVIEW_COUNT)}
+      totalAvailable={allEvents.length}
+      // Withheld when the preview already shows everything, so a reader who
+      // arrives on a bookmarked `?activity=all` with three events is not
+      // offered a "Show fewer" that would hide nothing.
+      expandHref={
+        allEvents.length > ACTIVITY_PREVIEW_COUNT ? expandHref : undefined
+      }
+      expanded={expanded}
     />
   );
 }

@@ -30,6 +30,7 @@ import {
 } from "@/app/admin/shell-variant";
 import { parseReportFilters } from "@/app/admin/reports/reporting";
 import { PerformanceSurface } from "@/app/admin/components/PerformanceSurface";
+import { resolveActivityExpansion } from "@/app/admin/components/performance-helpers";
 import {
   buildRangeChips,
   buildRangeWindowLabel,
@@ -170,6 +171,7 @@ export default async function MyPerformancePage({ searchParams }: MyPerformanceP
         viewInReportsHref={viewInReportsHref}
         customDateRange={{ from: filters.from, to: filters.to }}
         basePath="/admin/me"
+        activity={resolveActivityExpansion(params, "/admin/me")}
       />
       {/* C-08 Phase D Step 17 (brief §2.8) — Owner/Admin only. C-07's
           Quick-links panel mounts on this same page; C-08 ships first, so

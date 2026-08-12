@@ -4,6 +4,7 @@ import {
   tilesForRole,
   humanizeAuditAction,
   iconForActionType,
+  resolveActivityExpansion,
   type KpiTileSpec,
   type RingTileSpec,
 } from "../performance-helpers";
@@ -248,5 +249,74 @@ describe("iconForActionType", () => {
 
   it("uses the operations_and_email family icon for unknown actions (describeAction default)", () => {
     expect(iconForActionType("custom_unknown_action")).toBe(AlertCircle);
+  });
+});
+
+// ── ITEM J — Recent activity progressive disclosure ──────────────────────────
+
+describe("resolveActivityExpansion", () => {
+  const BASE = "/admin/me";
+
+  it("is collapsed by default and offers a link that expands", () => {
+    const result = resolveActivityExpansion({}, BASE);
+    expect(result.expanded).toBe(false);
+    expect(result.expandHref).toBe("/admin/me?activity=all");
+  });
+
+  it("is expanded when the param says all, and offers a link that collapses", () => {
+    const result = resolveActivityExpansion({ activity: "all" }, BASE);
+    expect(result.expanded).toBe(true);
+    // Collapsing DROPS the param rather than setting a falsy value, so the
+    // default state stays the clean, shareable URL.
+    expect(result.expandHref).toBe("/admin/me");
+  });
+
+  it("carries every other param across when expanding", () => {
+    // The period filters live in these params. An expand link that dropped
+    // them would silently reset the range the reader had chosen.
+    const result = resolveActivityExpansion(
+      { range: "custom", from: "2026-01-01", to: "2026-03-31" },
+      BASE
+    );
+    expect(result.expandHref).toContain("range=custom");
+    expect(result.expandHref).toContain("from=2026-01-01");
+    expect(result.expandHref).toContain("to=2026-03-31");
+    expect(result.expandHref).toContain("activity=all");
+  });
+
+  it("carries every other param across when collapsing too", () => {
+    const result = resolveActivityExpansion(
+      { activity: "all", range: "custom", show: "all" },
+      BASE
+    );
+    expect(result.expanded).toBe(true);
+    expect(result.expandHref).toContain("range=custom");
+    expect(result.expandHref).toContain("show=all");
+    expect(result.expandHref).not.toContain("activity");
+  });
+
+  it("treats a repeated param as its first value", () => {
+    expect(resolveActivityExpansion({ activity: ["all", "no"] }, BASE).expanded).toBe(true);
+    expect(resolveActivityExpansion({ range: ["week", "month"] }, BASE).expandHref).toContain(
+      "range=week"
+    );
+  });
+
+  it("ignores any value other than all, so a bookmarked typo collapses safely", () => {
+    expect(resolveActivityExpansion({ activity: "yes" }, BASE).expanded).toBe(false);
+    expect(resolveActivityExpansion({ activity: "" }, BASE).expanded).toBe(false);
+  });
+
+  it("builds against the manager route's base path, not just /admin/me", () => {
+    const base = "/admin/staff/abc-123/performance";
+    expect(resolveActivityExpansion({}, base).expandHref).toBe(
+      `${base}?activity=all`
+    );
+  });
+
+  it("drops empty params rather than emitting bare keys", () => {
+    expect(resolveActivityExpansion({ range: "", to: undefined }, BASE).expandHref).toBe(
+      "/admin/me?activity=all"
+    );
   });
 });

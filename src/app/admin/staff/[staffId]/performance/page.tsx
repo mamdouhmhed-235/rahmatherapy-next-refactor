@@ -16,7 +16,10 @@ import { AdminAccessDenied } from "@/app/admin/components/admin-ui";
 import { getStaffTeamAccess } from "@/app/admin/staff/team-access";
 import { parseReportFilters } from "@/app/admin/reports/reporting";
 import { PerformanceSurface } from "@/app/admin/components/PerformanceSurface";
-import { type PerformanceShell } from "@/app/admin/components/performance-helpers";
+import {
+  resolveActivityExpansion,
+  type PerformanceShell,
+} from "@/app/admin/components/performance-helpers";
 import {
   buildRangeChips,
   buildRangeWindowLabel,
@@ -140,6 +143,7 @@ export default async function PerformanceSubroute({
       viewInReportsHref={viewInReportsHref}
       customDateRange={{ from: filters.from, to: filters.to }}
       basePath={basePath}
+      activity={resolveActivityExpansion(queryParams, basePath)}
     />
   );
 }
