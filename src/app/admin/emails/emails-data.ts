@@ -253,6 +253,149 @@ export async function getEmailsPageData(
   return cached();
 }
 
+// ─── Item 1 Batch B — manual review-request send ───────────────────────────
+//
+// Bookings an admin may manually ask for a review on. Deliberately NOT
+// filtered by the 6-month client cooldown: the manual send exists precisely
+// to override that cooldown (`ignoreClientCooldown: true`), so hiding
+// cooled-down clients here would make the override dead code for every row
+// this list can show.
+//
+// Deliberately NOT filtered by the cron's 2h/7-day `completed_at` window
+// either. That window is automated-send pacing; a booking completed more
+// than 7 days ago with no sentinel is one the cron can never pick up again,
+// which is exactly the row a human needs to reach.
+
+const REVIEW_CANDIDATE_LIMIT = 20;
+
+const REVIEW_CANDIDATE_SELECT =
+  "id, booking_date, start_time, completed_at, contact_full_name, contact_email, clients(email)";
+
+export interface ReviewRequestCandidate {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  completed_at: string | null;
+  contact_full_name: string | null;
+  /** The address `sendReviewRequestEmail` will actually send to. */
+  recipient_email: string;
+}
+
+export interface ReviewCandidatesParams {
+  /** `canResendBookingEmails(profile)` — gates the whole list. */
+  canResend: boolean;
+  /** Owner/Admin/Coordinator see the whole clinic queue; a therapist does not. */
+  canSeeAllBookings: boolean;
+  /** Caller's staff id — scopes the therapist path. */
+  staffId: string;
+}
+
+interface ReviewCandidateRow {
+  id: string;
+  booking_date: string;
+  start_time: string;
+  completed_at: string | null;
+  contact_full_name: string | null;
+  contact_email: string | null;
+  clients: { email: string | null } | { email: string | null }[] | null;
+}
+
+/**
+ * PostgREST returns a to-one embed as an object on some paths and a
+ * single-element array on others — `getClientsAskedForReviewSince` already
+ * carries a regression test for exactly this. Normalise both shapes.
+ */
+function embeddedClientEmail(row: ReviewCandidateRow): string | null {
+  const embedded = Array.isArray(row.clients) ? row.clients[0] : row.clients;
+  return embedded?.email ?? null;
+}
+
+export async function getReviewRequestCandidates(
+  params: ReviewCandidatesParams
+): Promise<ReviewRequestCandidate[]> {
+  const { canResend, canSeeAllBookings, staffId } = params;
+
+  const cached = unstable_cache(
+    async (): Promise<ReviewRequestCandidate[]> => {
+      if (!canResend) return [];
+
+      const adminClient = createSupabaseAdminClient();
+
+      // Same H11 middle path as the reminders queue above: a therapist with
+      // resend_booking_emails but only assigned-bookings view is scoped to
+      // their own assignments, so client contact PII stays bounded to
+      // bookings they actually worked on.
+      //
+      // The `.limit(200)` is inherited from the reminders block verbatim so
+      // the two scoping paths cannot drift apart. It is a pre-existing cap on
+      // the whole assignments table for that staff member, not a bound sized
+      // for this query — a therapist past 200 lifetime assignments would see
+      // a short list rather than a wrong one. Raising it is a shared-behaviour
+      // change and belongs in its own item.
+      let allowedBookingIds: string[] | null = null;
+      if (!canSeeAllBookings) {
+        const { data: ownAssignments } = await adminClient
+          .from("booking_assignments")
+          .select("booking_id")
+          .eq("assigned_staff_id", staffId)
+          .limit(200);
+        allowedBookingIds = Array.from(
+          new Set((ownAssignments ?? []).map((a) => a.booking_id).filter(Boolean))
+        );
+        if (allowedBookingIds.length === 0) return [];
+      }
+
+      // Fetch wider than we display: recipient presence spans a base column
+      // and a to-one embed (`contact_email || clients.email`), which PostgREST
+      // cannot express in one `.or()`, so it is filtered below in JS. Fetching
+      // exactly the display limit would let recipient-less rows crowd out
+      // eligible ones.
+      //
+      // ⚠️ DISCLOSED LIMIT: the ×2 is a heuristic, not a guarantee. If more
+      // than half of one fetched page has no email anywhere, this list comes
+      // back SHORT — never wrong, and never showing an ineligible booking,
+      // but shorter than the true eligible set, with the remainder sitting
+      // below the fetch window. Making it exact would mean paginating until
+      // the filtered count is reached; that is not worth the machinery for a
+      // clinic with 15 bookings. If the email-coverage mix ever shifts, raise
+      // the multiplier or paginate — do not silently drop it to ×1.
+      let q = adminClient
+        .from("bookings")
+        .select(REVIEW_CANDIDATE_SELECT)
+        .eq("status", "completed")
+        .is("review_email_sent_at", null)
+        .order("completed_at", { ascending: false, nullsFirst: false })
+        .limit(REVIEW_CANDIDATE_LIMIT * 2);
+      if (allowedBookingIds !== null) {
+        q = q.in("id", allowedBookingIds);
+      }
+
+      const { data } = await q.returns<ReviewCandidateRow[]>();
+
+      return (data ?? [])
+        .map((row) => ({
+          id: row.id,
+          booking_date: row.booking_date,
+          start_time: row.start_time,
+          completed_at: row.completed_at,
+          contact_full_name: row.contact_full_name,
+          // `||`, not `??` — mirrors sendReviewRequestEmail's own recipient
+          // expression exactly, so an empty-string contact_email falls through
+          // to the client's address here the same way it does at send time.
+          recipient_email: row.contact_email || embeddedClientEmail(row) || "",
+        }))
+        .filter((row) => row.recipient_email !== "")
+        .slice(0, REVIEW_CANDIDATE_LIMIT);
+    },
+    [
+      "emails-review-candidates",
+      cacheKeyPart({ canResend, canSeeAllBookings, staffId }),
+    ],
+    { revalidate: 60, tags: [TAGS.EMAILS] }
+  );
+  return cached();
+}
+
 export interface EmailDeliveryFilters {
   event_type?: string;
   delivery_status?: string;

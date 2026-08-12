@@ -1,4 +1,6 @@
 // C-09 Phase C Step 7 — cache behaviour for /admin/emails' data helper.
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const cacheHarness = await vi.hoisted(async () => {
@@ -32,6 +34,7 @@ const {
   getFilteredDeliveryEvents,
   countEmailDeliveryEvents,
   getEmailDeliveryPage,
+  getReviewRequestCandidates,
   resolveDeliveryDateBounds,
 } = await import("../emails-data");
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
@@ -463,5 +466,185 @@ describe("getEmailDeliveryPage", () => {
       deliveryError: null,
     });
     expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+  });
+});
+
+// ─── Item 1 Batch B — getReviewRequestCandidates ──────────────────────────────
+
+const REVIEW_PARAMS = {
+  canResend: true,
+  canSeeAllBookings: true,
+  staffId: "s1",
+};
+
+function reviewRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "b1",
+    booking_date: "2026-01-03",
+    start_time: "10:00",
+    completed_at: "2026-01-03T11:00:00.000Z",
+    contact_full_name: "Test Client",
+    contact_email: "someone@example.test",
+    clients: null,
+    ...overrides,
+  };
+}
+
+describe("getReviewRequestCandidates", () => {
+  it("returns completed bookings with a recipient and no review_email_sent_at, for the manual review-send list", async () => {
+    createSupabaseAdminClient.mockImplementation(() =>
+      createFakeAdminClient({
+        bookings: {
+          data: [
+            reviewRow({ id: "own-email" }),
+            // Embed arrives as an object on some PostgREST paths...
+            reviewRow({
+              id: "client-email-object",
+              contact_email: null,
+              clients: { email: "viaclient@example.test" },
+            }),
+            // ...and as a single-element array on others.
+            reviewRow({
+              id: "client-email-array",
+              contact_email: null,
+              clients: [{ email: "viaarray@example.test" }],
+            }),
+            // An empty-string contact_email must fall through to the client's
+            // address, exactly as sendReviewRequestEmail's `||` does.
+            reviewRow({
+              id: "empty-string-contact",
+              contact_email: "",
+              clients: { email: "fallback@example.test" },
+            }),
+            // No recipient anywhere — must not be offered.
+            reviewRow({ id: "no-recipient", contact_email: null, clients: null }),
+            reviewRow({
+              id: "null-client-email",
+              contact_email: null,
+              clients: { email: null },
+            }),
+          ],
+          error: null,
+        },
+      })
+    );
+
+    const rows = await getReviewRequestCandidates(REVIEW_PARAMS);
+
+    expect(rows.map((r) => r.id)).toEqual([
+      "own-email",
+      "client-email-object",
+      "client-email-array",
+      "empty-string-contact",
+    ]);
+    expect(rows.map((r) => r.recipient_email)).toEqual([
+      "someone@example.test",
+      "viaclient@example.test",
+      "viaarray@example.test",
+      "fallback@example.test",
+    ]);
+  });
+
+  it("returns nothing, without querying, for a caller who can't resend", async () => {
+    const rows = await getReviewRequestCandidates({
+      ...REVIEW_PARAMS,
+      canResend: false,
+    });
+
+    expect(rows).toEqual([]);
+    expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("returns nothing for a scoped therapist with no assignments, without reading bookings", async () => {
+    const fake = createFakeAdminClient({
+      booking_assignments: { data: [], error: null },
+    });
+    createSupabaseAdminClient.mockImplementation(() => fake);
+
+    const rows = await getReviewRequestCandidates({
+      ...REVIEW_PARAMS,
+      canSeeAllBookings: false,
+    });
+
+    expect(rows).toEqual([]);
+    expect(fake.fromCalls).toEqual(["booking_assignments"]);
+  });
+
+  it("scopes a therapist to their own assigned bookings", async () => {
+    const fake = createFakeAdminClient({
+      booking_assignments: { data: [{ booking_id: "b1" }], error: null },
+      bookings: { data: [reviewRow()], error: null },
+    });
+    createSupabaseAdminClient.mockImplementation(() => fake);
+
+    const rows = await getReviewRequestCandidates({
+      ...REVIEW_PARAMS,
+      canSeeAllBookings: false,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(fake.fromCalls).toEqual(["booking_assignments", "bookings"]);
+  });
+
+  it("keys its cache separately per scope, so one staff member's list is never served to another", async () => {
+    const first = await getReviewRequestCandidates(REVIEW_PARAMS);
+    const second = await getReviewRequestCandidates({
+      ...REVIEW_PARAMS,
+      staffId: "s2",
+    });
+
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(2);
+  });
+
+  // ⛔ Gotcha 39. `createFakeAdminClient`'s chain methods are all `() => chain`
+  // — `select`, `eq`, `is`, `in`, `order` and `limit` are pure no-ops that
+  // never touch the registered result. So every predicate below could be
+  // deleted with all four behavioural tests above still green, while
+  // production silently offered cancelled bookings, or ones already asked.
+  // Only reading the source catches it.
+  describe("source-text guards for predicates no stub can honour", () => {
+    function reviewSource() {
+      const source = readFileSync(
+        join(process.cwd(), "src/app/admin/emails/emails-data.ts"),
+        "utf8"
+      );
+      const open = "const REVIEW_CANDIDATE_SELECT";
+      const close = "export interface EmailDeliveryFilters";
+      // Assert each cut anchor is unique before slicing, so this guard can
+      // never quietly measure the wrong region of the file.
+      expect(source.split(open)).toHaveLength(2);
+      expect(source.split(close)).toHaveLength(2);
+      return source.split(open)[1].split(close)[0];
+    }
+
+    it("filters to completed bookings that have not been asked yet", () => {
+      const region = reviewSource();
+      expect(region).toContain('.eq("status", "completed")');
+      expect(region).toContain('.is("review_email_sent_at", null)');
+    });
+
+    it("selects the embedded client email the recipient fallback depends on", () => {
+      const region = reviewSource();
+      expect(region).toContain("clients(email)");
+      expect(region).toContain("contact_email");
+    });
+
+    it("does not filter by the client cooldown, which the manual send exists to override", () => {
+      const region = reviewSource();
+      expect(region).not.toContain("email_delivery_events");
+      expect(region).not.toContain("delivery_status");
+    });
+
+    // The recipient filter runs in JS AFTER the row limit, so fetching exactly
+    // the display limit would let recipient-less rows crowd out eligible ones.
+    // The fake admin client ignores `.limit()` entirely, so no behavioural test
+    // can catch the multiplier being dropped — only the source can.
+    it("over-fetches past the display limit so the JS recipient filter cannot starve the list", () => {
+      const region = reviewSource();
+      expect(region).toContain(".limit(REVIEW_CANDIDATE_LIMIT * 2)");
+      expect(region).toContain(".slice(0, REVIEW_CANDIDATE_LIMIT)");
+    });
   });
 });

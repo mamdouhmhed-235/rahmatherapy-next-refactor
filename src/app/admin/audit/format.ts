@@ -89,6 +89,13 @@ const ACTIONS: Record<string, ActionEntry> = {
   // Operations & email
   operational_event_status_updated: { phrase: "updated operations event status", family: "operations_and_email", chip: "pending" },
   manual_booking_reminder_sent: { phrase: "sent a booking reminder", family: "operations_and_email", chip: "pending" },
+  // Item 1. Written by BOTH the review-emails cron (`automated: true`) and
+  // the manual admin send (`automated: false`), so it is the one action type
+  // with two writers. Registered because the fallback's family is already
+  // `operations_and_email` — an unregistered type still renders, but it is
+  // absent from ACTION_TYPES_BY_FAMILY, so filtering the audit timeline to
+  // "Operations & email" would silently hide every review-request row.
+  review_email_sent: { phrase: "sent a review request", family: "operations_and_email", chip: "pending" },
 
   // Reports & exports
   report_exported: { phrase: "exported report", family: "reports_and_exports", chip: "restricted" },

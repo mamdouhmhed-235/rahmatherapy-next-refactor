@@ -16,6 +16,7 @@ import {
   sendBookingConfirmedClientEmail,
   sendBookingCreatedEmails,
   sendBookingReminderEmail,
+  sendReviewRequestEmail,
   sendStaffAssignmentEmail,
   sendStaffUnassignmentEmail,
 } from "@/lib/email/notifications";
@@ -362,4 +363,175 @@ async function dispatchResend(
     default:
       throw new Error(`Cannot resend event type: ${eventType}`);
   }
+}
+
+// ─── Item 1 Batch B — manual review-request send (plan §1.7) ───────────────
+
+export interface ManualReviewRequestResult {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Why each `sent: false` reason surfaces as the message it does. Written out
+ * rather than echoed raw so an admin reads a reason they can act on.
+ *
+ * `client_recently_asked` cannot occur on this path — the call below passes
+ * `ignoreClientCooldown: true`, which skips the cooldown lookup entirely. It
+ * is mapped anyway so a future caller that drops the flag degrades to a clear
+ * message instead of an empty one.
+ */
+const REVIEW_SEND_REFUSALS: Record<string, string> = {
+  no_email: "This booking has no email address on file.",
+  already_sent: "A review request has already been sent for this booking.",
+  send_failed: "This booking is no longer marked completed.",
+  client_recently_asked:
+    "This client was asked for a review within the last 6 months.",
+};
+
+/**
+ * Sends the review-request email for one completed booking, on an admin's
+ * explicit instruction. Mirrors `sendManualBookingReminder`'s structure and
+ * `resendEmail`'s H11 scope check and `{ ok, error }` return shape; it edits
+ * neither, both being RECON-untouchable contracts.
+ *
+ * ⛔ QUIET HOURS DO NOT APPLY HERE, BY DESIGN (Owner decision, 2026-08-11).
+ * The 21:00–08:00 Europe/London suppression lives only in the review-emails
+ * cron route, never in `sendReviewRequestEmail`. A human choosing to send
+ * now is overriding an automated night-suppression heuristic, exactly as the
+ * existing manual resend path already allows. The accepted consequence,
+ * stated plainly: a staff member holding `resend_booking_emails` can cause a
+ * customer email at 2am — the same exposure `resendEmail` already carries.
+ * Do not "fix" this by adding a quiet-hours gate; there is a regression test
+ * asserting a send proceeds regardless of the clock.
+ *
+ * The 6-month client cooldown IS bypassed (`ignoreClientCooldown: true`) —
+ * that is the whole point of a manual send. The per-booking
+ * `review_email_sent_at` sentinel is NOT bypassed: one review request per
+ * booking, for every sequential attempt.
+ *
+ * ⚠️ KNOWN, INHERITED RACE — recorded, not fixed here.
+ * `sendReviewRequestEmail` sends first and writes the sentinel afterwards
+ * (`notifications.ts:1596` then `:1615`), so two *simultaneous* callers can
+ * both read a null sentinel and both send. Its own comments already name this
+ * ("the email may have been double-sent"); it predates this action and the
+ * cron carries it too. This action narrows the window — the rate limit below
+ * catches any repeat outside the same instant, and the UI disables its button
+ * for the duration of the transition — but does not close it.
+ * ⛔ Do NOT "fix" it by moving the sentinel write ahead of the send. That
+ * turns a rare duplicate email into a booking permanently retired with no
+ * email ever sent whenever the transport fails, which is the failure this
+ * whole item is built to avoid. Closing it properly needs a serialization
+ * point (a partial unique index or an advisory lock on booking_id) and is its
+ * own item.
+ */
+export async function sendManualReviewRequest(
+  formData: FormData
+): Promise<ManualReviewRequestResult> {
+  const supabase = await createSupabaseServerClient();
+  const profile = await getStaffProfile(supabase);
+  if (!profile || !profile.active || !canManageEmails(profile)) {
+    return { ok: false, error: "You can't send review requests." };
+  }
+
+  const bookingId = String(formData.get("booking_id") ?? "").trim();
+  if (!bookingId) return { ok: false, error: "No booking selected." };
+
+  const adminClient = createSupabaseAdminClient();
+
+  // H11 middle-path scope check — same reasoning as `resendEmail`'s above.
+  // `resend_booking_emails` is held by Owner, Admin, Coordinator AND
+  // Therapist, and the permission is flat: without this, a Therapist could
+  // cause customer email for any booking in the clinic.
+  const canSeeAllBookings = canViewAllBookings(profile) || canManageAllBookings(profile);
+  if (!canSeeAllBookings) {
+    const { count } = await adminClient
+      .from("booking_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_id", bookingId)
+      .eq("assigned_staff_id", profile.id);
+    if (!count || count === 0) {
+      await recordOperationalEvent(adminClient, {
+        eventType: "failed_review_request_attempt",
+        severity: "warning",
+        summary:
+          "Staff attempted to send a review request for a booking they aren't assigned to.",
+        bookingId,
+        staffId: profile.id,
+        safeContext: { route: "/admin/emails", reason: "out_of_scope_assignment" },
+      }).catch(() => undefined);
+      return {
+        ok: false,
+        error: "You can only send review requests for bookings assigned to you.",
+      };
+    }
+  }
+
+  // Rate-limit, reusing the same window as the per-row resend. Keyed on
+  // (event_type, booking_id) rather than resendEmail's
+  // (event_type, recipient_email, booking_id): a fresh send has no original
+  // delivery row to take a recipient from, and dropping that term only makes
+  // the filter match more rows, so the limit is strictly tighter, never
+  // looser. `booking_id` is never null here — it comes from the form.
+  const cutoff = new Date(
+    Date.now() - RESEND_RATE_LIMIT_SECONDS * 1000
+  ).toISOString();
+  const { data: recent } = await adminClient
+    .from("email_delivery_events")
+    .select("id")
+    .eq("event_type", "review_request_client")
+    .eq("booking_id", bookingId)
+    .gte("created_at", cutoff)
+    .limit(1)
+    .maybeSingle();
+  if (recent) {
+    return {
+      ok: false,
+      error: `Recently sent. Try again in ${RESEND_RATE_LIMIT_SECONDS} seconds.`,
+    };
+  }
+
+  let outcome: Awaited<ReturnType<typeof sendReviewRequestEmail>>;
+  try {
+    outcome = await sendReviewRequestEmail(bookingId, adminClient, {
+      ignoreClientCooldown: true,
+    });
+  } catch (error) {
+    await recordOperationalEvent(adminClient, {
+      eventType: "failed_review_request_attempt",
+      severity: "error",
+      summary: "Manual review request failed.",
+      bookingId,
+      staffId: profile.id,
+      safeContext: {
+        route: "/admin/emails",
+        error_class: error instanceof Error ? error.name : "UnknownError",
+      },
+    }).catch(() => undefined);
+    return { ok: false, error: "Couldn't send the review request." };
+  }
+
+  if (!outcome.sent) {
+    return {
+      ok: false,
+      error:
+        REVIEW_SEND_REFUSALS[outcome.reason ?? ""] ??
+        "Couldn't send the review request.",
+    };
+  }
+
+  // `automated: false` is what distinguishes this row from the cron's, which
+  // writes the same action_type with `automated: true`.
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: profile.id,
+    action_type: "review_email_sent",
+    target_type: "bookings",
+    target_id: bookingId,
+    after_state: { booking_id: bookingId, automated: false },
+  });
+
+  updateTag(TAGS.EMAILS);
+  updateTag(TAGS.AUDIT);
+  revalidatePath("/admin/emails");
+  return { ok: true };
 }

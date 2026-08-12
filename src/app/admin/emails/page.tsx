@@ -8,6 +8,7 @@ import {
   Inbox,
   MailCheck,
   MailWarning,
+  Star,
   TriangleAlert,
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -23,8 +24,10 @@ import {
 import {
   getEmailsPageData,
   getEmailDeliveryPage,
+  getReviewRequestCandidates,
   type EmailEvent,
   type ReminderBooking,
+  type ReviewRequestCandidate,
 } from "./emails-data";
 import { LOG_PAGE_SIZE } from "@/lib/pagination";
 import { TemplateGallery, type TemplateGalleryBadge } from "./components/TemplateGallery";
@@ -42,6 +45,7 @@ import { DeliveryFilterStrip } from "./DeliveryFilterStrip";
 import { CopyEventId } from "./CopyEventId";
 import { ReminderResendForm } from "./ReminderResendForm";
 import { ResendButton } from "./components/ResendButton";
+import { ReviewRequestButton } from "./components/ReviewRequestButton";
 import {
   DELIVERY_STATUSES,
   EMAIL_EVENT_TYPES,
@@ -75,7 +79,7 @@ export const metadata: Metadata = {
 
 const PAGE_SIZE = 100;
 
-type TabKey = "delivery" | "reminders" | "templates";
+type TabKey = "delivery" | "reminders" | "reviews" | "templates";
 
 function resolveTab(
   raw: string | undefined,
@@ -83,6 +87,7 @@ function resolveTab(
 ): TabKey {
   if (raw === "delivery" && canSeeDelivery) return "delivery";
   if (raw === "reminders") return "reminders";
+  if (raw === "reviews") return "reviews";
   if (raw === "templates") return "templates";
   return canSeeDelivery ? "delivery" : "reminders";
 }
@@ -171,6 +176,18 @@ export default async function EmailsPage({ searchParams }: PageProps) {
     includeTemplates: activeTab === "templates",
     limit: PAGE_SIZE,
   });
+
+  // Item 1 Batch B. Its own cached fetcher rather than a field on
+  // getEmailsPageData: a separate cache key cannot be served a stale entry
+  // shaped without this list. Self-gates on canResend, so it is safe to call
+  // unconditionally — and it is called unconditionally so the tab's badge is
+  // accurate from any tab, exactly as the reminders badge is.
+  const reviewCandidates: ReviewRequestCandidate[] =
+    await getReviewRequestCandidates({
+      canResend,
+      canSeeAllBookings,
+      staffId: profile.id,
+    });
 
   // Map rebuilt on THIS side of the cache boundary — emails-data.ts returns a
   // plain array because a Map would come back as {} (SHARED-NOTES §15).
@@ -284,6 +301,19 @@ export default async function EmailsPage({ searchParams }: PageProps) {
           : undefined,
     },
     {
+      key: "reviews",
+      label: "Review requests",
+      visible: canResend,
+      badge:
+        canResend && reviewCandidates.length > 0
+          ? {
+              value: reviewCandidates.length,
+              tone: "muted",
+              title: `${reviewCandidates.length} completed bookings not yet asked for a review`,
+            }
+          : undefined,
+    },
+    {
       key: "templates",
       label: "Templates",
       visible: true,
@@ -294,7 +324,7 @@ export default async function EmailsPage({ searchParams }: PageProps) {
     <div className="grid gap-6 pb-24 sm:pb-0">
       <AdminPageHeader
         title="Email"
-        description="Delivery status, manual reminders, and template library."
+        description="Delivery status, manual reminders, review requests, and template library."
       />
 
       <TabStrip tabs={tabs.filter((t) => t.visible)} activeTab={activeTab} />
@@ -321,6 +351,10 @@ export default async function EmailsPage({ searchParams }: PageProps) {
           bookings={upcomingBookings}
           lastReminderByBooking={lastReminderByBooking}
         />
+      ) : null}
+
+      {activeTab === "reviews" && canResend ? (
+        <ReviewsTab candidates={reviewCandidates} />
       ) : null}
 
       {activeTab === "templates" ? (
@@ -926,6 +960,79 @@ function ReminderRow({
           bookingId={booking.id}
           contactFullName={booking.contact_full_name}
           hasRecipient={hasRecipient}
+        />
+      </div>
+    </article>
+  );
+}
+
+// ─── Review requests tab ──────────────────────────────────────────────────────
+
+function ReviewsTab({ candidates }: { candidates: ReviewRequestCandidate[] }) {
+  if (candidates.length === 0) {
+    return (
+      <section className="mx-auto w-full max-w-[720px]">
+        <EmptyState
+          icon={Star}
+          title="No completed bookings are waiting on a review request"
+          message="Everyone who's finished a visit has already been asked."
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className="mx-auto grid w-full max-w-[720px] gap-4 text-left">
+      <p className="text-sm leading-6 text-[var(--admin-text-muted)]">
+        Sends the existing review-request template. One request per booking,
+        ever — a booking disappears from this list once it has been asked.
+      </p>
+      <ul className="grid list-none gap-3 [&>li]:list-none">
+        {candidates.map((candidate) => (
+          <li key={candidate.id}>
+            <ReviewRow candidate={candidate} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ReviewRow({ candidate }: { candidate: ReviewRequestCandidate }) {
+  return (
+    <article
+      className={cn(
+        "grid grid-cols-[auto_1fr] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors duration-150 hover:border-[var(--admin-primary)]/30",
+        "sm:grid-cols-[auto_1fr_auto] sm:items-center"
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--admin-panel-muted)] font-semibold text-[var(--admin-primary)]"
+      >
+        {initialsFromName(candidate.contact_full_name)}
+      </span>
+
+      <div className="min-w-0">
+        <Link
+          href={`/admin/bookings/${candidate.id}`}
+          className="min-w-0 break-words text-sm font-semibold text-[var(--admin-heading)] underline-offset-4 outline-none transition-colors hover:text-[var(--admin-primary)] hover:underline focus-visible:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 rounded-sm"
+        >
+          {candidate.contact_full_name ?? "Unknown contact"}
+        </Link>
+        <p className="mt-0.5 text-sm text-[var(--admin-body)] [font-variant-numeric:tabular-nums]">
+          {formatReminderDateTime(candidate.booking_date, candidate.start_time)}
+        </p>
+        <p className="mt-0.5 text-xs text-[var(--admin-text-muted)]">
+          <span className="min-w-0 truncate">{candidate.recipient_email}</span>
+        </p>
+      </div>
+
+      <div className="col-span-2 justify-self-stretch sm:col-span-1 sm:justify-self-end">
+        <ReviewRequestButton
+          bookingId={candidate.id}
+          contactFullName={candidate.contact_full_name}
+          recipientEmail={candidate.recipient_email}
         />
       </div>
     </article>
