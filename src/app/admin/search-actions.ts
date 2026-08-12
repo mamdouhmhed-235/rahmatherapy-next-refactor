@@ -49,12 +49,62 @@ function isUuid(value: string) {
   );
 }
 
+/**
+ * Defensive cap on the scoped branch's candidate read (ITEM M).
+ *
+ * The all-rows branch is O(1) forever — it filters in SQL and takes 8. The
+ * scoped branch cannot do that: it has to resolve WHICH bookings this
+ * practitioner is assigned to before it can filter them, and every one of
+ * those ids is serialised into the `.in()` query string. Uncapped, the request
+ * grows with every assignment they have ever held.
+ *
+ * ⛔ The number is arithmetic, not taste. A UUID costs 37 characters inside
+ * `in.(…)`, so the whole palette GET — select, order, limit, the id list and
+ * the four-column ilike — measures ≈4.3 kB at 100 ids and ≈8.2–8.3 kB at 200,
+ * against a ~8 kB nginx request-line ceiling. postgrest-js carries a matching
+ * warning: its overflow hint names `.in('id', [200+ IDs])` as the point to
+ * stop. A cap that makes the request fail is worse than one that truncates —
+ * a 414 breaks search outright for that practitioner, where truncation only
+ * puts their oldest work out of reach.
+ *
+ * ⚠️ This deliberately does NOT mirror `SCOPED_BRANCH_ROW_CAP` in
+ * `bookings-list-data.ts`. That constant caps the ROW FETCH that runs *after*
+ * its `.in()`; the id array feeding it is still unbounded — the same latent
+ * defect this constant closes here.
+ *
+ * Both order keys earn their place. Postgres gives no ordering guarantee to a
+ * bare `limit`, so without one the truncated set could differ between two
+ * identical searches. `created_at` alone is not a total order either: a
+ * multi-participant booking writes one row per participant in a single
+ * transaction and `now()` is transaction time, so those rows share a timestamp
+ * exactly. `id` breaks that tie. Newest-first means the cap drops the
+ * practitioner's OLDEST work rather than a random slice — the row is inserted
+ * with the booking (`assigned_staff_id` null, filled later by UPDATE), so
+ * `created_at` dates the booking and stands in for `booking_date`.
+ *
+ * ⚠️ A bound, not a cure. The palette has no date filter, so a scoped search is
+ * a lifetime search: past the cap an old booking becomes unfindable, silently.
+ * The repair is to drop the id array and filter through a
+ * `booking_assignments!inner` embed (ITEM M's A2 fast-follow), the shape
+ * `components/performance-data.ts` already ships.
+ *
+ * A2 stays gated on a multi-participant dedup test. The schema permits two
+ * assignment rows per (booking, staff) pair — keyed per PARTICIPANT, no unique
+ * constraint — and one row per match is exactly what `.in()` + `new Set`
+ * guarantees outright here. That the embed preserves it is inherited from a
+ * sibling, not proved. Prove it before trading one for the other.
+ */
+const SCOPED_SEARCH_ASSIGNMENT_CAP = 100;
+
 async function getOwnBookingIds(staffId: string) {
   const adminClient = createSupabaseAdminClient();
   const { data } = await adminClient
     .from("booking_assignments")
     .select("booking_id")
-    .eq("assigned_staff_id", staffId);
+    .eq("assigned_staff_id", staffId)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(SCOPED_SEARCH_ASSIGNMENT_CAP);
 
   return Array.from(new Set((data ?? []).map((item) => item.booking_id as string)));
 }
