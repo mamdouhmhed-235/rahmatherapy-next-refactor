@@ -409,6 +409,9 @@ Highest value first:
 - `admin-scalable-lists.tsx` — `AdminListSurface`, `SavedViewTabs`,
   `DebouncedSearchInput`, `SearchFilterBar`, `PaginationControls`,
   `LoadMoreButton`, `FilteredEmptyState`
+  ⛔ **`PaginationControls` and `LoadMoreButton` are ON HOLD — see ITEM J.**
+  The performance page's "Recent activity" panel needs pagination, and these two
+  are already built for it. Deleting them now would mean rewriting them later.
 - `admin-ui.tsx` — `AdminEntityCard`, `MetricCard`, `DetailSectionCard`,
   `AdminEmptyState`
 - `content/pages/services.ts` — `serviceTrustItems`, `homeAppointmentSteps`,
@@ -667,6 +670,60 @@ column is exercised by `clients/__tests__/deleteClient.test.ts:366,386`.
 
 This codebase has a documented history of this exact rot — item 7 found two colour
 comments naming colours the tokens no longer had. **Worth a dedicated sweep.**
+
+---
+
+## ITEM J — "Recent activity" grows without limit on the performance page
+
+**Raised by the Owner 2026-08-12, with a screenshot. Evidence: VERIFIED.**
+
+### J.1 What it does today
+
+`/admin/staff/[staffId]/performance` (and the self view) renders a "Recent
+activity" panel that is **one flat, unpaginated column**:
+
+- `PerformanceSurface.tsx:320` fetches **100** audit rows.
+- `:325` passes `allEvents.slice(0, 20)` to the panel.
+- `ActivityTimeline.tsx:91-97` maps **every** event it is given into an `<ol>`.
+  There is no pagination, no cap, no "show more" — the slice at the call site is
+  the only thing bounding it.
+
+So the panel is always as tall as 20 rows, and the page inherits that height.
+The Owner's screenshot shows it dwarfing the KPI tiles and the chart beside it.
+
+### J.2 ⛔ The screenshot shows a second, larger problem
+
+Roughly **fourteen consecutive rows read "You updated availability rule —
+availability rules `<id>`"**, all "3 days ago". That is one bulk save writing one
+audit row per rule. Pagination would hide it; it would not fix it.
+
+**Check before building anything:** does a single availability save emit N audit
+events? If so, the panel is not too long — it is repeating itself, and the same
+noise is presumably in `/admin/audit` too.
+
+### J.3 Three options
+
+| | Approach | Effect |
+|---|---|---|
+| **1** | **Collapse consecutive same-action events** — "You updated 14 availability rules · 3 days ago", expandable | Fixes the cause. 20 rows becomes ~6 meaningful ones. Best reading experience |
+| **2** | **Paginate / "Show more"** — what the Owner asked for | Bounds the height. The repetition survives, just spread over pages |
+| **3** | Lower the slice from 20 to ~8 | One number. Least work, least value — hides recent history rather than presenting it |
+
+**Recommendation: 1, then 2 if it is still long.** Grouping attacks the reason
+the panel is "ridiculously large"; pagination only moves it. If the audit trail
+genuinely needs one row per rule (it may, for accountability), then 2 is right
+and 1 is wrong — which is why J.2 must be answered first.
+
+### J.4 ⛔ DO NOT DELETE THE PAGINATION COMPONENTS THIS PLAN ALREADY WANTS GONE
+
+**This item collides with ITEM F.** `admin-scalable-lists.tsx` already contains
+**`PaginationControls` (`:127`) and `LoadMoreButton` (`:172`)** — fully built,
+matching the admin's styling, and currently referenced by nothing, which is
+exactly why ITEM F lists them for deletion.
+
+Deleting them and then re-writing pagination a week later would be the worst of
+both. **Resolve ITEM J before acting on those two entries in ITEM F.** If option
+2 or 1-then-2 is taken, they stop being dead code and become the implementation.
 
 ---
 
