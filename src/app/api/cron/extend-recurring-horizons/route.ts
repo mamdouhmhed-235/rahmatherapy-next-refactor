@@ -58,6 +58,7 @@ import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getTodayIsoDate } from "@/app/admin/bookings/_helpers";
+import { fromPence, toPence } from "@/lib/booking/travel-fee";
 
 /**
  * Weeks of visibility every active series should carry. Matches
@@ -113,6 +114,9 @@ interface TemplateRow {
   service_city: string | null;
   service_postcode: string | null;
   horizon_through_date: string;
+  /** Item 8 Phase 4 — the series' standing travel charge, added to every
+   *  occurrence this cron materialises. */
+  travel_fee: number | string | null;
 }
 
 interface TemplateOutcome {
@@ -175,7 +179,7 @@ export async function POST(request: Request): Promise<Response> {
   const { data: templates, error: templatesError } = await supabase
     .from("recurring_booking_templates")
     .select(
-      "id, client_id, service_id, bound_therapist_id, anchor_start_time, cadence, end_type, end_count, end_date, participant_gender, required_therapist_gender, service_address_line1, service_city, service_postcode, horizon_through_date"
+      "id, client_id, service_id, bound_therapist_id, anchor_start_time, cadence, end_type, end_count, end_date, participant_gender, required_therapist_gender, service_address_line1, service_city, service_postcode, horizon_through_date, travel_fee"
     )
     .is("cancelled_at", null)
     .lt("horizon_through_date", newHorizonThrough)
@@ -403,6 +407,13 @@ async function extendTemplate(
   //    inserts exactly, so an occurrence created tonight is indistinguishable
   //    from one created by the form.
   const createdDates: string[] = [];
+  // Computed once per template rather than per occurrence: the same standing
+  // charge applies to every date in the batch. Integer pence via the shared
+  // helper, for the same reason updateBookingManagement uses it — amount_due is
+  // unscaled, so float addition can drift it away from total_price.
+  const occurrencePrice = fromPence(
+    toPence(service.price) + toPence(template.travel_fee)
+  );
   for (const date of candidates) {
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
@@ -416,8 +427,12 @@ async function extendTemplate(
         start_time: template.anchor_start_time,
         end_time: endTime,
         total_duration_mins: service.duration_mins,
-        total_price: service.price,
-        amount_due: service.price,
+        // Item 8 Phase 4 — the series' standing travel charge rides along to
+        // every occurrence this cron builds. Added AFTER the service price,
+        // never folded into it; this path books one participant per occurrence
+        // (group_booking is false below), so there is no multiply to get wrong.
+        total_price: occurrencePrice,
+        amount_due: occurrencePrice,
         amount_paid: 0,
         payment_status: "unpaid",
         status: "pending",

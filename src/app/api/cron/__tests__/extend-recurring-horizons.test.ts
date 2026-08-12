@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { POST } from "../extend-recurring-horizons/route";
 
@@ -495,6 +497,54 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
   // These two are the point of this file. A row-counting assertion cannot catch
   // the trap: resuming from `horizon_through_date` produces the SAME NUMBER of
   // bookings, on the wrong days, forever.
+
+  // ─────────────────────── item 8 Phase 4: the travel charge ────────────────
+  // The defect this fixes: a fee set on occurrence #1 of a standing out-of-area
+  // series vanished from every occurrence after it, because this cron rebuilds
+  // each one from service.price alone.
+  it("propagates the template's travel fee to every occurrence it creates", async () => {
+    const stub = dueWeeklySeries({ travel_fee: 14 });
+
+    await post();
+
+    const created = stub.insertsInto("bookings");
+    expect(created).toHaveLength(8);
+    for (const booking of created) {
+      // service.price is 60 in this fixture; 60 + 14 = 74, added AFTER the
+      // price and never folded into a multiply.
+      expect(booking.total_price).toBe(74);
+      expect(booking.amount_due).toBe(74);
+      expect(booking.amount_paid).toBe(0);
+    }
+  });
+
+  it("leaves the price alone when the series carries no travel fee", async () => {
+    const stub = dueWeeklySeries();
+
+    await post();
+
+    for (const booking of stub.insertsInto("bookings")) {
+      expect(booking.total_price).toBe(60);
+      expect(booking.amount_due).toBe(60);
+    }
+  });
+
+  // ⛔ Gotcha 39. The stub returns the whole mock row whatever the select asked
+  // for, so dropping travel_fee from the select breaks NO behavioural test here
+  // while silently reinstating the original defect in production. Only reading
+  // the source catches it.
+  it("keeps travel_fee in the template select", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/app/api/cron/extend-recurring-horizons/route.ts"),
+      "utf8"
+    );
+    const select = source
+      .split('.from("recurring_booking_templates")')[1]
+      ?.split(".is(")[0];
+
+    expect(select).toBeDefined();
+    expect(select).toContain("travel_fee");
+  });
 
   it("walks from the series anchor, never from horizon_through_date", async () => {
     const stub = dueWeeklySeries();
