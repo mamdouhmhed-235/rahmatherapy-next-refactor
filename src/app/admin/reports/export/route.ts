@@ -9,11 +9,13 @@ import {
 } from "@/lib/auth/rbac";
 import {
   canViewRevenueReports,
+  filterReportDataToStaff,
   formatMoney,
   getReportData,
   getServicePerformance,
   getStaffRevenueAttribution,
   getStaffWorkload,
+  hasUniversalReportScope,
   parseReportFilters,
   summarizeReports,
 } from "../reporting";
@@ -33,8 +35,32 @@ export async function GET(request: NextRequest) {
   const filters = parseReportFilters(Object.fromEntries(url.searchParams));
   const adminClient = createSupabaseAdminClient();
   const data = await getReportData(adminClient, profile, filters);
+
+  // ⛔ SECURITY. `getReportData` scopes `bookings` (and derivatively
+  // `assignments` / `bookingItems`) to the caller's permissions — but it returns
+  // `clients`, `staff`, `enquiries`, `emailEvents` and `operationalEvents` as
+  // the FULL clinic-wide tables, for every profile. Every other consumer of it
+  // narrows afterwards: reports/page.tsx does so at sixteen call sites. This
+  // route did not, and `report=client_summary` maps `data.clients` straight into
+  // a downloadable CSV of full names.
+  //
+  // The gate above is not enough on its own. `Therapist` is granted BOTH
+  // `view_reports_own` and `export_reports_own`
+  // (20260509143000_granular_rbac_consolidation.sql:283-284), so it passes —
+  // and `report` is an unvalidated query parameter, so any permitted caller
+  // could ask for any report shape. A therapist could therefore download every
+  // client in the clinic, including ones they have never treated.
+  //
+  // `filterReportDataToStaff` narrows bookings -> assignments -> bookingItems ->
+  // clients by the staffer's own assignments, which is exactly the scope
+  // `export_reports_own` names. Profiles WITH universal scope are untouched, so
+  // an Owner's export is byte-identical to before.
+  const scopedData = hasUniversalReportScope(profile)
+    ? data
+    : filterReportDataToStaff(data, profile.id);
+
   const revenueAllowed = canExportRevenueReports(profile) || canViewRevenueReports(profile);
-  const rows = getRows(report, data, revenueAllowed);
+  const rows = getRows(report, scopedData, revenueAllowed);
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: profile.id,
