@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, FilterX, ChevronLeft, ChevronRight, Loader2, FolderSearch, Plus, X } from "lucide-react";
+import { Search, FilterX, FolderSearch, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AdminButton, AdminSkeleton, AdminActionGroup } from "./admin-ui";
 import { EmptyState } from "./EmptyState";
@@ -120,80 +120,6 @@ export function SearchFilterBar({
         {filters ? <AdminActionGroup>{filters}</AdminActionGroup> : null}
       </div>
       {actions ? <AdminActionGroup className="shrink-0">{actions}</AdminActionGroup> : null}
-    </div>
-  );
-}
-
-export function PaginationControls({
-  currentPage,
-  totalPages,
-  onPageChange,
-  className,
-}: {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-  className?: string;
-}) {
-  if (totalPages <= 1) return null;
-
-  return (
-    <div className={cn("flex items-center justify-between border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3 sm:px-6 rounded-b-[var(--admin-radius-card)]", className)}>
-      <div className="hidden sm:block">
-        <p className="text-sm text-[var(--admin-text-muted)]">
-          Page <span className="font-medium text-[var(--admin-heading)]">{currentPage}</span> of{" "}
-          <span className="font-medium text-[var(--admin-heading)]">{totalPages}</span>
-        </p>
-      </div>
-      <div className="flex flex-1 justify-between sm:justify-end gap-2">
-        <AdminButton
-          variant="outline"
-          size="sm"
-          disabled={currentPage <= 1}
-          onClick={() => onPageChange(currentPage - 1)}
-        >
-          <ChevronLeft className="mr-1 size-4" aria-hidden="true" />
-          Previous
-        </AdminButton>
-        <AdminButton
-          variant="outline"
-          size="sm"
-          disabled={currentPage >= totalPages}
-          onClick={() => onPageChange(currentPage + 1)}
-        >
-          Next
-          <ChevronRight className="ml-1 size-4" aria-hidden="true" />
-        </AdminButton>
-      </div>
-    </div>
-  );
-}
-
-export function LoadMoreButton({
-  onClick,
-  loading = false,
-  hasMore = true,
-  className,
-}: {
-  onClick: () => void;
-  loading?: boolean;
-  hasMore?: boolean;
-  className?: string;
-}) {
-  if (!hasMore) return null;
-
-  return (
-    <div className={cn("flex justify-center py-4", className)}>
-      <AdminButton variant="outline" onClick={onClick} disabled={loading}>
-        {loading ? (
-          <>
-            <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />
-            Loading more...
-          </>
-        ) : (
-          "Load more"
-        )}
-      </AdminButton>
     </div>
   );
 }
