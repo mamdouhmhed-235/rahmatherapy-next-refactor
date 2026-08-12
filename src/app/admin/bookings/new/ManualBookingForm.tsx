@@ -2391,7 +2391,7 @@ export function ManualBookingForm({
       onKeyDown={trapLeaveDialogFocus}
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
     >
-      <div className="fixed inset-0 bg-[oklch(12%_0.01_165)]/35" onClick={() => setShowLeaveDialog(false)} />
+      <div className="fixed inset-0 bg-[var(--admin-scrim)]/35" onClick={() => setShowLeaveDialog(false)} />
       <div className="relative z-10 w-full max-w-sm rounded-t-[var(--admin-radius-lg)] bg-[var(--admin-panel)] p-6 shadow-[0_8px_24px_oklch(23%_0.073_155/0.12)] sm:rounded-[var(--admin-radius-card)]">
         <h2 id="leave-dialog-heading" className="font-display text-base font-semibold text-[var(--admin-heading)]">
           Leave this booking?

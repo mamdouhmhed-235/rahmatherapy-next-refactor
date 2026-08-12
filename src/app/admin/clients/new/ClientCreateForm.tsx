@@ -504,7 +504,7 @@ const NoContactDialog = forwardRef<
     <dialog
       ref={ref}
       aria-labelledby="no-contact-heading"
-      className="m-auto rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-0 text-[var(--admin-body)] shadow-[var(--admin-shadow-overlay)] backdrop:bg-[oklch(11%_0.014_155_/_0.45)]"
+      className="m-auto rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-0 text-[var(--admin-body)] shadow-[var(--admin-shadow-overlay)] backdrop:bg-[var(--admin-scrim-backdrop)]"
     >
       <div className="w-[min(28rem,calc(100vw-2rem))] p-6">
         <h2

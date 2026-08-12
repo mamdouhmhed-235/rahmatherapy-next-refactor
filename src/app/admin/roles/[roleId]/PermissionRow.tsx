@@ -215,7 +215,7 @@ export function PermissionRow(props: PermissionRowProps) {
       {/* Confirm dialog (high/critical/owner gated paths) */}
       <BaseDialog.Root open={confirmOpen} onOpenChange={setConfirmOpen}>
         <BaseDialog.Portal>
-          <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm" />
+          <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[var(--admin-scrim)]/35 backdrop-blur-sm" />
           <BaseDialog.Popup className="fixed left-1/2 top-[24vh] z-50 w-[min(calc(100vw-2rem),28rem)] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)]">

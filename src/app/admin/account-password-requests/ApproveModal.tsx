@@ -81,7 +81,7 @@ export function ApproveModal({
         }
       />
       <BaseDialog.Portal>
-        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200" />
+        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[var(--admin-scrim)]/35 backdrop-blur-sm motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200" />
         <BaseDialog.Popup
           className="fixed inset-x-0 bottom-0 z-50 w-full rounded-t-[var(--admin-radius-card)] border-t border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none motion-safe:animate-in motion-safe:slide-in-from-bottom motion-safe:duration-200 sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-[18vh] sm:w-[min(calc(100vw-2rem),28rem)] sm:-translate-x-1/2 sm:rounded-[var(--admin-radius-card)] sm:border sm:p-6 sm:motion-safe:slide-in-from-top-2"
           data-redesign-backend="FAKE"

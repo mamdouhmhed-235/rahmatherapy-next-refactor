@@ -781,7 +781,7 @@ function UserMenuSheet({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/40 backdrop-blur-sm md:hidden"
+        className="fixed inset-0 z-50 bg-[var(--admin-scrim)]/40 backdrop-blur-sm md:hidden"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -944,7 +944,7 @@ function MobileSearch() {
       </button>
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-[oklch(12%_0.01_165)]/35 pt-[8vh] backdrop-blur-sm px-4"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-[var(--admin-scrim)]/35 pt-[8vh] backdrop-blur-sm px-4"
           onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(false); }}
         >
           <div className="relative w-full max-w-[32rem] rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)]">

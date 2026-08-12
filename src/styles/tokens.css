@@ -208,6 +208,17 @@
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
   --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
   --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+  /* ITEM 7 — modal scrims.
+   * The dimming layer behind every modal, dialog, drawer and command palette.
+   * Alpha is applied at the call site by Tailwind's /30 /35 /40 modifier on a
+   * class string that does not vary by theme, so the alpha is frozen and the
+   * base colour is the only lever: it goes hue-neutral black in dark mode,
+   * the same shape --admin-shadow-* already uses. -backdrop is the one site
+   * that bakes its own alpha (a ::backdrop, no Tailwind modifier), so its
+   * alpha CAN move, and does. */
+  --admin-scrim: oklch(12% 0.01 165);
+  --admin-scrim-backdrop: oklch(11% 0.014 155 / 0.45);
+  --admin-scrim-overlay: oklch(12% 0.014 155);
   /* ─── Sweep tokens (C-11 Phase E, Step 11b) ─────────────────────────────
    * Each one replaces a hardcoded literal that had NO byte-identical token
    * already in the family, so every light value here is verbatim the literal
@@ -461,6 +472,17 @@
   --admin-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.45);
   --admin-shadow-hover: 0 2px 8px oklch(0% 0 0 / 0.5);
   --admin-shadow-overlay: 0 8px 24px oklch(0% 0 0 / 0.6), 0 1px 4px oklch(0% 0 0 / 0.45);
+  /* ITEM 7 — modal scrims.
+   * The dimming layer behind every modal, dialog, drawer and command palette.
+   * Alpha is applied at the call site by Tailwind's /30 /35 /40 modifier on a
+   * class string that does not vary by theme, so the alpha is frozen and the
+   * base colour is the only lever: it goes hue-neutral black in dark mode,
+   * the same shape --admin-shadow-* already uses. -backdrop is the one site
+   * that bakes its own alpha (a ::backdrop, no Tailwind modifier), so its
+   * alpha CAN move, and does. */
+  --admin-scrim: oklch(0% 0 0);
+  --admin-scrim-backdrop: oklch(0% 0 0 / 0.75);
+  --admin-scrim-overlay: oklch(0% 0 0);
   /* Sweep tokens (Step 11b). The ambient wash inverts to a low-alpha warm
    * glow — a 95%-lightness peach over a near-black canvas would read as a
    * pale band across the top of every admin page. */
@@ -595,6 +617,17 @@
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
   --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
   --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+  /* ITEM 7 — modal scrims.
+   * The dimming layer behind every modal, dialog, drawer and command palette.
+   * Alpha is applied at the call site by Tailwind's /30 /35 /40 modifier on a
+   * class string that does not vary by theme, so the alpha is frozen and the
+   * base colour is the only lever: it goes hue-neutral black in dark mode,
+   * the same shape --admin-shadow-* already uses. -backdrop is the one site
+   * that bakes its own alpha (a ::backdrop, no Tailwind modifier), so its
+   * alpha CAN move, and does. */
+  --admin-scrim: oklch(12% 0.01 165);
+  --admin-scrim-backdrop: oklch(11% 0.014 155 / 0.45);
+  --admin-scrim-overlay: oklch(12% 0.014 155);
   /* Sweep tokens (Step 11b) — light values, identical to :root. */
   --admin-shell-ambient: oklch(95% 0.04 60 / 0.45);
   --admin-action-primary-text: #ffffff;
@@ -721,6 +754,17 @@
     --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
     --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
     --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+    /* ITEM 7 — modal scrims.
+     * The dimming layer behind every modal, dialog, drawer and command palette.
+     * Alpha is applied at the call site by Tailwind's /30 /35 /40 modifier on a
+     * class string that does not vary by theme, so the alpha is frozen and the
+     * base colour is the only lever: it goes hue-neutral black in dark mode,
+     * the same shape --admin-shadow-* already uses. -backdrop is the one site
+     * that bakes its own alpha (a ::backdrop, no Tailwind modifier), so its
+     * alpha CAN move, and does. */
+    --admin-scrim: oklch(12% 0.01 165);
+    --admin-scrim-backdrop: oklch(11% 0.014 155 / 0.45);
+    --admin-scrim-overlay: oklch(12% 0.014 155);
     /* Sweep tokens (Step 11b) — light values. Omitting these would leave a
      * dark-theme admin printing lifted chart fills and an inverted button
      * foreground on white paper. */

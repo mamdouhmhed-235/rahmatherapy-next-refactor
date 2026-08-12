@@ -125,7 +125,7 @@ export function AdminCommandSearch({
         ) : null}
       </BaseDialog.Trigger>
       <BaseDialog.Portal>
-        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/30 backdrop-blur-sm" />
+        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[var(--admin-scrim)]/30 backdrop-blur-sm" />
         <BaseDialog.Popup className="fixed left-1/2 top-[8vh] z-50 grid w-[min(calc(100vw-1rem),42rem)] -translate-x-1/2 overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] shadow-[var(--admin-shadow-overlay)] outline-none">
           <div className="flex items-center gap-3 border-b border-[var(--admin-border)] px-4 py-3">
             <Search className="size-4 shrink-0 text-[var(--admin-text-muted)]" aria-hidden="true" />

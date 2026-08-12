@@ -82,7 +82,7 @@ export function ServiceFormDialog({
         }
       />
       <BaseDialog.Portal>
-        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm" />
+        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[var(--admin-scrim)]/35 backdrop-blur-sm" />
         <BaseDialog.Popup
           className={cn(
             "fixed z-50 flex min-w-0 flex-col gap-5 overflow-hidden border border-[var(--admin-border)] bg-[var(--admin-panel)] p-0 shadow-[var(--admin-shadow-overlay)] outline-none",
