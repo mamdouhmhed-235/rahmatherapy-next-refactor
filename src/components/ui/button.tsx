@@ -23,7 +23,7 @@ export const buttonVariants = cva(
         // ── Admin variants — DESIGN.md §5 ──────────────────────────────────
         // Primary: Clinic Green fill, Field White text.
         "admin-primary":
-          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[var(--admin-button-primary-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[var(--admin-primary-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Secondary: Form Seam border, transparent fill.
         "admin-secondary":
           "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-button-subtle-hover)] active:bg-[var(--admin-button-subtle-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",

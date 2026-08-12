@@ -193,7 +193,7 @@ export function LivePreview({ templateId, cardName, values }: LivePreviewProps) 
 
       <div className="relative overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-email-preview-bg)]">
         {initialStatus === "loading" ? (
-          <div className="absolute inset-0 z-10 flex flex-col gap-3 p-5" aria-hidden="true">
+          <div className="absolute inset-0 z-10 flex flex-col gap-3 bg-[var(--admin-email-preview-chrome-bg)] p-5" aria-hidden="true">
             <AdminSkeleton className="h-6 w-2/3" />
             <AdminSkeleton className="h-3 w-full" />
             <AdminSkeleton className="h-3 w-5/6" />
@@ -205,7 +205,7 @@ export function LivePreview({ templateId, cardName, values }: LivePreviewProps) 
           <div
             role="alert"
             aria-live="polite"
-            className="flex flex-col items-start gap-3 p-5 text-sm text-[var(--admin-status-cancelled-text)]"
+            className="flex flex-col items-start gap-3 bg-[var(--admin-email-preview-chrome-bg)] p-5 text-sm text-[var(--admin-status-cancelled-text)]"
           >
             <p className="font-semibold">Couldn&apos;t load the preview</p>
             <button

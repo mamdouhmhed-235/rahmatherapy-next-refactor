@@ -273,6 +273,13 @@
   --admin-surface-subtle: oklch(97.8% 0.006 88);
   --admin-ring-gap: oklch(99.2% 0.004 88);
   --admin-email-preview-bg: oklch(99.2% 0.004 88);
+  /* ITEM 7, Owner decision 2026-08-12. The preview card's own chrome —
+   * its loading skeletons and its "Couldn't load the preview" state — is NOT
+   * email content, so it must not sit on the frozen white paper above. This
+   * ground is byte-identical to that paper in light mode and inverts in dark,
+   * so the admin-themed text and skeletons inside it stay legible when the
+   * preview fetch fails. */
+  --admin-email-preview-chrome-bg: oklch(99.2% 0.004 88);
   --admin-surface-on-tint: oklch(99.5% 0.003 88);
   --admin-avatar-neutral-bg: oklch(96% 0.012 88);
   /* Brand-Tinted Shadow Rule (was Green-Tinted Shadow Rule): all admin shadows
@@ -344,7 +351,6 @@
    * carry byte-identical hover/active pairs. */
   --admin-button-subtle-hover: oklch(95.5% 0.012 155);
   --admin-button-subtle-active: oklch(92% 0.022 155);
-  --admin-button-primary-active: oklch(15% 0.065 155);
   --admin-danger-solid-active: oklch(28% 0.14 25);
   /* Donut + stacked-bar status fills (ReportsCharts' statusChartFillForKey).
    * Deliberately NOT the --admin-status-*-text family: those are tuned for
@@ -624,6 +630,8 @@
   --admin-surface-subtle: oklch(26% 0.008 88);
   --admin-ring-gap: oklch(22% 0.008 88);
   --admin-email-preview-bg: oklch(99.2% 0.004 88);
+  /* Inverts, unlike the paper it sits on — see the note in :root. */
+  --admin-email-preview-chrome-bg: oklch(22% 0.008 88);
   --admin-surface-on-tint: oklch(22% 0.008 88);
   --admin-avatar-neutral-bg: oklch(26% 0.008 88);
   /* Shadows drop the brand-blue tint: a blue-tinted shadow is invisible on a
@@ -685,7 +693,6 @@
    * carry byte-identical hover/active pairs. */
   --admin-button-subtle-hover: oklch(27% 0.010 155);
   --admin-button-subtle-active: oklch(33% 0.021 155);
-  --admin-button-primary-active: oklch(91% 0.040 240);  /* 14.54:1 vs on-primary */
   --admin-danger-solid-active: oklch(87% 0.070 25);  /* 12.37:1 vs on-primary */
   /* Chart fills lift into the 68–82% band so slices keep the "pop" they were
    * tuned for on cream. All six sit 5.57–9.81:1 against --admin-panel
@@ -860,6 +867,7 @@
   --admin-surface-subtle: oklch(97.8% 0.006 88);
   --admin-ring-gap: oklch(99.2% 0.004 88);
   --admin-email-preview-bg: oklch(99.2% 0.004 88);
+  --admin-email-preview-chrome-bg: oklch(99.2% 0.004 88);
   --admin-surface-on-tint: oklch(99.5% 0.003 88);
   --admin-avatar-neutral-bg: oklch(96% 0.012 88);
   --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
@@ -914,7 +922,6 @@
    * carry byte-identical hover/active pairs. */
   --admin-button-subtle-hover: oklch(95.5% 0.012 155);
   --admin-button-subtle-active: oklch(92% 0.022 155);
-  --admin-button-primary-active: oklch(15% 0.065 155);
   --admin-danger-solid-active: oklch(28% 0.14 25);
   --admin-chart-status-confirmed: oklch(58% 0.18 155);
   --admin-chart-status-pending: oklch(70% 0.16 70);
@@ -1085,6 +1092,7 @@
     --admin-surface-subtle: oklch(97.8% 0.006 88);
     --admin-ring-gap: oklch(99.2% 0.004 88);
     --admin-email-preview-bg: oklch(99.2% 0.004 88);
+    --admin-email-preview-chrome-bg: oklch(99.2% 0.004 88);
     --admin-surface-on-tint: oklch(99.5% 0.003 88);
     --admin-avatar-neutral-bg: oklch(96% 0.012 88);
     --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
@@ -1136,7 +1144,6 @@
      * carry byte-identical hover/active pairs. */
     --admin-button-subtle-hover: oklch(95.5% 0.012 155);
     --admin-button-subtle-active: oklch(92% 0.022 155);
-    --admin-button-primary-active: oklch(15% 0.065 155);
     --admin-danger-solid-active: oklch(28% 0.14 25);
     --admin-chart-status-confirmed: oklch(58% 0.18 155);
     --admin-chart-status-pending: oklch(70% 0.16 70);

@@ -31,20 +31,20 @@
     "a colour added there would be invisible to this ratchet AND would ship to",
     "the public site."
   ],
-  "staticRemainder": {
-    "$comment": [
-      "The one static literal left, and why it is not substituted.",
-      "src/app/admin/clients/page.tsx:1121 spells its arbitrary value with RAW",
-      "SPACES — `hover:border-b-[oklch(60% 0.08 247)]`. Tailwind cannot compile",
-      "an arbitrary value containing spaces, so the class never generated and",
-      "that hover border has never rendered. Pointing it at a token would make",
-      "the class valid and switch on a visual effect for the first time, which",
-      "is not a substitution; deleting it would discard evident design intent.",
-      "Both are Owner calls, so it stays counted rather than quietly resolved."
-    ],
-    "count": 1
-  },
-  "staticCeiling": 1,
+  "$staticCeilingNote": [
+    "ZERO, reached 2026-08-12. This is the zero-tolerance state plan §7.8 asked",
+    "for: no static oklch() literal may exist in the scanned directories at all.",
+    "",
+    "The last one was src/app/admin/clients/page.tsx:1121, which spelled its",
+    "arbitrary value with RAW SPACES — `hover:border-b-[oklch(60% 0.08 247)]`.",
+    "A class attribute is whitespace-delimited, so that was never one class",
+    "name, and the compiled bundle contained no such utility: the hover border",
+    "had never rendered in the product's life. Deleted by Owner decision rather",
+    "than pointed at a token, because making it valid would have switched on a",
+    "visual effect for the first time, which is not a substitution. The row",
+    "keeps its working hover:bg and focus-within states."
+  ],
+  "staticCeiling": 0,
   "dynamicAllowance": {
     "$comment": [
       "Computed-hue literals like `oklch(88% 0.025 ${hue})`, where the hue is",

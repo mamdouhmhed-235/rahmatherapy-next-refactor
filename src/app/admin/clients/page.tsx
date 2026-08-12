@@ -1118,7 +1118,7 @@ function ClientRow({
 
   return (
     <li
-      className={`group relative flex min-h-[56px] items-center gap-3 rounded-[var(--admin-radius-control)] border-b border-b-transparent px-3 py-2 transition-colors duration-150 ease-out hover:bg-[var(--admin-hover-mist)] hover:border-b-[oklch(60% 0.08 247)] focus-within:bg-[var(--admin-hover-mist)] md:gap-4 md:px-4 ${rowOpacity}`}
+      className={`group relative flex min-h-[56px] items-center gap-3 rounded-[var(--admin-radius-control)] border-b border-b-transparent px-3 py-2 transition-colors duration-150 ease-out hover:bg-[var(--admin-hover-mist)] focus-within:bg-[var(--admin-hover-mist)] md:gap-4 md:px-4 ${rowOpacity}`}
     >
       {isDeleted ? null : (
         <ClientSelectCheckbox clientId={client.id} clientName={client.full_name} />
