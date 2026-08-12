@@ -276,7 +276,7 @@ function ServiceFormBody({
               aria-invalid={
                 fieldErrors.gender_restrictions ? "true" : undefined
               }
-              className="flex h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-[oklch(26%_0.14_25)]"
+              className="flex h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-[var(--admin-status-cancelled-text)]"
             >
               <option value="any">Any gender</option>
               <option value="female_only">Female clients only</option>

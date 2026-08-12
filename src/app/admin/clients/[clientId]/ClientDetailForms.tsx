@@ -151,7 +151,7 @@ export function ClientNoteForm({
           aria-invalid={state.fieldErrors?.note ? "true" : undefined}
           className={
             state.fieldErrors?.note
-              ? "min-h-[6rem] w-full rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm leading-6 text-[var(--admin-body)] outline-none placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+              ? "min-h-[6rem] w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-text)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm leading-6 text-[var(--admin-body)] outline-none placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
               : "min-h-[6rem] w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm leading-6 text-[var(--admin-body)] outline-none placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
           }
         />
@@ -251,7 +251,7 @@ export function ClientPrivacyRequestForm({ clientId }: { clientId: string }) {
           aria-invalid={state.fieldErrors?.request_type ? "true" : undefined}
           className={
             state.fieldErrors?.request_type
-              ? "h-10 w-full rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
+              ? "h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-text)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
               : "h-10 w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
           }
         >

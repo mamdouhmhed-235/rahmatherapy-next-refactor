@@ -24,7 +24,7 @@ import { createClient, type ClientActionState } from "../actions";
 const initialState: ClientActionState = {};
 
 const CANCELLED_TEXT = "text-[var(--admin-status-cancelled-text)]";
-const CANCELLED_BORDER = "border-[oklch(26%_0.14_25)]";
+const CANCELLED_BORDER = "border-[var(--admin-status-cancelled-text)]";
 const CANCELLED_BG_SOFT = "bg-[var(--admin-status-cancelled-bg)]";
 
 const NOTES_MAX = 2000;

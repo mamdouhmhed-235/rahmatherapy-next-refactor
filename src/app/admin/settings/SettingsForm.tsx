@@ -595,7 +595,7 @@ function FieldRow({
         className={cn(
           "flex h-10 w-full scroll-mb-24 rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50",
           error
-            ? "border-[oklch(26%_0.14_25)]"
+            ? "border-[var(--admin-status-cancelled-text)]"
             : "border-[var(--admin-border-form)]"
         )}
       />
@@ -670,7 +670,7 @@ function NumericField({
             "h-10 w-24 flex-shrink-0 scroll-mb-24 rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50",
             "[appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none",
             error
-              ? "border-[oklch(26%_0.14_25)]"
+              ? "border-[var(--admin-status-cancelled-text)]"
               : "border-[var(--admin-border-form)]"
           )}
         />
@@ -783,7 +783,7 @@ function ServiceAreaField({
           className={cn(
             "h-10 w-full flex-1 scroll-mb-24 rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50",
             error
-              ? "border-[oklch(26%_0.14_25)]"
+              ? "border-[var(--admin-status-cancelled-text)]"
               : "border-[var(--admin-border-form)]"
           )}
         />

@@ -315,7 +315,7 @@ export function AvailabilityOverridesManager({
               className={cn(
                 "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:opacity-50",
                 state.fieldErrors?.override_date
-                  ? "border-[oklch(26%_0.14_25)]"
+                  ? "border-[var(--admin-status-cancelled-text)]"
                   : "border-[var(--admin-border-form)]"
               )}
             />

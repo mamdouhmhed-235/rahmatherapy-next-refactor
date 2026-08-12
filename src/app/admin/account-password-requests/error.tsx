@@ -45,7 +45,7 @@ export default function AccountPasswordRequestsError({
         <button
           type="button"
           onClick={() => reset()}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 self-start rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/40 bg-transparent px-3 text-sm font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)]/60 focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 self-start rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-text)]/40 bg-transparent px-3 text-sm font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)]/60 focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
         >
           <RefreshCw className="size-3.5" aria-hidden="true" />
           Try again

@@ -131,7 +131,7 @@ export function RejectModal({
                 aria-invalid={errorMessage ? "true" : undefined}
                 className={
                   errorMessage
-                    ? "w-full rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm leading-6 text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[oklch(26%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[oklch(26%_0.14_25)]/30"
+                    ? "w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-text)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm leading-6 text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-status-cancelled-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-status-cancelled-text)]/30"
                     : "w-full rounded-[var(--admin-radius-control)] border border-[var(--admin-border-form)] bg-[var(--admin-surface-input)] px-3 py-2 text-sm leading-6 text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30"
                 }
               />

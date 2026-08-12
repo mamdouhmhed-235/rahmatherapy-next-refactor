@@ -62,7 +62,7 @@ const fieldClass =
   "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 py-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50";
 
 const fieldOk = "border-[var(--admin-border-form)]";
-const fieldErr = "border-[oklch(26%_0.14_25)]";
+const fieldErr = "border-[var(--admin-status-cancelled-text)]";
 
 export function EnquiryForm({ staff }: { staff: StaffOption[] }) {
   const router = useRouter();

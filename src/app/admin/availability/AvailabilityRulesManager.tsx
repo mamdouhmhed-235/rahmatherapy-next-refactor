@@ -267,7 +267,7 @@ export function AvailabilityRulesManager({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="mt-4 rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/30 bg-[var(--admin-status-cancelled-bg)] px-3 py-2 text-sm text-[var(--admin-status-cancelled-text)]"
+          className="mt-4 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-text)]/30 bg-[var(--admin-status-cancelled-bg)] px-3 py-2 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           {formError}
         </div>

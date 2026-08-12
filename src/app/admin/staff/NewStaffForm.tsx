@@ -307,7 +307,7 @@ function FieldInput({
           undefined
         }
         className={`h-10 rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50 ${
-          error ? "border-[oklch(26%_0.14_25)]" : "border-[var(--admin-border-form)]"
+          error ? "border-[var(--admin-status-cancelled-text)]" : "border-[var(--admin-border-form)]"
         } ${className ?? ""}`}
         {...props}
       />
@@ -341,7 +341,7 @@ function FieldSelect({
           undefined
         }
         className={`h-10 rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30 disabled:cursor-not-allowed disabled:opacity-50 ${
-          error ? "border-[oklch(26%_0.14_25)]" : "border-[var(--admin-border-form)]"
+          error ? "border-[var(--admin-status-cancelled-text)]" : "border-[var(--admin-border-form)]"
         } ${className ?? ""}`}
         {...props}
       >

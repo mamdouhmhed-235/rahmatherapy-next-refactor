@@ -37,7 +37,7 @@ export function Input({
         "focus-visible:outline-none",
         "focus-visible:ring-2 focus-visible:ring-[var(--admin-focus,oklch(47%_0.095_230))]/30",
         // Error state — applied via data-error attribute from AdminField wrapper
-        "data-[error=true]:border-[oklch(26%_0.14_25)]",
+        "data-[error=true]:border-[var(--admin-status-cancelled-text)]",
         // Disabled
         "disabled:cursor-not-allowed disabled:opacity-60",
         // Transition
