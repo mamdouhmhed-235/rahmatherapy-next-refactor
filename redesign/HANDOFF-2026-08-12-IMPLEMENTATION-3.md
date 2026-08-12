@@ -8,15 +8,15 @@ The three earlier handoffs are still live and are **not** superseded:
 - `HANDOFF-2026-08-11-IMPLEMENTATION.md` §5 — gotchas 1-15.
 - `HANDOFF-2026-08-11-IMPLEMENTATION-2.md` §5 — gotchas 16-27.
 
-This file adds §5's **new** gotchas 28-39. Nothing is mid-flight. No agent is running.
+This file adds §5's **new** gotchas 28-40. Nothing is mid-flight. No agent is running.
 Every change is committed. The tree is clean apart from the one standing dirty path.
 
 | | |
 |---|---|
-| **HEAD** | `22fc321` |
+| **HEAD** | `a7019fc` |
 | **Branch** | `master` |
-| **Shipped this session** | Item 8 **Phases 1, 2, 3 complete**, plus **Phase 5's email half** (Phase 3 carries Phase 5's chip gating) |
-| **Next** | Item 8 **Phase 4** → Phase 5's remaining customer copy → item 1 Batch B → item 7 → item 5 → Step 0.5 → Step Z |
+| **Shipped this session** | Item 8 **Phases 1-4 COMPLETE**, plus Phase 5's **chip gating** (in Phase 3) and **email half** |
+| **Next** | Item 8 **Phase 5's remaining customer copy** (needs Owner sign-off) → item 1 Batch B → item 7 → item 5 → Step 0.5 → Step Z |
 | **Deploy** | Still deferred, **to the very end of the plan, by Owner decision** |
 
 ---
@@ -32,6 +32,9 @@ Every change is committed. The tree is clean apart from the one standing dirty p
 | `3866d24` | Fully-paid lock fix found by the adversarial money review **after** Phase 3 landed |
 | `a378cc6` | This handoff (first revision) |
 | `22fc321` | **Item 8 Phase 5, email half** — labelled travel-charge line across the 8 touch points |
+| `1f786b1` | Handoff revision + gotcha 39 |
+| `9e65184` ⛔Zone-2 ×2 | **Item 8 Phase 4, database + propagation.** `recurring_booking_templates.travel_fee` and a re-signatured `create_recurring_booking_series`; applied as `20260812083309` and `20260812083317` |
+| `a7019fc` | **Item 8 Phase 4, admin half** — `setSeriesTravelFee`, the series panel, audit registration |
 
 **The live three-way service-area contradiction is FIXED and verified end to end.**
 `POST /api/availability/` now returns identical slots for Luton, **Harpenden** and
@@ -44,7 +47,7 @@ town the plan uses to describe the defect.
 
 ```powershell
 npx tsc --noEmit    # 0, silent, exit 0
-npx vitest run      # 5 failed / 2336 passed (2341)   <-- was 2295/2300 at session start
+npx vitest run      # 5 failed / 2347 passed (2352)   <-- was 2295/2300 at session start
 pnpm lint           # 59 errors / 7 warnings, the same six files
 git status --porcelain -- src/ supabase/   # exactly:  M src/lib/maintenance.ts
 ```
@@ -60,8 +63,8 @@ npx vitest run src/lib/auth/admin-access.test.ts                       # exactly
 session edited two of those six* (`BookingExperience.tsx`, `BookingExperienceLoader.tsx`)
 and moved their line numbers. That is the `{file, ruleId}` rule working as designed.
 
-**+41 tests added this session**, all passing. 21 mutants teeth-checked; 20 HAS_TEETH on the
-first pass, and the 21st was **found toothless and replaced** — see gotcha 39.
+**+52 tests added this session**, all passing. **28 mutants teeth-checked**; 27 HAS_TEETH on
+the first pass, and the 28th was **found toothless and replaced** — see gotcha 39.
 
 ---
 
@@ -75,8 +78,12 @@ first pass, and the 21st was **found toothless and replaced** — see gotcha 39.
 | `allowed_cities` references | **ZERO** database objects — 0 functions, 0 RLS policies |
 | `permissions` | `manage_travel_origin` granted to **Owner only** |
 
+| `recurring_booking_templates` | **27 columns** — `travel_fee numeric(10,2) NOT NULL DEFAULT 0` added. **0 rows**, so Phase 4 touched no live data |
+| `create_recurring_booking_series` | **Re-signatured**: 21 args, ending `p_travel_fee numeric`. Exactly one function survives; 2 fee-applied price expressions in the body |
+
 **Migrations applied this session:** `20260811230807` (Phase 2 gate removal),
-`20260811234948` (Phase 3 `travel_fee`).
+`20260811234948` (Phase 3 `travel_fee`), `20260812083309` (template `travel_fee`),
+`20260812083317` (series function re-signature).
 
 ⛔ **The ONLY remaining reference to `allowed_cities` anywhere is the deliberate
 dual-write in `settings/actions.ts`.** Step Z deletes it, after the deploy.
@@ -89,11 +96,12 @@ dual-write in `settings/actions.ts`.** Step Z deletes it, after the deploy.
 |---|---|---|
 | 10 | Phase 2 migration (remove the service-area gate) | **Approved and applied** |
 | 11 | Phase 3 migration (`bookings.travel_fee`) | **Approved and applied**, knowing it meant shipping Phase 5's chip gating in the same unit |
+| 13 | Phase 4's two migrations | **Approved and applied** |
 | 12 | May agents authenticate using `.env`? | **Yes** — see gotcha 30. The rule was never "tests cannot log in"; it is that no agent may *handle* a credential. The Playwright harness never exposes one |
 
 ---
 
-## 5 — NEW GOTCHAS (28-39). Each cost real time this session.
+## 5 — NEW GOTCHAS (28-40). Each cost real time this session.
 
 28. **⛔ `test.use({ channel: "chrome" })` MUST be file-level in Playwright.** Inside a
     `describe` it errors out the *entire file* before a single test runs
@@ -183,6 +191,14 @@ dual-write in `settings/actions.ts`.** Step Z deletes it, after the deploy.
     idiom). Assume this applies to every other select in the repo: none of them are
     covered by the stubs that appear to exercise them.
 
+40. **⛔ ADDING A PARAMETER TO A POSTGRES FUNCTION IS NOT A REPLACEMENT — IT IS A SECOND
+    FUNCTION.** Postgres identifies a function by (name, argument types), so
+    `CREATE OR REPLACE` with an extra parameter leaves the old signature live alongside
+    the new one. Worse, if the new parameter has a DEFAULT, every existing call becomes
+    **ambiguous** (`function is not unique`) while both exist. Create the new definition
+    and `DROP FUNCTION` the old signature **in the same transaction**, then assert
+    `count(*) = 1` afterwards. `20260812010100` does this, and c06 set the precedent.
+
 **Also re-confirmed:** PowerShell's working directory **persists between tool calls** and
 drifted mid-session, making `npx vitest run` report *"No test files found"* — which looks
 like a catastrophic failure and is just a wrong cwd. `Set-Location` back to the repo root
@@ -210,7 +226,17 @@ Phase-3 anchors in `bookings/actions.ts` were exact — **zero drift across thre
 
 ## 7 — What is left, in order
 
-### NEXT: Item 8 Phase 4 — recurring series carry the charge
+### ✅ Item 8 Phase 4 — DONE (`9e65184`, `a7019fc`)
+
+One deviation from the plan, deliberate and tested: §8.7's step 3 specifies a single bulk
+UPDATE using one shared `$oldFee`. That is **wrong for any series where an occurrence was
+individually adjusted** — each occurrence's delta must come from its own current fee, or a
+booking carrying an override has its total corrupted. Implemented per-occurrence, with a
+mutant proving the test catches the plan's version.
+
+### NEXT: Item 8 Phase 5's remaining customer copy — NEEDS OWNER SIGN-OFF
+
+### (superseded) Phase 4's original brief, retained for the record
 
 ⛔ **Zone-2 ×2, both needing Owner approval:**
 ```sql
