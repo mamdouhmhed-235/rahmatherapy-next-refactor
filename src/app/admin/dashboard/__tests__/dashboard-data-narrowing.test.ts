@@ -193,8 +193,12 @@ const ENQUIRIES: Row[] = [
 ];
 
 const EMAIL_EVENTS: Row[] = [
-  { id: "ev1", booking_id: "b1", staff_id: null, event_type: "confirmation", recipient_email: "one@example.test", recipient_role: "customer", delivery_status: "delivered", error_message: null, created_at: "2026-01-01T00:00:00Z" },
-  { id: "ev2", booking_id: "b2", staff_id: null, event_type: "confirmation", recipient_email: "two@example.test", recipient_role: "customer", delivery_status: "delivered", error_message: null, created_at: "2026-01-01T00:00:00Z" },
+  // ITEM K.4 — these rows are "failed" because that is the only delivery
+  // state the dashboard reads; the fetch now selects it in SQL rather than
+  // filtering in JS afterwards. They previously said "delivered", which is
+  // not even a value the CHECK constraint allows, so nothing rendered them.
+  { id: "ev1", booking_id: "b1", staff_id: null, event_type: "confirmation", recipient_email: "one@example.test", recipient_role: "customer", delivery_status: "failed", error_message: null, created_at: "2026-01-01T00:00:00Z" },
+  { id: "ev2", booking_id: "b2", staff_id: null, event_type: "confirmation", recipient_email: "two@example.test", recipient_role: "customer", delivery_status: "failed", error_message: null, created_at: "2026-01-01T00:00:00Z" },
 ];
 
 const OPERATIONAL_EVENTS: Row[] = [

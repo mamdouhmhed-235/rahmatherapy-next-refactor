@@ -548,6 +548,14 @@ async function getEmailEvents(
   let query = adminClient
     .from("email_delivery_events")
     .select("id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, error_message, created_at")
+    // ITEM K.4 — pushed down, not newly imposed. Every consumer already applied
+    // exactly this in JS and none wants the complement, so the rows discarded
+    // here are rows nothing rendered: BusinessDashboard.tsx:122,
+    // CoordinatorDashboard.tsx:164 and reporting.ts:730 all take
+    // `.filter(e => e.delivery_status === "failed")` and read only `.length`.
+    // `email_delivery_events_delivery_status_created_at_idx` is
+    // `(delivery_status, created_at desc)` — an exact match for this pair.
+    .eq("delivery_status", "failed")
     .order("created_at", { ascending: false });
 
   if (actorBookingIds) {
@@ -568,6 +576,17 @@ async function getOperationalEvents(
   let query = adminClient
     .from("operational_events")
     .select("id, event_type, severity, status, summary, booking_id, staff_id, created_at")
+    // ITEM K.4 — same push-down, same evidence: BusinessDashboard.tsx:123,
+    // CoordinatorDashboard.tsx:165 and reporting.ts:741 all filter to
+    // `status === "open"` and read only `.length`. Index
+    // `operational_events_status_created_at_idx` is `(status, created_at desc)`.
+    //
+    // ⚠️ `enquiries` above is deliberately NOT given the same treatment. It has
+    // consumers that DO want the complement — `hasAnyHandledEnquiries`
+    // (BusinessDashboard.tsx:238, CoordinatorDashboard.tsx:307) tests for
+    // statuses other than new/contacted — so an `.eq` there would be a
+    // regression, not a push-down.
+    .eq("status", "open")
     .order("created_at", { ascending: false });
 
   if (actorBookingIds) {
