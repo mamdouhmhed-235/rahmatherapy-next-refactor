@@ -496,7 +496,7 @@ export function BookingsChrome({
                 <span
                   aria-hidden="true"
                   title={`${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"}`}
-                  className="ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-[oklch(96%_0.038_75)] px-1.5 text-[0.6875rem] font-semibold text-[oklch(28%_0.12_55)]"
+                  className="ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--admin-status-pending-bg)] px-1.5 text-[0.6875rem] font-semibold text-[var(--admin-status-pending-text)]"
                 >
                   {activeFilterCount}
                 </span>

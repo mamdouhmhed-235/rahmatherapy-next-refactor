@@ -46,7 +46,7 @@ export function CopyEventId({ id }: { id: string }) {
     >
       <span className="min-w-0 truncate">{id}</span>
       {copied ? (
-        <Check className="size-3 shrink-0 text-[oklch(22%_0.085_155)]" aria-hidden="true" />
+        <Check className="size-3 shrink-0 text-[var(--admin-status-confirmed-text)]" aria-hidden="true" />
       ) : (
         <Copy
           className="size-3 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"

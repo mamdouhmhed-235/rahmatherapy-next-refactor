@@ -46,7 +46,7 @@ interface SettingsFormProps {
 const requiredMark = (
   <span
     aria-hidden="true"
-    className="ml-0.5 align-middle text-base font-bold leading-none text-[oklch(26%_0.14_25)]"
+    className="ml-0.5 align-middle text-base font-bold leading-none text-[var(--admin-status-cancelled-text)]"
   >
     *
   </span>
@@ -196,7 +196,7 @@ export function SettingsForm({
       <p className="mb-4 text-xs text-[var(--admin-text-muted)]">
         <span
           aria-hidden="true"
-          className="mr-0.5 align-middle text-base font-bold leading-none text-[oklch(26%_0.14_25)]"
+          className="mr-0.5 align-middle text-base font-bold leading-none text-[var(--admin-status-cancelled-text)]"
         >
           *
         </span>
@@ -208,7 +208,7 @@ export function SettingsForm({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="mb-5 flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-4 py-3 text-sm text-[oklch(26%_0.14_25)]"
+          className="mb-5 flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] px-4 py-3 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{state.error}</span>
@@ -230,7 +230,7 @@ export function SettingsForm({
               className={cn(
                 "flex flex-wrap items-center justify-between gap-3 rounded-[var(--admin-radius-control)] border px-4 py-3 transition-colors duration-[var(--motion-duration-fast)] ease-gentle",
                 intakeOn
-                  ? "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)]/50"
+                  ? "border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)]/50"
                   : "border-[var(--admin-border)] bg-[var(--admin-panel-muted)]"
               )}
             >
@@ -469,8 +469,8 @@ export function SettingsForm({
           <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35" />
           <BaseDialog.Popup className="fixed left-1/2 top-[30vh] z-50 w-[min(calc(100vw-2rem),30rem)] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none">
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]">
-                <XCircle className="size-5 text-[oklch(26%_0.14_25)]" aria-hidden="true" />
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)]">
+                <XCircle className="size-5 text-[var(--admin-status-cancelled-text)]" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
                 <BaseDialog.Title className="text-base font-semibold text-[var(--admin-heading)]">
@@ -497,7 +497,7 @@ export function SettingsForm({
               <button
                 type="button"
                 onClick={confirmPause}
-                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-danger-solid)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-danger-solid-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 Pause intake
               </button>
@@ -515,12 +515,12 @@ function IntakeStateBanner({ intakeOn }: { intakeOn: boolean }) {
       <div
         key="on"
         title="Customers can submit new bookings via the public site."
-        className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] px-4 py-3 text-sm text-[oklch(22%_0.085_155)] motion-safe:[animation:rahma-fade-up_200ms_ease-out]"
+        className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)] px-4 py-3 text-sm text-[var(--admin-status-confirmed-text)] motion-safe:[animation:rahma-fade-up_200ms_ease-out]"
       >
         <CheckCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         <div className="min-w-0">
           <p className="font-semibold">Accepting new bookings</p>
-          <p className="mt-0.5 text-[oklch(22%_0.085_155)]/85">
+          <p className="mt-0.5 text-[var(--admin-status-confirmed-text)]/85">
             Customers can submit new bookings.
           </p>
         </div>
@@ -531,12 +531,12 @@ function IntakeStateBanner({ intakeOn }: { intakeOn: boolean }) {
     <div
       key="off"
       title="Public site shows a closed-for-intake message until intake is resumed."
-      className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.012_280)] bg-[oklch(94%_0.008_280)] px-4 py-3 text-sm text-[oklch(30%_0.02_280)] motion-safe:[animation:rahma-fade-up_200ms_ease-out]"
+      className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-restricted-border)] bg-[var(--admin-status-restricted-bg)] px-4 py-3 text-sm text-[var(--admin-status-restricted-text)] motion-safe:[animation:rahma-fade-up_200ms_ease-out]"
     >
       <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <div className="min-w-0">
         <p className="font-semibold">Intake paused</p>
-        <p className="mt-0.5 text-[oklch(30%_0.02_280)]/85">
+        <p className="mt-0.5 text-[var(--admin-status-restricted-text)]/85">
           The public booking page is closed. Existing bookings, reminders, and
           admin work continue.
         </p>
@@ -605,7 +605,7 @@ function FieldRow({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="text-xs text-[oklch(26%_0.14_25)]"
+          className="text-xs text-[var(--admin-status-cancelled-text)]"
         >
           {error}
         </p>
@@ -687,7 +687,7 @@ function NumericField({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="text-xs text-[oklch(26%_0.14_25)]"
+          className="text-xs text-[var(--admin-status-cancelled-text)]"
         >
           {error}
         </p>
@@ -732,7 +732,7 @@ function ServiceAreaField({
       {cities.length === 0 ? (
         <div
           role="status"
-          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-2 text-xs text-[oklch(26%_0.13_55)]"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] px-3 py-2 text-xs text-[var(--admin-status-attention-text)]"
         >
           <span>
             No free-travel areas yet. Every booking will count as chargeable
@@ -745,7 +745,7 @@ function ServiceAreaField({
             <li key={`${city}-${index}`}>
               <span
                 title="Free-travel area. Visits here carry no travel charge."
-                className="inline-flex items-center gap-1 rounded-full border border-[oklch(88%_0.012_280)] bg-[oklch(94%_0.008_280)] py-1 pl-3 pr-1 text-xs text-[oklch(30%_0.02_280)] transition-colors hover:bg-[oklch(91%_0.012_280)]"
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--admin-status-restricted-border)] bg-[var(--admin-status-restricted-bg)] py-1 pl-3 pr-1 text-xs text-[var(--admin-status-restricted-text)] transition-colors hover:bg-[oklch(91%_0.012_280)]"
               >
                 <span>{city}</span>
                 <button
@@ -754,7 +754,7 @@ function ServiceAreaField({
                   disabled={disabled}
                   aria-label={`Remove ${city}`}
                   title={`Remove ${city}`}
-                  className="relative inline-flex size-5 items-center justify-center rounded-full text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(85%_0.012_280)] hover:text-[oklch(20%_0.02_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50 before:absolute before:inset-[-8px] before:content-['']"
+                  className="relative inline-flex size-5 items-center justify-center rounded-full text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(85%_0.012_280)] hover:text-[oklch(20%_0.02_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50 before:absolute before:inset-[-8px] before:content-['']"
                 >
                   <X
                     className="size-3.5 shrink-0"
@@ -804,7 +804,7 @@ function ServiceAreaField({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="text-xs text-[oklch(26%_0.14_25)]"
+          className="text-xs text-[var(--admin-status-cancelled-text)]"
         >
           {error}
         </p>

@@ -28,7 +28,7 @@ export function CopyIdButton({ value, label }: { value: string; label: string })
       className={cn(
         "inline-flex min-h-7 items-center gap-1 rounded-[var(--admin-radius-control)] px-1.5 text-[0.6875rem] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
         copied
-          ? "text-[oklch(22%_0.085_155)]"
+          ? "text-[var(--admin-status-confirmed-text)]"
           : "text-[var(--admin-text-muted)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
       )}
     >

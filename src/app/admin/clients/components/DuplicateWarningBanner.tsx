@@ -3,9 +3,9 @@
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ATTENTION_TEXT = "text-[oklch(26%_0.130_55)]";
+const ATTENTION_TEXT = "text-[var(--admin-status-attention-text)]";
 const ATTENTION_BORDER = "border-[oklch(80%_0.07_75)]";
-const ATTENTION_BG_SOFT = "bg-[oklch(95.0%_0.050_65)]";
+const ATTENTION_BG_SOFT = "bg-[var(--admin-status-attention-bg)]";
 
 export function DuplicateWarningBanner({
   message,

@@ -89,7 +89,7 @@ export function PerformanceHeader({
               <>
                 {" "}
                 <span aria-hidden="true">·</span>{" "}
-                <span className="inline-flex items-center rounded-full bg-[oklch(94%_0.008_280)] px-2 py-0.5 text-xs font-medium text-[oklch(30%_0.02_280)]">
+                <span className="inline-flex items-center rounded-full bg-[var(--admin-status-restricted-bg)] px-2 py-0.5 text-xs font-medium text-[var(--admin-status-restricted-text)]">
                   {inactiveSinceLabel}
                 </span>
               </>

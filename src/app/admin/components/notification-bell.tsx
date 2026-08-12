@@ -68,7 +68,7 @@ function getBadgeClasses(severity: Severity | null) {
     case "info":
       return "bg-[var(--notif-badge-info-bg)] text-[var(--notif-badge-info-fg)]";
     default:
-      return "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]";
+      return "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]";
   }
 }
 

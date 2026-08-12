@@ -937,7 +937,7 @@ function AssignmentRow({
           {isUnassigned ? (
             <span
               aria-hidden="true"
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]"
             >
               <AlertCircle className="size-4" />
             </span>
@@ -1136,7 +1136,7 @@ function EmailActivityPanel({ booking }: { booking: BookingRecord }) {
                     </div>
                   </div>
                   {event.error_message ? (
-                    <p className="mt-2 break-words rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-2 text-xs text-[oklch(26%_0.14_25)]">
+                    <p className="mt-2 break-words rounded-[var(--admin-radius-control)] bg-[var(--admin-status-cancelled-bg)] px-3 py-2 text-xs text-[var(--admin-status-cancelled-text)]">
                       {event.error_message}
                     </p>
                   ) : null}
@@ -1513,19 +1513,19 @@ function composeHeaderDescription({
 // ─── NextActionStrip ──────────────────────────────────────────────────────────
 
 const NEXT_ACTION_BG: Record<NextActionTone, string> = {
-  info: "bg-[oklch(96.0%_0.038_75)] border-[oklch(88%_0.055_75)]",
-  warning: "bg-[oklch(95.0%_0.050_65)] border-[oklch(88%_0.06_65)]",
-  success: "bg-[oklch(93.5%_0.038_155)] border-[oklch(88%_0.055_155)]",
+  info: "bg-[var(--admin-status-pending-bg)] border-[var(--admin-status-pending-border)]",
+  warning: "bg-[var(--admin-status-attention-bg)] border-[var(--admin-status-attention-border)]",
+  success: "bg-[var(--admin-status-confirmed-bg)] border-[var(--admin-status-confirmed-border)]",
   default: "bg-[var(--admin-panel)] border-[var(--admin-border)]",
-  danger: "bg-[oklch(95.5%_0.028_20)] border-[oklch(88%_0.045_20)]",
+  danger: "bg-[var(--admin-status-cancelled-bg)] border-[var(--admin-status-cancelled-border)]",
 };
 
 const NEXT_ACTION_TEXT: Record<NextActionTone, string> = {
-  info: "text-[oklch(28%_0.120_55)]",
-  warning: "text-[oklch(26%_0.130_55)]",
-  success: "text-[oklch(22%_0.085_155)]",
+  info: "text-[var(--admin-status-pending-text)]",
+  warning: "text-[var(--admin-status-attention-text)]",
+  success: "text-[var(--admin-status-confirmed-text)]",
   default: "text-[var(--admin-heading)]",
-  danger: "text-[oklch(26%_0.14_25)]",
+  danger: "text-[var(--admin-status-cancelled-text)]",
 };
 
 function NextActionStrip({
@@ -1635,7 +1635,7 @@ function findRecentAutoPromotion(events: AuditLogEvent[]): string | null {
 
 function AutoCompletedNotice({ promotedAt }: { promotedAt: string }) {
   return (
-    <p className="mt-1 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] px-3 py-2 text-xs font-medium text-[oklch(22%_0.085_155)]">
+    <p className="mt-1 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)] px-3 py-2 text-xs font-medium text-[var(--admin-status-confirmed-text)]">
       <CheckCircle2 className="size-3.5 shrink-0" aria-hidden="true" />
       Auto-completed when all assignments were marked complete
       <span className="opacity-70">· {formatRelative(promotedAt)}</span>

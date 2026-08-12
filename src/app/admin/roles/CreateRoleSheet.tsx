@@ -54,7 +54,7 @@ export function CreateRoleSheet({ defaultSortOrder }: CreateRoleSheetProps) {
             className="text-sm font-medium text-[var(--admin-heading)]"
           >
             Display label
-            <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+            <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
               *
             </span>
           </label>
@@ -78,7 +78,7 @@ export function CreateRoleSheet({ defaultSortOrder }: CreateRoleSheetProps) {
             className="text-sm font-medium text-[var(--admin-heading)]"
           >
             DB role name
-            <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+            <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
               *
             </span>
           </label>

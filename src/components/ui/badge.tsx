@@ -25,31 +25,31 @@ const badgeVariants = cva(
       variant: {
         // ── Status families ────────────────────────────────────────────────
         confirmed:
-          "bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)] px-2.5 py-1",
+          "bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)] px-2.5 py-1",
         pending:
-          "bg-[oklch(96%_0.038_75)] text-[oklch(28%_0.12_55)] px-2.5 py-1",
+          "bg-[var(--admin-status-pending-bg)] text-[var(--admin-status-pending-text)] px-2.5 py-1",
         cancelled:
-          "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)] px-2.5 py-1",
+          "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)] px-2.5 py-1",
         completed:
           "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)] px-2.5 py-1",
         attention:
-          "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)] px-2.5 py-1",
+          "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)] px-2.5 py-1",
         restricted:
-          "bg-[oklch(94%_0.008_280)] text-[oklch(30%_0.02_280)] px-2.5 py-1",
+          "bg-[var(--admin-status-restricted-bg)] text-[var(--admin-status-restricted-text)] px-2.5 py-1",
 
         // ── Compact (2px×8px) — dense table contexts only ─────────────────
         "confirmed-sm":
-          "bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)] px-2 py-0.5 text-[11px]",
+          "bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)] px-2 py-0.5 text-[11px]",
         "pending-sm":
-          "bg-[oklch(96%_0.038_75)] text-[oklch(28%_0.12_55)] px-2 py-0.5 text-[11px]",
+          "bg-[var(--admin-status-pending-bg)] text-[var(--admin-status-pending-text)] px-2 py-0.5 text-[11px]",
         "cancelled-sm":
-          "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)] px-2 py-0.5 text-[11px]",
+          "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)] px-2 py-0.5 text-[11px]",
         "completed-sm":
           "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)] px-2 py-0.5 text-[11px]",
         "attention-sm":
-          "bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)] px-2 py-0.5 text-[11px]",
+          "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)] px-2 py-0.5 text-[11px]",
         "restricted-sm":
-          "bg-[oklch(94%_0.008_280)] text-[oklch(30%_0.02_280)] px-2 py-0.5 text-[11px]",
+          "bg-[var(--admin-status-restricted-bg)] text-[var(--admin-status-restricted-text)] px-2 py-0.5 text-[11px]",
 
         // ── Legacy / non-admin surfaces ────────────────────────────────────
         default:
@@ -59,7 +59,7 @@ const badgeVariants = cva(
         outline:
           "border border-[var(--admin-border)] bg-transparent text-[var(--admin-body)] px-2.5 py-1",
         accent:
-          "border border-transparent bg-[oklch(96%_0.038_75)] text-[oklch(28%_0.12_55)] px-2.5 py-1",
+          "border border-transparent bg-[var(--admin-status-pending-bg)] text-[var(--admin-status-pending-text)] px-2.5 py-1",
       },
     },
     defaultVariants: {

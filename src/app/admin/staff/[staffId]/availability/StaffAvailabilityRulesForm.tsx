@@ -316,7 +316,7 @@ export function StaffAvailabilityRulesForm({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="mt-4 rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/30 bg-[oklch(95.5%_0.028_20)] px-3 py-2 text-sm text-[oklch(26%_0.14_25)]"
+          className="mt-4 rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/30 bg-[var(--admin-status-cancelled-bg)] px-3 py-2 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           {formError}
         </div>
@@ -427,7 +427,7 @@ function DayRow({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="text-xs text-[oklch(26%_0.14_25)] sm:col-span-3"
+          className="text-xs text-[var(--admin-status-cancelled-text)] sm:col-span-3"
         >
           {error}
         </div>

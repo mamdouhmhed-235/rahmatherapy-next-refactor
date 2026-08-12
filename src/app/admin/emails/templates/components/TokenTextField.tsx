@@ -133,7 +133,7 @@ export function TokenTextField({
   const fieldClassName = cn(
     "rounded-[var(--admin-radius-control)] border bg-[var(--admin-input)] px-3 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus:border-[var(--admin-focus)] focus:ring-2 focus:ring-[var(--admin-focus)]/55",
     "read-only:cursor-default read-only:bg-[var(--admin-panel-muted)] read-only:text-[var(--admin-text-muted)] read-only:focus:ring-0",
-    hasError ? "border-[oklch(40%_0.14_25)]" : "border-[var(--admin-border-form)]",
+    hasError ? "border-[var(--admin-danger-solid)]" : "border-[var(--admin-border-form)]",
     multiline ? "min-h-[5.5rem] py-2 leading-relaxed" : "h-11"
   );
 
@@ -235,7 +235,7 @@ export function TokenTextField({
         <span className="text-[var(--admin-text-muted)]">{helper}</span>
         {!readOnly ? (
           <span
-            className={tooLong ? "text-[oklch(26%_0.14_25)]" : "text-[var(--admin-text-muted)]"}
+            className={tooLong ? "text-[var(--admin-status-cancelled-text)]" : "text-[var(--admin-text-muted)]"}
           >
             {value.length}/{maxLength}
           </span>
@@ -243,7 +243,7 @@ export function TokenTextField({
       </div>
 
       {errorMessage ? (
-        <p id={errorId} role="alert" className="text-xs text-[oklch(26%_0.14_25)]">
+        <p id={errorId} role="alert" className="text-xs text-[var(--admin-status-cancelled-text)]">
           {errorMessage}
         </p>
       ) : null}

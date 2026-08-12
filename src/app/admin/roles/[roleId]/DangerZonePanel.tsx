@@ -65,7 +65,7 @@ export function DangerZonePanel({
     <div className="grid gap-3">
       {isSystem ? (
         <p
-          className="flex items-start gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(94%_0.008_280)] px-3 py-2 text-xs leading-5 text-[oklch(30%_0.02_280)]"
+          className="flex items-start gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-status-restricted-bg)] px-3 py-2 text-xs leading-5 text-[var(--admin-status-restricted-text)]"
           role="note"
         >
           <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
@@ -121,7 +121,7 @@ export function DangerZonePanel({
                 : "Delete is unavailable for this role"
               : "Delete this role permanently"
           }
-          className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:bg-[var(--admin-panel-muted)] disabled:text-[var(--admin-text-muted)]"
+          className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-danger-solid)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-danger-solid-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:bg-[var(--admin-panel-muted)] disabled:text-[var(--admin-text-muted)]"
         >
           <Trash2 className="size-4" aria-hidden="true" />
           Delete role
@@ -161,15 +161,15 @@ export function DangerZonePanel({
           <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm" />
           <BaseDialog.Popup className="fixed left-1/2 top-[28vh] z-50 w-[min(calc(100vw-2rem),28rem)] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none">
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]">
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)]">
                 {flow === "delete" ? (
                   <Trash2
-                    className="size-5 text-[oklch(26%_0.14_25)]"
+                    className="size-5 text-[var(--admin-status-cancelled-text)]"
                     aria-hidden="true"
                   />
                 ) : (
                   <Power
-                    className="size-5 text-[oklch(26%_0.14_25)]"
+                    className="size-5 text-[var(--admin-status-cancelled-text)]"
                     aria-hidden="true"
                   />
                 )}
@@ -190,7 +190,7 @@ export function DangerZonePanel({
 
             {flow === "delete" ? (
               <div
-                className="mt-4 rounded-[var(--admin-radius-control)] bg-[oklch(96%_0.038_75)] px-3 py-2 text-xs leading-5 text-[oklch(28%_0.12_55)]"
+                className="mt-4 rounded-[var(--admin-radius-control)] bg-[var(--admin-status-pending-bg)] px-3 py-2 text-xs leading-5 text-[var(--admin-status-pending-text)]"
                 role="note"
               >
                 Deletion isn&apos;t available yet. We&apos;re putting the final
@@ -226,7 +226,7 @@ export function DangerZonePanel({
                     setFlow(null);
                   }
                 }}
-                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-danger-solid)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-danger-solid-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? (
                   <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />

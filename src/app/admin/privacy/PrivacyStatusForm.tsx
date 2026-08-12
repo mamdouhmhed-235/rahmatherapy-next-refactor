@@ -137,7 +137,7 @@ export function PrivacyStatusForm({
           className="text-xs font-medium uppercase tracking-[0.04em] text-[var(--admin-text-muted)]"
         >
           Status
-          <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+          <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
             *
           </span>
         </label>

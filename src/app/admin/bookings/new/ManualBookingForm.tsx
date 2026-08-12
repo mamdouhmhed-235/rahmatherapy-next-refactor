@@ -399,7 +399,7 @@ function FieldLabel({
     <label htmlFor={htmlFor} className="text-sm font-medium text-[var(--admin-heading)]">
       {children}
       {required && (
-        <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+        <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
           *
         </span>
       )}
@@ -415,7 +415,7 @@ function FieldError({ error, id }: { error?: string; id: string }) {
       role="alert"
       aria-live="polite"
       aria-atomic="true"
-      className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)]"
+      className="flex items-center gap-1.5 text-xs text-[var(--admin-status-cancelled-text)]"
     >
       <X className="size-3.5 shrink-0" aria-hidden="true" />
       {error}
@@ -1267,7 +1267,7 @@ export function ManualBookingForm({
       role="alert"
       aria-live="polite"
       aria-atomic="true"
-      className="flex items-center gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-3 py-3 text-sm text-[oklch(26%_0.14_25)]"
+      className="flex items-center gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] px-3 py-3 text-sm text-[var(--admin-status-cancelled-text)]"
     >
       <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
       {stepBannerError}
@@ -1302,7 +1302,7 @@ export function ManualBookingForm({
         <div
           role="status"
           aria-live="polite"
-          className="rahma-pop-in flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] px-4 py-3 text-sm text-[oklch(22%_0.085_155)]"
+          className="rahma-pop-in flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)] px-4 py-3 text-sm text-[var(--admin-status-confirmed-text)]"
         >
           <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p className="min-w-0 flex-1">
@@ -1312,7 +1312,7 @@ export function ManualBookingForm({
             type="button"
             onClick={() => setHintDismissed(true)}
             aria-label="Dismiss"
-            className="shrink-0 rounded p-0.5 text-[oklch(22%_0.085_155)]/70 transition-colors hover:text-[oklch(22%_0.085_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="shrink-0 rounded p-0.5 text-[var(--admin-status-confirmed-text)]/70 transition-colors hover:text-[var(--admin-status-confirmed-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             <X className="size-3.5" aria-hidden="true" />
           </button>
@@ -1322,7 +1322,7 @@ export function ManualBookingForm({
       <div
         role="status"
         aria-live="polite"
-        className="rahma-pop-in flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.055_75)] bg-[oklch(96.0%_0.038_75)] px-4 py-3 text-sm text-[oklch(28%_0.120_55)]"
+        className="rahma-pop-in flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-pending-border)] bg-[var(--admin-status-pending-bg)] px-4 py-3 text-sm text-[var(--admin-status-pending-text)]"
       >
         <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         <p className="min-w-0">
@@ -1437,7 +1437,7 @@ export function ManualBookingForm({
                 className={cn(
                   "flex cursor-pointer items-start gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-colors",
                   bookingForMode === opt.value
-                    ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)]"
+                    ? "border-[var(--admin-primary)] bg-[var(--admin-status-confirmed-bg)]"
                     : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/30"
                 )}
               >
@@ -1484,7 +1484,7 @@ export function ManualBookingForm({
                 <button
                   type="button"
                   onClick={() => removeParticipant(idx)}
-                  className="flex items-center gap-1 rounded-[var(--admin-radius-control)] px-2 py-1 text-xs text-[var(--admin-text-muted)] transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[oklch(26%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                  className="flex items-center gap-1 rounded-[var(--admin-radius-control)] px-2 py-1 text-xs text-[var(--admin-text-muted)] transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-status-cancelled-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                   aria-label={`Remove person ${idx + 1}`}
                   title={`Remove this person from the booking`}
                 >
@@ -1533,7 +1533,7 @@ export function ManualBookingForm({
             >
               <legend className="mb-1 text-sm font-medium text-[var(--admin-heading)]">
                 Services
-                <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
+                <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">*</span>
               </legend>
               <p className="mb-3 text-xs text-[var(--admin-text-muted)]">Pick a package, add massage therapy, or choose both.</p>
               {stepErrors[`participant_services_${idx}`] && (
@@ -1553,7 +1553,7 @@ export function ManualBookingForm({
                       className={cn(
                         "flex cursor-pointer items-start gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-[background-color,border-color,box-shadow,color] duration-150",
                         selected
-                          ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] ring-1 ring-[var(--admin-primary)]/20"
+                          ? "border-[var(--admin-primary)] bg-[var(--admin-status-confirmed-bg)] ring-1 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-hover-mist)]"
                       )}
                     >
@@ -1599,7 +1599,7 @@ export function ManualBookingForm({
                           className={cn(
                             "flex cursor-pointer items-center gap-3 rounded-[var(--admin-radius-card)] border p-3 transition-[background-color,border-color,box-shadow,color] duration-150",
                             mSelected
-                              ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] ring-1 ring-[var(--admin-primary)]/20"
+                              ? "border-[var(--admin-primary)] bg-[var(--admin-status-confirmed-bg)] ring-1 ring-[var(--admin-primary)]/20"
                               : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/40"
                           )}
                         >
@@ -1664,7 +1664,7 @@ export function ManualBookingForm({
             size="sm"
             icon={<Plus className="size-4" aria-hidden="true" />}
             onClick={addParticipant}
-            className="mt-4 appearance-none border-0 text-[var(--admin-primary)] hover:bg-[oklch(93.5%_0.038_155)] hover:text-[var(--admin-primary)]"
+            className="mt-4 appearance-none border-0 text-[var(--admin-primary)] hover:bg-[var(--admin-status-confirmed-bg)] hover:text-[var(--admin-primary)]"
           >
             Add another person
           </AdminButton>
@@ -1870,13 +1870,13 @@ export function ManualBookingForm({
               </div>
             )}
             {availChecked && !availLoading && availSlots.length === 0 && (
-              <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-4">
+              <div className="rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] p-4">
                 <div className="flex items-start gap-2">
-                  <AlertCircle className="mt-0.5 size-4 shrink-0 text-[oklch(26%_0.13_55)]" aria-hidden="true" />
+                  <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--admin-status-attention-text)]" aria-hidden="true" />
                   <div>
-                    <p className="text-sm font-medium text-[oklch(26%_0.13_55)]">No therapists available on this date. Pick another date, or override.</p>
-                    {availReason && <p className="mt-0.5 text-xs text-[oklch(26%_0.13_55)]/80">{availReason}</p>}
-                    <button type="button" onClick={() => setShowOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline">Override this date</button>
+                    <p className="text-sm font-medium text-[var(--admin-status-attention-text)]">No therapists available on this date. Pick another date, or override.</p>
+                    {availReason && <p className="mt-0.5 text-xs text-[var(--admin-status-attention-text)]/80">{availReason}</p>}
+                    <button type="button" onClick={() => setShowOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[var(--admin-status-attention-text)] underline underline-offset-2 hover:no-underline">Override this date</button>
                   </div>
                 </div>
               </div>
@@ -1884,7 +1884,7 @@ export function ManualBookingForm({
             {availChecked && !availLoading && availSlots.length > 0 && (
               <div>
                 <p className="mb-3 text-sm font-medium text-[var(--admin-heading)]">
-                  Available times <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
+                  Available times <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">*</span>
                 </p>
                 {stepErrors.start_time && <FieldError error={stepErrors.start_time} id="start_time-error" />}
                 <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
@@ -1939,13 +1939,13 @@ export function ManualBookingForm({
               </p>
               {femaleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for female participants…</div>}
               {femaleAvailChecked && !femaleAvailLoading && femaleAvailSlots.length === 0 && (
-                <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
+                <div className="rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] p-3">
                   <div className="flex items-start gap-2">
-                    <AlertCircle className="mt-0.5 size-4 shrink-0 text-[oklch(26%_0.13_55)]" aria-hidden="true" />
+                    <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--admin-status-attention-text)]" aria-hidden="true" />
                     <div>
-                      <p className="text-sm font-medium text-[oklch(26%_0.13_55)]">No female therapists available on this date. Pick another date, or override.</p>
-                      {femaleAvailReason && <p className="mt-0.5 text-xs text-[oklch(26%_0.13_55)]/80">{femaleAvailReason}</p>}
-                      <button type="button" onClick={() => setShowFemaleOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline">Override for female participants</button>
+                      <p className="text-sm font-medium text-[var(--admin-status-attention-text)]">No female therapists available on this date. Pick another date, or override.</p>
+                      {femaleAvailReason && <p className="mt-0.5 text-xs text-[var(--admin-status-attention-text)]/80">{femaleAvailReason}</p>}
+                      <button type="button" onClick={() => setShowFemaleOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[var(--admin-status-attention-text)] underline underline-offset-2 hover:no-underline">Override for female participants</button>
                     </div>
                   </div>
                 </div>
@@ -1965,9 +1965,9 @@ export function ManualBookingForm({
                 </div>
               )}
               {showFemaleOverrideConfirm && (
-                <div className="mt-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
-                  <p className="text-sm font-semibold text-[oklch(26%_0.13_55)]">Skip availability for female participants?</p>
-                  <p className="mt-1 text-xs text-[oklch(26%_0.13_55)]/80">No availability will be checked. A female therapist will need to accept this booking.</p>
+                <div className="mt-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] p-3">
+                  <p className="text-sm font-semibold text-[var(--admin-status-attention-text)]">Skip availability for female participants?</p>
+                  <p className="mt-1 text-xs text-[var(--admin-status-attention-text)]/80">No availability will be checked. A female therapist will need to accept this booking.</p>
                   <div className="mt-2 flex gap-2">
                     <AdminButton size="sm" onClick={() => { setFemaleOverride(true); setShowFemaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-[var(--admin-on-primary)] hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
                     <AdminButton size="sm" variant="ghost" onClick={() => setShowFemaleOverrideConfirm(false)}>Cancel</AdminButton>
@@ -1983,13 +1983,13 @@ export function ManualBookingForm({
               </p>
               {maleAvailLoading && <div className="flex items-center gap-2 text-sm text-[var(--admin-text-muted)]"><Loader2 className="size-4 animate-spin" aria-hidden="true" />Checking availability for male participants…</div>}
               {maleAvailChecked && !maleAvailLoading && maleAvailSlots.length === 0 && (
-                <div className="rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
+                <div className="rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] p-3">
                   <div className="flex items-start gap-2">
-                    <AlertCircle className="mt-0.5 size-4 shrink-0 text-[oklch(26%_0.13_55)]" aria-hidden="true" />
+                    <AlertCircle className="mt-0.5 size-4 shrink-0 text-[var(--admin-status-attention-text)]" aria-hidden="true" />
                     <div>
-                      <p className="text-sm font-medium text-[oklch(26%_0.13_55)]">No male therapists available on this date. Pick another date, or override.</p>
-                      {maleAvailReason && <p className="mt-0.5 text-xs text-[oklch(26%_0.13_55)]/80">{maleAvailReason}</p>}
-                      <button type="button" onClick={() => setShowMaleOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline">Override for male participants</button>
+                      <p className="text-sm font-medium text-[var(--admin-status-attention-text)]">No male therapists available on this date. Pick another date, or override.</p>
+                      {maleAvailReason && <p className="mt-0.5 text-xs text-[var(--admin-status-attention-text)]/80">{maleAvailReason}</p>}
+                      <button type="button" onClick={() => setShowMaleOverrideConfirm(true)} className="mt-2 text-xs font-semibold text-[var(--admin-status-attention-text)] underline underline-offset-2 hover:no-underline">Override for male participants</button>
                     </div>
                   </div>
                 </div>
@@ -2009,9 +2009,9 @@ export function ManualBookingForm({
                 </div>
               )}
               {showMaleOverrideConfirm && (
-                <div className="mt-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
-                  <p className="text-sm font-semibold text-[oklch(26%_0.13_55)]">Skip availability for male participants?</p>
-                  <p className="mt-1 text-xs text-[oklch(26%_0.13_55)]/80">No availability will be checked. A male therapist will need to accept this booking.</p>
+                <div className="mt-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] p-3">
+                  <p className="text-sm font-semibold text-[var(--admin-status-attention-text)]">Skip availability for male participants?</p>
+                  <p className="mt-1 text-xs text-[var(--admin-status-attention-text)]/80">No availability will be checked. A male therapist will need to accept this booking.</p>
                   <div className="mt-2 flex gap-2">
                     <AdminButton size="sm" onClick={() => { setMaleOverride(true); setShowMaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-[var(--admin-on-primary)] hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
                     <AdminButton size="sm" variant="ghost" onClick={() => setShowMaleOverrideConfirm(false)}>Cancel</AdminButton>
@@ -2025,8 +2025,8 @@ export function ManualBookingForm({
         {/* Override mode (single group or combined) */}
         {(overrideAvailability || (isMixedGenderGroup && (femaleOverride || maleOverride))) && (
           <div className="grid gap-4">
-            <div className="flex items-start justify-between gap-3 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-3">
-              <div className="flex items-start gap-2.5 text-sm text-[oklch(26%_0.13_55)]">
+            <div className="flex items-start justify-between gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] px-3 py-3">
+              <div className="flex items-start gap-2.5 text-sm text-[var(--admin-status-attention-text)]">
                 <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <div>
                   <span className="font-medium">No availability checked.</span>
@@ -2046,7 +2046,7 @@ export function ManualBookingForm({
                   setFemaleAvailChecked(false);
                   setMaleAvailChecked(false);
                 }}
-                className="shrink-0 text-xs font-medium text-[oklch(26%_0.13_55)] underline underline-offset-2 hover:no-underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="shrink-0 text-xs font-medium text-[var(--admin-status-attention-text)] underline underline-offset-2 hover:no-underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 Check available slots instead
               </button>
@@ -2059,9 +2059,9 @@ export function ManualBookingForm({
         )}
 
         {showOverrideConfirm && (
-          <div className="mt-4 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-4">
-            <p className="text-sm font-semibold text-[oklch(26%_0.13_55)]">Override availability?</p>
-            <p className="mt-1 text-sm text-[oklch(26%_0.13_55)]/80">
+          <div className="mt-4 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] p-4">
+            <p className="text-sm font-semibold text-[var(--admin-status-attention-text)]">Override availability?</p>
+            <p className="mt-1 text-sm text-[var(--admin-status-attention-text)]/80">
               This booking will be created unassigned. A therapist will need to accept it before the visit.
             </p>
             <div className="mt-3 flex gap-2">
@@ -2266,7 +2266,7 @@ export function ManualBookingForm({
                   />
                   <span className="text-[var(--admin-body)]">
                     I confirm that the client&apos;s details and consent have been obtained.
-                    <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">*</span>
+                    <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">*</span>
                   </span>
                 </label>
                 {stepErrors.consent_acknowledged && (
@@ -2313,7 +2313,7 @@ export function ManualBookingForm({
 
       {/* Unassigned note — always shown on step 4 */}
       {step === 4 && (
-        <div className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] px-3 py-3 text-sm text-[oklch(26%_0.13_55)]">
+        <div className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] px-3 py-3 text-sm text-[var(--admin-status-attention-text)]">
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>
             {overrideAvailability || femaleOverride || maleOverride
@@ -2328,7 +2328,7 @@ export function ManualBookingForm({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-3 py-3 text-sm text-[oklch(26%_0.14_25)]"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] px-3 py-3 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>
@@ -2402,7 +2402,7 @@ export function ManualBookingForm({
         <div className="mt-5 flex flex-col gap-2 sm:flex-row-reverse">
           <Link
             href={cancelHref}
-            className="inline-flex items-center justify-center rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 py-2.5 text-sm font-semibold text-[var(--admin-on-primary)] transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-danger-solid)] px-4 py-2.5 text-sm font-semibold text-[var(--admin-on-primary)] transition-colors hover:bg-[var(--admin-danger-solid-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Leave
           </Link>

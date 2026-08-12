@@ -58,8 +58,8 @@ export function DeleteServiceButton({
         title="Has booking history — deactivate instead"
         className={
           asMenuItem
-            ? "flex min-h-9 w-full cursor-not-allowed items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium text-[oklch(26%_0.14_25)]/45 opacity-70"
-            : "inline-flex min-h-9 cursor-not-allowed items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold text-[oklch(26%_0.14_25)]/45 opacity-70"
+            ? "flex min-h-9 w-full cursor-not-allowed items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium text-[var(--admin-status-cancelled-text)]/45 opacity-70"
+            : "inline-flex min-h-9 cursor-not-allowed items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold text-[var(--admin-status-cancelled-text)]/45 opacity-70"
         }
       >
         <Trash2 className="size-4 shrink-0" aria-hidden="true" />
@@ -69,8 +69,8 @@ export function DeleteServiceButton({
   }
 
   const triggerClass = asMenuItem
-    ? "flex min-h-9 w-full items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
-    : "inline-flex min-h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55";
+    ? "flex min-h-9 w-full items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+    : "inline-flex min-h-9 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55";
 
   return (
     <BaseDialog.Root open={open} onOpenChange={setOpen}>
@@ -88,10 +88,10 @@ export function DeleteServiceButton({
           <div className="flex items-start gap-3">
             <span
               aria-hidden="true"
-              className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]"
+              className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)]"
             >
               <XCircle
-                className="size-5 text-[oklch(26%_0.14_25)]"
+                className="size-5 text-[var(--admin-status-cancelled-text)]"
                 aria-hidden="true"
               />
             </span>
@@ -123,7 +123,7 @@ export function DeleteServiceButton({
               onClick={handleConfirm}
               disabled={isPending}
               aria-busy={isPending || undefined}
-              className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none"
+              className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-danger-solid)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-danger-solid-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none"
             >
               {isPending ? (
                 <Loader2

@@ -586,7 +586,7 @@ function BulkActionBar({
           disabled={pending}
           onClick={onClose}
           aria-busy={pending || undefined}
-          className="inline-flex h-10 min-h-11 sm:min-h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="inline-flex h-10 min-h-11 sm:min-h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {pending ? (
             <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden="true" />

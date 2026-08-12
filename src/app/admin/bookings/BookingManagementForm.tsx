@@ -505,7 +505,7 @@ function AmountPaidInput({
         <p
           role="status"
           aria-live="polite"
-          className="rounded-[var(--admin-radius-control)] bg-[oklch(96.0%_0.038_75)] px-2.5 py-1.5 text-[0.6875rem] leading-snug text-[oklch(28%_0.120_55)]"
+          className="rounded-[var(--admin-radius-control)] bg-[var(--admin-status-pending-bg)] px-2.5 py-1.5 text-[0.6875rem] leading-snug text-[var(--admin-status-pending-text)]"
         >
           Amount is more than the booking total. Mark as partially paid first, or check the figure.
         </p>
@@ -685,7 +685,7 @@ function ReopenCompletedModal({
           id={hintId}
           className={`text-xs ${
             showReasonError
-              ? "text-[oklch(26%_0.14_25)]"
+              ? "text-[var(--admin-status-cancelled-text)]"
               : "text-[var(--admin-text-muted)]"
           }`}
         >
@@ -792,7 +792,7 @@ function StatusAndPaymentSection({
                   isCurrent
                     ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)]"
                     : isPast
-                      ? "bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]"
+                      ? "bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)]"
                       : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
                 }`}
               >
@@ -921,7 +921,7 @@ function StatusAndPaymentSection({
               <p
                 role="status"
                 aria-live="polite"
-                className="rounded-[var(--admin-radius-control)] bg-[oklch(96.0%_0.038_75)] px-2.5 py-1.5 text-[0.6875rem] leading-snug text-[oklch(28%_0.120_55)]"
+                className="rounded-[var(--admin-radius-control)] bg-[var(--admin-status-pending-bg)] px-2.5 py-1.5 text-[0.6875rem] leading-snug text-[var(--admin-status-pending-text)]"
               >
                 Set the amount paid before marking this as paid.
               </p>
@@ -1524,7 +1524,7 @@ function Field({
       >
         {label}
         {required ? (
-          <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+          <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
             *
           </span>
         ) : null}
@@ -1536,7 +1536,7 @@ function Field({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)]"
+          className="flex items-center gap-1.5 text-xs text-[var(--admin-status-cancelled-text)]"
         >
           <XCircle className="size-3.5 shrink-0" aria-hidden="true" />
           {error}
@@ -1591,7 +1591,7 @@ function FormError({ message }: { message: string }) {
       role="alert"
       aria-live="polite"
       aria-atomic="true"
-      className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-3 text-sm text-[oklch(26%_0.14_25)]"
+      className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-status-cancelled-bg)] px-3 py-3 text-sm text-[var(--admin-status-cancelled-text)]"
     >
       <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
       <span>{message}</span>

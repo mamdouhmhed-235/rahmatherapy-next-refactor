@@ -413,7 +413,7 @@ function TabStrip({
                       tab.badge.tone === "danger"
                         ? isActive
                           ? "bg-white/15 text-[var(--admin-on-primary)]"
-                          : "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
+                          : "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)]"
                         : isActive
                           ? "bg-white/15 text-[var(--admin-on-primary)]"
                           : "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]"
@@ -473,7 +473,7 @@ function DeliveryTab({
         <div
           role="alert"
           aria-live="polite"
-          className="grid gap-2 rounded-[var(--admin-radius-card)] border border-[oklch(85%_0.06_25)] bg-[oklch(95.5%_0.028_20)] p-4 text-sm text-[oklch(26%_0.14_25)]"
+          className="grid gap-2 rounded-[var(--admin-radius-card)] border border-[oklch(85%_0.06_25)] bg-[var(--admin-status-cancelled-bg)] p-4 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           <div className="flex items-center gap-2">
             <MailWarning className="size-4 shrink-0" aria-hidden="true" />
@@ -483,7 +483,7 @@ function DeliveryTab({
           <div>
             <Link
               href="/admin/emails?tab=delivery"
-              className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[oklch(70%_0.10_25)] bg-transparent px-3 text-xs font-semibold text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(92%_0.045_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[oklch(70%_0.10_25)] bg-transparent px-3 text-xs font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[oklch(92%_0.045_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
               Try again
             </Link>
@@ -638,7 +638,7 @@ function DayGroupedFeed({
             badge={
               <span className="inline-flex items-center gap-2">
                 {failedInGroup > 0 ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-[oklch(95.5%_0.028_20)] px-2 py-0.5 text-[oklch(26%_0.14_25)]">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-status-cancelled-bg)] px-2 py-0.5 text-[var(--admin-status-cancelled-text)]">
                     <span
                       className="font-[var(--font-admin-serif),Cormorant_Garamond,Georgia,serif] text-base font-bold leading-none [font-variant-numeric:tabular-nums]"
                       style={{
@@ -700,7 +700,7 @@ function DeliveryEventRow({
       className={cn(
         "rounded-[var(--admin-radius-card)] border px-4 py-3 transition-colors duration-150",
         isFailed
-          ? "border-[oklch(82%_0.06_20)] bg-[oklch(95.5%_0.028_20)]/45 hover:border-[oklch(70%_0.10_25)]"
+          ? "border-[oklch(82%_0.06_20)] bg-[var(--admin-status-cancelled-bg)]/45 hover:border-[oklch(70%_0.10_25)]"
           : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/30",
         "hover:shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.08)]"
       )}
@@ -710,9 +710,9 @@ function DeliveryEventRow({
           className={cn(
             "mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full",
             isFailed
-              ? "bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
+              ? "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)]"
               : isMissingRecipient
-                ? "bg-[oklch(95.0%_0.050_65)] text-[oklch(26%_0.130_55)]"
+                ? "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]"
                 : "bg-[oklch(96%_0.012_88)] text-[var(--admin-primary)]"
           )}
           aria-hidden="true"
@@ -778,9 +778,9 @@ function DeliveryEventRow({
           </p>
 
           {event.error_message ? (
-            <details className="group mt-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)]/40 text-sm">
+            <details className="group mt-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)]/40 text-sm">
               <summary
-                className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)]/70 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden"
+                className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-xs font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)]/70 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden"
                 title="Show the full provider error"
               >
                 <TriangleAlert className="size-3.5 shrink-0" aria-hidden="true" />
@@ -790,9 +790,9 @@ function DeliveryEventRow({
                   aria-hidden="true"
                 />
               </summary>
-              <div className="border-t border-[oklch(88%_0.045_20)] px-3 py-2">
+              <div className="border-t border-[var(--admin-status-cancelled-border)] px-3 py-2">
                 <p
-                  className="text-xs leading-5 text-[oklch(26%_0.14_25)] [word-break:break-word]"
+                  className="text-xs leading-5 text-[var(--admin-status-cancelled-text)] [word-break:break-word]"
                   style={{
                     fontFamily:
                       "var(--font-admin-mono), 'IBM Plex Mono', Menlo, monospace",
@@ -800,7 +800,7 @@ function DeliveryEventRow({
                 >
                   {event.error_message}
                 </p>
-                <p className="mt-1.5 text-[0.6875rem] leading-4 text-[oklch(26%_0.14_25)]/75">
+                <p className="mt-1.5 text-[0.6875rem] leading-4 text-[var(--admin-status-cancelled-text)]/75">
                   This is the message Resend (our email provider) returned. Copy the ID into a support ticket if you contact them.
                 </p>
               </div>

@@ -333,7 +333,7 @@ export function PrivacyFilterBar({
           id="privacy-q-error"
           role="alert"
           aria-live="polite"
-          className="text-sm text-[oklch(26%_0.14_25)]"
+          className="text-sm text-[var(--admin-status-cancelled-text)]"
         >
           {searchError}
         </p>
@@ -346,7 +346,7 @@ export function PrivacyFilterBar({
         <p
           role="alert"
           aria-live="polite"
-          className="text-sm text-[oklch(26%_0.14_25)]"
+          className="text-sm text-[var(--admin-status-cancelled-text)]"
         >
           End date has to be after the start date.
         </p>
@@ -360,7 +360,7 @@ export function PrivacyFilterBar({
               <button
                 type="button"
                 onClick={() => navigate(chip.clearTo)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(94%_0.008_280)] px-3 py-1 text-xs font-medium text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] px-3 py-1 text-xs font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 {chip.label}
                 <X className="size-3" aria-hidden="true" />

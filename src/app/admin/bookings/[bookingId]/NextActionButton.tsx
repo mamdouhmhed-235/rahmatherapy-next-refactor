@@ -117,7 +117,7 @@ export function NextActionButton({
             role="alert"
             aria-live="polite"
             aria-atomic="true"
-            className="rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-2 text-sm text-[oklch(26%_0.14_25)]"
+            className="rounded-[var(--admin-radius-control)] bg-[var(--admin-status-cancelled-bg)] px-3 py-2 text-sm text-[var(--admin-status-cancelled-text)]"
           >
             {error}
           </div>
@@ -198,7 +198,7 @@ export function MarkNoShowButton({
             role="alert"
             aria-live="polite"
             aria-atomic="true"
-            className="rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-2 text-sm text-[oklch(26%_0.14_25)]"
+            className="rounded-[var(--admin-radius-control)] bg-[var(--admin-status-cancelled-bg)] px-3 py-2 text-sm text-[var(--admin-status-cancelled-text)]"
           >
             {error}
           </div>

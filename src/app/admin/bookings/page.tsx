@@ -384,10 +384,10 @@ async function BookingListSection({
     return (
       <div
         role="alert"
-        className="flex flex-col items-center gap-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-6 py-10 text-center"
+        className="flex flex-col items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] px-6 py-10 text-center"
       >
-        <AlertCircle className="size-8 text-[oklch(26%_0.14_25)]" aria-hidden="true" />
-        <p className="text-sm font-medium text-[oklch(26%_0.14_25)]">
+        <AlertCircle className="size-8 text-[var(--admin-status-cancelled-text)]" aria-hidden="true" />
+        <p className="text-sm font-medium text-[var(--admin-status-cancelled-text)]">
           Couldn&apos;t load bookings.
         </p>
         <Link

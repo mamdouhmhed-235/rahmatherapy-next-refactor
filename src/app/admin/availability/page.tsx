@@ -662,12 +662,12 @@ function CapacityPreview({
 
               // Tones: closure → Restricted; adjustment → Pending (Attention); open → Confirmed/selected; recurring-closed → Restricted.
               const tone = isClosure
-                ? "bg-[oklch(94.0%_0.008_280)]"
+                ? "bg-[var(--admin-status-restricted-bg)]"
                 : isAdjustment
-                  ? "bg-[oklch(96.0%_0.038_75)]"
+                  ? "bg-[var(--admin-status-pending-bg)]"
                   : isOpen
                     ? "bg-[var(--admin-selected-sky)]"
-                    : "bg-[oklch(94.0%_0.008_280)]";
+                    : "bg-[var(--admin-status-restricted-bg)]";
 
               const tooltip = isClosure
                 ? `Closed ${day.shortLabel}${day.closure?.reason ? `: ${day.closure.reason}` : ""}`
@@ -690,11 +690,11 @@ function CapacityPreview({
                     {day.shortLabel}
                   </span>
                   {isClosure ? (
-                    <span className="text-xs font-semibold text-[oklch(30%_0.020_280)]">
+                    <span className="text-xs font-semibold text-[var(--admin-status-restricted-text)]">
                       Closed
                     </span>
                   ) : isAdjustment ? (
-                    <span className="font-mono text-xs text-[oklch(28%_0.120_55)]">
+                    <span className="font-mono text-xs text-[var(--admin-status-pending-text)]">
                       {adjustmentTimes}
                     </span>
                   ) : isOpen && ruleTimes ? (
@@ -702,7 +702,7 @@ function CapacityPreview({
                       {ruleTimes}
                     </span>
                   ) : (
-                    <span className="text-xs text-[oklch(30%_0.020_280)]">
+                    <span className="text-xs text-[var(--admin-status-restricted-text)]">
                       Closed
                     </span>
                   )}
@@ -815,7 +815,7 @@ function CapacityPill({ label, title }: { label: string; title: string }) {
   return (
     <span
       title={title}
-      className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(93.5%_0.038_155)] px-3 py-1 text-xs font-medium text-[oklch(22%_0.085_155)]"
+      className="inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-status-confirmed-bg)] px-3 py-1 text-xs font-medium text-[var(--admin-status-confirmed-text)]"
     >
       <Users className="size-3.5 shrink-0" aria-hidden="true" />
       <span>{label}</span>

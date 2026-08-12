@@ -9,9 +9,9 @@ import { updateClient, type ClientActionState } from "../../actions";
 
 const initialState: ClientActionState = {};
 
-const CANCELLED_TEXT = "text-[oklch(26%_0.14_25)]";
+const CANCELLED_TEXT = "text-[var(--admin-status-cancelled-text)]";
 const CANCELLED_BORDER = "border-[oklch(26%_0.14_25)]";
-const CANCELLED_BG_SOFT = "bg-[oklch(95.5%_0.028_20)]";
+const CANCELLED_BG_SOFT = "bg-[var(--admin-status-cancelled-bg)]";
 
 const NOTES_MAX = 2000;
 
@@ -316,7 +316,7 @@ function StickySaveBar({
           type="submit"
           disabled={pending}
           aria-busy={pending || undefined}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-5 text-sm font-semibold text-[oklch(99.5%_0.003_88)] outline-none transition-[background-color,transform] duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--admin-primary)] disabled:active:scale-100 md:h-10 md:w-auto"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-5 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-[background-color,transform] duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--admin-primary)] disabled:active:scale-100 md:h-10 md:w-auto"
         >
           {pending ? (
             <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />

@@ -180,7 +180,7 @@ export function RecurringSection({
                 </option>
               </select>
               {cadenceError ? (
-                <p role="alert" className="text-xs text-[oklch(26%_0.14_25)]">
+                <p role="alert" className="text-xs text-[var(--admin-status-cancelled-text)]">
                   {cadenceError}
                 </p>
               ) : (

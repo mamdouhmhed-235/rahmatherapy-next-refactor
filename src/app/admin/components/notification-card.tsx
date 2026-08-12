@@ -162,8 +162,8 @@ export function NotificationCard({
       className={cn(
         "relative grid gap-3 px-4 py-4 transition-colors md:px-5",
         // Severity-tinted background wash for unread items.
-        !isRead && item.severity === "critical" && "bg-[oklch(95.5%_0.028_20)]/40",
-        !isRead && item.severity === "warning" && "bg-[oklch(95%_0.05_65)]/40",
+        !isRead && item.severity === "critical" && "bg-[var(--admin-status-cancelled-bg)]/40",
+        !isRead && item.severity === "warning" && "bg-[var(--admin-status-attention-bg)]/40",
         !isRead && item.severity === "info" && "bg-[var(--admin-primary)]/[0.03]",
       )}
     >

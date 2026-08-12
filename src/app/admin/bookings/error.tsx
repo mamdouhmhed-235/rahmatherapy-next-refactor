@@ -24,7 +24,7 @@ export default function BookingsError({ error, reset }: BookingsErrorProps) {
       >
         <div className="flex items-start gap-3">
           <span
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]"
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]"
             aria-hidden="true"
           >
             <AlertCircle className="size-5" />

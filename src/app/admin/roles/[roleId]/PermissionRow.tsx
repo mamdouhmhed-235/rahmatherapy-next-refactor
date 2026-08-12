@@ -218,9 +218,9 @@ export function PermissionRow(props: PermissionRowProps) {
           <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm" />
           <BaseDialog.Popup className="fixed left-1/2 top-[24vh] z-50 w-[min(calc(100vw-2rem),28rem)] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none">
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]">
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)]">
                 <XCircle
-                  className="size-5 text-[oklch(26%_0.14_25)]"
+                  className="size-5 text-[var(--admin-status-cancelled-text)]"
                   aria-hidden="true"
                 />
               </span>
@@ -251,7 +251,7 @@ export function PermissionRow(props: PermissionRowProps) {
                 aria-busy={pending || undefined}
                 disabled={pending}
                 onClick={() => performToggle(direction)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none"
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-danger-solid)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-danger-solid-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none"
               >
                 {pending ? (
                   <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden="true" />

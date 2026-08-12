@@ -29,7 +29,7 @@ export const buttonVariants = cva(
           "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] active:bg-[oklch(92%_0.022_155)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Destructive: Cancelled-family fill. Use only for explicit destructive confirmed actions.
         "admin-destructive":
-          "bg-[oklch(40%_0.14_25)] text-white hover:bg-[oklch(33%_0.14_25)] active:bg-[oklch(28%_0.14_25)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+          "bg-[var(--admin-danger-solid)] text-white hover:bg-[var(--admin-danger-solid-hover)] active:bg-[oklch(28%_0.14_25)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Ghost: no border, no fill. Hover Moss on hover.
         "admin-ghost":
           "bg-transparent text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] active:bg-[oklch(92%_0.022_155)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",

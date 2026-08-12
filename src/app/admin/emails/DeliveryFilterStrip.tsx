@@ -169,7 +169,7 @@ export function DeliveryFilterStrip({
               <SlidersHorizontal className="size-4" aria-hidden="true" />
               Filters
               {hasFilters ? (
-                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[oklch(95.0%_0.050_65)] px-1.5 text-[0.6875rem] font-semibold text-[oklch(26%_0.130_55)]">
+                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--admin-status-attention-bg)] px-1.5 text-[0.6875rem] font-semibold text-[var(--admin-status-attention-text)]">
                   {activeChips.length || ""}
                 </span>
               ) : null}
@@ -213,7 +213,7 @@ export function DeliveryFilterStrip({
           id="emails-q-mobile-error"
           role="alert"
           aria-live="polite"
-          className="md:hidden text-xs text-[oklch(26%_0.14_25)]"
+          className="md:hidden text-xs text-[var(--admin-status-cancelled-text)]"
         >
           {searchError}
         </p>
@@ -227,7 +227,7 @@ export function DeliveryFilterStrip({
               key={chip.key}
               type="button"
               onClick={() => submit(chip.clearTo)}
-              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors duration-150 hover:border-[oklch(70%_0.10_25)] hover:bg-[oklch(95.5%_0.028_20)] hover:text-[oklch(26%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors duration-150 hover:border-[oklch(70%_0.10_25)] hover:bg-[var(--admin-status-cancelled-bg)] hover:text-[var(--admin-status-cancelled-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
               <span>{chip.label}</span>
               <X className="size-3 shrink-0 transition-transform group-hover:rotate-90" aria-hidden="true" />
@@ -309,7 +309,7 @@ function FilterInputs({
             id={`${qId}-error`}
             role="alert"
             aria-live="polite"
-            className="mt-1 text-xs text-[oklch(26%_0.14_25)]"
+            className="mt-1 text-xs text-[var(--admin-status-cancelled-text)]"
           >
             {searchError}
           </p>
@@ -423,7 +423,7 @@ function FilterInputs({
                 className={cn(
                   "inline-flex min-h-9 items-center rounded-full border px-3 text-xs font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                   isActive
-                    ? "border-[var(--admin-primary)] bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]"
+                    ? "border-[var(--admin-primary)] bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)]"
                     : "border-[var(--admin-border-form)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]"
                 )}
               >

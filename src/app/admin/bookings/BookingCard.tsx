@@ -182,7 +182,7 @@ export function BookingCard({
             {booking.reschedule_status === "requested" ? (
               <span
                 title="Reschedule requested by the client"
-                className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]"
+                className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]"
               >
                 <CalendarClock className="size-3.5" aria-hidden="true" />
                 <span className="sr-only">Reschedule requested</span>
@@ -191,7 +191,7 @@ export function BookingCard({
             {booking.customer_cancelled_at ? (
               <span
                 title="The client cancelled this booking"
-                className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
+                className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)]"
               >
                 <UserX className="size-3.5" aria-hidden="true" />
                 <span className="sr-only">Client cancelled</span>
@@ -394,7 +394,7 @@ function GroupBookingCard({
             {booking.reschedule_status === "requested" ? (
               <span
                 title="Reschedule requested by the client"
-                className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]"
+                className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]"
               >
                 <CalendarClock className="size-3.5" aria-hidden="true" />
                 <span className="sr-only">Reschedule requested</span>
@@ -403,7 +403,7 @@ function GroupBookingCard({
             {booking.customer_cancelled_at ? (
               <span
                 title="The client cancelled this booking"
-                className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]"
+                className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)]"
               >
                 <UserX className="size-3.5" aria-hidden="true" />
                 <span className="sr-only">Client cancelled</span>

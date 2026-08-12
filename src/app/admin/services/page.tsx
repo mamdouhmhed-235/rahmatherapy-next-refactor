@@ -206,14 +206,14 @@ export default async function ServicesPage() {
                             className="hidden h-3 w-px bg-[var(--admin-border)] sm:inline-block"
                           />
                           <span
-                            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[oklch(94%_0.008_280)] px-2 py-0.5 text-[0.6875rem] font-medium text-[oklch(30%_0.02_280)]"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--admin-status-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-status-restricted-text)]"
                             title={`${service.duration_mins}-minute appointment slot`}
                           >
                             <Clock className="size-3 shrink-0" aria-hidden="true" />
                             {service.duration_mins} min
                           </span>
                           <span
-                            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[oklch(96%_0.038_75)] px-2 py-0.5 text-[0.6875rem] font-medium text-[oklch(28%_0.12_55)]"
+                            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--admin-status-pending-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-status-pending-text)]"
                             title={genderTooltip}
                           >
                             <Users className="size-3 shrink-0" aria-hidden="true" />

@@ -28,7 +28,7 @@ export function EnquiryIntakePanel({ staff }: { staff: StaffOption[] }) {
           <span>Record new enquiry</span>
           <span
             aria-hidden="true"
-            className="inline-flex size-7 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]"
+            className="inline-flex size-7 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)]"
           >
             {open ? <Minus className="size-4" /> : <Plus className="size-4" />}
           </span>
@@ -100,7 +100,7 @@ export function EnquiryForm({ staff }: { staff: StaffOption[] }) {
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-3 py-2.5 text-sm text-[oklch(26%_0.14_25)]"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] px-3 py-2.5 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{state.error}</span>
@@ -302,7 +302,7 @@ function FieldLabel({
     <label htmlFor={htmlFor} className="text-sm font-medium text-[var(--admin-heading)]">
       {children}
       {required ? (
-        <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+        <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
           *
         </span>
       ) : null}
@@ -318,7 +318,7 @@ function FieldError({ id, children }: { id: string; children?: React.ReactNode }
       role="alert"
       aria-live="polite"
       aria-atomic="true"
-      className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)]"
+      className="flex items-center gap-1.5 text-xs text-[var(--admin-status-cancelled-text)]"
     >
       <XCircle className="size-3.5 shrink-0" aria-hidden="true" />
       <span>{children}</span>

@@ -371,13 +371,13 @@ export function AdminTopNav({
             title: "font-semibold text-[var(--admin-heading)]",
             description: "text-[var(--admin-text-muted)]",
             success:
-              "border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]",
+              "border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)]",
             error:
-              "border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] text-[oklch(26%_0.14_25)]",
+              "border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)]",
             warning:
-              "border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] text-[oklch(26%_0.13_55)]",
+              "border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]",
             info:
-              "border-[oklch(88%_0.055_75)] bg-[oklch(96%_0.038_75)] text-[oklch(28%_0.12_55)]",
+              "border-[var(--admin-status-pending-border)] bg-[var(--admin-status-pending-bg)] text-[var(--admin-status-pending-text)]",
           },
         }}
       />
@@ -602,7 +602,7 @@ function UserMenuButton({
               <button
                 type="submit"
                 role="menuitem"
-                className="flex min-h-9 w-full items-center gap-2.5 rounded-[var(--admin-radius-control)] mx-1.5 px-2.5 text-left text-sm font-medium text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="flex min-h-9 w-full items-center gap-2.5 rounded-[var(--admin-radius-control)] mx-1.5 px-2.5 text-left text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                 style={{ width: "calc(100% - 0.75rem)" }}
               >
                 <LogOut className="size-4 shrink-0 text-[oklch(40%_0.12_25)]" aria-hidden="true" />
@@ -803,7 +803,7 @@ function UserMenuSheet({
         {/* Identity header — canvas tint creates zone distinction from nav items below */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[oklch(97.8%_0.006_88)] px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-xs font-semibold text-[var(--admin-heading)]">
+            <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)] text-xs font-semibold text-[var(--admin-heading)]">
               {getInitials(profile.name)}
             </span>
             <div className="min-w-0">
@@ -897,7 +897,7 @@ function UserMenuSheet({
             <form action="/admin/signout" method="POST">
               <button
                 type="submit"
-                className="flex min-h-11 w-full items-center gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] px-3 text-left text-sm font-medium text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="flex min-h-11 w-full items-center gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] px-3 text-left text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 <LogOut className="size-5 shrink-0 text-[oklch(40%_0.12_25)]" aria-hidden="true" />
                 Sign out

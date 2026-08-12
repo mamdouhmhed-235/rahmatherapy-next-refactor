@@ -223,7 +223,7 @@ export default async function RoleDetailPage({
       {editingOwnRole ? (
         <div
           role="status"
-          className="flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.06_65)] bg-[oklch(96%_0.038_75)] px-4 py-3 text-sm leading-6 text-[oklch(28%_0.12_55)]"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-pending-bg)] px-4 py-3 text-sm leading-6 text-[var(--admin-status-pending-text)]"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>
@@ -442,10 +442,10 @@ function PermissionsEmpty({ grantedOnly }: { grantedOnly: boolean }) {
     <div className="grid justify-items-center gap-3 py-12 text-center">
       <span
         aria-hidden="true"
-        className="inline-flex size-12 items-center justify-center rounded-full bg-[oklch(94%_0.008_280)]"
+        className="inline-flex size-12 items-center justify-center rounded-full bg-[var(--admin-status-restricted-bg)]"
       >
         <ShieldCheck
-          className="size-6 text-[oklch(30%_0.02_280)]"
+          className="size-6 text-[var(--admin-status-restricted-text)]"
           aria-hidden="true"
         />
       </span>

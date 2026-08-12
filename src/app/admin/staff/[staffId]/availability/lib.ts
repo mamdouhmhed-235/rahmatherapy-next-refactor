@@ -35,21 +35,21 @@ export const DAYS_LONG = [
 ];
 
 /** Cancelled-family text colour token (replaces repeated raw oklch literals). */
-export const CANCELLED_TEXT = "text-[oklch(26%_0.14_25)]";
+export const CANCELLED_TEXT = "text-[var(--admin-status-cancelled-text)]";
 export const CANCELLED_BORDER = "border-[oklch(26%_0.14_25)]";
-export const CANCELLED_BG_SOFT = "bg-[oklch(95.5%_0.028_20)]";
+export const CANCELLED_BG_SOFT = "bg-[var(--admin-status-cancelled-bg)]";
 
 /** Pending-family tokens (overrides soft warning). */
-export const PENDING_TEXT = "text-[oklch(28%_0.120_55)]";
+export const PENDING_TEXT = "text-[var(--admin-status-pending-text)]";
 export const PENDING_BORDER = "border-[oklch(80%_0.07_75)]";
-export const PENDING_BG_SOFT = "bg-[oklch(96.0%_0.038_75)]";
+export const PENDING_BG_SOFT = "bg-[var(--admin-status-pending-bg)]";
 
 /** Restricted-family tokens (inactive banner). */
-export const RESTRICTED_TEXT = "text-[oklch(30%_0.020_280)]";
-export const RESTRICTED_BG_SOFT = "bg-[oklch(94.0%_0.008_280)]";
+export const RESTRICTED_TEXT = "text-[var(--admin-status-restricted-text)]";
+export const RESTRICTED_BG_SOFT = "bg-[var(--admin-status-restricted-bg)]";
 
 /** Confirmed-family soft tint (new-row highlight). */
-export const CONFIRMED_BG_SOFT = "bg-[oklch(93.5%_0.038_155)]";
+export const CONFIRMED_BG_SOFT = "bg-[var(--admin-status-confirmed-bg)]";
 
 // C-16 Phase E Step 14 (finding N4 — Owner-approved extension,
 // per-page-progress §1 row 3 / §2). `StaffBlockedDatesManager` and

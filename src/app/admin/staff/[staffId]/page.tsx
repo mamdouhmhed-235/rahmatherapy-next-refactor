@@ -475,7 +475,7 @@ export default async function StaffDetailPage({ params }: StaffDetailPageProps) 
       {!typedStaff.active ? (
         <div
           role="status"
-          className="flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.012_280)] bg-[oklch(94%_0.008_280)] px-3 py-2.5 text-sm text-[oklch(30%_0.02_280)]"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-restricted-border)] bg-[var(--admin-status-restricted-bg)] px-3 py-2.5 text-sm text-[var(--admin-status-restricted-text)]"
         >
           <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p>This staff member is inactive.</p>
@@ -879,8 +879,8 @@ function ChecklistRow({
         <Icon
           className={
             tone === "success"
-              ? "size-4 shrink-0 text-[oklch(22%_0.085_155)]"
-              : "size-4 shrink-0 text-[oklch(26%_0.14_25)]"
+              ? "size-4 shrink-0 text-[var(--admin-status-confirmed-text)]"
+              : "size-4 shrink-0 text-[var(--admin-status-cancelled-text)]"
           }
           aria-hidden="true"
         />

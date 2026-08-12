@@ -92,7 +92,7 @@ export function EnquiryStatusButton({
       className={cn(
         "inline-flex h-9 min-h-11 sm:min-h-9 items-center justify-center gap-1.5 rounded-[var(--admin-radius-control)] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:cursor-not-allowed",
         destructive
-          ? "text-[oklch(26%_0.14_25)] hover:bg-[oklch(95.5%_0.028_20)]"
+          ? "text-[var(--admin-status-cancelled-text)] hover:bg-[var(--admin-status-cancelled-bg)]"
           : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]",
         className
       )}

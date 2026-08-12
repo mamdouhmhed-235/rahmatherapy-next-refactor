@@ -59,12 +59,12 @@ export function ProfileCompletionNudge({
   return (
     <section
       aria-labelledby="onboarding-nudge-heading"
-      className="rounded-[var(--admin-radius-card)] border border-[oklch(82%_0.09_75)] bg-[oklch(96%_0.038_75)] px-5 py-5"
+      className="rounded-[var(--admin-radius-card)] border border-[oklch(82%_0.09_75)] bg-[var(--admin-status-pending-bg)] px-5 py-5"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
         <span
           aria-hidden="true"
-          className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[oklch(94%_0.05_75)] text-[oklch(28%_0.12_55)]"
+          className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[oklch(94%_0.05_75)] text-[var(--admin-status-pending-text)]"
         >
           <UserCog className="size-5" />
         </span>

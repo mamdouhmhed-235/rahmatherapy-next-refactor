@@ -205,7 +205,7 @@ export function StaffProfileForm({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-3 text-sm text-[oklch(26%_0.14_25)]"
+          className="flex items-start gap-2.5 rounded-[var(--admin-radius-control)] bg-[var(--admin-status-cancelled-bg)] px-3 py-3 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <p>{error}</p>
@@ -546,7 +546,7 @@ function Field({
       >
         {label}
         {required ? (
-          <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+          <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
             *
           </span>
         ) : null}

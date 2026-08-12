@@ -149,7 +149,7 @@ export function AdminMenuItem({
       className={cn(
         "flex min-h-11 sm:min-h-9 w-full items-center gap-2 rounded-[var(--admin-radius-control)] px-3 text-left text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
         destructive
-          ? "text-[oklch(26%_0.14_25)] hover:bg-[oklch(95.5%_0.028_20)]"
+          ? "text-[var(--admin-status-cancelled-text)] hover:bg-[var(--admin-status-cancelled-bg)]"
           : "text-[var(--admin-body)] hover:text-[var(--admin-heading)]",
         className
       )}
@@ -296,12 +296,12 @@ export function ConfirmActionModal({
         <BaseDialog.Popup className="fixed left-1/2 top-[30vh] z-50 w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none">
           <div className="flex items-start gap-3">
             {destructive ? (
-              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]">
-                <XCircle className="size-5 text-[oklch(26%_0.14_25)]" aria-hidden="true" />
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)]">
+                <XCircle className="size-5 text-[var(--admin-status-cancelled-text)]" aria-hidden="true" />
               </span>
             ) : (
-              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)]">
-                <CheckCircle className="size-5 text-[oklch(22%_0.085_155)]" aria-hidden="true" />
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)]">
+                <CheckCircle className="size-5 text-[var(--admin-status-confirmed-text)]" aria-hidden="true" />
               </span>
             )}
             <div className="min-w-0 flex-1">
@@ -339,7 +339,7 @@ export function ConfirmActionModal({
               className={cn(
                 "inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60 disabled:pointer-events-none",
                 destructive
-                  ? "bg-[oklch(40%_0.14_25)] hover:bg-[oklch(33%_0.14_25)]"
+                  ? "bg-[var(--admin-danger-solid)] hover:bg-[var(--admin-danger-solid-hover)]"
                   : "bg-[var(--admin-primary)] hover:bg-[var(--admin-primary-hover)]"
               )}
             >

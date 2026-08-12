@@ -33,19 +33,19 @@ export default function AccountPasswordRequestsError({
         role="alert"
         aria-live="polite"
         aria-atomic="true"
-        className="flex flex-col gap-3 rounded-[var(--admin-radius-card)] bg-[oklch(95.5%_0.028_20)] px-4 py-4 text-sm leading-6 text-[oklch(26%_0.14_25)] sm:flex-row sm:items-start sm:gap-4"
+        className="flex flex-col gap-3 rounded-[var(--admin-radius-card)] bg-[var(--admin-status-cancelled-bg)] px-4 py-4 text-sm leading-6 text-[var(--admin-status-cancelled-text)] sm:flex-row sm:items-start sm:gap-4"
       >
         <XCircle className="size-5 shrink-0" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold">Couldn&apos;t load requests.</p>
-          <p className="mt-0.5 text-[oklch(26%_0.14_25)]/85">
+          <p className="mt-0.5 text-[var(--admin-status-cancelled-text)]/85">
             Try refreshing the page. If this keeps happening, contact the owner.
           </p>
         </div>
         <button
           type="button"
           onClick={() => reset()}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 self-start rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/40 bg-transparent px-3 text-sm font-semibold text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)]/60 focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 self-start rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/40 bg-transparent px-3 text-sm font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)]/60 focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
         >
           <RefreshCw className="size-3.5" aria-hidden="true" />
           Try again

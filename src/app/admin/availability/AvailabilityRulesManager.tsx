@@ -267,7 +267,7 @@ export function AvailabilityRulesManager({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="mt-4 rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/30 bg-[oklch(95.5%_0.028_20)] px-3 py-2 text-sm text-[oklch(26%_0.14_25)]"
+          className="mt-4 rounded-[var(--admin-radius-control)] border border-[oklch(26%_0.14_25)]/30 bg-[var(--admin-status-cancelled-bg)] px-3 py-2 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           {formError}
         </div>
@@ -316,8 +316,8 @@ function DayRow({
       className={cn(
         "grid min-h-[3.5rem] gap-3 px-4 py-3 transition-colors duration-[var(--motion-duration-fast)] ease-gentle sm:grid-cols-[9rem_minmax(0,28rem)_1fr] sm:items-center sm:gap-6",
         isWorkingDay
-          ? "bg-[oklch(93.5%_0.038_155)]"
-          : "bg-[oklch(94.0%_0.008_280)]"
+          ? "bg-[var(--admin-status-confirmed-bg)]"
+          : "bg-[var(--admin-status-restricted-bg)]"
       )}
     >
       <div className="flex items-center gap-3">
@@ -363,7 +363,7 @@ function DayRow({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="text-xs text-[oklch(26%_0.14_25)] sm:col-span-3"
+          className="text-xs text-[var(--admin-status-cancelled-text)] sm:col-span-3"
         >
           {error}
         </div>

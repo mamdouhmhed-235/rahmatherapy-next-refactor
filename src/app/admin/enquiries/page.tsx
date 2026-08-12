@@ -349,7 +349,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
                             "[font-family:'Cormorant_Garamond',Georgia,serif]",
                             active
                               ? "bg-white/15 py-0.5 text-[var(--admin-on-primary)]"
-                              : "bg-[oklch(95%_0.05_65)] py-0.5 text-[oklch(26%_0.13_55)]"
+                              : "bg-[var(--admin-status-attention-bg)] py-0.5 text-[var(--admin-status-attention-text)]"
                           )}
                         >
                           {newCount}
@@ -411,7 +411,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
                     <SlidersHorizontal className="size-4" aria-hidden="true" />
                     <span>Filters</span>
                     {hasActiveFilters ? (
-                      <span className="inline-flex size-5 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-[0.6875rem] font-semibold text-[oklch(22%_0.085_155)]">
+                      <span className="inline-flex size-5 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)] text-[0.6875rem] font-semibold text-[var(--admin-status-confirmed-text)]">
                         {[sourceFilter, assignedFilter, fromFilter, toFilter, qFilter].filter(Boolean).length}
                       </span>
                     ) : null}
@@ -651,13 +651,13 @@ function FilterChips({
       {chips.map((chip) => (
         <span
           key={chip.key}
-          className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(94%_0.008_280)] py-1 pl-3 pr-1 text-xs font-medium text-[oklch(30%_0.02_280)]"
+          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] py-1 pl-3 pr-1 text-xs font-medium text-[var(--admin-status-restricted-text)]"
         >
           <span>{chip.label}</span>
           <Link
             href={chip.href}
             aria-label={`Clear filter: ${chip.label}`}
-            className="inline-flex size-5 items-center justify-center rounded-full text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-white/60 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex size-5 items-center justify-center rounded-full text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-white/60 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             <X className="size-3" aria-hidden="true" />
           </Link>
@@ -807,7 +807,7 @@ function AtAGlanceStrip({
           >
             <span
               aria-hidden="true"
-              className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)]"
+              className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)]"
             >
               <Icon className="size-4" />
             </span>

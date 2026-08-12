@@ -146,7 +146,7 @@ export function RequestRow({
           <p
             className={
               expires.soon
-                ? "flex items-center gap-1.5 text-sm font-medium text-[oklch(28%_0.120_55)]"
+                ? "flex items-center gap-1.5 text-sm font-medium text-[var(--admin-status-pending-text)]"
                 : "flex items-center gap-1.5 text-sm text-[var(--admin-text-muted)]"
             }
             title={

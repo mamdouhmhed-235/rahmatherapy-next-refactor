@@ -466,9 +466,9 @@ export default async function PrivacyPage({
                 <Clock
                   className={
                     oldestOpenRequest && oldestOpenDays > 14
-                      ? "size-4 shrink-0 text-[oklch(26%_0.14_25)]"
+                      ? "size-4 shrink-0 text-[var(--admin-status-cancelled-text)]"
                       : oldestOpenRequest
-                        ? "size-4 shrink-0 text-[oklch(26%_0.13_55)]"
+                        ? "size-4 shrink-0 text-[var(--admin-status-attention-text)]"
                         : "size-4 shrink-0 text-[var(--admin-primary)]"
                   }
                   aria-hidden="true"
@@ -486,7 +486,7 @@ export default async function PrivacyPage({
                         </span>
                       </>
                     ) : (
-                      <span className="text-[oklch(22%_0.085_155)]">All caught up</span>
+                      <span className="text-[var(--admin-status-confirmed-text)]">All caught up</span>
                     )}
                   </span>
                 </span>
@@ -546,17 +546,17 @@ export default async function PrivacyPage({
               <div
                 role="alert"
                 aria-live="polite"
-                className="rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] p-6"
+                className="rounded-[var(--admin-radius-card)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] p-6"
               >
-                <h2 className="font-display text-base font-semibold text-[oklch(26%_0.14_25)]">
+                <h2 className="font-display text-base font-semibold text-[var(--admin-status-cancelled-text)]">
                   Couldn&apos;t load privacy requests
                 </h2>
-                <p className="mt-1 text-sm leading-6 text-[oklch(26%_0.14_25)]/85">
+                <p className="mt-1 text-sm leading-6 text-[var(--admin-status-cancelled-text)]/85">
                   Try refreshing.
                 </p>
                 <Link
                   href="/admin/privacy"
-                  className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.045_20)] bg-transparent px-3.5 text-sm font-semibold text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                  className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-transparent px-3.5 text-sm font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                 >
                   Try again
                 </Link>

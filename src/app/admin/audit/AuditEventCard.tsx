@@ -57,11 +57,11 @@ function chipLabel(chip: ReturnType<typeof describeAction>["chip"]): string {
 // Deterministic warm-clinical avatar tint per actor id, matching DESIGN.md §6.
 function avatarTint(seed: string | null): string {
   const tints = [
-    "bg-[oklch(91%_0.025_155)] text-[oklch(22%_0.085_155)]",
-    "bg-[oklch(92%_0.030_80)] text-[oklch(28%_0.12_55)]",
-    "bg-[oklch(91%_0.022_280)] text-[oklch(30%_0.02_280)]",
+    "bg-[oklch(91%_0.025_155)] text-[var(--admin-status-confirmed-text)]",
+    "bg-[oklch(92%_0.030_80)] text-[var(--admin-status-pending-text)]",
+    "bg-[oklch(91%_0.022_280)] text-[var(--admin-status-restricted-text)]",
     "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)]",
-    "bg-[oklch(92%_0.025_120)] text-[oklch(22%_0.085_155)]",
+    "bg-[oklch(92%_0.025_120)] text-[var(--admin-status-confirmed-text)]",
   ];
   if (!seed) return tints[0];
   let hash = 0;
@@ -106,7 +106,7 @@ function renderTargetChipContent(
     return (
       <>
         {typeLabel}{" "}
-        <mark className="rounded-[2px] bg-[oklch(95%_0.05_75)] px-0.5 text-[oklch(28%_0.12_55)]">
+        <mark className="rounded-[2px] bg-[oklch(95%_0.05_75)] px-0.5 text-[var(--admin-status-pending-text)]">
           {head}
         </mark>
         {tail}
@@ -211,7 +211,7 @@ export function AuditEventCard({ event, actorName, targetExists, currentFilters 
       {redaction.count > 0 ? (
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span
-            className="inline-flex items-center gap-1 rounded-full bg-[oklch(94%_0.008_280)] px-2 py-0.5 text-[0.6875rem] text-[oklch(30%_0.02_280)]"
+            className="inline-flex items-center gap-1 rounded-full bg-[var(--admin-status-restricted-bg)] px-2 py-0.5 text-[0.6875rem] text-[var(--admin-status-restricted-text)]"
             title={`Hidden: ${redaction.keysHidden.join(", ")}`}
           >
             <Lock className="size-3" aria-hidden="true" />

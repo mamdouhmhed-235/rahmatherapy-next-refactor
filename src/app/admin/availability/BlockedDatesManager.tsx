@@ -225,9 +225,9 @@ export function BlockedDatesManager({
           <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-[oklch(12%_0.01_165)]/35 backdrop-blur-sm" />
           <BaseDialog.Popup className="fixed left-1/2 top-[30vh] z-50 w-[min(calc(100vw-2rem),26rem)] -translate-x-1/2 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-5 shadow-[var(--admin-shadow-overlay)] outline-none">
             <div className="flex items-start gap-3">
-              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(95.5%_0.028_20)]">
+              <span className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-cancelled-bg)]">
                 <XCircle
-                  className="size-5 text-[oklch(26%_0.14_25)]"
+                  className="size-5 text-[var(--admin-status-cancelled-text)]"
                   aria-hidden="true"
                 />
               </span>
@@ -253,7 +253,7 @@ export function BlockedDatesManager({
               <button
                 type="button"
                 onClick={confirmBookingMismatch}
-                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(40%_0.14_25)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[oklch(33%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-danger-solid)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-danger-solid-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 Block anyway
               </button>
@@ -273,7 +273,7 @@ export function BlockedDatesManager({
             className="text-sm font-medium text-[var(--admin-heading)]"
           >
             Date
-            <span aria-hidden="true" className="ml-0.5 text-[oklch(26%_0.14_25)]">
+            <span aria-hidden="true" className="ml-0.5 text-[var(--admin-status-cancelled-text)]">
               *
             </span>
           </label>
@@ -331,7 +331,7 @@ export function BlockedDatesManager({
             role="alert"
             aria-live="polite"
             aria-atomic="true"
-            className="text-sm text-[oklch(26%_0.14_25)] sm:col-span-3"
+            className="text-sm text-[var(--admin-status-cancelled-text)] sm:col-span-3"
           >
             {state.error}
           </div>
@@ -343,7 +343,7 @@ export function BlockedDatesManager({
             role="alert"
             aria-live="polite"
             aria-atomic="true"
-            className="text-xs text-[oklch(26%_0.14_25)] sm:col-span-3"
+            className="text-xs text-[var(--admin-status-cancelled-text)] sm:col-span-3"
           >
             {state.fieldErrors.blocked_date}
           </div>
@@ -457,7 +457,7 @@ function ClosureRow({
             type="button"
             title={`Remove this closed date: ${formatDateLong(entry.blocked_date)}`}
             aria-label={`Remove closed date ${formatDateLong(entry.blocked_date)}`}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[oklch(95.5%_0.028_20)] hover:text-[oklch(26%_0.14_25)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-[var(--admin-radius-control)] text-[var(--admin-text-muted)] outline-none transition-colors duration-[var(--motion-duration-fast)] ease-gentle hover:bg-[var(--admin-status-cancelled-bg)] hover:text-[var(--admin-status-cancelled-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             <Trash2 className="size-4" aria-hidden="true" />
           </button>

@@ -52,12 +52,12 @@ const TONE_PANEL_CLASSES: Record<EmptyStateTone, string> = {
   muted:
     "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/50 px-5 py-12",
   warning:
-    "rounded-[var(--admin-radius-card)] border border-[oklch(82%_0.09_75)] bg-[oklch(96%_0.038_75)] px-5 py-12",
+    "rounded-[var(--admin-radius-card)] border border-[oklch(82%_0.09_75)] bg-[var(--admin-status-pending-bg)] px-5 py-12",
 };
 
 const TONE_ICON_CLASSES: Record<EmptyStateTone, string> = {
   muted: "bg-[var(--admin-panel-muted)] text-[var(--admin-text-muted)]",
-  warning: "bg-[oklch(95%_0.05_65)] text-[oklch(28%_0.12_55)]",
+  warning: "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-pending-text)]",
 };
 
 export function EmptyState({
@@ -103,7 +103,7 @@ export function EmptyState({
             "mb-5 inline-flex items-center justify-center rounded-full",
             isToned
               ? TONE_ICON_CLASSES[tone!]
-              : "bg-[oklch(93.5%_0.038_155)]",
+              : "bg-[var(--admin-status-confirmed-bg)]",
             compact ? "size-12" : "size-16"
           )}
           aria-hidden="true"

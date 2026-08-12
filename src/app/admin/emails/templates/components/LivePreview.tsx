@@ -205,7 +205,7 @@ export function LivePreview({ templateId, cardName, values }: LivePreviewProps) 
           <div
             role="alert"
             aria-live="polite"
-            className="flex flex-col items-start gap-3 p-5 text-sm text-[oklch(26%_0.14_25)]"
+            className="flex flex-col items-start gap-3 p-5 text-sm text-[var(--admin-status-cancelled-text)]"
           >
             <p className="font-semibold">Couldn&apos;t load the preview</p>
             <button
@@ -233,7 +233,7 @@ export function LivePreview({ templateId, cardName, values }: LivePreviewProps) 
       </div>
 
       {refreshError ? (
-        <p role="alert" aria-live="polite" className="text-xs text-[oklch(26%_0.14_25)]">
+        <p role="alert" aria-live="polite" className="text-xs text-[var(--admin-status-cancelled-text)]">
           Couldn&apos;t refresh the preview for your latest change — showing the last
           successful preview.
         </p>

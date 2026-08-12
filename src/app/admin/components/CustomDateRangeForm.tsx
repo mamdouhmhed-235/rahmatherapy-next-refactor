@@ -77,7 +77,7 @@ export function CustomDateRangeForm({
         {pending ? "Applying…" : "Apply"}
       </button>
       {error ? (
-        <p role="alert" className="basis-full text-xs text-[oklch(26%_0.14_25)]">
+        <p role="alert" className="basis-full text-xs text-[var(--admin-status-cancelled-text)]">
           {error}
         </p>
       ) : null}

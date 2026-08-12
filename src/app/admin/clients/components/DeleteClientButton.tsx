@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 import { ConfirmActionModal } from "../../components/admin-ui-interactions";
 import { adminDeleteClient } from "../actions";
 
-const CANCELLED_TEXT = "text-[oklch(26%_0.14_25)]";
+const CANCELLED_TEXT = "text-[var(--admin-status-cancelled-text)]";
 const CANCELLED_BORDER = "border-[oklch(80%_0.08_25)]";
-const CANCELLED_HOVER = "hover:bg-[oklch(95.5%_0.028_20)]";
+const CANCELLED_HOVER = "hover:bg-[var(--admin-status-cancelled-bg)]";
 
 /**
  * A successful delete answers with a redirect to `/admin/clients?deleted=1`,

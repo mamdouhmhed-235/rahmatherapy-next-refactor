@@ -113,7 +113,7 @@ export function AdminField({
           // label's aria-required attribute instead of a bare asterisk.
           <span
             aria-hidden="true"
-            className="ml-1 text-[oklch(26%_0.14_25)]"
+            className="ml-1 text-[var(--admin-status-cancelled-text)]"
           >
             *
           </span>
@@ -140,7 +140,7 @@ export function AdminField({
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)]"
+          className="flex items-center gap-1.5 text-xs text-[var(--admin-status-cancelled-text)]"
         >
           <svg
             aria-hidden="true"

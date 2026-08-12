@@ -91,10 +91,10 @@ export function ApproveModal({
 
             <div className="flex items-start gap-3">
               <span
-                className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)]"
+                className="mt-0.5 inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)]"
                 aria-hidden="true"
               >
-                <CheckCircle className="size-5 text-[oklch(22%_0.085_155)]" />
+                <CheckCircle className="size-5 text-[var(--admin-status-confirmed-text)]" />
               </span>
               <div className="min-w-0 flex-1">
                 <BaseDialog.Title className="font-display text-lg font-semibold text-[var(--admin-heading)]">
@@ -129,7 +129,7 @@ export function ApproveModal({
               <p className="text-right text-xs text-[var(--admin-text-muted)]">
                 {note.length} / {NOTE_MAX}
                 {remaining < 20 ? (
-                  <span className="ml-1 text-[oklch(26%_0.13_55)]">· {remaining} left</span>
+                  <span className="ml-1 text-[var(--admin-status-attention-text)]">· {remaining} left</span>
                 ) : null}
               </p>
             </div>
@@ -140,7 +140,7 @@ export function ApproveModal({
                 role="alert"
                 aria-live="polite"
                 aria-atomic="true"
-                className="flex items-start gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(95.5%_0.028_20)] px-3 py-2 text-sm leading-6 text-[oklch(26%_0.14_25)]"
+                className="flex items-start gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-status-cancelled-bg)] px-3 py-2 text-sm leading-6 text-[var(--admin-status-cancelled-text)]"
               >
                 <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                 <span className="min-w-0 flex-1">{errorMessage}</span>
@@ -150,7 +150,7 @@ export function ApproveModal({
                     onClick={() => {
                       if (typeof window !== "undefined") window.location.reload();
                     }}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-[var(--admin-radius-control)] px-2 py-1 text-xs font-semibold text-[oklch(26%_0.14_25)] underline-offset-2 outline-none transition-colors hover:bg-[oklch(95.5%_0.028_20)]/60 hover:underline focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
+                    className="inline-flex shrink-0 items-center gap-1 rounded-[var(--admin-radius-control)] px-2 py-1 text-xs font-semibold text-[var(--admin-status-cancelled-text)] underline-offset-2 outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)]/60 hover:underline focus-visible:ring-[3px] focus-visible:ring-[var(--admin-focus)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--admin-panel)]"
                   >
                     <RefreshCw className="size-3.5" aria-hidden="true" />
                     Refresh now

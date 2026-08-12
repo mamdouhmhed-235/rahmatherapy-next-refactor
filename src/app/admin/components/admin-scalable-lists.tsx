@@ -412,9 +412,9 @@ export function SavedViewBar({
               key={view.id}
               role="alertdialog"
               aria-label={`Remove view ${view.label}`}
-              className="rahma-chip-pop inline-flex items-center gap-1.5 rounded-full border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-3 py-1 text-xs"
+              className="rahma-chip-pop inline-flex items-center gap-1.5 rounded-full border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] px-3 py-1 text-xs"
             >
-              <span className="text-[oklch(26%_0.14_25)]">
+              <span className="text-[var(--admin-status-cancelled-text)]">
                 Remove &ldquo;{view.label}&rdquo;?
               </span>
               <button
@@ -423,7 +423,7 @@ export function SavedViewBar({
                   onRemove(view.id);
                   setRemovingId(null);
                 }}
-                className="appearance-none rounded border-0 bg-transparent font-semibold text-[oklch(26%_0.14_25)] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="appearance-none rounded border-0 bg-transparent font-semibold text-[var(--admin-status-cancelled-text)] underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 Remove
               </button>
@@ -515,7 +515,7 @@ export function SavedViewBar({
               id="saved-view-name-error"
               role="alert"
               aria-live="polite"
-              className="basis-full text-xs text-[oklch(26%_0.14_25)]"
+              className="basis-full text-xs text-[var(--admin-status-cancelled-text)]"
             >
               {error}
             </span>

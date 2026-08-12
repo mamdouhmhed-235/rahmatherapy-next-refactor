@@ -534,7 +534,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             <Link
               key={chip.key}
               href={chip.clearTo}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(94%_0.008_280)] px-3 py-1 text-xs font-medium text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] px-3 py-1 text-xs font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
               <span>{chip.label}</span>
               <span aria-hidden="true">×</span>
@@ -561,7 +561,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex flex-col items-start gap-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] p-4 text-sm text-[oklch(26%_0.14_25)] sm:flex-row sm:items-center sm:justify-between"
+          className="flex flex-col items-start gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] p-4 text-sm text-[var(--admin-status-cancelled-text)] sm:flex-row sm:items-center sm:justify-between"
         >
           <div className="flex items-start gap-2.5">
             <XCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
@@ -569,7 +569,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           </div>
           <Link
             href="/admin/staff"
-            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.045_20)] bg-transparent px-3 text-sm font-medium text-[oklch(26%_0.14_25)] outline-none transition-colors hover:bg-[oklch(93%_0.04_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-transparent px-3 text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[oklch(93%_0.04_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Try again
           </Link>
@@ -634,7 +634,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
             <details className="group mt-4 border-t border-[var(--admin-border)] pt-4">
               <summary
                 title="Inactive staff. Sign-in is blocked at the middleware."
-                className="flex cursor-pointer list-none items-center gap-2 rounded-[var(--admin-radius-control)] bg-[oklch(94%_0.008_280)]/40 px-2.5 py-1.5 text-sm font-medium text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(94%_0.008_280)]/70 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden"
+                className="flex cursor-pointer list-none items-center gap-2 rounded-[var(--admin-radius-control)] bg-[var(--admin-status-restricted-bg)]/40 px-2.5 py-1.5 text-sm font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[var(--admin-status-restricted-bg)]/70 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 [&::-webkit-details-marker]:hidden"
               >
                 <ChevronRight
                   className="size-4 shrink-0 transition-transform group-open:rotate-90"
@@ -787,16 +787,16 @@ function WorkloadPill({ count }: { count: number }) {
   const tone = workloadTone(count);
   const bg =
     tone === "warning"
-      ? "bg-[oklch(95%_0.05_65)]"
+      ? "bg-[var(--admin-status-attention-bg)]"
       : tone === "info"
-        ? "bg-[oklch(96%_0.038_75)]"
-        : "bg-[oklch(93.5%_0.038_155)]";
+        ? "bg-[var(--admin-status-pending-bg)]"
+        : "bg-[var(--admin-status-confirmed-bg)]";
   const text =
     tone === "warning"
-      ? "text-[oklch(26%_0.13_55)]"
+      ? "text-[var(--admin-status-attention-text)]"
       : tone === "info"
-        ? "text-[oklch(28%_0.12_55)]"
-        : "text-[oklch(22%_0.085_155)]";
+        ? "text-[var(--admin-status-pending-text)]"
+        : "text-[var(--admin-status-confirmed-text)]";
   const title =
     count >= 8
       ? "Heavy load. Consider re-balancing."
@@ -975,8 +975,8 @@ function StaffRow({
             <span
               className={
                 onboardingTone === "warning"
-                  ? "inline-flex items-center gap-1.5 text-[oklch(26%_0.13_55)]"
-                  : "inline-flex items-center gap-1.5 text-[oklch(22%_0.085_155)]"
+                  ? "inline-flex items-center gap-1.5 text-[var(--admin-status-attention-text)]"
+                  : "inline-flex items-center gap-1.5 text-[var(--admin-status-confirmed-text)]"
               }
               title={
                 onboardingScore < 6
@@ -999,7 +999,7 @@ function StaffRow({
               {member.specialties.map((specialty) => (
                 <span
                   key={specialty}
-                  className="inline-flex items-center rounded-full bg-[oklch(94%_0.008_280)] px-2 py-0.5 text-[0.6875rem] font-medium text-[oklch(30%_0.02_280)]"
+                  className="inline-flex items-center rounded-full bg-[var(--admin-status-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-status-restricted-text)]"
                   title={specialty}
                 >
                   {specialty}
@@ -1013,7 +1013,7 @@ function StaffRow({
             {member.specialties.slice(0, 3).map((specialty) => (
               <span
                 key={specialty}
-                className="inline-flex items-center rounded-full bg-[oklch(94%_0.008_280)] px-2 py-0.5 text-[0.6875rem] font-medium text-[oklch(30%_0.02_280)]"
+                className="inline-flex items-center rounded-full bg-[var(--admin-status-restricted-bg)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--admin-status-restricted-text)]"
                 title={specialty}
               >
                 {specialty}

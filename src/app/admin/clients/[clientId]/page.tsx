@@ -648,17 +648,17 @@ export default async function ClientDetailPage({
         {nextVisit ? (
           <Link
             href={`/admin/bookings/${nextVisit.id}`}
-            className="group flex flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.055_155)] bg-[oklch(93.5%_0.038_155)] px-4 py-3 text-sm transition-colors hover:bg-[oklch(91.5%_0.045_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="group flex flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)] px-4 py-3 text-sm transition-colors hover:bg-[oklch(91.5%_0.045_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             aria-label="Open next upcoming booking"
           >
             <span
               aria-hidden="true"
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(99.5%_0.003_88)] text-[oklch(22%_0.085_155)]"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(99.5%_0.003_88)] text-[var(--admin-status-confirmed-text)]"
             >
               <CalendarCheck className="size-4" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium uppercase tracking-[0.04em] text-[oklch(22%_0.085_155)]/75">
+              <p className="text-xs font-medium uppercase tracking-[0.04em] text-[var(--admin-status-confirmed-text)]/75">
                 Next visit
               </p>
               <p className="mt-0.5 text-sm font-semibold text-[var(--admin-heading)]">
@@ -683,7 +683,7 @@ export default async function ClientDetailPage({
               </p>
             </div>
             <ChevronRight
-              className="size-4 shrink-0 text-[oklch(22%_0.085_155)] transition-transform group-hover:translate-x-0.5"
+              className="size-4 shrink-0 text-[var(--admin-status-confirmed-text)] transition-transform group-hover:translate-x-0.5"
               aria-hidden="true"
             />
           </Link>
@@ -692,14 +692,14 @@ export default async function ClientDetailPage({
           <div
             role="region"
             aria-label="Critical client note"
-            className="flex items-start gap-3 rounded-[var(--admin-radius-card)] border border-[oklch(88%_0.045_20)] bg-[oklch(95.5%_0.028_20)] px-4 py-3 text-sm"
+            className="flex items-start gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-cancelled-border)] bg-[var(--admin-status-cancelled-bg)] px-4 py-3 text-sm"
           >
             <AlertTriangle
-              className="mt-0.5 size-4 shrink-0 text-[oklch(26%_0.14_25)]"
+              className="mt-0.5 size-4 shrink-0 text-[var(--admin-status-cancelled-text)]"
               aria-hidden="true"
             />
             <div className="min-w-0 flex-1">
-              <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.04em] text-[oklch(26%_0.14_25)]">
+              <p className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.04em] text-[var(--admin-status-cancelled-text)]">
                 <Pin className="size-3" aria-hidden="true" />
                 Critical note
               </p>
@@ -975,7 +975,7 @@ function ContactPanel({
                         rel="noopener noreferrer"
                         title="Open in WhatsApp"
                         aria-label="Message on WhatsApp"
-                        className="inline-flex size-6 items-center justify-center rounded-full bg-[oklch(93.5%_0.038_155)] text-[oklch(22%_0.085_155)] transition-colors hover:bg-[oklch(88%_0.055_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 print:hidden"
+                        className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)] transition-colors hover:bg-[oklch(88%_0.055_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 print:hidden"
                       >
                         <MessageCircle className="size-3.5" aria-hidden="true" />
                       </a>
@@ -1233,8 +1233,8 @@ function NotesPanel({
     <AdminPanel>
       <AdminPanelHeader icon={StickyNote} title="Notes" />
       {client.notes ? (
-        <div className="mt-4 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.055_75)] bg-[oklch(96%_0.038_75)] p-3">
-          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.04em] text-[oklch(28%_0.12_55)]">
+        <div className="mt-4 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-pending-border)] bg-[var(--admin-status-pending-bg)] p-3">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.04em] text-[var(--admin-status-pending-text)]">
             <Sparkles className="size-3" aria-hidden="true" />
             Profile note
           </p>
@@ -1244,8 +1244,8 @@ function NotesPanel({
         </div>
       ) : null}
       {pinnedNote ? (
-        <div className="mt-3 rounded-[var(--admin-radius-control)] border border-[oklch(88%_0.06_65)] bg-[oklch(95%_0.05_65)] p-3">
-          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.04em] text-[oklch(26%_0.13_55)]">
+        <div className="mt-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] p-3">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.04em] text-[var(--admin-status-attention-text)]">
             <Pin className="size-3" aria-hidden="true" />
             Pinned sensitive note
           </p>
@@ -1550,7 +1550,7 @@ function BookingFilterStrip({
             tab: activeTab,
             status: statusFilter,
           })}
-          className="inline-flex h-8 items-center gap-1 rounded-full bg-[oklch(93.5%_0.038_155)] px-3 text-xs font-medium text-[oklch(22%_0.085_155)] outline-none transition-colors hover:bg-[oklch(88%_0.055_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          className="inline-flex h-8 items-center gap-1 rounded-full bg-[var(--admin-status-confirmed-bg)] px-3 text-xs font-medium text-[var(--admin-status-confirmed-text)] outline-none transition-colors hover:bg-[oklch(88%_0.055_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           title="Clear service filter"
         >
           <span className="truncate max-w-[12rem]">{serviceFilter}</span>

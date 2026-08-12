@@ -339,7 +339,7 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
           role="alert"
           aria-live="polite"
           aria-atomic="true"
-          className="flex items-center gap-1.5 text-xs text-[oklch(26%_0.14_25)] print:hidden"
+          className="flex items-center gap-1.5 text-xs text-[var(--admin-status-cancelled-text)] print:hidden"
         >
           {customRangeError}
         </div>
@@ -1039,7 +1039,7 @@ function renderMetricDetails(metric: { key: string; label: string; definition: s
         className="flex cursor-pointer list-none items-center justify-between gap-3 outline-none focus-visible:rounded-[var(--admin-radius-control)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
         title="Show how this number is calculated"
       >
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[oklch(94%_0.008_280)] px-2.5 py-1 text-xs font-medium text-[oklch(30%_0.02_280)]">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] px-2.5 py-1 text-xs font-medium text-[var(--admin-status-restricted-text)]">
           <Calculator
             className="size-3 transition-transform group-open:rotate-12"
             aria-hidden="true"
@@ -1175,15 +1175,15 @@ function CompactStat({
 }) {
   const toneClasses =
     tone === "success"
-      ? "bg-[oklch(93.5%_0.038_155)] border-[oklch(88%_0.055_155)]"
+      ? "bg-[var(--admin-status-confirmed-bg)] border-[var(--admin-status-confirmed-border)]"
       : tone === "warning"
-        ? "bg-[oklch(95%_0.05_65)] border-[oklch(88%_0.06_65)]"
+        ? "bg-[var(--admin-status-attention-bg)] border-[var(--admin-status-attention-border)]"
         : "bg-[var(--admin-panel)] border-[var(--admin-border)]";
   const iconColor =
     tone === "success"
-      ? "text-[oklch(22%_0.085_155)]"
+      ? "text-[var(--admin-status-confirmed-text)]"
       : tone === "warning"
-        ? "text-[oklch(26%_0.13_55)]"
+        ? "text-[var(--admin-status-attention-text)]"
         : "text-[var(--admin-primary)]";
   return (
     <div
@@ -1285,7 +1285,7 @@ function ActiveFilterChip({
   return (
     <Link
       href={search ? `/admin/reports?${search}` : "/admin/reports"}
-      className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[oklch(94%_0.008_280)] px-2.5 text-xs font-medium text-[oklch(30%_0.02_280)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
+      className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] px-2.5 text-xs font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
       aria-label={`Remove ${chip.label} filter`}
     >
       <span>
