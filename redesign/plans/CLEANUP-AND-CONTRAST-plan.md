@@ -701,6 +701,24 @@ audit row per rule. Pagination would hide it; it would not fix it.
 events? If so, the panel is not too long — it is repeating itself, and the same
 noise is presumably in `/admin/audit` too.
 
+### J.2a ⛔ THE DIAGNOSTIC QUESTION IN §J.2 IS ANSWERED: THERE IS NO BULK-WRITE BUG
+
+**Evidence: VERIFIED.** `saveAvailabilityDay` (`availability/actions.ts:105-113`)
+writes **exactly one** audit row per save. Its own comment says so:
+
+> *A day is now several rows, so there is no single target row. The first
+> segment is a real row at write time; before/after carry the full picture.*
+
+So the ~14 near-identical rows in the Owner's screenshot are **14 genuine
+separate saves**, each correctly logged. The audit trail is right.
+
+**That flips the recommendation below.** Option 1 (collapse repeated events) is
+now WRONG — it would hide a legitimate trail. **Option 2, pagination, is the
+answer**, which is what the Owner asked for in the first place. `LoadMoreButton`
+fits: this panel is a flat list with no filters or sorting layered over it, which
+is exactly the case the generic component suits and exactly why it did not suit
+`/admin/clients`.
+
 ### J.3 Three options
 
 | | Approach | Effect |
@@ -724,6 +742,105 @@ exactly why ITEM F lists them for deletion.
 Deleting them and then re-writing pagination a week later would be the worst of
 both. **Resolve ITEM J before acting on those two entries in ITEM F.** If option
 2 or 1-then-2 is taken, they stop being dead code and become the implementation.
+
+---
+
+## ITEM K — The unbounded-list register (the systemic answer to ITEM J)
+
+**Owner's question, 2026-08-12: "what if other pages have the same issue?"**
+Answered by a twelve-agent sweep of all six admin areas — six finding, six
+refuting. **21 verdicts: 5 CONFIRMED-UNBOUNDED · 12 ACTUALLY-BOUNDED ·
+2 BOUNDED-IN-PRACTICE · 2 OVERSTATED.**
+
+⛔ **Why this could not be eyeballed.** Production is 15 bookings, 6 therapists,
+~40 email events, one city. **Every list in the admin looks fine today.** The
+question was never "how long is it now" but "what stops it growing".
+
+### K.1 ⛔ THE ONE THAT SILENTLY HIDES DATA — Therapist "My bookings"
+
+**Evidence: VERIFIED personally at `70a5af9`. Severity: HIGHEST here, and it is
+not the Owner's view — it is the Therapist's.**
+
+| | |
+|---|---|
+| Renders | `bookings/page.tsx:477-501` |
+| Ids from | `bookings-list-data.ts:516-521` — `booking_assignments` by `assigned_staff_id`, **no date filter, no limit** = every assignment ever |
+| Rows capped by | `SCOPED_BRANCH_ROW_CAP = 200` (`:662`), applied at `:727` and `:741` |
+| Pager | **None. `pageCount: 1` is hard-coded** for this branch at `:882-885`, so `PaginationBar` renders nothing |
+
+**The cap was designed as an anomaly backstop, and its own comment states the
+assumption that no longer holds:**
+
+> *"one practitioner's own assignments plus the open, gender-matched,
+> future-dated slots they may claim is a working set of tens, not hundreds. The
+> cap exists so a data anomaly degrades into a truncated list rather than an
+> unbounded fetch."*
+
+That reasoning describes a **working set**. But the id query has no date filter,
+so what it actually returns is **lifetime history**. Rows come back
+`booking_date DESC`, so when the cap binds it is the therapist's **oldest**
+bookings that vanish — with no error, no truncation notice, and no way to reach
+them.
+
+**When it binds:** at ~4-5 bookings/week, inside year one. The verifier
+re-derived it on a more conservative even-split baseline (~2.5/week) and still
+got **~80 weeks — about 18 months.**
+
+**Fix:** this branch genuinely cannot be `.range()`d (documented at `:24-29`,
+`:653-661`), so the generic components do not fit. Either date-window the
+assigned-ids query by default with a link-based "load older" that raises the cap
+via a query param, or split into a recent view plus a paged history view.
+**Whatever is chosen, the truncation must become visible** — a silent cap on a
+person's own work history is the actual defect.
+
+### K.2 Confirmed unbounded, lower urgency
+
+| Surface | Where | Bound | Grows per |
+|---|---|---|---|
+| **Calendar day/week/range agenda** | `calendar/page.tsx:1420-1481` (`PerDatePanel`), `:1367-1411` (`DayAgenda`) | **none** — the `.slice()` there is copy-before-sort, not a cap | booking in the visible window; a range view over a busy period renders every card |
+| **Dashboard "Needs your attention" dialog** | `dashboard/attention-group-client.tsx`, fed from `dashboard-cards.tsx:1150-1153` | **none on the query** — `dashboard-data.ts:518-577` fetches enquiries / email events / ops events unfiltered | email event ever sent (~2-4 per booking) |
+| **Client detail → Privacy panel** | `clients/[clientId]/page.tsx:1394` | **none** — every other rail on that page is capped | GDPR request per client (rare; likely <50 in 3 years) |
+| **Staff directory** | `staff/page.tsx:613` and `:647` | **none** — and an unused `countStaff()` already sits at `staff-list-data.ts:292-306` for exactly this | staff headcount (slow; 6 → maybe 15) |
+
+The last two are **low** — real, but they grow slowly enough to fix whenever
+those pages are next touched.
+
+### K.3 Checked and genuinely fine — do not re-flag
+
+12 verdicts came back ACTUALLY-BOUNDED. Worth recording so the next audit does
+not re-litigate them:
+
+- `/admin/bookings` clinic-wide branch — real SQL `.range()` with an `id`
+  tiebreak (`:697-714`)
+- `/admin/clients` — deliberately paged in memory; the file documents why a SQL
+  pager would produce "a correct-looking page of wrong rows"
+- `/admin/audit` — its own `AuditLoadMoreButton`
+- Booking series page — `.limit(10)` upcoming / `.limit(5)` past, with exact
+  head-counts and a "View all N visits" hand-off to the paged list
+- Booking detail activity timeline — two `.limit(10)` merged, then
+  `.slice(0, 20)`, with a mobile overflow count
+- Per-booking participants / items / assignments — `MAX_PARTICIPANTS = 6`, a real
+  domain cap
+- `/admin/operations` — **zero findings across the whole area**
+
+### K.4 Two findings the verifier knocked down — recorded so they are not re-raised
+
+The **Emails → Reminders** and **Review requests** tabs were reported as
+unbounded. They are not: Reminders is `.limit(20)`, Review requests is
+`.limit(40)` then `.slice(0, 20)`. Rendered rows are **fixed at 20 forever**.
+
+There is a smaller real issue underneath, worth one line rather than an item:
+**neither tab tells you when the true backlog exceeds what is shown**, so the
+badge and list can quietly under-represent reality. A "showing 20 of N" count
+would close it.
+
+### K.5 Suggested order
+
+1. **K.1** — the only one that hides data a user is entitled to see.
+2. **ITEM J** — the Owner-reported panel; smallest, uses `LoadMoreButton`.
+3. **K.2 calendar and dashboard** — before the business grows, not after.
+4. **K.4** — a "showing 20 of N" count on the two email tabs.
+5. **K.2 privacy panel and staff directory** — whenever those pages are next open.
 
 ---
 
