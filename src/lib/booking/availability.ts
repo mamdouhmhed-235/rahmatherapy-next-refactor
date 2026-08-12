@@ -1,11 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  addBusinessDays,
-  getBusinessDate,
+import {
   getBusinessDayOfWeek,
   isDateInBusinessWindow,
   isOutsideMinimumNotice,
-  toBusinessDateTime,
 } from "@/lib/time/london";
 
 export type TherapistGender = "male" | "female";
@@ -944,10 +941,3 @@ export async function calculateAvailableDays(
     requiredStaffByGender,
   };
 }
-
-export const businessTimeForAvailability = {
-  addBusinessDays,
-  getBusinessDate,
-  getBusinessDayOfWeek,
-  toBusinessDateTime,
-};

@@ -5,7 +5,6 @@ import {
   ArrowRight,
   AtSign,
   CalendarDays,
-  ChevronRight,
   Clock,
   Globe,
   HeartPulse,
@@ -13,7 +12,6 @@ import {
   Mail,
   MessageSquare,
   Phone,
-  Plus,
   PoundSterling,
   ShieldAlert,
   UserRound,
@@ -33,7 +31,6 @@ import {
 } from "../components/admin-ui";
 import { EmptyState } from "../components/EmptyState";
 import { AttentionReviewButton } from "./attention-group-client";
-import { DemandTrendClient } from "./demand-trend-client";
 import {
   appointmentStyle,
   safeDivide,
@@ -72,10 +69,6 @@ function formatMoney(value: number) {
     style: "currency",
     currency: "GBP",
   }).format(value);
-}
-
-function formatPercent(value: number) {
-  return `${Math.round(value)}%`;
 }
 
 function getInitials(name: string) {
@@ -1005,8 +998,6 @@ function TodayTimeline({
   );
 }
 
-export const TodayAgendaCard = TodayAtAGlanceCard;
-
 function ReadinessChip({
   icon: Icon,
   label,
@@ -1153,331 +1144,6 @@ export function UrgentAttentionPanel({
           />
         </div>
       ) : null}
-    </AdminDashboardPanel>
-  );
-}
-
-export function StaffCapacityCard({
-  genderCapacity,
-  staffWorkload,
-  permissionAccess,
-}: {
-  genderCapacity: {
-    gender: string;
-    label: string;
-    activeTherapists: number;
-    totalAssignments: number;
-    unassignedAssignments: number;
-  }[];
-  staffWorkload: { staffName: string; assignments: number; completed: number }[];
-  permissionAccess?: { staff: boolean; bookings?: boolean };
-}) {
-  const totalUnassigned = genderCapacity.reduce((sum, row) => sum + row.unassignedAssignments, 0);
-  const totalAssignments = genderCapacity.reduce((sum, row) => sum + row.totalAssignments, 0);
-  const totalSlots = totalAssignments + totalUnassigned;
-  const overallUtilisation = totalSlots > 0 ? safeDivide(totalAssignments, totalSlots) : 0;
-  const openSlots = totalUnassigned;
-
-  return (
-    <AdminDashboardPanel className="min-h-[22rem]">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <AdminIconBadge icon={Users} tone="default" />
-          <div>
-            <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-              Staff capacity
-            </h3>
-            <p
-              className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
-              style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
-            >
-              {formatPercent(overallUtilisation)}
-            </p>
-            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
-              {staffWorkload.length} active · {totalAssignments}/{totalSlots} slots
-            </p>
-          </div>
-        </div>
-        {permissionAccess?.staff && (
-          <Link
-            href="/admin/staff"
-            className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--admin-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-          >
-            Manage
-            <ChevronRight className="size-4" />
-          </Link>
-        )}
-      </div>
-
-      {/* Overall utilisation */}
-      {genderCapacity.length > 0 && (
-        <div className="mt-4">
-          <div className="flex items-center justify-between gap-3 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-[var(--admin-text-muted)]">
-              Overall utilisation
-            </span>
-            <span className="text-sm font-bold text-[var(--admin-heading)]">
-              {totalAssignments}/{totalSlots} slots
-            </span>
-          </div>
-          <AdminProgressBar
-            value={overallUtilisation}
-            label="Overall utilisation"
-            tone={totalUnassigned > 0 ? "warning" : "success"}
-          />
-          <div className="flex items-center justify-between mt-1">
-            <span className="text-xs font-semibold text-[var(--admin-success)]">
-              {formatPercent(overallUtilisation)} utilised
-            </span>
-            <span className="text-xs text-[var(--admin-text-muted)]">
-              {openSlots} slots open
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* Staff list */}
-      <div className="mt-4 grid gap-3">
-        {staffWorkload.length > 0 ? (
-          staffWorkload.map((staff) => {
-            const initials = getInitials(staff.staffName);
-            const tintStyle = avatarTintStyle(staff.staffName);
-            const workloadPercent = staff.assignments > 0
-              ? safeDivide(staff.completed, staff.assignments)
-              : 0;
-            const isNearFull = workloadPercent >= 75 && workloadPercent < 100;
-            const isOverloaded = workloadPercent >= 100;
-            const statusText = isOverloaded
-              ? "Near full"
-              : isNearFull
-                ? "Near full"
-                : workloadPercent > 0
-                  ? "Active"
-                  : "Staff gap";
-            const statusTone = isOverloaded || isNearFull
-              ? "warning"
-              : workloadPercent > 0
-                ? "success"
-                : "danger";
-
-            return (
-              <div
-                key={staff.staffName}
-                className="flex items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-3"
-                title={`${staff.staffName}: ${staff.completed} of ${staff.assignments} bookings completed (${formatPercent(workloadPercent)}) - ${statusText}`}
-              >
-                <div
-                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                  style={tintStyle}
-                  aria-hidden="true"
-                >
-                  {initials}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-[var(--admin-heading)] truncate">
-                      {staff.staffName}
-                    </p>
-                    <AdminStatusBadge
-                      value={statusText}
-                      tone={statusTone}
-                      className="shrink-0 text-[10px]"
-                    />
-                  </div>
-                  <AdminProgressBar
-                    value={workloadPercent}
-                    label={`${staff.staffName} workload`}
-                    tone={statusTone}
-                    className="mt-2"
-                  />
-                </div>
-                <p className="shrink-0 text-sm font-semibold text-[var(--admin-text-muted)]">
-                  {staff.completed}/{staff.assignments} ({formatPercent(workloadPercent)})
-                </p>
-              </div>
-            );
-          })
-        ) : (
-          <EmptyState
-            icon={Users}
-            title="No staff assigned"
-            message="No appointments scheduled in this period."
-            tone="muted"
-          />
-        )}
-      </div>
-
-      {/* Footer action */}
-      {permissionAccess?.staff && (
-        <div className="mt-4">
-          <Link
-            href="/admin/staff"
-            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/60 text-sm font-semibold text-[var(--admin-heading)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 sm:min-h-10"
-          >
-            <Plus className="size-4" />
-            Add or manage staff
-          </Link>
-        </div>
-      )}
-    </AdminDashboardPanel>
-  );
-}
-
-export function PaymentHealthCard({
-  summary,
-  unpaidCount,
-  unpaidCompletedCount,
-  revenueAllowed,
-  canReviewBookings,
-  canViewReports,
-}: {
-  summary: {
-    bookedRevenue: number;
-    collectedRevenue: number;
-    outstandingRevenue: number;
-  };
-  unpaidCount: number;
-  unpaidCompletedCount?: number;
-  revenueAllowed: boolean;
-  canReviewBookings?: boolean;
-  canViewReports?: boolean;
-}) {
-  const total = Math.max(summary.bookedRevenue, summary.collectedRevenue + summary.outstandingRevenue);
-  const hasActivity = total > 0 || unpaidCount > 0;
-  const actionHref =
-    revenueAllowed && canViewReports
-      ? "/admin/reports"
-      : canReviewBookings && unpaidCount > 0
-        ? "/admin/bookings?payment_status=unpaid"
-        : null;
-  const collectionRate = total > 0 ? safeDivide(summary.collectedRevenue, total) : 0;
-
-  return (
-    <AdminDashboardPanel className="min-h-[22rem]">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <AdminIconBadge icon={PoundSterling} tone="default" />
-          <div>
-            <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-              Payment health
-            </h3>
-            <p
-              className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
-              style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
-            >
-              {formatMoney(summary.outstandingRevenue)}
-            </p>
-            <p className="mt-1 text-sm text-[var(--admin-text-muted)]">Outstanding</p>
-          </div>
-        </div>
-        {actionHref && (
-          <Link
-            href={actionHref}
-            className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--admin-primary)] outline-none hover:underline focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35"
-          >
-            Details
-            <ChevronRight className="size-4" />
-          </Link>
-        )}
-      </div>
-
-      {total > 0 ? (
-          <div className="mt-4">
-            {/* Row-based payment bars */}
-            <div className="grid gap-3">
-              {/* Booked */}
-              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-[var(--admin-info)]" />
-                    <span className="text-sm font-semibold text-[var(--admin-heading)]">Booked</span>
-                  </div>
-                  <span className="text-lg font-bold text-[var(--admin-heading)]">
-                    {formatMoney(summary.bookedRevenue)}
-                  </span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--admin-progress-neutral)]">
-                  <span className="block h-full rounded-full bg-[var(--admin-info)]" style={{ width: "100%" }} />
-                </div>
-                <div className="mt-1.5">
-                  <span className="text-xs text-[var(--admin-text-muted)]">Total value of bookings</span>
-                </div>
-              </div>
-
-              {/* Collected */}
-              <div className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-[var(--admin-success)]" />
-                    <span className="text-sm font-semibold text-[var(--admin-heading)]">Collected</span>
-                  </div>
-                  <span className="text-lg font-bold text-[var(--admin-heading)]">
-                    {formatMoney(summary.collectedRevenue)}
-                  </span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--admin-progress-neutral)]">
-                  <span
-                    className="block h-full rounded-full bg-[var(--admin-success)]"
-                    style={{ width: `${collectionRate}%` }}
-                  />
-                </div>
-                <div className="mt-1.5 flex items-center justify-between">
-                  <span className="text-xs text-[var(--admin-text-muted)]">Payments received</span>
-                  <span className="text-xs font-medium text-[var(--admin-success)]">
-                    {formatPercent(collectionRate)} collection rate
-                  </span>
-                </div>
-              </div>
-
-              {/* Outstanding */}
-              <div
-                className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 py-3"
-                title={`Outstanding: ${formatMoney(summary.outstandingRevenue)} awaiting collection across ${unpaidCount} booking${unpaidCount === 1 ? "" : "s"}${(unpaidCompletedCount ?? 0) > 0 ? ` (${unpaidCompletedCount} already completed)` : ""}`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="size-2.5 rounded-full bg-[var(--admin-warning)]" />
-                    <span className="text-sm font-semibold text-[var(--admin-heading)]">Outstanding</span>
-                  </div>
-                  <span className="text-lg font-bold text-[var(--admin-heading)]">
-                    {formatMoney(summary.outstandingRevenue)}
-                  </span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--admin-progress-neutral)]">
-                  <span
-                    className="block h-full rounded-full bg-[var(--admin-warning)]"
-                    style={{ width: `${total > 0 ? (summary.outstandingRevenue / total) * 100 : 0}%` }}
-                  />
-                </div>
-                <div className="mt-1.5 flex items-center justify-between">
-                  <span className="text-xs text-[var(--admin-text-muted)]">Awaiting collection</span>
-                  {summary.outstandingRevenue > 0 && (
-                    <span className="text-xs font-medium text-[var(--admin-warning)]">Requires follow-up</span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <p className="mt-5 flex items-center gap-2 border-t border-[var(--admin-border)]/60 pt-3 text-xs text-[var(--admin-text-muted)]">
-              <Info className="size-3.5" aria-hidden="true" />
-              {hasActivity
-                ? `${unpaidCount} unpaid booking${unpaidCount === 1 ? "" : "s"}${unpaidCompletedCount ? `, ${unpaidCompletedCount} completed` : ""}.`
-                : "No financial activity in this period."}
-            </p>
-          </div>
-      ) : (
-        <div className="mt-4">
-          <EmptyState
-            icon={PoundSterling}
-            title="No financial activity"
-            message="Bookings and payments will appear here once there is activity in the selected range."
-            tone="muted"
-          />
-        </div>
-      )}
     </AdminDashboardPanel>
   );
 }
@@ -1804,47 +1470,6 @@ export function BusinessPulseCard({
   );
 }
 
-export function DemandTrendCard({
-  bookings,
-  dateRange,
-  rangeLabel,
-}: {
-  bookings: { booking_date: string }[];
-  dateRange: { from: string; to: string };
-  rangeLabel?: string;
-}) {
-  const totalBookings = bookings.length;
-  return (
-    <AdminDashboardPanel className="min-h-[22rem]">
-      <div className="flex items-start gap-3">
-        <AdminIconBadge icon={HeartPulse} tone="default" />
-        <div>
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--admin-text-muted)]">
-            Demand trend
-          </h3>
-          <p
-            className="admin-display font-semibold leading-none text-[var(--admin-heading)] tabular-nums"
-            style={{ fontSize: "clamp(1.625rem, 2.5vw, 1.875rem)" }}
-          >
-            {totalBookings}
-          </p>
-          <p className="mt-1 text-sm text-[var(--admin-text-muted)]">
-            {rangeLabel ? `Across ${rangeLabel}` : "Across the selected range"}
-          </p>
-        </div>
-      </div>
-      <div className="mt-4">
-        <DemandTrendClient
-          bookings={bookings}
-          from={dateRange.from}
-          to={dateRange.to}
-          today={new Date().toISOString().slice(0, 10)}
-        />
-      </div>
-    </AdminDashboardPanel>
-  );
-}
-
 function ClientMixLegend({
   label,
   value,
@@ -1868,10 +1493,3 @@ function ClientMixLegend({
     </div>
   );
 }
-
-export const adminDashboardCardClasses = {
-  primaryButton:
-    "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] bg-[var(--admin-primary)] px-4 text-sm font-semibold text-[var(--admin-on-primary)] outline-none transition-colors hover:bg-[var(--admin-primary-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
-  outlineButton:
-    "inline-flex min-h-10 items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 text-sm font-semibold text-[var(--admin-body)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35",
-};

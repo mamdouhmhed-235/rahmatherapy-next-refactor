@@ -63,16 +63,6 @@ export function hasAnyPermission(
   return permissions.some((permission) => profile?.permissions.has(permission));
 }
 
-export function canViewDashboard(profile: StaffProfile | null) {
-  return hasAnyPermission(profile, [
-    PERMISSIONS.VIEW_DASHBOARD,
-    PERMISSIONS.VIEW_REPORTS_OWN,
-    PERMISSIONS.VIEW_REPORTS_OPERATIONAL,
-    PERMISSIONS.VIEW_REPORTS_BUSINESS,
-    PERMISSIONS.VIEW_BOOKINGS_ASSIGNED,
-  ]);
-}
-
 export function canViewAllBookings(profile: StaffProfile | null) {
   return hasPermission(profile, PERMISSIONS.VIEW_BOOKINGS_ALL);
 }
@@ -244,14 +234,6 @@ export function canManageOperations(profile: StaffProfile | null) {
     PERMISSIONS.MANAGE_SETTINGS,
     PERMISSIONS.MANAGE_EMAIL_SETTINGS,
   ]);
-}
-
-export function isCriticalAdmin(profile: StaffProfile | null) {
-  return Boolean(
-    profile &&
-      canManageStaffProfiles(profile) &&
-      canAssignStaffRoles(profile)
-  );
 }
 
 // ─── Staff profile shape ──────────────────────────────────────────────────────

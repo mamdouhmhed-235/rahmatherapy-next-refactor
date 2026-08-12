@@ -1,11 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   canClaimAssignments as hasClaimAssignmentPermission,
   canManageAllBookings,
   canManageBookings,
   canViewAllBookings,
-  canViewAssignedBookings,
   type StaffProfile,
 } from "@/lib/auth/rbac";
 import type { BookingRecord } from "./types";
@@ -49,20 +47,6 @@ export function canOpenBookingRecord(booking: BookingRecord, profile: StaffProfi
     isOwnBooking(booking, profile) ||
     hasClaimableAssignment(booking, profile)
   );
-}
-
-export async function canAccessBooking(bookingId: string, profile: StaffProfile) {
-  if (canManageAllBookings(profile) || canViewAllBookings(profile)) return true;
-  if (!canManageBookings(profile) && !canViewAssignedBookings(profile)) return false;
-
-  const adminClient = createSupabaseAdminClient();
-  const { count, error } = await adminClient
-    .from("booking_assignments")
-    .select("id", { count: "exact", head: true })
-    .eq("booking_id", bookingId)
-    .eq("assigned_staff_id", profile.id);
-
-  return !error && (count ?? 0) > 0;
 }
 
 export type BookingActivityCheck =

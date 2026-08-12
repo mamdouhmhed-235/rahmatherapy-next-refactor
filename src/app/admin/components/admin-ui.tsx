@@ -1149,10 +1149,6 @@ export function AdminEntityRow({
   );
 }
 
-export function AdminEntityCard(props: Parameters<typeof AdminEntityRow>[0]) {
-  return <AdminEntityRow {...props} />;
-}
-
 // ─── AdminDetailSection ───────────────────────────────────────────────────────
 
 export function AdminDetailSection({
@@ -1395,7 +1391,3 @@ export function AdminFieldHelp({
     </details>
   );
 }
-
-// ─── Backwards-compat re-exports ──────────────────────────────────────────────
-export const MetricCard = AdminStat;
-export const DetailSectionCard = AdminDetailSection;

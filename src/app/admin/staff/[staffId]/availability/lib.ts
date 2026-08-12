@@ -48,9 +48,6 @@ export const PENDING_BG_SOFT = "bg-[var(--admin-status-pending-bg)]";
 export const RESTRICTED_TEXT = "text-[var(--admin-status-restricted-text)]";
 export const RESTRICTED_BG_SOFT = "bg-[var(--admin-status-restricted-bg)]";
 
-/** Confirmed-family soft tint (new-row highlight). */
-export const CONFIRMED_BG_SOFT = "bg-[var(--admin-status-confirmed-bg)]";
-
 // C-16 Phase E Step 14 (finding N4 — Owner-approved extension,
 // per-page-progress §1 row 3 / §2). `StaffBlockedDatesManager` and
 // `StaffAvailabilityOverridesManager` already split upcoming/past with a

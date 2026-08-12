@@ -261,16 +261,6 @@ export interface DeliveryFilters {
   to: string;
 }
 
-export const DEFAULT_DELIVERY_FILTERS: DeliveryFilters = {
-  q: "",
-  event_type: "",
-  delivery_status: "",
-  recipient_role: "",
-  range: "last_30_days",
-  from: "",
-  to: "",
-};
-
 export function resolveRange(range: string | undefined): DateRangePresetKey {
   switch (range) {
     case "today":

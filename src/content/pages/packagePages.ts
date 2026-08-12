@@ -1035,8 +1035,6 @@ export const packagePages = [
   }
 ] as const satisfies readonly PackagePage[];
 
-export type PackagePageSlug = (typeof packagePages)[number]["slug"];
-
 export function getPackagePage(slug: string) {
   return packagePages.find((page) => page.slug === slug);
 }

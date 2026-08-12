@@ -812,39 +812,6 @@ export interface GenderCapacity {
   unassignedAssignments: number;
 }
 
-export function getGenderCapacity(data: ReportData): GenderCapacity[] {
-  const staffGenderMap = new Map(data.staff.filter((s) => s.active).map((s) => [s.id, s.gender]));
-  const unassignedByGender = new Map<string, number>();
-  for (const assignment of data.assignments) {
-    if (!assignment.assigned_staff_id || assignment.status === "completed") {
-      const gender = assignment.required_therapist_gender || "any";
-      unassignedByGender.set(gender, (unassignedByGender.get(gender) ?? 0) + 1);
-    }
-  }
-
-  const staffByGender = new Map<string, Set<string>>();
-  for (const [staffId, gender] of staffGenderMap) {
-    if (!staffByGender.has(gender)) staffByGender.set(gender, new Set());
-    staffByGender.get(gender)!.add(staffId);
-  }
-
-  const staffToBookings = new Map<string, number>();
-  for (const assignment of data.assignments) {
-    if (!assignment.assigned_staff_id) continue;
-    staffToBookings.set(assignment.assigned_staff_id, (staffToBookings.get(assignment.assigned_staff_id) ?? 0) + 1);
-  }
-
-  const genders = [...new Set([...staffGenderMap.values(), ...unassignedByGender.keys()])];
-  return genders.map((gender) => {
-    const staffIds = staffByGender.get(gender) ?? new Set();
-    const activeCount = staffIds.size;
-    const totalAssigned = [...staffIds].reduce((sum, id) => sum + (staffToBookings.get(id) ?? 0), 0);
-    const unassigned = unassignedByGender.get(gender) ?? 0;
-    const label = gender === "male" ? "Male therapist" : gender === "female" ? "Female therapist" : "Any gender";
-    return { gender, label, activeTherapists: activeCount, totalAssignments: totalAssigned, unassignedAssignments: unassigned };
-  });
-}
-
 export function findNextAppointment(bookings: ReportBooking[], today: string): ReportBooking | null {
   const upcoming = bookings
     .filter((b) => b.booking_date > today && b.status !== "cancelled" && b.status !== "no_show")
