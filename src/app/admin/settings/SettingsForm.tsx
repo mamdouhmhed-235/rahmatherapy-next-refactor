@@ -429,7 +429,7 @@ export function SettingsForm({
       </div>
 
       {/* ─── Sticky save bar (flat surface-card, no blur) ──────── */}
-      <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] pb-3 pt-3 shadow-[0_-1px_8px_oklch(23%_0.073_155_/_0.04)] md:bottom-0 md:pb-[max(env(safe-area-inset-bottom,0),0.75rem)]">
+      <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] pb-3 pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:bottom-0 md:pb-[max(env(safe-area-inset-bottom,0),0.75rem)]">
         <div className="mx-auto flex max-w-5xl flex-col gap-2 px-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex w-full justify-end sm:w-auto sm:justify-start">
             {isDirty ? (

@@ -213,7 +213,7 @@ export function RoleMetadataForm({
       {/* Mobile sticky action bar — appears only on <sm when the form is dirty
           or the save is in flight. Sits flush above the page mobile bottom-nav. */}
       <div
-        className={`sticky bottom-2 z-30 -mx-4 -mb-2 flex items-center gap-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)]/95 px-4 py-3 shadow-[0_-1px_8px_oklch(23%_0.073_155_/_0.06)] backdrop-blur sm:hidden ${
+        className={`sticky bottom-2 z-30 -mx-4 -mb-2 flex items-center gap-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)]/95 px-4 py-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-06)] backdrop-blur sm:hidden ${
           dirty || pending ? "" : "hidden"
         }`}
       >

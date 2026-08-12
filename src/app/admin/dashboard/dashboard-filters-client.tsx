@@ -352,7 +352,7 @@ export function DashboardFiltersClient({
                   className={cn(
                     "group inline-flex h-11 shrink-0 snap-start items-center justify-center rounded-full border px-4 text-[13px] font-semibold outline-none transition-[background-color,border-color,color,transform] duration-150 ease-out focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/35 active:scale-[0.97] sm:h-10",
                     isActive
-                      ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_2px_6px_oklch(23%_0.073_155/0.28),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-[var(--admin-primary-hover)]"
+                      ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_2px_6px_var(--admin-shadow-ink-28),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-[var(--admin-primary-hover)]"
                       : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] shadow-[0_1px_2px_rgba(0,0,0,0.02)] hover:-translate-y-px hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]/60 hover:text-[var(--admin-heading)] hover:shadow-[0_2px_5px_rgba(0,0,0,0.04)]"
                   )}
                 >

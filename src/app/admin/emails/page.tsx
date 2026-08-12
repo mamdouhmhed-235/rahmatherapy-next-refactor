@@ -399,7 +399,7 @@ function TabStrip({
                 className={cn(
                   "group inline-flex min-h-10 items-center gap-2 rounded-full border px-4 text-sm font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                   isActive
-                    ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:shadow-[0_1px_3px_oklch(23%_0.073_155_/_0.18)]"
+                    ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:shadow-[0_1px_3px_var(--admin-shadow-ink-18)]"
                     : "border-[var(--admin-border-form)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-panel-muted)]"
                 )}
               >
@@ -702,7 +702,7 @@ function DeliveryEventRow({
         isFailed
           ? "border-[oklch(82%_0.06_20)] bg-[var(--admin-status-cancelled-bg)]/45 hover:border-[oklch(70%_0.10_25)]"
           : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/30",
-        "hover:shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.08)]"
+        "hover:shadow-[0_1px_4px_var(--admin-shadow-ink-08)]"
       )}
     >
       <div className="flex flex-wrap items-start gap-3">
@@ -900,7 +900,7 @@ function ReminderRow({
   return (
     <article
       className={cn(
-        "grid grid-cols-[auto_1fr] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors duration-150 hover:border-[var(--admin-primary)]/30 hover:shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.08)]",
+        "grid grid-cols-[auto_1fr] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-colors duration-150 hover:border-[var(--admin-primary)]/30 hover:shadow-[0_1px_4px_var(--admin-shadow-ink-08)]",
         "sm:grid-cols-[auto_1fr_auto] sm:items-center"
       )}
     >

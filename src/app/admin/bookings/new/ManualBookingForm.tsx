@@ -1891,7 +1891,7 @@ export function ManualBookingForm({
                   {availSlots.map((slot) => (
                     <button key={slot.time} type="button" onClick={() => setStartTime(slot.time)}
                       className={cn("flex flex-col items-center rounded-[var(--admin-radius-control)] border p-3 text-center transition-[background-color,border-color,box-shadow,color] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
-                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_2px_8px_oklch(23%_0.073_155/0.25)] ring-2 ring-[var(--admin-primary)]/20"
+                        startTime === slot.time ? "border-[var(--admin-primary)] bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_2px_8px_var(--admin-shadow-ink-25)] ring-2 ring-[var(--admin-primary)]/20"
                           : "border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-body)] hover:border-[var(--admin-primary)]/40 hover:bg-[var(--admin-selected-sky)]"
                       )}>
                       <span className="text-sm font-bold leading-none">{slot.time}</span>
@@ -2392,7 +2392,7 @@ export function ManualBookingForm({
       className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
     >
       <div className="fixed inset-0 bg-[var(--admin-scrim)]/35" onClick={() => setShowLeaveDialog(false)} />
-      <div className="relative z-10 w-full max-w-sm rounded-t-[var(--admin-radius-lg)] bg-[var(--admin-panel)] p-6 shadow-[0_8px_24px_oklch(23%_0.073_155/0.12)] sm:rounded-[var(--admin-radius-card)]">
+      <div className="relative z-10 w-full max-w-sm rounded-t-[var(--admin-radius-lg)] bg-[var(--admin-panel)] p-6 shadow-[0_8px_24px_var(--admin-shadow-ink-12)] sm:rounded-[var(--admin-radius-card)]">
         <h2 id="leave-dialog-heading" className="font-display text-base font-semibold text-[var(--admin-heading)]">
           Leave this booking?
         </h2>

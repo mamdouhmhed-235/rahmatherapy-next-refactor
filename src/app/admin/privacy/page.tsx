@@ -602,7 +602,7 @@ export default async function PrivacyPage({
                   <section
                     key={panel.value}
                     aria-labelledby={`privacy-panel-${panel.value}`}
-                    className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] transition-shadow duration-200 ease-out hover:shadow-[0_2px_8px_oklch(23%_0.073_155_/_0.06)]"
+                    className="rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] transition-shadow duration-200 ease-out hover:shadow-[0_2px_8px_var(--admin-shadow-ink-06)]"
                   >
                     <details open={isOpen} className="group">
                       <summary

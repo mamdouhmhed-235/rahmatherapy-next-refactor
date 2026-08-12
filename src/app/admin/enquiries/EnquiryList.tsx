@@ -558,7 +558,7 @@ function BulkActionBar({
     <div
       role="region"
       aria-label="Bulk actions"
-      className="sticky bottom-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-primary)]/40 bg-[var(--admin-panel)] px-3 py-2 shadow-[0_4px_16px_oklch(23%_0.073_155_/_0.18)]"
+      className="sticky bottom-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-primary)]/40 bg-[var(--admin-panel)] px-3 py-2 shadow-[0_4px_16px_var(--admin-shadow-ink-18)]"
     >
       <div className="flex items-center gap-2 text-sm font-medium text-[var(--admin-heading)]">
         <span className="inline-flex size-7 items-center justify-center rounded-full bg-[var(--admin-primary)] text-[0.6875rem] font-semibold text-[var(--admin-on-primary)]">

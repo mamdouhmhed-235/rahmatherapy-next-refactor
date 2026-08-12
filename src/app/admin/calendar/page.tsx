@@ -499,7 +499,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
       <form
         action="/admin/calendar"
         method="get"
-        className="sticky top-0 z-20 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-3 shadow-[0_1px_4px_oklch(23%_0.073_155_/_0.06)] print:hidden"
+        className="sticky top-0 z-20 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] px-3 py-3 shadow-[0_1px_4px_var(--admin-shadow-ink-06)] print:hidden"
         aria-label="Calendar filters"
       >
         <div className="flex flex-wrap items-center gap-3">
@@ -814,7 +814,7 @@ function PresetLink({
       className={cn(
         "inline-flex h-11 min-h-[44px] items-center justify-center whitespace-nowrap rounded-[0.375rem] px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 sm:h-9 sm:min-h-0",
         active
-          ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_1px_2px_oklch(23%_0.073_155_/_0.18)]"
+          ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_1px_2px_var(--admin-shadow-ink-18)]"
           : "text-[var(--admin-body)] hover:bg-[var(--admin-panel)]"
       )}
     >
@@ -1542,7 +1542,7 @@ function CalendarBookingRow({
       title={groupInfo ? `${clientName} — ${groupInfo.count} participants` : undefined}
       className="group block rounded-[var(--admin-radius-card)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
     >
-      <article className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:shadow-[0_2px_8px_oklch(23%_0.073_155_/_0.08)] sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:p-5 print:border print:border-[oklch(42%_0.025_80)] print:shadow-none">
+      <article className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:shadow-[0_2px_8px_var(--admin-shadow-ink-08)] sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:p-5 print:border print:border-[oklch(42%_0.025_80)] print:shadow-none">
         {/* Time block (left column) */}
         <div className="flex flex-col items-start border-r border-[var(--admin-border)] pr-3">
           <span

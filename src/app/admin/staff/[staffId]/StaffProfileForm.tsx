@@ -385,7 +385,7 @@ export function StaffProfileForm({
           {/* Sticky mobile save bar — only when dirty (Brief §6 save-success path preserves toast). */}
           {isDirty ? (
             <div
-              className="sticky bottom-20 z-30 -mx-4 mt-2 flex gap-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)]/95 px-4 py-3 shadow-[0_-8px_24px_oklch(23%_0.073_155_/_0.06)] backdrop-blur sm:hidden"
+              className="sticky bottom-20 z-30 -mx-4 mt-2 flex gap-2 border-t border-[var(--admin-border)] bg-[var(--admin-panel)]/95 px-4 py-3 shadow-[0_-8px_24px_var(--admin-shadow-ink-06)] backdrop-blur sm:hidden"
               role="region"
               aria-label="Unsaved profile changes"
             >

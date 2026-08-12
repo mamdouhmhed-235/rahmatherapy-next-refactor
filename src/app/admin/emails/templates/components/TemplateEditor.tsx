@@ -386,7 +386,7 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
       </div>
 
       {canEdit ? (
-        <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 pb-[max(env(safe-area-inset-bottom,0),0.75rem)] pt-3 shadow-[0_-1px_8px_oklch(23%_0.073_155_/_0.04)] md:bottom-0">
+        <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--admin-border)] bg-[var(--admin-panel)] px-4 pb-[max(env(safe-area-inset-bottom,0),0.75rem)] pt-3 shadow-[0_-1px_8px_var(--admin-shadow-ink-04)] md:bottom-0">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-2">
             <p className="text-xs text-[var(--admin-text-muted)]" aria-live="polite">
               {isPending ? "Saving…" : dirty ? "Unsaved changes" : lastSavedAt ? "Saved" : ""}

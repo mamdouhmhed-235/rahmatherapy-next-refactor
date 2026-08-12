@@ -336,7 +336,7 @@ export default async function EnquiriesPage({ searchParams }: PageProps) {
                       className={cn(
                         "inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-[0.4rem] px-4 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
                         active
-                          ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_1px_2px_oklch(23%_0.073_155_/_0.18)]"
+                          ? "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] shadow-[0_1px_2px_var(--admin-shadow-ink-18)]"
                           : "text-[var(--admin-body)] hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)]"
                       )}
                     >

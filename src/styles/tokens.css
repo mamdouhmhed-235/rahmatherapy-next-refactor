@@ -208,6 +208,21 @@
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
   --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
   --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+  /* ITEM 7 — elevation shadow inks.
+   * Seven alpha steps of one ink, consumed inside bespoke shadow-[...] geometry
+   * that varies per site, so these are COLOUR tokens rather than whole-shadow
+   * tokens like --admin-shadow-card above. Named by alpha because that is the
+   * only thing that distinguishes them; the elevation each expresses is a
+   * property of the geometry at the call site, not of the ink. Dark values
+   * follow the existing shadow family: hue-neutral black at ~4-11x the alpha,
+   * because a warm 6%-alpha ink is invisible on a near-black panel. */
+  --admin-shadow-ink-06: oklch(23% 0.073 155 / 0.06);
+  --admin-shadow-ink-18: oklch(23% 0.073 155 / 0.18);
+  --admin-shadow-ink-08: oklch(23% 0.073 155 / 0.08);
+  --admin-shadow-ink-04: oklch(23% 0.073 155 / 0.04);
+  --admin-shadow-ink-25: oklch(23% 0.073 155 / 0.25);
+  --admin-shadow-ink-12: oklch(23% 0.073 155 / 0.12);
+  --admin-shadow-ink-28: oklch(23% 0.073 155 / 0.28);
   /* ITEM 7 — modal scrims.
    * The dimming layer behind every modal, dialog, drawer and command palette.
    * Alpha is applied at the call site by Tailwind's /30 /35 /40 modifier on a
@@ -472,6 +487,21 @@
   --admin-shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.45);
   --admin-shadow-hover: 0 2px 8px oklch(0% 0 0 / 0.5);
   --admin-shadow-overlay: 0 8px 24px oklch(0% 0 0 / 0.6), 0 1px 4px oklch(0% 0 0 / 0.45);
+  /* ITEM 7 — elevation shadow inks.
+   * Seven alpha steps of one ink, consumed inside bespoke shadow-[...] geometry
+   * that varies per site, so these are COLOUR tokens rather than whole-shadow
+   * tokens like --admin-shadow-card above. Named by alpha because that is the
+   * only thing that distinguishes them; the elevation each expresses is a
+   * property of the geometry at the call site, not of the ink. Dark values
+   * follow the existing shadow family: hue-neutral black at ~4-11x the alpha,
+   * because a warm 6%-alpha ink is invisible on a near-black panel. */
+  --admin-shadow-ink-06: oklch(0% 0 0 / 0.52);
+  --admin-shadow-ink-18: oklch(0% 0 0 / 0.72);
+  --admin-shadow-ink-08: oklch(0% 0 0 / 0.58);
+  --admin-shadow-ink-04: oklch(0% 0 0 / 0.45);
+  --admin-shadow-ink-25: oklch(0% 0 0 / 0.80);
+  --admin-shadow-ink-12: oklch(0% 0 0 / 0.65);
+  --admin-shadow-ink-28: oklch(0% 0 0 / 0.85);
   /* ITEM 7 — modal scrims.
    * The dimming layer behind every modal, dialog, drawer and command palette.
    * Alpha is applied at the call site by Tailwind's /30 /35 /40 modifier on a
@@ -617,6 +647,21 @@
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
   --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
   --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+  /* ITEM 7 — elevation shadow inks.
+   * Seven alpha steps of one ink, consumed inside bespoke shadow-[...] geometry
+   * that varies per site, so these are COLOUR tokens rather than whole-shadow
+   * tokens like --admin-shadow-card above. Named by alpha because that is the
+   * only thing that distinguishes them; the elevation each expresses is a
+   * property of the geometry at the call site, not of the ink. Dark values
+   * follow the existing shadow family: hue-neutral black at ~4-11x the alpha,
+   * because a warm 6%-alpha ink is invisible on a near-black panel. */
+  --admin-shadow-ink-06: oklch(23% 0.073 155 / 0.06);
+  --admin-shadow-ink-18: oklch(23% 0.073 155 / 0.18);
+  --admin-shadow-ink-08: oklch(23% 0.073 155 / 0.08);
+  --admin-shadow-ink-04: oklch(23% 0.073 155 / 0.04);
+  --admin-shadow-ink-25: oklch(23% 0.073 155 / 0.25);
+  --admin-shadow-ink-12: oklch(23% 0.073 155 / 0.12);
+  --admin-shadow-ink-28: oklch(23% 0.073 155 / 0.28);
   /* ITEM 7 — modal scrims.
    * The dimming layer behind every modal, dialog, drawer and command palette.
    * Alpha is applied at the call site by Tailwind's /30 /35 /40 modifier on a
@@ -754,6 +799,21 @@
     --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
     --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
     --admin-shadow-overlay: 0 8px 24px oklch(41% 0.105 247 / 0.12), 0 1px 4px oklch(41% 0.105 247 / 0.06);
+    /* ITEM 7 — elevation shadow inks.
+     * Seven alpha steps of one ink, consumed inside bespoke shadow-[...] geometry
+     * that varies per site, so these are COLOUR tokens rather than whole-shadow
+     * tokens like --admin-shadow-card above. Named by alpha because that is the
+     * only thing that distinguishes them; the elevation each expresses is a
+     * property of the geometry at the call site, not of the ink. Dark values
+     * follow the existing shadow family: hue-neutral black at ~4-11x the alpha,
+     * because a warm 6%-alpha ink is invisible on a near-black panel. */
+    --admin-shadow-ink-06: oklch(23% 0.073 155 / 0.06);
+    --admin-shadow-ink-18: oklch(23% 0.073 155 / 0.18);
+    --admin-shadow-ink-08: oklch(23% 0.073 155 / 0.08);
+    --admin-shadow-ink-04: oklch(23% 0.073 155 / 0.04);
+    --admin-shadow-ink-25: oklch(23% 0.073 155 / 0.25);
+    --admin-shadow-ink-12: oklch(23% 0.073 155 / 0.12);
+    --admin-shadow-ink-28: oklch(23% 0.073 155 / 0.28);
     /* ITEM 7 — modal scrims.
      * The dimming layer behind every modal, dialog, drawer and command palette.
      * Alpha is applied at the call site by Tailwind's /30 /35 /40 modifier on a
