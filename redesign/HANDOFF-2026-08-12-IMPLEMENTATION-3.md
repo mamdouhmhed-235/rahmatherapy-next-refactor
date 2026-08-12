@@ -233,77 +233,85 @@ Add these to the 29 from the deepening pass and the 6 from the second session.
 | §8.6 | "add `travel_fee` to the `beforeState` select or the delta double-charges" | **Moot, in our favour.** Both `beforeState` reads in `bookings/actions.ts` are `.select("*")`, so `travel_fee` arrives free. The warned-of hazard cannot occur as the code stands |
 | §8.6 | The completed/fully-paid lock predicate | **Incomplete.** `amount_due` is independently nullable, so `?? 0` makes a fully-paid booking with a null `amount_due` compute `0 > 0 === false` and skip the lock. Must fall back `amount_due ?? total_price ?? 0`, mirroring `quickUpdateBooking`. Found by the adversarial money review *after* the Phase 3 commit; fixed in `3866d24` |
 
+| §8.7 step 3 | The series fee update as one bulk `UPDATE` with a single shared `$oldFee` | **Wrong for any occurrence carrying a per-booking override.** Each occurrence's delta must come from ITS OWN current fee: `85 - 25 + 14 = 74`, where the plan's shape writes `89`. Implemented per-occurrence, with a mutant proving the test catches the plan's version |
+| §8.7 | "`CREATE OR REPLACE FUNCTION create_recurring_booking_series(..., p_travel_fee numeric default 0)`" | **Cannot work as written.** Adding a parameter changes the signature, so `CREATE OR REPLACE` creates a SECOND function and leaves the old one live — and while both exist every 20-argument call is ambiguous. Needs create + `DROP FUNCTION` of the old signature in one transaction (gotcha 40) |
+| §8.8 | Customer copy naming the mileage origin (*"measured from {origin}"*) | **Rejected, Owner decision 16.** It is NULL today so the sentence renders broken, and nothing computes from it — naming it implies an arithmetic we do not perform |
+
 **Everything else checked held.** All 24 Phase-1 anchors, all Phase-2 anchors, and all
-Phase-3 anchors in `bookings/actions.ts` were exact — **zero drift across three phases**.
+Phase-3/4 anchors were exact — **zero drift across all five phases**.
 
 ---
 
 ## 7 — What is left, in order
 
-### ✅ Item 8 Phase 4 — DONE (`9e65184`, `a7019fc`)
+### ✅ ITEM 8 IS COMPLETE. All five phases shipped.
 
-One deviation from the plan, deliberate and tested: §8.7's step 3 specifies a single bulk
-UPDATE using one shared `$oldFee`. That is **wrong for any series where an occurrence was
-individually adjusted** — each occurrence's delta must come from its own current fee, or a
-booking carrying an override has its total corrupted. Implemented per-occurrence, with a
-mutant proving the test catches the plan's version.
+Nothing in item 8 remains. Do not reopen it. In particular:
+- **Do not surface the mileage origin in customer copy** (Owner decision 16).
+- **Do not "tidy" the dual-write** in `settings/actions.ts` — that is Step Z's job, after
+  the deploy.
+- The customer copy is **Owner-approved and test-guarded**
+  (`src/features/booking/__tests__/travel-charge-copy.test.ts`). Changing any of those
+  strings needs fresh sign-off, not a judgement call.
 
-### ✅ ITEM 8 IS COMPLETE (`eb213fe` closes it)
+### 1. NEXT — Item 1 Batch B + Step 1e *(no Zone-2; start here)*
 
-All five phases shipped. The customer copy was drafted against the site's existing voice,
-presented for review, and approved sentence by sentence before implementation — the plan's
-stop condition was honoured, not bypassed.
+**Batch A already shipped** in `0863573`: the 6-month per-client cooldown and the
+repeat/one-off classification, both batched one-query-per-tick, with the class already
+written to the audit `after_state`.
 
-**The mileage origin is deliberately absent from all customer copy** (Owner decision 16).
-It remains an admin-only field. Any future work proposing to surface it should re-read that
-decision first: it is NULL today, and nothing computes from it.
+**Batch B — the manual admin send:**
+- A **new tab on `/admin/emails`** (Owner decision 7), *not* a subsection of Reminders.
+  Review requests target `completed` bookings; the Reminders tab lists only upcoming
+  `pending`/`confirmed` ones, which is why the plan's original "beside `ReminderResendForm`"
+  instruction was unbuildable.
+- A new action **mirroring `resendEmail`'s scope check** (`admin/emails/actions.ts:120`).
+  ⛔ **Do NOT edit `sendManualBookingReminder`** — RECON-untouchable. Mirror it.
+- A new `emails-data.ts` export. Note `getEmailsPageData` spans **:128-254**, not the
+  plan's ":142-197" (already corrected once).
+- **Register `review_email_sent` in `src/app/admin/audit/format.ts`'s `ACTIONS`** —
+  verified absent, and the cron already writes that `action_type`, so it currently renders
+  through the generic fallback.
+- Quiet hours **do not apply** (Owner decision 3) — matching the existing manual resend.
+- Verbatim idioms to mirror: `redesign/evidence/post-band-c-impl/item-1/B-idioms-to-mirror.md`.
 
-### NEXT: Item 1 Batch B — the manual admin review send
+**Step 1e** — vary review copy by client class (Owner decision 6, approved, unimplemented).
+The seam is `pickReviewMessages({ groupCategory, city, overrides })`; `classifyReviewClient`
+already exists and its result is already in the audit trail.
 
-### (superseded) Phase 4's original brief, retained for the record
+⛔ **`notifications.ts` is shared with item 8, which has now landed — re-grep before
+editing it.** In practice Batch B barely touches it.
 
-⛔ **Zone-2 ×2, both needing Owner approval:**
-```sql
-alter table public.recurring_booking_templates add column travel_fee numeric(10,2) not null default 0;
-```
-plus `CREATE OR REPLACE FUNCTION create_recurring_booking_series(..., p_travel_fee numeric default 0)`
-— apply that one with the gotcha-31 technique, **not** by retyping.
+### 2. Item 7 — admin theming, **all phases in ONE pass**
 
-**⛔ The single most likely thing to get wrong**, and the plan says so: the fully-paid skip
-**cannot be a single PostgREST filter**, because it compares two columns to each other.
-There is no working `.filter("amount_paid", "lt", "amount_due")` through the JS client. Use
-fetch → partition in application code → update, and report `{ updated, skipped }`.
+The Phase B / Phase B-tail split is **obsolete** — it existed only because item 7 was once
+scheduled before item 8. Item 8 has shipped, so tokenize every file in one go, including
+the five formerly-carved-out ones (`SettingsForm.tsx`, `BookingManagementForm.tsx`,
+`bookings/[bookingId]/page.tsx`, `ManualBookingForm.tsx`, `SeriesActions.tsx`).
 
-**Reuse, do not reimplement:** `src/lib/booking/travel-fee.ts` holds the pence arithmetic
-(`applyTravelFeeDelta`, `toPence`, `parseTravelFee`, `isInFreeTravelArea`). The cron at
-`extend-recurring-horizons/route.ts:419-420` and the new series action both need the
-identical maths. Register the new audit action type in `admin/audit/format.ts` — note
-`recurring_series_cancelled` is *already* missing from it and renders miscategorised, a
-pre-existing out-of-scope defect.
+⚠️ **Several of those files changed materially this session** — re-derive every literal
+count from scratch; every figure in §7 of the plan predates item 8.
+⛔ **Do not rebuild the three contrast verification layers** — they exist and work.
+⛔ **Never compare a Layer 3 sweep against a stored baseline from another day.**
 
-### Then, in this order
+### 3. Item 5 — bundle measurement *(needs the one sanctioned `pnpm build`)*
 
-1. **Item 8 Phase 5's remainder — CUSTOMER COPY ONLY; the email half shipped in
-   `22fc321`.** What is left: the `ConfirmStep.tsx` payment-acknowledgement checkbox
-   (`:232-236` — it lists "service and participant count" and must also name the travel
-   charge), the new restatement beside the `.reassurance` divs (`:266-280` — a *separate*
-   edit from the checkbox, easy to conflate into one), `AboutYouStep`'s **final** notice
-   copy, the request-received email reword (`notifications.ts` `sendBookingCreatedEmails`
-   — it legitimately shows a pre-fee total, so reword rather than refactor), and the
-   `/booking/manage` line-item split (copy-only; the number is already correct).
-   ⛔ **STOP CONDITION: the final customer-facing wording naming the travel charge and the
-   mileage origin needs Owner sign-off. Do not invent it.** The interim Phase 2 copy is in
-   place and is not false — it simply says an out-of-zone address can still be booked.
-   ⛔ The labelled fee line must live **inside** the fixed `renderSummary`/
-   `renderBookingPlainText` bodies, never as an overridable `SafeField`.
-2. **Item 1 Batch B** — manual admin send, **new tab** on `/admin/emails`. Plus **Step 1e**
-   (vary review copy by client class; approved, unimplemented).
-3. **Item 7** — all phases in **one pass**, no Phase B split.
-4. **Item 5** — needs the one sanctioned `pnpm build`; coordinate, it writes the same
-   `.next/` the Owner's dev server serves.
-5. **Step 0.5's tooling half.**
-6. **Step Z** — `DROP COLUMN allowed_cities` + delete the dual-write in
-   `settings/actions.ts`. **AFTER the deploy, at the very end.**
+Coordinate it: the build writes the same `.next/` the Owner's dev server serves from, and
+agents may not restart that server.
+
+### 4. Step 0.5's tooling half
+
+Extend `scripts/verify-admin-token-contrast.mjs` to *parse* the prose ratio claims. Still
+outstanding from Phase 0.
+
+### 5. ⛔ Step Z — LAST, after the deploy
+
+`ALTER TABLE public.business_settings DROP COLUMN allowed_cities;` **and** delete the
+dual-write line in `settings/actions.ts`. Its entire safety argument is that it runs after
+the deploy. **Do not schedule it earlier as a tidy-up.**
+
+Safe to run by then: **zero database objects reference `allowed_cities`** (verified this
+session), so the only consumer left is that one deliberate line.
 
 ---
 
@@ -330,7 +338,30 @@ pre-existing out-of-scope defect.
 
 ---
 
-## 9 — Known-but-not-fixed, recorded deliberately
+## 9 — Method that worked, and is worth repeating
+
+**Mutation-test every guard.** 33 mutants this session; 31 red on the first try, and **2
+were TOOTHLESS and had to be replaced**. Both had the same shape: a test that looked like
+it asserted the thing but asserted something adjacent to it (a select string no stub
+honours; a placeholder that shadows the real default). Neither would have been found by
+reading the test. The harness — assert the anchor is unique, mutate, run, restore in a
+`finally`, assert byte-identity — is described in each phase's `TEETH-CHECK.md` under
+`redesign/evidence/post-band-c-impl/item-8/`.
+
+**Fan out derivation, apply edits yourself.** Three read-only workflows ran this session
+(item 8 Phases 1, 2, 3-5), each with independent derivation agents plus adversarial
+critics. The critics earned their place twice: one found the `mileage_origin` payload wipe
+*before* it shipped, and the money critic found the `amount_due` null gap *after* Phase 3
+committed. **Let the critic finish before committing money code** — that ordering mistake
+cost an extra commit.
+
+**Verify against the live system where cheap.** `POST /api/availability/` for three cities
+proved the defect fixed in one command. `md5(prosrc)` proved a migration file matched the
+live function byte for byte. Both were faster than reasoning about it.
+
+---
+
+## 10 — Known-but-not-fixed, recorded deliberately
 
 - **Lost-update race in `updateBookingManagement`.** It reads `beforeState`, computes an
   absolute `total_price`/`amount_due`, then issues a plain `.update()` with no optimistic
