@@ -1969,7 +1969,7 @@ export function ManualBookingForm({
                   <p className="text-sm font-semibold text-[var(--admin-status-attention-text)]">Skip availability for female participants?</p>
                   <p className="mt-1 text-xs text-[var(--admin-status-attention-text)]/80">No availability will be checked. A female therapist will need to accept this booking.</p>
                   <div className="mt-2 flex gap-2">
-                    <AdminButton size="sm" onClick={() => { setFemaleOverride(true); setShowFemaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-[var(--admin-on-primary)] hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+                    <AdminButton size="sm" onClick={() => { setFemaleOverride(true); setShowFemaleOverrideConfirm(false); }} className="bg-[var(--admin-warning-solid)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-warning-solid-hover)]">Override</AdminButton>
                     <AdminButton size="sm" variant="ghost" onClick={() => setShowFemaleOverrideConfirm(false)}>Cancel</AdminButton>
                   </div>
                 </div>
@@ -2013,7 +2013,7 @@ export function ManualBookingForm({
                   <p className="text-sm font-semibold text-[var(--admin-status-attention-text)]">Skip availability for male participants?</p>
                   <p className="mt-1 text-xs text-[var(--admin-status-attention-text)]/80">No availability will be checked. A male therapist will need to accept this booking.</p>
                   <div className="mt-2 flex gap-2">
-                    <AdminButton size="sm" onClick={() => { setMaleOverride(true); setShowMaleOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-[var(--admin-on-primary)] hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+                    <AdminButton size="sm" onClick={() => { setMaleOverride(true); setShowMaleOverrideConfirm(false); }} className="bg-[var(--admin-warning-solid)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-warning-solid-hover)]">Override</AdminButton>
                     <AdminButton size="sm" variant="ghost" onClick={() => setShowMaleOverrideConfirm(false)}>Cancel</AdminButton>
                   </div>
                 </div>
@@ -2065,7 +2065,7 @@ export function ManualBookingForm({
               This booking will be created unassigned. A therapist will need to accept it before the visit.
             </p>
             <div className="mt-3 flex gap-2">
-              <AdminButton size="sm" onClick={() => { setOverrideAvailability(true); setShowOverrideConfirm(false); }} className="bg-[oklch(26%_0.13_55)] text-[var(--admin-on-primary)] hover:bg-[oklch(22%_0.12_55)]">Override</AdminButton>
+              <AdminButton size="sm" onClick={() => { setOverrideAvailability(true); setShowOverrideConfirm(false); }} className="bg-[var(--admin-warning-solid)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-warning-solid-hover)]">Override</AdminButton>
               <AdminButton size="sm" variant="ghost" onClick={() => setShowOverrideConfirm(false)}>Cancel</AdminButton>
             </div>
           </div>

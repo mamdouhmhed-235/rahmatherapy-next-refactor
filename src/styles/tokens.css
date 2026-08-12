@@ -230,6 +230,13 @@
    * both --admin-danger (a text tone) and --admin-danger-bg (a tint). */
   --admin-danger-solid: oklch(40% 0.14 25);
   --admin-danger-solid-hover: oklch(33% 0.14 25);
+  /* ITEM 7. Solid amber action fill, same shape as --admin-danger-solid above:
+   * a filled button that carries --admin-on-primary as its label. Minted
+   * because the "Override" confirmations in ManualBookingForm had this value
+   * hardcoded, and a foreground token pressed into service as a fill would
+   * have read as a mistake to the next person. */
+  --admin-warning-solid: oklch(26% 0.13 55);
+  --admin-warning-solid-hover: oklch(22% 0.12 55);
   /* Donut + stacked-bar status fills (ReportsCharts' statusChartFillForKey).
    * Deliberately NOT the --admin-status-*-text family: those are tuned for
    * text legibility at L~30% and read muted as chart slices. Five hues spread
@@ -457,6 +464,11 @@
   --admin-primary-active: oklch(91% 0.040 240);
   --admin-danger-solid: oklch(72% 0.145 25);        /* 7.12:1 vs on-primary */
   --admin-danger-solid-hover: oklch(81% 0.100 25);  /* 10.02:1 vs on-primary */
+  /* Inverts like its danger sibling: the fill lightens, and hover lightens
+   * further rather than darkening, because on a dark panel "more emphasis"
+   * means more luminance, not less. */
+  --admin-warning-solid: oklch(78% 0.130 60);       /* 9.12:1 vs on-primary */
+  --admin-warning-solid-hover: oklch(86% 0.095 60); /* 12.08:1 vs on-primary */
   /* Chart fills lift into the 68–82% band so slices keep the "pop" they were
    * tuned for on cream. All six sit 5.57–9.81:1 against --admin-panel
    * (measured 2026-08-11; the previous note said 5.55–9.75:1 — the upper
@@ -570,6 +582,13 @@
   --admin-primary-active: oklch(28% 0.085 247);
   --admin-danger-solid: oklch(40% 0.14 25);
   --admin-danger-solid-hover: oklch(33% 0.14 25);
+  /* ITEM 7. Solid amber action fill, same shape as --admin-danger-solid above:
+   * a filled button that carries --admin-on-primary as its label. Minted
+   * because the "Override" confirmations in ManualBookingForm had this value
+   * hardcoded, and a foreground token pressed into service as a fill would
+   * have read as a mistake to the next person. */
+  --admin-warning-solid: oklch(26% 0.13 55);
+  --admin-warning-solid-hover: oklch(22% 0.12 55);
   --admin-chart-status-confirmed: oklch(58% 0.18 155);
   --admin-chart-status-pending: oklch(70% 0.16 70);
   --admin-chart-status-completed: oklch(55% 0.15 230);
@@ -681,6 +700,8 @@
     --admin-primary-active: oklch(28% 0.085 247);
     --admin-danger-solid: oklch(40% 0.14 25);
     --admin-danger-solid-hover: oklch(33% 0.14 25);
+    --admin-warning-solid: oklch(26% 0.13 55);
+    --admin-warning-solid-hover: oklch(22% 0.12 55);
     --admin-chart-status-confirmed: oklch(58% 0.18 155);
     --admin-chart-status-pending: oklch(70% 0.16 70);
     --admin-chart-status-completed: oklch(55% 0.15 230);
