@@ -473,7 +473,7 @@ function DeliveryTab({
         <div
           role="alert"
           aria-live="polite"
-          className="grid gap-2 rounded-[var(--admin-radius-card)] border border-[oklch(85%_0.06_25)] bg-[var(--admin-status-cancelled-bg)] p-4 text-sm text-[var(--admin-status-cancelled-text)]"
+          className="grid gap-2 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-cancelled-border-soft)] bg-[var(--admin-status-cancelled-bg)] p-4 text-sm text-[var(--admin-status-cancelled-text)]"
         >
           <div className="flex items-center gap-2">
             <MailWarning className="size-4 shrink-0" aria-hidden="true" />
@@ -483,7 +483,7 @@ function DeliveryTab({
           <div>
             <Link
               href="/admin/emails?tab=delivery"
-              className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[oklch(70%_0.10_25)] bg-transparent px-3 text-xs font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[oklch(92%_0.045_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-danger-border)] bg-transparent px-3 text-xs font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
               Try again
             </Link>
@@ -700,7 +700,7 @@ function DeliveryEventRow({
       className={cn(
         "rounded-[var(--admin-radius-card)] border px-4 py-3 transition-colors duration-150",
         isFailed
-          ? "border-[oklch(82%_0.06_20)] bg-[var(--admin-status-cancelled-bg)]/45 hover:border-[oklch(70%_0.10_25)]"
+          ? "border-[var(--admin-status-cancelled-border-strong)] bg-[var(--admin-status-cancelled-bg)]/45 hover:border-[var(--admin-danger-border)]"
           : "border-[var(--admin-border)] bg-[var(--admin-panel)] hover:border-[var(--admin-primary)]/30",
         "hover:shadow-[0_1px_4px_var(--admin-shadow-ink-08)]"
       )}

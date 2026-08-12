@@ -158,6 +158,21 @@
   --admin-status-cancelled-bg: oklch(95.5% 0.028 20);
   --admin-status-cancelled-text: oklch(26% 0.14 25);
   --admin-status-cancelled-border: oklch(88% 0.045 20);
+  /* ITEM 7 — danger-family borders, icons and hovers.
+   * No ratio comment on any border token here, deliberately: a comment makes
+   * verify-admin-token-contrast.mjs register the pair and test it at 4.5:1 in
+   * both themes (derivePairs' unconditional ratioComments loop), and a 3:1
+   * UI-boundary colour is not a text pair. None of the nine pre-existing
+   * border tokens carries one either. */
+  --admin-danger-border: oklch(70% 0.10 25);
+  --admin-danger-border-soft: oklch(80% 0.08 25);
+  --admin-status-cancelled-icon: oklch(40% 0.12 25);
+  --admin-status-cancelled-bg-hover: oklch(92% 0.045 20);
+  --admin-status-cancelled-chip-icon: oklch(45% 0.19 25);
+  --admin-status-cancelled-border-soft: oklch(85% 0.06 25);
+  --admin-status-cancelled-border-strong: oklch(82% 0.06 20);
+  --admin-severity-danger-bg-hover: oklch(90% 0.05 20);
+  --admin-status-cancelled-outline-hover: oklch(93% 0.04 20);
   --admin-status-attention-bg: oklch(95% 0.05 65);
   --admin-status-attention-text: oklch(26% 0.13 55);
   --admin-status-attention-border: oklch(88% 0.06 65);
@@ -479,6 +494,21 @@
   --admin-status-cancelled-bg: oklch(29% 0.055 20);
   --admin-status-cancelled-text: oklch(88% 0.058 25);
   --admin-status-cancelled-border: oklch(42% 0.075 20);
+  /* ITEM 7 — danger-family borders, icons and hovers.
+   * No ratio comment on any border token here, deliberately: a comment makes
+   * verify-admin-token-contrast.mjs register the pair and test it at 4.5:1 in
+   * both themes (derivePairs' unconditional ratioComments loop), and a 3:1
+   * UI-boundary colour is not a text pair. None of the nine pre-existing
+   * border tokens carries one either. */
+  --admin-danger-border: oklch(60% 0.14 25);
+  --admin-danger-border-soft: oklch(50% 0.12 25);
+  --admin-status-cancelled-icon: oklch(78% 0.130 25);
+  --admin-status-cancelled-bg-hover: oklch(33% 0.075 20);
+  --admin-status-cancelled-chip-icon: oklch(78% 0.145 25);
+  --admin-status-cancelled-border-soft: oklch(46% 0.10 25);
+  --admin-status-cancelled-border-strong: oklch(50% 0.10 20);
+  --admin-severity-danger-bg-hover: oklch(34% 0.085 20);
+  --admin-status-cancelled-outline-hover: oklch(32% 0.065 20);
   --admin-status-attention-bg: oklch(30% 0.055 65);
   --admin-status-attention-text: oklch(90% 0.068 70);
   --admin-status-attention-border: oklch(43% 0.072 65);
@@ -655,6 +685,21 @@
   --admin-status-cancelled-bg: oklch(95.5% 0.028 20);
   --admin-status-cancelled-text: oklch(26% 0.14 25);
   --admin-status-cancelled-border: oklch(88% 0.045 20);
+  /* ITEM 7 — danger-family borders, icons and hovers.
+   * No ratio comment on any border token here, deliberately: a comment makes
+   * verify-admin-token-contrast.mjs register the pair and test it at 4.5:1 in
+   * both themes (derivePairs' unconditional ratioComments loop), and a 3:1
+   * UI-boundary colour is not a text pair. None of the nine pre-existing
+   * border tokens carries one either. */
+  --admin-danger-border: oklch(70% 0.10 25);
+  --admin-danger-border-soft: oklch(80% 0.08 25);
+  --admin-status-cancelled-icon: oklch(40% 0.12 25);
+  --admin-status-cancelled-bg-hover: oklch(92% 0.045 20);
+  --admin-status-cancelled-chip-icon: oklch(45% 0.19 25);
+  --admin-status-cancelled-border-soft: oklch(85% 0.06 25);
+  --admin-status-cancelled-border-strong: oklch(82% 0.06 20);
+  --admin-severity-danger-bg-hover: oklch(90% 0.05 20);
+  --admin-status-cancelled-outline-hover: oklch(93% 0.04 20);
   --admin-status-attention-bg: oklch(95% 0.05 65);
   --admin-status-attention-text: oklch(26% 0.13 55);
   --admin-status-attention-border: oklch(88% 0.06 65);
@@ -819,6 +864,21 @@
     --admin-status-cancelled-bg: oklch(95.5% 0.028 20);
     --admin-status-cancelled-text: oklch(26% 0.14 25);
     --admin-status-cancelled-border: oklch(88% 0.045 20);
+    /* ITEM 7 — danger-family borders, icons and hovers.
+     * No ratio comment on any border token here, deliberately: a comment makes
+     * verify-admin-token-contrast.mjs register the pair and test it at 4.5:1 in
+     * both themes (derivePairs' unconditional ratioComments loop), and a 3:1
+     * UI-boundary colour is not a text pair. None of the nine pre-existing
+     * border tokens carries one either. */
+    --admin-danger-border: oklch(70% 0.10 25);
+    --admin-danger-border-soft: oklch(80% 0.08 25);
+    --admin-status-cancelled-icon: oklch(40% 0.12 25);
+    --admin-status-cancelled-bg-hover: oklch(92% 0.045 20);
+    --admin-status-cancelled-chip-icon: oklch(45% 0.19 25);
+    --admin-status-cancelled-border-soft: oklch(85% 0.06 25);
+    --admin-status-cancelled-border-strong: oklch(82% 0.06 20);
+    --admin-severity-danger-bg-hover: oklch(90% 0.05 20);
+    --admin-status-cancelled-outline-hover: oklch(93% 0.04 20);
     --admin-status-attention-bg: oklch(95% 0.05 65);
     --admin-status-attention-text: oklch(26% 0.13 55);
     --admin-status-attention-border: oklch(88% 0.06 65);

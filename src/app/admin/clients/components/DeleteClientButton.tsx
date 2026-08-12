@@ -8,7 +8,7 @@ import { ConfirmActionModal } from "../../components/admin-ui-interactions";
 import { adminDeleteClient } from "../actions";
 
 const CANCELLED_TEXT = "text-[var(--admin-status-cancelled-text)]";
-const CANCELLED_BORDER = "border-[oklch(80%_0.08_25)]";
+const CANCELLED_BORDER = "border-[var(--admin-danger-border-soft)]";
 const CANCELLED_HOVER = "hover:bg-[var(--admin-status-cancelled-bg)]";
 
 /**

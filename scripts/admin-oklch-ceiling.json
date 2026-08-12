@@ -10,7 +10,7 @@
     "",
     "It cannot reach 0 — see dynamicAllowance below."
   ],
-  "staticCeiling": 59,
+  "staticCeiling": 43,
   "dynamicAllowance": {
     "$comment": [
       "Computed-hue literals like `oklch(88% 0.025 ${hue})`, where the hue is",

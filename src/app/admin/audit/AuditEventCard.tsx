@@ -31,7 +31,7 @@ function chipMeta(
     case "pending":
       return { Icon: Pencil, className: "text-[oklch(55%_0.16_70)]" };
     case "cancelled":
-      return { Icon: Trash2, className: "text-[oklch(45%_0.19_25)]" };
+      return { Icon: Trash2, className: "text-[var(--admin-status-cancelled-chip-icon)]" };
     case "restricted":
       return { Icon: Eye, className: "text-[var(--admin-status-restricted-chip-icon)]" };
     default:

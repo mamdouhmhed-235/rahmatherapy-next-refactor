@@ -36,7 +36,7 @@ export const DAYS_LONG = [
 
 /** Cancelled-family text colour token (replaces repeated raw oklch literals). */
 export const CANCELLED_TEXT = "text-[var(--admin-status-cancelled-text)]";
-export const CANCELLED_BORDER = "border-[oklch(26%_0.14_25)]";
+export const CANCELLED_BORDER = "border-[var(--admin-status-cancelled-text)]";
 export const CANCELLED_BG_SOFT = "bg-[var(--admin-status-cancelled-bg)]";
 
 /** Pending-family tokens (overrides soft warning). */

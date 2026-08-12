@@ -371,7 +371,7 @@ export function TemplateEditor({ template, canEdit, initialValues }: TemplateEdi
                   const form = document.getElementById(formId) as HTMLFormElement | null;
                   form?.requestSubmit();
                 }}
-                className="ml-auto inline-flex h-7 items-center gap-1 rounded-[var(--admin-radius-control)] px-2 text-xs font-medium outline-none transition-colors hover:bg-[oklch(92%_0.045_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="ml-auto inline-flex h-7 items-center gap-1 rounded-[var(--admin-radius-control)] px-2 text-xs font-medium outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 <RefreshCcw className="size-3.5" aria-hidden="true" />
                 Retry

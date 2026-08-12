@@ -227,7 +227,7 @@ export function DeliveryFilterStrip({
               key={chip.key}
               type="button"
               onClick={() => submit(chip.clearTo)}
-              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors duration-150 hover:border-[oklch(70%_0.10_25)] hover:bg-[var(--admin-status-cancelled-bg)] hover:text-[var(--admin-status-cancelled-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border-form)] bg-[var(--admin-panel)] px-2.5 py-1 text-xs font-medium text-[var(--admin-body)] outline-none transition-colors duration-150 hover:border-[var(--admin-danger-border)] hover:bg-[var(--admin-status-cancelled-bg)] hover:text-[var(--admin-status-cancelled-text)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             >
               <span>{chip.label}</span>
               <X className="size-3 shrink-0 transition-transform group-hover:rotate-90" aria-hidden="true" />
@@ -300,7 +300,7 @@ function FilterInputs({
             aria-invalid={searchError ? "true" : undefined}
             className={cn(
               "flex h-10 w-full rounded-[var(--admin-radius-control)] border bg-[var(--admin-surface-input)] pl-8 pr-2 text-sm text-[var(--admin-body)] outline-none transition-colors placeholder:text-[var(--admin-text-muted)] focus-visible:border-[var(--admin-focus)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30",
-              searchError ? "border-[oklch(70%_0.10_25)]" : "border-[var(--admin-border-form)]"
+              searchError ? "border-[var(--admin-danger-border)]" : "border-[var(--admin-border-form)]"
             )}
           />
         </div>

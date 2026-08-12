@@ -605,7 +605,7 @@ function UserMenuButton({
                 className="flex min-h-9 w-full items-center gap-2.5 rounded-[var(--admin-radius-control)] mx-1.5 px-2.5 text-left text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
                 style={{ width: "calc(100% - 0.75rem)" }}
               >
-                <LogOut className="size-4 shrink-0 text-[oklch(40%_0.12_25)]" aria-hidden="true" />
+                <LogOut className="size-4 shrink-0 text-[var(--admin-status-cancelled-icon)]" aria-hidden="true" />
                 Sign out
               </button>
             </form>
@@ -899,7 +899,7 @@ function UserMenuSheet({
                 type="submit"
                 className="flex min-h-11 w-full items-center gap-3 rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] px-3 text-left text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
-                <LogOut className="size-5 shrink-0 text-[oklch(40%_0.12_25)]" aria-hidden="true" />
+                <LogOut className="size-5 shrink-0 text-[var(--admin-status-cancelled-icon)]" aria-hidden="true" />
                 Sign out
               </button>
             </form>

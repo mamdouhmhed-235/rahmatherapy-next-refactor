@@ -569,7 +569,7 @@ export default async function StaffPage({ searchParams }: StaffPageProps) {
           </div>
           <Link
             href="/admin/staff"
-            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-transparent px-3 text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[oklch(93%_0.04_20)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="inline-flex h-9 items-center rounded-[var(--admin-radius-control)] border border-[var(--admin-status-cancelled-border)] bg-transparent px-3 text-sm font-medium text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-outline-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           >
             Try again
           </Link>

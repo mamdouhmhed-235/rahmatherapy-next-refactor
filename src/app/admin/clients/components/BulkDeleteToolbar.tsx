@@ -131,7 +131,7 @@ export function ClientSelectionProvider({
                   type="button"
                   disabled={pending}
                   aria-busy={pending || undefined}
-                  className="inline-flex h-10 appearance-none items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[oklch(80%_0.08_25)] bg-transparent px-3 text-sm font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60"
+                  className="inline-flex h-10 appearance-none items-center gap-1.5 rounded-[var(--admin-radius-control)] border border-[var(--admin-danger-border-soft)] bg-transparent px-3 text-sm font-semibold text-[var(--admin-status-cancelled-text)] outline-none transition-colors hover:bg-[var(--admin-status-cancelled-bg)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-60"
                 >
                   <Trash2 className="size-4 shrink-0" aria-hidden="true" />
                   Delete selected
