@@ -1678,6 +1678,16 @@ function filterAuditLogsToPeriod(
  * still read as a name rather than a UUID. Anything else falls back to the id
  * the caller already had.
  *
+ * ⚠️ `hasUniversalReportScope` is in the gate on purpose, and an earlier version
+ * of this omitted it. A Booking Coordinator holds `assign_bookings` and
+ * `view_bookings_all` but NEITHER `view_staff` NOR `manage_staff_profiles`, so
+ * a permission-only gate narrowed them — while the staff `<select>` beside the
+ * chips still listed the whole roster, because that dropdown is their tool for
+ * assigning work. They would have picked a name from it and got a raw UUID
+ * back. Anyone with universal report scope already sees clinic-wide bookings
+ * and that roster, so resolving a name discloses nothing new to them.
+ * Therapist and Inactive hold none of the three and stay narrowed.
+ *
  * ⛔ This narrows a RENDER, not the fetch. The five clinic-wide collections are
  * still fetched for everyone; that is the rest of ITEM N.
  */
@@ -1685,6 +1695,12 @@ export function resolvableStaffFor<T extends { id: string }>(
   profile: StaffProfile,
   staff: T[]
 ): T[] {
-  if (canViewStaff(profile) || canManageStaffProfiles(profile)) return staff;
+  if (
+    hasUniversalReportScope(profile) ||
+    canViewStaff(profile) ||
+    canManageStaffProfiles(profile)
+  ) {
+    return staff;
+  }
   return staff.filter((member) => member.id === profile.id);
 }

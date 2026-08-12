@@ -297,6 +297,20 @@ describe("resolvableStaffFor", () => {
     ).toEqual(ROSTER);
   });
 
+  it("keeps the whole roster for a Booking Coordinator, who has no view_staff", () => {
+    // They hold assign_bookings + view_bookings_all but NEITHER view_staff nor
+    // manage_staff_profiles. A permission-only gate narrowed them while the
+    // staff <select> beside the chips still listed everyone, so they picked a
+    // name and got a UUID back. Universal report scope already grants them
+    // that roster, so resolving a name discloses nothing new.
+    const coordinator = profile([
+      PERMISSIONS.VIEW_BOOKINGS_ALL,
+      PERMISSIONS.MANAGE_BOOKINGS_ALL,
+      PERMISSIONS.VIEW_REPORTS_OPERATIONAL,
+    ]);
+    expect(resolvableStaffFor(coordinator, ROSTER)).toEqual(ROSTER);
+  });
+
   it("gives a Therapist only themselves, so a colleague's id cannot become a name", () => {
     // The reachable path this closes: `?staffId=` is an unvalidated query param
     // and `data.staff` is the whole clinic roster for every profile, so the
