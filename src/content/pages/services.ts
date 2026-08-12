@@ -138,29 +138,6 @@ export const servicePackages = [
   bookingCta: string;
 }[];
 
-export const serviceTrustItems = [
-  {
-    title: "CMA & IPHM qualified",
-    body: "Professional complementary therapy standards.",
-    icon: "ShieldCheck",
-  },
-  {
-    title: "Fully mobile",
-    body: "We bring the treatment setup to your home.",
-    icon: "Home",
-  },
-  {
-    title: "Same-gender care",
-    body: "Female clients are treated by a female therapist.",
-    icon: "Users",
-  },
-  {
-    title: "Clear aftercare",
-    body: "Know what to do before and after your session.",
-    icon: "ClipboardCheck",
-  },
-] as const;
-
 export const packageFinderOptions = [
   {
     id: "general-detox",
@@ -353,68 +330,3 @@ export const treatmentMethods = [
     icon: "Sparkles",
   },
 ] as const;
-
-export const homeAppointmentSteps = [
-  {
-    number: "01",
-    title: "Choose your package",
-    body: "Pick from hijama, cupping, massage or a combination package.",
-  },
-  {
-    number: "02",
-    title: "Tell us what you need",
-    body: "Share your main concern, preferred therapist option and any health details we should know.",
-  },
-  {
-    number: "03",
-    title: "We come to your home",
-    body: "Your therapist brings the treatment setup and explains everything clearly before starting.",
-  },
-  {
-    number: "04",
-    title: "Aftercare included",
-    body: "You’ll receive simple guidance on what to do after your session.",
-  },
-] as const;
-
-export const serviceSafetyItems = [
-  "CMA and IPHM qualified therapists",
-  "Pre-treatment consultation",
-  "Clean mobile setup",
-  "Single-use items where required",
-  "Clear explanation before treatment",
-  "Male and female therapists available",
-  "Female clients treated by female therapist",
-  "Aftercare guidance included",
-] as const;
-
-export const miniFaqs = [
-  {
-    question: "Which package should I choose first?",
-    answer:
-      "If you want the most complete option, choose the Supreme Combo Package. If you specifically want wet cupping, choose the Hijama Package. If you want cupping without wet cupping, choose the Fire Package. If you mainly want hands-on massage, choose the 30-minute or 1-hour Massage Therapy option.",
-  },
-  {
-    question: "Do you offer female therapists?",
-    answer:
-      "Yes. Rahma Therapy offers male and female therapists. Female clients are treated by a female therapist.",
-  },
-  {
-    question: "Do you come to my home?",
-    answer:
-      "Yes. Rahma Therapy is fully mobile across Luton and surrounding areas. Your therapist brings the treatment setup to your home.",
-  },
-  {
-    question: "Is hijama suitable for everyone?",
-    answer:
-      "No. Suitability is checked before treatment. Hijama may not be suitable for certain medical conditions, medication use, pregnancy, blood-related issues or if you are unwell. If you are unsure, speak to a healthcare professional before booking.",
-  },
-  {
-    question: "What if I am not sure what to book?",
-    answer:
-      "Send us a message with what you are struggling with and we can guide you towards the most suitable package.",
-  },
-] as const;
-
-export const serviceSafetyDisclaimer =
-  "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please speak to a healthcare professional before booking.";

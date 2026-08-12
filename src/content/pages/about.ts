@@ -47,17 +47,3 @@ export const teamMembers = [
     ],
   },
 ] as const;
-
-export const safetyItems = [
-  "Pre-treatment consultation",
-  "Clean mobile treatment setup",
-  "Single-use items where required",
-  "Careful hygiene-led hijama process",
-  "Clear explanation and consent",
-  "Aftercare guidance included",
-  "Same-gender care for female clients",
-  "Medical advice recommended where treatment is not suitable",
-] as const;
-
-export const safetyDisclaimer =
-  "Rahma Therapy provides complementary wellness treatments and does not diagnose or replace medical care. If you have a medical condition, take medication, are pregnant, or are unsure whether treatment is suitable, please speak to a healthcare professional before booking.";

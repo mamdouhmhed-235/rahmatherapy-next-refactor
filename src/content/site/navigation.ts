@@ -1,5 +1,4 @@
 import type { NavItem } from "@/types/content";
-import { bookingLink } from "./contact";
 
 export const primaryNavigation = [
   {
@@ -23,5 +22,3 @@ export const primaryNavigation = [
     href: "/faqs-aftercare",
   },
 ] as const satisfies readonly NavItem[];
-
-export const headerCta = bookingLink;

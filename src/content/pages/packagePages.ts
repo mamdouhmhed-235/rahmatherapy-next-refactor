@@ -82,31 +82,6 @@ export type PackagePage = {
   };
 };
 
-const sharedSessionSteps = [
-  {
-    number: "01",
-    title: "Book your package",
-    body: "Choose the package and therapist option that suits you.",
-  },
-  {
-    number: "02",
-    title: "Suitability check",
-    body: "Tell us your main concern and any health details we should know.",
-  },
-  {
-    number: "03",
-    title: "Therapist comes to your home",
-    body: "We bring the treatment setup and explain everything before starting.",
-  },
-  {
-    number: "04",
-    title: "Treatment and aftercare",
-    body: "Your session is carried out privately, with simple aftercare guidance included.",
-  },
-] as const;
-
-export const packageSessionSteps = sharedSessionSteps;
-
 export const packagePages = [
   {
     slug: "supreme-combo-package",
