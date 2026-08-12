@@ -41,7 +41,7 @@ export const CANCELLED_BG_SOFT = "bg-[var(--admin-status-cancelled-bg)]";
 
 /** Pending-family tokens (overrides soft warning). */
 export const PENDING_TEXT = "text-[var(--admin-status-pending-text)]";
-export const PENDING_BORDER = "border-[oklch(80%_0.07_75)]";
+export const PENDING_BORDER = "border-[var(--admin-status-pending-border-strong)]";
 export const PENDING_BG_SOFT = "bg-[var(--admin-status-pending-bg)]";
 
 /** Restricted-family tokens (inactive banner). */

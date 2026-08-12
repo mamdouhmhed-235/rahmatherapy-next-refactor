@@ -695,9 +695,9 @@ function WorkloadSegment({
   // and label stay quiet so the strip never reads as a KPI tile row.
   const iconColor =
     tone === "warning"
-      ? "text-[oklch(40%_0.13_55)]"
+      ? "text-[var(--admin-tone-warning-icon)]"
       : tone === "info"
-        ? "text-[oklch(40%_0.12_55)]"
+        ? "text-[var(--admin-tone-info-icon)]"
         : tone === "success"
           ? "text-[oklch(35%_0.085_155)]"
           : "text-[var(--admin-text-muted)]";
@@ -825,7 +825,7 @@ function ProgressDots({
 }) {
   const filled =
     tone === "warning"
-      ? "bg-[oklch(78%_0.13_55)]"
+      ? "bg-[var(--admin-tone-warning-fill)]"
       : tone === "success"
         ? "bg-[oklch(50%_0.085_155)]"
         : "bg-[var(--admin-text-muted)]";

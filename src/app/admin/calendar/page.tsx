@@ -1542,7 +1542,7 @@ function CalendarBookingRow({
       title={groupInfo ? `${clientName} — ${groupInfo.count} participants` : undefined}
       className="group block rounded-[var(--admin-radius-card)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
     >
-      <article className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:shadow-[0_2px_8px_var(--admin-shadow-ink-08)] sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:p-5 print:border print:border-[oklch(42%_0.025_80)] print:shadow-none">
+      <article className="grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] group-hover:shadow-[0_2px_8px_var(--admin-shadow-ink-08)] sm:grid-cols-[4.75rem_minmax(0,1fr)_auto] sm:p-5 print:border print:border-[var(--admin-border-print)] print:shadow-none">
         {/* Time block (left column) */}
         <div className="flex flex-col items-start border-r border-[var(--admin-border)] pr-3">
           <span
@@ -1715,7 +1715,7 @@ function ModifierIcon({
     return (
       <span
         title={title}
-        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.75rem] font-medium ${bg} print:border print:border-[oklch(42%_0.025_80)] print:bg-transparent`}
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.75rem] font-medium ${bg} print:border print:border-[var(--admin-border-print)] print:bg-transparent`}
       >
         <Icon className="size-3.5 shrink-0" aria-hidden="true" />
         <span>{" "}{label}</span>
@@ -1725,7 +1725,7 @@ function ModifierIcon({
   return (
     <span
       title={title}
-      className={`inline-flex size-6 items-center justify-center rounded-full ${bg} print:border print:border-[oklch(42%_0.025_80)] print:bg-transparent`}
+      className={`inline-flex size-6 items-center justify-center rounded-full ${bg} print:border print:border-[var(--admin-border-print)] print:bg-transparent`}
     >
       <Icon className="size-3.5" aria-hidden="true" />
       <span className="sr-only">{title}</span>
@@ -1782,7 +1782,7 @@ function SidebarDisclosure({
     const count = bookings.length;
     return (
       <details className="group rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)] print:hidden xl:hidden">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none transition-colors hover:bg-[oklch(92%_0.06_65)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-status-attention-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55">
           <span className="flex items-center gap-2">
             <CalendarClock className="size-4" aria-hidden="true" />
             <span>Claimable today</span>
@@ -1790,10 +1790,10 @@ function SidebarDisclosure({
               {count}
             </span>
           </span>
-          <span className="text-[0.6875rem] text-[oklch(30%_0.14_55)] group-open:hidden">
+          <span className="text-[0.6875rem] text-[var(--admin-status-attention-text-muted)] group-open:hidden">
             Tap to expand
           </span>
-          <span className="hidden text-[0.6875rem] text-[oklch(30%_0.14_55)] group-open:inline">
+          <span className="hidden text-[0.6875rem] text-[var(--admin-status-attention-text-muted)] group-open:inline">
             Tap to collapse
           </span>
         </summary>
@@ -1832,7 +1832,7 @@ function SidebarDisclosure({
   const total = unassigned.length;
   return (
     <details className="group rounded-[var(--admin-radius-card)] border border-[var(--admin-status-attention-border)] bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)] print:hidden xl:hidden">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none transition-colors hover:bg-[oklch(92%_0.06_65)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium outline-none transition-colors hover:bg-[var(--admin-status-attention-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55">
         <span className="flex items-center gap-2">
           <CalendarClock className="size-4" aria-hidden="true" />
           <span>Unassigned</span>
@@ -1840,10 +1840,10 @@ function SidebarDisclosure({
             {total}
           </span>
         </span>
-        <span className="text-[0.6875rem] text-[oklch(30%_0.14_55)] group-open:hidden">
+        <span className="text-[0.6875rem] text-[var(--admin-status-attention-text-muted)] group-open:hidden">
           Tap to expand
         </span>
-        <span className="hidden text-[0.6875rem] text-[oklch(30%_0.14_55)] group-open:inline">
+        <span className="hidden text-[0.6875rem] text-[var(--admin-status-attention-text-muted)] group-open:inline">
           Tap to collapse
         </span>
       </summary>

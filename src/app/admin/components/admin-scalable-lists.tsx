@@ -559,7 +559,7 @@ export function ActiveFilterChip({
         onClick={onClear}
         title="Clear this filter"
         aria-label={`Clear ${label} filter`}
-        className="ml-0.5 inline-flex size-4 appearance-none items-center justify-center rounded-full border-0 bg-transparent text-[var(--admin-restricted)] outline-none transition-colors hover:bg-[oklch(89%_0.014_78)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        className="ml-0.5 inline-flex size-4 appearance-none items-center justify-center rounded-full border-0 bg-transparent text-[var(--admin-restricted)] outline-none transition-colors hover:bg-[var(--admin-hover-warm)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
       >
         <X className="size-3" aria-hidden="true" />
       </button>

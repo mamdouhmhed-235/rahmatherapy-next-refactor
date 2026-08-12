@@ -52,7 +52,7 @@ const TONE_PANEL_CLASSES: Record<EmptyStateTone, string> = {
   muted:
     "rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)]/50 px-5 py-12",
   warning:
-    "rounded-[var(--admin-radius-card)] border border-[oklch(82%_0.09_75)] bg-[var(--admin-status-pending-bg)] px-5 py-12",
+    "rounded-[var(--admin-radius-card)] border border-[var(--admin-status-pending-border-vivid)] bg-[var(--admin-status-pending-bg)] px-5 py-12",
 };
 
 const TONE_ICON_CLASSES: Record<EmptyStateTone, string> = {

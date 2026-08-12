@@ -29,7 +29,7 @@ function chipMeta(
     case "confirmed":
       return { Icon: Plus, className: "text-[oklch(38%_0.10_155)]" };
     case "pending":
-      return { Icon: Pencil, className: "text-[oklch(55%_0.16_70)]" };
+      return { Icon: Pencil, className: "text-[var(--admin-status-pending-chip-icon)]" };
     case "cancelled":
       return { Icon: Trash2, className: "text-[var(--admin-status-cancelled-chip-icon)]" };
     case "restricted":
@@ -58,7 +58,7 @@ function chipLabel(chip: ReturnType<typeof describeAction>["chip"]): string {
 function avatarTint(seed: string | null): string {
   const tints = [
     "bg-[oklch(91%_0.025_155)] text-[var(--admin-status-confirmed-text)]",
-    "bg-[oklch(92%_0.030_80)] text-[var(--admin-status-pending-text)]",
+    "bg-[var(--admin-avatar-tint-amber)] text-[var(--admin-status-pending-text)]",
     "bg-[var(--admin-avatar-tint-violet)] text-[var(--admin-status-restricted-text)]",
     "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)]",
     "bg-[oklch(92%_0.025_120)] text-[var(--admin-status-confirmed-text)]",
@@ -106,7 +106,7 @@ function renderTargetChipContent(
     return (
       <>
         {typeLabel}{" "}
-        <mark className="rounded-[2px] bg-[oklch(95%_0.05_75)] px-0.5 text-[var(--admin-status-pending-text)]">
+        <mark className="rounded-[2px] bg-[var(--admin-mark-bg)] px-0.5 text-[var(--admin-status-pending-text)]">
           {head}
         </mark>
         {tail}

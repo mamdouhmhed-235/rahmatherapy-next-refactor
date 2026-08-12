@@ -135,7 +135,7 @@ function SummaryCard({
                 fontSize: "2.369rem",
                 fontWeight: 700,
                 /* Rahma Gold — DESIGN.md §2 sanctioned use: Cormorant numeral on light canvas */
-                color: "oklch(58% 0.135 72)",
+                color: "var(--admin-price-numeral)",
               }}
             >
               {formatMoney(booking.total_price)}

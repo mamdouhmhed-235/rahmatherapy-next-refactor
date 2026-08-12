@@ -176,6 +176,28 @@
   --admin-status-attention-bg: oklch(95% 0.05 65);
   --admin-status-attention-text: oklch(26% 0.13 55);
   --admin-status-attention-border: oklch(88% 0.06 65);
+  /* ITEM 7 — warning/amber family, print border, and the tone strip.
+   * --admin-tone-* are named after the `tone` prop in staff/page.tsx's workload
+   * strip, which is the vocabulary the component actually uses. --admin-border-
+   * print exists because three calendar rules are print:-only; it still needs a
+   * value in all four blocks, since the print block is an explicit list of ~90
+   * named properties, not a wildcard reset. */
+  --admin-status-attention-text-muted: oklch(30% 0.14 55);
+  --admin-border-print: oklch(42% 0.025 80);
+  --admin-status-attention-bg-hover: oklch(92% 0.06 65);
+  --admin-status-pending-border-strong: oklch(80% 0.07 75);
+  --admin-border-hairline: oklch(89% 0.014 78);
+  --admin-hover-warm: oklch(89% 0.014 78);
+  --admin-status-pending-border-vivid: oklch(82% 0.09 75);
+  --admin-status-pending-chip-icon: oklch(55% 0.16 70);
+  --admin-avatar-tint-amber: oklch(92% 0.030 80);
+  --admin-mark-bg: oklch(95% 0.05 75);
+  --admin-price-numeral: oklch(58% 0.135 72);
+  --admin-status-pending-icon-bg: oklch(94% 0.05 75);
+  --admin-severity-warning-bg-hover: oklch(90% 0.07 65);
+  --admin-tone-warning-icon: oklch(40% 0.13 55);
+  --admin-tone-info-icon: oklch(40% 0.12 55);
+  --admin-tone-warning-fill: oklch(78% 0.13 55);
   --admin-status-restricted-bg: oklch(94% 0.008 280);
   --admin-status-restricted-text: oklch(30% 0.02 280);
   --admin-status-restricted-border: oklch(88% 0.012 280);
@@ -512,6 +534,28 @@
   --admin-status-attention-bg: oklch(30% 0.055 65);
   --admin-status-attention-text: oklch(90% 0.068 70);
   --admin-status-attention-border: oklch(43% 0.072 65);
+  /* ITEM 7 — warning/amber family, print border, and the tone strip.
+   * --admin-tone-* are named after the `tone` prop in staff/page.tsx's workload
+   * strip, which is the vocabulary the component actually uses. --admin-border-
+   * print exists because three calendar rules are print:-only; it still needs a
+   * value in all four blocks, since the print block is an explicit list of ~90
+   * named properties, not a wildcard reset. */
+  --admin-status-attention-text-muted: oklch(86% 0.073 70);
+  --admin-border-print: oklch(45% 0.020 80);
+  --admin-status-attention-bg-hover: oklch(33% 0.066 65);
+  --admin-status-pending-border-strong: oklch(51% 0.087 75);
+  --admin-border-hairline: oklch(34% 0.012 78);
+  --admin-hover-warm: oklch(35% 0.012 78);
+  --admin-status-pending-border-vivid: oklch(49% 0.111 75);
+  --admin-status-pending-chip-icon: oklch(67% 0.135 75);
+  --admin-avatar-tint-amber: oklch(29% 0.035 80);
+  --admin-mark-bg: oklch(31% 0.058 75);
+  --admin-price-numeral: oklch(80% 0.135 68);
+  --admin-status-pending-icon-bg: oklch(30% 0.058 75);
+  --admin-severity-warning-bg-hover: oklch(35% 0.077 65);
+  --admin-tone-warning-icon: oklch(83% 0.068 70);
+  --admin-tone-info-icon: oklch(84% 0.080 82);
+  --admin-tone-warning-fill: oklch(82% 0.115 60);
   --admin-status-restricted-bg: oklch(29% 0.010 280);
   --admin-status-restricted-text: oklch(87% 0.014 280);
   --admin-status-restricted-border: oklch(42% 0.016 280);
@@ -703,6 +747,28 @@
   --admin-status-attention-bg: oklch(95% 0.05 65);
   --admin-status-attention-text: oklch(26% 0.13 55);
   --admin-status-attention-border: oklch(88% 0.06 65);
+  /* ITEM 7 — warning/amber family, print border, and the tone strip.
+   * --admin-tone-* are named after the `tone` prop in staff/page.tsx's workload
+   * strip, which is the vocabulary the component actually uses. --admin-border-
+   * print exists because three calendar rules are print:-only; it still needs a
+   * value in all four blocks, since the print block is an explicit list of ~90
+   * named properties, not a wildcard reset. */
+  --admin-status-attention-text-muted: oklch(30% 0.14 55);
+  --admin-border-print: oklch(42% 0.025 80);
+  --admin-status-attention-bg-hover: oklch(92% 0.06 65);
+  --admin-status-pending-border-strong: oklch(80% 0.07 75);
+  --admin-border-hairline: oklch(89% 0.014 78);
+  --admin-hover-warm: oklch(89% 0.014 78);
+  --admin-status-pending-border-vivid: oklch(82% 0.09 75);
+  --admin-status-pending-chip-icon: oklch(55% 0.16 70);
+  --admin-avatar-tint-amber: oklch(92% 0.030 80);
+  --admin-mark-bg: oklch(95% 0.05 75);
+  --admin-price-numeral: oklch(58% 0.135 72);
+  --admin-status-pending-icon-bg: oklch(94% 0.05 75);
+  --admin-severity-warning-bg-hover: oklch(90% 0.07 65);
+  --admin-tone-warning-icon: oklch(40% 0.13 55);
+  --admin-tone-info-icon: oklch(40% 0.12 55);
+  --admin-tone-warning-fill: oklch(78% 0.13 55);
   --admin-status-restricted-bg: oklch(94% 0.008 280);
   --admin-status-restricted-text: oklch(30% 0.02 280);
   --admin-status-restricted-border: oklch(88% 0.012 280);
@@ -882,6 +948,28 @@
     --admin-status-attention-bg: oklch(95% 0.05 65);
     --admin-status-attention-text: oklch(26% 0.13 55);
     --admin-status-attention-border: oklch(88% 0.06 65);
+    /* ITEM 7 — warning/amber family, print border, and the tone strip.
+     * --admin-tone-* are named after the `tone` prop in staff/page.tsx's workload
+     * strip, which is the vocabulary the component actually uses. --admin-border-
+     * print exists because three calendar rules are print:-only; it still needs a
+     * value in all four blocks, since the print block is an explicit list of ~90
+     * named properties, not a wildcard reset. */
+    --admin-status-attention-text-muted: oklch(30% 0.14 55);
+    --admin-border-print: oklch(42% 0.025 80);
+    --admin-status-attention-bg-hover: oklch(92% 0.06 65);
+    --admin-status-pending-border-strong: oklch(80% 0.07 75);
+    --admin-border-hairline: oklch(89% 0.014 78);
+    --admin-hover-warm: oklch(89% 0.014 78);
+    --admin-status-pending-border-vivid: oklch(82% 0.09 75);
+    --admin-status-pending-chip-icon: oklch(55% 0.16 70);
+    --admin-avatar-tint-amber: oklch(92% 0.030 80);
+    --admin-mark-bg: oklch(95% 0.05 75);
+    --admin-price-numeral: oklch(58% 0.135 72);
+    --admin-status-pending-icon-bg: oklch(94% 0.05 75);
+    --admin-severity-warning-bg-hover: oklch(90% 0.07 65);
+    --admin-tone-warning-icon: oklch(40% 0.13 55);
+    --admin-tone-info-icon: oklch(40% 0.12 55);
+    --admin-tone-warning-fill: oklch(78% 0.13 55);
     --admin-status-restricted-bg: oklch(94% 0.008 280);
     --admin-status-restricted-text: oklch(30% 0.02 280);
     --admin-status-restricted-border: oklch(88% 0.012 280);

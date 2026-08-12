@@ -919,7 +919,7 @@ function SortLink({
       role="button"
       className={`inline-flex h-8 items-center rounded-[var(--admin-radius-control)] px-3 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 ${
         active
-          ? "bg-[var(--admin-panel)] text-[var(--admin-heading)] shadow-[0_1px_0_oklch(89%_0.014_78)]"
+          ? "bg-[var(--admin-panel)] text-[var(--admin-heading)] shadow-[0_1px_0_var(--admin-border-hairline)]"
           : "text-[var(--admin-text-muted)] hover:bg-[var(--admin-panel)]/60 hover:text-[var(--admin-body)]"
       }`}
     >
