@@ -1,5 +1,12 @@
 # HANDOFF — 2026-08-12 (third implementation session)
 
+> ⛔ **SUPERSEDED FOR POSITION AND NEXT-STEPS by
+> `HANDOFF-2026-08-12-IMPLEMENTATION-4.md`. Read that one first.**
+> HEAD is no longer `eb213fe`, and items 1, 5 and Step 0.5 have since completed.
+> **This file's §5 gotchas 28-41 remain live and are NOT superseded** — the
+> newer file adds 42-53 on top of them. Its §2 gate baselines and §7 next-steps
+> are stale; use the newer file's.
+
 **Read this file first, end to end.** Then `redesign/plans/POST-BAND-C-FOLLOWUP-plan.md`
 §0.0a, §0.0b, §0.0c, §1, §10 and §11 before opening any item section.
 
