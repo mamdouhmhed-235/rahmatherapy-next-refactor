@@ -369,7 +369,13 @@ export async function updateBookingManagement(
     toPence(travelFeeInput) !== toPence(previousTravelFee);
 
   if (travelFeeChanged) {
-    const previousAmountDue = Number(beforeState.amount_due ?? 0);
+    // Falls back to total_price, mirroring quickUpdateBooking's own idiom.
+    // amount_due is independently nullable: a booking with total_price 90 and
+    // amount_paid 90 but a null amount_due IS fully paid, and a bare `?? 0`
+    // would compute 0 > 0 === false and let the fee change through.
+    const previousAmountDue = Number(
+      beforeState.amount_due ?? beforeState.total_price ?? 0
+    );
     const previousAmountPaid = Number(beforeState.amount_paid ?? 0);
     const wasFullyPaid =
       previousAmountDue > 0 && previousAmountPaid >= previousAmountDue;

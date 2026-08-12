@@ -288,6 +288,32 @@ describe("updateBookingManagement — travel fee lock", () => {
     expect(stub.updatePayload()).toBeUndefined();
   });
 
+  it("rejects a travel-fee change on a fully-paid booking whose amount_due was never populated", async () => {
+    // amount_due is independently nullable. A bare `?? 0` fallback computes
+    // 0 > 0 === false and lets the change through on a booking that is, by
+    // total_price and amount_paid, plainly settled.
+    const stub = stubAdminClient({
+      ...BASE_BOOKING,
+      amount_due: null,
+      amount_paid: 90,
+      payment_status: "paid",
+      payment_method: "cash",
+    });
+
+    const result = await updateBookingManagement(
+      {},
+      statusFormData({
+        travel_fee: "14",
+        payment_status: "paid",
+        payment_method: "cash",
+        amount_paid: "90",
+      })
+    );
+
+    expect(result.fieldErrors?.travel_fee).toMatch(/fully paid/i);
+    expect(stub.updatePayload()).toBeUndefined();
+  });
+
   it("allows an unchanged travel fee submitted alongside another edit on a completed booking", async () => {
     const stub = stubAdminClient({
       ...BASE_BOOKING,
