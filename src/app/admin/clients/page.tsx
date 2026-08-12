@@ -1162,7 +1162,7 @@ function ClientRow({
         <p className="font-mono text-xs text-[var(--admin-text-muted)]">
           {timelinePrefix ? (
             <>
-              <span className="text-[var(--admin-text-muted)]/80">{timelinePrefix} </span>
+              <span className="text-[var(--admin-text-muted)]">{timelinePrefix} </span>
               <span className="font-semibold text-[var(--admin-body)]">{timelineLabel}</span>
             </>
           ) : (

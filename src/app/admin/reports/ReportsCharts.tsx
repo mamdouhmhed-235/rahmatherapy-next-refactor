@@ -224,7 +224,7 @@ function DonutLegend({
               <span className="truncate text-[var(--admin-body)]">{slice.name}</span>
             </span>
             <span className="tabular-nums text-[var(--admin-text-muted)]">
-              {slice.value} <span className="text-[var(--admin-text-muted)]/80">({pct}%)</span>
+              {slice.value} <span className="text-[var(--admin-text-muted)]">({pct}%)</span>
             </span>
           </li>
         );

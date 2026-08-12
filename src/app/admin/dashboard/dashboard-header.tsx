@@ -34,14 +34,14 @@ export function DashboardHeader({
           {subtitle}
         </p>
         {scopeLabel ? (
-          <p className="mt-1 text-xs font-medium text-[var(--admin-text-muted)]/85">
+          <p className="mt-1 text-xs font-medium text-[var(--admin-text-muted)]">
             {scopeLabel}
           </p>
         ) : null}
         {updatedAtIso ? (
           <UpdatedAgo
             absoluteIso={updatedAtIso}
-            className="mt-1.5 block text-[11px] uppercase tracking-[0.1em] text-[var(--admin-text-muted)]/70"
+            className="mt-1.5 block text-[11px] uppercase tracking-[0.1em] text-[var(--admin-text-muted)]"
           />
         ) : null}
       </div>

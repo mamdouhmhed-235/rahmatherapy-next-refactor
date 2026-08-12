@@ -221,7 +221,7 @@ export function NotificationCard({
           <p className="mt-1 break-words text-xs leading-5 text-[var(--admin-text-muted)]">
             {item.detail}
           </p>
-          <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--admin-text-muted)]/60">
+          <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.04em] text-[var(--admin-text-muted)]">
             {[item.timestamp, ageLabel].filter(Boolean).join(" · ")}
             {isSnoozed && item.state?.snoozedUntil ? (
               <>

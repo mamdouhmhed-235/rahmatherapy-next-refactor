@@ -135,7 +135,7 @@ export function RequestRow({
             </time>
             <span
               title={`Full id: ${row.id}`}
-              className="font-mono text-[0.65rem] uppercase tracking-[0.04em] text-[var(--admin-text-muted)]/80"
+              className="font-mono text-[0.65rem] uppercase tracking-[0.04em] text-[var(--admin-text-muted)]"
             >
               ID {auditIdSlug}…
             </span>
