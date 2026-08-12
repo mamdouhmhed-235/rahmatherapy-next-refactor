@@ -544,7 +544,7 @@
   --admin-avatar-tint-green: oklch(28% 0.034 158);
   --admin-avatar-tint-lime: oklch(29% 0.034 120);
   --admin-status-confirmed-card-hover: oklch(33% 0.062 158);
-  --admin-status-confirmed-border-strong: oklch(42% 0.090 158);
+  --admin-status-confirmed-border-strong: oklch(50% 0.090 158);
   --admin-tone-success-icon: oklch(76% 0.105 158);
   --admin-tone-success-fill: oklch(66% 0.076 155);
   --admin-status-pending-bg: oklch(30% 0.050 75);
@@ -591,7 +591,7 @@
   --admin-status-pending-icon-bg: oklch(30% 0.058 75);
   --admin-severity-warning-bg-hover: oklch(35% 0.077 65);
   --admin-tone-warning-icon: oklch(83% 0.068 70);
-  --admin-tone-info-icon: oklch(84% 0.080 82);
+  --admin-tone-info-icon: oklch(83% 0.063 70);
   --admin-tone-warning-fill: oklch(82% 0.115 60);
   --admin-status-restricted-bg: oklch(29% 0.010 280);
   --admin-status-restricted-text: oklch(87% 0.014 280);
@@ -685,7 +685,7 @@
    * carry byte-identical hover/active pairs. */
   --admin-button-subtle-hover: oklch(27% 0.010 155);
   --admin-button-subtle-active: oklch(33% 0.021 155);
-  --admin-button-primary-active: oklch(92% 0.032 155);  /* 15.01:1 vs on-primary */
+  --admin-button-primary-active: oklch(91% 0.040 240);  /* 14.54:1 vs on-primary */
   --admin-danger-solid-active: oklch(87% 0.070 25);  /* 12.37:1 vs on-primary */
   /* Chart fills lift into the 68–82% band so slices keep the "pop" they were
    * tuned for on cream. All six sit 5.57–9.81:1 against --admin-panel

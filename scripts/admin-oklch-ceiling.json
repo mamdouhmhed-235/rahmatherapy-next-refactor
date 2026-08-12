@@ -6,10 +6,44 @@
     "",
     "This started at 717. The Phase B sweep took it to 154 by substituting",
     "every literal whose colour was numerically identical to an existing",
-    "token's light value.",
+    "token's light value. Item 7's tail took it to 1 by minting a token pair",
+    "for each of the 58 remaining distinct colours.",
     "",
-    "It cannot reach 0 — see dynamicAllowance below."
+    "It cannot reach 0 — see dynamicAllowance below, and staticRemainder.",
+    "",
+    "⛔ WHAT THIS GUARD CANNOT SEE, measured rather than merely disclosed:",
+    "it matches the source text `oklch(`, so the same problem in another",
+    "colour syntax is invisible to it. As of this writing that is 6 rgba()",
+    "occurrences (inset highlights and shadow ink in dashboard-filters-client,",
+    "attention-group-client and notification-bell) and 10 hex literals in two",
+    "files that emit standalone email-preview HTML — email-templates/preview/",
+    "[id]/route.ts and emails/templates/components/LivePreview.tsx. Those are",
+    "email paper and theme-neutral shadow, i.e. things that SHOULD NOT invert,",
+    "which is why they are out of scope rather than merely unswept. hsl(),",
+    "lab(), lch() and color() do not occur at all. Re-measure before assuming",
+    "these numbers still hold.",
+    "",
+    "SCAN_DIRS covers src/app/admin and src/components/ui. One shared",
+    "component rendered inside /admin lives outside both —",
+    "src/components/address/AddressAutocompleteField.tsx, imported by",
+    "admin/bookings/new/ManualBookingForm.tsx and by the public booking flow.",
+    "It carries zero colour literals today, so the gap is currently theoretical;",
+    "a colour added there would be invisible to this ratchet AND would ship to",
+    "the public site."
   ],
+  "staticRemainder": {
+    "$comment": [
+      "The one static literal left, and why it is not substituted.",
+      "src/app/admin/clients/page.tsx:1121 spells its arbitrary value with RAW",
+      "SPACES — `hover:border-b-[oklch(60% 0.08 247)]`. Tailwind cannot compile",
+      "an arbitrary value containing spaces, so the class never generated and",
+      "that hover border has never rendered. Pointing it at a token would make",
+      "the class valid and switch on a visual effect for the first time, which",
+      "is not a substitution; deleting it would discard evident design intent.",
+      "Both are Owner calls, so it stays counted rather than quietly resolved."
+    ],
+    "count": 1
+  },
   "staticCeiling": 1,
   "dynamicAllowance": {
     "$comment": [

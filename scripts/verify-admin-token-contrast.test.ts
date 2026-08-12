@@ -127,6 +127,62 @@ describe("parseTokensCss — block extraction, structure only", () => {
     expect(lightResolved).toBe(tokenCount);
     expect(darkResolved).toBe(tokenCount);
   });
+
+  it("re-declares every THEME-VARYING token inside @media print, at its light value", () => {
+    // WHY THIS EXISTS. Item 7 asserted "every token in all four blocks" in
+    // eight commit messages and nothing enforced it. tsc is blind to it, the
+    // oklch ratchet only counts literals in .tsx source, and Layer 2 never
+    // pairs a token that carries no ratio comment — so a token minted into
+    // three blocks and forgotten in the fourth ships green.
+    //
+    // ⛔ AND THE STATED REASON FOR THE RULE WAS WRONG. The claim repeated
+    // through item 7 was that a token missing from @media print "falls back to
+    // the browser default". It does not. A media query ADDS rules; it does not
+    // remove the ones already in the cascade. So on a page carrying
+    // data-theme="dark", a token absent from the print block keeps its DARK
+    // value and PRINTS IT — dark fills onto paper — which is both a different
+    // failure and a worse one. Established by mutation: deleting a token's
+    // print declaration left the first version of this guard passing, because
+    // parseTokensCss builds scopes.print as {...rootDecl, ...printDecl} and a
+    // deleted print entry silently resolves through :root instead.
+    //
+    // So this reads the print block's OWN text rather than the merged scope.
+    // And the rule is scoped to tokens that actually VARY by theme: the five
+    // --admin-radius-* tokens are geometry, declared once in :root with no dark
+    // arm, and a print override for them would be noise.
+    const css = readFileSync(TOKENS_PATH, "utf8");
+    const parsed = parseTokensCss(css);
+
+    const open = css.indexOf("{", css.indexOf("@media print {"));
+    let depth = 0;
+    let end = -1;
+    for (let i = open; i < css.length; i++) {
+      if (css[i] === "{") depth++;
+      else if (css[i] === "}") {
+        depth--;
+        if (depth === 0) { end = i; break; }
+      }
+    }
+    expect(end).toBeGreaterThan(open); // the block was actually found
+    const printBody = css.slice(open + 1, end);
+    const declaredInPrint = new Map(
+      [...printBody.matchAll(/(--admin-[a-z0-9-]+)\s*:\s*([^;]+);/g)].map((m) => [m[1], m[2].trim()])
+    );
+    expect(declaredInPrint.size).toBeGreaterThan(70); // not vacuous
+
+    const themeVarying = Object.entries(parsed.tokens)
+      .filter(([, v]) => v.light?.trim() !== v.dark?.trim())
+      .map(([n]) => n);
+    expect(themeVarying.length).toBeGreaterThan(70); // not vacuous
+
+    const missingFromPrint = themeVarying.filter((n) => !declaredInPrint.has(n));
+    expect(missingFromPrint).toEqual([]);
+
+    const wrongValueInPrint = themeVarying.filter(
+      (n) => declaredInPrint.get(n) !== parsed.tokens[n].light?.trim()
+    );
+    expect(wrongValueInPrint).toEqual([]);
+  });
 });
 
 describe("parseTokensCss — @media print must not be confused with an earlier prose mention", () => {
