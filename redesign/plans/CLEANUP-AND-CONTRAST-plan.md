@@ -413,24 +413,34 @@ The unused list is **richer than the live one**, not a copy of it.
 > "Rahma Therapy provides complementary wellness treatments and does not
 > diagnose or replace medical care…"
 
-exists as an unused constant in **three** files (`about.ts:63`,
-`faqsAftercare.ts:343`, `services.ts:420`) and is **hardcoded inline in exactly
-one component**, `src/components/area-pages/AreaSafetyBand.tsx:42-44`.
+⚠️ **A second correction, in the same paragraph that carried the first.** An
+earlier revision claimed the disclaimer was unused in all three content files and
+that `/faqs-aftercare` did not render one. **That was wrong too.** The check was
+`git grep -l "does not diagnose" -- src/components`, which searches for the
+literal STRING inside components — so it silently missed every component that
+imports the constant instead of inlining the text.
 
-That component is rendered **only by the area pages** (`/areas`, `/areas/<slug>`).
-Confirmed by listing what each public page actually renders:
+Traced properly, through imports rather than string matches:
 
-- `/home` → HomeHero, HomeTrustStrip, PainPointCards, … — **no disclaimer**
-- `/about` → AboutHero, BrandStory, TeamProfiles, … — **no disclaimer**
-- `/services` → ServicesHero, PackageCards, TreatmentMethods, … — **no disclaimer**
-- `/faqs-aftercare` → SafetySuitability, WhenToGetAdvice, … — **no disclaimer**
+| page | disclaimer? | how |
+|---|---|---|
+| `/faqs-aftercare` | **YES** | `SafetySuitability.tsx:3,26` imports `faqsAftercareDisclaimer` |
+| `/areas`, `/areas/<slug>` | **YES** | hardcoded inline, `AreaSafetyBand.tsx:42-44` |
+| `/home` | **no** | — |
+| `/about` | **no** | `safetyDisclaimer` existed but was never imported |
+| `/services` | **no** | `serviceSafetyDisclaimer` existed but was never imported |
 
-`git grep -l "does not diagnose" -- src/components` returns **one file**.
+**Method note worth keeping:** to decide whether text is rendered, grep for the
+SYMBOL, not the string. A string search answers "is this text written here",
+which is a different question from "does this page show it".
 
-So the SEO landing pages carry a medical disclaimer and the primary pages —
-including the one that sells the treatments — do not. **This is a business and
-liability question, not a code-cleanup one.** It is the reason none of this copy
-should be deleted before the Owner has decided where the disclaimer belongs.
+So the gap is narrower than first reported but real: **the page that sells the
+treatments carries no medical disclaimer.** That is a business and liability
+question for the Owner, not a code cleanup.
+
+**Status: the unused copy was removed on 2026-08-12** (`f0454bb`, 130 lines) by
+Owner decision, with the wording to be revisited separately. `faqsAftercareDisclaimer`
+is live and was **not** touched.
 
 ### F.2 The two exceptions — pure aliases, no content
 
