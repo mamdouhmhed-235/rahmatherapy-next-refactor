@@ -68,6 +68,7 @@ import {
   getStaffRevenueAttribution,
   getUtilisationRate,
   parseReportFilters,
+  resolvableStaffFor,
   summarizeReports,
   type ReportData,
   type ReportFilters,
@@ -176,9 +177,16 @@ export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   // Use rawFilters (not effectiveFilters) so the auto-narrowed staffId from
   // the Therapist-scope / Personal-toggle code path doesn't surface as a
   // removable filter chip (the user didn't set it; the page enforced it).
+  //
+  // ⛔ ITEM N — `data.staff` is the WHOLE clinic roster for every profile
+  // (getReportData narrows bookings only), and `rawFilters.staffId` is an
+  // unvalidated query param. Handed both, this helper would resolve any staff
+  // UUID a Therapist cared to type into that person's NAME and render it in a
+  // chip. Give it only the roster this viewer may resolve; an unmatched id
+  // falls back to the raw id, which they supplied themselves.
   const activeFilterChips = buildActiveFilterChips({
     filters: rawFilters,
-    staff: data.staff,
+    staff: resolvableStaffFor(profile, data.staff),
   });
 
   const sourceOptions = getCountBy(data.bookings, (b) => b.booking_source)

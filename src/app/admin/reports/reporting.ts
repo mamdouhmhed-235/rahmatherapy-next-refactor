@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import * as Sentry from "@sentry/nextjs";
 import { addBusinessDays, getBusinessDate } from "@/lib/time/london";
 import {
+  canManageStaffProfiles,
   canViewRevenueReports,
+  canViewStaff,
   hasUniversalReportScope,
   type StaffProfile,
 } from "@/lib/auth/rbac";
@@ -1619,4 +1621,29 @@ function filterAuditLogsToPeriod(
     if (Number.isNaN(t)) return false;
     return t >= fromMs && t <= toMs;
   });
+}
+
+/**
+ * The subset of `ReportData.staff` a viewer is entitled to resolve to a NAME.
+ *
+ * ITEM N — `getReportData` narrows bookings only, so `data.staff` is the whole
+ * clinic roster for every profile, including a Therapist holding none of
+ * VIEW_STAFF or MANAGE_STAFF_PROFILES. Any surface that turns a staff id into a
+ * name must therefore narrow it here first; handed the raw roster and an
+ * unvalidated `?staffId=` it would resolve a colleague's name for anyone who
+ * guessed or copied their id.
+ *
+ * A viewer always keeps themselves, so their own scope pill and filter chips
+ * still read as a name rather than a UUID. Anything else falls back to the id
+ * the caller already had.
+ *
+ * ⛔ This narrows a RENDER, not the fetch. The five clinic-wide collections are
+ * still fetched for everyone; that is the rest of ITEM N.
+ */
+export function resolvableStaffFor<T extends { id: string }>(
+  profile: StaffProfile,
+  staff: T[]
+): T[] {
+  if (canViewStaff(profile) || canManageStaffProfiles(profile)) return staff;
+  return staff.filter((member) => member.id === profile.id);
 }

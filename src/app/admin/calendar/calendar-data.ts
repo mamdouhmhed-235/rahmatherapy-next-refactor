@@ -1,9 +1,20 @@
 // SERVER ONLY — cached data helper for /admin/calendar (C-09 Phase C Step 5).
 //
 // `getAdminPageAccess(profile, "calendar")` is enforced upstream in page.tsx.
-// `getReportData` applies its own RBAC narrowing from the profile it is given,
-// so the cache key carries `profileId` alongside the serialised filters —
-// the same keying convention dashboard-data.ts and reports-data.ts already use.
+//
+// ⛔ `getReportData` narrows BOOKINGS ONLY. An earlier version of this comment
+// said it "applies its own RBAC narrowing from the profile it is given", full
+// stop, and that sentence is false in the direction that matters: `bookings`,
+// `assignments` and `bookingItems` are scoped to the caller, but `clients`,
+// `staff`, `enquiries`, `emailEvents` and `operationalEvents` come back as
+// whole clinic-wide tables for every profile, including a Therapist holding
+// none of VIEW_CLIENTS_ALL, VIEW_STAFF, MANAGE_ENQUIRIES or VIEW_EMAIL_LOGS.
+// That is ITEM N, and it is the root cause behind the export exposure fixed as
+// ITEM L. Anything reading those five off `data` here must scope them itself.
+//
+// The cache key still carries `profileId` alongside the serialised filters —
+// the same keying convention dashboard-data.ts and reports-data.ts already use,
+// and load-bearing precisely BECAUSE the narrowing is profile-dependent.
 // The profile object itself is a CLOSURE argument only: it carries a `Set` of
 // permissions and must never be keyed or returned (SHARED-NOTES §15).
 //

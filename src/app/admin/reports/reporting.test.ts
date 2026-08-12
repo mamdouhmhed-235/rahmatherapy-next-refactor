@@ -5,6 +5,7 @@ import {
   getCityOptionsFromBookings,
   getStaffRevenueAttribution,
   parseReportFilters,
+  resolvableStaffFor,
   summarizeReports,
   type ReportData,
 } from "./reporting";
@@ -272,5 +273,55 @@ describe("reporting metrics", () => {
     ] as ReportData["bookings"]);
 
     expect(cityOptions).toEqual(["Barnet", "Finchley"]);
+  });
+});
+
+// ── ITEM N — who may resolve a staff id to a NAME ────────────────────────────
+
+describe("resolvableStaffFor", () => {
+  const ROSTER = [
+    { id: "staff-a", name: "Staff A" },
+    { id: "staff-b", name: "Staff B" },
+    { id: "staff-c", name: "Staff C" },
+  ];
+
+  it("hands the whole roster to a viewer who may view staff", () => {
+    expect(resolvableStaffFor(profile([PERMISSIONS.VIEW_STAFF]), ROSTER)).toEqual(ROSTER);
+  });
+
+  it("hands the whole roster to a viewer who may manage staff profiles", () => {
+    expect(
+      resolvableStaffFor(profile([PERMISSIONS.MANAGE_STAFF_PROFILES]), ROSTER)
+    ).toEqual(ROSTER);
+  });
+
+  it("gives a Therapist only themselves, so a colleague's id cannot become a name", () => {
+    // The reachable path this closes: `?staffId=` is an unvalidated query param
+    // and `data.staff` is the whole clinic roster for every profile, so the
+    // filter chip would otherwise render any id's owner by name.
+    const therapist = profile([
+      PERMISSIONS.VIEW_REPORTS_OWN,
+      PERMISSIONS.EXPORT_REPORTS_OWN,
+      PERMISSIONS.VIEW_BOOKINGS_ASSIGNED,
+    ]);
+    expect(resolvableStaffFor(therapist, ROSTER)).toEqual([
+      { id: "staff-a", name: "Staff A" },
+    ]);
+  });
+
+  it("still lets a Therapist resolve their OWN name, so their chips are not raw UUIDs", () => {
+    const therapist = profile([PERMISSIONS.VIEW_REPORTS_OWN]);
+    expect(resolvableStaffFor(therapist, ROSTER).map((s) => s.id)).toEqual(["staff-a"]);
+  });
+
+  it("returns nothing resolvable when the viewer is not on the roster at all", () => {
+    const outsider = { ...profile([PERMISSIONS.VIEW_REPORTS_OWN]), id: "staff-z" };
+    expect(resolvableStaffFor(outsider, ROSTER)).toEqual([]);
+  });
+
+  it("does not mutate the roster it is given", () => {
+    const copy = [...ROSTER];
+    resolvableStaffFor(profile([PERMISSIONS.VIEW_REPORTS_OWN]), ROSTER);
+    expect(ROSTER).toEqual(copy);
   });
 });
