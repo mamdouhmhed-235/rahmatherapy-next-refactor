@@ -109,9 +109,14 @@ describe("parseTokensCss — block extraction, structure only", () => {
     const tokenCount = Object.keys(parsed.tokens).length;
     // ~92 tokens at time of writing (redesign/plans/POST-BAND-C-FOLLOWUP-plan.md
     // ITEM 7 §7.2). A wide band, not an exact count: ITEM 7 Phase A adds new
-    // token pairs, so this must not pin an exact number.
+    // token pairs, so this must not pin an exact number. Item 7's tail took the
+    // real count from 94 to 152 by minting a pair for every remaining frozen
+    // literal, so the upper bound moved 150 -> 200. It still has teeth: the file
+    // declares 290 distinct custom properties in total, so a parse that stopped
+    // filtering on the `--admin-` prefix, or that ran past a block boundary and
+    // swallowed the non-admin families, would land above 200 and fail here.
     expect(tokenCount).toBeGreaterThan(70);
-    expect(tokenCount).toBeLessThan(150);
+    expect(tokenCount).toBeLessThan(200);
 
     const lightResolved = Object.values(parsed.tokens).filter((t) => t.light !== undefined).length;
     const darkResolved = Object.values(parsed.tokens).filter((t) => t.dark !== undefined).length;
