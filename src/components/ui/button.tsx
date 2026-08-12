@@ -23,16 +23,16 @@ export const buttonVariants = cva(
         // ── Admin variants — DESIGN.md §5 ──────────────────────────────────
         // Primary: Clinic Green fill, Field White text.
         "admin-primary":
-          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[oklch(15%_0.065_155)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[var(--admin-button-primary-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Secondary: Form Seam border, transparent fill.
         "admin-secondary":
-          "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] active:bg-[oklch(92%_0.022_155)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+          "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-button-subtle-hover)] active:bg-[var(--admin-button-subtle-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Destructive: Cancelled-family fill. Use only for explicit destructive confirmed actions.
         "admin-destructive":
-          "bg-[var(--admin-danger-solid)] text-white hover:bg-[var(--admin-danger-solid-hover)] active:bg-[oklch(28%_0.14_25)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+          "bg-[var(--admin-danger-solid)] text-white hover:bg-[var(--admin-danger-solid-hover)] active:bg-[var(--admin-danger-solid-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Ghost: no border, no fill. Hover Moss on hover.
         "admin-ghost":
-          "bg-transparent text-[var(--admin-body)] hover:bg-[oklch(95.5%_0.012_155)] active:bg-[oklch(92%_0.022_155)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+          "bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-button-subtle-hover)] active:bg-[var(--admin-button-subtle-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
       },
       size: {
         sm: "h-9 px-3 text-sm",

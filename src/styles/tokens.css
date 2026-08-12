@@ -237,6 +237,16 @@
    * have read as a mistake to the next person. */
   --admin-warning-solid: oklch(26% 0.13 55);
   --admin-warning-solid-hover: oklch(22% 0.12 55);
+  /* ITEM 7 — the two shared UI primitives.
+   * Button's own interaction states. admin-primary's active fill and
+   * admin-secondary/admin-ghost's hover+active fills were hardcoded, so on a
+   * dark panel a press turned the button LIGHTER-on-light instead of darker,
+   * or vanished entirely. -subtle- covers both secondary and ghost, which
+   * carry byte-identical hover/active pairs. */
+  --admin-button-subtle-hover: oklch(95.5% 0.012 155);
+  --admin-button-subtle-active: oklch(92% 0.022 155);
+  --admin-button-primary-active: oklch(15% 0.065 155);
+  --admin-danger-solid-active: oklch(28% 0.14 25);
   /* Donut + stacked-bar status fills (ReportsCharts' statusChartFillForKey).
    * Deliberately NOT the --admin-status-*-text family: those are tuned for
    * text legibility at L~30% and read muted as chart slices. Five hues spread
@@ -469,6 +479,16 @@
    * means more luminance, not less. */
   --admin-warning-solid: oklch(78% 0.130 60);       /* 9.12:1 vs on-primary */
   --admin-warning-solid-hover: oklch(86% 0.095 60); /* 12.08:1 vs on-primary */
+  /* ITEM 7 — the two shared UI primitives.
+   * Button's own interaction states. admin-primary's active fill and
+   * admin-secondary/admin-ghost's hover+active fills were hardcoded, so on a
+   * dark panel a press turned the button LIGHTER-on-light instead of darker,
+   * or vanished entirely. -subtle- covers both secondary and ghost, which
+   * carry byte-identical hover/active pairs. */
+  --admin-button-subtle-hover: oklch(27% 0.010 155);
+  --admin-button-subtle-active: oklch(33% 0.021 155);
+  --admin-button-primary-active: oklch(92% 0.032 155);  /* 15.01:1 vs on-primary */
+  --admin-danger-solid-active: oklch(87% 0.070 25);  /* 12.37:1 vs on-primary */
   /* Chart fills lift into the 68–82% band so slices keep the "pop" they were
    * tuned for on cream. All six sit 5.57–9.81:1 against --admin-panel
    * (measured 2026-08-11; the previous note said 5.55–9.75:1 — the upper
@@ -589,6 +609,16 @@
    * have read as a mistake to the next person. */
   --admin-warning-solid: oklch(26% 0.13 55);
   --admin-warning-solid-hover: oklch(22% 0.12 55);
+  /* ITEM 7 — the two shared UI primitives.
+   * Button's own interaction states. admin-primary's active fill and
+   * admin-secondary/admin-ghost's hover+active fills were hardcoded, so on a
+   * dark panel a press turned the button LIGHTER-on-light instead of darker,
+   * or vanished entirely. -subtle- covers both secondary and ghost, which
+   * carry byte-identical hover/active pairs. */
+  --admin-button-subtle-hover: oklch(95.5% 0.012 155);
+  --admin-button-subtle-active: oklch(92% 0.022 155);
+  --admin-button-primary-active: oklch(15% 0.065 155);
+  --admin-danger-solid-active: oklch(28% 0.14 25);
   --admin-chart-status-confirmed: oklch(58% 0.18 155);
   --admin-chart-status-pending: oklch(70% 0.16 70);
   --admin-chart-status-completed: oklch(55% 0.15 230);
@@ -702,6 +732,16 @@
     --admin-danger-solid-hover: oklch(33% 0.14 25);
     --admin-warning-solid: oklch(26% 0.13 55);
     --admin-warning-solid-hover: oklch(22% 0.12 55);
+    /* ITEM 7 — the two shared UI primitives.
+     * Button's own interaction states. admin-primary's active fill and
+     * admin-secondary/admin-ghost's hover+active fills were hardcoded, so on a
+     * dark panel a press turned the button LIGHTER-on-light instead of darker,
+     * or vanished entirely. -subtle- covers both secondary and ghost, which
+     * carry byte-identical hover/active pairs. */
+    --admin-button-subtle-hover: oklch(95.5% 0.012 155);
+    --admin-button-subtle-active: oklch(92% 0.022 155);
+    --admin-button-primary-active: oklch(15% 0.065 155);
+    --admin-danger-solid-active: oklch(28% 0.14 25);
     --admin-chart-status-confirmed: oklch(58% 0.18 155);
     --admin-chart-status-pending: oklch(70% 0.16 70);
     --admin-chart-status-completed: oklch(55% 0.15 230);

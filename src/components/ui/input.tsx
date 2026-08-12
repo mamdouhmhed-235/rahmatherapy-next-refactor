@@ -24,18 +24,18 @@ export function Input({
         // Base geometry
         "flex h-11 w-full rounded-[var(--admin-radius-control,6px)]",
         // Surface — Input Ground (barely warmer than the surrounding card)
-        "bg-[var(--admin-surface-input,oklch(98.5%_0.005_88))]",
+        "bg-[var(--admin-surface-input)]",
         // Border — Form Seam (oklch 55%) meets WCAG 1.4.11 Non-text Contrast.
         // NOT border-subtle (Warm Veil, oklch 89%) which fails 1.4.11.
-        "border border-[var(--admin-border-form,oklch(55%_0.022_80))]",
+        "border border-[var(--admin-border-form)]",
         // Typography
-        "px-3 py-2 text-sm text-[var(--admin-body,oklch(23%_0.01_143))]",
+        "px-3 py-2 text-sm text-[var(--admin-body)]",
         // Placeholder
-        "placeholder:text-[var(--admin-text-muted,oklch(42%_0.008_143))]",
+        "placeholder:text-[var(--admin-text-muted)]",
         // Focus — Focus Azure ring, border shifts to focus colour
-        "focus-visible:border-[var(--admin-focus,oklch(47%_0.095_230))]",
+        "focus-visible:border-[var(--admin-focus)]",
         "focus-visible:outline-none",
-        "focus-visible:ring-2 focus-visible:ring-[var(--admin-focus,oklch(47%_0.095_230))]/30",
+        "focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30",
         // Error state — applied via data-error attribute from AdminField wrapper
         "data-[error=true]:border-[var(--admin-status-cancelled-text)]",
         // Disabled
@@ -105,7 +105,7 @@ export function AdminField({
       {/* Label row */}
       <label
         htmlFor={fieldId}
-        className="text-sm font-medium text-[var(--admin-heading,oklch(11%_0.014_155))]"
+        className="text-sm font-medium text-[var(--admin-heading)]"
       >
         {label}
         {required ? (
