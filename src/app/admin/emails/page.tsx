@@ -22,6 +22,7 @@ import {
   getStaffProfile,
 } from "@/lib/auth/rbac";
 import {
+  EMAIL_TAB_ROW_CAP,
   getEmailsPageData,
   getEmailDeliveryPage,
   getReviewRequestCandidates,
@@ -848,6 +849,36 @@ function RecipientFallback({ bookingId }: { bookingId: string | null }) {
 
 // ─── Reminders tab ────────────────────────────────────────────────────────────
 
+/**
+ * ITEM K.5 — say so when a tab is sitting at its ceiling.
+ *
+ * Both tabs render at most `EMAIL_TAB_ROW_CAP` rows, and neither used to admit
+ * it: a backlog of two hundred and a backlog of twenty looked the same, so the
+ * list under-represented reality while the badge beside it read as a total.
+ *
+ * A length EQUAL to the cap is the signal, which is deliberately a hint rather
+ * than a count. Getting an exact N means a second head-count query on every
+ * render for a cosmetic number, and inside `getReviewRequestCandidates` it
+ * would also break the spec that pins which tables that function reads. The
+ * copy is hedged ("may be more") because a list of exactly twenty is genuinely
+ * ambiguous — claiming a precise total here would be the one thing worse than
+ * saying nothing.
+ */
+function TruncationNotice({
+  count,
+  moreLabel,
+}: {
+  count: number;
+  moreLabel: string;
+}) {
+  if (count < EMAIL_TAB_ROW_CAP) return null;
+  return (
+    <p className="text-sm leading-6 text-[var(--admin-text-muted)]">
+      Showing the first {EMAIL_TAB_ROW_CAP} {moreLabel}. There may be more.
+    </p>
+  );
+}
+
 function RemindersTab({
   bookings,
   lastReminderByBooking,
@@ -873,6 +904,10 @@ function RemindersTab({
       <p className="text-sm leading-6 text-[var(--admin-text-muted)]">
         Sends the existing reminder template. No private email bodies are stored.
       </p>
+      <TruncationNotice
+        count={bookings.length}
+        moreLabel="upcoming bookings by date"
+      />
       <ul className="grid list-none gap-3 [&>li]:list-none">
         {bookings.map((booking) => (
           <li key={booking.id}>
@@ -987,6 +1022,10 @@ function ReviewsTab({ candidates }: { candidates: ReviewRequestCandidate[] }) {
         Sends the existing review-request template. One request per booking,
         ever — a booking disappears from this list once it has been asked.
       </p>
+      <TruncationNotice
+        count={candidates.length}
+        moreLabel="oldest completed bookings still waiting"
+      />
       <ul className="grid list-none gap-3 [&>li]:list-none">
         {candidates.map((candidate) => (
           <li key={candidate.id}>

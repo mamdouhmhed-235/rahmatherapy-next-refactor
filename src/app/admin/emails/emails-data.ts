@@ -189,7 +189,7 @@ export async function getEmailsPageData(
           .in("status", ["pending", "confirmed"])
           .order("booking_date")
           .order("start_time")
-          .limit(20);
+          .limit(EMAIL_TAB_ROW_CAP);
         if (allowedReminderBookingIds !== null) {
           q = q.in("id", allowedReminderBookingIds);
         }
@@ -266,7 +266,23 @@ export async function getEmailsPageData(
 // than 7 days ago with no sentinel is one the cron can never pick up again,
 // which is exactly the row a human needs to reach.
 
-const REVIEW_CANDIDATE_LIMIT = 20;
+/**
+ * ITEM K.5 — the ceiling BOTH email tabs render to.
+ *
+ * Exported so the page can say when a list is sitting at it. Neither tab used
+ * to admit that: a backlog of 200 reminders and a backlog of 20 rendered
+ * identically, so the list quietly under-represented reality and the badge
+ * beside it looked authoritative.
+ *
+ * A list whose length EQUALS this cap is the truncation signal, which is why
+ * no count query was added. `getReviewRequestCandidates` deliberately
+ * over-fetches (see below) and a second `.from("bookings")` head-count inside
+ * it would also break emails-data.test.ts:558-587, which asserts the exact
+ * sequence of tables that function reads.
+ */
+export const EMAIL_TAB_ROW_CAP = 20;
+
+const REVIEW_CANDIDATE_LIMIT = EMAIL_TAB_ROW_CAP;
 
 const REVIEW_CANDIDATE_SELECT =
   "id, booking_date, start_time, completed_at, contact_full_name, contact_email, clients(email)";
