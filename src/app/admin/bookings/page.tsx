@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStaffProfile } from "@/lib/auth/rbac";
-import { LIST_PAGE_SIZE } from "@/lib/pagination";
+import { LIST_PAGE_SIZE, paginateInMemory } from "@/lib/pagination";
 import {
   AdminAccessDenied,
   AdminPageHeader,
@@ -447,17 +447,34 @@ async function BookingListSection({
     );
   }
 
+  // ITEM K.1 — the therapist-scoped pager.
+  //
+  // This branch used to report `pageCount: 1` unconditionally, so
+  // `PaginationBar` rendered nothing and a practitioner's list simply ran on
+  // until the data layer's cap cut it off, with no page 2 and no notice that
+  // anything had been cut. The window has to be taken HERE rather than in the
+  // data layer because `filterBookings` above is this branch's view predicate:
+  // a window taken before it would be a window of the wrong set, and page one
+  // would arrive already short. The clinic-wide branch is windowed in SQL and
+  // must never be sliced twice.
+  const scopedWindow = paginateInMemory(
+    filteredBookings,
+    getQueryValue(query.page),
+    LIST_PAGE_SIZE
+  );
+  const visibleBookings = canViewAll ? filteredBookings : scopedWindow.rows;
+
   const showGrouping =
-    new Set(filteredBookings.map((b) => b.booking_date)).size > 1;
+    new Set(visibleBookings.map((b) => b.booking_date)).size > 1;
 
   const groupedBookings = showGrouping
     ? Object.entries(
-        filteredBookings.reduce<Record<string, BookingRecord[]>>((acc, booking) => {
+        visibleBookings.reduce<Record<string, BookingRecord[]>>((acc, booking) => {
           (acc[booking.booking_date] ??= []).push(booking);
           return acc;
         }, {})
       ).sort(([a], [b]) => b.localeCompare(a))
-    : [["", filteredBookings] as const];
+    : [["", visibleBookings] as const];
 
   // Pre-compute a flat row index so the entrance stagger plays in visual order
   // across grouped sections, not per-group. Cap at 12 rows so long lists don't
@@ -503,12 +520,13 @@ async function BookingListSection({
 
       {/* C-16 Step 7 — closes the interim gap left by Step 5: the clinic-wide
           list has been windowed to LIST_PAGE_SIZE since ca0cc21 with no way to
-          reach page 2. Renders nothing at one page, which is also how the
-          un-paged therapist branch (pageCount 1) stays unchanged. */}
+          reach page 2. Renders nothing at one page. ITEM K.1 — the therapist
+          branch now supplies a real count here too, computed above from the
+          post-oracle set, so it pages instead of running on to a silent cap. */}
       <PaginationBar
-        page={listPage.page}
-        pageCount={listPage.pageCount}
-        total={listPage.total}
+        page={canViewAll ? listPage.page : scopedWindow.page}
+        pageCount={canViewAll ? listPage.pageCount : scopedWindow.pageCount}
+        total={canViewAll ? listPage.total : scopedWindow.total}
         pageSize={LIST_PAGE_SIZE}
         makeHref={makePageHref}
       />

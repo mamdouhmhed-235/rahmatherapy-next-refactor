@@ -97,6 +97,8 @@ interface RecordedQuery {
   filters: RecordedFilter[];
   ranges: Array<[number, number]>;
   limits: number[];
+  /** ITEM K.1 — a cap is only meaningful if the rows under it are ordered. */
+  orders: Array<[string, boolean | undefined]>;
 }
 
 interface TableResult {
@@ -117,6 +119,7 @@ function createRecordingAdminClient(tables: Record<string, TableResult> = {}) {
       filters,
       ranges: [],
       limits: [],
+      orders: [],
     };
     queries.push(query);
 
@@ -131,7 +134,10 @@ function createRecordingAdminClient(tables: Record<string, TableResult> = {}) {
       query.select = select;
       return chain;
     };
-    chain.order = () => chain;
+    chain.order = (column: string, options?: { ascending?: boolean }) => {
+      query.orders.push([column, options?.ascending]);
+      return chain;
+    };
     chain.returns = () => chain;
     chain.limit = (value: number) => {
       query.limits.push(value);
@@ -342,7 +348,144 @@ describe("getBookingsListPage — ?page= windowing (Step 7)", () => {
     expect(result).toMatchObject({ total: 12, page: 1, pageCount: 1 });
   });
 
-  it("leaves the therapist-scoped branch un-paged (one page, no range)", async () => {
+  // -------------------------------------------------------------------------
+  // ITEM K.1. This block replaces a spec titled "leaves the therapist-scoped
+  // branch un-paged (one page, no range)", which asserted `pageCount: 1` from a
+  // `page: "3"` request and checked nothing about the filters it passed in.
+  // Every one of those was a property of the DEFECT: the branch resolved every
+  // assignment a practitioner had ever held into one `.in()`, dropped the
+  // request's filters on the floor, cut the result off at a fixed cap, and
+  // reported one page so no pager could offer the rest. The specs below pin
+  // what replaced it.
+  // -------------------------------------------------------------------------
+
+  it("caps and orders the candidate id read, so the .in() list cannot grow forever", async () => {
+    const client = createRecordingAdminClient({
+      booking_assignments: { data: [{ booking_id: "b1" }], error: null },
+      bookings: { data: [{ id: "b1", booking_date: "2026-01-10", start_time: "10:00" }], count: null, error: null },
+    });
+    createSupabaseAdminClient.mockImplementation(() => client);
+
+    await getBookingsListPage({
+      profile: makeProfile(["manage_bookings_assigned"]),
+      canViewAll: false,
+      filters: bookingListFiltersFromQuery({}, "today"),
+    });
+
+    const [assigned] = client.queries.filter((q) => q.table === "booking_assignments");
+    expect(assigned).toBeDefined();
+    // Uncapped, these ids are serialised into a BOOKING_SELECT URL that is
+    // already ~1.75kB empty — 200 of them measure ~9.5kB against a ~8kB
+    // request-line ceiling, so the read 414s before any row cap can apply.
+    expect(assigned.limits).toEqual([125]);
+    // A bare limit has no ordering guarantee, and `created_at` ties across a
+    // booking's participants (one transaction, one `now()`), so `id` is load-
+    // bearing rather than decorative.
+    expect(assigned.orders).toEqual([
+      ["created_at", false],
+      ["id", false],
+    ]);
+
+    // The VIEW predicate deliberately stays with the oracle: this request is
+    // the "today" view, and no `booking_date` equality may reach SQL. The
+    // pre-cap plan is the post-view filter section only — if it started
+    // emitting view steps it would be a second, drifting copy of
+    // `filterBookings` rather than a narrowing in front of it.
+    const [rowQuery] = bookingsQueries(client);
+    expect(rowQuery).toBeDefined();
+    expect(
+      rowQuery.filters.some((f) => f[0] === "eq" && f[1] === "booking_date")
+    ).toBe(false);
+  });
+
+  it("sends the request's own date and status filters to the row read, before the cap", async () => {
+    const client = createRecordingAdminClient({
+      booking_assignments: { data: [{ booking_id: "b1" }], error: null },
+      bookings: { data: [], count: null, error: null },
+    });
+    createSupabaseAdminClient.mockImplementation(() => client);
+
+    await getBookingsListPage({
+      profile: makeProfile(["manage_bookings_assigned"]),
+      canViewAll: false,
+      filters: bookingListFiltersFromQuery(
+        { from: "2026-01-01", to: "2026-03-31", status: "completed" },
+        "all"
+      ),
+    });
+
+    // ⛔ THE CANDIDATE read is the one that matters. It runs FIRST and caps at
+    // 125, so a filter applied anywhere later can only re-narrow whatever the
+    // cap already chose and can never reach back past it. These filters travel
+    // through `bookings!inner`, which is how the claimable half has filtered
+    // since C-05.
+    const [candidate] = client.queries.filter((q) => q.table === "booking_assignments");
+    expect(candidate).toBeDefined();
+    expect(candidate.filters).toContainEqual(["eq", "bookings.status", "completed"]);
+    expect(candidate.filters).toContainEqual(["gte", "bookings.booking_date", "2026-01-01"]);
+    expect(candidate.filters).toContainEqual(["lte", "bookings.booking_date", "2026-03-31"]);
+    expect(candidate.limits).toEqual([125]);
+
+    const [rowQuery] = bookingsQueries(client);
+    expect(rowQuery).toBeDefined();
+    // Previously the scoped call site passed { profile, canViewAll } only, so
+    // NONE of these reached SQL at all.
+    expect(rowQuery.filters).toContainEqual(["eq", "status", "completed"]);
+    expect(rowQuery.filters).toContainEqual(["gte", "booking_date", "2026-01-01"]);
+    expect(rowQuery.filters).toContainEqual(["lte", "booking_date", "2026-03-31"]);
+    expect(rowQuery.limits).toEqual([200]);
+  });
+
+  it("caps the claimable candidate ids too, not just the assigned ones", async () => {
+    // Both arrays feed an `.in()`, so both carry the request-line ceiling. The
+    // claimable half is narrower in practice — which is exactly what the
+    // assigned half's original comment claimed about itself.
+    const client = createRecordingAdminClient({
+      booking_assignments: { data: [{ booking_id: "b1" }], error: null },
+      bookings: { data: [], count: null, error: null },
+    });
+    createSupabaseAdminClient.mockImplementation(() => client);
+
+    await getBookingsListPage({
+      profile: makeProfile(["manage_bookings_assigned", "claim_assignments"]),
+      canViewAll: false,
+      filters: bookingListFiltersFromQuery({}, "all"),
+    });
+
+    const candidates = client.queries.filter((q) => q.table === "booking_assignments");
+    expect(candidates).toHaveLength(2);
+    for (const candidate of candidates) {
+      expect(candidate.limits).toEqual([125]);
+    }
+  });
+
+  it("withholds search and location from that read, because both narrow more in SQL than in the oracle", async () => {
+    const client = createRecordingAdminClient({
+      booking_assignments: { data: [{ booking_id: "b1" }], error: null },
+      bookings: { data: [], count: null, error: null },
+    });
+    createSupabaseAdminClient.mockImplementation(() => client);
+
+    await getBookingsListPage({
+      profile: makeProfile(["manage_bookings_assigned"]),
+      canViewAll: false,
+      filters: bookingListFiltersFromQuery(
+        { search: "smith", location: "luton", status: "completed" },
+        "all"
+      ),
+    });
+
+    const [rowQuery] = bookingsQueries(client);
+    // A predicate that is NARROWER than `filterBookings` must not run before
+    // it: SQL matches per column, the oracle matches a joined string, and a
+    // partial booking id cannot round-trip at all. Both still filter in memory.
+    expect(rowQuery.filters.some((f) => f[0] === "or")).toBe(false);
+    // ...while the equivalent filter alongside them still goes through, so this
+    // is a deliberate exclusion and not a branch that silently sends nothing.
+    expect(rowQuery.filters).toContainEqual(["eq", "status", "completed"]);
+  });
+
+  it("hands the page the whole filtered set, because the view oracle runs downstream", async () => {
     const client = createRecordingAdminClient({
       booking_assignments: { data: [{ booking_id: "b1" }], error: null },
       bookings: {
@@ -360,6 +503,11 @@ describe("getBookingsListPage — ?page= windowing (Step 7)", () => {
       page: "3",
     });
 
+    // Deliberately NOT a window. `filterBookings` is this branch's view
+    // predicate and runs at the page, so a window taken here would be a window
+    // of the pre-view set — page one would arrive already short. The page
+    // slices after the oracle and drives PaginationBar from that count;
+    // getVisibleViewCounts also depends on getting the whole set back.
     expect(result).toMatchObject({ total: 1, page: 1, pageCount: 1 });
     for (const query of bookingsQueries(client)) {
       expect(query.ranges).toEqual([]);

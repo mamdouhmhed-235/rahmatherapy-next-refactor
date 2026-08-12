@@ -401,6 +401,68 @@ export function buildBookingPredicatePlan(
   return { embeds, steps };
 }
 
+/**
+ * ITEM K.1 — the therapist-scoped branch's PRE-CAP narrowing.
+ *
+ * That branch resolves an id set first and cannot be `.range()`d, so its caps
+ * used to bite before any filter ran: a therapist could not narrow their way to
+ * an old booking, because the rows were already gone. These steps run in the
+ * SQL that fetches the candidate rows, so from/to/status narrow FIRST.
+ *
+ * It is the same builder, not a second implementation of it. `view: "all"` is
+ * the one view that emits no view predicate (`case "all"` breaks immediately)
+ * and no archive rule (`viewIsArchive` covers it), so what comes back is
+ * exactly the post-view filter section — status, assignment, payment, from, to,
+ * required gender, service and assigned staff. `filterBookings` stays the
+ * oracle and re-applies all of them downstream; this only stops the caps from
+ * discarding matches before it gets to look.
+ *
+ * ⛔ `search` and `location` are withheld on purpose, for two independent
+ * reasons that agree. First, they are the two KNOWN NARROWING cases documented
+ * above: both test a joined string in the oracle and separate columns in SQL,
+ * and `search` on a partial booking id cannot round-trip at all. A predicate
+ * that is NARROWER than the oracle must not run before it, or rows the page
+ * would have shown are dropped where nothing can recover them. Second,
+ * `search` expands to `client_id.in.(…)` carrying up to `SEARCH_CLIENT_ID_CAP`
+ * ids — ~7.4 kB — which cannot share a URL with a candidate id array. Both
+ * still filter, in memory, exactly as they always have.
+ */
+export function buildScopedPreCapPlan(
+  ctx: BookingPredicateContext
+): BookingPredicatePlan {
+  return buildBookingPredicatePlan({
+    ...ctx,
+    view: "all",
+    location: undefined,
+    search: undefined,
+  });
+}
+
+/**
+ * The same steps again, re-aimed at the CANDIDATE read (ITEM K.1).
+ *
+ * That read's rows are `booking_assignments`, not `bookings`, so every plain
+ * booking column has to travel through a `bookings!inner` embed and be named
+ * `bookings.<column>`. The claimable half a few lines below has filtered this
+ * way since C-05, so the idiom is the file's own.
+ *
+ * Only plain columns come across. A step whose column already carries a dot is
+ * an `fg`/`fs`/`fa` filter-embed alias that exists solely on the `bookings`
+ * query and has no meaning here, and `or` steps cannot appear at all because
+ * `buildScopedPreCapPlan` withholds the only two filters that emit them. Both
+ * are dropped rather than translated — they still run on the row read, and on
+ * the oracle after it.
+ */
+function candidateStepsFor(
+  ctx: BookingPredicateContext
+): BookingPredicateStep[] {
+  return buildScopedPreCapPlan(ctx)
+    .steps.filter((step) => "column" in step && !step.column.includes("."))
+    .map((step) =>
+      "column" in step ? { ...step, column: `bookings.${step.column}` } : step
+    );
+}
+
 /** Structural minimum of a PostgREST filter builder. */
 export interface BookingsFilterBuilder {
   eq(column: string, value: unknown): BookingsFilterBuilder;
@@ -510,15 +572,78 @@ export function bookingListFiltersFromQuery(
   };
 }
 
+/**
+ * Cap on the ASSIGNED candidate id read (ITEM K.1).
+ *
+ * `assignedIds` is serialised into `.in("id", …)` on a `BOOKING_SELECT` query,
+ * and that select is itself 1,283 characters before a single id joins it. The
+ * measured GET is ~1.75 kB empty, ~6.6 kB at 125 ids, ~7.6 kB at 150 and
+ * ~9.5 kB at 200 — so against a ~8 kB nginx request-line ceiling this read was
+ * not "capped at 200 rows" at all. It was uncapped, and it fails with a 414
+ * BEFORE `SCOPED_BRANCH_ROW_CAP` can degrade it into the truncated list that
+ * cap was written to produce. 125 leaves ~1.5 kB of headroom for the filter
+ * predicates the scoped branch now also sends. `SEARCH_CLIENT_ID_CAP` above
+ * exists for the same reason, and says so.
+ *
+ * Ordered because Postgres gives no ordering guarantee to a bare `limit`, and
+ * `created_at` alone is not a total order — one booking writes one assignment
+ * row per participant in a single transaction, and `now()` is transaction
+ * time, so those rows share a timestamp exactly. `id` breaks the tie. That
+ * makes the cap DETERMINISTIC: the same practitioner sees the same set twice.
+ *
+ * ⛔ It does NOT make it chronological, and an earlier draft of this comment
+ * claimed it did. `created_at` is when the assignment row was written, which
+ * for a recurring series is when `extend-recurring-horizons` materialised that
+ * occurrence on its rolling 12-week horizon — so a live series' NEWEST rows are
+ * its FARTHEST-FUTURE dates, not its nearest. Ordering by it therefore says
+ * nothing about `booking_date`, and the residual selection when the cap binds
+ * is arbitrary with respect to when the work actually happens. PostgREST
+ * cannot order a parent by an embedded column, so there is no cheap way to
+ * order this read by `booking_date` at all.
+ *
+ * What makes that survivable is that the request's own date and status filters
+ * now run INSIDE this read, through `bookings!inner` — so from/to genuinely
+ * reaches past the cap instead of merely re-narrowing whatever it happened to
+ * keep. Targeting a period is the supported way to an old booking. The
+ * structural repair is still a windowed history view — see the plan's ITEM K.1.
+ *
+ * The CLAIMABLE read below is deliberately left uncapped: it is already
+ * narrowed in SQL to future-dated, non-cancelled, unassigned, gender-matched
+ * rows, and `dashboard/page.tsx` reads `claimableIds.length` as a COUNT — a cap
+ * there would silently understate that badge.
+ */
+const SCOPED_CANDIDATE_ID_CAP = 125;
+
 // Exported (C-FIELDWORK Phase D, brief §9.4 locked decision) — dashboard/page.tsx
 // reuses this exact gender-matched claimable-scoping logic for the
 // practitioner-mode Owner/Coordinator's claimableCount. Behaviour unchanged.
-export async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>) {
+export async function getScopedBookingIds(
+  profile: NonNullable<Awaited<ReturnType<typeof getStaffProfile>>>,
+  /**
+   * ITEM K.1 — the request's own booking predicates, applied to the CANDIDATE
+   * read. This argument is the whole point of the fix: the cap below is the
+   * first thing that runs, so a filter applied any later can only narrow what
+   * the cap already chose and can never reach back past it. Omitted (the
+   * dashboard's count call) means "no narrowing", exactly as before.
+   */
+  predicates?: BookingPredicateContext
+) {
   const adminClient = createSupabaseAdminClient();
-  const { data: assignedRows } = await adminClient
-    .from("booking_assignments")
-    .select("booking_id")
-    .eq("assigned_staff_id", profile.id);
+  const assignedQuery = applyBookingPredicates(
+    adminClient
+      .from("booking_assignments")
+      // The embed is unconditional so the select stays a literal the Supabase
+      // type parser can read. It cannot change the result: `booking_id` is
+      // `not null references bookings(id) on delete cascade`, so every
+      // assignment row has exactly one booking and the inner join drops none.
+      .select("booking_id, bookings!inner(id)")
+      .eq("assigned_staff_id", profile.id),
+    predicates ? candidateStepsFor(predicates) : []
+  );
+  const { data: assignedRows } = await assignedQuery
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(SCOPED_CANDIDATE_ID_CAP);
 
   // C-05 Phase C (edit point 5) — the `bookings!inner` join + status/date
   // filters keep cancelled, no_show, and past-dated bookings out of
@@ -535,6 +660,15 @@ export async function getScopedBookingIds(profile: NonNullable<Awaited<ReturnTyp
           .eq("required_therapist_gender", profile.gender)
           .not("bookings.status", "in", '("cancelled","no_show")')
           .gte("bookings.booking_date", todayISO)
+          // ITEM K.1 — this array feeds `.in()` on a CLAIMABLE_BOOKING_SELECT
+          // query too, so it carries the same request-line ceiling as the
+          // assigned half and needs the same bound. It is already narrowed to
+          // future-dated, non-cancelled, unassigned, gender-matched rows, so it
+          // is far smaller in practice — but "smaller in practice" is what the
+          // assigned half's original comment said as well.
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(SCOPED_CANDIDATE_ID_CAP)
       ).data ?? []
     : [];
 
@@ -658,6 +792,12 @@ export async function getBookingsChromeData(
  * future-dated slots they may claim is a working set of tens, not hundreds. The
  * cap exists so a data anomaly degrades into a truncated list rather than an
  * unbounded fetch.
+ *
+ * ⚠️ ITEM K.1 — this is now a backstop behind a backstop, and cannot bind.
+ * Both id arrays are capped upstream at `SCOPED_CANDIDATE_ID_CAP` (125) and
+ * the filter-only embeds do not multiply rows, so neither read can return 200.
+ * Kept because it costs nothing and still bounds the fetch if that upstream cap
+ * is ever raised past it; do not read it as the thing protecting these queries.
  */
 const SCOPED_BRANCH_ROW_CAP = 200;
 
@@ -668,9 +808,14 @@ export interface BookingsListParams {
   limit?: number;
   offset?: number;
   /**
-   * C-16 Step 5 — view/filter predicates for the clinic-wide branch. Absent
-   * means "no predicates" (the pre-Step-5 read). Ignored by the scoped branch,
-   * which keeps `filterBookings` as its filter.
+   * C-16 Step 5 — view/filter predicates. Absent means "no predicates" (the
+   * pre-Step-5 read).
+   *
+   * The clinic-wide branch applies the whole plan and is filtered by it.
+   * ITEM K.1 — the scoped branch now applies `buildScopedPreCapPlan`'s subset
+   * too, so its caps stop discarding rows the request had already excluded.
+   * It is a PRE-narrowing, not a filter: `filterBookings` remains that branch's
+   * oracle and still runs over whatever comes back.
    */
   predicates?: BookingPredicateContext;
 }
@@ -690,7 +835,9 @@ export async function getBookingsListData(
   const cached = unstable_cache(
     async (): Promise<BookingRecord[]> => {
       const adminClient = createSupabaseAdminClient();
-      const scopedIds = canViewAll ? null : await getScopedBookingIds(profile);
+      const scopedIds = canViewAll
+        ? null
+        : await getScopedBookingIds(profile, predicates);
       const claimableOnlyIds =
         scopedIds?.claimableIds.filter((id) => !scopedIds.assignedIds.includes(id)) ?? [];
 
@@ -714,14 +861,20 @@ export async function getBookingsListData(
         return (await query.returns<BookingRecord[]>()).data ?? [];
       }
 
+      // ITEM K.1 — the request's own filters, narrowing in SQL BEFORE the caps.
+      const preCap = predicates ? buildScopedPreCapPlan(predicates) : null;
+
       return [
         ...(
           scopedIds?.assignedIds.length
             ? (
-                await adminClient
-                  .from("bookings")
-                  .select(BOOKING_SELECT)
-                  .in("id", scopedIds.assignedIds)
+                await applyBookingPredicates(
+                  adminClient
+                    .from("bookings")
+                    .select(bookingSelectWith(BOOKING_SELECT, preCap?.embeds ?? []))
+                    .in("id", scopedIds.assignedIds),
+                  preCap?.steps ?? []
+                )
                   .order("booking_date", { ascending: false })
                   .order("start_time", { ascending: false })
                   .limit(SCOPED_BRANCH_ROW_CAP)
@@ -732,10 +885,13 @@ export async function getBookingsListData(
         ...(
           claimableOnlyIds.length
             ? (
-                await adminClient
-                  .from("bookings")
-                  .select(CLAIMABLE_BOOKING_SELECT)
-                  .in("id", claimableOnlyIds)
+                await applyBookingPredicates(
+                  adminClient
+                    .from("bookings")
+                    .select(bookingSelectWith(CLAIMABLE_BOOKING_SELECT, preCap?.embeds ?? []))
+                    .in("id", claimableOnlyIds),
+                  preCap?.steps ?? []
+                )
                   .order("booking_date", { ascending: false })
                   .order("start_time", { ascending: false })
                   .limit(SCOPED_BRANCH_ROW_CAP)
@@ -865,8 +1021,11 @@ async function resolveBookingPredicateContext(
  * Clinic-wide: builds ONE predicate context and hands it to both the paged row
  * query and the head-count, so `total` always describes `rows`' WHERE clause.
  * Therapist-scoped: the two id-bounded reads still merge in memory and
- * `filterBookings` still filters them at the page — that branch is not paged
- * (plan §1 Step 5), so it reports one page and `PaginationBar` renders nothing.
+ * `filterBookings` still filters them at the page. ITEM K.1 — the request's
+ * filters now narrow those reads in SQL first, but the result is still returned
+ * as ONE page on purpose: `filterBookings` is that branch's view predicate and
+ * runs downstream, so the window is taken at the page, after the oracle.
+ * `getVisibleViewCounts` depends on getting the whole set back from here.
  */
 export async function getBookingsListPage(params: {
   profile: Profile;
@@ -880,7 +1039,22 @@ export async function getBookingsListPage(params: {
   const pageSize = params.pageSize ?? LIST_PAGE_SIZE;
 
   if (!canViewAll) {
-    const rows = await getBookingsListData({ profile, canViewAll });
+    // ITEM K.1 — the filters now reach the SQL that resolves this branch's
+    // rows, so they narrow before its caps instead of after.
+    //
+    // ⛔ Passing them also repairs the cache key. `cacheKeyPart` DROPS
+    // undefined values, so while this call site sent `{ profile, canViewAll }`
+    // the key collapsed to `{canClaim, canViewAll, staffGender, staffId}` —
+    // one entry per therapist, shared by every filter combination they could
+    // type. That was survivable only because the branch ignored the filters;
+    // honouring them without keying them would serve one search's rows under
+    // another's chrome, which is the exact hazard the key's own comment names.
+    //
+    // Still reported as a single page: the view predicate is `filterBookings`,
+    // which runs downstream at the page, so a window taken here would be a
+    // window of the wrong set. `BookingListSection` paginates after the oracle.
+    const predicates = await resolveBookingPredicateContext(profile, filters);
+    const rows = await getBookingsListData({ profile, canViewAll, predicates });
     return { rows, total: rows.length, page: 1, pageCount: 1 };
   }
 

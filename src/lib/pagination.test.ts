@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { LIST_PAGE_SIZE, LOG_PAGE_SIZE, clampPage, pageRange } from "./pagination";
+import {
+  LIST_PAGE_SIZE,
+  LOG_PAGE_SIZE,
+  clampPage,
+  pageRange,
+  paginateInMemory,
+} from "./pagination";
 
 describe("clampPage", () => {
   it("clamps 0 to page 1", () => {
@@ -61,6 +67,49 @@ describe("pageRange", () => {
 
   it("computes the range using LOG_PAGE_SIZE", () => {
     expect(pageRange(3, LOG_PAGE_SIZE)).toEqual({ from: 200, to: 299 });
+  });
+});
+
+describe("paginateInMemory", () => {
+  const rows = Array.from({ length: 57 }, (_, i) => `r${i}`);
+
+  it("returns the first window and the true total", () => {
+    const result = paginateInMemory(rows, undefined, 25);
+    expect(result.page).toBe(1);
+    expect(result.pageCount).toBe(3);
+    expect(result.total).toBe(57);
+    expect(result.rows).toHaveLength(25);
+    expect(result.rows[0]).toBe("r0");
+  });
+
+  it("returns a middle window without overlapping the first", () => {
+    expect(paginateInMemory(rows, "2", 25).rows[0]).toBe("r25");
+  });
+
+  it("returns the short final window rather than padding it", () => {
+    const result = paginateInMemory(rows, "3", 25);
+    expect(result.rows).toHaveLength(7);
+    expect(result.rows.at(-1)).toBe("r56");
+  });
+
+  it("clamps a bookmarked page beyond the end onto the last page", () => {
+    // The therapist case that motivated this: filtering shrinks the set under
+    // a `?page=` that was valid a moment ago, and an unclamped slice would
+    // render an empty list that looks like "you have no bookings".
+    const result = paginateInMemory(rows, "99", 25);
+    expect(result.page).toBe(3);
+    expect(result.rows).toHaveLength(7);
+  });
+
+  it("reports one page for an empty set, so the pager stays hidden", () => {
+    const result = paginateInMemory([], "4", 25);
+    expect(result).toEqual({ rows: [], total: 0, page: 1, pageCount: 1 });
+  });
+
+  it("does not mutate the array it is given", () => {
+    const original = [...rows];
+    paginateInMemory(rows, "2", 25);
+    expect(rows).toEqual(original);
   });
 });
 
