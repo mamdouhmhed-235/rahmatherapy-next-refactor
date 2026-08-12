@@ -100,6 +100,41 @@ needs real credentials, so it is **orchestrator/Owner work, never a subagent's**
 
 ## ITEM A — Buttons with no background fall through to the browser's grey ⛔ BIGGEST
 
+> **✅ DONE 2026-08-12 — `7d2f787`. Layer 3 dark 258 → 38; sweep total 328 → 127.**
+>
+> **The fix was ONE LINE, not thirty edits**, and this plan's framing of it was
+> wrong in a way worth recording. The cause is not thirty independent mistakes:
+> `globals.css` imports only Tailwind's `theme` and `utilities` layers —
+> **preflight is deliberately never imported**, because `site-parity.css` depends
+> on the browser's defaults surviving. The single declaration that absence costs
+> is the button background reset. Restoring just that one, in `@layer base`,
+> fixes every button at once and every button written from here on:
+>
+> ```css
+> @layer base { button { background-color: transparent; } }
+> ```
+>
+> **Both counts in §A.1 below were also wrong.** "30" came from a regex that
+> stops at the first `>`, so every button whose `onClick` contains an arrow
+> function was skipped — which is most of them. Re-counted with the TypeScript
+> AST it was 44. Neither number was the right unit of work.
+>
+> Option 1 (`bg-transparent` per button) was therefore NOT taken. It would have
+> been 44 edits that fixed nothing structurally. Option 2 (`color-scheme`) was
+> also not taken — it restyles browser chrome far beyond buttons.
+>
+> Verified in the live browser rather than reasoned about: an empty `<button>`
+> appended to the page computed `rgb(240, 240, 240)` before and
+> `rgba(0, 0, 0, 0)` after. Specificity keeps the blast radius contained — an
+> element selector in `base` loses to every class — confirmed on both surfaces:
+> admin "Sign in", public "Book Now", the mobile menu button and the consent
+> banner all keep their own backgrounds.
+>
+> **New worst remaining dark defect:** all 19 surviving failures per role are the
+> client avatar discs on `/admin/clients` — initials at 1.5–1.6:1 on
+> `oklch(88% 0.025 ${hue})`. Those are the runtime-computed hues the ratchet
+> allowlists; no token can hold them. See ITEM C.
+
 **Evidence: VERIFIED.**
 
 ### A.1 The problem
@@ -212,19 +247,37 @@ rather than darkening a bullet.
 
 ---
 
-## ITEM C — `/admin/audit` is the worst single page
+## ITEM C — ~~`/admin/audit` is the worst single page~~ → SUPERSEDED
 
-**Evidence: VERIFIED.**
+**Evidence: VERIFIED, then invalidated by fixing ITEM A.**
 
-**70 of OWNER-dark's 113 failures are on `/admin/audit` alone** — nearly two
-thirds of the remaining dark-mode defects on one route.
+This item said "70 of OWNER-dark's 113 failures are on `/admin/audit` alone" and
+told the reader to re-measure before acting. **That instruction was the correct
+one, and re-measuring dissolved the item**: after `7d2f787`, `/admin/audit`
+contributes **zero** dark failures. All 70 were the browser-default button grey.
 
-This is not a separate defect so much as a concentration: fix items A and B and
-re-measure this route before doing anything bespoke to it. Only then decide
-whether a residue remains that needs its own attention.
+**The real remaining concentration is `/admin/clients`.** Every one of the 19
+surviving dark failures per role is a client avatar disc — two-letter initials
+rendered at **1.5–1.6:1** on `oklch(88% 0.025 ${hue})`.
 
-**Do this item LAST, and re-measure first.** Acting on it before A and B would be
-fixing symptoms whose cause is already scheduled.
+That colour is one of the 14 runtime-computed hues the oklch ratchet allowlists:
+`hueFromId(client.id)` gives each person their own tint, so no token can hold it
+— a token is one fixed value, and the whole point of these is that the value
+varies per row. The tint therefore stays light in dark mode while the initials
+stay light too.
+
+**Two ways to fix it, neither taken here:**
+
+1. **Compute the foreground from the hue** — derive a dark-enough ink per tint at
+   render time, so the pair is correct for every hue by construction. Most
+   robust; the avatar helper already computes the hue, so it is the natural home.
+2. **Darken the tint in dark mode** — e.g. `oklch(32% 0.05 ${hue})` under
+   `[data-theme="dark"]`, keeping light untouched. Simpler, but it needs the
+   theme inside a runtime style object, which is where these literals live now.
+
+Option 1 is the more future-proof of the two: it holds no matter what the tint
+becomes. Either way this is the last measurable dark-mode defect class in the
+admin, and it is worth its own small item.
 
 ---
 
