@@ -459,6 +459,24 @@ describe("resendEmail — dispatch by event type", () => {
     );
   });
 
+  it("refuses a review-request resend with a reason, rather than the raw event type", async () => {
+    // Before this case existed the switch fell through to `default`, so the
+    // admin saw "Cannot resend event type: review_request_client" — accurate
+    // but written for a developer. It must also stay a REFUSAL: routing it to
+    // sendReviewRequestEmail would hit the per-booking sentinel, send nothing,
+    // and still report success, because dispatchResend returns void.
+    stubAdminClient({
+      original: { ...ORIGINAL_EVENT, event_type: "review_request_client" },
+    });
+
+    const result = await resendEmail(formData());
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe(
+      "Resend isn't supported for review requests — each booking is only ever asked once."
+    );
+  });
+
   it.each(["claim", "client_assigned_therapist"])(
     "returns a structured error for %s instead of silently sending nothing",
     async (eventType) => {

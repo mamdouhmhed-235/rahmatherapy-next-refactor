@@ -352,6 +352,21 @@ async function dispatchResend(
       }
       await sendStaffUnassignmentEmail(bookingId, staffId, supabase);
       return;
+    case "review_request_client":
+      // Item 1. Deliberately NOT wired to sendReviewRequestEmail. A delivery
+      // row of this type only exists because a review request already went
+      // out, so the per-booking `review_email_sent_at` sentinel would refuse
+      // the send — and this function returns void, so the refusal would be
+      // invisible: resendEmail would find the ORIGINAL row, stamp resend
+      // metadata onto it and report success while nothing was sent. A silent
+      // no-op reported as a win is worse than an honest refusal.
+      //
+      // One review request per booking is a product rule, not an accident
+      // (see sendManualReviewRequest's contract). If that ever changes, this
+      // needs a real second-send path, not a call to the sentinel-guarded one.
+      throw new Error(
+        "Resend isn't supported for review requests — each booking is only ever asked once."
+      );
     case "claim":
       throw new Error(
         "Resend isn't supported for claim notifications — the claiming staff member isn't recorded on this event."
