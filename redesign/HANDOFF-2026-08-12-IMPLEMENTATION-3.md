@@ -8,15 +8,15 @@ The three earlier handoffs are still live and are **not** superseded:
 - `HANDOFF-2026-08-11-IMPLEMENTATION.md` §5 — gotchas 1-15.
 - `HANDOFF-2026-08-11-IMPLEMENTATION-2.md` §5 — gotchas 16-27.
 
-This file adds §5's **new** gotchas 28-38. Nothing is mid-flight. No agent is running.
+This file adds §5's **new** gotchas 28-39. Nothing is mid-flight. No agent is running.
 Every change is committed. The tree is clean apart from the one standing dirty path.
 
 | | |
 |---|---|
-| **HEAD** | `3866d24` |
+| **HEAD** | `22fc321` |
 | **Branch** | `master` |
-| **Shipped this session** | Item 8 **Phases 1, 2 and 3 complete** (Phase 3 carries Phase 5's chip gating) |
-| **Next** | Item 8 **Phase 4** → Phase 5's remaining comms → item 1 Batch B → item 7 → item 5 → Step 0.5 → Step Z |
+| **Shipped this session** | Item 8 **Phases 1, 2, 3 complete**, plus **Phase 5's email half** (Phase 3 carries Phase 5's chip gating) |
+| **Next** | Item 8 **Phase 4** → Phase 5's remaining customer copy → item 1 Batch B → item 7 → item 5 → Step 0.5 → Step Z |
 | **Deploy** | Still deferred, **to the very end of the plan, by Owner decision** |
 
 ---
@@ -30,6 +30,8 @@ Every change is committed. The tree is clean apart from the one standing dirty p
 | `c188995` ⛔Zone-2 | **Item 8 Phase 2.** All three service-area gates removed. Migration applied as version `20260811230807` |
 | `eb2b6c2` ⛔Zone-2 | **Item 8 Phase 3 + Phase 5 chip gating.** `bookings.travel_fee`, applied as version `20260811234948` |
 | `3866d24` | Fully-paid lock fix found by the adversarial money review **after** Phase 3 landed |
+| `a378cc6` | This handoff (first revision) |
+| `22fc321` | **Item 8 Phase 5, email half** — labelled travel-charge line across the 8 touch points |
 
 **The live three-way service-area contradiction is FIXED and verified end to end.**
 `POST /api/availability/` now returns identical slots for Luton, **Harpenden** and
@@ -42,7 +44,7 @@ town the plan uses to describe the defect.
 
 ```powershell
 npx tsc --noEmit    # 0, silent, exit 0
-npx vitest run      # 5 failed / 2329 passed (2334)   <-- was 2295/2300 at session start
+npx vitest run      # 5 failed / 2336 passed (2341)   <-- was 2295/2300 at session start
 pnpm lint           # 59 errors / 7 warnings, the same six files
 git status --porcelain -- src/ supabase/   # exactly:  M src/lib/maintenance.ts
 ```
@@ -58,7 +60,8 @@ npx vitest run src/lib/auth/admin-access.test.ts                       # exactly
 session edited two of those six* (`BookingExperience.tsx`, `BookingExperienceLoader.tsx`)
 and moved their line numbers. That is the `{file, ruleId}` rule working as designed.
 
-**+34 tests added this session**, all passing. 17 mutants teeth-checked, 17 HAS_TEETH.
+**+41 tests added this session**, all passing. 21 mutants teeth-checked; 20 HAS_TEETH on the
+first pass, and the 21st was **found toothless and replaced** — see gotcha 39.
 
 ---
 
@@ -90,7 +93,7 @@ dual-write in `settings/actions.ts`.** Step Z deletes it, after the deploy.
 
 ---
 
-## 5 — NEW GOTCHAS (28-38). Each cost real time this session.
+## 5 — NEW GOTCHAS (28-39). Each cost real time this session.
 
 28. **⛔ `test.use({ channel: "chrome" })` MUST be file-level in Playwright.** Inside a
     `describe` it errors out the *entire file* before a single test runs
@@ -169,6 +172,17 @@ dual-write in `settings/actions.ts`.** Step Z deletes it, after the deploy.
     on **every booking in the system** on a transient fetch failure. Getting this backwards
     is a one-character change with a system-wide blast radius; it has its own teeth-check.
 
+39. **⛔ A SELECT STRING THAT NO STUB HONOURS IS INVISIBLE TO THE TEST SUITE.** Every
+    email test stubs Supabase with a hand-built object that returns the whole mock row
+    regardless of what the select asked for — the same is true of
+    `lib/cache/__tests__/fake-supabase-admin.ts`. So deleting a column from
+    `BOOKING_EMAIL_SELECT` breaks **nothing**: proved by mutation, where all four
+    behavioural tests stayed green while production would have silently dropped the
+    travel charge from every confirmation email. **A select string can only be guarded by
+    reading the source text** (`src/lib/email/__tests__/travel-fee-line.test.ts` shows the
+    idiom). Assume this applies to every other select in the repo: none of them are
+    covered by the stubs that appear to exercise them.
+
 **Also re-confirmed:** PowerShell's working directory **persists between tool calls** and
 drifted mid-session, making `npx vitest run` report *"No test files found"* — which looks
 like a catastrophic failure and is just a wrong cwd. `Set-Location` back to the repo root
@@ -219,10 +233,14 @@ pre-existing out-of-scope defect.
 
 ### Then, in this order
 
-1. **Item 8 Phase 5's remainder** — emails (`renderSummary`, `renderBookingPlainText`,
-   `BOOKING_EMAIL_SELECT`, `getBookingTemplateInput`, `sample-data.ts`,
-   `BOOKING_SUMMARY_FIXED_PART`), the `ConfirmStep.tsx` payment-acknowledgement checkbox,
-   and `AboutYouStep`'s **final** copy.
+1. **Item 8 Phase 5's remainder — CUSTOMER COPY ONLY; the email half shipped in
+   `22fc321`.** What is left: the `ConfirmStep.tsx` payment-acknowledgement checkbox
+   (`:232-236` — it lists "service and participant count" and must also name the travel
+   charge), the new restatement beside the `.reassurance` divs (`:266-280` — a *separate*
+   edit from the checkbox, easy to conflate into one), `AboutYouStep`'s **final** notice
+   copy, the request-received email reword (`notifications.ts` `sendBookingCreatedEmails`
+   — it legitimately shows a pre-fee total, so reword rather than refactor), and the
+   `/booking/manage` line-item split (copy-only; the number is already correct).
    ⛔ **STOP CONDITION: the final customer-facing wording naming the travel charge and the
    mileage origin needs Owner sign-off. Do not invent it.** The interim Phase 2 copy is in
    place and is not false — it simply says an out-of-zone address can still be booked.
