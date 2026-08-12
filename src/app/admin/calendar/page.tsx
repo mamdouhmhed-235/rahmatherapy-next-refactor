@@ -647,7 +647,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           {staffFilterName ? (
             <Link
               href={buildHref(baseParams, { staffId: "" })}
-              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-status-restricted-bg)] py-0.5 pl-2.5 pr-1.5 text-[0.75rem] font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-status-restricted-bg)] py-0.5 pl-2.5 pr-1.5 text-[0.75rem] font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[var(--admin-status-restricted-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               aria-label={`Clear therapist filter (${staffFilterName})`}
             >
               <span>Therapist: {staffFilterName}</span>
@@ -657,7 +657,7 @@ export default async function CalendarPage({ searchParams }: CalendarPageProps) 
           {paymentFilterLabel ? (
             <Link
               href={buildHref(baseParams, { paymentStatus: "" })}
-              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-status-restricted-bg)] py-0.5 pl-2.5 pr-1.5 text-[0.75rem] font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+              className="group inline-flex items-center gap-1 rounded-full border border-[var(--admin-border)] bg-[var(--admin-status-restricted-bg)] py-0.5 pl-2.5 pr-1.5 text-[0.75rem] font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[var(--admin-status-restricted-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               aria-label={`Clear payment filter (${paymentFilterLabel})`}
             >
               <span>Payment: {paymentFilterLabel}</span>

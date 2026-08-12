@@ -377,8 +377,8 @@ function PreFillChip({
       title={tooltip}
       className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium leading-none"
       style={{
-        background: "oklch(94% 0.008 280)",
-        color: "oklch(30% 0.02 280)",
+        background: "var(--admin-status-restricted-bg)",
+        color: "var(--admin-status-restricted-text)",
       }}
     >
       {source === "client" ? "From client profile" : "From enquiry"}

@@ -745,7 +745,7 @@ function ServiceAreaField({
             <li key={`${city}-${index}`}>
               <span
                 title="Free-travel area. Visits here carry no travel charge."
-                className="inline-flex items-center gap-1 rounded-full border border-[var(--admin-status-restricted-border)] bg-[var(--admin-status-restricted-bg)] py-1 pl-3 pr-1 text-xs text-[var(--admin-status-restricted-text)] transition-colors hover:bg-[oklch(91%_0.012_280)]"
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--admin-status-restricted-border)] bg-[var(--admin-status-restricted-bg)] py-1 pl-3 pr-1 text-xs text-[var(--admin-status-restricted-text)] transition-colors hover:bg-[var(--admin-status-restricted-bg-hover)]"
               >
                 <span>{city}</span>
                 <button
@@ -754,7 +754,7 @@ function ServiceAreaField({
                   disabled={disabled}
                   aria-label={`Remove ${city}`}
                   title={`Remove ${city}`}
-                  className="relative inline-flex size-5 items-center justify-center rounded-full text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(85%_0.012_280)] hover:text-[oklch(20%_0.02_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50 before:absolute before:inset-[-8px] before:content-['']"
+                  className="relative inline-flex size-5 items-center justify-center rounded-full text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[var(--admin-status-restricted-bg-hover-strong)] hover:text-[var(--admin-status-restricted-text-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 disabled:opacity-50 before:absolute before:inset-[-8px] before:content-['']"
                 >
                   <X
                     className="size-3.5 shrink-0"

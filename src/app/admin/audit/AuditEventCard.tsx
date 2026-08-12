@@ -33,7 +33,7 @@ function chipMeta(
     case "cancelled":
       return { Icon: Trash2, className: "text-[oklch(45%_0.19_25)]" };
     case "restricted":
-      return { Icon: Eye, className: "text-[oklch(42%_0.05_280)]" };
+      return { Icon: Eye, className: "text-[var(--admin-status-restricted-chip-icon)]" };
     default:
       return null;
   }
@@ -59,7 +59,7 @@ function avatarTint(seed: string | null): string {
   const tints = [
     "bg-[oklch(91%_0.025_155)] text-[var(--admin-status-confirmed-text)]",
     "bg-[oklch(92%_0.030_80)] text-[var(--admin-status-pending-text)]",
-    "bg-[oklch(91%_0.022_280)] text-[var(--admin-status-restricted-text)]",
+    "bg-[var(--admin-avatar-tint-violet)] text-[var(--admin-status-restricted-text)]",
     "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)]",
     "bg-[oklch(92%_0.025_120)] text-[var(--admin-status-confirmed-text)]",
   ];

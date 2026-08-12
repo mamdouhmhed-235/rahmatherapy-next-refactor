@@ -170,7 +170,7 @@ export function EventRow({ event, column, onTransitioned, onTransitionFailed }: 
               "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
               severity.tone === "danger" && "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)] hover:bg-[oklch(90%_0.05_20)]",
               severity.tone === "warning" && "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)] hover:bg-[oklch(90%_0.07_65)]",
-              severity.tone === "restricted" && "bg-[var(--admin-status-restricted-bg)] text-[var(--admin-status-restricted-text)] hover:bg-[oklch(90%_0.012_280)]"
+              severity.tone === "restricted" && "bg-[var(--admin-status-restricted-bg)] text-[var(--admin-status-restricted-text)] hover:bg-[var(--admin-severity-restricted-bg-hover)]"
             )}
           >
             <SeverityIcon className="size-3.5 shrink-0" aria-hidden="true" />

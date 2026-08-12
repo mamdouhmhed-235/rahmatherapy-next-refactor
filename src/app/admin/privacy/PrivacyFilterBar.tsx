@@ -360,7 +360,7 @@ export function PrivacyFilterBar({
               <button
                 type="button"
                 onClick={() => navigate(chip.clearTo)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] px-3 py-1 text-xs font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] px-3 py-1 text-xs font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[var(--admin-status-restricted-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
               >
                 {chip.label}
                 <X className="size-3" aria-hidden="true" />

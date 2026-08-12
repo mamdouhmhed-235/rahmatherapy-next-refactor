@@ -164,6 +164,18 @@
   --admin-status-restricted-bg: oklch(94% 0.008 280);
   --admin-status-restricted-text: oklch(30% 0.02 280);
   --admin-status-restricted-border: oklch(88% 0.012 280);
+  /* ITEM 7 — restricted-family interaction states.
+   * Hover and icon tones for the read-only/restricted chips. Two distinct
+   * hover values exist for the same base: the 7-site --admin-status-restricted-
+   * bg-hover, and operations/event-row.tsx's own one-step-darker severity
+   * badge, which is named --admin-severity-* after that component's own
+   * `severity.tone` vocabulary rather than pretending to be the same state. */
+  --admin-status-restricted-bg-hover: oklch(91% 0.012 280);
+  --admin-status-restricted-chip-icon: oklch(42% 0.05 280);
+  --admin-avatar-tint-violet: oklch(91% 0.022 280);
+  --admin-severity-restricted-bg-hover: oklch(90% 0.012 280);
+  --admin-status-restricted-bg-hover-strong: oklch(85% 0.012 280);
+  --admin-status-restricted-text-hover: oklch(20% 0.02 280);
   /* Completed family — shifted h=200 (teal) → h=270 (cool grey) 2026-05-20
    * to free the blue hue territory for the new primary chrome. Semantically
    * reads as "done / archived" which is more correct than "active blue". */
@@ -473,6 +485,18 @@
   --admin-status-restricted-bg: oklch(29% 0.010 280);
   --admin-status-restricted-text: oklch(87% 0.014 280);
   --admin-status-restricted-border: oklch(42% 0.016 280);
+  /* ITEM 7 — restricted-family interaction states.
+   * Hover and icon tones for the read-only/restricted chips. Two distinct
+   * hover values exist for the same base: the 7-site --admin-status-restricted-
+   * bg-hover, and operations/event-row.tsx's own one-step-darker severity
+   * badge, which is named --admin-severity-* after that component's own
+   * `severity.tone` vocabulary rather than pretending to be the same state. */
+  --admin-status-restricted-bg-hover: oklch(32% 0.014 280);
+  --admin-status-restricted-chip-icon: oklch(75% 0.044 280);
+  --admin-avatar-tint-violet: oklch(32% 0.024 280);
+  --admin-severity-restricted-bg-hover: oklch(33% 0.014 280);
+  --admin-status-restricted-bg-hover-strong: oklch(38% 0.014 280);
+  --admin-status-restricted-text-hover: oklch(97% 0.014 280);
   --admin-status-completed-bg: oklch(29% 0.010 270);
   --admin-status-completed-text: oklch(87% 0.014 270);
   --admin-status-completed-border: oklch(42% 0.016 270);
@@ -637,6 +661,18 @@
   --admin-status-restricted-bg: oklch(94% 0.008 280);
   --admin-status-restricted-text: oklch(30% 0.02 280);
   --admin-status-restricted-border: oklch(88% 0.012 280);
+  /* ITEM 7 — restricted-family interaction states.
+   * Hover and icon tones for the read-only/restricted chips. Two distinct
+   * hover values exist for the same base: the 7-site --admin-status-restricted-
+   * bg-hover, and operations/event-row.tsx's own one-step-darker severity
+   * badge, which is named --admin-severity-* after that component's own
+   * `severity.tone` vocabulary rather than pretending to be the same state. */
+  --admin-status-restricted-bg-hover: oklch(91% 0.012 280);
+  --admin-status-restricted-chip-icon: oklch(42% 0.05 280);
+  --admin-avatar-tint-violet: oklch(91% 0.022 280);
+  --admin-severity-restricted-bg-hover: oklch(90% 0.012 280);
+  --admin-status-restricted-bg-hover-strong: oklch(85% 0.012 280);
+  --admin-status-restricted-text-hover: oklch(20% 0.02 280);
   --admin-status-completed-bg: oklch(94% 0.008 270);
   --admin-status-completed-text: oklch(30% 0.018 270);
   --admin-status-completed-border: oklch(88% 0.012 270);
@@ -789,6 +825,18 @@
     --admin-status-restricted-bg: oklch(94% 0.008 280);
     --admin-status-restricted-text: oklch(30% 0.02 280);
     --admin-status-restricted-border: oklch(88% 0.012 280);
+    /* ITEM 7 — restricted-family interaction states.
+     * Hover and icon tones for the read-only/restricted chips. Two distinct
+     * hover values exist for the same base: the 7-site --admin-status-restricted-
+     * bg-hover, and operations/event-row.tsx's own one-step-darker severity
+     * badge, which is named --admin-severity-* after that component's own
+     * `severity.tone` vocabulary rather than pretending to be the same state. */
+    --admin-status-restricted-bg-hover: oklch(91% 0.012 280);
+    --admin-status-restricted-chip-icon: oklch(42% 0.05 280);
+    --admin-avatar-tint-violet: oklch(91% 0.022 280);
+    --admin-severity-restricted-bg-hover: oklch(90% 0.012 280);
+    --admin-status-restricted-bg-hover-strong: oklch(85% 0.012 280);
+    --admin-status-restricted-text-hover: oklch(20% 0.02 280);
     --admin-status-completed-bg: oklch(94% 0.008 270);
     --admin-status-completed-text: oklch(30% 0.018 270);
     --admin-status-completed-border: oklch(88% 0.012 270);

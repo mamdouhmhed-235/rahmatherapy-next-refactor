@@ -1285,7 +1285,7 @@ function ActiveFilterChip({
   return (
     <Link
       href={search ? `/admin/reports?${search}` : "/admin/reports"}
-      className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] px-2.5 text-xs font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[oklch(91%_0.012_280)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
+      className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--admin-status-restricted-bg)] px-2.5 text-xs font-medium text-[var(--admin-status-restricted-text)] outline-none transition-colors hover:bg-[var(--admin-status-restricted-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/45"
       aria-label={`Remove ${chip.label} filter`}
     >
       <span>
