@@ -22,26 +22,70 @@
  * appends a `delta_vs_pre_B1_kb` field per route showing the gzipped change.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { gzipSync } from "node:zlib";
 
 const NEXT_DIR = ".next";
 
-const ROUTES = [
-  { url: "/admin/dashboard", manifestRoute: "admin/dashboard" },
-  { url: "/admin/reports", manifestRoute: "admin/reports" },
-  { url: "/admin/clients/[clientId]", manifestRoute: "admin/clients/[clientId]" },
-  { url: "/admin/staff/[staffId]", manifestRoute: "admin/staff/[staffId]" },
-  // B-3 — new routes; no pre-B1 baseline entry, so delta_vs_pre_B1_kb is null.
-  // Budget per SHARED-NOTES §5: first_load_js_gzip_kb minus shared_baseline.gzip_kb
-  // must stay within +25 kB (me) / +18 kB (staff perf sub-route).
-  { url: "/admin/me", manifestRoute: "admin/me" },
-  {
-    url: "/admin/staff/[staffId]/performance",
-    manifestRoute: "admin/staff/[staffId]/performance",
-  },
-];
+/**
+ * ITEM 5. The route list was six hardcoded entries, so the script could only
+ * ever answer a question about the six routes somebody thought of in Band B —
+ * every route added since was invisible to it, including the ones whose
+ * ceilings this plan wants evaluated. Routes are now DISCOVERED from the build
+ * output itself, so a new admin route is measured the day it ships.
+ *
+ * Discovery walks `.next/server/app/**` for `page_client-reference-manifest.js`,
+ * which is the same artefact chunksForRoute() already reads — so a route is
+ * listed if and only if it can actually be measured. That rules out a route
+ * appearing in the report with null sizes, which is worse than absent.
+ */
+function discoverRoutes(scopePrefix = "admin") {
+  const appDir = join(NEXT_DIR, "server/app");
+  if (!existsSync(appDir)) return [];
+
+  const found = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir)) {
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+      } else if (entry === "page_client-reference-manifest.js") {
+        const manifestRoute = relative(appDir, dir).split(sep).join("/");
+        if (manifestRoute.startsWith(scopePrefix)) {
+          found.push({ url: `/${manifestRoute}`, manifestRoute });
+        }
+      }
+    }
+  };
+  walk(appDir);
+  return found.sort((a, b) => a.manifestRoute.localeCompare(b.manifestRoute));
+}
+
+/**
+ * ITEM 5. `process.argv` was never read anywhere in this script, so the
+ * "explicit route filter" earlier notes credited it with did not exist. It
+ * does now: any bare argument is treated as a substring match against the
+ * route, so `node scripts/measure-admin-bundles.mjs bookings` measures just
+ * the bookings routes. `--scope=<prefix>` widens or narrows discovery beyond
+ * the admin tree.
+ */
+const args = process.argv.slice(2);
+const scopeArg = args.find((a) => a.startsWith("--scope="));
+const filters = args.filter((a) => !a.startsWith("--"));
+
+const ROUTES = discoverRoutes(scopeArg ? scopeArg.slice(8) : "admin").filter(
+  (r) => filters.length === 0 || filters.some((f) => r.manifestRoute.includes(f))
+);
+
+if (ROUTES.length === 0) {
+  console.error(
+    filters.length
+      ? `No routes matched ${JSON.stringify(filters)}. Is .next/ built, and is the filter right?`
+      : "No admin routes found in .next/server/app — run `pnpm build` first."
+  );
+  process.exit(1);
+}
 
 function readChunkSize(relPath) {
   const abs = join(NEXT_DIR, relPath.replace(/^\/?_next\//, ""));
