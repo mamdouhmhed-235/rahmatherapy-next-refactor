@@ -351,6 +351,166 @@ export function verifyRatioComments(parsed) {
 }
 
 // ---------------------------------------------------------------------------
+// 1b-bis. PROSE contrast claims (Step 0.5 / D11).
+//
+// tokens.css states many contrast ratios in prose rather than in the inline
+// `--token: value; /* N:1 vs other */` form that RATIO_COMMENT_RE covers —
+// e.g. "critical 5.60:1, warning 5.05:1, info 6.97:1", "8.88:1 on the dark
+// primary fill", "All six sit 5.57-9.81:1 against --admin-panel".
+//
+// Several are load-bearing safety warnings ("fails WCAG text contrast at
+// 2.17:1 on canvas; never use as body text"). Nothing verified any of them, so
+// a value change could silently falsify a warning that is the only thing
+// stopping a developer using a token as body text. Steps 0.1/0.2 changed token
+// values, which is exactly how such a claim goes stale.
+//
+// ⛔ DESIGN RULE, from the plan: a claim this cannot machine-parse must be
+// REPORTED as unverifiable, never silently skipped. Quietly checking only the
+// easy ones and printing a clean summary is worse than not checking at all,
+// because it manufactures false confidence.
+// ---------------------------------------------------------------------------
+
+const COMMENT_RE = /\/\*[\s\S]*?\*\//g;
+const ANY_RATIO_RE = /(\d+(?:\.\d+)?)\s*:\s*1/g;
+const TOKEN_REF_RE = /--(?:admin|notif|rahma)-[a-z0-9-]+/g;
+
+/** The WCAG 2.1 bars themselves. Quoted constantly; never a measurement. */
+const WCAG_THRESHOLDS = new Set([3, 4.5, 7]);
+
+/**
+ * Every ratio stated in prose — i.e. every `N:1` inside a comment that is NOT
+ * part of the inline `token: value; /* N:1 vs bg *\/` form.
+ *
+ * @returns {{block: string, stated: number, tokens: string[], sentence: string}[]}
+ */
+export function harvestProseRatioClaims(css) {
+  // Everything RATIO_COMMENT_RE already owns, so we do not double-report it.
+  const inlineSpans = [];
+  for (const m of css.matchAll(RATIO_COMMENT_RE)) {
+    inlineSpans.push([m.index, m.index + m[0].length]);
+  }
+  const isInline = (idx) => inlineSpans.some(([s, e]) => idx >= s && idx < e);
+
+  const out = [];
+  for (const c of css.matchAll(COMMENT_RE)) {
+    const comment = c[0];
+    for (const r of comment.matchAll(ANY_RATIO_RE)) {
+      const absolute = c.index + r.index;
+      if (isInline(absolute)) continue;
+      const sentence = comment
+        .replace(/^\/\*+|\*+\/$/g, "")
+        .replace(/^\s*\*\s?/gm, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      out.push({
+        block: blockLabelForOffset(css, absolute),
+        stated: parseFloat(r[1]),
+        tokens: [...new Set(comment.match(TOKEN_REF_RE) ?? [])],
+        sentence,
+      });
+    }
+  }
+  return out;
+}
+
+/** Which theme block an offset falls inside, for scope resolution. */
+function blockLabelForOffset(css, offset) {
+  const marks = [
+    ["root", css.indexOf(":root {")],
+    ["dark", css.indexOf('[data-theme="dark"]')],
+    ["light", css.indexOf('[data-theme="light"]')],
+    ["print", css.indexOf("@media print {")],
+  ]
+    .filter(([, i]) => i >= 0 && i <= offset)
+    .sort((a, b) => b[1] - a[1]);
+  return marks.length ? marks[0][0] : "root";
+}
+
+/**
+ * Verify what can be verified; name what cannot, and why.
+ *
+ * A claim is only machine-checkable when the sentence writes the pair out
+ * explicitly ("--a vs --b" / "--a on --b"). Anything looser is a judgement
+ * call about which pair the author meant, and guessing is worse than saying so.
+ *
+ * @typedef {{block: string, stated: number, tokens: string[], sentence: string}} ProseClaim
+ * @typedef {ProseClaim & {pair: string[], actualRatio: number, delta: number, pass: boolean}} ProseChecked
+ * @typedef {ProseClaim & {reason: string}} ProseUnverifiable
+ *
+ * @param {string} css
+ * @param {ReturnType<typeof parseTokensCss>} parsed
+ * @returns {{checked: ProseChecked[], unverifiable: ProseUnverifiable[]}}
+ */
+export function verifyProseRatioClaims(css, parsed) {
+  const claims = harvestProseRatioClaims(css);
+  /** @type {ProseChecked[]} */
+  const checked = [];
+  /** @type {ProseUnverifiable[]} */
+  const unverifiable = [];
+
+  for (const claim of claims) {
+    const scope = parsed.scopes[claim.block] ?? parsed.scopes.root;
+    const resolvable = claim.tokens.filter((t) => resolveColour(scope[t], scope));
+
+    // A WCAG THRESHOLD quoted in prose ("clears AA 4.5:1", "the AAA 7:1 bar")
+    // is a reference to the standard, not a measurement of any pair. Checking
+    // it against whatever two tokens happen to appear in the same sentence
+    // manufactures a failure out of correct documentation — which is worse
+    // than not checking, because it trains readers to ignore the tool.
+    if (WCAG_THRESHOLDS.has(claim.stated) && /\bA{2,3}\b|WCAG/.test(claim.sentence)) {
+      unverifiable.push({
+        ...claim,
+        reason:
+          "quotes a WCAG threshold, not a measurement — nothing to verify against",
+      });
+      continue;
+    }
+
+    // ⛔ Only an EXPLICITLY WRITTEN pair is safe to check: "--a vs --b" or
+    // "--a on --b". Pairing "the two tokens that happen to appear in this
+    // comment" was tried and is unsound — tokens.css:378-382 states a ratio for
+    // --admin-primary against "the dark panel" while also naming
+    // --admin-on-primary, so that heuristic paired the wrong two tokens and
+    // manufactured a 4.43 delta out of correct documentation. A tool that
+    // invents failures gets ignored, which costs more than the check is worth.
+    const explicit = claim.sentence.match(
+      /(--(?:admin|notif|rahma)-[a-z0-9-]+)\s+(?:vs\.?|on)\s+(?:the\s+)?(--(?:admin|notif|rahma)-[a-z0-9-]+)/i
+    );
+    const pair =
+      explicit && resolveColour(scope[explicit[1]], scope) && resolveColour(scope[explicit[2]], scope)
+        ? [explicit[1], explicit[2]]
+        : null;
+
+    if (!pair) {
+      unverifiable.push({
+        ...claim,
+        reason:
+          resolvable.length === 0
+            ? "names no resolvable token — the ratio is about a raw hex, a brand colour or 'white'"
+            : `names ${resolvable.length} token(s) but no explicit "A vs B" / "A on B" pair — which pair the ratio refers to is a judgement call`,
+      });
+      continue;
+    }
+
+    const [a, b] = pair;
+    const actual = contrastRatio(
+      resolveColour(scope[a], scope),
+      resolveColour(scope[b], scope)
+    );
+    const delta = actual - claim.stated;
+    checked.push({
+      ...claim,
+      pair: [a, b],
+      actualRatio: actual,
+      delta,
+      pass: Math.abs(delta) <= RATIO_TOLERANCE,
+    });
+  }
+
+  return { checked, unverifiable };
+}
+
+// ---------------------------------------------------------------------------
 // 1c. Derive the semantic pairs the token system actually intends, and check
 // each at AA in both themes. NOT a cross-product of all tokens — see the
 // basis recorded on each pair, printed in the report, for what was and
@@ -492,12 +652,15 @@ export function run(css, { json = false, maxFailures = Infinity } = {}) {
   const ratioMismatches = ratioResults.filter((r) => r.pass === false);
   const ratioUnresolved = ratioResults.filter((r) => r.pass === null);
 
+  const prose = verifyProseRatioClaims(css, parsed);
+  const proseMismatches = prose.checked.filter((r) => !r.pass);
+
   const pairs = derivePairs(parsed.tokens, parsed.ratioComments);
   const pairResults = checkPairs(pairs, parsed.tokens);
   const pairFailures = pairResults.filter((r) => r.pass === false);
   const pairUnresolved = pairResults.filter((r) => r.pass === null);
 
-  const totalFailures = ratioMismatches.length + pairFailures.length;
+  const totalFailures = ratioMismatches.length + pairFailures.length + proseMismatches.length;
 
   const summary = {
     tokensParsed: Object.keys(parsed.tokens).length,
@@ -506,6 +669,10 @@ export function run(css, { json = false, maxFailures = Infinity } = {}) {
     ratioCommentsFound: ratioResults.length,
     ratioMismatches: ratioMismatches.length,
     ratioUnresolved: ratioUnresolved.length,
+    proseClaimsFound: prose.checked.length + prose.unverifiable.length,
+    proseChecked: prose.checked.length,
+    proseMismatches: proseMismatches.length,
+    proseUnverifiable: prose.unverifiable.length,
     uniquePairs: pairs.length,
     pairChecksRun: pairResults.length,
     pairFailures: pairFailures.length,
@@ -514,13 +681,13 @@ export function run(css, { json = false, maxFailures = Infinity } = {}) {
   };
 
   const output = json
-    ? JSON.stringify({ summary, ratioResults, pairs, pairResults }, null, 2)
-    : formatHumanReadable({ summary, ratioResults, ratioMismatches, ratioUnresolved, pairs, pairResults, pairFailures, pairUnresolved });
+    ? JSON.stringify({ summary, ratioResults, prose, pairs, pairResults }, null, 2)
+    : formatHumanReadable({ summary, ratioResults, ratioMismatches, ratioUnresolved, prose, pairs, pairResults, pairFailures, pairUnresolved });
 
   return { summary, exitCode: totalFailures > maxFailures ? 1 : 0, output };
 }
 
-function formatHumanReadable({ summary, ratioResults, ratioMismatches, ratioUnresolved, pairs, pairResults, pairFailures, pairUnresolved }) {
+function formatHumanReadable({ summary, ratioResults, ratioMismatches, ratioUnresolved, prose, pairs, pairResults, pairFailures, pairUnresolved }) {
   const lines = [];
   lines.push("verify-admin-token-contrast — static proof of --admin-* token-pair WCAG AA contrast\n");
   lines.push(`tokens parsed: ${summary.tokensParsed}  (light resolved: ${summary.lightResolved}, dark resolved: ${summary.darkResolved})`);
@@ -540,6 +707,30 @@ function formatHumanReadable({ summary, ratioResults, ratioMismatches, ratioUnre
   }
   if (ratioMismatches.length === 0 && ratioUnresolved.length === 0) {
     lines.push(`  all ${summary.ratioCommentsFound} self-declared ratios match within +/-${RATIO_TOLERANCE}:1`);
+  }
+
+  lines.push(
+    `\n--- 1b-bis. prose contrast claims (${summary.proseClaimsFound} found: ${summary.proseChecked} machine-checkable, ${summary.proseUnverifiable} not) ---`
+  );
+  for (const r of prose.checked) {
+    const mark = r.pass ? "match   " : "MISMATCH";
+    lines.push(
+      `  ${mark} [${r.block.padEnd(5)}] ${r.pair[0]} vs ${r.pair[1]}: stated ${r.stated.toFixed(2)}:1, actual ${r.actualRatio.toFixed(2)}:1 (delta ${
+        r.delta >= 0 ? "+" : ""
+      }${r.delta.toFixed(2)})`
+    );
+  }
+  // Named, never silently skipped: a claim this tool cannot check is exactly
+  // the claim most likely to have gone stale unnoticed.
+  for (const r of prose.unverifiable) {
+    lines.push(`  UNVERIFIABLE [${r.block.padEnd(5)}] ${r.stated.toFixed(2)}:1 — ${r.reason}`);
+    lines.push(`               "${r.sentence.slice(0, 120)}${r.sentence.length > 120 ? "…" : ""}"`);
+  }
+  if (summary.proseUnverifiable > 0) {
+    lines.push(
+      `  ⚠️  ${summary.proseUnverifiable} prose claim(s) above are NOT machine-verified. They are` +
+        ` listed rather than skipped so a stale one is visible; check them by hand when a token value changes.`
+    );
   }
 
   lines.push(`\n--- 1c. derived semantic pairs (${pairs.length} unique pairs x 2 themes = ${pairResults.length} checks) ---`);

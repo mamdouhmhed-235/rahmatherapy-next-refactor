@@ -8,8 +8,10 @@ import {
   oklchToRgb,
   parseTokensCss,
   resolveColour,
+  harvestProseRatioClaims,
   run,
   TOKENS_PATH,
+  verifyProseRatioClaims,
   verifyRatioComments,
 } from "./verify-admin-token-contrast.mjs";
 
@@ -432,5 +434,119 @@ describe("run() — CLI-facing entry point", () => {
     // are currently zero failures, both are 0 — assert relative to the
     // measured count rather than assuming which case we're in.
     expect(strict).toBe(summary.totalFailures > -1 ? 1 : 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Step 0.5 (D11) — prose contrast claims.
+//
+// tokens.css states many ratios in prose rather than in the inline
+// `--token: value; /* N:1 vs other */` form. Several are load-bearing safety
+// warnings, and nothing verified any of them, so a value change could silently
+// falsify one. The requirement is NOT "check them all" — it is "check what can
+// be checked and SAY SO about what cannot", because quietly checking only the
+// easy ones manufactures false confidence.
+// ---------------------------------------------------------------------------
+
+describe("prose contrast claims", () => {
+  const realCss = readFileSync(TOKENS_PATH, "utf8");
+
+  it("harvests ratio claims stated in prose, not just the inline `N:1 vs X` form", () => {
+    const claims = harvestProseRatioClaims(realCss);
+
+    // The plan estimated 16. The real count is far higher, because prose also
+    // carries historical corrections ("the previous note said 9.74:1").
+    expect(claims.length).toBeGreaterThan(30);
+
+    // A specific, load-bearing safety warning must be among them: if this
+    // sentence stops being harvested, the guard has silently narrowed.
+    const bodyTextWarning = claims.find((c) =>
+      c.sentence.includes("never use as body text")
+    );
+    expect(bodyTextWarning).toBeDefined();
+  });
+
+  it("does not double-report the inline ratio comments the 1b check already owns", () => {
+    const prose = harvestProseRatioClaims(realCss);
+    const parsed = parseTokensCss(realCss);
+    const inlineRatios = parsed.ratioComments.map((c) => c.statedRatio);
+
+    // 1b owns 11 inline comments. If prose harvesting swallowed them too, the
+    // same ratio would be reported twice and the counts would stop meaning
+    // anything. Spot-check the distinctive ones.
+    expect(inlineRatios.length).toBeGreaterThan(0);
+    const proseSentences = prose.map((p) => p.sentence).join(" ");
+    expect(proseSentences).not.toContain("9.21:1 vs danger-bg-strong");
+  });
+
+  it("flags every claim it cannot machine-parse, with a reason, rather than skipping it silently", () => {
+    const parsed = parseTokensCss(realCss);
+    const { checked, unverifiable } = verifyProseRatioClaims(realCss, parsed);
+
+    expect(checked.length + unverifiable.length).toBe(
+      harvestProseRatioClaims(realCss).length
+    );
+    // Nothing may be dropped on the floor: every unverifiable claim carries a
+    // stated reason and the sentence it came from, so a human can check it.
+    for (const u of unverifiable) {
+      expect(u.reason).toBeTruthy();
+      expect(u.sentence.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("checks an explicitly written `A vs B` pair (synthetic — proves the checker actually works)", () => {
+    // Real tokens.css currently yields ZERO machine-checkable prose claims, so
+    // a real-file-only assertion would pass whether or not this logic works.
+    // Same reasoning as Step 0.4's synthetic-fixture requirement.
+    const css = `:root {
+      --admin-fg: oklch(0% 0 0);
+      --admin-bg: oklch(100% 0 0);
+      /* Deliberate: --admin-fg vs --admin-bg measures 21.00:1 here. */
+    }
+    [data-theme="dark"] { --admin-fg: oklch(0% 0 0); }
+    [data-theme="light"] { --admin-fg: oklch(0% 0 0); }
+    @media print { --admin-fg: oklch(0% 0 0); }`;
+
+    const { checked } = verifyProseRatioClaims(css, parseTokensCss(css));
+    expect(checked).toHaveLength(1);
+    expect(checked[0].pair).toEqual(["--admin-fg", "--admin-bg"]);
+    expect(checked[0].pass).toBe(true);
+
+    // And it must actually FAIL a wrong number, not just accept anything.
+    const wrong = css.replace("21.00:1", "4.50:1");
+    const { checked: bad } = verifyProseRatioClaims(wrong, parseTokensCss(wrong));
+    expect(bad).toHaveLength(1);
+    expect(bad[0].pass).toBe(false);
+  });
+
+  it("refuses to invent a pair from two tokens that merely co-occur in one comment", () => {
+    // REGRESSION GUARD. An earlier draft paired "the two resolvable tokens in
+    // this comment" and fabricated a 4.43 delta out of tokens.css:378-382,
+    // which states a ratio for --admin-primary against the PANEL while also
+    // naming --admin-on-primary. A tool that invents failures gets ignored.
+    const css = `:root {
+      --admin-primary: oklch(50% 0.1 240);
+      --admin-on-primary: oklch(100% 0 0);
+      --admin-panel: oklch(20% 0 0);
+      /* --admin-primary lightens so it clears 4.5:1 as a label on the dark
+       * panel, and --admin-on-primary darkens to stay readable. */
+    }
+    [data-theme="dark"] { --admin-primary: oklch(50% 0.1 240); }
+    [data-theme="light"] { --admin-primary: oklch(50% 0.1 240); }
+    @media print { --admin-primary: oklch(50% 0.1 240); }`;
+
+    const { checked, unverifiable } = verifyProseRatioClaims(css, parseTokensCss(css));
+    expect(checked).toHaveLength(0);
+    expect(unverifiable).toHaveLength(1);
+    expect(unverifiable[0].reason).toMatch(/judgement call|threshold/);
+  });
+
+  it("leaves the tool's failure count untouched, so an unverifiable claim cannot break the gate", () => {
+    const { summary } = run(realCss, { json: true });
+    expect(summary.proseClaimsFound).toBeGreaterThan(30);
+    expect(summary.proseMismatches).toBe(0);
+    expect(summary.totalFailures).toBe(
+      summary.ratioMismatches + summary.pairFailures + summary.proseMismatches
+    );
   });
 });
