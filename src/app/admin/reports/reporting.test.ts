@@ -3,6 +3,7 @@ import { PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import {
   canViewRevenueReports,
   getCityOptionsFromBookings,
+  getReportData,
   getStaffRevenueAttribution,
   parseReportFilters,
   resolvableStaffFor,
@@ -10,6 +11,7 @@ import {
   type ReportData,
 } from "./reporting";
 import { getBusinessDate } from "@/lib/time/london";
+import { createFakeAdminClient } from "@/lib/cache/__tests__/fake-supabase-admin";
 
 function profile(permissions: string[]): StaffProfile {
   return {
@@ -323,5 +325,80 @@ describe("resolvableStaffFor", () => {
     const copy = [...ROSTER];
     resolvableStaffFor(profile([PERMISSIONS.VIEW_REPORTS_OWN]), ROSTER);
     expect(ROSTER).toEqual(copy);
+  });
+});
+
+// ── ITEM N — the three operations collections are not fetched at all ─────────
+
+describe("getReportData — clinic operations data for a non-universal profile", () => {
+  const OPS_TABLES = ["enquiries", "email_delivery_events", "operational_events"];
+
+  const therapist = () =>
+    profile([
+      PERMISSIONS.VIEW_REPORTS_OWN,
+      PERMISSIONS.EXPORT_REPORTS_OWN,
+      PERMISSIONS.VIEW_BOOKINGS_ASSIGNED,
+    ]);
+
+  it("does not query them at all, so there is nothing to leak downstream", async () => {
+    // Not fetched-then-filtered: data that never leaves the database cannot
+    // escape through a render site somebody forgets to narrow, which is how
+    // the client-export exposure (ITEM L) happened.
+    const client = createFakeAdminClient();
+    const data = await getReportData(
+      client as never,
+      therapist(),
+      parseReportFilters({})
+    );
+
+    for (const table of OPS_TABLES) {
+      expect(client.fromCalls).not.toContain(table);
+    }
+    expect(data.enquiries).toEqual([]);
+    expect(data.emailEvents).toEqual([]);
+    expect(data.operationalEvents).toEqual([]);
+  });
+
+  it("still fetches clients and staff, which correct numbers depend on", async () => {
+    // These are reference data — a client row resolves a booking's name, a
+    // staff row a denominator — so they are narrowed at the render sites
+    // instead. Dropping them here would change figures, not just hide them.
+    const client = createFakeAdminClient();
+    await getReportData(client as never, therapist(), parseReportFilters({}));
+
+    expect(client.fromCalls).toContain("clients");
+    expect(client.fromCalls).toContain("staff_profiles");
+    expect(client.fromCalls).toContain("bookings");
+  });
+
+  it("leaves a universal-scope profile's fetches byte-identical", async () => {
+    // Owner/Admin/Coordinator must be unaffected: this narrows who loses data,
+    // and they lose none.
+    const client = createFakeAdminClient();
+    await getReportData(
+      client as never,
+      profile([PERMISSIONS.VIEW_REPORTS_BUSINESS]),
+      parseReportFilters({})
+    );
+
+    for (const table of OPS_TABLES) {
+      expect(client.fromCalls).toContain(table);
+    }
+  });
+
+  it("gates on the same predicate that scopes bookings, not a second one", async () => {
+    // VIEW_BOOKINGS_ALL alone satisfies hasUniversalReportScope. If the ops
+    // gate ever drifted onto its own permission, this profile would start
+    // seeing a different combination than its bookings scope implies.
+    const client = createFakeAdminClient();
+    await getReportData(
+      client as never,
+      profile([PERMISSIONS.VIEW_BOOKINGS_ALL]),
+      parseReportFilters({})
+    );
+
+    for (const table of OPS_TABLES) {
+      expect(client.fromCalls).toContain(table);
+    }
   });
 });

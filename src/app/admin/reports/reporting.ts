@@ -274,6 +274,30 @@ export async function getReportData(
   profile: StaffProfile,
   filters: ReportFilters
 ): Promise<ReportData> {
+  // ITEM N — enquiries, email delivery events and operational events are
+  // clinic operations data. Nothing a non-universal profile can legitimately
+  // see is computed from them, and two of the three carry other people's
+  // contact details (`enquiries.full_name`, `email_delivery_events
+  // .recipient_email`). They are therefore not fetched at all for such a
+  // profile rather than fetched and filtered afterwards: data that never
+  // leaves the database cannot leak from a render site somebody forgets to
+  // narrow, which is exactly how ITEM L happened.
+  //
+  // The gate is `hasUniversalReportScope`, the SAME predicate this function
+  // already uses to scope bookings a few lines below, so the function has one
+  // notion of scope rather than two that can drift. Owner, Admin and Booking
+  // Coordinator all satisfy it, so their reports are byte-identical to before;
+  // only Therapist and Inactive narrow.
+  //
+  // ⚠️ `clients` and `staff` are deliberately still fetched clinic-wide. Both
+  // are reference data that correct numbers depend on — a client row resolves a
+  // booking's name, a staff row a denominator — so narrowing them here would
+  // change rendered figures rather than merely hide them. They are narrowed at
+  // the render sites instead: `filterReportDataToStaff` for clients, and
+  // `resolvableStaffFor` for staff names.
+  const universalScope = hasUniversalReportScope(profile);
+  const emptyResult = <T,>() => Promise.resolve({ data: [] as T[] });
+
   const [
     bookingsResult,
     assignmentsResult,
@@ -314,21 +338,27 @@ export async function getReportData(
       .from("staff_availability_rules")
       .select("staff_id, day_of_week, start_time, end_time, is_working_day")
       .returns<StaffAvailabilityRule[]>(),
-    adminClient
-      .from("enquiries")
-      .select("id, full_name, source, status, created_at, first_contacted_at, assigned_staff_id, converted_booking_id")
-      .order("created_at", { ascending: false })
-      .returns<ReportEnquiry[]>(),
-    adminClient
-      .from("email_delivery_events")
-      .select("id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, error_message, created_at")
-      .order("created_at", { ascending: false })
-      .returns<EmailEvent[]>(),
-    adminClient
-      .from("operational_events")
-      .select("id, event_type, severity, status, summary, booking_id, staff_id, created_at")
-      .order("created_at", { ascending: false })
-      .returns<OperationalEvent[]>(),
+    universalScope
+      ? adminClient
+          .from("enquiries")
+          .select("id, full_name, source, status, created_at, first_contacted_at, assigned_staff_id, converted_booking_id")
+          .order("created_at", { ascending: false })
+          .returns<ReportEnquiry[]>()
+      : emptyResult<ReportEnquiry>(),
+    universalScope
+      ? adminClient
+          .from("email_delivery_events")
+          .select("id, booking_id, staff_id, event_type, recipient_email, recipient_role, delivery_status, error_message, created_at")
+          .order("created_at", { ascending: false })
+          .returns<EmailEvent[]>()
+      : emptyResult<EmailEvent>(),
+    universalScope
+      ? adminClient
+          .from("operational_events")
+          .select("id, event_type, severity, status, summary, booking_id, staff_id, created_at")
+          .order("created_at", { ascending: false })
+          .returns<OperationalEvent[]>()
+      : emptyResult<OperationalEvent>(),
   ]);
 
   const allAssignments = assignmentsResult.data ?? [];
