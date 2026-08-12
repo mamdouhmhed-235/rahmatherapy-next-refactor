@@ -526,7 +526,7 @@ function UserMenuButton({
         >
           {/* Identity header — canvas tint (97.8%) separates this zone from the nav items (panel 99.2%) below */}
 
-          <div className="rounded-t-[calc(var(--admin-radius-card)-1px)] border-b border-[var(--admin-border)] bg-[oklch(97.8%_0.006_88)] px-3.5 py-2.5">
+          <div className="rounded-t-[calc(var(--admin-radius-card)-1px)] border-b border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-3.5 py-2.5">
             <p className="truncate text-sm font-semibold text-[var(--admin-heading)]">{profile.name}</p>
             <p className="truncate text-xs text-[var(--admin-text-muted)]">{profile.roleName}</p>
           </div>
@@ -801,7 +801,7 @@ function UserMenuSheet({
         </div>
 
         {/* Identity header — canvas tint creates zone distinction from nav items below */}
-        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[oklch(97.8%_0.006_88)] px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-4 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)] text-xs font-semibold text-[var(--admin-heading)]">
               {getInitials(profile.name)}

@@ -27,7 +27,7 @@ function chipMeta(
 ): { Icon: LucideIcon; className: string } | null {
   switch (chip) {
     case "confirmed":
-      return { Icon: Plus, className: "text-[oklch(38%_0.10_155)]" };
+      return { Icon: Plus, className: "text-[var(--admin-status-confirmed-chip-icon)]" };
     case "pending":
       return { Icon: Pencil, className: "text-[var(--admin-status-pending-chip-icon)]" };
     case "cancelled":
@@ -57,11 +57,11 @@ function chipLabel(chip: ReturnType<typeof describeAction>["chip"]): string {
 // Deterministic warm-clinical avatar tint per actor id, matching DESIGN.md §6.
 function avatarTint(seed: string | null): string {
   const tints = [
-    "bg-[oklch(91%_0.025_155)] text-[var(--admin-status-confirmed-text)]",
+    "bg-[var(--admin-avatar-tint-green)] text-[var(--admin-status-confirmed-text)]",
     "bg-[var(--admin-avatar-tint-amber)] text-[var(--admin-status-pending-text)]",
     "bg-[var(--admin-avatar-tint-violet)] text-[var(--admin-status-restricted-text)]",
     "bg-[var(--admin-status-completed-bg)] text-[var(--admin-status-completed-text)]",
-    "bg-[oklch(92%_0.025_120)] text-[var(--admin-status-confirmed-text)]",
+    "bg-[var(--admin-avatar-tint-lime)] text-[var(--admin-status-confirmed-text)]",
   ];
   if (!seed) return tints[0];
   let hash = 0;
@@ -228,7 +228,7 @@ export function AuditEventCard({ event, actorName, targetExists, currentFilters 
           />
           Show before / after
         </summary>
-        <div className="mt-3 grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-page,_oklch(97.8%_0.006_88))] p-3 md:grid-cols-2 md:divide-x md:divide-[var(--admin-border)]">
+        <div className="mt-3 grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] p-3 md:grid-cols-2 md:divide-x md:divide-[var(--admin-border)]">
           <div className="min-w-0">
             <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-wide text-[var(--admin-text-muted)]">
               Before{beforeNull ? ": (created)" : ""}

@@ -152,6 +152,19 @@
   --admin-status-confirmed-bg: oklch(93.5% 0.038 155);
   --admin-status-confirmed-text: oklch(22% 0.085 155);
   --admin-status-confirmed-border: oklch(88% 0.055 155);
+  /* ITEM 7 — confirmed-family hovers, avatar tints and tone fills.
+   * --admin-avatar-tint-* are a decorative palette: AuditEventCard picks one by
+   * hashing the actor id, so they carry no status meaning and are named by
+   * colour rather than by state. Their paired foregrounds are the status -text
+   * tokens, which invert, so each tint must invert with them. */
+  --admin-status-confirmed-bg-hover: oklch(88% 0.055 155);
+  --admin-status-confirmed-chip-icon: oklch(38% 0.10 155);
+  --admin-avatar-tint-green: oklch(91% 0.025 155);
+  --admin-avatar-tint-lime: oklch(92% 0.025 120);
+  --admin-status-confirmed-card-hover: oklch(91.5% 0.045 155);
+  --admin-status-confirmed-border-strong: oklch(70% 0.10 155);
+  --admin-tone-success-icon: oklch(35% 0.085 155);
+  --admin-tone-success-fill: oklch(50% 0.085 155);
   --admin-status-pending-bg: oklch(96% 0.038 75);
   --admin-status-pending-text: oklch(28% 0.12 55);
   --admin-status-pending-border: oklch(88% 0.055 75);
@@ -251,6 +264,17 @@
   --admin-radius-control: 0.625rem;
   --admin-border-form: oklch(55% 0.022 80);
   --admin-surface-input: oklch(98.5% 0.005 88);
+  /* ITEM 7 — warm neutral surfaces.
+   * --admin-email-preview-bg deliberately does NOT invert: it is the paper the
+   * template preview renders the outgoing email on, and the recipient will see
+   * that email on white whatever theme the admin is using. Stating that as a
+   * token beats leaving it as a literal that only looks like an oversight.
+   * --admin-surface-on-tint is a plain disc sitting on a status-tinted card. */
+  --admin-surface-subtle: oklch(97.8% 0.006 88);
+  --admin-ring-gap: oklch(99.2% 0.004 88);
+  --admin-email-preview-bg: oklch(99.2% 0.004 88);
+  --admin-surface-on-tint: oklch(99.5% 0.003 88);
+  --admin-avatar-neutral-bg: oklch(96% 0.012 88);
   /* Brand-Tinted Shadow Rule (was Green-Tinted Shadow Rule): all admin shadows
    * tint to the new primary blue (hue 247) instead of clinic green (hue 155). */
   --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
@@ -510,6 +534,19 @@
   --admin-status-confirmed-bg: oklch(29% 0.052 158);
   --admin-status-confirmed-text: oklch(89% 0.105 158);
   --admin-status-confirmed-border: oklch(42% 0.070 158);
+  /* ITEM 7 — confirmed-family hovers, avatar tints and tone fills.
+   * --admin-avatar-tint-* are a decorative palette: AuditEventCard picks one by
+   * hashing the actor id, so they carry no status meaning and are named by
+   * colour rather than by state. Their paired foregrounds are the status -text
+   * tokens, which invert, so each tint must invert with them. */
+  --admin-status-confirmed-bg-hover: oklch(38% 0.075 158);
+  --admin-status-confirmed-chip-icon: oklch(73% 0.124 158);
+  --admin-avatar-tint-green: oklch(28% 0.034 158);
+  --admin-avatar-tint-lime: oklch(29% 0.034 120);
+  --admin-status-confirmed-card-hover: oklch(33% 0.062 158);
+  --admin-status-confirmed-border-strong: oklch(42% 0.090 158);
+  --admin-tone-success-icon: oklch(76% 0.105 158);
+  --admin-tone-success-fill: oklch(66% 0.076 155);
   --admin-status-pending-bg: oklch(30% 0.050 75);
   --admin-status-pending-text: oklch(91% 0.080 82);
   --admin-status-pending-border: oklch(43% 0.068 75);
@@ -578,6 +615,17 @@
   --admin-client-accent: oklch(74% 0.075 275);
   --admin-border-form: oklch(58% 0.018 80);
   --admin-surface-input: oklch(25% 0.008 88);
+  /* ITEM 7 — warm neutral surfaces.
+   * --admin-email-preview-bg deliberately does NOT invert: it is the paper the
+   * template preview renders the outgoing email on, and the recipient will see
+   * that email on white whatever theme the admin is using. Stating that as a
+   * token beats leaving it as a literal that only looks like an oversight.
+   * --admin-surface-on-tint is a plain disc sitting on a status-tinted card. */
+  --admin-surface-subtle: oklch(26% 0.008 88);
+  --admin-ring-gap: oklch(22% 0.008 88);
+  --admin-email-preview-bg: oklch(99.2% 0.004 88);
+  --admin-surface-on-tint: oklch(22% 0.008 88);
+  --admin-avatar-neutral-bg: oklch(26% 0.008 88);
   /* Shadows drop the brand-blue tint: a blue-tinted shadow is invisible on a
    * dark canvas, so dark mode leans on near-black at a higher alpha instead.
    * Geometry is unchanged from the light values. */
@@ -723,6 +771,19 @@
   --admin-status-confirmed-bg: oklch(93.5% 0.038 155);
   --admin-status-confirmed-text: oklch(22% 0.085 155);
   --admin-status-confirmed-border: oklch(88% 0.055 155);
+  /* ITEM 7 — confirmed-family hovers, avatar tints and tone fills.
+   * --admin-avatar-tint-* are a decorative palette: AuditEventCard picks one by
+   * hashing the actor id, so they carry no status meaning and are named by
+   * colour rather than by state. Their paired foregrounds are the status -text
+   * tokens, which invert, so each tint must invert with them. */
+  --admin-status-confirmed-bg-hover: oklch(88% 0.055 155);
+  --admin-status-confirmed-chip-icon: oklch(38% 0.10 155);
+  --admin-avatar-tint-green: oklch(91% 0.025 155);
+  --admin-avatar-tint-lime: oklch(92% 0.025 120);
+  --admin-status-confirmed-card-hover: oklch(91.5% 0.045 155);
+  --admin-status-confirmed-border-strong: oklch(70% 0.10 155);
+  --admin-tone-success-icon: oklch(35% 0.085 155);
+  --admin-tone-success-fill: oklch(50% 0.085 155);
   --admin-status-pending-bg: oklch(96% 0.038 75);
   --admin-status-pending-text: oklch(28% 0.12 55);
   --admin-status-pending-border: oklch(88% 0.055 75);
@@ -790,6 +851,17 @@
   --admin-client-accent: #9aaadd;
   --admin-border-form: oklch(55% 0.022 80);
   --admin-surface-input: oklch(98.5% 0.005 88);
+  /* ITEM 7 — warm neutral surfaces.
+   * --admin-email-preview-bg deliberately does NOT invert: it is the paper the
+   * template preview renders the outgoing email on, and the recipient will see
+   * that email on white whatever theme the admin is using. Stating that as a
+   * token beats leaving it as a literal that only looks like an oversight.
+   * --admin-surface-on-tint is a plain disc sitting on a status-tinted card. */
+  --admin-surface-subtle: oklch(97.8% 0.006 88);
+  --admin-ring-gap: oklch(99.2% 0.004 88);
+  --admin-email-preview-bg: oklch(99.2% 0.004 88);
+  --admin-surface-on-tint: oklch(99.5% 0.003 88);
+  --admin-avatar-neutral-bg: oklch(96% 0.012 88);
   --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
   --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
   --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);
@@ -924,6 +996,19 @@
     --admin-status-confirmed-bg: oklch(93.5% 0.038 155);
     --admin-status-confirmed-text: oklch(22% 0.085 155);
     --admin-status-confirmed-border: oklch(88% 0.055 155);
+    /* ITEM 7 — confirmed-family hovers, avatar tints and tone fills.
+     * --admin-avatar-tint-* are a decorative palette: AuditEventCard picks one by
+     * hashing the actor id, so they carry no status meaning and are named by
+     * colour rather than by state. Their paired foregrounds are the status -text
+     * tokens, which invert, so each tint must invert with them. */
+    --admin-status-confirmed-bg-hover: oklch(88% 0.055 155);
+    --admin-status-confirmed-chip-icon: oklch(38% 0.10 155);
+    --admin-avatar-tint-green: oklch(91% 0.025 155);
+    --admin-avatar-tint-lime: oklch(92% 0.025 120);
+    --admin-status-confirmed-card-hover: oklch(91.5% 0.045 155);
+    --admin-status-confirmed-border-strong: oklch(70% 0.10 155);
+    --admin-tone-success-icon: oklch(35% 0.085 155);
+    --admin-tone-success-fill: oklch(50% 0.085 155);
     --admin-status-pending-bg: oklch(96% 0.038 75);
     --admin-status-pending-text: oklch(28% 0.12 55);
     --admin-status-pending-border: oklch(88% 0.055 75);
@@ -991,6 +1076,17 @@
     --admin-client-accent: #9aaadd;
     --admin-border-form: oklch(55% 0.022 80);
     --admin-surface-input: oklch(98.5% 0.005 88);
+    /* ITEM 7 — warm neutral surfaces.
+     * --admin-email-preview-bg deliberately does NOT invert: it is the paper the
+     * template preview renders the outgoing email on, and the recipient will see
+     * that email on white whatever theme the admin is using. Stating that as a
+     * token beats leaving it as a literal that only looks like an oversight.
+     * --admin-surface-on-tint is a plain disc sitting on a status-tinted card. */
+    --admin-surface-subtle: oklch(97.8% 0.006 88);
+    --admin-ring-gap: oklch(99.2% 0.004 88);
+    --admin-email-preview-bg: oklch(99.2% 0.004 88);
+    --admin-surface-on-tint: oklch(99.5% 0.003 88);
+    --admin-avatar-neutral-bg: oklch(96% 0.012 88);
     --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
     --admin-shadow-subtle: 0 1px 2px rgba(27, 24, 18, 0.04);
     --admin-shadow-hover: 0 2px 8px oklch(41% 0.105 247 / 0.08);

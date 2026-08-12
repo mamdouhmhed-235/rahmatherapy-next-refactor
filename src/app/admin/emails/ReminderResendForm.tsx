@@ -108,7 +108,7 @@ export function ReminderResendForm({
           "inline-flex w-full min-h-11 items-center justify-center gap-2 rounded-[var(--admin-radius-control)] px-4 text-sm font-semibold outline-none transition-colors duration-150 sm:w-auto",
           "focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55",
           sent
-            ? "bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)] border border-[oklch(70%_0.10_155)]"
+            ? "bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)] border border-[var(--admin-status-confirmed-border-strong)]"
             : "bg-[var(--admin-primary)] text-[var(--admin-on-primary)] hover:bg-[var(--admin-primary-hover)]",
           sending && "cursor-progress opacity-90"
         )}

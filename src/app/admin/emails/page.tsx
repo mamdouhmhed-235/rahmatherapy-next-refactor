@@ -713,7 +713,7 @@ function DeliveryEventRow({
               ? "bg-[var(--admin-status-cancelled-bg)] text-[var(--admin-status-cancelled-text)]"
               : isMissingRecipient
                 ? "bg-[var(--admin-status-attention-bg)] text-[var(--admin-status-attention-text)]"
-                : "bg-[oklch(96%_0.012_88)] text-[var(--admin-primary)]"
+                : "bg-[var(--admin-avatar-neutral-bg)] text-[var(--admin-primary)]"
           )}
           aria-hidden="true"
         >
@@ -906,7 +906,7 @@ function ReminderRow({
     >
       <span
         aria-hidden="true"
-        className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[oklch(96%_0.012_88)] font-semibold text-[var(--admin-primary)]"
+        className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--admin-avatar-neutral-bg)] font-semibold text-[var(--admin-primary)]"
       >
         {initialsFromName(booking.contact_full_name)}
       </span>

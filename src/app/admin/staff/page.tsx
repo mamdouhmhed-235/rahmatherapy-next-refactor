@@ -699,7 +699,7 @@ function WorkloadSegment({
       : tone === "info"
         ? "text-[var(--admin-tone-info-icon)]"
         : tone === "success"
-          ? "text-[oklch(35%_0.085_155)]"
+          ? "text-[var(--admin-tone-success-icon)]"
           : "text-[var(--admin-text-muted)]";
   const countWeight =
     tone === "warning" || tone === "info"
@@ -827,7 +827,7 @@ function ProgressDots({
     tone === "warning"
       ? "bg-[var(--admin-tone-warning-fill)]"
       : tone === "success"
-        ? "bg-[oklch(50%_0.085_155)]"
+        ? "bg-[var(--admin-tone-success-fill)]"
         : "bg-[var(--admin-text-muted)]";
   return (
     <span

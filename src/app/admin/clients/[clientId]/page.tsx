@@ -648,12 +648,12 @@ export default async function ClientDetailPage({
         {nextVisit ? (
           <Link
             href={`/admin/bookings/${nextVisit.id}`}
-            className="group flex flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)] px-4 py-3 text-sm transition-colors hover:bg-[oklch(91.5%_0.045_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+            className="group flex flex-wrap items-center gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-status-confirmed-border)] bg-[var(--admin-status-confirmed-bg)] px-4 py-3 text-sm transition-colors hover:bg-[var(--admin-status-confirmed-card-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
             aria-label="Open next upcoming booking"
           >
             <span
               aria-hidden="true"
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[oklch(99.5%_0.003_88)] text-[var(--admin-status-confirmed-text)]"
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--admin-surface-on-tint)] text-[var(--admin-status-confirmed-text)]"
             >
               <CalendarCheck className="size-4" />
             </span>
@@ -885,7 +885,7 @@ function BookingTabs({
             <span
               className={
                 isActive
-                  ? "rounded-full bg-[oklch(99.5%_0.003_88)]/30 px-1.5 text-[0.6875rem] font-semibold tabular-nums !text-[var(--admin-on-primary)] ring-1 ring-inset ring-white/35"
+                  ? "rounded-full bg-[var(--admin-on-primary)]/30 px-1.5 text-[0.6875rem] font-semibold tabular-nums !text-[var(--admin-on-primary)] ring-1 ring-inset ring-white/35"
                   : "rounded-full bg-[var(--admin-panel)] px-1.5 text-[0.6875rem] font-semibold tabular-nums text-[var(--admin-text-muted)]"
               }
             >
@@ -975,7 +975,7 @@ function ContactPanel({
                         rel="noopener noreferrer"
                         title="Open in WhatsApp"
                         aria-label="Message on WhatsApp"
-                        className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)] transition-colors hover:bg-[oklch(88%_0.055_155)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 print:hidden"
+                        className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--admin-status-confirmed-bg)] text-[var(--admin-status-confirmed-text)] transition-colors hover:bg-[var(--admin-status-confirmed-bg-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55 print:hidden"
                       >
                         <MessageCircle className="size-3.5" aria-hidden="true" />
                       </a>
@@ -1550,7 +1550,7 @@ function BookingFilterStrip({
             tab: activeTab,
             status: statusFilter,
           })}
-          className="inline-flex h-8 items-center gap-1 rounded-full bg-[var(--admin-status-confirmed-bg)] px-3 text-xs font-medium text-[var(--admin-status-confirmed-text)] outline-none transition-colors hover:bg-[oklch(88%_0.055_155)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+          className="inline-flex h-8 items-center gap-1 rounded-full bg-[var(--admin-status-confirmed-bg)] px-3 text-xs font-medium text-[var(--admin-status-confirmed-text)] outline-none transition-colors hover:bg-[var(--admin-status-confirmed-bg-hover)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
           title="Clear service filter"
         >
           <span className="truncate max-w-[12rem]">{serviceFilter}</span>

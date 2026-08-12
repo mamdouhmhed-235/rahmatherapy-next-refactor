@@ -191,7 +191,7 @@ export function LivePreview({ templateId, cardName, values }: LivePreviewProps) 
         </label>
       </div>
 
-      <div className="relative overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[oklch(99.2%_0.004_88)]">
+      <div className="relative overflow-hidden rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-email-preview-bg)]">
         {initialStatus === "loading" ? (
           <div className="absolute inset-0 z-10 flex flex-col gap-3 p-5" aria-hidden="true">
             <AdminSkeleton className="h-6 w-2/3" />
