@@ -22,7 +22,7 @@ import {
 import { CONSENT_COOKIE, type ConsentChoices } from "../consent-state";
 
 const INVENTORY_NAMES = [
-  "zam-therapy-booking-draft-v3",
+  "rahma-booking-draft-v1",
   "rahma-booking-contact-v1",
   "_ga / _ga_*",
   "maintenance-modal-seen",

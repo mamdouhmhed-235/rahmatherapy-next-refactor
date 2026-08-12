@@ -117,7 +117,7 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
   {
     // src/features/booking/store/booking-store.ts:75-79 — zustand `persist`,
     // `partialize` limits the persisted shape to `selectedPackageIds` only.
-    name: "zam-therapy-booking-draft-v3",
+    name: "rahma-booking-draft-v1",
     provider: "Rahma Therapy",
     type: "localStorage",
     purpose: "essential",
