@@ -56,11 +56,34 @@ intermittent, not gone.
 ### The three contrast layers — current readings
 
 ```powershell
-node scripts/measure-admin-contrast.mjs .      # 123 failures (45 dark / 78 light), 240 unresolved, 152 tokens
+node scripts/measure-admin-contrast.mjs .      # 127 failures (49 dark / 78 light), 216 unresolved, 153 tokens
 node scripts/verify-admin-token-contrast.mjs   # 0 failures
 npx vitest run scripts/                        # 42 passed
 node --env-file=.env ./node_modules/@playwright/test/cli.js test e2e/admin-contrast.spec.ts --project=chromium
 ```
+
+> **⛔ CORRECTED 2026-08-12 (seventh session).** This block previously read
+> *"123 failures (45 dark / 78 light), 240 unresolved, 152 tokens"*. Those are
+> the readings at **`70a5af9`** — the base commit `CLEANUP-AND-CONTRAST-plan.md`
+> §1 declares, where they are still correct. They were carried into this file
+> unchanged, but two commits in this handoff's own list had already moved them:
+>
+> | commit | tokens | unresolved | total | dark | light |
+> |---|---|---|---|---|---|
+> | `70a5af9` | 152 | 240 | 123 | 45 | 78 |
+> | `7d2f787` (the button fix) | 152 | **216** | 123 | 45 | 78 |
+> | `1d85f97` (the avatar ink) | **153** | 216 | **127** | **49** | 78 |
+> | `1e75adc` → `0dd1a6e` | 153 | 216 | 127 | 49 | 78 |
+>
+> Measured in throwaway `git worktree`s at each commit, twice, identically. Note
+> `1d85f97` **added** four Layer 1 dark findings and a token while removing
+> Layer 3 ones — the two layers are different instruments and do not move
+> together. **Light stayed 78 throughout**, which is exactly why the staleness
+> hid: the one number anyone was watching never changed.
+>
+> Method note: the failing check here was *"the numbers do not reproduce"*, not
+> *"the plan is wrong"*. Re-measuring at the commit a document names, before
+> editing it, separated a stale carry-forward from an actual error.
 
 **Layer 3 is now DETERMINISTIC** (see gotcha 55) — **79 failures total**, dark
 **3 per role**, and two consecutive runs produce **byte-identical** evidence
