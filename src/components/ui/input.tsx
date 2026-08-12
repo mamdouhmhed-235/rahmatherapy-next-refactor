@@ -32,7 +32,7 @@ export function Input({
         "px-3 py-2 text-sm text-[var(--admin-body)]",
         // Placeholder
         "placeholder:text-[var(--admin-text-muted)]",
-        // Focus — Focus Azure ring, border shifts to focus colour
+        // Focus — --admin-focus ring, border shifts to the same colour.
         "focus-visible:border-[var(--admin-focus)]",
         "focus-visible:outline-none",
         "focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/30",

@@ -399,6 +399,40 @@ export async function setAdminTheme(page: Page, theme: AdminTheme): Promise<Them
   }, theme);
 }
 
+/**
+ * ⛔ WHY THIS EXISTS — the sweep's light-theme numbers were not reproducible.
+ *
+ * `THEMES` is ["dark", "light"], so every route is audited in dark first and
+ * then FLIPPED to light. `setAdminTheme` only sets the attribute; the audit ran
+ * on the very next line. The admin applies `transition-colors` at
+ * `--motion-duration-fast` (160ms) on cards, rows, chips and links throughout,
+ * so the light pass was sampling a page part-way through a 160ms dark->light
+ * interpolation, while the dark pass sampled an already-settled page.
+ *
+ * Measured before this fix, on identical code with identical node counts:
+ * `/admin/audit` OWNER-light reported 225 failures on one run and 115 on the
+ * next, and `/admin/availability` 34 then 57 — while all four dark files
+ * matched to the unit. The light files also recorded colours that exist in
+ * NEITHER palette (e.g. rgb(131,133,128) on rgb(124,122,118)) and, on some
+ * rows, the dark canvas as a background.
+ *
+ * Suppressing transitions — not animations — makes both passes read the settled
+ * end state, which is what a contrast audit is supposed to measure. Animations
+ * are deliberately left alone: `animate-pulse` skeletons and `motion-safe:
+ * animate-in` entrances would change what is on screen if disabled, whereas a
+ * transition only interpolates between two states this audit already samples.
+ */
+async function suppressColourTransitions(page: Page): Promise<void> {
+  await page
+    .addStyleTag({
+      content: `*, *::before, *::after { transition: none !important; }`,
+    })
+    .catch(() => {
+      /* a CSP-blocked style tag must not fail the sweep; the audit still runs,
+         it is only the light half that becomes noisy again. */
+    });
+}
+
 // AdminAccessDenied (src/app/admin/components/admin-ui.tsx) always renders
 // this CTA link when a non-inactive denial is shown in place (same URL,
 // HTTP 200) — a title-text-independent, code-grounded detection signal.
@@ -435,6 +469,8 @@ export async function visitAndAudit(page: Page, templatePath: string, rawUrl: st
     entry.landedUrl = page.url();
     return entry;
   }
+
+  await suppressColourTransitions(page);
 
   for (const theme of THEMES) {
     const themeResult = await setAdminTheme(page, theme);

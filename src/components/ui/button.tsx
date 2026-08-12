@@ -21,15 +21,17 @@ export const buttonVariants = cva(
           "rounded-none px-0 text-primary underline-offset-4 hover:underline",
 
         // ── Admin variants — DESIGN.md §5 ──────────────────────────────────
-        // Primary: Clinic Green fill, Field White text.
+        // Primary: --admin-primary fill, --admin-action-primary-text label.
+        // That label token is #ffffff in light and near-black in dark, because
+        // the fill inverts to a pale blue — a hardcoded white read 2.11:1 on it.
         "admin-primary":
-          "bg-[var(--admin-primary)] text-white hover:bg-[var(--admin-primary-hover)] active:bg-[var(--admin-primary-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+          "bg-[var(--admin-primary)] text-[var(--admin-action-primary-text)] hover:bg-[var(--admin-primary-hover)] active:bg-[var(--admin-primary-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Secondary: Form Seam border, transparent fill.
         "admin-secondary":
           "border border-[var(--admin-border-form)] bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-button-subtle-hover)] active:bg-[var(--admin-button-subtle-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Destructive: Cancelled-family fill. Use only for explicit destructive confirmed actions.
         "admin-destructive":
-          "bg-[var(--admin-danger-solid)] text-white hover:bg-[var(--admin-danger-solid-hover)] active:bg-[var(--admin-danger-solid-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
+          "bg-[var(--admin-danger-solid)] text-[var(--admin-action-primary-text)] hover:bg-[var(--admin-danger-solid-hover)] active:bg-[var(--admin-danger-solid-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",
         // Ghost: no border, no fill. Hover Moss on hover.
         "admin-ghost":
           "bg-transparent text-[var(--admin-body)] hover:bg-[var(--admin-button-subtle-hover)] active:bg-[var(--admin-button-subtle-active)] focus-visible:ring-[var(--admin-focus)]/55 focus-visible:ring-offset-[var(--admin-canvas)]",

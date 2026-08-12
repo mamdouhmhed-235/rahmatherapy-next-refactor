@@ -356,7 +356,7 @@ export function BookingsChrome({
                 className={cn(
                   "inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[0.6875rem] font-semibold",
                   isActive
-                    ? "bg-[var(--admin-on-primary)]/20 text-[var(--admin-on-primary)]"
+                    ? "bg-[var(--admin-on-primary)] text-[var(--admin-primary)]"
                     : "bg-[var(--admin-selected-sky)] text-[var(--admin-heading)]"
                 )}
               />

@@ -885,7 +885,7 @@ function BookingTabs({
             <span
               className={
                 isActive
-                  ? "rounded-full bg-[var(--admin-on-primary)]/30 px-1.5 text-[0.6875rem] font-semibold tabular-nums !text-[var(--admin-on-primary)] ring-1 ring-inset ring-white/35"
+                  ? "rounded-full bg-[var(--admin-on-primary)] px-1.5 text-[0.6875rem] font-semibold tabular-nums !text-[var(--admin-primary)]"
                   : "rounded-full bg-[var(--admin-panel)] px-1.5 text-[0.6875rem] font-semibold tabular-nums text-[var(--admin-text-muted)]"
               }
             >

@@ -1,5 +1,35 @@
 # Item 7 Phase D — Layer 3 authenticated sweep, and a defect in the instrument
 
+> **✅ FIXED 2026-08-12, later the same day, by Owner instruction.** The
+> transition race described below is closed: `visitAndAudit` now injects
+> `*, *::before, *::after { transition: none !important; }` before the theme
+> loop, so both passes read the settled end state. Animations are deliberately
+> left running — killing `animate-pulse` or `motion-safe:animate-in` would
+> change what is on screen, whereas a transition only interpolates between two
+> states the audit already samples.
+>
+> **The instrument is now deterministic.** Two consecutive runs produced
+> **byte-identical** output in all ten evidence files — a stronger result than
+> matching totals. And the light half turned out to have been almost entirely
+> artefact:
+>
+> | role · light | before the fix | after |
+> |---|---:|---:|
+> | OWNER | 632 / 544 (unstable) | **24** |
+> | ADMIN | 533 / 612 (unstable) | **24** |
+> | COORDINATOR | 250 | **20** |
+> | THERAPIST_A | 74 / 80 | **2** |
+>
+> Every dark figure was unchanged by the fix (113 / 113 / 31 / 1), which is the
+> control: the dark pass was always sampling a settled page, so a correct fix
+> had to leave it alone, and it did.
+>
+> Sweep total **1745 → 328**. The rest of this file is the original analysis,
+> kept because it is the evidence for why the fix was needed.
+
+---
+
+
 Run 2026-08-12 against the Owner's dev server at `http://localhost:3000`, at
 `d1425cf`, twice:
 
@@ -102,3 +132,57 @@ item 7: `/admin/password-reset`'s "Back to sign in" link at 3.09:1,
 `ThemeProvider` — `src/app/admin/layout.tsx` returns `children` unwrapped when
 there is no staff profile — so in the real product that page is never dark. It
 is an artefact of the harness forcing a theme the page cannot otherwise reach.
+
+---
+
+## What the sweep says now that it can be trusted (2026-08-12, post-fix)
+
+Total **328** failures over 13,480 nodes. Two consecutive runs byte-identical.
+
+| role · theme | failures |
+|---|---:|
+| OWNER-dark / ADMIN-dark | 113 each |
+| COORDINATOR-dark | 31 |
+| THERAPIST_A-dark | 1 |
+| OWNER-light / ADMIN-light | 24 each |
+| COORDINATOR-light | 20 |
+| THERAPIST_A-light | 2 |
+| UNAUTHENTICATED, both themes | **0** |
+
+`UNAUTHENTICATED` reached zero in this pass: the two failures the fix exposed —
+"Sign in" and "Submit request" at 2.11:1 — were `button.tsx`'s hardcoded
+`text-white` on a fill that inverts. They now take
+`--admin-action-primary-text`, whose light value is `#ffffff`, so light mode is
+byte-identical and dark goes 2.11:1 → 8.93:1.
+
+### ⛔ The largest remaining dark defect class is NOT a token problem
+
+**15 of OWNER-dark's 113 are one pair: `rgb(225,222,215)` on `rgb(240,240,240)`,
+at 1.18:1** — and `rgb(240,240,240)` is not a token. No `--admin-*` token
+resolves to it in either theme, and `color-scheme` is declared nowhere in the
+repo. It is the browser's default `ButtonFace`, showing through on `<button>`
+elements that never set a background. In dark mode the admin's light text lands
+on that permanently-light UA default.
+
+The fix is a `color-scheme: dark` declaration on the theme root (which makes the
+UA defaults invert) or explicit backgrounds on those buttons. Either is a
+distinct change with a broad visual blast radius — scrollbars, form controls and
+every unstyled UA surface in the admin — so it wants its own item, its own
+review and its own sweep. **Recorded, not attempted.**
+
+70 of OWNER-dark's 113 sit on `/admin/audit` alone, so that route is the single
+highest-yield place to look next.
+
+### The light half, in full — 24 for OWNER
+
+| ratio | route | text |
+|---|---|---|
+| 3.80:1 ×6 | `/admin/clients` | "Last visit" |
+| 2.14:1 ×3 | `/admin/clients` | "·" separator |
+| 2.13:1 ×3 | `/admin/operations` | "0" |
+| 3.09:1 ×2 | `/admin/dashboard` | "Updated", "just now" |
+| 2.27:1 | `/admin/privacy` | "0" |
+
+These are muted metadata tones on panel — a deliberate design choice that has
+never been contrast-checked, now measurable for the first time. They are the
+real accessibility backlog, and they are small enough to be worth a pass.
