@@ -32,6 +32,7 @@ import type { StaffProfile } from "@/lib/auth/rbac";
 import {
   buildPriorPeriodFilters,
   getReportData,
+  resolvableStaffFor,
   type ReportData,
   type ReportFilters,
 } from "./reporting";
@@ -128,6 +129,28 @@ export const fetchReportInsights = cache(
       fetchPriorReportData(profile, filters),
       fetchDismissedInsightIds(profile.id),
     ]);
-    return getReportInsights(data, priorData, new Set(dismissedIds));
+    // ⛔ ITEM N — narrow the roster before the insight rules see it.
+    //
+    // `getReportInsights`' per-staff utilisation rule loops `data.staff` and,
+    // on a hit, renders "{name}'s utilisation dropped from X% to Y%" with a
+    // drill link to that person. The stripe is mounted for EVERY role that can
+    // open Reports, with no therapist gate, so without this a Therapist could
+    // be shown a colleague by name on an ordinary page load.
+    //
+    // `getScopedBookingIds` scopes at the BOOKING level: hold one assignment on
+    // a booking and every OTHER assignment on it arrives too. So on a shared
+    // multi-participant booking a colleague's utilisation computes non-zero and
+    // the rule fires — off a partial booking set, so the percentages would be
+    // wrong as well as not theirs. `filterReportDataToStaff` does not close
+    // this: it narrows bookings, assignments, bookingItems and clients, and
+    // leaves `staff` untouched.
+    const scoped = {
+      ...data,
+      staff: resolvableStaffFor(profile, data.staff),
+    };
+    const scopedPrior = priorData
+      ? { ...priorData, staff: resolvableStaffFor(profile, priorData.staff) }
+      : priorData;
+    return getReportInsights(scoped, scopedPrior, new Set(dismissedIds));
   }
 );

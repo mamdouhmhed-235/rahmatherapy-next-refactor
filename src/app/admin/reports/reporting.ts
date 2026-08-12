@@ -274,14 +274,19 @@ export async function getReportData(
   profile: StaffProfile,
   filters: ReportFilters
 ): Promise<ReportData> {
-  // ITEM N — enquiries, email delivery events and operational events are
-  // clinic operations data. Nothing a non-universal profile can legitimately
-  // see is computed from them, and two of the three carry other people's
-  // contact details (`enquiries.full_name`, `email_delivery_events
-  // .recipient_email`). They are therefore not fetched at all for such a
-  // profile rather than fetched and filtered afterwards: data that never
-  // leaves the database cannot leak from a render site somebody forgets to
-  // narrow, which is exactly how ITEM L happened.
+  // ITEM N — enquiries, email delivery events and operational events are clinic
+  // operations data, and two of the three carry other people's contact details
+  // (`enquiries.full_name`, `email_delivery_events.recipient_email`). They are
+  // not fetched at all for a non-universal profile, rather than fetched and
+  // filtered afterwards: data that never leaves the database cannot leak from a
+  // render site somebody forgets to narrow, which is exactly how ITEM L
+  // happened.
+  //
+  // ⚠️ Two therapist-visible readings DO change as a result, and that is the
+  // intent rather than an oversight: BusinessPulseCard's "new enquiries in
+  // period" now reads 0, and the insights stripe's time-to-first-contact rule
+  // (`report-insights.ts`) stops firing. Both were computed from the whole
+  // clinic's enquiry table and were never that reader's to see.
   //
   // The gate is `hasUniversalReportScope`, the SAME predicate this function
   // already uses to scope bookings a few lines below, so the function has one
@@ -1658,10 +1663,16 @@ function filterAuditLogsToPeriod(
  *
  * ITEM N — `getReportData` narrows bookings only, so `data.staff` is the whole
  * clinic roster for every profile, including a Therapist holding none of
- * VIEW_STAFF or MANAGE_STAFF_PROFILES. Any surface that turns a staff id into a
- * name must therefore narrow it here first; handed the raw roster and an
- * unvalidated `?staffId=` it would resolve a colleague's name for anyone who
- * guessed or copied their id.
+ * VIEW_STAFF or MANAGE_STAFF_PROFILES.
+ *
+ * Applied at the two sites that could otherwise render a name to someone with
+ * no claim to it: the active-filter chips (`reports/page.tsx`, where `?staffId=`
+ * is unvalidated) and the insights stripe (`reports-data.ts`, whose per-staff
+ * rule loops the roster). It is deliberately NOT applied to two others, because
+ * neither can reach a colleague: `drilledStaffName` reads `effectiveStaffId`,
+ * which is pinned to `profile.id` for any non-universal scope, and the staff
+ * `<select>` renders only under `!isTherapistScope`. If either of those
+ * conditions is ever relaxed, they need this too.
  *
  * A viewer always keeps themselves, so their own scope pill and filter chips
  * still read as a name rather than a UUID. Anything else falls back to the id
