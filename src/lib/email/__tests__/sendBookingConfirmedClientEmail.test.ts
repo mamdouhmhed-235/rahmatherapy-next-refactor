@@ -159,6 +159,25 @@ beforeEach(() => {
 });
 
 describe("sendBookingConfirmedClientEmail", () => {
+  // Item 8 Phase 5 — proves the WIRING, not just the renderer: a fee stored on
+  // the booking row has to survive BOOKING_EMAIL_SELECT and
+  // getBookingTemplateInput to reach the customer. The renderer itself is
+  // covered by travel-fee-line.test.ts.
+  it("sends the fee-inclusive total with a labelled travel charge", async () => {
+    const stub = stubClient({
+      booking: { ...baseBooking(), travel_fee: 14, total_price: 69 },
+    });
+
+    await sendBookingConfirmedClientEmail("booking-1", stub.client);
+
+    const call = vi.mocked(sendEmail).mock.calls[0][0];
+    expect(call.html as string).toContain("Travel charge:");
+    expect(call.html as string).toContain("£14.00");
+    // The fee is already folded into total_price, so the total is the
+    // fee-inclusive figure and not the service price.
+    expect(call.html as string).toContain("£69.00");
+  });
+
   it("sends the booking-confirmed email to the client with the default copy", async () => {
     const stub = stubClient({ booking: baseBooking() });
 

@@ -50,7 +50,8 @@ export const SAMPLE_TEMPLATE_INPUT: BookingEmailTemplateInput = {
   startTime: "14:30",
   endTime: "15:30",
   addressLines: ["12 Oak Lane", "Luton LU2 3AB"],
-  totalPrice: 65,
+  totalPrice: 79,
+  travelFee: 14,
   participantCount: 1,
   participants: [
     {

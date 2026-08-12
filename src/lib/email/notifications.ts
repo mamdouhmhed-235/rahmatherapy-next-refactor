@@ -101,6 +101,7 @@ interface BookingEmailRecord {
   start_time: string;
   end_time: string;
   total_price: number | string | null;
+  travel_fee: number | string | null;
   group_booking: boolean;
   service_address_line1: string | null;
   service_address_line2: string | null;
@@ -129,6 +130,7 @@ const BOOKING_EMAIL_SELECT = `
   start_time,
   end_time,
   total_price,
+  travel_fee,
   group_booking,
   service_address_line1,
   service_address_line2,
@@ -253,6 +255,7 @@ async function getBookingTemplateInput(
     endTime: booking.end_time,
     addressLines: getAddressLines(booking),
     totalPrice: Number(booking.total_price ?? 0),
+    travelFee: Number(booking.travel_fee ?? 0),
     participantCount: booking.booking_participants.length,
     participants: getParticipantRows(booking),
     manageUrl,

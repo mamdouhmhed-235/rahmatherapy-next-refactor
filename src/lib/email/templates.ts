@@ -21,6 +21,10 @@ export interface BookingEmailTemplateInput {
   endTime: string;
   addressLines: string[];
   totalPrice: number;
+  /** Item 8 Phase 5 — already INCLUDED in totalPrice. Carried separately
+   *  only so the summary can print a labelled line; never add it to the
+   *  total at render time or the customer is charged twice on paper. */
+  travelFee?: number;
   participantCount: number;
   participants: EmailParticipant[];
   manageUrl?: string;
@@ -100,6 +104,7 @@ export function buildVarMap(
     manageUrl: input.manageUrl ?? null,
     addressLines: (input.addressLines ?? []).join(", "),
     totalPrice: input.totalPrice,
+    travelFee: input.travelFee ?? 0,
     therapistName: input.participants[0]?.assignedStaffName ?? null,
     customerNotes: input.customerNotes ?? null,
     ...extras,
@@ -242,6 +247,15 @@ function renderLayout(title: string, body: string) {
 
 function renderSummary(input: BookingEmailTemplateInput) {
   const address = input.addressLines.map(escapeHtml).join("<br>");
+  // Emitted only when there is a charge, and carrying its own trailing indent,
+  // so a fee-less booking renders byte-identically to before item 8.
+  const travelFeeLine =
+    input.travelFee && input.travelFee > 0
+      ? `<p style="margin:10px 0 0;font-size:14px;color:#53615d;">Travel charge: <strong style="color:#1f2f2b;">${escapeHtml(
+          formatMoney(input.travelFee)
+        )}</strong></p>
+      `
+      : "";
 
   return `
     <div style="margin:22px 0;padding:18px;border-radius:14px;background:#f7f3ec;">
@@ -252,7 +266,7 @@ function renderSummary(input: BookingEmailTemplateInput) {
         formatTime(input.endTime)
       )}</p>
       <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:#53615d;">${address}</p>
-      <p style="margin:10px 0 0;font-size:14px;color:#53615d;">Total: <strong style="color:#1f2f2b;">${escapeHtml(
+      ${travelFeeLine}<p style="margin:10px 0 0;font-size:14px;color:#53615d;">Total: <strong style="color:#1f2f2b;">${escapeHtml(
         formatMoney(input.totalPrice)
       )}</strong></p>
     </div>`;
@@ -665,7 +679,12 @@ Client: ${input.clientName}
 Date: ${formatDate(input.bookingDate)}
 Time: ${formatTime(input.startTime)}-${formatTime(input.endTime)}
 Address: ${address}
-Total: ${formatMoney(input.totalPrice)}
+${
+    input.travelFee && input.travelFee > 0
+      ? `Travel charge: ${formatMoney(input.travelFee)}
+`
+      : ""
+  }Total: ${formatMoney(input.totalPrice)}
 Participants: ${input.participantCount}
 
 ${participants}

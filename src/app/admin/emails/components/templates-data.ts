@@ -136,7 +136,8 @@ function subjectField(defaultValue: string): SafeField {
 
 const BOOKING_SUMMARY_FIXED_PART: FixedPart = {
   label: "Booking summary",
-  source: "Built from the booking's date, time, address and total price.",
+  source:
+    "Built from the booking's date, time, address, any travel charge, and total price.",
 };
 
 const PARTICIPANT_DETAILS_FIXED_PART: FixedPart = {
