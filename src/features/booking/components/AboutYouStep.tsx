@@ -522,7 +522,7 @@ export function AboutYouStep({
           <div className={styles.notice}>
             <MapPin aria-hidden="true" size={18} />
             <p>
-              <strong>Covered area:</strong> We can check matched appointment
+              <strong>Free-travel area:</strong> We can check matched appointment
               times for this location.
             </p>
           </div>
@@ -532,11 +532,11 @@ export function AboutYouStep({
           <div className={styles.notice}>
             <MapPin aria-hidden="true" size={18} />
             <p>
-              <strong>Outside our free-travel areas:</strong> This address can
-              still be booked.
+              <strong>Outside our free-travel areas:</strong> You can still book
+              this address.
               {freeTravelCities.length > 0
-                ? ` We travel to ${formatTownList(freeTravelCities)} at no extra charge.`
-                : ""}
+                ? ` We travel to ${formatTownList(freeTravelCities)} at no extra charge; further afield we add a travel charge, and we'll agree the amount with you before confirming your booking.`
+                : " We'll agree any travel charge with you before confirming your booking."}
             </p>
           </div>
         ) : null}

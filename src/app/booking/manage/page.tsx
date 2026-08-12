@@ -224,6 +224,9 @@ function SummaryCard({
           {formatTime(booking.startTime)}-{formatTime(booking.endTime)}
         </Row>
         <Row label="Duration">{booking.durationMins ?? 0} mins</Row>
+        {booking.travelFee > 0 ? (
+          <Row label="Travel charge">{formatMoney(booking.travelFee)}</Row>
+        ) : null}
         <Row label="Total">{formatMoney(booking.totalPrice)}</Row>
         <Row label="Reference">{booking.id}</Row>
         <Row label="Source">{formatLabel(booking.bookingSource)}</Row>

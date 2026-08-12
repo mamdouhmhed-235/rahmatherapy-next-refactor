@@ -187,12 +187,18 @@ const FOOTER_CONTACT: SafeField = {
 const GREETING_INTRO: SafeField = {
   kind: "greeting_intro",
   label: "Greeting intro sentence",
-  placeholder: "Hi {clientName}, we have received your booking request.",
+  placeholder:
+    "Hi {clientName}, we have received your booking request. If your address is outside our free-travel areas, we'll add a travel charge and confirm the final total when we get back to you.",
   helper: "Insert names and dates with the buttons above.",
   maxLength: 300,
   multiline: true,
+  // Item 8 Phase 5. The request-received email is sent BEFORE any admin can
+  // set a travel charge, so the total in its summary is legitimately pre-fee.
+  // This sentence stops that total reading as final. Only booking_confirmation
+  // uses this defaultValue -- the other three templates spreading
+  // GREETING_INTRO override it with their own.
   defaultValue:
-    "Hi {clientName}, we have received your {companyName} booking request.",
+    "Hi {clientName}, we have received your {companyName} booking request. If your address is outside our free-travel areas, we'll add a travel charge and confirm the final total when we get back to you.",
   tokens: [
     { token: "{clientName}", label: "Client name", sample: SAMPLE.clientName },
     { token: "{companyName}", label: "Company name", sample: SAMPLE.companyName },

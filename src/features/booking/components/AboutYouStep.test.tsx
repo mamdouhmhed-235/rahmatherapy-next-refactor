@@ -181,7 +181,7 @@ describe("AboutYouStep — address autocomplete fills the location fields", () =
     expect(inputByName("city").value).toBe("");
     expect(inputByName("area").value).toBe("");
     expect(inputByName("postcode").value).toBe("");
-    expect(document.querySelector("strong")?.textContent).not.toBe("Covered area:");
+    expect(document.querySelector("strong")?.textContent).not.toBe("Free-travel area:");
 
     await typeAddress("12 Dun");
     await selectFirstSuggestion();
@@ -203,7 +203,7 @@ describe("AboutYouStep — address autocomplete fills the location fields", () =
     expect(values.postcode).toBe("LU1 1EY");
 
     // The covered-area notice re-reads watch("city"), so it must have updated.
-    expect(screen.getByText("Covered area:")).toBeTruthy();
+    expect(screen.getByText("Free-travel area:")).toBeTruthy();
 
     // The assist never replaces manual entry: all three sibling inputs stay
     // rendered and editable.
@@ -282,7 +282,17 @@ describe("AboutYouStep — address autocomplete fills the location fields", () =
 
     // Item 8 Phase 2 — informational, not a refusal.
     expect(screen.getByText("Outside our free-travel areas:")).toBeTruthy();
-    expect(screen.queryByText("Covered area:")).toBeNull();
+
+    // Item 8 Phase 5 (Owner-approved copy) — the notice has to name the charge
+    // and say the amount is agreed BEFORE the booking is confirmed. Saying only
+    // "you can still book this" would leave a customer to discover a fee later.
+    const notice = screen.getByText("Outside our free-travel areas:").parentElement;
+    expect(notice?.textContent).toContain("no extra charge");
+    expect(notice?.textContent).toContain("travel charge");
+    expect(notice?.textContent).toContain(
+      "we'll agree the amount with you before confirming your booking"
+    );
+    expect(screen.queryByText("Free-travel area:")).toBeNull();
 
     // The old copy commanded the customer to pick a different town. It must be
     // gone, not merely restyled — out-of-zone addresses are bookable now.

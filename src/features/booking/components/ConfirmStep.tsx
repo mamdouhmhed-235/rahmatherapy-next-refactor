@@ -1,7 +1,7 @@
 "use client";
 
 import type { UseFormReturn } from "react-hook-form";
-import { ClipboardList, CreditCard, FileCheck2 } from "lucide-react";
+import { ClipboardList, CreditCard, FileCheck2, MapPin } from "lucide-react";
 import type { BookingPackage } from "../data/booking-packages";
 import type { BookingDetailsFormValues } from "../schemas/booking-schema";
 import type { BookingDetails, BookingStep } from "../types";
@@ -230,9 +230,9 @@ export function ConfirmStep({
               {...register("paymentAcknowledged")}
             />
             <span>
-              I understand payment is taken in person by cash or card and the
-              amount due is based on the selected service and participant
-              count.
+              I understand payment is taken in person by cash or card, and the
+              amount due is based on the selected service, the participant
+              count, and any travel charge for my area.
             </span>
           </label>
           {errors.paymentAcknowledged?.message ? (
@@ -276,6 +276,15 @@ export function ConfirmStep({
         <p>
           Confirmation is still subject to therapist availability and any
           safety checks needed for the treatment.
+        </p>
+      </div>
+
+      <div className={styles.reassurance}>
+        <MapPin aria-hidden="true" size={18} />
+        <p>
+          Visits outside our free-travel areas may include a travel charge. If
+          one applies, it&rsquo;s shown on your confirmation email and included
+          in the total.
         </p>
       </div>
 

@@ -35,6 +35,7 @@ interface ManagedBookingRecord {
   end_time: string;
   total_duration_mins: number | null;
   total_price: number | string | null;
+  travel_fee: number | string | null;
   amount_due: number | string | null;
   amount_paid: number | string | null;
   booking_source: string;
@@ -76,6 +77,9 @@ export interface CustomerManageBooking {
   endTime: string;
   durationMins: number | null;
   totalPrice: number;
+  /** Item 8 Phase 5 — already included in totalPrice; shown as its own line
+   *  so the customer can see why the total is what it is. */
+  travelFee: number;
   amountDue: number;
   amountPaid: number;
   bookingSource: string;
@@ -123,6 +127,7 @@ const MANAGED_BOOKING_SELECT = `
   end_time,
   total_duration_mins,
   total_price,
+  travel_fee,
   amount_due,
   amount_paid,
   booking_source,
@@ -203,6 +208,7 @@ function toCustomerManageBooking(
     endTime: booking.end_time,
     durationMins: booking.total_duration_mins,
     totalPrice: toAmount(booking.total_price),
+    travelFee: toAmount(booking.travel_fee),
     amountDue: toAmount(booking.amount_due ?? booking.total_price),
     amountPaid: toAmount(booking.amount_paid),
     bookingSource: booking.booking_source,
