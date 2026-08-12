@@ -280,6 +280,17 @@
    * so the admin-themed text and skeletons inside it stay legible when the
    * preview fetch fails. */
   --admin-email-preview-chrome-bg: oklch(99.2% 0.004 88);
+  /* ITEM C, 2026-08-12. Ink for a surface that CANNOT invert: the avatar
+   * discs whose background is oklch(82% 0.05 <hue>) computed per person from
+   * hueFromId. That tint is a runtime literal, so it stays a light pastel in
+   * both themes — and the initials were painted with --admin-heading, which
+   * DOES invert, so in dark mode light ink landed on a light disc at 1.53:1.
+   *
+   * This token therefore carries the SAME value in all four blocks, on purpose,
+   * exactly like --admin-email-preview-bg above. Its light value is
+   * byte-identical to --admin-heading's, so light mode does not move.
+   * Measured across all 360 degrees of hue: worst case 9.79:1. */
+  --admin-on-tint: #151b18;
   --admin-surface-on-tint: oklch(99.5% 0.003 88);
   --admin-avatar-neutral-bg: oklch(96% 0.012 88);
   /* Brand-Tinted Shadow Rule (was Green-Tinted Shadow Rule): all admin shadows
@@ -632,6 +643,9 @@
   --admin-email-preview-bg: oklch(99.2% 0.004 88);
   /* Inverts, unlike the paper it sits on — see the note in :root. */
   --admin-email-preview-chrome-bg: oklch(22% 0.008 88);
+  /* Deliberately NOT inverted — see the note in :root. The disc it sits on is
+   * a runtime-computed pastel that stays light in this theme. */
+  --admin-on-tint: #151b18;
   --admin-surface-on-tint: oklch(22% 0.008 88);
   --admin-avatar-neutral-bg: oklch(26% 0.008 88);
   /* Shadows drop the brand-blue tint: a blue-tinted shadow is invisible on a
@@ -868,6 +882,7 @@
   --admin-ring-gap: oklch(99.2% 0.004 88);
   --admin-email-preview-bg: oklch(99.2% 0.004 88);
   --admin-email-preview-chrome-bg: oklch(99.2% 0.004 88);
+  --admin-on-tint: #151b18;
   --admin-surface-on-tint: oklch(99.5% 0.003 88);
   --admin-avatar-neutral-bg: oklch(96% 0.012 88);
   --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);
@@ -1093,6 +1108,7 @@
     --admin-ring-gap: oklch(99.2% 0.004 88);
     --admin-email-preview-bg: oklch(99.2% 0.004 88);
     --admin-email-preview-chrome-bg: oklch(99.2% 0.004 88);
+    --admin-on-tint: #151b18;
     --admin-surface-on-tint: oklch(99.5% 0.003 88);
     --admin-avatar-neutral-bg: oklch(96% 0.012 88);
     --admin-shadow-card: 0 12px 36px -34px rgba(15, 94, 142, 0.55);

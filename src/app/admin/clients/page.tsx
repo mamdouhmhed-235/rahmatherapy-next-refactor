@@ -1125,7 +1125,7 @@ function ClientRow({
       )}
       <span
         aria-hidden="true"
-        className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-semibold text-[var(--admin-heading)] ring-1 ring-transparent transition-shadow duration-200 ease-out group-hover:ring-[var(--admin-primary)]/30"
+        className="inline-flex size-8 shrink-0 items-center justify-center rounded-full text-[0.75rem] font-semibold text-[var(--admin-on-tint)] ring-1 ring-transparent transition-shadow duration-200 ease-out group-hover:ring-[var(--admin-primary)]/30"
         style={{ backgroundColor: `oklch(82% 0.05 ${hue})` }}
       >
         {initials}

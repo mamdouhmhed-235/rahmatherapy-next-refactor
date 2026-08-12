@@ -591,7 +591,7 @@ export default async function ClientDetailPage({
           <div className="flex min-w-0 items-start gap-4">
             <span
               aria-hidden="true"
-              className="inline-flex size-14 shrink-0 items-center justify-center rounded-full text-base font-semibold text-[var(--admin-heading)] ring-1 ring-[var(--admin-border)] sm:size-16 sm:text-lg print:size-12 print:text-base"
+              className="inline-flex size-14 shrink-0 items-center justify-center rounded-full text-base font-semibold text-[var(--admin-on-tint)] ring-1 ring-[var(--admin-border)] sm:size-16 sm:text-lg print:size-12 print:text-base"
               style={{ backgroundColor: `oklch(82% 0.05 ${avatarHue})` }}
             >
               {avatarInitials}
