@@ -227,4 +227,43 @@ describe("formatBusinessDateLong", () => {
       expect(medium).toContain(dayNumber);
     }
   });
+
+  // The `timeZone: BUSINESS_TIME_ZONE` pin is the only thing making this
+  // host-independent, and until now nothing observed it: every other assertion
+  // in this file runs on a machine that IS Europe/London, where an unpinned
+  // formatter agrees with a pinned one by construction.
+  //
+  // `TZ=… node` does not retune Node on this Windows host (HANDOFF-6 gotcha
+  // 78), but assigning `process.env.TZ` at RUNTIME does — measured on Node 24,
+  // under vitest, which also isolates the value per test file.
+  //
+  // UTC+14 is the zone that exposes the mutant: UTC noon there is already the
+  // next calendar day, so a formatter that lost the pin renders 13 June.
+  //
+  // ⚠️ The sibling mutant — parsing at UTC midnight instead of noon — is an
+  // EQUIVALENT mutant, not a coverage gap. With the pin in place, hours 0 and
+  // 12 land on the same London date in every zone (checked across 7 zones ×
+  // 366 days: zero disagreements). No test can kill it. The noon parse stays
+  // as defence in depth for the day someone removes the pin.
+  describe("is independent of the host timezone", () => {
+    const ORIGINAL_TZ = process.env.TZ;
+
+    afterEach(() => {
+      // Assigning `undefined` would set the STRING "undefined" and leave ICU
+      // pointed at a zone that does not exist.
+      if (ORIGINAL_TZ === undefined) delete process.env.TZ;
+      else process.env.TZ = ORIGINAL_TZ;
+    });
+
+    it("renders the same London date from a UTC+14 host", () => {
+      process.env.TZ = "Pacific/Kiritimati";
+
+      // Asserted, not assumed: if runtime TZ assignment ever stops retuning
+      // ICU, this test would otherwise keep passing while observing nothing.
+      expect(Intl.DateTimeFormat().resolvedOptions().timeZone).toBe(
+        "Pacific/Kiritimati"
+      );
+      expect(formatBusinessDateLong("2026-06-12")).toBe("Friday, 12 June 2026");
+    });
+  });
 });

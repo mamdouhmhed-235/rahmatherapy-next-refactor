@@ -104,6 +104,53 @@ function bookingFixture(overrides: Partial<ReportData["bookings"][number]> = {})
   };
 }
 
+function staffFixture(id: string, name: string): ReportData["staff"][number] {
+  return {
+    id,
+    name,
+    gender: "female",
+    active: true,
+    can_take_bookings: true,
+    availability_mode: "custom",
+    role_id: "role-therapist",
+    roles: null,
+  };
+}
+
+/**
+ * One period in which `staff-b` worked `09:00`-`endTime` against a single
+ * 8-hour working day — the smallest shape that gives `getUtilisationRate` a
+ * non-zero numerator AND denominator, which rule 4 needs in BOTH periods
+ * before it will fire.
+ *
+ * Rule 4 had never executed in this suite: every fixture above sets
+ * `staff: []`, so the loop it lives in never had a body to run.
+ */
+function utilisationPeriod(from: string, to: string, endTime: string): ReportData {
+  return reportData({
+    filters: filters({ from, to }),
+    bookings: [
+      bookingFixture({ id: `b-${from}`, booking_date: from, start_time: "09:00", end_time: endTime }),
+    ],
+    assignments: [
+      {
+        id: `a-${from}`,
+        booking_id: `b-${from}`,
+        participant_id: null,
+        assigned_staff_id: "staff-b",
+        required_therapist_gender: "female",
+        status: "completed",
+        staff_profiles: null,
+      },
+    ],
+    staff: [staffFixture("staff-a", "Amina Viewer"), staffFixture("staff-b", "Bilqis Colleague")],
+    staffAvailabilityRuleStaffIds: ["staff-b"],
+    staffAvailabilityRules: [
+      { staff_id: "staff-b", day_of_week: 1, start_time: "09:00", end_time: "17:00", is_working_day: true },
+    ],
+  });
+}
+
 describe("buildInsightId", () => {
   it("composes category/bucket/period/yyyy-mm in a stable order", () => {
     expect(buildInsightId("bookings-dropped", "20pct", "month", "2026-05")).toBe(
@@ -168,6 +215,37 @@ describe("getReportInsights", () => {
     });
     const insights = getReportInsights(current, prior, new Set(), { maxInsights: 1 });
     expect(insights.length).toBe(1);
+  });
+
+  // ── rule 4, per-staff utilisation ────────────────────────────────────────
+  //
+  // This rule is the reason `reports-data.ts` narrows the roster before the
+  // rules see it (ITEM N): it renders a PERSON'S NAME and a drill link to
+  // their profile. Pinned here as the exact string, because the string is the
+  // disclosure — see ./reports-data.test.ts for the guard that governs it.
+  it("names the staff member whose utilisation dropped, and links to them", () => {
+    const current = utilisationPeriod("2026-06-01", "2026-06-30", "10:00"); // 1h booked
+    const prior = utilisationPeriod("2026-05-01", "2026-05-31", "15:00"); // 6h booked
+
+    const insight = getReportInsights(current, prior).find((i) =>
+      i.id.startsWith("staff-utilisation-")
+    );
+
+    expect(insight?.message).toBe(
+      "Bilqis Colleague's utilisation dropped from 17% to 3% this month."
+    );
+    expect(insight?.drillUrl).toBe("/admin/staff/staff-b?range=month");
+  });
+
+  it("stays silent when the roster is empty, whatever the bookings did", () => {
+    // The pre-existing fixtures' condition, pinned so it reads as a deliberate
+    // case rather than an oversight.
+    const current = { ...utilisationPeriod("2026-06-01", "2026-06-30", "10:00"), staff: [] };
+    const prior = { ...utilisationPeriod("2026-05-01", "2026-05-31", "15:00"), staff: [] };
+
+    expect(
+      getReportInsights(current, prior).some((i) => i.id.startsWith("staff-utilisation-"))
+    ).toBe(false);
   });
 
   it("uses 5%-bucket rounding for ID stability (AUDIT M10)", () => {
