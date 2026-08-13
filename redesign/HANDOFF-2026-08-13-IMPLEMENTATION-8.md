@@ -12,11 +12,11 @@ superseded:
 - `HANDOFF-2026-08-13-IMPLEMENTATION-6.md` §5 — 67-79 *(its §1 and §7 are stale; gotcha 78 corrected by 80)*
 - `HANDOFF-2026-08-13-IMPLEMENTATION-7.md` §5 — 80-89
 
-**This file adds gotchas 90-104.**
+**This file adds gotchas 90-105.**
 
 | | |
 |---|---|
-| **HEAD** | `1970ede` on `master` — ⛔ **13 commits UNPUSHED.** `origin/master` is still `9271863` |
+| **HEAD** | `master` — ⛔ **UNPUSHED.** `origin/master` is still `9271863`. ⛔ **Never trust a commit count written here** (this row said `1970ede` / 13, stale by its own commit). **Compute it:** `git rev-list --count origin/master..HEAD` |
 | **Deployed** | ⛔ **NOTHING.** Cloudflare deploys on **push**. Production is untouched |
 | **Shipped locally** | SEO/AEO/GEO Phases 0-11 (see `redesign/plans/SEO-AEO-GEO-IMPLEMENTATION.md` §18) |
 | **Next** | Phase 11b → 12 → 13. **Do not push anything without an explicit Owner instruction** |
@@ -109,8 +109,14 @@ personally) · tracked design archives (KEEP) · password-reset encryption (not 
 ## 4 — ⛔ MEASURED FACTS. Do not re-derive.
 
 ### 4.1 — What the site actually is
-20 public URLs: 8 single-route + 5 package + 5 area spokes, plus `/` (308 → `/home/`),
+**21** public URLs: 8 single-route + 5 package + 5 area spokes, plus `/` (308 → `/home/`),
 `/areas/luton/` (308 → `/areas/`) and `/booking/manage`. **18 are indexable.**
+
+⛔ **Corrected 2026-08-13: this said "20 public URLs" above a list of 21.** Three counts, not one:
+**21** URLs exist · **20** were probed in the Phase 0/11 baselines (`/areas/luton/` excluded — it
+308s and renders nothing to capture) · **18** are indexable. **18 is also the reach of the footer and
+of the maintenance banner**, both of which render only from `(public)/layout.tsx`. See plan §1.1 and
+gotcha 105.
 
 **Bury Park, Leagrave and Stopsley are districts of Luton. Dunstable and Houghton Regis are separate
 towns in Central Bedfordshire.** The Owner's visible titles always got this right; only the
@@ -142,7 +148,7 @@ this work fixes, not a performance problem.
 
 ---
 
-## 5 — NEW GOTCHAS (90-104). Each cost real time.
+## 5 — NEW GOTCHAS (90-105). Each cost real time.
 
 90. **⛔ `git commit -a`/`-am` IS THE MAINTENANCE-FLAG HAZARD.** The old rule named `.`/`-A`/`-u`
     and stopped there. `commit -am` stages every tracked modified file — which in this repo is
@@ -218,6 +224,14 @@ this work fixes, not a performance problem.
      all four pre-existing files put it **last**. Fixed by script rather than retyping, because
      the surrounding strings carry encoding hazards (gotcha 95).
 
+105. **⛔ ONE NUMBER WAS DOING THREE JOBS, AND TWO OF THEM WERE WRONG.** "20" was written as the
+     total URL count, as the probed-route count, *and* as a synonym for "every page". Those are
+     **21**, **20** and **18**. The footer and the maintenance banner both render only from
+     `(public)/layout.tsx`, so each reaches **18** — `/` and `/areas/luton/` `permanentRedirect`
+     without rendering, and `/booking/manage/` sits outside the route group. Three documents *and a
+     committed source comment* asserted "all 20 pages". **When a count is used to mean "everything",
+     name the set it counts.** Fixed 2026-08-13; plan §1.1 is now the single authority.
+
 ---
 
 ## 6 — Method that worked, and is worth repeating
@@ -252,7 +266,7 @@ Updates the gate baseline to **0 failed**, in the same commit.
 Plan §14.5. ⛔ **THIS OPENS LIVE BOOKINGS.** It needs its **own explicit Owner instruction** —
 approval of the SEO plan is **not** approval of this. It also legitimately changes the `git status`
 gate (the file is deleted), and requires re-capturing the visual baseline, since the banner
-disappears from all 20 pages.
+disappears from all **18 rendering** pages (§4.1).
 
 ### 7.3 — Phase 13: release
 Plan §14.6. **Push phase by phase**, verifying between. ⛔ Phase 12 must be pushed **before** the

@@ -24,8 +24,9 @@ export const footerContent: FooterContent = {
     },
     // The /areas hub. Footer only, by Owner decision — the nav stays at its
     // designed five items. Link position is not an SEO factor, and the footer
-    // renders on all 20 pages, so the hub still gains a site-wide inbound link
-    // and every spoke sits two clicks from every page. Before this, /areas
+    // renders on every public page — the 18 indexable ones, since SiteFooter
+    // renders only from (public)/layout.tsx — so the hub still gains a site-wide
+    // inbound link and every spoke sits two clicks from every page. Before this, /areas
     // appeared nowhere outside its own cluster: no internal link, so no
     // crawl-discovery path at all, and a page that is never indexed can never
     // be cited by an answer engine either.

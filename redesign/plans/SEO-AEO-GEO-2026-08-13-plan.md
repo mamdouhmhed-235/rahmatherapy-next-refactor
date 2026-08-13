@@ -156,8 +156,11 @@ present — not by expecting a clean file. Do not disable the managed file.
 ⚠️ **An earlier draft of this section recommended nav + footer. The Owner chose footer only, and the
 research supports that being a free choice:** Mueller states link position — header, footer, or body
 — is *"pretty much irrelevant"* to Google, so the machine-understanding delta between nav and footer
-is ~zero. The footer renders on all 20 pages, so the hub still gains a site-wide inbound link and
-every spoke still lands two clicks from every page. **The nav stays at its designed 5 items.**
+is ~zero. The footer renders on **all 18 indexable pages** — ⛔ *corrected 2026-08-13: this said "20".
+`SiteFooter` renders only from `(public)/layout.tsx`, so `/` and `/areas/luton/` redirect without
+rendering it, and `/booking/manage/` sits outside that route group* — so the hub still gains a
+site-wide inbound link and every spoke still lands two clicks from every page. **The nav stays at its
+designed 5 items.**
 
 The earlier doorway-page justification does **not** survive primary sourcing: the "orphaned pages
 look like doorways" heuristic came from a 2015 Google doc whose self-assessment questions **did not
@@ -170,9 +173,15 @@ navigation, footers or internal links. Mueller: link position is *"pretty much i
 > which defeats the AEO/GEO goal directly.
 
 Both researchers and every local-SEO specialist consulted agree: link them. Nav-vs-footer is a **UX**
-call, not an SEO one — chosen as both because the nav and footer link arrays are currently
-**identical**, so footer-only would make `/areas` the only top-level page missing from the nav; and
-for a mobile business *"do you come to my area?"* is the first qualifying question.
+call, not an SEO one.
+
+⛔ **CORRECTED 2026-08-13.** This sentence used to continue: *"chosen as **both** because the nav and
+footer link arrays are currently identical, so footer-only would make `/areas` the only top-level
+page missing from the nav; and for a mobile business 'do you come to my area?' is the first
+qualifying question."* That was the pre-decision draft's recommendation and it is **superseded** by
+the Owner's **footer-only** decision at the head of this section — `navigation.ts` was never touched
+and `primaryNavigation` is still 5 items. The reasoning is kept rather than deleted so a later reader
+can see that nav placement was considered and deliberately rejected, not overlooked.
 
 ⚠️ **The genuine risk is elsewhere.** Current policy tests *"substantially similar pages"* and, since
 2024-03-05, **scaled content abuse**. The six spokes are structurally identical (11 `<h2>`, 18

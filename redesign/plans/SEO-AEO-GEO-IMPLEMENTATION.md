@@ -76,7 +76,7 @@ STOP GATE   what must be true before the next phase
 | **Dev server** | Owner-run at `localhost:3000` (not `127.0.0.1`). **Never spawn, restart or kill it** |
 | **Goal** | Rank and be recommended for **cupping** and **massage** across Luton, its districts, and two neighbouring towns |
 
-### 1.1 — The public surface (20 URLs)
+### 1.1 — The public surface (21 URLs, and ⛔ three counts that are NOT interchangeable)
 
 ```
 8 single-URL routes  /home/ /about/ /services/ /reviews/ /faqs-aftercare/ /privacy/ /cookies/ /areas/
@@ -86,6 +86,20 @@ STOP GATE   what must be true before the next phase
 2 redirects          /  →308→ /home/     /areas/luton/  →308→ /areas/
 1 transactional      /booking/manage  (token-gated, NOT for indexing)
 ```
+
+⛔ **CORRECTED 2026-08-13.** This heading read "20 URLs" while the block above lists **21** — and "20"
+was then reused elsewhere to mean "every page", which it never was. Three counts, each with one
+authority:
+
+| Count | What it is | Authority |
+|---|---|---|
+| **21** | Every public URL that exists: the 18 indexable, plus `/`, `/areas/luton/` and `/booking/manage/` | the block above |
+| **20** | The **probed-route set** of the Phase 0 / Phase 11 baselines — the 18 plus `/` and `/booking/manage/`. `/areas/luton/` is excluded because it 308s and renders nothing to capture | `redesign/evidence/SEO-phase0-baseline/probe-baseline.json` |
+| **18** | **Indexable pages.** The sitemap, the canonicals *and the footer's reach* are all exactly this set | `sitemap.ts` · `sitemap-robots.test.ts` · `canonicals.test.ts` |
+
+⛔ **The footer and the maintenance banner each reach 18, not 20.** Both render from
+`(public)/layout.tsx` only. Where this document still says "20", it means the **probed-route set** —
+never "every page".
 
 Bury Park, Leagrave and Stopsley are **districts of Luton**. Dunstable and Houghton Regis are
 **separate towns in Central Bedfordshire**. This distinction is load-bearing in Phase 7.
@@ -365,8 +379,15 @@ page. Canonicals are a **hint, not a rule**, but they are the documented tool he
 
 **WHY** `/areas` appears **zero times** in the served HTML of all five core pages. Six pages built to
 rank have no internal path in. Nav-vs-footer makes no measurable machine difference — this is a UX
-call, chosen as **both** because the nav and footer arrays are currently identical, so footer-only
-would make `/areas` the only top-level page missing from the nav.
+call.
+
+⛔ **CORRECTED 2026-08-13 — this paragraph used to end "chosen as **both** because the nav and footer
+arrays are currently identical, so footer-only would make `/areas` the only top-level page missing
+from the nav."** That was the pre-decision draft's recommendation and it is **superseded**: the Owner
+chose **footer only** (step 1 below), and `navigation.ts` was never touched. The reasoning is kept
+here so a later reader can see that putting the link in the nav was considered and deliberately
+rejected — not overlooked. It costs nothing in machine understanding either way (Mueller: link
+position is *"pretty much irrelevant"*).
 
 Separately, `legalLinks: []` means **nothing on the site links to the privacy policy** — a compliance
 concern, not just SEO.
@@ -376,8 +397,11 @@ concern, not just SEO.
 **STEPS**
 1. ⛔ **DO NOT touch `navigation.ts`.** Owner decision 2026-08-13: **footer only.** The nav stays at
    its designed 5 items. This is a free choice — Mueller: link position is *"pretty much irrelevant"*
-   to Google, so nav-vs-footer costs nothing in machine understanding, and the footer renders on all
-   20 pages anyway.
+   to Google, so nav-vs-footer costs nothing in machine understanding, and the footer renders on
+   **all 18 indexable pages** anyway. ⛔ **Corrected 2026-08-13: this said "all 20 pages".**
+   `SiteFooter` is rendered only from `(public)/layout.tsx`, so its reach is exactly the 18 —
+   `/` and `/areas/luton/` `permanentRedirect` without rendering, and `/booking/manage/` sits outside
+   the `(public)` group. See §1.1: 21, 20 and 18 are three different counts.
 2. Append one entry to `footer.ts` `serviceLinks`: **label `"Areas We Cover"`, href `/areas`**.
    ⛔ **`/areas`, with NO trailing slash.** Every existing entry is slash-less. C4/G11's
    trailing-slash rule governs **emitted absolute URLs** (canonical, sitemap), **not internal nav
@@ -570,7 +594,9 @@ state seeds to the first category. **No major AI crawler except Googlebot execut
   on 2026-06-15**, leaving only C5. Any FAQ in the DOM with no reveal affordance must be given one,
   or removed from both the DOM and the markup.
 - ⛔ **G30 — accessibility.** Hide with `hidden`/`display:none`, **not visually-only** — otherwise
-  screen readers announce all ten categories at once.
+  screen readers announce all **seven** categories at once. ⛔ **Corrected 2026-08-13:** this said
+  "ten", conflating `faqCategories` (7) with three `aftercareTabs` labels that carry no Q&A. See
+  step 1 above.
 - ⛔ **G31 — `FAQPage` produces NO Google search appearance.** Feature removed 2026-05-07, docs
   deleted 2026-06-15, GSC API removed August 2026. This site was **already ineligible from
   2023-09-14**, so nothing is lost. It ships on the Owner's decision rule — cheap, riskless,
@@ -704,17 +730,29 @@ Use the Owner's dev server at `localhost:3000` (**never spawn or restart it**) o
    2026-07-27 — **476 commits ago** — and covers only 12 pages at 1280 and **3 at 375**, with **no
    baseline at all for `/privacy/`, `/cookies/` or the five package pages**. `/privacy/` and
    `/cookies/` are exactly what Phase 5 edits.
-   ⛔ **"Expect no visual change" is FALSE — do not write that expectation.** Phase 4 adds **+1 header
-   nav item and +2 footer legal links on every page.** The correct expectation is: *that delta and
+   ⛔ **"Expect no visual change" is FALSE — do not write that expectation.** Phase 4 adds **+3 footer
+   links on every page**: one service link ("Areas We Cover") and two legal links.
+   ⛔ **CORRECTED 2026-08-13 — the header is UNCHANGED.** This line previously read "+1 header nav
+   item". The Owner's footer-only decision (§7 step 1) means `navigation.ts` was never touched:
+   `primaryNavigation` is still **5 items**. Phase 5's `<h2>`→`<h1>` on the two legal pages is
+   **visually neutral** — `SectionHeading` carries every class on the tag itself, and the h1+h2 totals
+   were unchanged (privacy 0/1→1/0, cookies 0/4→1/3). The correct expectation is: *that delta and
    nothing else.*
    ⛔ **Pin one capture source** — dev server **or** production, never "either". `MAINTENANCE_MODE` is
    `false` locally and `true` in production, and it gates a spacer, the banner and the modal, so the
    two render different chrome on every page.
-   **Add a header-overflow check** at the breakpoints where the desktop nav shows: a 6th item in a
-   fixed-height bar can wrap or overflow. Reuse C-21's method — `scrollWidth` vs `clientWidth`.
-9. **The FAQ page specifically** — click every one of the 10 tabs, confirm the panel switches, the
+   **Add a footer-overflow check.** ⛔ **Re-aimed 2026-08-13:** this was a *header*-overflow check
+   justified by "a 6th item in a fixed-height bar", but the header gained nothing, so it had no delta
+   to catch. The **footer** is where the three links landed. Check it at 375 and 1280 with C-21's
+   method — `scrollWidth` vs `clientWidth`.
+9. **The FAQ page specifically** — click every one of the **7** tabs, confirm the panel switches, the
    right questions show, and nothing is visible that shouldn't be. Keyboard-walk with Tab/Arrow keys.
-10. **Nav and footer** at desktop and mobile — 6 nav items, drawer opens, "Areas We Cover" navigates
+   ⛔ **SEVEN, not ten** (corrected 2026-08-13; this line said 10). `faqCategories` holds **7**
+   categories carrying all **31** questions. The other three ids belong to `aftercareTabs` — a
+   separate export, rendered by a different component, with **zero** Q&A pairs. Same correction as
+   Phase 8 step 1 and G30. Both counts are pinned by `FaqCategoryAccordions.test.tsx`.
+10. **Nav and footer** at desktop and mobile — **5** nav items (⛔ unchanged by Phase 4; this line
+    said 6 — the link went in the **footer**), drawer opens, the footer's "Areas We Cover" navigates
     to `/areas/`, legal links present.
 11. **Console and network clean** on every page — zero errors, zero failed requests.
 12. **Lighthouse mobile** — Accessibility, Best Practices and SEO must all still be **100**, and CWV
@@ -809,7 +847,9 @@ gating, and the booking-loader swap) · `src/components/shared/MaintenanceBanner
 4. ⛔ **From this commit onward, C1 no longer applies** — the file it protects is gone. Update §2 C1
    and §16 in the same commit so no later reader follows a dead rail.
 
-**RE-VERIFY EVERYTHING — removing the banner changes the served HTML of all 20 pages**
+**RE-VERIFY EVERYTHING — removing the banner changes the served HTML of all 18 rendering pages**
+*(⛔ corrected 2026-08-13: this said 20. `MaintenanceBanner` renders from `(public)/layout.tsx`, so
+it reaches the same 18 the footer does — not `/booking/manage/`, and not the two redirects. §1.1.)*
 5. Re-capture the **visual baseline** at 1280 and 375. Every page loses the banner and the spacer, so
    the Phase 0 baseline no longer applies. This is an **expected, site-wide** visual change.
 6. Re-run the **JS-disabled fetch** of every route — confirm the "still being built" text is gone and
@@ -954,8 +994,12 @@ in **each** committed tree. Verify the committed tree, not the working copy.
 
 ## 18 — PROGRESS LOG (2026-08-13)
 
-⛔ **13 commits on `master`, ZERO pushed.** `origin/master` is still at `9271863`. Cloudflare
-deploys on **push**, so production is completely untouched by all of this.
+⛔ **ZERO pushed.** `origin/master` is still at `9271863`. Cloudflare deploys on **push**, so
+production is completely untouched by all of this.
+
+⛔ **Do not trust a commit count written into this file.** This line used to say "13 commits", which
+was stale the instant the commit carrying it was made — such a count is always at least one behind
+its own document. **Compute it instead:** `git rev-list --count origin/master..HEAD`.
 
 | Phase | Commit | What landed |
 |---|---|---|
