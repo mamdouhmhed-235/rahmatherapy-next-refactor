@@ -99,18 +99,31 @@ export function FaqCategoryAccordions() {
           );
         })}
       </div>
-      <div
-        id={`faq-panel-${activeCategory.id}`}
-        role="tabpanel"
-        aria-labelledby={`faq-category-${activeCategory.id}`}
-        className="mt-8"
-      >
-        <Accordion
-          key={activeCategory.id}
-          items={activeCategory.faqs}
-          defaultOpenIndex={null}
-        />
-      </div>
+      {/*
+        Every category's panel is rendered, and the inactive ones are hidden
+        rather than omitted. Previously only the active panel existed in the
+        DOM, so just 4 of the site's 31 FAQs reached the served HTML — the other
+        27 appeared only after a tab click. No major AI crawler except Googlebot
+        executes JavaScript, and Google does not click tabs either, so those 27
+        answers were invisible to search and to answer engines alike.
+
+        `hidden` (not a visual-only class) keeps inactive panels out of the
+        accessibility tree too, so screen readers announce one panel at a time
+        exactly as before. The visible behaviour is unchanged: same tabs, same
+        clicks, same appearance.
+      */}
+      {faqCategories.map((category) => (
+        <div
+          key={category.id}
+          id={`faq-panel-${category.id}`}
+          role="tabpanel"
+          aria-labelledby={`faq-category-${category.id}`}
+          className="mt-8"
+          hidden={category.id !== activeCategory.id}
+        >
+          <Accordion items={category.faqs} defaultOpenIndex={null} />
+        </div>
+      ))}
     </SectionContainer>
   );
 }
