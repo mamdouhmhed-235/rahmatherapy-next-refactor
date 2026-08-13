@@ -5,6 +5,7 @@ import { PackageFinder } from "@/components/services/PackageFinder";
 import { ServicesFinalCTA } from "@/components/services/ServicesFinalCTA";
 import { ServicesHero } from "@/components/services/ServicesHero";
 import { TreatmentMethods } from "@/components/services/TreatmentMethods";
+import { HOME_CRUMB, buildBreadcrumbJsonLd } from "@/content/site/breadcrumb";
 import { businessJsonLd } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
@@ -16,6 +17,11 @@ export const metadata: Metadata = {
     canonical: siteUrl("/services/"),
   },
 };
+
+const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+  HOME_CRUMB,
+  { name: "Services", path: "/services/" },
+]);
 
 // The shared business entity, plus this page's own offers. Prices match the
 // package cards rendered below, so the markup describes what the page shows.
@@ -61,6 +67,10 @@ export default function ServicesPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <ServicesHero />
       <PackageCards />

@@ -731,6 +731,57 @@ supabase/` shows **exactly** ` M src/lib/maintenance.ts`.
 
 ---
 
+## 14.4 — Phase 11b — Resolve the five pre-existing test failures
+
+**GOAL** Get the suite to zero failures before anything is deployed.
+
+**WHY** ⛔ **Owner instruction, 2026-08-13.** These five have failed since before this workstream
+began — they are in `§2.1`'s baseline precisely so SEO changes could be judged against a stable
+reference. **None of them is caused by this work**, and none is an SEO defect. But shipping to
+production with a red suite means the next regression has nowhere to show up, so they are cleared
+here: after the full review, before maintenance removal and release.
+
+**THE FIVE**
+
+| # | Test | File |
+|---|---|---|
+| 1 | *gives Owner broad access while keeping owner-only role actions permission-gated* | `src/lib/auth/admin-access.test.ts` |
+| 2 | *gives Admin broad operational access without role template management* | `src/lib/auth/admin-access.test.ts` |
+| 3 | *renders step 1 on first load* | `src/app/admin/bookings/new/ManualBookingForm.test.tsx` |
+| 4 | *moves focus to the first invalid field when continuing with errors* | same |
+| 5 | *shows the consent error when trying to create booking without consent* | same |
+
+**APPROACH — diagnose before fixing.** For each, establish which side is wrong before touching
+anything: is the **test** asserting something that is no longer true (in which case the test is
+stale and the fix is to update it), or is the **code** genuinely broken (in which case the test is
+doing its job and the code needs the fix)? ⛔ **Do not "fix" a failing test by weakening its
+assertion** — two of these guard permission boundaries, and a permission test that has been softened
+to pass is worse than one that fails loudly.
+
+Numbers 1 and 2 are **permission-model** tests, so treat them as security-relevant: understand what
+access each role is meant to have, and confirm the answer against the role definitions rather than
+against whatever makes the test green.
+
+Numbers 3-5 are **form/accessibility** behaviour on the manual booking form — first render, focus
+management on invalid submit, and the consent guard. Number 5 in particular guards a consent
+requirement, so its failure mode matters beyond the test.
+
+**GOTCHAS**
+- ⛔ **G47 — the gate baseline changes here, legitimately.** §2.1 goes from *5 failed / N passed* to
+  *0 failed*. Update §2.1 in the same commit, or every later phase will look like it introduced a
+  regression in the opposite direction.
+- ⛔ **G48 — do not weaken an assertion to get green.** See above.
+- **G49** — these tests were the reference for "is this a regression?" throughout Phases 0-11. Once
+  they pass, that reference is gone; the new baseline is zero.
+
+**VERIFY** `npx vitest run` → **0 failed**. Then re-run the Phase 11 review in full, because the
+comparison baseline has moved.
+
+**STOP GATE** Suite fully green · §2.1 updated · each fix explained as *test was stale* or *code was
+broken*, never as "made it pass".
+
+---
+
 ## 14.5 — Phase 12 — ⛔ Remove the maintenance system (Owner-gated, immediately pre-release)
 
 **GOAL** Take the site out of maintenance mode entirely, and re-verify that every SEO decision in
@@ -863,6 +914,9 @@ re-run against production.
 | **G42** | The `git status` baseline legitimately changes when `maintenance.ts` is deleted | 12 |
 | G43 | The banner carried phone + email in server HTML — confirm the footer still does | 12 |
 | G44 | Remove tests asserting the banner, don't leave them failing | 12 |
+| **G47** | The gate baseline legitimately becomes **0 failed** — update §2.1 in the same commit | 11b |
+| **G48** | ⛔ Never weaken an assertion to get green; two of the five guard permission boundaries | 11b |
+| G49 | Once these pass, the "is this a regression?" reference is zero, not five | 11b |
 | **G45** | ⛔ Push Phase 12 **before** Phase 2's discovery is live — no crawler may meet the banner | 13 |
 | **G46** | ⛔ Submit the sitemap in Search Console **last** — that is the step that invites indexing | 13 |
 

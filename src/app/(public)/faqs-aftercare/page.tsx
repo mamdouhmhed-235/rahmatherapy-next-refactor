@@ -8,6 +8,7 @@ import { QuickAnswersStrip } from "@/components/faqs-aftercare/QuickAnswersStrip
 import { SafetySuitability } from "@/components/faqs-aftercare/SafetySuitability";
 import { WhenToGetAdvice } from "@/components/faqs-aftercare/WhenToGetAdvice";
 import { faqCategories } from "@/content/pages/faqsAftercare";
+import { HOME_CRUMB, buildBreadcrumbJsonLd } from "@/content/site/breadcrumb";
 import { businessJsonLd } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
@@ -21,6 +22,11 @@ export const metadata: Metadata = {
 };
 
 const jsonLd = businessJsonLd;
+
+const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+  HOME_CRUMB,
+  { name: "FAQs & Aftercare", path: "/faqs-aftercare/" },
+]);
 
 /**
  * FAQPage markup for all 31 questions.
@@ -68,6 +74,10 @@ export default function FaqsAftercarePage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <FaqsAftercareHero />
       <QuickAnswersStrip />

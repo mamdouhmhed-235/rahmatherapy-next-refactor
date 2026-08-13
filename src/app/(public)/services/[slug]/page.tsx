@@ -9,6 +9,7 @@ import { PackageWhoItsFor } from "@/components/package-pages/PackageWhoItsFor";
 import { RelatedPackages } from "@/components/package-pages/RelatedPackages";
 import { TreatmentBreakdown } from "@/components/package-pages/TreatmentBreakdown";
 import { getPackagePage, packagePages } from "@/content/pages/packagePages";
+import { HOME_CRUMB, buildBreadcrumbJsonLd } from "@/content/site/breadcrumb";
 import { businessNode } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
@@ -65,11 +66,21 @@ export default async function PackagePage({ params }: PageProps) {
     },
   };
 
+  const breadcrumbJsonLd = buildBreadcrumbJsonLd([
+    HOME_CRUMB,
+    { name: "Services", path: "/services/" },
+    { name: page.title, path: `/services/${page.slug}/` },
+  ]);
+
   return (
     <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
       <PackageHero page={page} />
       <PackageWhoItsFor page={page} />

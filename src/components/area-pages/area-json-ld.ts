@@ -48,7 +48,10 @@ export function buildAreaJsonLd(area: AreaPage, { isHub }: { isHub: boolean }) {
     name: `Mobile hijama, cupping and massage in ${area.name}`,
     description,
     url,
-    serviceType: "Hijama, cupping and massage therapy",
+    // An array, not one blended phrase, so "cupping" and "massage" are
+    // separately addressable entities per place rather than a single string a
+    // consumer has to parse apart.
+    serviceType: ["Cupping therapy", "Massage therapy", "Hijama (wet cupping)"],
     provider: businessNode,
     areaServed: buildAreaServed(area),
   };
