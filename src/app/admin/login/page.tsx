@@ -9,8 +9,13 @@ interface LoginPageProps {
   searchParams: Promise<{ redirectTo?: string; reason?: string }>;
 }
 
+// noindex: the middleware exempts /admin/login from the auth gate, so this is
+// one of the few publicly reachable /admin URLs. noindex — not a robots.txt
+// Disallow — is what keeps it out of the index; Disallow would only stop the
+// crawl, leaving the URL indexable.
 export const metadata = {
   title: "Sign In — Rahma Therapy Admin",
+  robots: { index: false },
 };
 
 export default async function AdminLoginPage({ searchParams }: LoginPageProps) {

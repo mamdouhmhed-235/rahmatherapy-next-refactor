@@ -21,8 +21,12 @@ import { ForgotForm } from "../states/ForgotForm";
  * The raw token is NEVER echoed into the rendered HTML.
  */
 
+// noindex: this URL carries a reset token and is inside the subtree the
+// middleware exempts from the auth gate, so it is publicly reachable. Must stay
+// crawlable for the directive to be read.
 export const metadata = {
   title: "Password reset — Rahma Therapy Admin",
+  robots: { index: false },
 };
 
 // State chips routed through the shared AdminStatusBadge primitive (DESIGN.md

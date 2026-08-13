@@ -23,8 +23,12 @@ import { PendingStatus } from "./states/PendingStatus";
  * UI testbed.
  */
 
+// noindex: the middleware exempts the whole /admin/password-reset subtree from
+// the auth gate, so this is publicly reachable. Must stay crawlable for the
+// directive to be read.
 export const metadata = {
   title: "Password reset — Rahma Therapy Admin",
+  robots: { index: false },
 };
 
 const COOKIE_NAME = "rahma_password_reset_request";

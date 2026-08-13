@@ -11,8 +11,13 @@ import { getCustomerManageBooking } from "@/lib/booking/customer-manage";
 import { ManageBookingForms } from "./ManageBookingForms";
 import { formatBusinessDateLong } from "@/lib/time/london";
 
+// noindex: this page renders a customer's booking from a ?token= in the URL.
+// It must stay CRAWLABLE for the directive to be read — never pair this with a
+// robots.txt Disallow, or the crawler never sees the noindex and the URL can be
+// indexed anyway.
 export const metadata = {
   title: "Manage Booking - Rahma Therapy",
+  robots: { index: false },
 };
 
 interface ManageBookingPageProps {
