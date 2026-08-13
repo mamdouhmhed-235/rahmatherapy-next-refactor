@@ -150,8 +150,14 @@ present — not by expecting a clean file. Do not disable the managed file.
 
 ### 3.3 — Linking the area cluster ⛔ *rationale corrected*
 
-**Decision: one "Areas We Cover" item in BOTH the main nav and the footer, pointing at the hub
-`/areas/`. Nav grows 5 → 6. The five spokes stay reachable through the hub — no long menu.**
+**Decision (Owner, 2026-08-13): one "Areas We Cover" link in the FOOTER ONLY, pointing at the hub
+`/areas`. The main nav is left untouched at 5 items. The five spokes stay reachable through the hub.**
+
+⚠️ **An earlier draft of this section recommended nav + footer. The Owner chose footer only, and the
+research supports that being a free choice:** Mueller states link position — header, footer, or body
+— is *"pretty much irrelevant"* to Google, so the machine-understanding delta between nav and footer
+is ~zero. The footer renders on all 20 pages, so the hub still gains a site-wide inbound link and
+every spoke still lands two clicks from every page. **The nav stays at its designed 5 items.**
 
 The earlier doorway-page justification does **not** survive primary sourcing: the "orphaned pages
 look like doorways" heuristic came from a 2015 Google doc whose self-assessment questions **did not

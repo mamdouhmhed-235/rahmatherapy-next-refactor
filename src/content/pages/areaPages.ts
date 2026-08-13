@@ -51,9 +51,28 @@ export interface AreaLinksBlock {
   links: AreaSpokeLink[];
 }
 
+/**
+ * Real administrative geography, consumed only by structured data
+ * (`buildAreaJsonLd`). Not rendered, and not copy.
+ *
+ * Bury Park, Leagrave and Stopsley are districts WITHIN Luton. Dunstable and
+ * Houghton Regis are separate towns in Central Bedfordshire — adjacent to
+ * Luton, but not part of it. The visible titles already draw this distinction
+ * correctly ("in Dunstable", not "in Dunstable, Luton"); this field lets the
+ * machine-readable layer draw it too.
+ */
+export type AreaPlaceType =
+  /** Luton itself — the hub. */
+  | "city"
+  /** A district inside Luton; emitted with `containedInPlace` → Luton. */
+  | "district"
+  /** A separate town, emitted as its own `City`, never suffixed with Luton. */
+  | "town";
+
 export interface AreaPage {
   slug: string;
   name: string;
+  placeType: AreaPlaceType;
   eyebrow: string;
   h1: string;
   subheading: string;
@@ -97,6 +116,7 @@ export const areaPages: AreaPage[] = [
   {
     slug: "bury-park",
     name: "Bury Park",
+    placeType: "district",
     eyebrow: "Mobile hijama & cupping · Bury Park, Luton",
     h1: "Private Hijama & Cupping at Home in Bury Park",
     subheading:
@@ -228,6 +248,7 @@ export const areaPages: AreaPage[] = [
   {
     slug: "luton",
     name: "Luton",
+    placeType: "city",
     eyebrow: "At-home therapy · across Luton, Bedfordshire",
     h1: "Mobile Hijama, Cupping & Massage Across Luton",
     subheading:
@@ -369,6 +390,7 @@ export const areaPages: AreaPage[] = [
   {
     slug: "leagrave",
     name: "Leagrave",
+    placeType: "district",
     eyebrow: "At-home massage & recovery · Leagrave, Luton",
     h1: "Mobile Massage, Cupping & Recovery in Leagrave",
     subheading:
@@ -500,6 +522,7 @@ export const areaPages: AreaPage[] = [
   {
     slug: "stopsley",
     name: "Stopsley",
+    placeType: "district",
     eyebrow: "At-home massage & wellness · Stopsley, Luton",
     h1: "Relaxing Mobile Massage & Therapy in Stopsley",
     subheading:
@@ -631,6 +654,7 @@ export const areaPages: AreaPage[] = [
   {
     slug: "dunstable",
     name: "Dunstable",
+    placeType: "town",
     eyebrow: "Mobile therapy · we travel to Dunstable",
     h1: "Mobile Massage, Cupping & Hijama in Dunstable",
     subheading:
@@ -762,6 +786,7 @@ export const areaPages: AreaPage[] = [
   {
     slug: "houghton-regis",
     name: "Houghton Regis",
+    placeType: "town",
     eyebrow: "Mobile therapy · we travel to Houghton Regis",
     h1: "At-Home Massage, Cupping & Hijama in Houghton Regis",
     subheading:

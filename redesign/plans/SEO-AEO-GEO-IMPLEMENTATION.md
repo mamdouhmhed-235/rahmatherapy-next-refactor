@@ -373,15 +373,16 @@ concern, not just SEO.
 **FILES** `src/content/site/navigation.ts` · `src/content/site/footer.ts`
 
 **STEPS**
-1. Append one item to `navigation.ts`: **"Areas We Cover" → `/areas`**. Nav goes 5 → 6.
-   ⛔ **`/areas`, with NO trailing slash.** Every existing entry is slash-less, and
-   `SiteHeader.tsx:12-16` computes active state as
-   `pathname === href || pathname.startsWith(`${href}/`)`. With `/areas/` that becomes
-   `"/areas/bury-park/".startsWith("/areas//")` → **false**, so the nav item would never highlight on
-   any of the five spoke pages. C4/G11's trailing-slash rule governs **emitted absolute URLs**
-   (canonical, sitemap), **not internal nav hrefs** — Next applies `trailingSlash` to the rendered
-   href anyway, so the emitted URL is still `/areas/` with no redirect hop.
-2. Append the same entry (also slash-less) to `footer.ts` `serviceLinks`.
+1. ⛔ **DO NOT touch `navigation.ts`.** Owner decision 2026-08-13: **footer only.** The nav stays at
+   its designed 5 items. This is a free choice — Mueller: link position is *"pretty much irrelevant"*
+   to Google, so nav-vs-footer costs nothing in machine understanding, and the footer renders on all
+   20 pages anyway.
+2. Append one entry to `footer.ts` `serviceLinks`: **label `"Areas We Cover"`, href `/areas`**.
+   ⛔ **`/areas`, with NO trailing slash.** Every existing entry is slash-less. C4/G11's
+   trailing-slash rule governs **emitted absolute URLs** (canonical, sitemap), **not internal nav
+   hrefs** — Next applies `trailingSlash` to the rendered href anyway, so the emitted URL is still
+   `/areas/` with no redirect hop. (Slash-less also keeps any future active-state logic working:
+   `SiteHeader.tsx:12-16` tests `pathname.startsWith(`${href}/`)`, which `/areas/` would break.)
 3. Populate `legalLinks` (`footer.ts:26` — verify) with Privacy and Cookies.
 
 **GOTCHAS**

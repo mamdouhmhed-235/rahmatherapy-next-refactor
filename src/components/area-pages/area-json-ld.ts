@@ -1,6 +1,38 @@
 import type { AreaPage } from "@/content/pages/areaPages";
 import { SITE_URL } from "@/content/site/site-url";
 
+/**
+ * The `areaServed` place for an area page.
+ *
+ * This used to be `{ "@type": "Place", name: `${area.name}, Luton` }` for every
+ * area, which asserted two things that are false: that Dunstable and Houghton
+ * Regis are in Luton (they are separate towns in Central Bedfordshire), and —
+ * on the hub, where `area.name` is already "Luton" — the string "Luton, Luton".
+ * The visible titles were always correct; only this machine-readable layer was
+ * wrong. See `AreaPlaceType`.
+ */
+function buildAreaServed(area: AreaPage) {
+  const LUTON = { "@type": "City", name: "Luton" } as const;
+  const REGION = { addressRegion: "Bedfordshire", addressCountry: "GB" } as const;
+
+  if (area.placeType === "district") {
+    // A district inside Luton — say so explicitly rather than by string suffix.
+    return {
+      "@type": "Place",
+      name: area.name,
+      containedInPlace: LUTON,
+    };
+  }
+
+  // "city" (Luton itself) and "town" (Dunstable, Houghton Regis) are both
+  // free-standing places. Neither is contained in the other.
+  return {
+    "@type": "City",
+    name: area.name,
+    address: { "@type": "PostalAddress", addressLocality: area.name, ...REGION },
+  };
+}
+
 // Service + BreadcrumbList JSON-LD, reproduced exactly from the prototype
 // (area.html inline script). The hub (/areas) drops the trailing breadcrumb
 // item so the crumb ends at "Areas we serve".
@@ -23,7 +55,7 @@ export function buildAreaJsonLd(area: AreaPage, { isHub }: { isHub: boolean }) {
       telephone: "+447798897222",
       areaServed: "Luton and surrounding areas",
     },
-    areaServed: { "@type": "Place", name: `${area.name}, Luton` },
+    areaServed: buildAreaServed(area),
   };
 
   const breadcrumbItems = [
