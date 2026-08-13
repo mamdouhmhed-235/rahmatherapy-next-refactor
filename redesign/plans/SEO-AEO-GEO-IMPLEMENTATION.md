@@ -106,7 +106,7 @@ Bury Park, Leagrave and Stopsley are **districts of Luton**. Dunstable and Hough
 
 ```powershell
 npx tsc --noEmit                              # 0
-npx vitest run                                # 5 failed / 2455 passed (2460)
+npx vitest run                                # 5 failed / 2467 passed (2472)   <- Phase 2 added 12
 pnpm lint                                     # 4 errors / 1 warning, THREE files
 npx vitest run scripts/                       # 47 passed
 node scripts/measure-admin-contrast.mjs .     # 110 (46 dark / 64 light)
