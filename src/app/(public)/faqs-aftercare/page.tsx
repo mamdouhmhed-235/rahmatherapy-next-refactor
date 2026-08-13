@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   title: "FAQs & Aftercare | Hijama, Cupping & Massage in Luton | Rahma Therapy",
   description:
     "Find clear answers and aftercare guidance for Rahma Therapy’s mobile hijama, cupping and massage appointments in Luton, including preparation, suitability, therapist options and package FAQs.",
+  alternates: {
+    canonical: siteUrl("/faqs-aftercare/"),
+  },
 };
 
 const jsonLd = {

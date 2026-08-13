@@ -15,6 +15,9 @@ export const metadata: Metadata = {
   title: "Rahma Therapy | Mobile Hijama, Cupping & Massage in Luton",
   description:
     "Private mobile hijama, cupping and massage in Luton with CMA and IPHM qualified male and female therapists. Home appointments, packages from £40 and aftercare included.",
+  alternates: {
+    canonical: siteUrl("/home/"),
+  },
 };
 
 const jsonLd = {

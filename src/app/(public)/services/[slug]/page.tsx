@@ -9,6 +9,7 @@ import { PackageWhoItsFor } from "@/components/package-pages/PackageWhoItsFor";
 import { RelatedPackages } from "@/components/package-pages/RelatedPackages";
 import { TreatmentBreakdown } from "@/components/package-pages/TreatmentBreakdown";
 import { getPackagePage, packagePages } from "@/content/pages/packagePages";
+import { siteUrl } from "@/content/site/site-url";
 
 type PageProps = {
   params: Promise<{
@@ -29,6 +30,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   return {
+    // Built from the route's own slug, never from searchParams — a canonical
+    // that echoed the query string would make ?booking=1 self-canonicalise and
+    // manufacture the duplicates it exists to consolidate.
+    alternates: {
+      canonical: siteUrl(`/services/${page.slug}/`),
+    },
     title: page.seo.title,
     description: page.seo.description,
   };

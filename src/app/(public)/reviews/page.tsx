@@ -12,6 +12,9 @@ export const metadata: Metadata = {
   title: "Reviews | Rahma Therapy Luton",
   description:
     "Read Google review highlights from Rahma Therapy clients across Luton, including hijama, cupping, massage, female therapist appointments and mobile home visits.",
+  alternates: {
+    canonical: siteUrl("/reviews/"),
+  },
 };
 
 const breadcrumbJsonLd = {

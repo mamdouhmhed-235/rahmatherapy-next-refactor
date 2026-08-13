@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "Services | Mobile Hijama, Cupping & Massage in Luton | Rahma Therapy",
   description:
     "Explore Rahma Therapy’s mobile hijama, cupping and massage packages in Luton, including the Supreme Combo, Hijama Package, Fire Package and massage therapy options from £40.",
+  alternates: {
+    canonical: siteUrl("/services/"),
+  },
 };
 
 const jsonLd = {
