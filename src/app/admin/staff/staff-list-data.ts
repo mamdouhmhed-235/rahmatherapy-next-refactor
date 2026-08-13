@@ -56,9 +56,10 @@
 // `staffProfilesFrom`, whose `StaffProfilesTable` builder type (team-access.ts)
 // intentionally surfaces only select/eq/order/maybeSingle — adding `.range` to
 // it means editing an RECON §5 FPM verbatim-preserved file, which this step has
-// no mandate to do. `countStaff` is provided as the cheap head-count companion;
-// it is not called by the page today. If C-16 needs to page the directory it
-// must widen that builder type first, deliberately.
+// no mandate to do. If C-16 ever needs to page the directory it must widen that
+// builder type first, deliberately. A `countStaff` head-count companion used to
+// sit below for that day; it was never called and is deleted (ITEM F / K.5) —
+// write the counter alongside the pager that needs it, not years ahead of it.
 
 import { unstable_cache } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -285,22 +286,3 @@ export async function getStaffListData(
   return cached();
 }
 
-/**
- * Cheap head-count companion for a future paged directory. Head request — no
- * rows transferred. Not used by the page today.
- */
-export async function countStaff(): Promise<number> {
-  const cached = unstable_cache(
-    async (): Promise<number> => {
-      const adminClient = createSupabaseAdminClient();
-      const { count, error } = await adminClient
-        .from("staff_profiles")
-        .select("id", { count: "exact", head: true });
-      if (error) return 0;
-      return count ?? 0;
-    },
-    ["staff-count"],
-    { revalidate: 60, tags: [TAGS.STAFF] }
-  );
-  return cached();
-}

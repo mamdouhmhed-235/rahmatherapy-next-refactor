@@ -494,6 +494,14 @@ So the gap is narrower than first reported but real: **the page that sells the
 treatments carries no medical disclaimer.** That is a business and liability
 question for the Owner, not a code cleanup.
 
+> ## ⛔ CLOSED — Owner decision, 2026-08-13. DO NOT RAISE THIS AGAIN.
+>
+> The Owner is handling disclaimer wording and placement **personally**. No
+> further disclaimer is to be added to `/home`, `/about` or `/services` by an
+> agent, and this is not to be re-surfaced as a finding, a recommendation or an
+> open question in any future audit or handoff. It is out of scope for this
+> repository's engineering work.
+
 **Status: the unused copy was removed on 2026-08-12** (`f0454bb`, 130 lines) by
 Owner decision, with the wording to be revisited separately. `faqsAftercareDisclaimer`
 is live and was **not** touched.
@@ -584,6 +592,16 @@ remove is a business decision about where design assets live, not a code questio
 errors in the baseline** — removing it would change the lint baseline, so it must
 be done deliberately and the baseline re-recorded.
 
+> ## ⛔ ANSWERED AND CLOSED — Owner decision, 2026-08-13. DO NOT RE-OPEN.
+>
+> **`rahma-therapy-image-replacements/` and `brand-logo-assets/` are KEPT.**
+> They are the business's design source material and stay in the repository.
+> A future audit must not list them as deletion candidates.
+>
+> `design_handoff_area_pages/` is a separate matter and was already resolved
+> before this document was written — moved out of the repo by an earlier Owner
+> decision, which is what took the lint baseline from 59 errors to 4.
+
 ---
 
 ## ITEM H — Database leftovers
@@ -615,6 +633,27 @@ migration to authenticated encryption"*.
 **This is a product question, not a cleanup.** Ask the Owner whether that
 encryption migration is still on the roadmap. If yes, keep it. If no, drop it.
 **Do not fold it into a mechanical dead-column sweep.**
+
+> ## ⛔ ANSWERED AND CLOSED — Owner decision, 2026-08-13. DO NOT RE-OPEN.
+>
+> **Authenticated encryption is NOT on the roadmap**, and the column **STAYS**.
+>
+> Both halves of that are deliberate. The scheme in place is not a lesser
+> version of encryption — for this use case it is the stronger one. The token is
+> emailed once and thereafter only ever compared, so nothing needs to read it
+> back; a SHA-256 hash cannot be reversed by someone holding the whole database,
+> whereas encryption would require a key to store, rotate and guard. Version 1+
+> would add an attack surface to buy a capability nothing here wants.
+>
+> The column is left in place because removing it costs a migration — Owner
+> approval, DDL against production — to delete an empty nullable column that
+> harms nothing. That trade is not worth making.
+>
+> **A future audit must not list `payload_nonce` as dead schema, and must not
+> propose this migration again.** The rationale is duplicated at the top of
+> `src/lib/auth/password-reset-token.ts` so it is found by whoever greps the
+> code rather than the plan. Only a real product requirement to read a token
+> back out should revive this.
 
 ### H.3 `staff_availability_overrides.override_type` — read-only, no writer
 

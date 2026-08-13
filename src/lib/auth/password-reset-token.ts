@@ -7,8 +7,23 @@
 //       This is the chosen scheme: hash is the right cryptographic primitive
 //       when we never need to recover the original. Reduces the steal-the-DB
 //       blast radius (no key to leak).
-//   1+ — reserved for future migration to authenticated encryption if the
-//       requirement ever shifts to "decrypt and reissue the token."
+//   1+ — ⛔ NOT PLANNED. Owner decision, 2026-08-13: authenticated encryption
+//       is NOT on the roadmap and this is a CLOSED question. Do not re-open it,
+//       do not propose it in an audit, and do not treat the unused
+//       `account_password_requests.payload_nonce` column as dead schema to be
+//       swept — it is the reserved slot for a scheme we are deliberately not
+//       adopting, and dropping it costs a migration for no gain.
+//
+//       Version 0 is not a shortcut, it is the stronger choice here. We never
+//       need to recover the plaintext: the token is emailed once and afterwards
+//       only ever compared. A hash cannot be reversed by anyone who steals the
+//       database, whereas encryption would oblige us to store, rotate and guard
+//       a key that can itself be stolen. Moving to 1+ would ADD an attack
+//       surface to buy a capability ("decrypt and reissue an old token") that
+//       nothing in this product asks for.
+//
+//       The only thing that should ever revive this is a genuine product
+//       requirement to read a token back out. Absent that, the answer is no.
 
 const TOKEN_BYTE_LENGTH = 32; // 256 bits → 64 hex chars.
 export const CURRENT_CIPHER_VERSION = 0;

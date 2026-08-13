@@ -439,18 +439,26 @@ type ClientFullRow = Record<string, unknown> & {
 };
 
 /**
- * `recurring_booking_templates` arrives with C-02, which lands after C-06.
- * Until then the table is simply absent: PostgREST answers from its schema
- * cache with PGRST205, older builds surfaced Postgres' own 42P01
- * (undefined_table). Either is the pre-C-02 state — a clean no-op, not a
- * failure.
+ * ⚠️ `recurring_booking_templates` HAS ARRIVED — `20260802122636_c02_recurring
+ * _bookings.sql:251`. This said "arrives with C-02, which lands after C-06.
+ * Until then the table is simply absent"; C-02 landed (ITEM I.2).
+ *
+ * The tolerance below is KEPT: it lets this cascade run against a database that
+ * has not been migrated yet, which matters because app code and DDL deploy
+ * separately here. PostgREST answers a missing table from its schema cache with
+ * PGRST205, older builds surfaced Postgres' own 42P01 (undefined_table). Either
+ * is a clean no-op, not a failure.
  */
 const MISSING_TABLE_CODES = new Set(["PGRST205", "42P01"]);
 
 /**
- * `bookings.cancelled_at` arrives with C-04a (its S7 amendment adds the column
- * plus a backfill), the plan immediately after this one. PostgREST rejects an
- * unknown column with PGRST204, raw Postgres with 42703 (undefined_column).
+ * ⚠️ `bookings.cancelled_at` HAS ARRIVED — `20260728073903_c04a_scheduled
+ * _emails.sql`, and is exercised by `__tests__/deleteClient.test.ts`. This said
+ * it "arrives with C-04a … the plan immediately after this one" (ITEM I.2).
+ *
+ * The tolerance is KEPT for the same reason as the table check above: a deploy
+ * can precede its migration. PostgREST rejects an unknown column with PGRST204,
+ * raw Postgres with 42703 (undefined_column).
  */
 const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
 

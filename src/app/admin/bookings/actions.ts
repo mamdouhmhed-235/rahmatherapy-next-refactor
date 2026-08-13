@@ -81,10 +81,16 @@ const RESTORE_TARGET_STATUSES = ["confirmed", "pending"] as const;
 type RestoreTargetStatus = (typeof RESTORE_TARGET_STATUSES)[number];
 
 /**
- * `bookings.cancelled_at` arrives with C-04a's Phase F migration. Until then
- * the restore payload cannot clear it: PostgREST rejects an unknown column with
- * PGRST204, raw Postgres with 42703. Same fallback shape as C-06's cascade in
- * `clients/actions.ts`.
+ * ⚠️ `bookings.cancelled_at` HAS ARRIVED — `20260728073903_c04a_scheduled_emails
+ * .sql`. This comment used to read "arrives with C-04a's Phase F migration.
+ * Until then the restore payload cannot clear it", which stopped being true the
+ * day that migration shipped and stayed on the page for months (ITEM I.2).
+ *
+ * The retry below is KEPT ON PURPOSE and is not dead. It is what makes this
+ * action survive a deploy against a database that has not been migrated yet —
+ * app code and DDL ship on separate cadences here — so it degrades instead of
+ * throwing. PostgREST rejects an unknown column with PGRST204, raw Postgres
+ * with 42703. Same fallback shape as C-06's cascade in `clients/actions.ts`.
  */
 const MISSING_COLUMN_CODES = new Set(["PGRST204", "42703"]);
 
@@ -1081,9 +1087,10 @@ export async function restoreBooking(
     if (clearsCancellation) {
       payload.customer_cancelled_at = null;
       payload.customer_cancellation_note = null;
-      // TODO(C-04a Phase F/G): `cancelled_at` is created by Phase F's
-      // migration. Attempt it first so the clear joins the convention the
-      // moment the column is live, and fall back while it is absent.
+      // `cancelled_at` is live (20260728073903), so this clear normally runs.
+      // The flag stays because the caller degrades gracefully against an
+      // un-migrated database — see MISSING_COLUMN_CODES above. Not a TODO:
+      // there is nothing left to do here (ITEM I.2).
       if (includeCancelledAt) payload.cancelled_at = null;
     }
     return payload;

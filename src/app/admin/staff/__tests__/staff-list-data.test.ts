@@ -20,7 +20,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 const { createFakeAdminClient } = await import(
   "@/lib/cache/__tests__/fake-supabase-admin"
 );
-const { getStaffListData, countStaff } = await import("../staff-list-data");
+const { getStaffListData } = await import("../staff-list-data");
 const { TAGS } = await import("@/lib/cache/tag-taxonomy");
 
 const ADMIN_PARAMS = {
@@ -117,11 +117,6 @@ describe("getStaffListData cache behaviour", () => {
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
   });
 
-  it("caches the companion count path under its own key", async () => {
-    await expect(countStaff()).resolves.toBe(6);
-    await countStaff();
-    expect(createSupabaseAdminClient).toHaveBeenCalledTimes(1);
-  });
 });
 
 // C-09 Phase D Step 9 — role/gender/status/bookable filter wiring keys
