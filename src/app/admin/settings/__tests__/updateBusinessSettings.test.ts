@@ -150,12 +150,21 @@ describe("updateBusinessSettings — cache tag invalidation (B-149 fix)", () => 
 });
 
 /**
- * Item 8 Phase 1. `free_travel_cities` is the column the app reads, but the
- * live `create_booking_request` gate still reads `allowed_cities`, so the save
- * must write BOTH until Step Z drops the old column after the deploy.
+ * STEP Z. `free_travel_cities` is now the only column the save writes.
+ *
+ * This block used to assert the opposite — that the town list went to BOTH
+ * columns — because `create_booking_request` read `allowed_cities` as the live
+ * booking gate. Phase 2 (20260811210000) moved that gate, and a direct scan of
+ * every function body, view, policy, index, constraint and trigger confirmed
+ * nothing in the database reads the old column any more, so the dual-write was
+ * removed and the column dropped.
+ *
+ * The assertion is inverted rather than deleted on purpose: writing a column
+ * that no longer exists fails the whole save with PGRST204, so "we stopped
+ * writing it" is the property worth guarding, not a detail worth forgetting.
  */
-describe("updateBusinessSettings — free-travel areas dual-write", () => {
-  it("writes the town list to free_travel_cities and allowed_cities together", async () => {
+describe("updateBusinessSettings — free-travel areas", () => {
+  it("writes the town list to free_travel_cities only, never to the dropped column", async () => {
     const stub = stubAdminClient();
     vi.mocked(createSupabaseAdminClient).mockReturnValue(stub.client as never);
 
@@ -164,8 +173,8 @@ describe("updateBusinessSettings — free-travel areas dual-write", () => {
     expect(result).toEqual({ success: true });
     expect(stub.upserts[0]).toMatchObject({
       free_travel_cities: ["Luton", "Dunstable"],
-      allowed_cities: ["Luton", "Dunstable"],
     });
+    expect(stub.upserts[0]).not.toHaveProperty("allowed_cities");
   });
 
   it("rejects an empty free-travel list with the reworded message", async () => {

@@ -114,12 +114,19 @@ export async function updateBusinessSettings(
     buffer_time_mins: bufferTimeMins,
     minimum_notice_hours: minimumNoticeHours,
     customer_cancellation_cutoff_hours: cancellationCutoffHours,
-    // ⛔ DUAL-WRITE, deliberate (plan §0.0c, decision 9). `create_booking_request`
-    // still reads `allowed_cities` as its live booking gate, so writing only the
-    // new column would let the owner edit the free-travel list while the gate
-    // silently enforced the stale one. Delete this line in Step Z — after the
-    // deploy and the DROP COLUMN — and not before.
-    allowed_cities: freeTravelCities,
+    // STEP Z, part 1 of 2 — the deliberate `allowed_cities` dual-write is gone.
+    // It existed because `create_booking_request` read that column as the live
+    // booking gate, so writing only the new column would have let the owner edit
+    // the free-travel list while the gate silently enforced the stale one. Phase
+    // 2 (20260811210000) moved the gate onto `free_travel_cities`, and a direct
+    // scan of every function body, view, policy, index, constraint and trigger
+    // confirms nothing in the database reads `allowed_cities` any more.
+    //
+    // ⚠️ Order matters, and it is the REVERSE of what the old comment here said.
+    // This line must be removed and DEPLOYED before the column is dropped: the
+    // running code writes whatever it was last deployed with, so dropping first
+    // would make every business-settings save fail with PGRST204 until the next
+    // deploy caught up. Code first, then the DROP.
     free_travel_cities: freeTravelCities,
     booking_status_enabled: formData.get("booking_status_enabled") === "on",
     // Omitted when the field was not submitted, so an Admin's save can never
