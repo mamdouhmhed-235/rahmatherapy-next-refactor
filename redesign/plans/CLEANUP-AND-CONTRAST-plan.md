@@ -2,8 +2,51 @@
 
 **Written:** 2026-08-12, immediately after the POST-BAND-C follow-up closed at 8/8
 **Base commit for every anchor:** `70a5af9` on `master`
-**Status:** ⛔ NOT STARTED. Nothing in this document has been actioned.
+**Status:** ✅ **CLOSED 2026-08-13.** Every item is shipped, deliberately declined,
+or answered by an Owner decision. **This document is now a RECORD, not a queue —
+do not work from it.** Read `redesign/HANDOFF-2026-08-13-IMPLEMENTATION-6.md`
+first; §6 there lists the ten claims in this plan that failed verification, four
+of which prescribed fixes that would have caused regressions if followed.
 **Audience:** the agent(s) executing these fixes, and the Owner reviewing them.
+
+> ### Where each item ended up
+>
+> | Item | Outcome |
+> |---|---|
+> | **A** buttons | ✅ `7d2f787` — one CSS line, not 30 edits |
+> | **B** muted metadata | ✅ `70b9589` — but NOT as prescribed: the failures are opacity washes, not the token, and 9 of 15 sites are `aria-hidden` decorative |
+> | **C** avatar discs | ✅ `1d85f97` |
+> | **D.1/D.2** old brand | ✅ done before this plan closed |
+> | **D.3/D.4/D.5** | ⛔ no action needed (recorded in §9) |
+> | **E / E.1** dead files | ✅ `fc3989e` — Owner chose to delete the shadcn scaffolding |
+> | **F** unused exports | ✅ `3f531ec` + `bd3ba1c` — 27 removed; ⛔ `AdminEmptyState` is ALIVE and was NOT deleted |
+> | **F.1** disclaimer gap | ⛔ **Owner handles personally. Never raise again** |
+> | **G.1** react-query | ✅ `80bd350` (Zone-2, approved) |
+> | **G.2** one-off scripts | ✅ `83f262a` |
+> | **G.3/G.3b** phantom deletions | ✅ `9867632` |
+> | **G.4** untracked leftovers | ⛔ disk hygiene only, Owner's discretion |
+> | **G.5** tracked archives | ⛔ **KEEP** — Owner decision |
+> | **H.1** dead OR-branch | ⛔ deferred to that function's next edit, per this plan |
+> | **H.2** `payload_nonce` | ⛔ **CLOSED** — encryption not on the roadmap, column stays |
+> | **H.3** `override_type` | ⛔ DO NOT DROP |
+> | **H.4** `metadata` | ⛔ no action; low value either way |
+> | **H.5** `allowed_cities` | ✅ **STEP Z DONE** — `b97053e` + `3d40076`, migration `20260813012046` |
+> | **I.1** formatDate | ✅ `207ac74` — but NOT as prescribed; see the handoff |
+> | **I.2** stale comments | ✅ `83f262a` — four sites, not the two listed |
+> | **J / K.2** Recent activity | ✅ `b469b99` — server-rendered expand link, not a client island |
+> | **K.1** therapist bookings | ✅ `4c955ea` |
+> | **K.3** calendar | ⛔ correctly a no-op |
+> | **K.4** dashboard attention | ✅ `ca859ed` |
+> | **K.5** email tabs | ✅ `2c0e749` — hedged notice; an exact count breaks a test |
+> | **K.5** `countStaff()` | ✅ `83f262a` |
+> | **L** export exposure | ✅ `1e75adc` |
+> | **M** command palette | ✅ `5a742df`; **A2 embed rewrite still tracked** |
+> | **N** unscoped collections | ✅ `7cfc4ca` `19356f8` `d8cd231` `58c21a1` |
+>
+> Two production defects found AFTER this plan closed, neither in it:
+> **every photo on five page families was a placeholder on Cloudflare**
+> (`c461b85`) and **the maintenance notice collided with the fixed header**
+> (`c3790b7`). Both are written up in the handoff.
 
 This plan collects two separate bodies of work that arrived together:
 
