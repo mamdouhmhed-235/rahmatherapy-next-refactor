@@ -336,6 +336,43 @@ async function getVisibleViewCounts({
   }
 }
 
+/**
+ * Which rows this reader actually sees, and what the pager should say about
+ * them (ITEM K.1).
+ *
+ * The two branches window in different places and the choice between them was
+ * spread across four separate `canViewAll ? … : …` ternaries — the rows, then
+ * `page`, `pageCount` and `total` on `PaginationBar`. Any one of them could be
+ * flipped on its own, and nothing would fail; gathered here they are one
+ * decision with one test (`__tests__/bookings-list-window.test.ts`).
+ *
+ * CLINIC-WIDE: already windowed in SQL and counted through the same predicate
+ * plan, so `listPage` is returned as-is. Slicing it again here would page an
+ * already-paged set — page 2 would show page 2 of page 2.
+ *
+ * THERAPIST-SCOPED: `getBookingsListPage` reports `pageCount: 1` because that
+ * branch's view predicate is `filterBookings`, which had not run when it
+ * returned. It has run by the time this is called, so the window is taken over
+ * the set the reader is actually looking at. Before ITEM K.1 this branch had no
+ * pager at all: the list simply ran on until the data layer's cap cut it off,
+ * with no page 2 and no notice that anything had been cut.
+ */
+export function resolveBookingsWindow({
+  canViewAll,
+  rows,
+  listPage,
+  rawPage,
+}: {
+  canViewAll: boolean;
+  rows: BookingRecord[];
+  listPage: BookingsListPage;
+  rawPage: unknown;
+}): BookingsListPage {
+  return canViewAll
+    ? { ...listPage, rows }
+    : paginateInMemory(rows, rawPage, LIST_PAGE_SIZE);
+}
+
 async function BookingListSection({
   query,
   profile,
@@ -447,22 +484,17 @@ async function BookingListSection({
     );
   }
 
-  // ITEM K.1 — the therapist-scoped pager.
-  //
-  // This branch used to report `pageCount: 1` unconditionally, so
-  // `PaginationBar` rendered nothing and a practitioner's list simply ran on
-  // until the data layer's cap cut it off, with no page 2 and no notice that
-  // anything had been cut. The window has to be taken HERE rather than in the
-  // data layer because `filterBookings` above is this branch's view predicate:
-  // a window taken before it would be a window of the wrong set, and page one
-  // would arrive already short. The clinic-wide branch is windowed in SQL and
-  // must never be sliced twice.
-  const scopedWindow = paginateInMemory(
-    filteredBookings,
-    getQueryValue(query.page),
-    LIST_PAGE_SIZE
-  );
-  const visibleBookings = canViewAll ? filteredBookings : scopedWindow.rows;
+  // ITEM K.1 — the window has to be taken HERE rather than in the data layer,
+  // because `filterBookings` above is the therapist branch's view predicate: a
+  // window taken before it would be a window of the wrong set, and page one
+  // would arrive already short. See `resolveBookingsWindow` for the rest.
+  const listWindow = resolveBookingsWindow({
+    canViewAll,
+    rows: filteredBookings,
+    listPage,
+    rawPage: getQueryValue(query.page),
+  });
+  const visibleBookings = listWindow.rows;
 
   const showGrouping =
     new Set(visibleBookings.map((b) => b.booking_date)).size > 1;
@@ -524,9 +556,9 @@ async function BookingListSection({
           branch now supplies a real count here too, computed above from the
           post-oracle set, so it pages instead of running on to a silent cap. */}
       <PaginationBar
-        page={canViewAll ? listPage.page : scopedWindow.page}
-        pageCount={canViewAll ? listPage.pageCount : scopedWindow.pageCount}
-        total={canViewAll ? listPage.total : scopedWindow.total}
+        page={listWindow.page}
+        pageCount={listWindow.pageCount}
+        total={listWindow.total}
         pageSize={LIST_PAGE_SIZE}
         makeHref={makePageHref}
       />
