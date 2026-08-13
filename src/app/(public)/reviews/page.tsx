@@ -6,6 +6,7 @@ import { ReviewsFinalCTA } from "@/components/reviews/ReviewsFinalCTA";
 import { ReviewsHero } from "@/components/reviews/ReviewsHero";
 import { ReviewsStatsStrip } from "@/components/reviews/ReviewsStatsStrip";
 import { ReviewThemeHighlights } from "@/components/reviews/ReviewThemeHighlights";
+import { businessJsonLd } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
@@ -39,6 +40,18 @@ const breadcrumbJsonLd = {
 export default function ReviewsPage() {
   return (
     <>
+      {/*
+        The business entity. This page carries the most content on the site and
+        emitted only a breadcrumb before. Deliberately NO aggregateRating and no
+        Review objects: Google does not show review rich results for reviews an
+        entity hosts about itself, and its guidelines rule out editor-curated
+        ratings. The real rating stays authoritative via `sameAs` on this node,
+        which points at the Google listing linked from this page.
+      */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(businessJsonLd) }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}

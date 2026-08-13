@@ -1,4 +1,5 @@
 import type { AreaPage } from "@/content/pages/areaPages";
+import { businessNode } from "@/content/site/business-node";
 import { SITE_URL } from "@/content/site/site-url";
 
 /**
@@ -48,13 +49,7 @@ export function buildAreaJsonLd(area: AreaPage, { isHub }: { isHub: boolean }) {
     description,
     url,
     serviceType: "Hijama, cupping and massage therapy",
-    provider: {
-      "@id": `${SITE_URL}/#business`,
-      "@type": "HealthAndBeautyBusiness",
-      name: "Rahma Therapy",
-      telephone: "+447798897222",
-      areaServed: "Luton and surrounding areas",
-    },
+    provider: businessNode,
     areaServed: buildAreaServed(area),
   };
 

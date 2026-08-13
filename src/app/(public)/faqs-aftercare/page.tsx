@@ -7,6 +7,7 @@ import { FaqsAftercareHero } from "@/components/faqs-aftercare/FaqsAftercareHero
 import { QuickAnswersStrip } from "@/components/faqs-aftercare/QuickAnswersStrip";
 import { SafetySuitability } from "@/components/faqs-aftercare/SafetySuitability";
 import { WhenToGetAdvice } from "@/components/faqs-aftercare/WhenToGetAdvice";
+import { businessJsonLd } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
@@ -18,17 +19,7 @@ export const metadata: Metadata = {
   },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HealthAndBeautyBusiness",
-  name: "Rahma Therapy",
-  description:
-    "Mobile hijama, cupping and massage therapy in Luton with CMA and IPHM qualified male and female therapists.",
-  areaServed: "Luton",
-  telephone: "07798897222",
-  url: siteUrl("/faqs-aftercare/"),
-  sameAs: ["https://www.instagram.com/rahmatherapyluton/"],
-};
+const jsonLd = businessJsonLd;
 
 export default function FaqsAftercarePage() {
   return (

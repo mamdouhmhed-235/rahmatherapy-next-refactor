@@ -4,6 +4,7 @@ import { AboutHero } from "@/components/about/AboutHero";
 import { AboutStatsStrip } from "@/components/about/AboutStatsStrip";
 import { BrandStory } from "@/components/about/BrandStory";
 import { TeamProfiles } from "@/components/about/TeamProfiles";
+import { businessJsonLd } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
@@ -15,17 +16,7 @@ export const metadata: Metadata = {
   },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HealthAndBeautyBusiness",
-  name: "Rahma Therapy",
-  description:
-    "Mobile hijama, cupping and massage therapy in Luton with CMA and IPHM qualified male and female therapists.",
-  areaServed: "Luton",
-  url: siteUrl("/about/"),
-  telephone: "07798897222",
-  sameAs: ["https://www.instagram.com/rahmatherapyluton/"],
-};
+const jsonLd = businessJsonLd;
 
 export default function AboutPage() {
   return (

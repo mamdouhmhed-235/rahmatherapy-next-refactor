@@ -9,6 +9,7 @@ import { HomeTeamPreview } from "@/components/home/HomeTeamPreview";
 import { HomeTrustStrip } from "@/components/home/HomeTrustStrip";
 import { PainPointCards } from "@/components/home/PainPointCards";
 import { WhyRahmaTherapy } from "@/components/home/WhyRahmaTherapy";
+import { businessJsonLd } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
@@ -20,17 +21,7 @@ export const metadata: Metadata = {
   },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HealthAndBeautyBusiness",
-  name: "Rahma Therapy",
-  areaServed: "Luton",
-  url: siteUrl("/home/"),
-  telephone: "+447798897222",
-  priceRange: "£40-£60",
-  description:
-    "Mobile hijama, cupping and massage therapy at home in Luton with male and female therapists.",
-};
+const jsonLd = businessJsonLd;
 
 export default function HomePage() {
   return (

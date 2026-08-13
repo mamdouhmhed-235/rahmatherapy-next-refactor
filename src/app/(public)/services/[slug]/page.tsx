@@ -9,6 +9,7 @@ import { PackageWhoItsFor } from "@/components/package-pages/PackageWhoItsFor";
 import { RelatedPackages } from "@/components/package-pages/RelatedPackages";
 import { TreatmentBreakdown } from "@/components/package-pages/TreatmentBreakdown";
 import { getPackagePage, packagePages } from "@/content/pages/packagePages";
+import { businessNode } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
 type PageProps = {
@@ -54,12 +55,7 @@ export default async function PackagePage({ params }: PageProps) {
     "@context": "https://schema.org",
     "@type": "Service",
     name: page.title,
-    provider: {
-      "@type": "HealthAndBeautyBusiness",
-      name: "Rahma Therapy",
-      areaServed: "Luton",
-      telephone: "07798897222",
-    },
+    provider: businessNode,
     areaServed: "Luton",
     offers: {
       "@type": "Offer",

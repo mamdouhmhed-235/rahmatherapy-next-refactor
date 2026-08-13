@@ -5,6 +5,7 @@ import { PackageFinder } from "@/components/services/PackageFinder";
 import { ServicesFinalCTA } from "@/components/services/ServicesFinalCTA";
 import { ServicesHero } from "@/components/services/ServicesHero";
 import { TreatmentMethods } from "@/components/services/TreatmentMethods";
+import { businessJsonLd } from "@/content/site/business-node";
 import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
@@ -16,15 +17,10 @@ export const metadata: Metadata = {
   },
 };
 
+// The shared business entity, plus this page's own offers. Prices match the
+// package cards rendered below, so the markup describes what the page shows.
 const jsonLd = {
-  "@context": "https://schema.org",
-  "@type": "HealthAndBeautyBusiness",
-  name: "Rahma Therapy",
-  description:
-    "Mobile hijama, cupping and massage therapy packages in Luton with CMA and IPHM qualified male and female therapists.",
-  areaServed: "Luton",
-  telephone: "07798897222",
-  url: siteUrl("/services/"),
+  ...businessJsonLd,
   makesOffer: [
     {
       "@type": "Offer",
