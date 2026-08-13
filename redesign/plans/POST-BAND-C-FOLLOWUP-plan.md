@@ -121,7 +121,13 @@ The deepening pass surfaced five genuinely open decisions. **All five were answe
 The Owner declined these. Leave them exactly as they are.
 
 - **The Google Maps cookie label.** It stays `purpose: "essential"` in `src/lib/consent/cookie-registry.ts`. Confirmed by the Owner twice. Do not "correct" it to `functional` — that would make the Functional group's blanket promise false, which is precisely why it is filed as it is.
-- **SEO:** no `sitemap.ts` / `robots.ts`, and 5 of 6 public pages emit no canonical tag.
+- ~~**SEO:** no `sitemap.ts` / `robots.ts`, and 5 of 6 public pages emit no canonical tag.~~
+  ⛔ **REVERSED BY THE OWNER, 2026-08-13.** This entry is no longer in force. The Owner
+  explicitly re-opened all three — sitemap, robots and the missing canonicals — as part of an
+  SEO/AEO/GEO workstream. See `redesign/plans/SEO-AEO-GEO-2026-08-13-plan.md`. The earlier
+  deferrals this entry rested on (`BAND-C-REFINEMENT-2026-07-26.md` §6.3 "Owner: will handle
+  later personally"; `C-21-canonical-domain-fix-progress.md` §73 "defer to a follow-up") are
+  superseded by that decision. **Do not treat SEO as declined.**
 - **Non-atomic global override save**, and the **staff duplicate-date TOCTOU**. Both verified low-severity and disclosed.
 - **The `area == city` duplication** on unitary-authority addresses, and the `autoComplete` choice on the booking address field.
 - **Automatic data deletion / retention enforcement.** The Owner will handle retention manually — which is exactly why item 2 exists.
