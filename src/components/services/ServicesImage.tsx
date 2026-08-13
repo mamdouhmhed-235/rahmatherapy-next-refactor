@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { ImagePlaceholder } from "@/components/shared";
+import { publicImageExists } from "@/lib/media/image-manifest";
 import { cn } from "@/lib/utils";
 
 interface ServicesImageProps {
@@ -12,18 +13,6 @@ interface ServicesImageProps {
   sizes?: string;
 }
 
-const approvedServiceImagePaths = new Set<string>([
-  "/images/services/package-supreme.jpg",
-  "/images/services/package-hijama-card.jpg",
-  "/images/services/package-fire.jpg",
-  "/images/services/package-massage.jpg",
-  "/images/services/package-massage-60.jpg",
-  "/images/services/services-hero-v1.jpg",
-  "/images/services/services-final-cta-v1.jpg",
-  "/images/services/package-finder-v1.jpg",
-  "/images/services/treatment-methods-v1.jpg",
-]);
-
 export function ServicesImage({
   src,
   alt,
@@ -33,7 +22,7 @@ export function ServicesImage({
   fetchPriority,
   sizes = "(max-width: 768px) 100vw, 50vw",
 }: ServicesImageProps) {
-  if (!approvedServiceImagePaths.has(src)) {
+  if (!publicImageExists(src)) {
     return (
       <div className={cn("absolute inset-0", className)}>
         <ImagePlaceholder

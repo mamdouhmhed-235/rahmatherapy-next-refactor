@@ -1,7 +1,6 @@
-import { existsSync } from "node:fs";
-import path from "node:path";
 import Image from "next/image";
 import { ImagePlaceholder } from "@/components/shared";
+import { publicImageExists } from "@/lib/media/image-manifest";
 import { cn } from "@/lib/utils";
 
 interface AboutImageProps {
@@ -14,10 +13,6 @@ interface AboutImageProps {
   sizes?: string;
 }
 
-function publicAssetExists(src: string) {
-  return existsSync(path.join(process.cwd(), "public", src.replace(/^\//, "")));
-}
-
 export function AboutImage({
   src,
   alt,
@@ -27,7 +22,7 @@ export function AboutImage({
   fetchPriority,
   sizes = "(max-width: 768px) 100vw, 50vw",
 }: AboutImageProps) {
-  if (!publicAssetExists(src)) {
+  if (!publicImageExists(src)) {
     return (
       <div className={cn("absolute inset-0", className)}>
         <ImagePlaceholder

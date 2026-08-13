@@ -1,7 +1,6 @@
-import fs from "node:fs";
-import path from "node:path";
 import Image from "next/image";
 import { ImagePlaceholder } from "@/components/shared";
+import { publicImageExists } from "@/lib/media/image-manifest";
 import { cn } from "@/lib/utils";
 
 interface ReviewsImageProps {
@@ -12,11 +11,6 @@ interface ReviewsImageProps {
   priority?: boolean;
 }
 
-function publicAssetExists(src: string) {
-  const publicPath = path.join(process.cwd(), "public", src.replace(/^\//, ""));
-  return fs.existsSync(publicPath);
-}
-
 export function ReviewsImage({
   src,
   alt,
@@ -24,7 +18,7 @@ export function ReviewsImage({
   className,
   priority = false,
 }: ReviewsImageProps) {
-  if (!publicAssetExists(src)) {
+  if (!publicImageExists(src)) {
     return (
       <ImagePlaceholder
         filePath={src}
