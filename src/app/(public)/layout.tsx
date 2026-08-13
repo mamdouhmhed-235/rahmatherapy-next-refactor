@@ -36,12 +36,28 @@ export default async function PublicLayout({
       >
         Skip to main content
       </a>
-      {MAINTENANCE_MODE && <MaintenanceBanner />}
       <SiteHeader />
       <main id="main-content" tabIndex={-1} className="public-main">
         {children}
       </main>
       <SiteFooter />
+      {/* The notice is pinned to the BOTTOM of the viewport, so it is rendered
+          after the footer rather than before the header. Putting it above the
+          header was the live bug: the header is `position: fixed` at top 0, so
+          an in-flow banner could not push it down and the two shared the same
+          space. See MaintenanceBanner for the full account.
+
+          The spacer reserves the height the bar covers, so the last of the
+          footer can still be scrolled clear of it. Deliberately generous — the
+          bar's height depends on how the copy wraps, and a little extra
+          whitespace below the footer costs nothing, whereas too little would
+          clip the footer's bottom row. */}
+      {MAINTENANCE_MODE && (
+        <>
+          <div aria-hidden className="h-24 sm:h-14" />
+          <MaintenanceBanner />
+        </>
+      )}
       {!MAINTENANCE_MODE && (
         <BookingExperienceLoader
           bookingWindowDays={bookingWindow?.bookingWindowDays}
