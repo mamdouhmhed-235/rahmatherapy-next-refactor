@@ -38,6 +38,7 @@ export default function PrivacyPolicyPage() {
     <>
       <SectionContainer tone="ivory" width="narrow">
         <SectionHeading
+          as="h1"
           eyebrow="Privacy policy"
           title="How we look after your information"
           description="This notice explains what personal information we collect when you book with us or get in touch, why we use it, who we share it with, and the choices and rights you have."

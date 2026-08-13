@@ -63,7 +63,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${urbanist.variable} ${workSans.variable} ${adminSerif.variable}`}>
+    <html lang="en-GB" className={`${urbanist.variable} ${workSans.variable} ${adminSerif.variable}`}>
       <body>
         <SentryProvider />
         {children}

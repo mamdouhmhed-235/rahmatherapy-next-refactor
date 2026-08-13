@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 type HeadingAlign = "left" | "center";
 type HeadingSize = "default" | "large" | "compact";
 type HeadingWeight = "medium" | "semibold";
+type HeadingLevel = "h1" | "h2";
 
 const alignClasses: Record<HeadingAlign, string> = {
   left: "items-start text-left",
@@ -29,6 +30,14 @@ interface SectionHeadingProps extends Omit<HTMLAttributes<HTMLDivElement>, "titl
   size?: HeadingSize;
   weight?: HeadingWeight;
   inverse?: boolean;
+  /**
+   * Heading element to render. Defaults to `h2`, because this is a SECTION
+   * heading and ~30 files rely on that — changing the default would move
+   * heading levels across the whole site. Pages with no hero (the two legal
+   * pages) pass `as="h1"` so they are not left without an h1 at all.
+   * Styling is unaffected: every class lives on the tag itself.
+   */
+  as?: HeadingLevel;
 }
 
 export function SectionHeading({
@@ -39,6 +48,7 @@ export function SectionHeading({
   size = "default",
   weight = "medium",
   inverse = false,
+  as: Heading = "h2",
   className,
   ...props
 }: SectionHeadingProps) {
@@ -57,7 +67,7 @@ export function SectionHeading({
           {eyebrow}
         </p>
       ) : null}
-      <h2
+      <Heading
         className={cn(
           "font-display leading-[1.04] tracking-normal",
           sizeClasses[size],
@@ -66,7 +76,7 @@ export function SectionHeading({
         )}
       >
         {title}
-      </h2>
+      </Heading>
       {description ? (
         <p
           className={cn(

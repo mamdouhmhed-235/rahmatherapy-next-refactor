@@ -27,6 +27,7 @@ export default function CookiesPage() {
     <>
       <SectionContainer tone="ivory" width="narrow">
         <SectionHeading
+          as="h1"
           eyebrow="Cookies & site storage"
           title="What we store on your device, and why"
           description="This page lists every cookie and browser-storage item our own code sets on rahmatherapy.uk, or that a service we use (such as Google Analytics or Sentry) sets on our behalf, when you visit as a member of the public or use our booking system — what it does and how long it lasts. We keep this list in one place so it stays consistent wherever it's shown."
