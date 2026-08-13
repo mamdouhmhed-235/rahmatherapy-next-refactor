@@ -58,14 +58,21 @@ function isUuid(value: string) {
  * those ids is serialised into the `.in()` query string. Uncapped, the request
  * grows with every assignment they have ever held.
  *
- * ⛔ The number is arithmetic, not taste. A UUID costs 37 characters inside
- * `in.(…)`, so the whole palette GET — select, order, limit, the id list and
- * the four-column ilike — measures ≈4.3 kB at 100 ids and ≈8.2–8.3 kB at 200,
- * against a ~8 kB nginx request-line ceiling. postgrest-js carries a matching
- * warning: its overflow hint names `.in('id', [200+ IDs])` as the point to
- * stop. A cap that makes the request fail is worse than one that truncates —
- * a 414 breaks search outright for that practitioner, where truncation only
- * puts their oldest work out of reach.
+ * A UUID costs 37 characters inside `in.(…)`, so the whole palette GET —
+ * select, order, limit, the id list and the four-column ilike — measures
+ * ≈4.3 kB at 100 ids and ≈8.2–8.3 kB at 200.
+ *
+ * ⛔ THE CEILING THIS WAS SIZED AGAINST WAS WRONG, and the same wrong figure
+ * sized `SCOPED_CANDIDATE_ID_CAP` in `bookings/bookings-list-data.ts` — see the
+ * full measurement there. In short: it is ~25 kB, not ~8 kB, and overflow is
+ * HTTP 400 rather than 414. This select is small, so ~634 ids would fit.
+ * (An earlier version of this comment also credited postgrest-js with a
+ * matching "200+ IDs" overflow warning. There is no such warning in the
+ * installed package — it was not there to check against.)
+ *
+ * 100 is KEPT regardless: a cap that makes the request fail is worse than one
+ * that truncates, the busiest therapist holds 2 lifetime assignment rows, and
+ * nothing here is close to a limit of any size.
  *
  * ⚠️ This deliberately does NOT mirror `SCOPED_BRANCH_ROW_CAP` in
  * `bookings-list-data.ts`. That constant caps the ROW FETCH that runs *after*

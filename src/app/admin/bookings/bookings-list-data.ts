@@ -575,15 +575,29 @@ export function bookingListFiltersFromQuery(
 /**
  * Cap on the ASSIGNED candidate id read (ITEM K.1).
  *
- * `assignedIds` is serialised into `.in("id", …)` on a `BOOKING_SELECT` query,
- * and that select is itself 1,283 characters before a single id joins it. The
- * measured GET is ~1.75 kB empty, ~6.6 kB at 125 ids, ~7.6 kB at 150 and
- * ~9.5 kB at 200 — so against a ~8 kB nginx request-line ceiling this read was
- * not "capped at 200 rows" at all. It was uncapped, and it fails with a 414
- * BEFORE `SCOPED_BRANCH_ROW_CAP` can degrade it into the truncated list that
- * cap was written to produce. 125 leaves ~1.5 kB of headroom for the filter
- * predicates the scoped branch now also sends. `SEARCH_CLIENT_ID_CAP` above
- * exists for the same reason, and says so.
+ * `assignedIds` is serialised into `.in("id", …)` on a `BOOKING_SELECT` query
+ * (1,079 characters once postgrest-js strips its whitespace), and each id adds
+ * 37 more. The measured GET is ~1.75 kB empty, ~6.6 kB at 125 ids, ~7.6 kB at
+ * 150 and ~9.5 kB at 200. That arithmetic is right.
+ *
+ * ⛔ THE CEILING IT WAS COMPARED AGAINST WAS NOT. An earlier version of this
+ * comment put it at "a ~8 kB nginx request-line ceiling" and predicted a 414.
+ * Measured 2026-08-13 against the live instance: a 24,918-byte request target
+ * is accepted and reaches Postgres, and 25,473 bytes returns HTTP **400** —
+ * not 414 — from the Supabase gateway, which sits behind Cloudflare and is not
+ * nginx. Roughly 605 ids fit under that limit with this select. Do not re-derive
+ * a cap from the 8 kB figure; it does not exist.
+ *
+ * 125 is therefore ~5x more conservative than the transport needs, and is KEPT
+ * anyway. The busiest therapist holds 2 lifetime assignment rows, so nothing is
+ * being lost — and raising this alone would only hand the truncation to
+ * `SCOPED_BRANCH_ROW_CAP` (200) below while fetching hundreds of fully-embedded
+ * rows to render 25. Raise the two together or neither. `SEARCH_CLIENT_ID_CAP`
+ * further down bounds a URL for the same reason.
+ *
+ * ⚠️ The measurement was taken from a developer host. Production reaches
+ * Supabase from a Cloudflare Worker, whose own outbound URL limit is NOT
+ * verified here — one more reason not to spend the headroom on spec.
  *
  * Ordered because Postgres gives no ordering guarantee to a bare `limit`, and
  * `created_at` alone is not a total order — one booking writes one assignment
