@@ -38,7 +38,7 @@ most of an earlier draft, and they carry corrections you will otherwise re-make 
 
 ```powershell
 npx tsc --noEmit                              # 0
-npx vitest run                                # 5 failed / 2493 passed (2498)  <-- CHANGED (was 2460)
+npx vitest run                                # 0 failed / 2498 passed (2498)  <-- Phase 11b took it to ZERO
 pnpm lint                                     # 4 errors / 1 warning, THREE files
 npx vitest run scripts/                       # 47 passed
 node scripts/measure-admin-contrast.mjs .     # 110 (46 dark / 64 light), 209 unresolved, 153 tokens
@@ -47,11 +47,12 @@ git status --porcelain -- src/ supabase/      # exactly:  M src/lib/maintenance.
 ```
 
 The suite grew **2460 → 2498** by exactly the **38 guards** this workstream added (12 sitemap/robots
-+ 21 canonicals + 5 FAQ). The **five** failures are the same pre-existing ones as ever:
-`admin-access.test.ts` ×2, `ManualBookingForm.test.tsx` ×3.
++ 21 canonicals + 5 FAQ).
 
-⚠️ **Phase 11b will legitimately take this to 0 failed.** When it does, update §2.1 of the
-implementation plan **in the same commit**, or every later phase looks like it regressed.
+✅ **Phase 11b is DONE and the five failures are gone.** All five were **stale tests** — no product
+code changed and no assertion was weakened. The total stayed **2498**: three specs were rewritten in
+place, none added or removed. Full diagnosis in plan §14.4.1. ⛔ **The reference is now ZERO, not
+five — any failure from here on is a regression.**
 
 ---
 
@@ -257,10 +258,19 @@ not from a doc or a memory.
 
 ## 7 — ⛔ WHAT IS LEFT
 
-### 7.1 — Phase 11b: the five pre-existing test failures
-Plan §14.4. **Diagnose before fixing** — is the *test* stale or the *code* broken? ⛔ **Never weaken
-an assertion to get green**: two guard permission boundaries, a third guards a consent requirement.
-Updates the gate baseline to **0 failed**, in the same commit.
+### 7.1 — ✅ Phase 11b: DONE 2026-08-13
+Plan §14.4.1 carries the full diagnosis. **All five were stale tests** — no `src/` product code was
+changed and no assertion was weakened. Each was reproduced *in isolation* first, which ruled out
+cross-test pollution. Headlines worth carrying forward:
+
+- The two permission failures were a **fixture** that contradicted production: migration
+  `20260521090000` grants `manage_account_requests` to Owner and Admin, and the test never knew.
+- ⛔ **The "consent" test never tested consent.** It walked steps 1→3 and stopped — the requirement
+  it was credited with guarding was not guarded at all. It now genuinely is.
+- ⛔ **The focus test guarded unreachable code.** Continue is `disabled` exactly when the step is
+  invalid, so the click was inert. Guard the gate that actually blocks, not the branch behind it.
+
+Gate baseline updated to **0 failed** in the same commit (G47).
 
 ### 7.2 — Phase 12: remove the maintenance system
 Plan §14.5. ⛔ **THIS OPENS LIVE BOOKINGS.** It needs its **own explicit Owner instruction** —

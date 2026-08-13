@@ -38,7 +38,14 @@ describe("ManualBookingForm", () => {
 
   it("renders step 1 on first load", () => {
     render(<ManualBookingForm services={services} prefillClient={null} enquiry={null} />);
-    expect(screen.getByText("Contact & source")).not.toBeNull();
+    // All four step panels stay mounted at once — only CSS and aria-hidden
+    // decide which one shows — and step 4's summary card repeats step 1's
+    // "Contact & source" title verbatim, because both render through
+    // AdminPanel. getByText sees both and throws. getByRole skips aria-hidden
+    // subtrees, so it matches the panel actually exposed to the operator:
+    // a stronger assertion, since it proves step 1 is the visible step rather
+    // than that the text exists somewhere in the DOM.
+    expect(screen.getByRole("heading", { name: "Contact & source" })).not.toBeNull();
   });
 
   it("marks pre-filled client fields with 'From client profile' chip", () => {
@@ -48,39 +55,67 @@ describe("ManualBookingForm", () => {
     expect(screen.getAllByText("From client profile").length).toBeGreaterThan(0);
   });
 
-  it("moves focus to the first invalid field when continuing with errors", async () => {
+  // This spec used to assert that clicking Continue on an invalid step moved
+  // focus to the first bad field. That can never happen: Continue is
+  // `disabled={!isStepReady}`, and isStepReady agrees with validateStep on
+  // every step (booking_source, the one key validateStep checks and
+  // isStepReady does not, defaults to "phone" and is never empty). So the
+  // click was inert, handleContinue never ran, and focus stayed on <body> —
+  // the old assertion was guarding unreachable code. What actually stops an
+  // invalid step advancing is the disabled gate, so that is what is guarded
+  // here. (handleContinue's focus branch is left in place as a safety net if
+  // the two validity notions ever diverge.)
+  it("keeps Continue disabled until step 1's required fields are filled", async () => {
     const user = userEvent.setup();
     render(<ManualBookingForm services={services} prefillClient={null} enquiry={null} />);
-    // Clear any pre-filled values so validation fires
-    const nameInput = screen.getByLabelText(/Full name/i);
-    await user.clear(nameInput);
-    await user.click(screen.getAllByRole("button", { name: /Continue/i })[0]);
-    await waitFor(() => {
-      expect(document.activeElement?.id).toBe("full_name");
-    });
-  });
+    const continueButton = () =>
+      screen.getAllByRole("button", { name: /Continue/i })[0] as HTMLButtonElement;
 
-  it("shows the consent error when trying to create booking without consent", async () => {
-    // Advance to step 4 via sessionStorage (override to skip steps)
-    // For a lightweight smoke test just render step 4 indirectly and trigger validation
-    const user = userEvent.setup();
-    render(<ManualBookingForm services={services} prefillClient={null} enquiry={null} />);
-    // Step 1 — fill required fields
+    expect(continueButton().disabled).toBe(true);
+
     await user.type(screen.getByLabelText(/Full name/i), "Aisha Khan");
     await user.type(screen.getByLabelText(/Phone number/i), "07123456789");
-    const continueButtons = () => screen.getAllByRole("button", { name: /Continue/i });
-    await user.click(continueButtons()[0]);
-    await waitFor(() => expect(screen.getByText("Services & participants")).not.toBeNull());
-    // Step 2 — select service and set participant gender
-    const serviceCheckboxes = screen.getAllByRole("checkbox");
-    await user.click(serviceCheckboxes[0]);
-    const nameInput2 = screen.getByLabelText(/Name or label/i);
-    await user.clear(nameInput2);
-    await user.type(nameInput2, "Aisha");
-    const genderSelects = screen.getAllByRole("combobox");
-    await user.selectOptions(genderSelects[genderSelects.length - 1], "female");
-    await user.click(continueButtons()[0]);
-    await waitFor(() => expect(screen.getByText("Location")).not.toBeNull());
+
+    await waitFor(() => expect(continueButton().disabled).toBe(false));
+  });
+
+  // Despite its old name this spec never touched consent: it walked steps 1→3
+  // and stopped at the "Location" heading, so the consent requirement it was
+  // credited with guarding was never asserted at all. It also tripped over the
+  // duplicated "Services & participants" heading (see the note above). The
+  // step 1→2→3 walk it performed is already covered by continueToStep2 and the
+  // step-2/3 specs below, so this now guards the consent gate the name always
+  // promised. Consent blocks submission the same way Continue blocks an
+  // invalid step — via the disabled attribute — so that is what is asserted.
+  it("keeps submit disabled until the consent box is ticked", async () => {
+    const user = userEvent.setup();
+    // Jump to the review step through the draft the form restores on mount —
+    // the same mechanism submitFromStep4 uses further down this file.
+    sessionStorage.setItem(
+      "bookings-new-draft:scratch",
+      JSON.stringify({
+        step: 4,
+        fullName: "Aisha Khan",
+        email: "aisha@example.test",
+        phone: "07123456789",
+        address: "10 Test Street",
+        postcode: "LU1 1AA",
+        city: "Luton",
+      })
+    );
+    const { container } = render(
+      <ManualBookingForm services={services} prefillClient={null} enquiry={null} />
+    );
+    const consent = () => container.querySelector<HTMLInputElement>("#consent_acknowledged")!;
+    const submitButton = () =>
+      screen.getAllByRole("button", { name: /Submit booking request/i })[0] as HTMLButtonElement;
+
+    expect(consent().checked).toBe(false);
+    expect(submitButton().disabled).toBe(true);
+
+    await user.click(consent());
+
+    await waitFor(() => expect(submitButton().disabled).toBe(false));
   }, 15000);
 
   it("required therapist gender is NOT a form field (auto-derived from participant gender)", () => {

@@ -121,7 +121,7 @@ Bury Park, Leagrave and Stopsley are **districts of Luton**. Dunstable and Hough
 
 ```powershell
 npx tsc --noEmit                              # 0
-npx vitest run                                # 5 failed / 2493 passed (2498)   <- Ph2 +12, Ph3 +21, Ph8 +5
+npx vitest run                                # 0 failed / 2498 passed (2498)   <- Ph2 +12, Ph3 +21, Ph8 +5
 pnpm lint                                     # 4 errors / 1 warning, THREE files
 npx vitest run scripts/                       # 47 passed
 node scripts/measure-admin-contrast.mjs .     # 110 (46 dark / 64 light)
@@ -129,8 +129,11 @@ node scripts/verify-admin-token-contrast.mjs  # 0
 git status --porcelain -- src/ supabase/      # exactly:  M src/lib/maintenance.ts
 ```
 
-The **five** vitest failures are pre-existing and unrelated: `admin-access.test.ts` ×2,
-`ManualBookingForm.test.tsx` ×3. Isolate those two files before calling anything a regression.
+⛔ **CHANGED BY PHASE 11b (G47) — the baseline is now ZERO failed.** It was *5 failed / 2493 passed*
+(`admin-access.test.ts` ×2, `ManualBookingForm.test.tsx` ×3) for the whole of Phases 0-11; all five
+were resolved in §14.4 and **every one was a stale test, not broken code**. The total is unchanged at
+**2498** — three specs were rewritten in place, none added or removed. **Any failure from here on is
+a regression**, because the reference is no longer "five".
 
 ---
 
@@ -819,6 +822,35 @@ comparison baseline has moved.
 **STOP GATE** Suite fully green · §2.1 updated · each fix explained as *test was stale* or *code was
 broken*, never as "made it pass".
 
+### ✅ 14.4.1 — RESOLVED 2026-08-13. All five were STALE TESTS; no product code changed.
+
+⛔ **Not one assertion was weakened, and not one line of `src/` product code was touched.** Only the
+two test files changed. Each failure was reproduced in isolation first, which ruled out cross-test
+pollution: all five fail alone.
+
+| # | Test | Diagnosis | Fix |
+|---|---|---|---|
+| 1-2 | `admin-access.test.ts` — Owner / Admin vs `accountRequests` | ⛔ **Test stale.** Migration `20260521090000_grant_manage_account_requests_to_owner_admin.sql` grants `manage_account_requests` to **Owner and Admin** (Booking Coordinator and Therapist excluded on purpose), and no later migration revokes it. The test's `OWNER_PERMISSIONS` / `ADMIN_PERMISSIONS` fixtures were never updated when `accountRequests` joined `ADMIN_PAGE_KEYS`, so the **fixtures contradicted production** | Added `MANAGE_ACCOUNT_PASSWORD_REQUESTS` to both fixtures. ⛔ **No assertion touched** — the matrix assertions were right all along |
+| 3 | *renders step 1 on first load* | ⛔ **Test stale.** All four step panels stay mounted — only CSS and `aria-hidden` decide which shows — and step 4's `SummaryCard` repeats step 1's title through the same `AdminPanel`, so `getByText` matched **two** nodes. Measured: `'Contact & source' occurrences: 2` | `getByRole("heading", …)`, which skips `aria-hidden` subtrees. **Stronger**: it proves step 1 is the *exposed* step, not merely that the text exists |
+| 4 | *moves focus to the first invalid field* | ⛔ **Test stale — it guarded unreachable code.** Continue is `disabled={!isStepReady}`, and `isStepReady` agrees with `validateStep` on every step (`booking_source`, the one key `validateStep` checks and `isStepReady` does not, defaults to `"phone"`). So the click was inert and focus never moved. Measured: both Continue buttons `disabled=true` on an empty step 1, while a direct `.focus()` on `#full_name` **works** — the mechanism was fine, the handler simply never ran | Replaced with a guard on what actually stops an invalid step: the disabled gate |
+| 5 | *shows the consent error …* | ⛔ **Test stale AND misnamed.** It walked steps 1→3 and stopped at the "Location" heading — it **never asserted anything about consent**, so the consent requirement it was credited with guarding was never guarded. Same duplicate-heading trip as #3 | Replaced with a real consent gate: submit stays disabled until `#consent_acknowledged` is ticked. The 1→2→3 walk is already covered by `continueToStep2` and the step-2/3 specs |
+
+**Teeth-checked — four mutants, each applied, run, then restored byte-identically:**
+
+| Mutant | Killing assertion |
+|---|---|
+| `hasPermission(…MANAGE_ACCOUNT_PASSWORD_REQUESTS)` → `false` | `admin-access.test.ts:191` `toEqual(EXPECTED_PAGE_KEYS)` **and** `:222` `toMatchObject` |
+| step 1's `<AdminPanel title>` broken | `getByRole("heading", { name: "Contact & source" })` — *"Unable to find an accessible element"*, which also proves the `aria-hidden` scoping, since step 4's copy was still present |
+| `disabled={!isStepReady}` → `disabled={false}` (both responsive buttons) | `expect(continueButton().disabled).toBe(true)` |
+| `if (step === 4) return consentAcknowledged` → `return true` | `expect(submitButton().disabled).toBe(true)` |
+
+⚠️ **Noticed, NOT fixed (Owner's call, no defect):** `handleContinue`'s focus-the-first-error branch
+is unreachable for as long as `isStepReady` and `validateStep` agree, and the Continue button carries
+**both** `disabled` and `aria-disabled`, which is contradictory — `aria-disabled` only earns its keep
+on a control that stays focusable so the handler can run and explain the problem. Switching to the
+`aria-disabled`-only pattern would change real admin UX, so it is **not** a test fix. The focus branch
+is left in place as a safety net if the two validity notions ever diverge.
+
 ---
 
 ## 14.5 — Phase 12 — ⛔ Remove the maintenance system (Owner-gated, immediately pre-release)
@@ -1016,6 +1048,8 @@ its own document. **Compute it instead:** `git rev-list --count origin/master..H
 | 8 | `c8ec265` | All 31 FAQs server-rendered + `FAQPage` + 5 guards |
 | 10 | `e9b5c84` | Breadcrumbs · therapist `Person` · split `serviceType` |
 | 11 | `1970ede` | Full review evidence |
+| — | `dc14298` | Five stale documentation claims corrected (gotcha 105) |
+| 11b | — | The five pre-existing test failures — **all five were stale tests**; see §14.4.1 |
 
 *(Phase 9 produced no commit by design — `sameAs` shipped inside Phase 7 and `Review` objects were
 dropped. See §12.2.)*
@@ -1056,7 +1090,9 @@ restored **byte-identically**, and the killing assertion named.
 
 ### 18.3 — What is LEFT
 
-1. **Phase 11b** (§14.4) — the five pre-existing test failures. No new decisions needed.
+1. ✅ **Phase 11b — DONE 2026-08-13.** All five were **stale tests**, no product code changed; see
+   §14.4.1 for the diagnosis and the four mutants. The gate baseline is now **0 failed / 2498
+   passed** (§2.1), so any failure from here on is a regression.
 2. **Phase 12** (§14.5) — ⛔ remove maintenance. **Opens live bookings. Needs its own explicit
    Owner instruction; approval of the SEO plan is NOT approval of this.**
 3. **Phase 13** (§14.6) — push phase by phase, then Search Console + Business Profile.

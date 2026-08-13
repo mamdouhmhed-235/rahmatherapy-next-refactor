@@ -39,6 +39,12 @@ const OWNER_PERMISSIONS = [
   PERMISSIONS.CREATE_CLIENT_SESSION_NOTES,
   PERMISSIONS.EXPORT_REPORTS_OWN,
   PERMISSIONS.EXPORT_REPORTS_REVENUE,
+  // Granted to Owner and Admin by migration
+  // 20260521090000_grant_manage_account_requests_to_owner_admin.sql. This
+  // fixture was never updated when `accountRequests` joined ADMIN_PAGE_KEYS,
+  // so the matrix looked as though the Owner had lost a page they hold in
+  // production. Booking Coordinator and Therapist are excluded on purpose.
+  PERMISSIONS.MANAGE_ACCOUNT_PASSWORD_REQUESTS,
   PERMISSIONS.MANAGE_AUDIT_LOGS,
   PERMISSIONS.MANAGE_AVAILABILITY_GLOBAL,
   PERMISSIONS.MANAGE_AVAILABILITY_OWN,
@@ -75,6 +81,8 @@ const ADMIN_PERMISSIONS = [
   PERMISSIONS.ASSIGN_STAFF_ROLES,
   PERMISSIONS.CLAIM_ASSIGNMENTS,
   PERMISSIONS.EXPORT_REPORTS_REVENUE,
+  // Same migration as the Owner list above — Owner and Admin both hold it.
+  PERMISSIONS.MANAGE_ACCOUNT_PASSWORD_REQUESTS,
   PERMISSIONS.MANAGE_AUDIT_LOGS,
   PERMISSIONS.MANAGE_AVAILABILITY_GLOBAL,
   PERMISSIONS.MANAGE_AVAILABILITY_OWN,
