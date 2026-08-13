@@ -1,0 +1,25 @@
+-- STEP Z, part 2 of 2 — Owner-approved 2026-08-13.
+--
+-- Drops the superseded free-travel gate column. `free_travel_cities` replaced it
+-- in 20260811230807 (item8_phase2_remove_service_area_gate).
+--
+-- ⚠️ ORDERING IS THE POINT OF THIS STEP, and it is the reverse of what the old
+-- code comment said. The dual-write in `settings/actions.ts` was removed and
+-- DEPLOYED first (b97053e); only then was this run. Dropping the column while
+-- the deployed code still wrote it would have failed every business-settings
+-- save with PGRST204 until the next deploy caught up. App code and DDL ship on
+-- separate cadences here, so a migration cannot protect code it does not
+-- control.
+--
+-- Verified against this database immediately before applying:
+--   * pg_proc.prosrc scan for 'allowed_cities' -> 0 rows. PL/pgSQL bodies are
+--     opaque text and are invisible to pg_depend, so a dependency walk would
+--     have reported "safe to drop" whether or not it was. The text scan is the
+--     authoritative check.
+--   * views / RLS policies / indexes / constraints / triggers -> 0 rows.
+--   * business_settings row 1 held identical values in both columns
+--     (["Luton","Dunstable"]), so the drop loses no data.
+--
+-- Applied via the Supabase MCP as version 20260813012046; this file is the
+-- committed record of it, kept so the repository and the database do not drift.
+alter table public.business_settings drop column allowed_cities;
