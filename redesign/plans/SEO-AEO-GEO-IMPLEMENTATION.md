@@ -205,6 +205,11 @@ the smallest change.
    `startsWith`, so cover its children)**. ⛔ `/admin/signout` is a **Route Handler**
    (`src/app/admin/signout/route.ts`), not a page — it has **no `metadata` export**, so it needs an
    **`X-Robots-Tag: noindex` response header**, not the metadata pattern.
+   ✅ **RESOLVED 2026-08-13 — no header needed, and none was added.** `signout/route.ts` exports
+   **`POST` only**, so a crawler's GET gets **405 Method Not Allowed** — measured live, identical to
+   the POST-only `/api/*` routes that §5.2 already excludes on exactly this reasoning. **Google
+   cannot index a 405.** The route is unindexable by construction, so Phase 1 correctly shipped
+   without it. `X-Robots-Tag` appears nowhere in the codebase, and does not need to.
    **Why here:** this is the other half of Phase 2's G6. G6 says *don't* `Disallow: /admin/` because
    `noindex` is the right tool — if that half never lands, the three publicly reachable admin URLs
    end up neither disallowed nor noindexed.
@@ -330,10 +335,16 @@ per C3 **nothing at build or push time would stop the deploy.**
   a single public page** — adding it would be the *first public advertisement* that the path exists.
   Crawl budget does not apply: Google's guide starts at **10,000+ pages**; this site has ~20.
 - ⛔ **G7 — do NOT `Disallow: /booking/manage`.** See G1.
-- ⛔ **G8 — Cloudflare PREPENDS, it does not replace.** After deploy you will see Cloudflare's ~24
-  comment lines **above** your directives. **That is normal and benign** — comments are ignored by
-  every parser. **Verify by checking your `Sitemap:` line is present**, not by expecting a clean
-  file. Do **not** disable Cloudflare's managed file.
+- ⚠️ **G8 — WRONG, measured at release 2026-08-13. Cloudflare did NOT prepend; it was REPLACED.**
+  This gotcha predicted Cloudflare's ~24 managed Content-Signals comment lines would sit **above**
+  our directives. The served file is **exactly our 6 lines and nothing else**:
+  ```
+  User-Agent: *      Allow: /      Disallow: /api/      Disallow: /monitoring      Sitemap: …
+  ```
+  Once `src/app/robots.ts` exists, the app's route wins outright and the managed file is gone. The
+  *advice* still holds — **verify your `Sitemap:` line is present rather than expecting any
+  particular line count** — but do not be alarmed by a clean file, and do not go hunting for
+  Cloudflare's comments. They are not there.
 - **G9 — order matters.** Ship the sitemap first. A `Sitemap:` line pointing at a 404 is worse than
   no line.
 - **G10 — allow all AI crawlers.** `GPTBot`/`ClaudeBot` are *training* bots; **`OAI-SearchBot` and
@@ -560,9 +571,11 @@ contradictions into one entity asserting **both** phone numbers and four differe
 - ⛔ **G27 — C5 applies to every property.** Safe (present in visible copy): name, telephone, url,
   sameAs, priceRange, areaServed, locality-level address. **Unsafe:** `openingHoursSpecification`,
   `paymentAccepted`, `currenciesAccepted`, `knowsLanguage`, `foundingDate`, `streetAddress`.
-- **G28 — `address` validation is contested** for address-less service-area businesses.
-  **Validate in the Rich Results Test before shipping.** If it still errors, fall back to
-  `Organization` (zero required properties).
+- ✅ **G28 — RESOLVED 2026-08-13, no change needed.** Google's LocalBusiness doc requires exactly
+  **`name` and `address`**, and requires **no `PostalAddress` sub-properties** — `streetAddress` is
+  illustrative, under *"Include as many properties as possible."* The locality-only address meets
+  the documented rule; the `Organization` fallback was **not** needed. See §18.4 for the residual
+  (a possible non-blocking warning, and why the Rich Results Test could not be run here).
 
 **VERIFY** All 20 URLs through the Rich Results Test **and** the Schema Markup Validator. Confirm:
 every referenced `@id` has a defining node **in the same page's output** · exactly one telephone
@@ -963,6 +976,32 @@ phases arriving in a single deploy would mean any production failure has thirtee
 on a live site with no staging and no rollback environment. The whole point of §0.1 is preserved only
 if the pushes are also separated.
 
+### ⛔ 14.6.-1 — SUPERSEDING OWNER DECISION, 2026-08-13: PHASE 12 IS **NOT** RELEASED
+
+**Everything except Phase 12 is now in production. Phase 12 stays LOCAL-ONLY, indefinitely.**
+
+| | |
+|---|---|
+| **Deployed** | Commits 1-16 (`efc7484` → `0f8ab9d`) — Phases 0-11b |
+| ⛔ **NOT deployed** | `3eb2939` — Phase 12, the maintenance removal. **The banner still ships. Bookings are CLOSED in production.** |
+| **Why** | The Owner wants the *local* site free of the banner to run their own testing. Removing it in **production** happens **only after that testing passes**, on a separate, explicit instruction |
+
+⛔ **This knowingly enters the state §5.0 and G45 warn about** — the sitemap and the `Sitemap:`
+directive are live while every page still says *"This website is still being built."* The Owner made
+this call after the risk was put to them in writing. **The mitigation is now load-bearing:**
+
+⛔ **DO NOT submit the sitemap in Search Console until Phase 12 is deployed.** §14.3/G46 already made
+this the last step; it is now the *only* thing holding back a full indexing pass over the "not ready"
+version. Google may still discover the sitemap passively via `robots.txt`, which is the residual risk
+the Owner accepted — but the deliberate invitation must wait.
+
+⚠️ **The two-batch scheme in §14.6.0 below is therefore spent.** It was designed so the sitemap and
+the banner-removal landed in one deploy; that is no longer what happened. When Phase 12 is finally
+released it will be a **single-commit push of `3eb2939`**, and the correct order is: **push Phase 12
+first, verify the banner is gone from all 18 routes, and only then submit the sitemap.**
+
+---
+
 ### ⛔ 14.6.0 — THE ORDERING CONTRADICTION, AND THE OWNER'S RESOLUTION (2026-08-13)
 
 **Steps 2 and 3 below could not both be obeyed, and this went unnoticed until Phase 12 was about to
@@ -1116,7 +1155,28 @@ its own document. **Compute it instead:** `git rev-list --count origin/master..H
 | 11 | `1970ede` | Full review evidence |
 | — | `dc14298` | Five stale documentation claims corrected (gotcha 105) |
 | 11b | `0f8ab9d` | The five pre-existing test failures — **all five were stale tests**; see §14.4.1 |
-| 12 | — | ⛔ Maintenance system **removed** — see §14.5.1. **Local commit only; NOT pushed, so bookings are NOT open** |
+| 12 | `3eb2939` | ⛔ Maintenance system **removed** — see §14.5.1. **LOCAL ONLY. NOT pushed. Bookings are NOT open in production** |
+| 13 | — | ✅ **RELEASED 2026-08-13.** `origin/master` = `0f8ab9d` (Phases 0-11b live). Phase 12 deliberately withheld — §14.6.-1 |
+
+### 18.5 — Release verification, measured against production 2026-08-13
+
+| Check | Result |
+|---|---|
+| `/sitemap.xml` | **200**, exactly **18 `<loc>`**, all trailing-slashed, **0** `priority`/`changefreq` |
+| `/robots.txt` | our 6 lines, `Sitemap:` present, `/api/` + `/monitoring` disallowed, `/admin` and `/booking/manage` **not** disallowed (G6/G1/G7) |
+| All 18 sitemap URLs | **200 · zero redirects · self-canonical** — 18/18 |
+| `/` redirect | **2 hops → 1** |
+| `/areas/luton/` | 308 → `/areas/`, 1 hop |
+| `lang` | `en-GB` |
+| `/privacy/`, `/cookies/` | exactly **1 `<h1>`** each |
+| `/home/` → `/areas/` | **1** link (was 0 — orphaning ended) |
+| Business entity | `@id` absolute, `PostalAddress` present |
+| `aggregateRating` | **0** (G35) |
+| Breadcrumbs / FAQPage | present |
+| **FAQ questions in served HTML** | **31** (was 4) |
+| Geography in JSON-LD | **0** `"Luton, Luton"` |
+| Banner (Phase 12 withheld) | **still present** — correct |
+| `noindex` on `/booking/manage/` | **present** |
 
 *(Phase 9 produced no commit by design — `sameAs` shipped inside Phase 7 and `Review` objects were
 dropped. See §12.2.)*
@@ -1171,11 +1231,41 @@ restored **byte-identically**, and the killing assertion named.
 - **Best Practices 96, not 100** — one audit (`errors-in-console`), item is a 429 on Sentry's
   `/monitoring` tunnel, caused by this session's own automated load. Proven self-inflicted (single
   isolated load → zero non-2xx). **Re-check at release with no harness running.**
-- **`address` validation** — the locality-only `PostalAddress` rests on Google's *silence* about
-  `PostalAddress` sub-properties, not an explicit rule. **Validate in the Rich Results Test before
-  the Phase 13 push**; fall back to `Organization` if rejected.
-- **Cloudflare robots.txt merge** — untestable locally. Post-deploy, check your `Sitemap:` line is
-  present; expect Cloudflare's ~24 comment lines prepended above it.
+- ✅ **`address` validation — RESOLVED 2026-08-13, and it is NOT silence after all.** Google's
+  LocalBusiness doc was read directly at release time: the **only** required properties are
+  **`name` and `address`**, and Google **does not require any `PostalAddress` sub-properties** —
+  `streetAddress` appears in the example as illustrative, under *"Include as many properties as
+  possible. The more properties you provide, the higher quality the result is to users."* That is a
+  **quality recommendation, not a requirement**, so the locality-only address satisfies the
+  documented rule. ⛔ **No code change made; the `Organization` fallback is NOT needed.**
+  ✅ **Confirmed independently in the Schema Markup Validator, 2026-08-13: 0 ERRORS, 0 WARNINGS.**
+  It parsed the whole entity — `HealthAndBeautyBusiness`, `@id https://rahmatherapy.uk/#business`,
+  and `address` → `PostalAddress` with `addressLocality: Luton`, `addressRegion: Bedfordshire`,
+  `addressCountry` resolved to a `Country` node named `GB`. **The locality-only address is accepted
+  with no complaint of any kind.**
+  ⚠️ **Residual, non-blocking:** the **Rich Results Test** (a different tool — Google *feature
+  eligibility*, not schema.org validity) was not run here; Google served bot-detection to the
+  automated browser and bypassing that is off-limits. The doc leaves service-area businesses
+  unaddressed, so a *warning* about missing recommended fields remains possible there. A warning
+  does not affect eligibility, and the two checks above already answer the question that mattered.
+  **Owner, optional 30-second confirmation:** paste `https://rahmatherapy.uk/home/` into
+  https://search.google.com/test/rich-results once batch 2 is live.
+  ⚠️ **Automation note for whoever repeats this:** validator.schema.org renders its input in a
+  **CodeMirror** editor, so filling the underlying `<textarea>` leaves the real value empty and
+  "Run test" silently submits nothing. Set it with
+  `document.querySelector('.CodeMirror').CodeMirror.setValue(...)`, then click `#validate-button`.
+- ✅ **Cloudflare robots.txt merge — RESOLVED at release 2026-08-13, and the prediction was wrong.**
+  There is **no merge**. The served `/robots.txt` is exactly our 6 lines; Cloudflare's managed
+  Content-Signals file is **gone**, not prepended. See the corrected G8.
+- ⛔ **NEW, found at release — Phase 1b was INCOMPLETE, and the error is live.** It fixed
+  `${area.name}, Luton` in the JSON-LD but the identical template survives in two **user-facing**
+  attributes: `AreaFinalCTA.tsx:13` (`alt`) and `AreaMap.tsx:36` (`title`). Production therefore
+  serves *"Map of Luton, Luton"*, *"Map of Dunstable, Luton"* and *"Map of Houghton Regis, Luton"*
+  to screen readers and as image alt text. The three **districts** are correct — Bury Park, Leagrave
+  and Stopsley genuinely are in Luton — so the fix must keep their suffix and drop it only for the
+  hub and the two Central Bedfordshire towns, exactly the distinction `AreaPlaceType` already
+  encodes. ⚠️ Not fixed: it touches user-facing text and was outside the release the Owner
+  authorised. **Awaiting the Owner's decision.**
 - **Owner asks never answered**, both optional: one line of visible copy naming the therapists'
   languages (would unlock `knowsLanguage`); and whether reproducing 89 Google reviews verbatim is
   cleared under Maps' terms (only matters if `Review` objects are ever revisited).

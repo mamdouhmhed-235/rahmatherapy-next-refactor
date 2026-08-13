@@ -12,14 +12,15 @@ superseded:
 - `HANDOFF-2026-08-13-IMPLEMENTATION-6.md` §5 — 67-79 *(its §1 and §7 are stale; gotcha 78 corrected by 80)*
 - `HANDOFF-2026-08-13-IMPLEMENTATION-7.md` §5 — 80-89
 
-**This file adds gotchas 90-105.**
+**This file adds gotchas 90-107.**
 
 | | |
 |---|---|
-| **HEAD** | `master` — ⛔ **UNPUSHED.** `origin/master` is still `9271863`. ⛔ **Never trust a commit count written here** (this row said `1970ede` / 13, stale by its own commit). **Compute it:** `git rev-list --count origin/master..HEAD` |
-| **Deployed** | ⛔ **NOTHING.** Cloudflare deploys on **push**. Production is untouched |
-| **Shipped locally** | SEO/AEO/GEO Phases 0-11 (see `redesign/plans/SEO-AEO-GEO-IMPLEMENTATION.md` §18) |
-| **Next** | Phase 11b → 12 → 13. **Do not push anything without an explicit Owner instruction** |
+| **HEAD** | `master`. ⛔ **Never trust a commit count written here** (this row once said `1970ede` / 13, stale by its own commit). **Compute it:** `git rev-list --count origin/master..HEAD` |
+| **Deployed** | ✅ **Phases 0-11b ARE LIVE** at rahmatherapy.uk (`origin/master` = `0f8ab9d`), released 2026-08-13 |
+| ⛔ **NOT deployed** | **`3eb2939` — Phase 12, the maintenance removal.** It is committed **locally only**. **The banner still ships and bookings are CLOSED in production.** The Owner wants the *local* site banner-free for their own testing; production follows **only** after that testing passes, on a **separate explicit instruction**. See plan §14.6.-1 |
+| ⛔ **Blocked on that** | **Do NOT submit the sitemap in Search Console** until Phase 12 is deployed (G46). It is now the only thing holding back a full indexing pass over the "still being built" version |
+| **Next** | Owner's local testing → deploy Phase 12 (single-commit push of `3eb2939`) → verify banner gone on all 18 routes → **then** Search Console |
 
 ---
 
@@ -154,7 +155,7 @@ this work fixes, not a performance problem.
 
 ---
 
-## 5 — NEW GOTCHAS (90-105). Each cost real time.
+## 5 — NEW GOTCHAS (90-107). Each cost real time.
 
 90. **⛔ `git commit -a`/`-am` IS THE MAINTENANCE-FLAG HAZARD.** The old rule named `.`/`-A`/`-u`
     and stopped there. `commit -am` stages every tracked modified file — which in this repo is
@@ -237,6 +238,21 @@ this work fixes, not a performance problem.
      without rendering, and `/booking/manage/` sits outside the route group. Three documents *and a
      committed source comment* asserted "all 20 pages". **When a count is used to mean "everything",
      name the set it counts.** Fixed 2026-08-13; plan §1.1 is now the single authority.
+
+106. **⛔ A SINGLE POST-DEPLOY SAMPLE CAN READ A STALE EDGE RESPONSE, AND IT LIED ABOUT THE MOST
+     SAFETY-CRITICAL CHECK.** Production sends `Cache-Control: s-maxage=31536000`. Seconds after
+     Phase 1 deployed, one request showed `noindex` **present** and the very next showed it
+     **absent** — different Cloudflare PoPs, one still serving the old page. Sampled 8 times it was
+     **8/8 present**, with the tag visible in the raw HTML. **Never accept a single sample as the
+     verdict of a post-deploy check.** Sample ≥3 times and read the actual tag, not just a grep
+     count. Had I trusted the first reading I would have reported the customer-token privacy fix as
+     failed and possibly "fixed forward" against a phantom.
+
+107. **⚠️ `/admin/signout` NEVER NEEDED THE `X-Robots-Tag` THE PLAN DEMANDED.** §4 step 3 called for
+     one because it is a Route Handler with no `metadata` export. But it exports **`POST` only**, so
+     a crawler's GET returns **405** — measured live, identical to the `/api/*` routes the plan
+     already excludes on exactly that reasoning. **Google cannot index a 405.** Before writing code
+     to protect a route, check whether its method surface already protects it.
 
 ---
 
