@@ -12,7 +12,7 @@ superseded:
 - `HANDOFF-2026-08-13-IMPLEMENTATION-6.md` §5 — 67-79 *(its §1 and §7 are stale; gotcha 78 corrected by 80)*
 - `HANDOFF-2026-08-13-IMPLEMENTATION-7.md` §5 — 80-89
 
-**This file adds gotchas 90-107.**
+**This file adds gotchas 90-108.**
 
 | | |
 |---|---|
@@ -39,13 +39,18 @@ most of an earlier draft, and they carry corrections you will otherwise re-make 
 
 ```powershell
 npx tsc --noEmit                              # 0
-npx vitest run                                # 0 failed / 2498 passed (2498)  <-- Phase 11b took it to ZERO
+npx vitest run                                # 0 failed / 2501 passed (2501)  <-- ZERO since Phase 11b
 pnpm lint                                     # 4 errors / 1 warning, THREE files
 npx vitest run scripts/                       # 47 passed
 node scripts/measure-admin-contrast.mjs .     # 110 (46 dark / 64 light), 209 unresolved, 153 tokens
 node scripts/verify-admin-token-contrast.mjs  # 0
-git status --porcelain -- src/ supabase/      # exactly:  M src/lib/maintenance.ts
+git status --porcelain -- src/ supabase/      # EMPTY  <-- changed by Phase 12 (G42)
 ```
+
+⛔ **The `git status` gate changed at Phase 12.** For Phases 0-11b it read exactly
+` M src/lib/maintenance.ts`, because that file was deliberately held dirty. Phase 12 **deleted** it,
+so a clean tree is now correct — and that line reappearing would mean someone restored a file that
+should be gone.
 
 The suite grew **2460 → 2498** by exactly the **38 guards** this workstream added (12 sitemap/robots
 + 21 canonicals + 5 FAQ).
@@ -155,7 +160,7 @@ this work fixes, not a performance problem.
 
 ---
 
-## 5 — NEW GOTCHAS (90-107). Each cost real time.
+## 5 — NEW GOTCHAS (90-108). Each cost real time.
 
 90. **⛔ `git commit -a`/`-am` IS THE MAINTENANCE-FLAG HAZARD.** The old rule named `.`/`-A`/`-u`
     and stopped there. `commit -am` stages every tracked modified file — which in this repo is
@@ -253,6 +258,18 @@ this work fixes, not a performance problem.
      a crawler's GET returns **405** — measured live, identical to the `/api/*` routes the plan
      already excludes on exactly that reasoning. **Google cannot index a 405.** Before writing code
      to protect a route, check whether its method surface already protects it.
+
+108. **⛔ `git checkout --` TO UNDO A MUTANT DESTROYS UNCOMMITTED WORK IN THE SAME FILE.** The
+     mutation-test ritual is "apply, run, restore **byte-identically**" — and `git checkout -- <f>`
+     restores to **HEAD**, not to the working copy you started from. I mutation-tested
+     `areaPages.ts` while my new `areaLabel` helper sat in it **uncommitted**; the restore reverted
+     the mutant *and the helper*, leaving two components importing an export that no longer existed.
+     **Every page of the local dev server went to HTTP 500** — including `/home/`, which the change
+     never touched. `npx tsc --noEmit` had passed **before** the restore, so the green gate was
+     stale and proved nothing. **Back up the working copy (`cp`) and restore from that, or commit
+     first. And after any restore, re-run the check — not the memory of it.**
+     ⚠️ Production was never at risk: nothing was pushed. But it cost a confusing round of
+     "the fix renders nothing", which looked like a bad edit and was actually a missing export.
 
 ---
 

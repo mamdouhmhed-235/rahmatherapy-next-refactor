@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, MapPin } from "lucide-react";
 import { SectionContainer, SectionHeading } from "@/components/shared";
-import type { AreaPage } from "@/content/pages/areaPages";
+import { areaLabel, type AreaPage } from "@/content/pages/areaPages";
 
 export function AreaMap({ area }: { area: AreaPage }) {
   const map = area.map;
@@ -33,7 +33,7 @@ export function AreaMap({ area }: { area: AreaPage }) {
         </div>
         <div className="relative min-h-[340px] overflow-hidden rounded-3xl border border-rahma-border bg-white shadow-card lg:min-h-[420px]">
           <iframe
-            title={`Map of ${area.name}, Luton`}
+            title={`Map of ${areaLabel(area)}`}
             src={map.embedSrc}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"

@@ -121,7 +121,7 @@ Bury Park, Leagrave and Stopsley are **districts of Luton**. Dunstable and Hough
 
 ```powershell
 npx tsc --noEmit                              # 0
-npx vitest run                                # 0 failed / 2498 passed (2498)   <- Ph2 +12, Ph3 +21, Ph8 +5
+npx vitest run                                # 0 failed / 2501 passed (2501)   <- Ph2 +12, Ph3 +21, Ph8 +5, areaLabel +3
 pnpm lint                                     # 4 errors / 1 warning, THREE files
 npx vitest run scripts/                       # 47 passed
 node scripts/measure-admin-contrast.mjs .     # 110 (46 dark / 64 light)
@@ -782,9 +782,16 @@ Use the Owner's dev server at `localhost:3000` (**never spawn or restart it**) o
 ### 14.3 — Owner-side, off-site (outside the codebase)
 
 13. **Google Search Console** — verify the property, submit the sitemap, record a baseline.
-14. **Google Business Profile** — configure as a service-area business: address **removed**, service
-    areas set by **city/postcode, never radius**, within the 20-area cap. ⭐ **This outranks
-    everything in the repo for the stated goal.**
+    ⛔ **NOT YET DONE, and deliberately so.** Owner, 2026-08-13: not submitting until Phase 12 is
+    deployed. With discovery live while the banner still ships, this submission is the only thing
+    holding back a full indexing pass over the "still being built" version (§14.6.-1, G46).
+14. ✅ **Google Business Profile — ALREADY LIVE. Owner confirmed 2026-08-13: the profile is up and
+    connected.** This section previously said it was "not set up" and called it the single biggest
+    lever; that is **out of date**. The `sameAs` in `business-node.ts` already points at the live
+    Google listing, so the cross-source entity link is in place. ⚠️ **Nothing here has verified the
+    profile's *configuration*** — whether it is set as a service-area business with the address
+    removed and areas by city/postcode rather than radius. That is Owner-side, unverified, and the
+    only part still worth a look.
 
 **FINAL GATE** Everything above green. Gate baselines identical. `git status --porcelain -- src/
 supabase/` shows **exactly** ` M src/lib/maintenance.ts`.
@@ -1228,9 +1235,13 @@ restored **byte-identically**, and the killing assertion named.
 
 ### 18.4 — Open items carried forward
 
-- **Best Practices 96, not 100** — one audit (`errors-in-console`), item is a 429 on Sentry's
-  `/monitoring` tunnel, caused by this session's own automated load. Proven self-inflicted (single
-  isolated load → zero non-2xx). **Re-check at release with no harness running.**
+- 📋 **Best Practices 96, not 100 — SCHEDULED, not yet done.** One audit (`errors-in-console`); the
+  item is a 429 on Sentry's `/monitoring` tunnel, proven self-inflicted by this session's own
+  automated load (a single isolated load → zero non-2xx). ⛔ **Owner decision 2026-08-13: fold this
+  into the full site-testing pass**, not a standalone task. **Run Lighthouse mobile against
+  production with no automation running**, and expect Accessibility / Best Practices / SEO all
+  **100**. If Best Practices is still 96, read the `errors-in-console` audit before assuming a
+  regression — the 429 gradient is the diagnostic (gotcha 100).
 - ✅ **`address` validation — RESOLVED 2026-08-13, and it is NOT silence after all.** Google's
   LocalBusiness doc was read directly at release time: the **only** required properties are
   **`name` and `address`**, and Google **does not require any `PostalAddress` sub-properties** —
@@ -1266,9 +1277,13 @@ restored **byte-identically**, and the killing assertion named.
   hub and the two Central Bedfordshire towns, exactly the distinction `AreaPlaceType` already
   encodes. ⚠️ Not fixed: it touches user-facing text and was outside the release the Owner
   authorised. **Awaiting the Owner's decision.**
-- **Owner asks never answered**, both optional: one line of visible copy naming the therapists'
-  languages (would unlock `knowsLanguage`); and whether reproducing 89 Google reviews verbatim is
-  cleared under Maps' terms (only matters if `Review` objects are ever revisited).
+- ⛔ **`knowsLanguage` / the languages copy ask — CLOSED 2026-08-13, DO NOT RAISE IT AGAIN.**
+  Owner: **the therapists speak English.** The ask only ever had value on the assumption of an
+  additional community language for a Bury Park audience. `knowsLanguage: "en"` on a UK business
+  states what every reader and every parser already assumes, so it carries **no information** —
+  and §3.10 already bans unbackable properties. **Nothing to add, nothing to write, no copy change.**
+- **Google Maps terms on reproducing 89 reviews verbatim** — still unresolved, and still **only**
+  matters if `Review` objects are ever revisited. They are dropped (§12.2), so this is dormant.
 
 ---
 

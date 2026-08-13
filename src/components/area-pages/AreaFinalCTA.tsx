@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, MessageCircle } from "lucide-react";
-import type { AreaPage } from "@/content/pages/areaPages";
+import { areaLabel, type AreaPage } from "@/content/pages/areaPages";
 import { AreaImage } from "./AreaImage";
 
 export function AreaFinalCTA({ area }: { area: AreaPage }) {
@@ -10,7 +10,7 @@ export function AreaFinalCTA({ area }: { area: AreaPage }) {
         <div className="relative min-h-[440px] overflow-hidden rounded-3xl bg-rahma-charcoal shadow-card">
           <AreaImage
             src="/images/areas/area-cta-v2.jpg"
-            alt={`Private mobile therapy in ${area.name}, Luton`}
+            alt={`Private mobile therapy in ${areaLabel(area)}`}
             imageType="Relaxed wellness/treatment image suitable for dark overlay."
           />
           <div className="absolute inset-0 bg-gradient-to-r from-rahma-charcoal/94 via-rahma-charcoal/78 to-rahma-charcoal/42" />

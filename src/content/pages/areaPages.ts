@@ -69,6 +69,25 @@ export type AreaPlaceType =
   /** A separate town, emitted as its own `City`, never suffixed with Luton. */
   | "town";
 
+/**
+ * How the area should be named in USER-FACING labels — image alt text and the
+ * map's accessible title.
+ *
+ * Only a `district` takes the ", Luton" suffix, because only a district is in
+ * Luton. Suffixing the others produced exactly the false claims `AreaPlaceType`
+ * was introduced to kill: "Dunstable, Luton" and "Houghton Regis, Luton" (both
+ * separate towns in Central Bedfordshire), and "Luton, Luton" on the hub.
+ *
+ * ⛔ Those strings were shipping to screen readers and as image alt text until
+ * 2026-08-13. The Phase 1b fix corrected `areaServed` in the JSON-LD but never
+ * reached these two attributes, so the machine-readable layer was right while
+ * the accessible layer stayed wrong. Anything that names the place for a human
+ * must go through here.
+ */
+export function areaLabel(area: Pick<AreaPage, "name" | "placeType">): string {
+  return area.placeType === "district" ? `${area.name}, Luton` : area.name;
+}
+
 export interface AreaPage {
   slug: string;
   name: string;
