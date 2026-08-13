@@ -63,14 +63,19 @@ five — any failure from here on is a regression.**
 - ⛔ **LOCAL FIRST — the Owner's standing instruction.** Commit to `master`, **never push** until
   the Owner explicitly says go, after Phase 12. `git push` appears nowhere in the plan before
   Phase 13.
-- ⛔ **MAINTENANCE MODE IS ON, and it is TWO hazards:**
-  1. `src/lib/maintenance.ts` is working-copy `false`, HEAD `true`, deliberately uncommitted.
-     **Committing it would OPEN LIVE BOOKINGS.** Never stage it. Stage by explicit path only —
-     never `.` / `-A` / `-u`, **and never `git commit -a` or `-am`** (gotcha 90).
-  2. **It is also a page-content state.** `MaintenanceBanner` is a **server** component, so the
-     served HTML of every public page contains *"This website is still being built — online booking
-     is not yet available."* (gotcha 91).
-- ⛔ **Verify the flag in each COMMITTED TREE before any push:** `git show <sha>:src/lib/maintenance.ts`.
+- ⛔ **MAINTENANCE MODE IS GONE FROM THE CODE — and that makes the PUSH the hazard now.**
+  Phase 12 (plan §14.5.1) deleted `src/lib/maintenance.ts`, `MaintenanceBanner` and
+  `MaintenanceModal`. **The Owner authorised the LOCAL COMMIT ONLY.**
+  1. ⛔ **Bookings open the instant this commit reaches `master`.** A local commit deploys nothing.
+     **Authorisation to push has NOT been given** — do not push without asking, explicitly.
+  2. ⚠️ **The old two-hazard rule is retired.** There is no flag left to stage by accident (gotcha
+     90) and no banner left in the served HTML (gotcha 91). Both are now history, not instructions.
+  3. ⛔ **The `git status` gate changed to EMPTY** (G42). The tree is no longer deliberately dirty;
+     a clean tree is correct, and ` M src/lib/maintenance.ts` reappearing would mean someone
+     restored a deleted file.
+- ⛔ **Before pushing any of the SIXTEEN pre-Phase-12 commits, verify the flag in that tree:**
+  `git show <sha>:src/lib/maintenance.ts` must read `true`. From Phase 12's commit the file does not
+  exist and the check simply stops applying — that is not a failure.
 - ⛔ **C2 — the Owner's visible page copy must not be reworded.** `seo: { title, description }` are
   metadata: **length may change, wording and tone may not.** `<h1>` text is frozen.
 - ⛔ **C3 — every absolute site URL must come from `SITE_URL`/`siteUrl()`.** `canonical-domain.test.ts`

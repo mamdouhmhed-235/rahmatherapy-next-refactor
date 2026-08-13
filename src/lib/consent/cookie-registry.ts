@@ -170,25 +170,6 @@ export const COOKIE_REGISTRY: CookieRegistryEntry[] = [
       "Google Analytics 4 cookies used to distinguish visitors and sessions so we can see aggregate website-traffic patterns — for example, which pages are popular and how visitors move through the site. They only appear if you switch Analytics on: until you do, Google Analytics isn't loaded at all and your browser doesn't contact Google, so there is nothing to set them. Switch Analytics back off and we delete them.",
   },
   {
-    // src/components/shared/MaintenanceModal.tsx:14,20-21 — gated behind
-    // MAINTENANCE_MODE in src/app/(public)/layout.tsx.
-    //
-    // NOT marked as inactive, and this is deliberate. An earlier pass read
-    // MAINTENANCE_MODE as `false` and described the whole feature as switched
-    // off — but that `false` is an uncommitted local change; the committed
-    // value (`git show HEAD:src/lib/maintenance.ts`) is `true`, so any deploy
-    // ships the modal mounted and this key written. This page is a public
-    // statement about what a visitor's browser actually receives, and it has to
-    // describe the deployable state, not one machine's working copy.
-    name: "maintenance-modal-seen",
-    provider: "Rahma Therapy",
-    type: "sessionStorage",
-    purpose: "essential",
-    duration: "Session — cleared when you close your browser tab",
-    description:
-      "While planned maintenance is in progress, remembers that you've already seen the one-off 'site not ready' notice this session, so it doesn't interrupt you again on every page you visit before maintenance ends.",
-  },
-  {
     // Written by the @sentry-internal/replay package (REPLAY_SESSION_KEY),
     // configured in sentry.client.config.ts, started via SentryProvider.tsx
     // mounted at the ROOT layout (src/app/layout.tsx). syncSessionReplay() in

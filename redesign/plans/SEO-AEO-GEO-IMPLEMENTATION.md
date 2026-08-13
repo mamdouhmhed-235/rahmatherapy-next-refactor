@@ -110,7 +110,7 @@ Bury Park, Leagrave and Stopsley are **districts of Luton**. Dunstable and Hough
 
 | # | Constraint | Consequence of breaking it |
 |---|---|---|
-| **C1** | **Never stage `src/lib/maintenance.ts`.** Stage by explicit path only — never `.` / `-A` / `-u`, **and never `git commit -a` or `-am`** (those stage every tracked modified file, which is *precisely and only* this one). The list is exhaustive as written; if a command is not on it, check what it stages before running it | **Opens live bookings.** Verify the flag in each committed tree with `git show <sha>:src/lib/maintenance.ts` before **every** push |
+| ~~**C1**~~ | ⛔ **RETIRED by Phase 12 (§14.5), 2026-08-13.** It read: *"Never stage `src/lib/maintenance.ts`… never `git commit -a`/`-am`."* **The file it protected no longer exists**, so there is nothing left to stage by accident and no flag left to verify with `git show <sha>:src/lib/maintenance.ts`. ⚠️ **It still applies retroactively to the sixteen commits made before Phase 12** — every one of those trees must read `MAINTENANCE_MODE = true`, and Phase 13 step 1 still checks that. Staging by explicit path remains good practice; it is simply no longer load-bearing | — |
 | **C2** | **No visible page prose may be reworded.** `seo: { title, description }` are metadata — length may change, wording and tone may not. `<h1>` text is frozen | Owner's explicit instruction |
 | **C3** | **Any new absolute site URL must import `SITE_URL`/`siteUrl()`** from `src/content/site/site-url.ts` | ⛔ **Corrected:** `canonical-domain.test.ts` fails under **`npx vitest run` only**. `package.json`'s build is `gen-image-manifest && next build` — **no test step — and there is no CI.** So nothing at build or push time stops a second literal from deploying. **You must run the vitest gate manually before every push**; it is the only thing enforcing this |
 | **C4** | **`trailingSlash: true`** (`next.config.ts:43`). Every emitted URL ends in `/` | Canonical/sitemap/href mismatch; 308s on every sitemap URL |
@@ -126,8 +126,13 @@ pnpm lint                                     # 4 errors / 1 warning, THREE file
 npx vitest run scripts/                       # 47 passed
 node scripts/measure-admin-contrast.mjs .     # 110 (46 dark / 64 light)
 node scripts/verify-admin-token-contrast.mjs  # 0
-git status --porcelain -- src/ supabase/      # exactly:  M src/lib/maintenance.ts
+git status --porcelain -- src/ supabase/      # EMPTY  <- changed by Phase 12 (G42)
 ```
+
+⛔ **The `git status` gate changed at Phase 12 and this is the one legitimate baseline change in
+the plan (G42).** For Phases 0-11b it read exactly ` M src/lib/maintenance.ts`, because that file
+was deliberately held dirty. Phase 12 **deleted** the file, so a clean tree is now the correct
+state — and a reappearance of that line would mean someone restored a file that should be gone.
 
 ⛔ **CHANGED BY PHASE 11b (G47) — the baseline is now ZERO failed.** It was *5 failed / 2493 passed*
 (`admin-access.test.ts` ×2, `ManualBookingForm.test.tsx` ×3) for the whole of Phases 0-11; all five
@@ -910,6 +915,43 @@ it reaches the same 18 the footer does — not `/booking/manage/`, and not the t
 fresh visual baseline captured · all gates match (with the documented `git status` change) · spec §3
 re-confirmed.
 
+### ✅ 14.5.1 — DONE 2026-08-13 (LOCAL COMMIT ONLY)
+
+⛔ **SCOPE OF THE OWNER'S AUTHORISATION, EXACTLY.** The Owner authorised **writing and committing
+Phase 12 locally**, on the explicit understanding that **a local commit deploys nothing and opens no
+bookings**. ⛔ **Authorisation to PUSH has NOT been given.** Bookings open the moment this commit
+reaches `master`, and not before. Do not treat this section as clearance to release.
+
+⛔ **§14.5's FILES list was INCOMPLETE, and following it literally would have shipped a broken
+consent surface.** It named the layout, the two components and the flag. It missed:
+
+| Missed file | Why it mattered |
+|---|---|
+| `src/lib/consent/cookie-registry.ts` | Registered the `maintenance-modal-seen` sessionStorage key. `MaintenanceModal` was its **only writer**, so deleting the modal would have left the **public `/cookies` page telling visitors their browser receives a key nothing sets** |
+| `src/lib/consent/__tests__/registry-completeness.test.ts` | Asserted that key is registered **and** "not described as inactive" — two specs that would have failed (G44) |
+| `src/components/consent/ConsentPreferencesPanel.tsx` | A design comment cited `MaintenanceModal` as the precedent for a dialog wrapper — a dangling reference once deleted |
+
+The registry entry was removed, the inventory list and both specs updated, and the dangling comment
+reworded. **The consent surface now describes only storage that actually exists.**
+
+**Verified by measurement, not assumption:**
+
+- **G43 — no contact detail lost.** The banner carried the phone and email. Measured across **all 18
+  indexable routes** on the dev server: banner text **absent**, and phone (`07798897222`),
+  `tel:+447798897222`, the email and a WhatsApp link **present on every one** — `SiteFooter` and
+  `SiteHeader` both render `contactLinks`. ⚠️ Two false alarms en route, both **matcher errors, not
+  page defects** (gotcha 98): the banner displayed `07798 897222` **spaced** while `contactLinks`
+  stores it **unspaced**, and the `tel:` href is the **international** `+447798897222`.
+- **The runtime state was already verifiable before the change.** The working copy had
+  `MAINTENANCE_MODE = false`, so the Owner's dev server was already serving the post-Phase-12 output.
+  Deleting the flag changes no rendered byte — it removes a branch that was already dead locally.
+- ⚠️ **`.has-maintenance-banner`** — referenced in `MaintenanceBanner`'s own doc comment as being on
+  the footer. **The class exists nowhere** in CSS or components; the comment was already stale. It
+  died with the file, so there is nothing to clean up.
+
+⚠️ **One expected visual change beyond the banner:** `/cookies` now lists **one fewer** storage
+entry. That is correct — the key it described is no longer set by anything.
+
 ---
 
 ## 14.6 — Phase 13 — Release: push phase by phase
@@ -921,14 +963,35 @@ phases arriving in a single deploy would mean any production failure has thirtee
 on a live site with no staging and no rollback environment. The whole point of §0.1 is preserved only
 if the pushes are also separated.
 
+### ⛔ 14.6.0 — THE ORDERING CONTRADICTION, AND THE OWNER'S RESOLUTION (2026-08-13)
+
+**Steps 2 and 3 below could not both be obeyed, and this went unnoticed until Phase 12 was about to
+be written.** Step 2 says push one phase per deploy, in order. Step 3 (G45) says Phase 12 must be
+live *before* Phase 2's discovery work. But **Phase 2 is commit #5 and Phase 12 is #17**, and git
+pushes are linear: you cannot push #17 without first pushing #5. Following step 2 literally would
+put the sitemap and the `Sitemap:` directive into production while every page still said *"This
+website is still being built"* — the exact state §5.0 calls the least reversible in the plan.
+
+✅ **Owner decision: TWO BATCHES.**
+
+| Batch | What | Why it is safe |
+|---|---|---|
+| **1** | Commits **1-4** (`efc7484` → `9114a57`: docs, Phase 0 baseline, Phase 1 `noindex`, Phase 1b geography), pushed **one at a time**, verifying between | None of these adds a discovery path. The banner still ships, which is fine because nothing is inviting a crawl yet. These are also the two least-revertible phases (§16.2), so they keep their own deploys |
+| **2** | Commits **5-17** (Phase 2 → Phase 12) as **one deploy** | The deploy that introduces the sitemap is the *same* deploy that removes the banner. There is no instant at which discovery is live and the banner is showing, which is what G45 actually requires |
+
+⛔ **Batch 2 is a deliberate, one-off suspension of "one deploy, one candidate cause."** It is
+accepted because the alternative was rewriting sixteen unpushed commits, and because Phases 3-11b
+are additive markup on pages that already render correctly — the class least likely to need
+bisecting. **If batch 2 breaks something, bisect locally against the pre-push commits; do not push
+further to diagnose.**
+
 **STEPS**
-1. ⛔ **Verify the maintenance flag in EVERY committed tree about to be pushed:**
-   `git show <sha>:src/lib/maintenance.ts` for each — until Phase 12's commit, every one must read
-   `MAINTENANCE_MODE = true`.
-2. Push **one phase's commit at a time.** After each: wait ~3–4 min for the deploy, then run that
+1. ⛔ **Verify the maintenance flag in every pre-Phase-12 tree about to be pushed:**
+   `git show <sha>:src/lib/maintenance.ts` — all sixteen must read `MAINTENANCE_MODE = true`. From
+   Phase 12's commit the file is gone and the check stops applying.
+2. Push **batch 1 one phase at a time.** After each: wait ~3–4 min for the deploy, then run that
    phase's live VERIFY block (the `curl` checks deferred from §0.0).
-3. **Order matters — Phase 12 must be pushed before Phase 2's discovery work is live**, so no crawler
-   meets the banner (§5.0).
+3. **Then push batch 2 as a single deploy** — see §14.6.0. This is what satisfies G45.
 4. If any live check fails, **stop.** Do not push the next phase. See §16 — Phases 1, 2 and 9 are not
    revertible by git alone.
 5. Only after all pushes are green: **submit the sitemap in Search Console** (§14.3) — this is the
@@ -1017,10 +1080,13 @@ take ~3–4 minutes.
 | **2 — discovery** | Revert leaves a sitemap URL Google has been told about returning 404, and **cannot retract the Search Console submission.** Remove the sitemap in GSC as well |
 | **9 — reviews** | Revert does not retract a structured-data manual action. Use the reconsideration process |
 
-⛔ **Before every push:** `git show <sha>:src/lib/maintenance.ts` must read `MAINTENANCE_MODE = true`
-in **each** committed tree. Verify the committed tree, not the working copy.
-⛔ **Never** `git stash` or `git checkout` to "clean" the tree — it is intentionally dirty at exactly
-` M src/lib/maintenance.ts`.
+⛔ **Before pushing any of the sixteen pre-Phase-12 commits:** `git show <sha>:src/lib/maintenance.ts`
+must read `MAINTENANCE_MODE = true` in **each** of those trees. Verify the committed tree, not the
+working copy. From Phase 12's commit onward the file does not exist, so the check simply stops
+applying — it does **not** mean the check failed.
+⚠️ **Retired with Phase 12:** *"Never `git stash` or `git checkout` to clean the tree — it is
+intentionally dirty at exactly ` M src/lib/maintenance.ts`."* The tree is no longer deliberately
+dirty; a clean tree is now correct.
 
 ---
 
@@ -1049,7 +1115,8 @@ its own document. **Compute it instead:** `git rev-list --count origin/master..H
 | 10 | `e9b5c84` | Breadcrumbs · therapist `Person` · split `serviceType` |
 | 11 | `1970ede` | Full review evidence |
 | — | `dc14298` | Five stale documentation claims corrected (gotcha 105) |
-| 11b | — | The five pre-existing test failures — **all five were stale tests**; see §14.4.1 |
+| 11b | `0f8ab9d` | The five pre-existing test failures — **all five were stale tests**; see §14.4.1 |
+| 12 | — | ⛔ Maintenance system **removed** — see §14.5.1. **Local commit only; NOT pushed, so bookings are NOT open** |
 
 *(Phase 9 produced no commit by design — `sameAs` shipped inside Phase 7 and `Review` objects were
 dropped. See §12.2.)*
@@ -1093,9 +1160,11 @@ restored **byte-identically**, and the killing assertion named.
 1. ✅ **Phase 11b — DONE 2026-08-13.** All five were **stale tests**, no product code changed; see
    §14.4.1 for the diagnosis and the four mutants. The gate baseline is now **0 failed / 2498
    passed** (§2.1), so any failure from here on is a regression.
-2. **Phase 12** (§14.5) — ⛔ remove maintenance. **Opens live bookings. Needs its own explicit
-   Owner instruction; approval of the SEO plan is NOT approval of this.**
-3. **Phase 13** (§14.6) — push phase by phase, then Search Console + Business Profile.
+2. ✅ **Phase 12 — DONE 2026-08-13, COMMITTED LOCALLY ONLY** (§14.5.1). The maintenance system is
+   gone from the code. ⛔ **Bookings are NOT open**: that happens when this commit is **pushed**, and
+   authorisation to push has **not** been given.
+3. **Phase 13** (§14.6) — ⛔ **two batches**, not phase-by-phase throughout; §14.6.0 explains why the
+   original instruction was impossible. Then Search Console + Business Profile.
 
 ### 18.4 — Open items carried forward
 

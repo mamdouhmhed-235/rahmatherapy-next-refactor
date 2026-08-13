@@ -27,9 +27,9 @@ import {
 // DIALOG MECHANISM. This uses @base-ui/react/dialog's primitives directly, the
 // same way src/features/booking/components/BookingDialog.tsx does, rather than
 // the wrapper in src/components/ui/dialog.tsx. The wrapper is otherwise a good
-// fit — MaintenanceModal already uses it on public pages — but its DialogContent
-// renders its own backdrop hard-coded at z-50 and accepts no class for it, and
-// the site header sits at z-index 100 (src/styles/site-parity.css:384). A z-50
+// fit, but its DialogContent renders its own backdrop hard-coded at z-50 and
+// accepts no class for it, and the site header sits at z-index 100
+// (src/styles/site-parity.css:384). A z-50
 // backdrop would dim the page while leaving the header undimmed and on top of
 // it. Base UI supplies the focus trap, ESC handling, aria-modal and focus
 // restoration either way; only the z-index is hand-set here.

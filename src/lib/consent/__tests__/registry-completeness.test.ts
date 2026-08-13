@@ -21,11 +21,16 @@ import {
 } from "../cookie-registry";
 import { CONSENT_COOKIE, type ConsentChoices } from "../consent-state";
 
+// A faithful transcription of the C-18 inventory, minus one entry:
+// "maintenance-modal-seen" was removed when Phase 12 deleted the maintenance
+// system (MaintenanceModal was the only writer of that sessionStorage key, so
+// nothing sets it any more and the cookie page must not claim otherwise). A
+// future inventory refresh will not find it either, so the list still matches
+// what a fresh pass would produce.
 const INVENTORY_NAMES = [
   "rahma-booking-draft-v1",
   "rahma-booking-contact-v1",
   "_ga / _ga_*",
-  "maintenance-modal-seen",
   "sentryReplaySession",
 ] as const;
 
@@ -54,7 +59,7 @@ const VALID_PURPOSES: CookiePurpose[] = ["essential", "functional", "analytics"]
 const VALID_TYPES: StorageMechanism[] = ["cookie", "localStorage", "sessionStorage"];
 
 describe("registry completeness (inventory <-> registry parity)", () => {
-  it("has exactly the 5 inventoried entries plus what C-18 and C-20 each add", () => {
+  it("has exactly the 4 inventoried entries plus what C-18 and C-20 each add", () => {
     expect(COOKIE_REGISTRY.length).toBe(EXPECTED_NAMES.length);
   });
 
@@ -114,14 +119,13 @@ describe("registry completeness (inventory <-> registry parity)", () => {
     expect(entry).not.toHaveProperty("provisionalNote");
   });
 
-  it("maintenance-modal-seen is not described as inactive", () => {
-    // MAINTENANCE_MODE is `true` in the committed source, whatever a given
-    // working copy says, so any deploy mounts the modal and writes this key.
-    // An earlier pass read a local `false` and marked the entry dormant, which
-    // told visitors a feature was switched off when the shipping code has it on.
-    const entry = COOKIE_REGISTRY.find((e) => e.name === "maintenance-modal-seen");
-    expect(entry).toBeDefined();
-    expect(entry).not.toHaveProperty("dormant");
+  it("no longer registers maintenance-modal-seen, whose only writer is deleted", () => {
+    // Phase 12 removed the maintenance system. MaintenanceModal was the sole
+    // writer of this sessionStorage key, so nothing sets it any more and the
+    // cookie policy must not tell visitors their browser receives it. This
+    // replaces the old "is not described as inactive" spec, which existed only
+    // to stop the entry being marked dormant while the feature still shipped.
+    expect(COOKIE_REGISTRY.find((e) => e.name === "maintenance-modal-seen")).toBeUndefined();
   });
 
   it("sentryReplaySession is classified analytics, not a new purpose bucket", () => {
