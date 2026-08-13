@@ -9,7 +9,7 @@ import { ReviewThemeHighlights } from "@/components/reviews/ReviewThemeHighlight
 import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
-  title: "Reviews | Rahma Therapy Luton",
+  title: "Rahma Therapy Reviews | Hijama, Cupping & Massage in Luton",
   description:
     "Read Google review highlights from Rahma Therapy clients across Luton, including hijama, cupping, massage, female therapist appointments and mobile home visits.",
   alternates: {

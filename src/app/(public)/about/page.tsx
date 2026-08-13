@@ -9,7 +9,7 @@ import { siteUrl } from "@/content/site/site-url";
 export const metadata: Metadata = {
   title: "About Rahma Therapy | Mobile Hijama, Cupping & Massage in Luton",
   description:
-    "Meet Rahma Therapy, a CMA and IPHM qualified mobile hijama, cupping and massage team serving Luton since 2020 with male and female therapists and private home appointments.",
+    "A CMA and IPHM qualified mobile hijama, cupping and massage team serving Luton since 2020, with male and female therapists and private home appointments.",
   alternates: {
     canonical: siteUrl("/about/"),
   },

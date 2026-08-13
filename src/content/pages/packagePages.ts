@@ -106,7 +106,7 @@ export const packagePages = [
     whatsappCta: "Ask if this is right for me",
     bookingServiceId: "supreme-combo",
     seo: {
-      title: "Supreme Combo Package | Mobile Cupping, Hijama & Massage in Luton",
+      title: "Supreme Combo | Mobile Cupping, Hijama & Massage in Luton",
       description: "Book Rahma Therapy’s Supreme Combo Package in Luton: pre-cupping massage, IASTM-style therapy, dry cupping, fire cupping and hijama in one private home session."
     },
     summary: {
@@ -303,7 +303,7 @@ export const packagePages = [
     whatsappCta: "Ask about hijama suitability",
     bookingServiceId: "hijama-package",
     seo: {
-      title: "Hijama Package in Luton | Private Mobile Wet Cupping | Rahma Therapy",
+      title: "Hijama Package in Luton | Private Mobile Wet Cupping",
       description: "Book Rahma Therapy’s Hijama Package in Luton: pre-cupping massage, dry cupping and wet cupping delivered privately at home by CMA and IPHM qualified therapists."
     },
     summary: {
@@ -836,7 +836,7 @@ export const packagePages = [
     bookingServiceId: "massage-60",
     seo: {
       title: "1-Hour Mobile Massage Therapy in Luton | Rahma Therapy",
-      description: "Book a 1-hour mobile massage therapy session in Luton for deeper work, multiple areas, stress tension or a calmer full-body reset. Private home appointments from £60."
+      description: "Book a 1-hour mobile massage therapy session in Luton for deeper work, multiple areas or a calmer full-body reset. Private home appointments from £60."
     },
     summary: {
       price: "£60",

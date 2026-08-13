@@ -10,9 +10,9 @@ import { WhenToGetAdvice } from "@/components/faqs-aftercare/WhenToGetAdvice";
 import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
-  title: "FAQs & Aftercare | Hijama, Cupping & Massage in Luton | Rahma Therapy",
+  title: "FAQs & Aftercare | Hijama, Cupping & Massage in Luton",
   description:
-    "Find clear answers and aftercare guidance for Rahma Therapy’s mobile hijama, cupping and massage appointments in Luton, including preparation, suitability, therapist options and package FAQs.",
+    "Answers and aftercare guidance for Rahma Therapy’s mobile hijama, cupping and massage appointments in Luton: preparation, suitability and therapist options.",
   alternates: {
     canonical: siteUrl("/faqs-aftercare/"),
   },

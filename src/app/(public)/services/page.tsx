@@ -8,9 +8,9 @@ import { TreatmentMethods } from "@/components/services/TreatmentMethods";
 import { siteUrl } from "@/content/site/site-url";
 
 export const metadata: Metadata = {
-  title: "Services | Mobile Hijama, Cupping & Massage in Luton | Rahma Therapy",
+  title: "Services | Mobile Hijama, Cupping & Massage in Luton",
   description:
-    "Explore Rahma Therapy’s mobile hijama, cupping and massage packages in Luton, including the Supreme Combo, Hijama Package, Fire Package and massage therapy options from £40.",
+    "Rahma Therapy’s mobile hijama, cupping and massage packages in Luton: the Supreme Combo, Hijama Package, Fire Package and massage therapy options from £40.",
   alternates: {
     canonical: siteUrl("/services/"),
   },

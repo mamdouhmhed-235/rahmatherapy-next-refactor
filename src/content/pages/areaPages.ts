@@ -239,7 +239,7 @@ export const areaPages: AreaPage[] = [
     nearby: ["leagrave", "stopsley", "dunstable"],
 
     seo: {
-      title: "Hijama & Cupping in Bury Park, Luton | At-Home Wet Cupping | Rahma Therapy",
+      title: "Hijama & Cupping in Bury Park, Luton | At-Home Wet Cupping",
       description:
         "Private mobile hijama, cupping and massage at home in Bury Park, Luton. CMA & IPHM qualified male and female therapists. Same-week home visits from £40.",
     },
@@ -381,7 +381,7 @@ export const areaPages: AreaPage[] = [
     },
 
     seo: {
-      title: "Mobile Hijama, Cupping & Massage in Luton | At-Home Therapy | Rahma Therapy",
+      title: "Mobile Hijama, Cupping & Massage in Luton | At-Home Therapy",
       description:
         "Private mobile hijama, cupping and massage at home across Luton. CMA & IPHM qualified male and female therapists. Same-week home visits from £40.",
     },
@@ -513,9 +513,9 @@ export const areaPages: AreaPage[] = [
     nearby: ["bury-park", "stopsley", "houghton-regis"],
 
     seo: {
-      title: "Mobile Massage, Cupping & Hijama in Leagrave, Luton | At-Home Recovery | Rahma Therapy",
+      title: "Mobile Massage, Cupping & Hijama in Leagrave, Luton | At-Home Recovery",
       description:
-        "At-home massage, cupping and hijama in Leagrave, Luton. Back, neck and sports-recovery focus with evening & weekend slots. CMA & IPHM qualified therapists, from £40.",
+        "At-home massage, cupping and hijama in Leagrave, Luton. Back, neck and sports-recovery focus, evening & weekend slots. CMA & IPHM qualified, from £40.",
     },
   },
 
@@ -645,7 +645,7 @@ export const areaPages: AreaPage[] = [
     nearby: ["bury-park", "leagrave", "dunstable"],
 
     seo: {
-      title: "Relaxing Mobile Massage & Therapy in Stopsley, Luton | At-Home Wellness | Rahma Therapy",
+      title: "Relaxing Mobile Massage & Therapy in Stopsley, Luton | At-Home Wellness",
       description:
         "At-home relaxation massage, cupping and hijama in Stopsley, Luton. Calm, unhurried sessions with male & female therapists. CMA & IPHM qualified, from £40.",
     },
@@ -777,9 +777,9 @@ export const areaPages: AreaPage[] = [
     nearby: ["houghton-regis", "leagrave", "bury-park"],
 
     seo: {
-      title: "Mobile Massage, Cupping & Hijama in Dunstable | At-Home Therapy | Rahma Therapy",
+      title: "Mobile Massage, Cupping & Hijama in Dunstable | At-Home Therapy",
       description:
-        "Mobile sports and therapeutic massage, cupping and hijama at home in Dunstable. We travel to you with no travel charge. CMA & IPHM qualified therapists, from £40.",
+        "Mobile sports and therapeutic massage, cupping and hijama at home in Dunstable. No travel charge. CMA & IPHM qualified therapists, from £40.",
     },
   },
 
@@ -909,9 +909,9 @@ export const areaPages: AreaPage[] = [
     nearby: ["dunstable", "leagrave", "bury-park"],
 
     seo: {
-      title: "At-Home Massage, Cupping & Hijama in Houghton Regis | Mobile Therapy | Rahma Therapy",
+      title: "At-Home Massage, Cupping & Hijama in Houghton Regis | Mobile Therapy",
       description:
-        "Convenient mobile massage, cupping and hijama at home in Houghton Regis. Family-friendly, we travel to you with no travel charge. CMA & IPHM qualified, from £40.",
+        "Mobile massage, cupping and hijama at home in Houghton Regis. Family-friendly, we travel to you at no charge. CMA & IPHM qualified, from £40.",
     },
   },
 ];
