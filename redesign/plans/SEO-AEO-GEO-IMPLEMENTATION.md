@@ -3,8 +3,15 @@
 **Companion:** `redesign/plans/SEO-AEO-GEO-2026-08-13-plan.md` — the spec, holding every decision and
 the evidence behind it. **Read it before Phase 1.** This document is the execution order.
 **Base commit for all anchors:** `9271863` on `master`.
-**Status (2026-08-13):** ⛔ **Phases 0–11 are DONE and committed. NOTHING IS PUSHED.**
-Remaining: **11b**, **12**, **13**. See §18 for the full progress log.
+
+**⛔ LIVE HANDOFF: `redesign/HANDOFF-2026-08-13-IMPLEMENTATION-9.md`. Read it before this file.**
+
+**Status (2026-08-13, end of the tenth session):**
+✅ **Phases 0–11b are DEPLOYED** — `origin/master` = `0f8ab9d`, live at rahmatherapy.uk.
+⛔ **Phase 12 is NOT deployed.** It is committed locally (`3eb2939`) and **pushing it OPENS LIVE
+BOOKINGS**. Two later commits are its **descendants**, so *nothing* can ship without it.
+⛔ **Search Console submission is BLOCKED** until Phase 12 deploys (§14.6.-1, G46).
+See §18 for the progress log and §18.5 for the measured release verification.
 
 ---
 
@@ -1164,6 +1171,7 @@ its own document. **Compute it instead:** `git rev-list --count origin/master..H
 | 11b | `0f8ab9d` | The five pre-existing test failures — **all five were stale tests**; see §14.4.1 |
 | 12 | `3eb2939` | ⛔ Maintenance system **removed** — see §14.5.1. **LOCAL ONLY. NOT pushed. Bookings are NOT open in production** |
 | 13 | — | ✅ **RELEASED 2026-08-13.** `origin/master` = `0f8ab9d` (Phases 0-11b live). Phase 12 deliberately withheld — §14.6.-1 |
+| 1b (part 2) | `563d520` | ⛔ **LOCAL ONLY.** Phase 1b was **incomplete** — it fixed the JSON-LD but left `${area.name}, Luton` in `AreaFinalCTA.tsx:13` (`alt`) and `AreaMap.tsx:36` (`title`). **Production still serves "Map of Luton, Luton" / "Dunstable, Luton" / "Houghton Regis, Luton"** to screen readers. Fixed with `areaLabel()` beside `AreaPlaceType`; guarded and mutation-tested. Ships only when Phase 12 does |
 
 ### 18.5 — Release verification, measured against production 2026-08-13
 
@@ -1230,8 +1238,23 @@ restored **byte-identically**, and the killing assertion named.
 2. ✅ **Phase 12 — DONE 2026-08-13, COMMITTED LOCALLY ONLY** (§14.5.1). The maintenance system is
    gone from the code. ⛔ **Bookings are NOT open**: that happens when this commit is **pushed**, and
    authorisation to push has **not** been given.
-3. **Phase 13** (§14.6) — ⛔ **two batches**, not phase-by-phase throughout; §14.6.0 explains why the
-   original instruction was impossible. Then Search Console + Business Profile.
+3. ✅ **Phase 13 — RELEASED 2026-08-13**, minus Phase 12 (§14.6.-1). Verification in §18.5.
+
+### 18.6 — ⛔ WHAT IS ACTUALLY LEFT (end of the tenth session)
+
+1. ⛔ **The Owner's full site testing.** Bookings are open **locally** for exactly this. Nothing
+   proceeds until it passes.
+2. ⛔ **Then deploy Phase 12** — a push of `563d520` carries Phase 12 **plus** the release record
+   **plus** the geography fix, because both are its descendants. **That push opens live bookings.**
+   Verify the banner is gone from all 18 routes and `?booking=1` works.
+3. ⛔ **Then Search Console** — verify the property and submit the sitemap. **Owner-side; it needs
+   their Google account.** This is the step that actually invites indexing, so it is genuinely last.
+4. **Fold in at testing time:** the Lighthouse Best-Practices recheck (§18.4) and a look at whether
+   the Business Profile is configured as a service-area business.
+
+⛔ **The Owner's next stated task is removal and decluttering of the entire directory. They will
+specify the scope themselves — do not start it, and do not guess what to delete.** Some archives are
+explicitly KEEP.
 
 ### 18.4 — Open items carried forward
 

@@ -1,7 +1,11 @@
 # HANDOFF — 2026-08-13 (ninth session · SEO/AEO/GEO implementation)
 
-**Read this file first, end to end.** The eight earlier handoffs keep their gotchas and are **not**
-superseded:
+> ⛔ **SUPERSEDED. Read `HANDOFF-2026-08-13-IMPLEMENTATION-9.md` FIRST — that is the live document.**
+> This file's **§1 position table, §1 gate baselines and §7 "what is left" are STALE**: the work has
+> since been **released to production**, Phases 11b and 12 are done, and the vitest baseline moved to
+> **2501**. ⛔ **What remains authoritative here is §5, gotchas 90-108** — keep reading it for those.
+
+**The eight earlier handoffs keep their gotchas and are **not** superseded:
 
 - `HANDOFF-2026-08-11-PLANNING.md` §5 — gotchas 1-19
 - `HANDOFF-2026-08-11-IMPLEMENTATION.md` §5 — 1-15
