@@ -1,5 +1,17 @@
 # HANDOFF — 2026-08-13 (sixth implementation session)
 
+> ⛔ **SUPERSEDED IN PART — read `HANDOFF-2026-08-13-IMPLEMENTATION-7.md` first.**
+> This file is still the record for gotchas 67-79 and §§2-4, 6, 8-9. But:
+> - **§1 (gate baselines) is STALE** — vitest is now 5 failed / 2455 passed
+>   (2460). Use -7 §1.
+> - **§7.1 (three coverage gaps) is CLOSED.** Two were covered in `8c1c4c6` and
+>   `c70839f`. The third is not a gap at all — see below.
+> - **§7.2 (the 125 cap) was ANSWERED and the Owner DECLINED to act.** The
+>   comment was the defect and is fixed in `ce050ce`; the value is unchanged.
+> - **Gotcha 78 is HALF WRONG** and is corrected by gotcha 80 in -7.
+>
+> Corrections to specific claims in this file are marked ⛔ inline below.
+
 **Read this file first, end to end.** The six earlier handoffs keep their gotchas
 and are **not** superseded:
 
@@ -204,6 +216,16 @@ node builtin.
     timezone-divergence property is **structurally unobservable** here. Two ITEM
     I.1 mutants survive for this reason, and that is recorded rather than hidden.
 
+    > ⛔ **HALF WRONG — corrected by gotcha 80 in HANDOFF-7.** The launch-time
+    > `TZ=x node` claim holds. But assigning `process.env.TZ` **at runtime** DOES
+    > retune ICU on this host (Node 24), including under vitest, which also
+    > isolates the value per test file. One of the two mutants — dropping the
+    > `Europe/London` pin — was therefore closable, and was closed in `8c1c4c6`
+    > with an 8-line test at UTC+14. The other (UTC noon → midnight) is an
+    > **equivalent mutant**: with the pin in place both hours land on the same
+    > London date in every timezone (7 zones × 366 days, zero disagreements). It
+    > is unkillable by anyone and is no longer tracked as work.
+
 79. **⚠️ A SET DIFF KEYED ON LINE NUMBERS LIES AFTER A DELETION PASS.** Comparing
     Layer 1 before/after positionally reported 21 new failures that were the same
     findings shifted by ITEM F's deletions. Key the multiset on
@@ -230,6 +252,15 @@ node builtin.
 ---
 
 ## 7 — ⛔ WHAT IS LEFT. Two investigations. **PLAN AND PRESENT — DO NOT FIX YET.**
+
+> ⛔ **BOTH ARE NOW CLOSED — see HANDOFF-7 §7. Do NOT work from this section.**
+> §7.1: gaps 1 and 2 covered (`c70839f`, `8c1c4c6`); gap 3's two mutants split
+> into one closed and one **provably equivalent**, so the section over-counts the
+> work by one item. §7.2: answered and **declined** — the cap stays at 125 and its
+> comment, which was the actual defect, is fixed in `ce050ce`. ⚠️ Two figures
+> below are wrong: the ceiling is **~25 kB with an HTTP 400**, not ~8 kB with a
+> 414, and the runway at the measured rate is **~12 years**, not 18 months. The
+> three PostgREST constraints in §7.2 were re-probed and all HOLD.
 
 The Owner wants options and a recommendation for each, then chooses. Both are
 **known, recorded, non-urgent** — nothing is broken in production.
