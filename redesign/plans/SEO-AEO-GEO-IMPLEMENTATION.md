@@ -3,7 +3,8 @@
 **Companion:** `redesign/plans/SEO-AEO-GEO-2026-08-13-plan.md` — the spec, holding every decision and
 the evidence behind it. **Read it before Phase 1.** This document is the execution order.
 **Base commit for all anchors:** `9271863` on `master`.
-**Status:** not started. No `src/` file has been changed.
+**Status (2026-08-13):** ⛔ **Phases 0–11 are DONE and committed. NOTHING IS PUSHED.**
+Remaining: **11b**, **12**, **13**. See §18 for the full progress log.
 
 ---
 
@@ -948,6 +949,87 @@ take ~3–4 minutes.
 in **each** committed tree. Verify the committed tree, not the working copy.
 ⛔ **Never** `git stash` or `git checkout` to "clean" the tree — it is intentionally dirty at exactly
 ` M src/lib/maintenance.ts`.
+
+---
+
+## 18 — PROGRESS LOG (2026-08-13)
+
+⛔ **13 commits on `master`, ZERO pushed.** `origin/master` is still at `9271863`. Cloudflare
+deploys on **push**, so production is completely untouched by all of this.
+
+| Phase | Commit | What landed |
+|---|---|---|
+| — | `efc7484` | Spec + implementation plan |
+| 0 | `9e43e4f` | Baseline: 20 routes × 2 viewports, 40 probes + 40 screenshots |
+| 1 | `9cdb905` | `noindex` on `/booking/manage` + 3 admin auth surfaces |
+| 1b | `9114a57` | Geography fix — `AreaPlaceType`, `containedInPlace` |
+| 2 | `58386a8` | `sitemap.ts` + `robots.ts` + 12 guards |
+| 3 | `bba2bfc` | Canonicals on 6 routes + 21 guards |
+| 4 | `a58d88c` | Footer: "Areas We Cover" + legal links |
+| 5 | `782a68b` | One-hop redirect · legal `<h1>` · `en-GB` |
+| 6 | `5e4e654` | Title/description lengths |
+| 7 | `8fcd6b4` | `business-node.ts` — one entity, `@id`, `address`, `sameAs` |
+| 8 | `c8ec265` | All 31 FAQs server-rendered + `FAQPage` + 5 guards |
+| 10 | `e9b5c84` | Breadcrumbs · therapist `Person` · split `serviceType` |
+| 11 | `1970ede` | Full review evidence |
+
+*(Phase 9 produced no commit by design — `sameAs` shipped inside Phase 7 and `Review` objects were
+dropped. See §12.2.)*
+
+**7 new `src/` files:** `app/sitemap.ts` · `app/robots.ts` · `app/__tests__/sitemap-robots.test.ts`
+· `app/__tests__/canonicals.test.ts` · `components/faqs-aftercare/__tests__/FaqCategoryAccordions.test.tsx`
+· `content/site/business-node.ts` · `content/site/breadcrumb.ts`
+**27 files changed, +824 / −88.**
+
+### 18.1 — Measured before → after
+
+| | Before | After |
+|---|---|---|
+| Sitemap | 404 | 18 clean URLs |
+| robots.txt | Cloudflare's, 0 directives | ours, with `Sitemap:` |
+| Canonicals | 8 of 20 | **all 18 indexable** |
+| Pages linking to `/areas` | 6 (all inside the cluster) | **19 of 20** |
+| FAQs in served HTML | **4 of 31** | **31 of 31** |
+| Business entity | 5 conflicting anonymous nodes | **1, with `@id` + address** |
+| Telephone formats | 2 | 1 |
+| `url` values on the entity | 4 | 1 |
+| Geography | `"Luton, Luton"`, `"Dunstable, Luton"` | correct |
+| Token pages indexable | yes | `noindex` |
+| Root redirect | 2 hops | 1 |
+| Descriptions outside 140–160 | 9 of 16 | **1** (deliberate) |
+| Titles outside 50–60 | 13 of 16 | **6** (all deliberate) |
+
+### 18.2 — Guards added, all teeth-checked
+
+**38 new tests.** Every guard was mutation-tested: the mutant applied, the suite run, the file
+restored **byte-identically**, and the killing assertion named.
+
+| Guard file | Tests | Mutants killed |
+|---|---|---|
+| `sitemap-robots.test.ts` | 12 | 6 |
+| `canonicals.test.ts` | 21 | 4 |
+| `FaqCategoryAccordions.test.tsx` | 5 | 2 |
+
+### 18.3 — What is LEFT
+
+1. **Phase 11b** (§14.4) — the five pre-existing test failures. No new decisions needed.
+2. **Phase 12** (§14.5) — ⛔ remove maintenance. **Opens live bookings. Needs its own explicit
+   Owner instruction; approval of the SEO plan is NOT approval of this.**
+3. **Phase 13** (§14.6) — push phase by phase, then Search Console + Business Profile.
+
+### 18.4 — Open items carried forward
+
+- **Best Practices 96, not 100** — one audit (`errors-in-console`), item is a 429 on Sentry's
+  `/monitoring` tunnel, caused by this session's own automated load. Proven self-inflicted (single
+  isolated load → zero non-2xx). **Re-check at release with no harness running.**
+- **`address` validation** — the locality-only `PostalAddress` rests on Google's *silence* about
+  `PostalAddress` sub-properties, not an explicit rule. **Validate in the Rich Results Test before
+  the Phase 13 push**; fall back to `Organization` if rejected.
+- **Cloudflare robots.txt merge** — untestable locally. Post-deploy, check your `Sitemap:` line is
+  present; expect Cloudflare's ~24 comment lines prepended above it.
+- **Owner asks never answered**, both optional: one line of visible copy naming the therapists'
+  languages (would unlock `knowsLanguage`); and whether reproducing 89 Google reviews verbatim is
+  cleared under Maps' terms (only matters if `Review` objects are ever revisited).
 
 ---
 
