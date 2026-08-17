@@ -105,6 +105,9 @@ export function AdminActionMenu({
 
   return (
     <div ref={containerRef} className={cn("relative inline-block text-left", className)}>
+      {/* Trigger: min-h-11/min-w-11 = 44px, WCAG 2.5.5 Target Size. Was size-9
+          (36px), measured 35.99px and deferred out of Phase 6 because this file is
+          the shared admin primitive set — redesign/per-page-deferrals/services-deferrals.md */}
       <button
         ref={triggerRef}
         type="button"
@@ -112,7 +115,7 @@ export function AdminActionMenu({
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
         onKeyDown={onTriggerKeyDown}
-        className="inline-flex size-9 cursor-pointer items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
+        className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded-[var(--admin-radius-control)] border border-[var(--admin-border)] bg-[var(--admin-panel)] text-[var(--admin-text-muted)] outline-none transition-colors hover:bg-[var(--admin-panel-muted)] hover:text-[var(--admin-heading)] focus-visible:ring-2 focus-visible:ring-[var(--admin-focus)]/55"
       >
         <MoreHorizontal className="size-4" aria-hidden="true" />
         <span className="sr-only">{label}</span>

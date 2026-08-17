@@ -1,6 +1,18 @@
 # Deferrals — services
 
-## AdminActionMenu 3-dot trigger touch target at 36px (below 44px WCAG 2.5.5)
+## ~~AdminActionMenu 3-dot trigger touch target at 36px (below 44px WCAG 2.5.5)~~ — ✅ RESOLVED 2026-08-17
+
+> ✅ **RESOLVED 2026-08-17.** Fixed exactly as this entry prescribed: `size-9` → `min-h-11 min-w-11`
+> at `src/app/admin/components/admin-ui-interactions.tsx` (the trigger `<button>` in
+> `AdminActionMenu`). 44×44 now, meeting WCAG 2.5.5 on every pointer input, not just mobile.
+> ⚠️ **It is a shared primitive, so this lands on every page using the menu** — services, enquiries,
+> and anywhere else `AdminActionMenu` is rendered. That breadth is why it was deferred here, and it
+> is the intended outcome.
+> All seven gates re-run and identical to baseline. ⛔ Not visually verified in a browser: the admin
+> surface is auth-gated and agents may not authenticate. `min-h-11` = 44px is confirmed by this
+> repo's own usage (`dashboard-coordinator-deferrals.md`: *"Convert link now `min-h-11` (44px)"*).
+
+**Original entry, preserved:**
 
 - **Source:** Step 8 adapt verification (services-recipe.md)
 - **Verbatim:** "Confirm Edit + three-dot buttons are tappable without zoom on mobile (min 44px touch targets — check `getBoundingClientRect().height >= 44`)". Measured: 35.99px height.

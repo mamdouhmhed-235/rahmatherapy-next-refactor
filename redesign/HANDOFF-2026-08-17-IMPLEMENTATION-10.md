@@ -16,7 +16,7 @@ gotchas and are **not** superseded:
 - `HANDOFF-2026-08-13-IMPLEMENTATION-8.md` §5 — **90-108**
 - `HANDOFF-2026-08-13-IMPLEMENTATION-9.md` — the SEO/AEO/GEO release record
 
-**This file adds gotchas 109-117 (§5).**
+**This file adds gotchas 109-118 (§5).**
 
 ---
 
@@ -70,6 +70,7 @@ still hear "Map of Dunstable, Luton".** All three are fixed locally and blocked 
 ```powershell
 npx tsc --noEmit                              # 0
 npx vitest run                                # 0 failed / 2501 passed (2501), 242 files
+                                              # ⛔ CHECK THE COUNT, not just green — gotcha 118
 pnpm lint                                     # 4 errors / 1 warning, THREE files
 npx vitest run scripts/                       # 47 passed
 node scripts/measure-admin-contrast.mjs .     # 110 (46 dark / 64 light)
@@ -158,6 +159,17 @@ bash extract-doc-doc-citations.sh                                     # doc → 
      project is PowerShell-primary with Bash available. **Label which shell each command block
      targets**, or the executor reaches for `Remove-Item -Recurse -Force` unsupervised.
 
+118. **⛔ `npx vitest run` CAN SILENTLY UNDER-DISCOVER TEST FILES AND STILL EXIT 0.** Observed
+     2026-08-17: one run reported **`Test Files 241 passed (241)` / `Tests 2480 passed (2480)`** with
+     **exit code 0** — no failure, no error, no skip notice. The gap was exactly
+     `src/app/__tests__/canonicals.test.ts` (21 tests), which passes in isolation and was never
+     touched. Two further full runs both returned **242 / 2501**.
+     ⛔ **"vitest passed" is NOT a sufficient gate — a green exit code with a LOWER count is a real
+     and silent failure mode.** Always compare the **count**, and re-run before believing a
+     discrepancy. Had the count been read as "all passed", a missing SEO canonical guard would have
+     gone unnoticed. This is why the baseline is written as *0 failed / **2501 passed** / **242
+     files***, not just "green".
+
 ---
 
 ## 6 — WHAT HAPPENED THIS SESSION
@@ -203,10 +215,12 @@ protections in its non-negotiables sentence were preserved verbatim.**
 ### 7.2 — ⛔ Worth more than the declutter: 15 still-open deferrals
 
 `redesign/per-page-deferrals/` was frozen 2026-05-19 while the project shipped three more months.
-**15 items were re-verified as still open in today's code**, including:
+**15 items were re-verified as still open in today's code. One has since been fixed; 14 remain:**
 
-- ⛔ **`AdminActionMenu` trigger is 36px — below the 44px accessibility floor — on every admin page.**
-  A live WCAG failure.
+- ✅ **`AdminActionMenu` trigger — FIXED 2026-08-17.** Was `size-9` (36px, measured 35.99px);
+  now `min-h-11 min-w-11` (44×44), meeting WCAG 2.5.5. Shared primitive, so it lands on every page
+  using the menu. Gates unchanged. ⛔ Not visually verified — the admin surface is auth-gated and
+  agents may not authenticate.
 - `AdminErrorBoundary` fallback lacks `role="alert"`.
 - Therapist dashboard missing its gender-match chip and customer-notes block.
 - Role create/delete and the password-reset flow unshipped, with live FAKE markers.
