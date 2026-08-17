@@ -69,6 +69,15 @@ test-results/
 
 # The Owner's source photo inbox: 55 MB of camera originals staged for import
 # into public/images/, which is where the site actually serves them from. 28 of
-# its 52 files already exist there byte-identically, and nothing in src/ or
-# public/ loads from this path — it is working material, not a site asset.
+# its 52 files already existed there byte-identically, and nothing in src/ or
+# public/ loaded from this path — it was working material, not a site asset.
+# MOVED OUT of the repo on 2026-08-17 to ~/Desktop/rahma-archive-2026-08-17/
+# (all 52 files, because 24 of them exist nowhere else). The rule is kept so the
+# directory cannot reappear untracked by accident.
 photos-rahma-therapy/
+
+# Installer archive for the impeccable skill. Its 61 entries are byte-identical
+# to the already-tracked .claude/skills/impeccable/, so committing it would
+# duplicate 284 KB. It was untracked AND unignored until 2026-08-17, i.e. one
+# `git add .` away from a public repo.
+.claude/skills/impeccable.zip

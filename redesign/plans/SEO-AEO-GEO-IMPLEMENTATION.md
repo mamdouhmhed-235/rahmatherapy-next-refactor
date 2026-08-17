@@ -800,8 +800,12 @@ Use the Owner's dev server at `localhost:3000` (**never spawn or restart it**) o
     removed and areas by city/postcode rather than radius. That is Owner-side, unverified, and the
     only part still worth a look.
 
-**FINAL GATE** Everything above green. Gate baselines identical. `git status --porcelain -- src/
-supabase/` shows **exactly** ` M src/lib/maintenance.ts`.
+**FINAL GATE** Everything above green. Gate baselines identical.
+⛔ **CORRECTED 2026-08-17 — this demanded `git status --porcelain -- src/ supabase/` show exactly
+` M src/lib/maintenance.ts`.** Phase 12 (`3eb2939`) **deleted that file**, so the gate is now
+**EMPTY**, per §2.1 and G42. Re-running this gate as originally written produces a false failure.
+⚠️ The file still exists on `origin/master` because Phase 12 is unpushed — so the original wording
+would be correct again if Phase 12 were ever reverted.
 
 ---
 
@@ -1145,8 +1149,12 @@ dirty; a clean tree is now correct.
 
 ## 18 — PROGRESS LOG (2026-08-13)
 
-⛔ **ZERO pushed.** `origin/master` is still at `9271863`. Cloudflare deploys on **push**, so
-production is completely untouched by all of this.
+⛔ **CORRECTED 2026-08-17. This heading previously read "ZERO pushed. `origin/master` is still at
+`9271863`."** That was true when written and became the most misleading line in the repo: **16
+commits are live.** `origin/master` = `0f8ab9d`, Phases 0-11b were released 2026-08-13, and only
+Phase 12 and its descendants remain unpushed. See §18.5 for the measured release verification and
+§14.6.-1 for why Phase 12 is held back. **Compute the position, never read it from a document:**
+`git rev-list --count origin/master..HEAD`.
 
 ⛔ **Do not trust a commit count written into this file.** This line used to say "13 commits", which
 was stale the instant the commit carrying it was made — such a count is always at least one behind

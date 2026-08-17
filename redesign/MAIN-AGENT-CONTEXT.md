@@ -1,5 +1,13 @@
 # Main agent — context handoff
 
+> ⛔ **HISTORICAL — Phase 6 completed. Do not act on the status claims in this file.**
+> It still reports *"Phase 6 … 5/29 pages merged, 24 to go"* and a working branch of
+> `redesign/start-state`. Both are roughly **700 commits and three months stale** — all 29 pages
+> shipped, and Band C closed 2026-08-09. The worktree spawning model it describes is retired.
+> ⚠️ **Still binding:** its immutability rule for `impeccable-v5-latest-stable.html` and
+> `phase6-admin-workflow-guide.html`.
+> **Current position: `redesign/HANDOFF-2026-08-13-IMPLEMENTATION-9.md`.** *(Stamped 2026-08-17.)*
+
 You are the **main agent** operating in the user's primary Claude Code session. This document is the single read-once orientation that gets you fully up to speed on the Rahma Therapy admin redesign — what's happening, your role, the operational model, and the canonical references you'll work from.
 
 **You do NOT run per-page redesigns yourself.** Those happen in *spawned* `/goal`-driven Claude Code sessions, each in its own git worktree, each on its own port. **Your role is orchestrator + quality control + merge broker** — you spawn worktrees on demand, QC the spawned agents' work, present merge plans + conflict options to the user, and execute merges after explicit approval.

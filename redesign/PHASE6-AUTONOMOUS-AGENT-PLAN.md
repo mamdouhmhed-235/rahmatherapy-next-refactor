@@ -1,5 +1,10 @@
 # Phase 6 autonomous-agent plan — recipe enhancements + main-agent protocol
 
+> ⛔ **HISTORICAL — Phase 6 completed; all 29 admin pages shipped, Band C closed 2026-08-09.**
+> The existing note below already marks the *mechanism* superseded. This stamp extends that to the
+> whole document: the programme itself is over, not just its helper scripts.
+> **Current position: `redesign/HANDOFF-2026-08-13-IMPLEMENTATION-9.md`.** *(Stamped 2026-08-17.)*
+
 > **⚠ HISTORICAL — partially superseded 2026-05-16.** This doc was the design rationale for the script-based spawn + recipe-patching approach. The 15 `scripts/patch-recipes-*.mjs` one-shot scripts AND `scripts/spawn-worktree.mjs` were all deleted 2026-05-16 in favor of inline execution by the main agent. Their *outputs* (the hardened recipes themselves) remain — the scripts already did their work and the patches are baked into the 26 recipes under `redesign/per-page-recipes/`. The recipe-hardening Changes 1–8 described below ARE active in the recipes; only the *mechanism* (helper scripts) was retired.
 >
 > **For current workflow (how the main agent spawns worktrees today), read `MAIN-AGENT-CONTEXT.md §5A`.**

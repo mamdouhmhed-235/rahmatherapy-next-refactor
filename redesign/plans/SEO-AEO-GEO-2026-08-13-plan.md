@@ -4,7 +4,10 @@
 **Base commit for all anchors:** `9271863` on `master`
 **Implementation document:** `redesign/plans/SEO-AEO-GEO-IMPLEMENTATION.md` — **that** is what an
 implementer follows. This file holds the decisions and the evidence behind them.
-**Status:** decided. **Not implemented.** No `src/` file has been changed.
+**Status:** ⛔ **CORRECTED 2026-08-17 — this said "Not implemented. No `src/` file has been changed."**
+It is **implemented and largely released**: Phases 0-11b are live (16 commits, `efc7484` → `0f8ab9d`),
+seven new `src/` files shipped, and Phase 12 plus its descendants remain local-only. See
+`SEO-AEO-GEO-IMPLEMENTATION.md` §18 for the progress log.
 
 > ⛔ **Two research passes overturned much of the first draft.** 11 claims were checked against
 > primary sources: 1 confirmed, 1 outdated, 9 partly wrong. A second pass then re-opened six of
@@ -386,12 +389,23 @@ of the discovery problem, not a performance one).
 
 ---
 
-## 7 — One ask for the Owner
+## 7 — ⛔ CLOSED PERMANENTLY. Do not raise this again.
 
-**A single line of visible copy naming the languages the therapists speak.** It is the one narrow
-exception to the copy freeze both research passes independently flagged as worth requesting — it
-would unlock `knowsLanguage` and is plausibly the highest-value sentence available for a Bury Park
-audience. **Owner's call; nothing depends on it.**
+⛔ **Owner ruling 2026-08-13, annotated here 2026-08-17.** This section asked for a single line of
+visible copy naming the languages the therapists speak, to unlock `knowsLanguage`.
+
+**The answer is no, and it is final.** The therapists speak **English**. `knowsLanguage: "en"` on a
+UK business states what every reader and every parser already assumes, so it carries **no
+information** — and §3.10 already bans unbackable properties. **Nothing to add, nothing to write, no
+copy change.**
+
+The original ask is preserved below strictly as the record of why it was considered, not as an open
+request:
+
+> *A single line of visible copy naming the languages the therapists speak. It is the one narrow
+> exception to the copy freeze both research passes independently flagged as worth requesting — it
+> would unlock `knowsLanguage` and is plausibly the highest-value sentence available for a Bury Park
+> audience.*
 
 ---
 

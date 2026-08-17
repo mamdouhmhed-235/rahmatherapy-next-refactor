@@ -173,6 +173,10 @@ them. All were docs + one source comment; **zero behaviour change.**
 
 Also gitignored `test-results/` and `photos-rahma-therapy/` (55 MB; 28 of its 52 files already exist
 byte-identically under `public/images/`, and nothing loads from that path).
+⚠️ **Updated 2026-08-17:** `photos-rahma-therapy/` was **moved out of the repo** to
+`~/Desktop/rahma-archive-2026-08-17/` — all 52 files, because 24 of them exist nowhere else. The
+`.gitignore` rule is retained so it cannot reappear untracked. See
+`redesign/plans/DECLUTTER-2026-08-17-plan.md`.
 
 ### 5.2 — Phase 11b: the five pre-existing test failures (`0f8ab9d`)
 ⛔ **All five were STALE TESTS. No product code changed. No assertion was weakened.** Each was

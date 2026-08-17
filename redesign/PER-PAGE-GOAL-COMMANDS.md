@@ -1,5 +1,12 @@
 # Per-page /goal commands — Phase 6 admin redesign
 
+> ⛔ **HISTORICAL — Phase 6 completed. DO NOT RUN ANY COMMAND IN THIS FILE.**
+> All 29 admin pages shipped. The worktree mechanism these commands drive is **retired**:
+> `scripts/spawn-worktree.mjs` and the 15 `patch-recipes-*.mjs` were deleted 2026-05-16, and
+> `git worktree list` shows only the main tree. Pasting a `/goal` block from here would start an
+> autonomous session against a programme that ended, using paths that no longer resolve.
+> **Current position: `redesign/HANDOFF-2026-08-13-IMPLEMENTATION-9.md`.** *(Stamped 2026-08-17.)*
+
 This file is the copy-paste reference for kicking off `/goal`-driven, autonomous per-page redesign sessions across the 26 remaining admin pages. One section per page. Each section contains the exact `/goal` command with the slug, worktree paths, and port already substituted — open the section for your page, copy the entire code block, and paste it as the first message in the spawned worktree's Claude Code session.
 
 This sheet is the runtime companion to `redesign/LAUNCH-SHEET.md` (which holds the full preflight rationale + per-page background). When in doubt about *why* a step exists, read the launch sheet. When you're ready to execute, copy from here.
