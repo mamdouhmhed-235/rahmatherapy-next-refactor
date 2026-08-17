@@ -12,6 +12,48 @@ untracked entries (this plan, its evidence folder, `.claude/skills/impeccable.zi
 
 ---
 
+## ✅ EXECUTED 2026-08-17 — record
+
+Owner approved execution. All actions completed. **Nothing pushed;
+`origin/master` is still `0f8ab9d`.**
+
+| Step | Result |
+|---|---|
+| §0.0 backup | ✅ Verified all-refs **bundle** ("records a complete history") + raw `.git` copy → `~/Desktop/rahma-git-backup-2026-08-17` (499 MB) |
+| A2 build caches | ✅ 57 MB |
+| A3 C-21 PNGs | ✅ exactly **15** removed, 24.65 MB; tracked `visual-regression-1280.md` preserved |
+| A4 `.playwright-mcp` | ✅ exactly **316** (167 `.yml` / 124 `.log` / 25 `.png`), 33 MB |
+| A5 move | ✅ exactly **80** files, 55 MB → `~/Desktop/rahma-archive-2026-08-17`; all sources gone |
+| A1 `.next` | ✅ 8.4 GB |
+| Commit 1 `af47605` | ✅ 10 files — `AGENTS.md` surgical fix, 4 doc corrections, `.gitignore`, 4 stamps, `redesign/README.md` |
+| Commit 2 `ba2072e` | ✅ 3 tracked documents, 90,580 B |
+| Commit 3 `ce7f502` | ✅ **1,020** screenshots, ~136 MB |
+
+**Tracked files: 2,996 → 1,988.** `redesign/`: 215 MB → **55 MB**, 1,819 → **810** files.
+
+### Verification — all seven gates identical to baseline
+
+`tsc` 0 · `vitest` **0 failed / 2501 passed / 242 files** · `lint` 4 errors + 1 warning in the same
+**three** files · `vitest scripts/` 47 · contrast **110 (46 dark / 64 light)** · verify **0** ·
+`git status --porcelain -- src/ supabase/` **empty**. Working tree fully clean.
+
+**Citation gates:**
+- code→doc: **1** dangling — the known pre-existing external one. **Unchanged.**
+- doc→doc set-difference: **92** new entries, and **92 of 92 are inside the six deleted screenshot
+  directories.** Zero unexpected, zero from `baselines/`. Exactly the pre-approved delta.
+
+### The safety claims, proven rather than asserted
+
+- ⛔ **All 1,020 deleted screenshots are recoverable** — `git ls-tree -r ce7f502^` over the six paths
+  returns exactly **1,020**.
+- `.git` is **286 MB, unchanged** — history was never rewritten, which is what makes the above true.
+- ⛔ **`redesign/baselines/` (plural) untouched: still 87 tracked**, with `bundle-pre-B1.json` and
+  `wcag-severity-tokens.md` both verified present. The `--pathspec-from-file` guard asserted **0**
+  entries containing `baselines/` before deleting `baseline/`.
+- ⛔ **`redesign/audits/` untouched: still 99** (`AGENTS.md` never-touch).
+
+---
+
 ## 0 — ⛔ SAFETY
 
 **Owner instruction, 2026-08-17: no destructive command that could destroy everything may be used.
