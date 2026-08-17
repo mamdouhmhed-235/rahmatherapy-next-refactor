@@ -7,7 +7,7 @@
 > the entire product. **Do not treat this as a current recovery procedure.**
 > ⚠️ This file appears heavily cited (~31 inbound), but that is an artefact: 26 of those are one
 > boilerplate reading-list line copy-pasted across the per-page recipes.
-> **Current position: `redesign/HANDOFF-2026-08-13-IMPLEMENTATION-9.md`.** *(Stamped 2026-08-17.)*
+> **Current position: `redesign/HANDOFF-2026-08-17-IMPLEMENTATION-10.md`.** *(Stamped 2026-08-17.)*
 
 - Starting branch: redesign/start-state
 - Starting tag: redesign-baseline

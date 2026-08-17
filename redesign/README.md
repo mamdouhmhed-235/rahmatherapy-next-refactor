@@ -1,6 +1,6 @@
 # `redesign/` — what is live, what is history
 
-**Current position:** `HANDOFF-2026-08-13-IMPLEMENTATION-9.md`. Read it first, end to end.
+**Current position:** `HANDOFF-2026-08-17-IMPLEMENTATION-10.md`. Read it first, end to end.
 Everything else here is **history** unless listed below. Documents stamped
 *"⛔ HISTORICAL"* must not be acted on — some contain runnable commands for retired programmes.
 

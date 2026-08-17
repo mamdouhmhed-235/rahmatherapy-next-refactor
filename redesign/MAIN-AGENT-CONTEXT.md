@@ -6,7 +6,7 @@
 > shipped, and Band C closed 2026-08-09. The worktree spawning model it describes is retired.
 > ⚠️ **Still binding:** its immutability rule for `impeccable-v5-latest-stable.html` and
 > `phase6-admin-workflow-guide.html`.
-> **Current position: `redesign/HANDOFF-2026-08-13-IMPLEMENTATION-9.md`.** *(Stamped 2026-08-17.)*
+> **Current position: `redesign/HANDOFF-2026-08-17-IMPLEMENTATION-10.md`.** *(Stamped 2026-08-17.)*
 
 You are the **main agent** operating in the user's primary Claude Code session. This document is the single read-once orientation that gets you fully up to speed on the Rahma Therapy admin redesign — what's happening, your role, the operational model, and the canonical references you'll work from.
 

@@ -1,6 +1,12 @@
 # HANDOFF — 2026-08-13 (tenth session · SEO/AEO/GEO RELEASE + Phase 11b/12)
 
-**⛔ THIS IS THE LIVE DOCUMENT. Read it end to end before touching anything.**
+> ⛔ **SUPERSEDED 2026-08-17 by `redesign/HANDOFF-2026-08-17-IMPLEMENTATION-10.md` — read that first.**
+> **Two parts of this file are now stale:** §1's position table (HEAD is `50a294d`, 10 commits are
+> unpushed) and §6.2's "next task is decluttering", which was **completed 2026-08-17**.
+> ⚠️ **Everything else here still stands** — the release record, the Owner decisions, the resolved
+> questions and the traps. This remains the authoritative record of the SEO/AEO/GEO release.
+
+**⛔ This was the live document for the eleventh session. Read it end to end before touching anything.**
 The nine earlier handoffs keep their gotchas and are **not** superseded:
 
 - `HANDOFF-2026-08-11-PLANNING.md` §5 — gotchas 1-19

@@ -4,7 +4,9 @@
 the evidence behind it. **Read it before Phase 1.** This document is the execution order.
 **Base commit for all anchors:** `9271863` on `master`.
 
-**⛔ LIVE HANDOFF: `redesign/HANDOFF-2026-08-13-IMPLEMENTATION-9.md`. Read it before this file.**
+**⛔ LIVE HANDOFF: `redesign/HANDOFF-2026-08-17-IMPLEMENTATION-10.md`. Read it before this file.**
+*(It replaces `-9`, whose position table is stale. The SEO status below is unchanged: Phases 0-11b
+are live, Phase 12 is still held back.)*
 
 **Status (2026-08-13, end of the tenth session):**
 ✅ **Phases 0–11b are DEPLOYED** — `origin/master` = `0f8ab9d`, live at rahmatherapy.uk.
