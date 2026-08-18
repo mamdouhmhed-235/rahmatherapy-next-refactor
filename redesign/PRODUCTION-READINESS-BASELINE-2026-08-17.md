@@ -65,6 +65,74 @@ Deploy target: **Cloudflare via OpenNext** (`opennextjs-cloudflare`, `wrangler.j
 
 ---
 
+## 3.1 — ⛔ E2E authentication: how it works, and why it does NOT work right now
+
+`.env.example` defines credentials for **8 roles** — `OWNER`, `ADMIN`, `COORDINATOR`,
+`THERAPIST_A`, `THERAPIST_B`, `REPORTING`, plus optional `INACTIVE` and `NON_STAFF`.
+
+### ✅ The mechanism is sound, and it is agent-safe
+
+`e2e/helpers.ts` `loginAs()` **does not type a password into a form.** It calls Supabase's
+`createBrowserClient(...).signInWithPassword` programmatically and injects the resulting session
+cookies into the Playwright context. `getCredentials(prefix)` only ever reads
+`process.env[E2E_<ROLE>_EMAIL|PASSWORD]`.
+
+⛔ **So an agent can run these tests without ever seeing, typing, echoing or committing a credential.**
+The value travels `.env` → `process.env` → the Supabase SDK → a session cookie. It never enters the
+agent's context. That is ordinary CI practice and is materially different from an agent typing a
+password into a login field, which remains prohibited.
+
+### ⛔ But as configured today, ZERO credentials reach the test process
+
+**Measured, not assumed** (booleans only — no value was read or printed):
+
+```bash
+node -e 'console.log(Boolean(process.env.E2E_OWNER_EMAIL))'              # false
+node --env-file=.env -e 'console.log(Boolean(process.env.E2E_OWNER_EMAIL))'  # true
+```
+
+**Why:** `playwright.config.ts` imports nothing but `@playwright/test` and reads only
+`process.env.E2E_BASE_URL`. There is **no `globalSetup`**, and **`dotenv` is not installed**
+(0 references in `package.json`) and must not be added. **Playwright never loads `.env`.** Next.js
+does — Playwright is a different process.
+
+### ⛔⛔ The consequence is a SILENT PASS, not a failure
+
+Every role-gated spec is written as `test.skip(!requireCredentials([...]), "...")`. With no
+credentials in the process, **`pnpm test:e2e` skips essentially every meaningful assertion and
+reports success.** A green E2E run today proves almost nothing — the same shape of failure as
+gotcha 118. **Count the executed tests, not the exit code.**
+
+### What actually makes it work
+
+`.env.example` prescribes an untracked **`.env.e2e`** (⚠️ which **does not currently exist** — the
+real values are in `.env`). Either location works provided the file is passed explicitly, since
+Node 24 supports `--env-file` natively:
+
+```bash
+node --env-file=.env node_modules/@playwright/test/cli.js test
+# and E2E_BASE_URL must be set, or every spec skips on hasBaseUrl()
+```
+
+⚠️ **`E2E_REPORTING_EMAIL` is not set** in `.env` (measured `false` while the other five resolved
+`true`), so the reporting-role specs in `admin-roles.spec.ts` will skip even after the env file is
+wired in.
+
+### ⛔ The real risk is not the credentials — it is the database
+
+**Only ONE Supabase project is configured.** There is no test, staging or branch database anywhere
+in `.env.example`, `playwright.config.ts`, `e2e/` or `scripts/`. `E2E_BASE_URL` defaults to
+`127.0.0.1:3000`, so the *app* is local — but it authenticates against, reads from and writes to the
+**live production database holding real customer bookings**.
+
+⛔ **Any e2e test that creates, claims, cancels or modifies a booking writes to production customer
+data.** `booking-claiming.spec.ts` does exactly this class of thing. This is the constraint that
+should shape the entire e2e strategy, and it is a far larger concern than credential handling.
+Options worth weighing before running anything: a Supabase branch/preview database, a seeded and
+namespaced test tenant, or keeping destructive e2e strictly manual and Owner-driven.
+
+---
+
 ## 4 — ⛔ THE BASELINE. Any deviation is a regression until proven otherwise.
 
 ```powershell
@@ -126,8 +194,7 @@ untestable, but it means the customer-facing surface is the thinner half.
 5. **No automated accessibility suite for public pages.** The two contrast scripts cover **admin
    tokens only**. Public-page a11y has only manual Lighthouse history.
 6. **No migration test harness** for the 66 Supabase migrations, and no rollback rehearsal.
-7. **E2E is opt-in and narrow** — 6 specs, skipped without `E2E_BASE_URL`, requiring seeded staff.
-   Only `booking-public` touches a public page.
+7. ⛔ **E2E currently runs ZERO authenticated assertions and reports success** — see §3.1. Playwright never loads `.env`, so every role-gated spec skips silently. 6 specs, and only `booking-public` touches a public page.
 8. **No contract or schema tests** against the live Supabase schema.
 9. **No bundle-size gate.** `measure-admin-bundles.mjs` exists but is manual, and its baseline
    (`redesign/baselines/bundle-pre-B1.json`) dates from Band B.
