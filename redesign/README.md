@@ -5,8 +5,12 @@ Everything else here is **history** unless listed below. Documents stamped
 *"⛔ HISTORICAL"* must not be acted on — some contain runnable commands for retired programmes.
 
 **Also live:** `plans/SEO-AEO-GEO-2026-08-13-plan.md` and `plans/SEO-AEO-GEO-IMPLEMENTATION.md` ·
-`per-page-progress/OWNER-ACTION-BACKLOG.md` (open items) · `per-page-deferrals/` (15 commitments
+`per-page-progress/OWNER-ACTION-BACKLOG.md` (open items) · `per-page-deferrals/` (14 commitments
 still open in today's code) · `plans/C-phase/C-C-EXECUTION-PROTOCOL.md` (binding per `AGENTS.md`).
+
+**Testing:** `PRODUCTION-READINESS-BASELINE-2026-08-17.md` — the measured gate baselines, what test
+infrastructure exists, and an honest map of what is **not** covered. Read it before planning any
+testing work.
 
 ## ⛔ Before deleting or moving anything in here
 

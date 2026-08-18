@@ -23,11 +23,11 @@ gotchas and are **not** superseded:
 ## 1 — ⛔ POSITION. Verify with git before trusting anything here.
 
 ```
-HEAD           50a294d   on master
+HEAD           a78a693   on master   (one behind after this doc commit — ALWAYS compute)
 origin/master  0f8ab9d
-UNPUSHED       10 commits
+UNPUSHED       12 commits
 working tree   CLEAN
-tracked files  1988      (was 2996 before this session)
+tracked files  1989      (was 2996 before this session)
 ```
 
 ⛔ **Never trust a commit count written in a document.** Compute it:
@@ -36,14 +36,14 @@ tracked files  1988      (was 2996 before this session)
 ### 1.1 — ⛔⛔ THE MOST IMPORTANT FACT IS UNCHANGED
 
 **The first unpushed commit is still `3eb2939` — Phase 12, which removes the maintenance system.
-A bare `git push` OPENS LIVE BOOKINGS.** The other nine are its descendants, so git's linear history
+A bare `git push` OPENS LIVE BOOKINGS.** Every later commit is its descendant, so git's linear history
 means **nothing ships without it.** Never push without a fresh, explicit Owner instruction, and say
 out loud what a push would do before proposing one.
 
 | | |
 |---|---|
 | Deployed (Phases 0-11b) | `efc7484` → `0f8ab9d`, released 2026-08-13 |
-| ⛔ NOT deployed | `3eb2939` Phase 12 · `9e8d83f` docs · `563d520` geography fix · `c04b6b4` handoff · **plus this session's 6 declutter commits** |
+| ⛔ NOT deployed | `3eb2939` Phase 12 · `9e8d83f` docs · `563d520` geography fix · `c04b6b4` handoff · **plus this session's declutter, handoff and fix commits** |
 
 ⛔ **Production still serves the maintenance banner, bookings are CLOSED there, and screen readers
 still hear "Map of Dunstable, Luton".** All three are fixed locally and blocked behind Phase 12.
@@ -66,6 +66,10 @@ still hear "Map of Dunstable, Luton".** All three are fixed locally and blocked 
 ---
 
 ## 3 — ⛔ GATE BASELINES (all verified green at `50a294d`, after a cold build)
+
+⛔ **For production-readiness testing, these seven are the floor, not the whole picture.** See
+`redesign/PRODUCTION-READINESS-BASELINE-2026-08-17.md` for test infrastructure, coverage gaps and
+the production measurements to test against.
 
 ```powershell
 npx tsc --noEmit                              # 0
@@ -111,7 +115,7 @@ bash extract-doc-doc-citations.sh                                     # doc → 
 
 ---
 
-## 5 — NEW GOTCHAS (109-117). Each cost real time or nearly caused damage.
+## 5 — NEW GOTCHAS (109-118). Each cost real time or nearly caused damage.
 
 109. **⛔ A PROOF OF ABSENCE MUST BE ABLE TO FIND THE THING IT CLAIMS IS ABSENT.** An agent proved 55
      files uncited with `grep -rl "$name" --exclude-dir=redesign …` — **excluding the very directory
@@ -205,6 +209,17 @@ protections in its non-negotiables sentence were preserved verbatim.**
 
 ## 7 — ⛔ OPEN ITEMS
 
+
+### ⛔ 7.0 — THE OWNER'S NEXT STATED TASK: full production-readiness testing
+
+The Owner will plan and implement the test suites **themselves, with another agent.** This session
+established the baseline only — `redesign/PRODUCTION-READINESS-BASELINE-2026-08-17.md`.
+
+⛔ **Read that file before planning any testing.** It records what was measured (not estimated),
+what test infrastructure already exists, and — most usefully — **an honest map of what is not
+covered**. The headline gaps: **no coverage measurement of any kind exists**, and **8 of 11 public
+component directories have zero tests**. It also lists the 14 known-open defects that tests *should*
+find, so they are not mistaken for regressions.
 ### 7.1 — Blocking, Owner-side (unchanged from HANDOFF-9)
 
 **The Owner's full site testing.** Bookings are open locally for exactly this. When it passes:
