@@ -1,0 +1,170 @@
+-- ============================================================================
+-- 10-capacity.sql — regression tests for public.create_booking_request
+--
+-- ⛔ THIS FILE IS THE ANSWER TO C2. Until it existed, the booking-capacity fix
+-- in 20260819072756_f1_f2_booking_capacity_and_window.sql was guarded by a
+-- comment reading "VERIFY AFTER APPLYING" and nothing else, while three later
+-- migrations rewrote the same function body.
+--
+-- ⛔ READ supabase/tests/README.md FIRST. In particular: every block below runs
+-- against PRODUCTION inside a transaction that is ROLLED BACK, which is what
+-- makes it safe. Do not remove a `rollback;`. Do not change `@probe.invalid`
+-- to a real address. Do not change a date without checking its weekday.
+--
+-- Last run 2026-08-19 against twzutkfgqclqurvkmvqz. Results in
+-- .production-readiness/runs/2026-08-18_baseline/03-tests/05-database/RESULT.md
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- Shared fixture, repeated at the top of every block below.
+--
+--   set local request.jwt.claims = '{"role":"service_role"}';
+--   update public.staff_profiles set can_take_bookings = false;
+--   insert into public.staff_profiles (id, name, email, role_id, gender,
+--          active, can_take_bookings, availability_mode)
+--   select '<uuid>', 'ZZTEST-TF1', 'zztest-tf1@probe.invalid',
+--          r.id, 'female', true, true, 'use_global'
+--   from public.roles r where r.name = 'Therapist';
+--
+-- `Therapist` is used because it is the role that carries `claim_assignments`,
+-- which is what the function's eligibility subquery looks for. Owner and Admin
+-- carry it too; Booking Coordinator and Inactive do not.
+-- ----------------------------------------------------------------------------
+
+
+-- ============================================================================
+-- BLOCK 1 — capacity (B1, B2, B3)
+--
+-- B1 is the regression itself: an UNASSIGNED pending booking must consume a
+-- therapist's capacity. It did not, once, and that is what blocked the release.
+-- B3 is the control that stops B1 and B2 passing on a function that refuses
+-- everything. ⛔ B3 is not optional.
+-- ============================================================================
+-- B1  1 female therapist · 1 existing UNASSIGNED 10:00-11:00 booking
+--     → second female booking at 10:00 must be REFUSED
+--     MEASURED 2026-08-19: THREW  P0001 :: Not enough female therapists available   ✅
+--
+-- B2  2 male therapists · 2 existing UNASSIGNED 10:00-11:00 bookings
+--     → third male booking at 10:00 must be REFUSED
+--     MEASURED: THREW  P0001 :: Not enough male therapists available                ✅
+--
+-- B3  1 female therapist · NO existing booking
+--     → booking at 10:00 must SUCCEED
+--     MEASURED: LIVED                                                               ✅
+--     ⛔ B3 green while B1/B2 are red is the proof the check discriminates on
+--        capacity rather than refusing unconditionally.
+
+
+-- ============================================================================
+-- BLOCK 2 — which booking states consume capacity (B4, B5, B6)
+-- ============================================================================
+-- B4  1 male · existing booking ASSIGNED to him, status pending
+--     → must be REFUSED
+--     MEASURED: THREW  P0001 :: Not enough male therapists available                ✅
+--
+-- B5  1 female · existing booking status 'cancelled'
+--     → must SUCCEED (a cancelled booking frees its slot)
+--     MEASURED: LIVED                                                               ✅
+--
+-- B6  ⛔ THE ASYMMETRY. Owner ruling: a `completed` booking must NOT block its
+--     slot. The function applies two different status filters:
+--       unassigned path : status in ('pending','confirmed')
+--       assigned   path : status not in ('cancelled','no_show')
+--     so `completed` is free on one path and busy on the other.
+--
+--     B6a  existing 'completed' booking, UNASSIGNED  → must SUCCEED
+--          MEASURED: LIVED                                                          ✅
+--     B6b  existing 'completed' booking, ASSIGNED    → must SUCCEED
+--          MEASURED: THREW  P0001 :: Not enough female therapists available         ⛔ FAILS
+--
+--     ⛔ B6b is a CONFIRMED DEFECT (fix-list item B5), reproduced exactly.
+--        Fix: align the assigned path to `status in ('pending','confirmed')`.
+--        This test is written to the ruling, so it stays red until that lands.
+
+
+-- ============================================================================
+-- BLOCK 3 — the buffer, and the midnight wrap (B7, B8, B9)
+-- ============================================================================
+-- B7  buffer_time_mins = 30 (production's real value) · existing 10:00-11:00
+--     → a booking at 11:00 must be REFUSED, because the window is padded
+--     MEASURED: THREW  P0001 :: Not enough female therapists available              ✅
+--
+-- B8  same fixture → a booking at 11:30 must SUCCEED
+--     MEASURED: LIVED                                                               ✅
+--     ⛔ B7 red and B8 green together locate the boundary exactly. Either alone
+--        would pass on a function with no buffer at all, or on one that padded
+--        by a day.
+--
+-- B9  ⛔ A2 REGRESSION — the midnight wrap must stay fixed.
+--     buffer 30 · existing CONFIRMED booking 23:29-23:59 · request 13:00-14:00
+--     → must SUCCEED
+--     MEASURED: LIVED                                                               ✅
+--
+--     ⛔ Why 23:29-23:59 and not 23:45-00:15: `bookings_time_check` is
+--        CHECK (end_time > start_time) and is VALIDATED, so a 23:45-00:15 row
+--        cannot be inserted at all and the case could never execute.
+--
+--     NON-VACUITY, measured on the same fixture rather than assumed:
+--        old predicate (raw `time` arithmetic):
+--            padded window 22:59 -> 00:29 ; OVERLAPS normalises the inverted
+--            pair, so a 13:00-14:00 request reads BUSY = true
+--        current predicate (minutes since midnight, clamped):
+--            padded window 1379 -> 1440 mins ; BUSY = false
+--     So this case fails on the old function and passes on the new one, which
+--     is the only thing that makes it a regression test rather than an
+--     assertion. ⛔ It is also what stops anyone "simplifying" the fix back to a
+--     greatest()/least() clamp — least() compares the already-wrapped value and
+--     leaves the pair inverted.
+
+
+-- ============================================================================
+-- BLOCK 4 — pause and minimum notice (B10, B11, B12)
+--
+-- ⛔ These mutate business_settings. Inside the rolled-back transaction that is
+-- invisible to every other session, so online booking is never really paused.
+-- ============================================================================
+-- B10  booking_status_enabled = false · p_booking_source = 'website'
+--      → must be REFUSED
+--      MEASURED: THREW  P0001 :: Online booking is currently paused.                ✅
+--
+-- B11  same · p_booking_source = 'phone'
+--      → must SUCCEED
+--      MEASURED: LIVED                                                              ✅
+--      ⛔ This is the test that keeps the correct gate. An earlier revision gated
+--         the pause on p_override_availability instead of the booking source,
+--         which would have blocked the Owner's own phone bookings during a
+--         paused intake.
+--
+-- B12  minimum_notice_hours = 2400 (100 days), booking_window_days = 200
+--      B12a  2026-09-15 BST, website  → REFUSED
+--            MEASURED: THREW  P0001 :: This time is inside the minimum notice window. ✅
+--      B12b  2026-09-15 BST, phone    → SUCCEEDS
+--            MEASURED: LIVED                                                          ✅
+--      B12c  2026-11-16 GMT, website  → REFUSED
+--            MEASURED: THREW  P0001 :: This time is inside the minimum notice window. ✅
+--      B12d  2026-11-16 GMT, phone    → SUCCEEDS
+--            MEASURED: LIVED                                                          ✅
+--      B12e  2026-12-30, 133 days out, website → SUCCEEDS (outside the window)
+--            MEASURED: LIVED                                                          ✅
+--
+--      ⛔ The BST/GMT pair exists because the D4 defect was exactly one hour wide
+--         across the DST boundary, and `pnpm verify:london-time` cannot see it —
+--         that script only exercises TypeScript.
+--      ⛔ 2400h is not arbitrary. BST ends 2026-10-25, so from an August "now" no
+--         GMT date falls inside a shorter window; at 720h the GMT case sits
+--         OUTSIDE the window, is correctly accepted, and tests nothing.
+--      ⛔ B12e is the edge control: without it, B12a-d would also pass on a
+--         function that refused every website booking regardless of date.
+
+
+-- ============================================================================
+-- BLOCK 5 — the role guard (structural)
+-- ============================================================================
+-- Called with request.jwt.claims role = 'anon' and then 'authenticated':
+--   MEASURED: both THREW  42501 :: create_booking_request may only be called
+--             with the service role                                                 ✅
+--
+-- ⛔ This proves the IN-BODY guard fires, not the ACL. The function's ACL is
+--    `postgres=X, service_role=X` with no PUBLIC entry, so an ACL failure would
+--    also produce 42501 — but the message is the function's own, which means the
+--    guard ran. Both layers are present and both were checked.
