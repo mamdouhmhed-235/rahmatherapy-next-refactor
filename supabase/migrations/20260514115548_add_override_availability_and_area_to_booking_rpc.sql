@@ -1,67 +1,44 @@
--- ⛔ BACKFILL — reconstructed from live introspection on 2026-08-19.
--- Production ALREADY HAS this migration applied (version 20260514115548,
--- name `add_override_availability_and_area_to_booking_rpc`). It was missing
--- from this directory; see README-MIGRATION-DRIFT.md §1. Do NOT apply it to
+-- ⛔ BACKFILL — RECOVERED VERBATIM from production's migration ledger on
+-- 2026-08-19 (gate 05, case D1). Production ALREADY HAS this migration applied
+-- (version 20260514115548, name
+-- `add_override_availability_and_area_to_booking_rpc`). It was missing from
+-- this directory; see README-MIGRATION-DRIFT.md §1. Do NOT apply it to
 -- production. It exists so a rebuild from this directory reaches the same
 -- state production is in.
 --
--- What it creates: the 20-argument overload of
--- `public.create_booking_request`, adding `p_override_availability boolean`
--- and `p_area text` to the 18-argument version defined in
--- `20260513120100_update_create_booking_request_per_participant_services.sql`,
--- and dropping that 18-argument overload.
+-- ✅ PROVENANCE: everything below the marker is the exact text recorded in
+-- `supabase_migrations.schema_migrations.statements` for this version — not a
+-- reconstruction. An earlier backfill (commit 0c27077) inferred this body from
+-- live introspection and reasoned its way to nearly the right shape; the text
+-- below is the original, so the inference is no longer load-bearing.
 --
--- ⛔ THE BODY IS SUPERSEDED. This function was fully redefined later by
--- 20260727120000_c06_client_crud_hardening.sql (23 args) and again by
--- item8_phase2, f1_f2, fix_booking_future_check_dst and
+-- ⛔ THE BODY IS SUPERSEDED and that is correct. This function was fully
+-- redefined later by 20260727120000_c06_client_crud_hardening.sql (23 args)
+-- and again by item8_phase2, f1_f2, fix_booking_future_check_dst and
 -- fix_booking_buffer_midnight_wrap. Nothing calls this intermediate body.
--- ⛔ Deliberately NOT the current live body — writing the current body into a
--- 2026-05-14 migration would turn every later migration into a no-op and
--- corrupt the rebuild ordering.
+-- Writing the *current* live body into a 2026-05-14 migration would turn every
+-- later migration into a no-op and corrupt the rebuild ordering.
 --
 -- ⛔ WHY THIS FILE IS LOAD-BEARING FOR A REBUILD, not cosmetic:
--- `20260727120000_c06_client_crud_hardening.sql:89` runs
--- `drop function if exists public.create_booking_request(<the 20-arg
--- signature>)`. Without this file that DROP silently matches nothing, the
--- 18-argument overload from 20260513120100 survives, and the rebuilt database
--- ends up with TWO overloads where production has exactly one (verified live:
--- one row in pg_proc for public.create_booking_request).
---
--- Reconstruction method: the body below is a MECHANICAL copy of
--- 20260513120100's body — not retyped — with exactly four edits, each mirroring
--- what the later c06 definition shows this migration must have done:
---   1. the two new parameters appended to the signature;
---   2. the availability block wrapped in `if not p_override_availability`
---      (c06 lines 244 and 397 show the same block with the same boundaries);
---   3. the `area` value in the `insert into public.clients` changed from
---      `p_access_notes` — which was passing access notes into the area column,
---      the bug this migration's name refers to — to `p_area`
---      (c06 lines 464 / 519 confirm `nullif(trim(coalesce(p_area, '')), '')`);
---   4. the revoke/grant signature lists extended to the new signature.
--- ⚠️ The original file's exact text is unrecoverable; this is behaviourally
--- faithful, not byte-identical.
+-- `20260727120000_c06_client_crud_hardening.sql` drops the 20-argument
+-- signature this file creates. Without this file that DROP matches nothing and
+-- the 18-argument overload from 20260513120100 can survive into the rebuilt
+-- database, where production has exactly one overload. Gate 05 case D5 is the
+-- test that settles it.
 
+-- Drop old 17-param overload that predates per-participant services
 drop function if exists public.create_booking_request(
-  text[],
-  text,
-  text,
-  text,
-  text,
-  text,
-  boolean,
-  text,
-  text,
-  text,
-  text,
-  date,
-  time,
-  public.staff_gender_type[],
-  text[],
-  text[],
-  text,
-  text[]
+  text[], text, text, text, text, text, boolean, text, text, text, text, date, time,
+  public.staff_gender_type[], text[], text[], text
 );
 
+-- Drop 18-param overload created by previous migration (replacing with 20-param below)
+drop function if exists public.create_booking_request(
+  text[], text, text, text, text, text, boolean, text, text, text, text, date, time,
+  public.staff_gender_type[], text[], text[], text, text[]
+);
+
+-- Clean 20-param function: adds p_override_availability + p_area, fixes area mapping
 create or replace function public.create_booking_request(
   p_service_slugs text[],
   p_contact_full_name text,
@@ -108,8 +85,6 @@ declare
   v_required_female integer := 0;
   v_available_male integer := 0;
   v_available_female integer := 0;
-  v_reserved_male integer := 0;
-  v_reserved_female integer := 0;
   v_start_minutes integer;
   v_end_minutes integer;
   v_day_of_week integer;
@@ -212,158 +187,158 @@ begin
 
   -- Skip availability checks entirely when override is active
   if not p_override_availability then
-  perform pg_advisory_xact_lock(
-    hashtextextended(
-      'create_booking_request:' || p_booking_date::text || ':' || p_start_time::text,
-      0
-    )
-  );
-
-  select exists (
-    select 1 from public.blocked_dates where blocked_date = p_booking_date
-  )
-  into v_global_blocked;
-
-  select start_time, end_time
-  into v_global_override_start, v_global_override_end
-  from public.availability_overrides
-  where override_date = p_booking_date;
-
-  for v_staff in
-    select sp.id, sp.gender, sp.availability_mode
-    from public.staff_profiles sp
-    where sp.active = true
-      and sp.can_take_bookings = true
-      and sp.gender = any(p_participant_genders)
-      and (
-        exists (
-          select 1
-          from public.staff_permission_overrides spo
-          join public.permissions p on p.id = spo.permission_id
-          where spo.staff_id = sp.id
-            and spo.is_granted = true
-            and p.name in ('claim_bookings', 'claim_assignments')
-        )
-        or exists (
-          select 1
-          from public.role_permissions rp
-          join public.permissions p on p.id = rp.permission_id
-          where rp.role_id = sp.role_id
-            and p.name in ('claim_bookings', 'claim_assignments')
-            and not exists (
-              select 1
-              from public.staff_permission_overrides spo
-              where spo.staff_id = sp.id
-                and spo.permission_id = rp.permission_id
-                and spo.is_granted = false
-            )
-        )
+    perform pg_advisory_xact_lock(
+      hashtextextended(
+        'create_booking_request:' || p_booking_date::text || ':' || p_start_time::text,
+        0
       )
-  loop
-    if v_global_blocked then
-      continue;
-    end if;
+    );
 
     select exists (
-      select 1
-      from public.staff_blocked_dates
-      where staff_id = v_staff.id
-        and blocked_date = p_booking_date
+      select 1 from public.blocked_dates where blocked_date = p_booking_date
     )
-    into v_staff_blocked;
+    into v_global_blocked;
 
-    if v_staff_blocked then
-      continue;
-    end if;
+    select start_time, end_time
+    into v_global_override_start, v_global_override_end
+    from public.availability_overrides
+    where override_date = p_booking_date;
 
-    v_staff_override_start := null;
-    v_staff_override_end := null;
-    v_staff_override_type := null;
-
-    select start_time, end_time, override_type
-    into v_staff_override_start, v_staff_override_end, v_staff_override_type
-    from public.staff_availability_overrides
-    where staff_id = v_staff.id
-      and override_date = p_booking_date;
-
-    if v_staff_override_type is not null
-      and lower(v_staff_override_type) in ('blocked', 'closed', 'off', 'unavailable')
-    then
-      continue;
-    end if;
-
-    v_has_window := false;
-
-    if v_staff_override_start is not null then
-      v_has_window :=
-        p_start_time >= v_staff_override_start
-        and v_end_time <= v_staff_override_end;
-    elsif v_staff.availability_mode = 'custom' then
-      for v_window in
-        select start_time, end_time
-        from public.staff_availability_rules
-        where staff_id = v_staff.id
-          and day_of_week = v_day_of_week
-          and is_working_day = true
-      loop
-        if p_start_time >= v_window.start_time and v_end_time <= v_window.end_time then
-          v_has_window := true;
-          exit;
-        end if;
-      end loop;
-    elsif v_global_override_start is not null then
-      v_has_window :=
-        p_start_time >= v_global_override_start
-        and v_end_time <= v_global_override_end;
-    else
-      for v_window in
-        select start_time, end_time
-        from public.availability_rules
-        where day_of_week = v_day_of_week
-          and is_working_day = true
-      loop
-        if p_start_time >= v_window.start_time and v_end_time <= v_window.end_time then
-          v_has_window := true;
-          exit;
-        end if;
-      end loop;
-    end if;
-
-    if not v_has_window then
-      continue;
-    end if;
-
-    select exists (
-      select 1
-      from public.bookings b
-      join public.booking_assignments ba on ba.booking_id = b.id
-      where ba.assigned_staff_id = v_staff.id
-        and b.booking_date = p_booking_date
-        and b.status not in ('cancelled', 'no_show')
+    for v_staff in
+      select sp.id, sp.gender, sp.availability_mode
+      from public.staff_profiles sp
+      where sp.active = true
+        and sp.can_take_bookings = true
+        and sp.gender = any(p_participant_genders)
         and (
-          (b.start_time, b.end_time) overlaps (p_start_time, v_end_time)
+          exists (
+            select 1
+            from public.staff_permission_overrides spo
+            join public.permissions p on p.id = spo.permission_id
+            where spo.staff_id = sp.id
+              and spo.is_granted = true
+              and p.name in ('claim_bookings', 'claim_assignments')
+          )
+          or exists (
+            select 1
+            from public.role_permissions rp
+            join public.permissions p on p.id = rp.permission_id
+            where rp.role_id = sp.role_id
+              and p.name in ('claim_bookings', 'claim_assignments')
+              and not exists (
+                select 1
+                from public.staff_permission_overrides spo
+                where spo.staff_id = sp.id
+                  and spo.permission_id = rp.permission_id
+                  and spo.is_granted = false
+              )
+          )
         )
-    )
-    into v_has_busy_overlap;
+    loop
+      if v_global_blocked then
+        continue;
+      end if;
 
-    if v_has_busy_overlap then
-      continue;
+      select exists (
+        select 1
+        from public.staff_blocked_dates
+        where staff_id = v_staff.id
+          and blocked_date = p_booking_date
+      )
+      into v_staff_blocked;
+
+      if v_staff_blocked then
+        continue;
+      end if;
+
+      v_staff_override_start := null;
+      v_staff_override_end := null;
+      v_staff_override_type := null;
+
+      select start_time, end_time, override_type
+      into v_staff_override_start, v_staff_override_end, v_staff_override_type
+      from public.staff_availability_overrides
+      where staff_id = v_staff.id
+        and override_date = p_booking_date;
+
+      if v_staff_override_type is not null
+        and lower(v_staff_override_type) in ('blocked', 'closed', 'off', 'unavailable')
+      then
+        continue;
+      end if;
+
+      v_has_window := false;
+
+      if v_staff_override_start is not null then
+        v_has_window :=
+          p_start_time >= v_staff_override_start
+          and v_end_time <= v_staff_override_end;
+      elsif v_staff.availability_mode = 'custom' then
+        for v_window in
+          select start_time, end_time
+          from public.staff_availability_rules
+          where staff_id = v_staff.id
+            and day_of_week = v_day_of_week
+            and is_working_day = true
+        loop
+          if p_start_time >= v_window.start_time and v_end_time <= v_window.end_time then
+            v_has_window := true;
+            exit;
+          end if;
+        end loop;
+      elsif v_global_override_start is not null then
+        v_has_window :=
+          p_start_time >= v_global_override_start
+          and v_end_time <= v_global_override_end;
+      else
+        for v_window in
+          select start_time, end_time
+          from public.availability_rules
+          where day_of_week = v_day_of_week
+            and is_working_day = true
+        loop
+          if p_start_time >= v_window.start_time and v_end_time <= v_window.end_time then
+            v_has_window := true;
+            exit;
+          end if;
+        end loop;
+      end if;
+
+      if not v_has_window then
+        continue;
+      end if;
+
+      select exists (
+        select 1
+        from public.bookings b
+        join public.booking_assignments ba on ba.booking_id = b.id
+        where ba.assigned_staff_id = v_staff.id
+          and b.booking_date = p_booking_date
+          and b.status not in ('cancelled', 'no_show')
+          and (
+            (b.start_time, b.end_time) overlaps (p_start_time, v_end_time)
+          )
+      )
+      into v_has_busy_overlap;
+
+      if v_has_busy_overlap then
+        continue;
+      end if;
+
+      if v_staff.gender = 'male' then
+        v_available_male := v_available_male + 1;
+      else
+        v_available_female := v_available_female + 1;
+      end if;
+    end loop;
+
+    if v_required_male > v_available_male then
+      raise exception 'Not enough male therapists available';
     end if;
 
-    if v_staff.gender = 'male' then
-      v_available_male := v_available_male + 1;
-    else
-      v_available_female := v_available_female + 1;
+    if v_required_female > v_available_female then
+      raise exception 'Not enough female therapists available';
     end if;
-  end loop;
-
-  if v_required_male > v_available_male then
-    raise exception 'Not enough male therapists available';
-  end if;
-
-  if v_required_female > v_available_female then
-    raise exception 'Not enough female therapists available';
-  end if;
   end if; -- end IF NOT p_override_availability
 
   if v_clean_city = '' then
@@ -399,7 +374,7 @@ begin
     address = excluded.address,
     postcode = excluded.postcode,
     city = excluded.city,
-    area = excluded.area,
+    area = coalesce(excluded.area, clients.area),
     notes = coalesce(excluded.notes, clients.notes),
     updated_at = now()
   returning id into v_client_id;
@@ -459,7 +434,6 @@ begin
   foreach v_gender in array p_participant_genders loop
     v_participant_index := v_participant_index + 1;
 
-    -- Determine services for this participant
     if p_participant_service_slugs is not null
       and array_length(p_participant_service_slugs, 1) >= v_participant_index
       and p_participant_service_slugs[v_participant_index] is not null
@@ -552,48 +526,16 @@ begin
 end;
 $$;
 
-revoke all on function public.create_booking_request(
-  text[],
-  text,
-  text,
-  text,
-  text,
-  text,
-  boolean,
-  text,
-  text,
-  text,
-  text,
-  date,
-  time,
-  public.staff_gender_type[],
-  text[],
-  text[],
-  text,
-  text[],
-  boolean,
-  text
-) from public;
-
 grant execute on function public.create_booking_request(
-  text[],
-  text,
-  text,
-  text,
-  text,
-  text,
-  boolean,
-  text,
-  text,
-  text,
-  text,
-  date,
-  time,
-  public.staff_gender_type[],
-  text[],
-  text[],
-  text,
-  text[],
-  boolean,
-  text
+  text[], text, text, text, text, text, boolean, text, text, text, text, date, time,
+  public.staff_gender_type[], text[], text[], text, text[], boolean, text
 ) to service_role;
+
+grant select, insert, update
+on
+  public.clients,
+  public.bookings,
+  public.booking_participants,
+  public.booking_items,
+  public.booking_assignments
+to service_role;
