@@ -14,7 +14,10 @@ import {
 } from "lucide-react";
 import { AddressAutocompleteField } from "@/components/address/AddressAutocompleteField";
 import type { AddressParts } from "@/lib/address/parse-place";
-import type { BookingDetailsFormValues } from "../schemas/booking-schema";
+import {
+  FREE_TEXT_MAX,
+  type BookingDetailsFormValues,
+} from "../schemas/booking-schema";
 import type { BookingFor, ParticipantGenderInput } from "../types";
 import { Field } from "./Field";
 import { StepDisclosure } from "./StepDisclosure";
@@ -470,6 +473,7 @@ export function AboutYouStep({
                     <Field label="Participant note">
                       <textarea
                         rows={2}
+                        maxLength={FREE_TEXT_MAX} // A1 — this Field has no error surface
                         placeholder="Optional note for this participant"
                         {...register(`participantNotes.${index}` as const)}
                       />
@@ -618,6 +622,7 @@ export function AboutYouStep({
           <Field label="Area or access notes" icon={<DoorOpen size={16} />}>
             <textarea
               rows={3}
+              maxLength={FREE_TEXT_MAX} // A1 — this Field has no error surface
               placeholder="Flat number, entry instructions, lift/stairs, treatment space, or anything that helps arrival."
               {...register("accessNotes")}
             />
@@ -626,6 +631,7 @@ export function AboutYouStep({
           <Field label="Parking notes" icon={<Car size={16} />}>
             <textarea
               rows={3}
+              maxLength={FREE_TEXT_MAX} // A1 — this Field has no error surface
               placeholder="Parking space, visitor permit, paid parking, or nearby stopping details."
               {...register("parkingNotes")}
             />

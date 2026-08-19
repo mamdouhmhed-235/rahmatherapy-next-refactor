@@ -3,7 +3,10 @@
 import type { UseFormReturn } from "react-hook-form";
 import { ClipboardList, CreditCard, FileCheck2, MapPin } from "lucide-react";
 import type { BookingPackage } from "../data/booking-packages";
-import type { BookingDetailsFormValues } from "../schemas/booking-schema";
+import {
+  FREE_TEXT_MAX,
+  type BookingDetailsFormValues,
+} from "../schemas/booking-schema";
 import type { BookingDetails, BookingStep } from "../types";
 import { formatDateLabel, formatPrice } from "../utils/format";
 import { Field } from "./Field";
@@ -170,6 +173,11 @@ export function ConfirmStep({
           <Field label="Treatment notes" icon={<ClipboardList size={16} />}>
             <textarea
               rows={4}
+              // A1: the schema caps this at FREE_TEXT_MAX, but this Field is
+              // rendered with no `error` prop, so a rejected value blocked the
+              // step transition with nothing shown. Capping the input instead
+              // makes the schema limit unreachable from the UI.
+              maxLength={FREE_TEXT_MAX}
               placeholder="E.g. back pain, neck and shoulder tension, hijama, massage, sports recovery, or what you want help with."
               {...register("notes")}
             />
@@ -193,6 +201,7 @@ export function ConfirmStep({
           >
             <textarea
               rows={4}
+              maxLength={FREE_TEXT_MAX} // A1 — see the note on `notes` above
               placeholder="Share allergies, medication, pregnancy, recent surgery, injuries, fainting history, skin concerns, or other safety details."
               {...register("healthNotes")}
             />
