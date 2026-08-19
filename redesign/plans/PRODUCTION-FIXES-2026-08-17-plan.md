@@ -18,8 +18,14 @@
 | F11 rate limiter | ✅ Logs once; behaviour deliberately unchanged |
 | **D8 (new)** | ✅ `create_booking_request` also held PUBLIC EXECUTE. Applied in the same migration |
 | **D13 (new)** | ✅ Advisory lock re-keyed to date only |
+| **§17.1 (new)** | ✅ `searchClients` returned soft-deleted clients. **§14's "False" row WITHDRAWN.** Fixed + guarded + mutation-tested |
+| **§17.2 (new)** | ✅ `getSearchClientIds` had the same missing `deleted_at` filter. Fixed |
+| **§17.3 (new)** | ✅ Sentry scrubber leaked a partial manage token **15.06%** of the time (20,000-sample measurement). Pattern order swapped, guarded, mutation-tested |
+| **§17.4 (new)** | ✅ Two comments corrected — a `⛔` cache-key comment stating a false invariant, and a §14 scope note. No behaviour change |
+| **§17.5** | ⛔ **Four issues found and deliberately NOT fixed** — incl. a live BST bug needing a production migration (Owner approval). See the table |
 
-⛔ **Two rounds of review were needed.** The first pass shipped two fixes that did not work (D1, D6)
+⛔ **THREE rounds of review were needed.** The third (2026-08-19, §17) found no regression but did
+overturn one §14 refutation and one live scrubbing guarantee. The first pass shipped two fixes that did not work (D1, D6)
 and eleven further defects. Full record in the commits `58c22ad` (first pass) and `5aab8d6`
 (corrections). **A DST bug, a broken Therapist role and an unbounded server schema all survived a
 green test suite** — no gate in this repo can see SQL, and the caps were on a file nothing imports.
@@ -320,13 +326,13 @@ real gap** and needs a server-side idempotency key, not another client flag.
 
 ---
 
-## 14 — ⛔ REFUTED. Do not re-raise these.
+## 14 — REFUTED. Do not re-raise these. ⚠️ ONE ROW WAS WITHDRAWN 2026-08-19.
 
 | Claim | Verdict |
 |---|---|
-| **Honeypot shows a fake success screen** | ⛔ **By design, and well built.** The fake success is the correct pattern — a bot must learn nothing. The autofill worry is actively mitigated: `autoComplete="off"`, `tabIndex={-1}`, `aria-hidden="true"`, positioned off-screen rather than `display:none` (deliberate — the comment notes some bots skip hidden fields). It also logs the trip. **Leave it alone** |
-| **Deleted clients show in search** | ⛔ **False.** `clients-list-data.ts:553,788` apply `deleted_at IS NULL` unless `includeDeleted` is explicitly set |
-| **Three actions refuse silently** | ⛔ **Not defects.** Those `return null` sites are internal helper lookups, not user-facing actions. The reporting agent itself concluded no permission gate is missing |
+| **Honeypot shows a fake success screen** | ⛔ **By design, and well built.** The fake success is the correct pattern. The autofill worry is actively mitigated: `autoComplete="off"`, `tabIndex={-1}`, `aria-hidden="true"`, positioned off-screen rather than `display:none` (deliberate — the comment notes some bots skip hidden fields). It also logs the trip. **Leave it alone.** ⚠️ Re-checked 2026-08-19: the fake response is **key-for-key identical** to the real one (`status, message, bookingId, participantCount, itemCount, assignmentCount, manageUrl`, HTTP 200), so the verdict stands — but *"a bot must learn nothing"* is overstated. Values differ: `manageUrl` is always `null` and the three counts are always `1` regardless of the request. **Still not worth changing** |
+| ~~**Deleted clients show in search**~~ | ⛔ **WITHDRAWN 2026-08-19 — this row was WRONG.** See §17.1. The refutation checked `clients-list-data.ts` only and generalised from it. `search-actions.ts` is a different path and had no filter. **Fixed.** |
+| **Three actions refuse silently** | ⛔ **Not defects.** Those `return null` sites are internal helper lookups, not user-facing actions. The reporting agent itself concluded no permission gate is missing. ⚠️ Re-checked 2026-08-19: the three cited sites really are helpers and the row is correct **as written**. Do not read it as clearing the whole class — see §17.4 for a genuinely silent user-facing action it does not cover |
 
 ---
 
@@ -357,3 +363,135 @@ is expected here, unlike during the declutter.
 | F7 | Run it and **count executed tests** — the report said 15 of 18 run once wired correctly |
 | F8 | `supabase db diff` clean, or a documented explanation of any remainder |
 | F9 | A scrubbing test covering a transaction-shaped event, not just an error |
+
+---
+
+## 17 — ✅ POST-VERIFICATION CORRECTIONS — 2026-08-19 (session 14)
+
+An independent verification pass re-tested every claim in this plan, gotchas 119-127, and the three
+§14 refutations, against both the repo and the **live database**. Full evidence:
+`redesign/VERIFICATION-2026-08-19-session-14.md`.
+
+**Headline: no fix in this plan regressed.** All eight gates matched baseline. The two migrations
+are applied and the live function does what §F1/§F2 claim — verified field by field in
+`pg_proc.prosrc`, not from the file. Five real problems were found; **four were pre-existing**, one
+was a new guard weaker than advertised. The three fixed below are the ones worth a one-line change
+at this business's scale.
+
+### ✅ 17.1 — `searchClients` returned soft-deleted clients — §14 row WITHDRAWN
+
+**The defect.** `src/app/admin/search-actions.ts` queried `clients` on the **service-role** client,
+so RLS does not apply, with no `deleted_at` filter. A soft-deleted client's full name, email, phone
+and postcode reappeared in the global admin command palette on every `/admin` page, linking to a URL
+that 404s.
+
+**Why §14 got it wrong.** The refutation checked `clients-list-data.ts` — which *does* filter
+correctly — and generalised from one file. Control proof: `grep deleted_at` returns **6** in
+`clients-list-data.ts` and **0** in `search-actions.ts`, so the absence was real, not a bad search.
+
+**Exact fix** — in the `searchClients` builder:
+
+```ts
+.select("id, full_name, email, phone, postcode")
+.is("deleted_at", null)          // <- added
+.or([...])
+```
+
+**Guard added.** `src/app/admin/search-actions.test.ts` — a new `describe` block asserting
+`clients.filters` contains `["is", "deleted_at", null]`, plus a control asserting the recorder can
+see the filter's *absence*. ⚠️ `FILTER_OPS` in that file's recording mock had to gain `"is"`;
+without it the mock throws `.is is not a function` and **every** existing test in the file fails.
+
+**Mutation-tested:** removing the `.is()` line gives `1 failed | 9 passed` —
+`AssertionError: expected [ [ 'or', …(1) ] ] to deep equally contain [ 'is', 'deleted_at', null ]`.
+The guard bites.
+
+⚠️ **Impact was zero at the time of fixing** — production holds 15 clients and **0** soft-deleted.
+Latent, not a live leak.
+
+### ✅ 17.2 — `getSearchClientIds` had the same omission
+
+**Exact fix** — `src/app/admin/bookings/bookings-list-data.ts`, inside the cached fetcher:
+
+```ts
+.select("id")
+.is("deleted_at", null)          // <- added
+.or([...])
+```
+
+Lower impact than 17.1 — it only widens a booking search and never renders client PII directly — but
+it is the same omission on the same table, fixed in the same pass.
+
+### ✅ 17.3 — The Sentry scrubber leaked part of the manage token 15% of the time
+
+**The defect.** `src/lib/observability/sentry-scrubbing.ts` — `redactText()` ran `PHONE_PATTERN`
+**before** `LONG_TOKEN_PATTERN`. A manage token is a `randomUUID()`; the phone regex matches a digit
+run inside it and replaces the middle, breaking the 24+ character run `LONG_TOKEN_PATTERN` needs, so
+the remainder survived into Sentry.
+
+**Measured over 20,000 real `randomUUID()` values:**
+
+```
+phone-first (as shipped) : 3012 partial leaks  (15.06%)  - up to 18 hex chars survived
+token-first (fixed)      :    0 partial leaks  ( 0.00%)
+```
+
+Example: `c7f54cfc-99cc-49e4-8457-686a9b9456be` scrubbed to
+`...token=c7f54cfc-99cc-49e[Filtered]a9b9456be`.
+
+**Exact fix** — swap the last two lines of `redactText()`:
+
+```ts
+.replace(LONG_TOKEN_PATTERN, "[Filtered]")   // <- now FIRST
+.replace(PHONE_PATTERN, "[Filtered]");       // <- now SECOND
+```
+
+**The swap is free.** Phone redaction output is byte-identical under both orders for
+`"call 07700 900123 about it"`, `"+44 7700 900123"`, `"01582 123456"` and `"07700900123"` — a long
+digit run is caught either way. A regression test now asserts this.
+
+**Why F9's own test missed it.** The D9 test pins **one** hard-coded UUID
+(`3f2504e0-4f89-11d3-9a0c-0305e82c3301`), which happens to be one of the ~85% that scrub cleanly. It
+is a single sample of a probabilistic property.
+
+**Guard added.** `src/lib/observability/sentry-scrubbing.test.ts` — three tests: 200 real
+`randomUUID()` values with no hex residue permitted; a control proving the needle *can* match on an
+unscrubbed token and that the surrounding URL carries no hex run of its own (gotcha 109); and the
+phone regression above.
+
+**Mutation-tested:** restoring the old order gives `1 failed | 5 passed` —
+`AssertionError: expected [ …(39) ] to deeply equal []`. **39 of 200** tokens leaked, while the
+original D9 test still passed. Exactly the blind spot it was written to close.
+
+### ✅ 17.4 — Two comments corrected; no behaviour change
+
+1. **`booking-detail-data.ts` cache key.** The `⛔` comment claimed that omitting `canViewHealthNotes`
+   from the key would *"cache an Owner's record and serve it to a Coordinator — a strictly worse leak
+   than the one being fixed"*. **That is false.** `staffId: profile.id` is already in the key and
+   **predates F3** (it appears as context, not a `+` line, in `58c22ad`), so two viewers could never
+   share an entry. In this repo a `⛔` comment is read as a gate, so it recorded a wrong invariant.
+   The line is **defensive, not load-bearing** — it busts one viewer's entry immediately on a
+   permission change instead of after 60s. **Code unchanged; comment rewritten.**
+
+2. **§14, row 3** left standing — the three cited `return null` sites really are internal helpers.
+   But it must not be read as clearing the class: `respondToCustomerReschedule`
+   (`src/app/admin/bookings/actions.ts:1458`) returns `void` and exits silently on four paths while
+   `RescheduleResponseButtons.tsx:26` toasts success **unconditionally**. Pre-existing by 703
+   commits, untouched by `58c22ad`/`5aab8d6`, and there are more actions in that shape. **Not fixed
+   here — out of scope, and a separate topic from §14.**
+
+### ⛔ 17.5 — Found, NOT fixed. Deliberate.
+
+| # | Issue | Why not fixed |
+|---|---|---|
+| **A** | **BST bug in the live booking RPC.** `create_booking_request` line 84 compares a `timestamptz` against `timezone('Europe/London', now())`, a **naive** timestamp. Postgres coerces it at the session TimeZone (UTC), so during BST the "must be in the future" threshold sits **one hour ahead**. Measured live across 5 dates: skew `+01:00` on 2026-08-19 and 2026-10-24, `00:00` on 2026-01-15, 2026-03-28 and 2026-10-26. **During BST a booking starting in the next ~60 min is refused.** Website bookings are masked by the 4h notice check; **phone/admin bookings are not** | ⛔ **Requires a migration applied to production — needs the Owner's explicit per-action approval.** Not a repo-only change. ⚠️ **NOT a failure of D4** — D4's claim was scoped to the minimum-notice check and that fix is correct. Line 84 is a separate pre-existing instance, identical in the pre-apply file (lines 120/122). It fails **closed**: it refuses bookings, never accepts bad ones |
+| **B** | **The price parity test guards 5 of 28 price literals in `packagePages.ts`.** The other 23 include **18 in `relatedPackages[]`, rendered** at `RelatedPackages.tsx:26` on all five package pages. Mutation test: changing a cross-sell price leaves **240 files / 2467 tests green**. `packagePages.ts` is also the one mirror left out of the per-id join, so two *swapped* prices there also ship green | Nothing is mis-quoted today — all cross-sell prices currently match, so the exposure is future. Widening the accessor is a real change, not a one-liner, and F6 chose option B deliberately. ⚠️ **The test header's claim that it "makes shipping a divergence impossible" is not true of this file** |
+| **C** | **`phone` and `email` are uncapped** on the public booking route (`route.ts:34-35`). Bounded only by the 256 KB body cap | Pre-existing and untouched: `git diff 58c22ad^ 1d179a5 -- src/app/api/bookings/route.ts` shows **0** changed lines mentioning either. F5 made this file strictly better. A gap in F5's *stated* scope, not a regression |
+| **D** | **`20260812010100` asserts an md5 (`3f5424d…`) no repo file can produce** — `c02` is the only repo definer of the series function and its body hashes `5eb7d49f…`. A second rebuild blocker | Real, but **not the first** failure: a rebuild dies far earlier on the missing `account_password_requests` table, which **F8 / README §1 already records**. Worth one line in the README, nothing more. Subsumed by F8 |
+
+### Verification of this pass
+
+`tsc` 0 · full `vitest` re-run · `lint` 4E/1W in the same **three** files · `scripts/` 47 ·
+contrast **110 (46/64)** · verify **0** · `pnpm build` succeeds.
+⛔ The vitest **count rose** — new guard tests only, nothing removed. Counted, not eyeballed
+(gotcha 118).

@@ -503,10 +503,17 @@ export async function getBookingDetailData(
         staffGender: profile.gender,
         canViewAll,
         canClaim,
-        // ⛔ F3: NOT OPTIONAL. This surface caches for 60s. Filtering health
-        // notes without keying on the entitlement would cache an Owner's record
-        // and serve it to a Coordinator on the next request — a strictly worse
-        // leak than the one being fixed.
+        // F3: keyed so a permission change busts this viewer's entry at once
+        // rather than after the 60s window.
+        //
+        // ⚠️ CORRECTED 2026-08-19: the original comment here claimed that
+        // omitting this would "cache an Owner's record and serve it to a
+        // Coordinator — a strictly worse leak than the one being fixed". That
+        // was wrong, and in this repo a ⛔ comment is read as a gate, so it was
+        // recording a false invariant. `staffId` above is already part of the
+        // key and predates F3, so two viewers could never share an entry. This
+        // line is defensive, not load-bearing — keep it, but do not cite it as
+        // the thing preventing a cross-viewer leak.
         canViewHealthNotes,
         fullScope,
         auditLimit,
