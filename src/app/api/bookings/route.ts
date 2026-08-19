@@ -14,6 +14,11 @@ import {
   checkRateLimit,
 } from "@/lib/rate-limit";
 
+// F5 (2026-08-17): hard ceiling on the request body, enforced before parsing.
+// 256 KB — orders of magnitude above any legitimate booking, so it can only
+// ever be hit by abuse.
+const MAX_BOOKING_BODY_BYTES = 256 * 1024;
+
 const genderInputSchema = z.union([z.enum(["male", "female"]), z.literal("")]);
 
 const bookingRequestSchema = z.object({
@@ -52,6 +57,19 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { ok: false, error: RATE_LIMITED_BOOKING_MESSAGE },
       { status: 429 }
+    );
+  }
+
+  // F5 (2026-08-17): reject an oversized body BEFORE parsing it. The Zod schema
+  // caps each field, but that only runs after the whole payload has been read
+  // and deserialised — so without this a single request could still force the
+  // worker to parse megabytes. 256 KB is far above any legitimate booking
+  // (the largest realistic one is a group with notes, well under 10 KB).
+  const declaredLength = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > MAX_BOOKING_BODY_BYTES) {
+    return NextResponse.json(
+      { error: "Request body too large." },
+      { status: 413 }
     );
   }
 

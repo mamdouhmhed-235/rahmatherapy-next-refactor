@@ -54,6 +54,9 @@ import {
   canClaimAssignments,
   canManageAllBookings,
 } from "../access";
+// F3 (2026-08-17): health notes were rendered on the booking page with no
+// permission check at all — any viewer who could open a booking saw them.
+import { canManageSensitiveClientNotes } from "@/lib/auth/rbac";
 import type { BookingRecord } from "../types";
 import type { RestoreContext } from "./NextActionButton";
 
@@ -329,6 +332,34 @@ export interface BookingDetailData {
   sourceEnquiry: SourceEnquiry | null;
 }
 
+/**
+ * F3 (2026-08-17) — strip client health notes from a booking record when the
+ * viewer is not entitled to them.
+ *
+ * Health notes were previously rendered on the booking page with no permission
+ * check of any kind: anyone who could open a booking read them. The permission
+ * already existed (`canManageSensitiveClientNotes`) and simply was not applied
+ * on this surface.
+ *
+ * Returns the record untouched when entitled, so the common path allocates
+ * nothing. Mirrors the shape the claimable-only branch already produces, which
+ * nulls these same two fields.
+ */
+export function redactHealthNotes<T extends BookingRecordWithClientId | null>(
+  booking: T,
+  canViewHealthNotes: boolean
+): T {
+  if (!booking || canViewHealthNotes) return booking;
+
+  return {
+    ...booking,
+    health_notes: null,
+    booking_participants: (booking.booking_participants ?? []).map(
+      (participant) => ({ ...participant, health_notes: null })
+    ),
+  } as T;
+}
+
 export async function getBookingDetailData(
   params: BookingDetailParams
 ): Promise<BookingDetailData> {
@@ -336,6 +367,11 @@ export async function getBookingDetailData(
   const auditLimit = params.auditLimit ?? BOOKING_DETAIL_AUDIT_LIMIT;
   const canViewAll = canManageAllBookings(profile);
   const canClaim = canClaimAssignments(profile);
+  // F3: computed here, OUTSIDE the cached fetcher, exactly like canViewAll and
+  // canClaim — `profile` carries a permissions Set and must never enter the
+  // cache key (SHARED-NOTES §15). What varies per caller is captured by these
+  // explicit booleans instead.
+  const canViewHealthNotes = canManageSensitiveClientNotes(profile);
 
   const cached = unstable_cache(
     async (): Promise<BookingDetailData> => {
@@ -434,7 +470,10 @@ export async function getBookingDetailData(
       return {
         canOpen: true,
         claimableOnly: scopedRelation.claimableOnly,
-        booking,
+        // ⛔ F3: redact in the DATA LAYER, not in the JSX. A value filtered only
+        // at render still travels to the client inside the RSC payload, where
+        // anyone can read it. This is the choke point both branches pass through.
+        booking: redactHealthNotes(booking, canViewHealthNotes),
         auditLogs,
         sourceEnquiry: sourceEnquiry ?? null,
       };
@@ -447,6 +486,11 @@ export async function getBookingDetailData(
         staffGender: profile.gender,
         canViewAll,
         canClaim,
+        // ⛔ F3: NOT OPTIONAL. This surface caches for 60s. Filtering health
+        // notes without keying on the entitlement would cache an Owner's record
+        // and serve it to a Coordinator on the next request — a strictly worse
+        // leak than the one being fixed.
+        canViewHealthNotes,
         fullScope,
         auditLimit,
       }),

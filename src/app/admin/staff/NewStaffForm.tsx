@@ -102,7 +102,10 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
         return;
       }
 
-      toast.success(`${name.trim()} added to the team. Invitation email sent.`);
+      // F4 (2026-08-17): was "Invitation email sent." — the THIRD false promise
+      // in this file, and the one a user is most likely to believe, because it
+      // fires on success. No invitation is sent by anything.
+      toast.success(`${name.trim()} added to the team.`);
       resetForm();
       setOpen(false);
       router.refresh();
@@ -123,8 +126,14 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
           <DialogHeader>
             <DialogTitle>Add staff member</DialogTitle>
             <DialogDescription>
-              Create their profile now. They&apos;ll receive a sign-in invitation by
-              email.
+              {/* F4 (2026-08-17): this promised "They'll receive a sign-in
+                  invitation by email." Nothing sends one — creating a staff
+                  member writes a profile row and no auth account, so the person
+                  could not sign in and the screen said otherwise. Sign-in is
+                  provisioned separately (scripts/bootstrap-owner-admin.mjs).
+                  Making the invitation real is F4 option A, not yet done. */}
+              Create their profile now. Sign-in access is set up separately —
+              they cannot log in until an administrator provisions their account.
             </DialogDescription>
           </DialogHeader>
 
@@ -166,7 +175,7 @@ export function NewStaffForm({ roles, fullWidth = false }: NewStaffFormProps) {
               required
               onChange={(event) => setEmail(event.target.value)}
               placeholder="name@example.com"
-              hint="They'll receive a sign-in invitation at this address."
+              hint="Used for booking notifications. Sign-in access is provisioned separately."
               disabled={isPending}
               error={fieldErrors.email}
             />

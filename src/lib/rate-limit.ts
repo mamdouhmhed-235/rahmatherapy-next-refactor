@@ -91,12 +91,33 @@ function rejectOnAbort(signal: AbortSignal): Promise<never> {
 // The RATE_LIMITER binding only exists inside the deployed Worker. Under
 // `next dev` (no Workers bindings) and in tests getCloudflareContext() throws,
 // which is exactly the fail-open path we want.
+// F11 (2026-08-17): the fail-open behaviour above is deliberate and unchanged.
+// What was missing is any signal that it happened. Without this, a Worker
+// deployed with the RATE_LIMITER binding misconfigured silently accepts every
+// request forever and nothing anywhere says so. Logged ONCE per process — this
+// runs on every public booking submission, so warning each time would be noise.
+let rateLimiterAbsenceLogged = false;
+
+function warnRateLimiterAbsent(reason: string) {
+  if (rateLimiterAbsenceLogged) return;
+  rateLimiterAbsenceLogged = true;
+  // Expected under `next dev` and in tests, where Workers bindings do not
+  // exist. In production it means the binding is missing or misnamed.
+  console.warn(
+    `[rate-limit] RATE_LIMITER binding unavailable (${reason}) — failing OPEN. ` +
+      "Expected in dev/test; in production this means rate limiting is OFF."
+  );
+}
+
 function getRateLimiterNamespace(): DurableObjectNamespaceLike | null {
   try {
     const env = getCloudflareContext().env as Record<string, unknown>;
     const namespace = env.RATE_LIMITER as DurableObjectNamespaceLike | undefined;
-    return typeof namespace?.idFromName === "function" ? namespace : null;
+    if (typeof namespace?.idFromName === "function") return namespace;
+    warnRateLimiterAbsent("binding not present on env");
+    return null;
   } catch {
+    warnRateLimiterAbsent("no Cloudflare context");
     return null;
   }
 }

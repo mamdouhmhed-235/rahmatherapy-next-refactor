@@ -150,7 +150,9 @@ const SOURCE_OPTIONS = [
 const MAX_PARTICIPANTS = 6;
 const CREATED_KEY = "booking-new-created-toast";
 
-const PACKAGE_OPTIONS = [
+// F6 (2026-08-17): exported so the price-parity test can read it. Prices live
+// in five hand-maintained files; this is one of them.
+export const PACKAGE_OPTIONS = [
   {
     slug: "supreme-combo",
     name: "Supreme Combo Package",
@@ -171,7 +173,7 @@ const PACKAGE_OPTIONS = [
   },
 ] as const;
 
-const MASSAGE_OPTIONS = [
+export const MASSAGE_OPTIONS = [
   { slug: "massage-30", label: "30 minutes", price: "£40" },
   { slug: "massage-60", label: "1 hour", price: "£60" },
 ] as const;

@@ -102,6 +102,10 @@ Sentry.init({
   replaysOnErrorSampleRate: 1.0,
   enableLogs: true,
   beforeSend: scrubSentryEvent,
+  // F9 (2026-08-17): `beforeSend` only sees ERROR events. Performance
+  // transactions carry the request URL, and `/booking/manage?token=...` would
+  // otherwise reach Sentry unscrubbed at tracesSampleRate 0.1 in production.
+  beforeSendTransaction: scrubSentryEvent,
   integrations: [],
 });
 
