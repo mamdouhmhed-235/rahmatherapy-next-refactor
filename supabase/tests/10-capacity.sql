@@ -66,20 +66,31 @@
 --     → must SUCCEED (a cancelled booking frees its slot)
 --     MEASURED: LIVED                                                               ✅
 --
--- B6  ⛔ THE ASYMMETRY. Owner ruling: a `completed` booking must NOT block its
---     slot. The function applies two different status filters:
+-- B6  ✅ THE ASYMMETRY — FIXED 2026-08-19, migration 20260819233514.
+--     Owner ruling: a `completed` booking must NOT block its slot. The
+--     function used to apply two different status filters:
 --       unassigned path : status in ('pending','confirmed')
---       assigned   path : status not in ('cancelled','no_show')
---     so `completed` is free on one path and busy on the other.
+--       assigned   path : status not in ('cancelled','no_show')   ← was wrong
+--     so `completed` was free on one path and busy on the other. Both paths
+--     now use `status in ('pending','confirmed')`.
 --
 --     B6a  existing 'completed' booking, UNASSIGNED  → must SUCCEED
 --          MEASURED: LIVED                                                          ✅
 --     B6b  existing 'completed' booking, ASSIGNED    → must SUCCEED
---          MEASURED: THREW  P0001 :: Not enough female therapists available         ⛔ FAILS
+--          MEASURED before fix: THREW P0001 :: Not enough female therapists         ⛔
+--          MEASURED after  fix: LIVED                                               ✅
 --
---     ⛔ B6b is a CONFIRMED DEFECT (fix-list item B5), reproduced exactly.
---        Fix: align the assigned path to `status in ('pending','confirmed')`.
---        This test is written to the ruling, so it stays red until that lands.
+--     ⛔ NON-VACUITY. B6b passing means nothing on its own — a function that
+--        blocked NOTHING would pass it too. So the after-fix run carried its
+--        own control in the same rolled-back transaction: a `confirmed`
+--        booking assigned to the same therapist, which must still be
+--        REFUSED. Measured 2026-08-19, all three arms together:
+--            confirmed + assigned   → THREW P0001    ✅ still blocks
+--            completed + assigned   → SUCCEEDED      ✅ the fix
+--            completed + unassigned → SUCCEEDED      ✅ unchanged
+--        ⚠️ That control is the same SHAPE as B4 but is not B4 — B4 is male
+--        and `pending`; the control arm was female and `confirmed`, so it
+--        shares B6b's fixture. B4 itself has NOT been re-run since the fix.
 
 
 -- ============================================================================

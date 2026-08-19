@@ -273,6 +273,63 @@ hold and was independently re-derived rather than assumed.
 
 ---
 
+## 6.5 — ✅ APPLIED 2026-08-19 — the completed-booking slot fix, and §6's gap CLOSED
+
+| Version applied | Name | Repo filename |
+|---|---|---|
+| `20260819233514` | `fix_completed_booking_blocks_slot` | **carries the recorded version** |
+
+Owner approved. `create_booking_request` asked "is this therapist busy?" in two places with two
+different definitions: the named-therapist path used `status not in ('cancelled','no_show')`, so a
+**completed** booking still consumed that therapist's capacity, while the unassigned path used
+`status in ('pending','confirmed')` and correctly freed it. `src/lib/booking/availability.ts:596`
+uses the second form, so the public calendar OFFERED a slot this function then refused.
+
+One line changed. Reproduced live before and re-measured after, three arms in one rolled-back
+transaction (one `ZZTEST-` female therapist, all real staff parked):
+
+```
+                                        before      after
+A  prior confirmed, assigned            THREW       THREW      ✅ control, still blocks
+B  prior completed, assigned            THREW  ⛔    SUCCEEDED  ✅ the fix
+C  prior completed, unassigned          SUCCEEDED   SUCCEEDED  ✅ unchanged
+```
+
+Predicted before applying, then measured after — exact match:
+
+```
+pre-apply  prosrc : md5 c0d74f2454bff1778e692e54a1817e80, length 20185
+predicted (normalised body) : md5 2c65b0fa135cacbc64ac3313c8a4be2f, length 14306
+post-apply (normalised body): md5 2c65b0fa135cacbc64ac3313c8a4be2f, length 14306   ✅ exact
+old predicate occurrences after: 0    new predicate occurrences after: 2
+```
+
+Verified after: `prosecdef` true, `search_path = public, app_private`, ACL
+`{postgres=X, service_role=X}` — `anon` and `authenticated` both false. `verify-system-integrity.mjs`
+before/after diff **empty**.
+
+### ✅ §6's fidelity note is CLOSED for this function
+
+§6, §6.3 and §6.4 all recorded that the repo file and the live function were *logically identical
+but textually different*, because each fix was applied as an md5-guarded patch of the live body
+rather than by re-transmitting the file. **This one was applied the other way** — the full file was
+sent, built from `20260819150206_fix_booking_buffer_midnight_wrap.sql` with the single line changed,
+after proving that base equivalent to the live body first
+(both `a86b093c13e2c841aa77c63cdbc570e9`, 14310 chars, comments and whitespace stripped).
+
+Measured afterwards — the repo file's function body and `prosrc` are now **byte-identical**:
+
+```
+repo file body : md5 f8ab98920eb54618c121229c67d742e3, length 23089
+live prosrc    : md5 f8ab98920eb54618c121229c67d742e3, length 23089   ✅ identical
+```
+
+⛔ So for `create_booking_request` the repo file is now the authority, not merely an equivalent.
+That is the reason to prefer re-transmitting the file over patching when the file is known good:
+it collapses the drift instead of adding to it.
+
+---
+
 ## 7 — ✅ 2026-08-19 — the seven missing files were BACKFILLED (task P-2)
 
 Owner-approved. **Nothing was applied to the database** — production already had all
