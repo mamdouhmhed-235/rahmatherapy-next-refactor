@@ -177,6 +177,10 @@ async function searchClients(
   const { data } = await createSupabaseAdminClient()
     .from("clients")
     .select("id, full_name, email, phone, postcode")
+    // Soft-deleted clients must not resurface here. This runs on the service-role
+    // client, so RLS does not apply and the filter has to be explicit — the same
+    // rule `clients-list-data.ts` applies on every one of its own queries.
+    .is("deleted_at", null)
     .or(
       [
         `full_name.ilike.${likeQuery}`,

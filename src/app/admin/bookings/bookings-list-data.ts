@@ -990,6 +990,9 @@ export async function getSearchClientIds(search?: string): Promise<string[]> {
       const { data } = await createSupabaseAdminClient()
         .from("clients")
         .select("id")
+        // Soft-deleted clients must not widen a booking search. Service-role
+        // query, so RLS does not apply and the filter has to be explicit.
+        .is("deleted_at", null)
         .or(
           [
             `full_name.ilike.${needle}`,

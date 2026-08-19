@@ -67,7 +67,7 @@ function makeProfile(permissions: string[]): StaffProfile {
 // cap's determinism depends on.
 // ---------------------------------------------------------------------------
 
-const FILTER_OPS = ["eq", "in", "or"] as const;
+const FILTER_OPS = ["eq", "in", "or", "is"] as const;
 
 // ⚠️ `built` and `executed` are different questions, and the difference is
 // load-bearing here. `searchBookings` constructs its `bookings` builder BEFORE
@@ -247,6 +247,35 @@ describe("searchAdminCommand — the all-rows branch stays O(1)", () => {
 
     expect(queriesFor(client, "booking_assignments")).toHaveLength(0);
     expect(readsOf(client, "bookings")).toHaveLength(1);
+  });
+});
+
+// 2026-08-19 — PRODUCTION-FIXES §14 recorded "deleted clients show in search"
+// as REFUTED/False on the strength of `clients-list-data.ts`, which does filter
+// correctly. This path is a different one and did not. It runs on the
+// service-role client, so RLS cannot save it.
+describe("searchAdminCommand — soft-deleted clients never surface", () => {
+  it("filters deleted_at on the client search", async () => {
+    getStaffProfile.mockResolvedValue(makeProfile(["manage_clients_all"]));
+    const client = mount({ clients: { data: [] } });
+
+    await searchAdminCommand("smith");
+
+    const [clients] = readsOf(client, "clients");
+    expect(clients).toBeDefined();
+    expect(clients.filters).toContainEqual(["is", "deleted_at", null]);
+  });
+
+  it("control: the recorder would see the filter's absence", async () => {
+    // Without this, the assertion above could pass on a recorder that silently
+    // swallows `.is()` rather than because the query really carries it.
+    getStaffProfile.mockResolvedValue(makeProfile(["manage_bookings_all"]));
+    const client = mount({ bookings: { data: [] } });
+
+    await searchAdminCommand("smith");
+
+    const [bookings] = readsOf(client, "bookings");
+    expect(bookings.filters).not.toContainEqual(["is", "deleted_at", null]);
   });
 });
 
