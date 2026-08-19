@@ -1,6 +1,35 @@
 # Production fixes — verified defects and their surgical remedies
 
-**Written 2026-08-17 at `6288b0b`.** ⛔ **AWAITING OWNER REVIEW. Nothing fixed yet.**
+**Written 2026-08-17.** ✅ **EXECUTED AND REVIEWED. See the record below.**
+
+## ✅ EXECUTION RECORD — 2026-08-17 / 19
+
+| Fix | Status |
+|---|---|
+| F1 + F2 | ✅ Code written, **migration APPLIED to production** `20260819072756` |
+| F3 health notes | ✅ Data-layer redaction + cache key. ⚠️ First attempt broke the Therapist role (D3); now mirrors `clients/access.ts` |
+| F4 staff invitation | ✅ **THREE** false promises removed, not the two reported |
+| F5 input caps | ✅ ⚠️ First attempt capped the CLIENT schema, which no server module imports (D1). Server route now capped |
+| F6 price parity | ✅ Test added, mutation-tested. ⚠️ First version missed `packagePages.ts` (D7) |
+| F7 e2e | ✅ `pnpm test:e2e:auth` added; production-DB hazard documented in `e2e/helpers.ts` |
+| F8 migration drift | ⛔ **NOT fixed in code, deliberately.** Procedure in `supabase/migrations/README-MIGRATION-DRIFT.md`; needs Owner-run `supabase db pull` |
+| F9 Sentry traces | ✅ `beforeSendTransaction` ×3 + 2 tests |
+| F10 series grants | ✅ **APPLIED** `20260819072517`. Pre-flight confirmed `proacl = NULL` = PUBLIC EXECUTE |
+| F11 rate limiter | ✅ Logs once; behaviour deliberately unchanged |
+| **D8 (new)** | ✅ `create_booking_request` also held PUBLIC EXECUTE. Applied in the same migration |
+| **D13 (new)** | ✅ Advisory lock re-keyed to date only |
+
+⛔ **Two rounds of review were needed.** The first pass shipped two fixes that did not work (D1, D6)
+and eleven further defects. Full record in the commits `58c22ad` (first pass) and `5aab8d6`
+(corrections). **A DST bug, a broken Therapist role and an unbounded server schema all survived a
+green test suite** — no gate in this repo can see SQL, and the caps were on a file nothing imports.
+
+⛔ **The migrations four functional VERIFY steps have NOT been run** — each requires creating
+bookings in production. Approval covered applying the migrations, not writing customer data.
+
+---
+
+**Original plan follows.**
 
 Origin: another agent produced a list of suspected issues. **Every item below was independently
 verified against this codebase** — file, line and command recorded. Three of its claims were

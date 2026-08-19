@@ -333,7 +333,7 @@ Everything else in that sentence must survive **verbatim**:
 
 1. The Band-C framing (*"mid-way through the Band C implementation programme"*) → Band C closed
    2026-08-09; point at the live handoff as current position — which, as executed, is
-   `redesign/HANDOFF-2026-08-17-IMPLEMENTATION-10.md` (written at the end of this session and
+   `redesign/HANDOFF-2026-08-19-IMPLEMENTATION-11.md` (written at the end of this session and
    superseding `-9`).
 2. The `src/lib/maintenance.ts` substring → ⛔ **phrase it true in both worlds:**
    *"removed by `3eb2939` (unpushed; still present on `origin/master`)"*.
@@ -397,7 +397,7 @@ Rev. 2 proposed ~60. Stamp only the ones with **nameable harm**:
 
 ```markdown
 > ⚠️ **HISTORICAL — <programme> closed <date>. Do not act on instructions in this file.**
-> Current position: `redesign/HANDOFF-2026-08-17-IMPLEMENTATION-10.md`.
+> Current position: `redesign/HANDOFF-2026-08-19-IMPLEMENTATION-11.md`.
 ```
 
 Stamping 42 gate reports and 14 handoffs that already point forward is ceremony. Nobody has ever been

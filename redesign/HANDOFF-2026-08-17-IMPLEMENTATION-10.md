@@ -1,6 +1,12 @@
 # HANDOFF — 2026-08-17 (eleventh session · WORKSPACE DECLUTTER)
 
-**⛔ THIS IS THE LIVE DOCUMENT. Read it end to end before touching anything.**
+> ⛔ **SUPERSEDED 2026-08-19 by `redesign/HANDOFF-2026-08-19-IMPLEMENTATION-11.md` — read that first.**
+> Stale here: §1 position (HEAD is `e7ecdb5`, 19 unpushed) and §7 open items (the declutter it
+> lists as next was completed 2026-08-17). ⛔ **Also stale: §3 gate baselines — vitest is now
+> 244 files / 2514 tests, not 242/2501.**
+> ⚠️ **Everything else stands**, including gotchas 109-118 and the Owner decisions in §4.
+
+**⛔ This was the live document for the twelfth session.**
 It replaces `HANDOFF-2026-08-13-IMPLEMENTATION-9.md`, whose §1 position table and §6.2 next-task
 note are now stale. **Everything else in -9 still stands**, and the ten earlier handoffs keep their
 gotchas and are **not** superseded:
