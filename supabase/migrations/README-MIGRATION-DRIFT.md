@@ -15,6 +15,11 @@ Production has **72** applied migrations. This directory has **66** files.
 
 ## 1 — Seven migrations exist in production with no file here
 
+> ✅ **CLOSED 2026-08-19 by task P-2 — all seven files now exist. See §7.**
+> §4's "do NOT hand-write the missing SQL" was overtaken by an explicit Owner
+> approval; the files were reconstructed from live introspection, not guessed.
+> ⛔ Do not delete them and do not re-raise this as a gap.
+
 ```
 phase9_account_password_requests                    the account-password-requests TABLE
 phase8_staff_avatars_bucket                         avatar storage bucket
@@ -265,3 +270,51 @@ subtraction and its `ba.status`/`b.status` filters all intact.
 `502292ac279dcfc393f392c84c770489` (12734 chars) with comments and whitespace
 stripped, so §6's "logically identical, textually different" position continues to
 hold and was independently re-derived rather than assumed.
+
+---
+
+## 7 — ✅ 2026-08-19 — the seven missing files were BACKFILLED (task P-2)
+
+Owner-approved. **Nothing was applied to the database** — production already had all
+seven. This was a repo-only reconstruction, from live read-only introspection.
+
+| Version | Name | Reconstructed from |
+|---|---|---|
+| `20260502165759` | `restore_phase8_service_role_read_grants` | the deleted `restore_api_role_grants` list (§2.1) minus RBAC tables — **inferred split** |
+| `20260502170527` | `restore_phase8_service_role_permissions_read_grant` | the three RBAC tables from that same list — **inferred split** |
+| `20260509224253` | `phase8_staff_avatars_bucket` | `storage.buckets` + `pg_policies` (schemaname='storage') — exact, except the pre-Phase-18 permission slug |
+| `20260509230026` | `phase9_account_password_requests` | `pg_attribute`/`pg_constraint`/`pg_indexes`/`pg_policies`/`pg_trigger` — exact, rolled BACK to its pre-Band-A state |
+| `20260509230208` | `phase9_payload_text` | the column types; the **pre**-conversion type is inferred |
+| `20260510002939` | `phase18_storage_avatars_canonical_perm` | `pg_policies` — exact predicates |
+| `20260514115548` | `add_override_availability_and_area_to_booking_rpc` | mechanical copy of `20260513120100`'s body + 4 edits mirrored from c06 — **body superseded** |
+
+The directory now holds **76** `.sql` files against production's **76** applied
+migrations, and each of the seven filenames carries the version *and* name production
+recorded, so they reconcile with `supabase_migrations.schema_migrations`.
+
+### ⛔ The three files that are deliberately NOT the live state
+
+Backfilling into the middle of a history means each file must produce the state that
+**later** migrations then transform. Writing today's schema into a May migration would
+turn the later ones into no-ops.
+
+- `phase9_account_password_requests` creates the enum with **four** labels — `used`
+  arrives in `20260521120000`; carries the **original** `payload_consistency` CHECK,
+  which `20260521130000` drops by name and replaces; carries the **old**
+  `clear_account_password_request_payload()` semantics, which `20260521150000`
+  replaces; and grants service_role **no DML**, which `20260521140000` adds.
+- `phase8_staff_avatars_bucket` uses the retired `manage_staff` slug, which
+  `phase18_storage_avatars_canonical_perm` corrects to `manage_staff_profiles`.
+- `add_override_availability_and_area_to_booking_rpc` carries the **May** body, not the
+  current one. It is load-bearing anyway: `c06_client_crud_hardening.sql:89` drops the
+  20-argument overload *this file creates*, and without it the 18-argument overload from
+  `20260513120100` survives a rebuild and production's single overload becomes two.
+
+### ⚠️ What is still unverified
+
+The real acceptance test — apply all 76 to an empty Postgres and diff against a
+production dump — **was not run**: this environment has no Docker, no local Postgres,
+no `psql`, no `pg_dump`. The files have not been executed anywhere. What *was* proven:
+no existing migration creates any object they create; every later migration that
+touches the same objects was read and is compatible; the filenames match
+`schema_migrations`. `supabase db pull` remains the authority over any repo file.
