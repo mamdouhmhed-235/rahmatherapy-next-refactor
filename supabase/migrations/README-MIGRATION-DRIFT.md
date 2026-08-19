@@ -88,3 +88,52 @@ The alternative was to reconstruct the missing SQL from the live schema through 
 window. That would have produced files that *look* right and are unverifiable — and this repo has
 already been bitten repeatedly by findings that looked authoritative and were wrong (see gotchas
 109-118). A recorded gap with a mechanical recovery path is worth more than seven plausible files.
+
+---
+
+## 6 — ⛔ APPLIED 2026-08-19 — two migrations, and an honest note about fidelity
+
+Owner approved. Applied via the Supabase MCP with an md5 pre-condition on the
+live function body, so a mismatch would have aborted before touching anything.
+
+| Version applied | Name | Repo filename |
+|---|---|---|
+| `20260819072517` | `f10_restore_series_fn_grants` | **renamed to match** |
+| `20260819072756` | `f1_f2_booking_capacity_and_window` | **renamed to match** |
+
+✅ **These two do NOT add to the drift** — the repo filenames were renamed to the
+versions production recorded, per §4's rule that the version is the identity.
+
+### ⚠️ Fidelity: the repo file is equivalent, not byte-identical to what ran
+
+`f1_f2` was applied as a **DO block that patches the live function source**, not
+as the repo file's literal `CREATE OR REPLACE`. That was deliberate: it starts
+from the guaranteed-correct live body and asserts its md5 first, rather than
+re-transmitting 711 lines and risking a transcription error in a function that
+takes customer bookings.
+
+The consequence, stated plainly: **the repo file and the live function are
+functionally equivalent but not byte-identical.** The inserted comment text is
+abbreviated in the applied version. Measured:
+
+```
+live prosrc after apply : md5 8e455336428b4376fdffb7744eb8ae9c, length 20105
+repo file body          : md5 9a10991d765979610c66a1615e73e97f, length 22410
+pre-apply live body     : md5 6b5fb9de14dd01ffe978e72d3e818066, length 17715
+```
+
+The logic is identical — verified field by field after applying: F1 counters
+present, D6 gated on `p_booking_source = 'website'`, D4 using `v_requested_at`,
+D5 buffer applied at **4** sites, D12 status set, D13 lock keyed on date only,
+and PUBLIC EXECUTE revoked (D8).
+
+⛔ **Anyone rebuilding from the repo gets the fuller-commented version and the
+same behaviour.** If byte-identity ever matters, `supabase db pull` after these
+migrations is the authority, not the repo file.
+
+### Rollback
+
+Re-apply `20260811210000_item8_phase2_remove_service_area_gate.sql`, whose body
+is byte-identical to the pre-apply live function (md5 `6b5fb9de…`, verified
+before the change). The grant fixes should NOT be rolled back — they restore an
+intended lock that a signature change silently dropped.
