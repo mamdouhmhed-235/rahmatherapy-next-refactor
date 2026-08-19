@@ -400,7 +400,11 @@ correctly — and generalised from one file. Control proof: `grep deleted_at` re
 **Guard added.** `src/app/admin/search-actions.test.ts` — a new `describe` block asserting
 `clients.filters` contains `["is", "deleted_at", null]`, plus a control asserting the recorder can
 see the filter's *absence*. ⚠️ `FILTER_OPS` in that file's recording mock had to gain `"is"`;
-without it the mock throws `.is is not a function` and **every** existing test in the file fails.
+without it the mock throws `.is is not a function`. ⚠️ **Corrected after review:** the first pass
+said this fails "every existing test in the file". It does not — measured, it fails **2 of 10**
+(**1 of the 8 pre-existing**), because only tests mounting a profile with an all-clients permission
+ever reach `searchClients`. The `FILTER_OPS` change was still genuinely required: without it the
+new guard cannot run at all.
 
 **Mutation-tested:** removing the `.is()` line gives `1 failed | 9 passed` —
 `AssertionError: expected [ [ 'or', …(1) ] ] to deep equally contain [ 'is', 'deleted_at', null ]`.
@@ -429,15 +433,24 @@ it is the same omission on the same table, fixed in the same pass.
 run inside it and replaces the middle, breaking the 24+ character run `LONG_TOKEN_PATTERN` needs, so
 the remainder survived into Sentry.
 
-**Measured over 20,000 real `randomUUID()` values:**
+**Measured over 500,000 real `randomUUID()` values** (⚠️ figures corrected after review — the
+first pass quoted "up to 18 hex chars", which was the residue length of the *worked example below*,
+not a maximum. The real leak is worse):
 
 ```
-phone-first (as shipped) : 3012 partial leaks  (15.06%)  - up to 18 hex chars survived
-token-first (fixed)      :    0 partial leaks  ( 0.00%)
+phone-first (as shipped) : ~14.8% of tokens leak a partial
+token-first (fixed)      :   0.00%
+worst observed leak      : 26 of the token's 32 hex characters survived
+                           -> only 6 hex unknown = 24 bits, not the ~32 first stated
+longest unbroken hex run : 12
+counted by the guard's own needle (runs of 6+): up to 20
 ```
 
 Example: `c7f54cfc-99cc-49e4-8457-686a9b9456be` scrubbed to
-`...token=c7f54cfc-99cc-49e[Filtered]a9b9456be`.
+`...token=c7f54cfc-99cc-49e[Filtered]a9b9456be` — 17 hex characters in runs of 6+, 24 in total.
+
+Still not brute-forceable in practice: 24 bits behind the rate limiter, and traces sample at 0.1.
+But it is a partial credential reaching a third-party processor.
 
 **Exact fix** — swap the last two lines of `redactText()`:
 
@@ -485,7 +498,7 @@ original D9 test still passed. Exactly the blind spot it was written to close.
 | # | Issue | Why not fixed |
 |---|---|---|
 | **A** | **BST bug in the live booking RPC.** `create_booking_request` line 84 compares a `timestamptz` against `timezone('Europe/London', now())`, a **naive** timestamp. Postgres coerces it at the session TimeZone (UTC), so during BST the "must be in the future" threshold sits **one hour ahead**. Measured live across 5 dates: skew `+01:00` on 2026-08-19 and 2026-10-24, `00:00` on 2026-01-15, 2026-03-28 and 2026-10-26. **During BST a booking starting in the next ~60 min is refused.** Website bookings are masked by the 4h notice check; **phone/admin bookings are not** | ⛔ **Requires a migration applied to production — needs the Owner's explicit per-action approval.** Not a repo-only change. ⚠️ **NOT a failure of D4** — D4's claim was scoped to the minimum-notice check and that fix is correct. Line 84 is a separate pre-existing instance, identical in the pre-apply file (lines 120/122). It fails **closed**: it refuses bookings, never accepts bad ones |
-| **B** | **The price parity test guards 5 of 28 price literals in `packagePages.ts`.** The other 23 include **18 in `relatedPackages[]`, rendered** at `RelatedPackages.tsx:26` on all five package pages. Mutation test: changing a cross-sell price leaves **240 files / 2467 tests green**. `packagePages.ts` is also the one mirror left out of the per-id join, so two *swapped* prices there also ship green | Nothing is mis-quoted today — all cross-sell prices currently match, so the exposure is future. Widening the accessor is a real change, not a one-liner, and F6 chose option B deliberately. ⚠️ **The test header's claim that it "makes shipping a divergence impossible" is not true of this file** |
+| **B** | **The price parity test guards 5 of 25 price literals in `packagePages.ts`** (⚠️ corrected after review — `grep -c "price:"` returns 28, but **3 are `price: string;` interface declarations** at lines 10/30/74). Exact shape: **5 top-level (guarded) + 15 in `relatedPackages[]` + 5 `summary.price`**. The 15 are **rendered** at `RelatedPackages.tsx:25` on all five package pages; the 5 `summary.price` are **not rendered anywhere** and carry no customer risk. Mutation test: changing a cross-sell price leaves **240 files / 2467 tests green**. `packagePages.ts` is also the one mirror left out of the per-id join, so two *swapped* prices there also ship green | Nothing is mis-quoted today — all cross-sell prices currently match, so the exposure is future. Widening the accessor is a real change, not a one-liner, and F6 chose option B deliberately. ⚠️ **The test header's claim that it "makes shipping a divergence impossible" is not true of this file** |
 | **C** | **`phone` and `email` are uncapped** on the public booking route (`route.ts:34-35`). Bounded only by the 256 KB body cap | Pre-existing and untouched: `git diff 58c22ad^ 1d179a5 -- src/app/api/bookings/route.ts` shows **0** changed lines mentioning either. F5 made this file strictly better. A gap in F5's *stated* scope, not a regression |
 | **D** | **`20260812010100` asserts an md5 (`3f5424d…`) no repo file can produce** — `c02` is the only repo definer of the series function and its body hashes `5eb7d49f…`. A second rebuild blocker | Real, but **not the first** failure: a rebuild dies far earlier on the missing `account_password_requests` table, which **F8 / README §1 already records**. Worth one line in the README, nothing more. Subsumed by F8 |
 

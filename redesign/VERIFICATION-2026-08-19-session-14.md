@@ -166,7 +166,14 @@ swapped      (LONG then PHONE)  :    0 partial leaks  ( 0.00%)
 ```
 
 Example: token `c7f54cfc-99cc-49e4-8457-686a9b9456be` scrubs to
-`…token=c7f54cfc-99cc-49e[Filtered]a9b9456be` — 17 hex characters survive.
+`…token=c7f54cfc-99cc-49e[Filtered]a9b9456be` — 17 hex characters in runs of 6+, 24 in total.
+
+⚠️ **Corrected after independent review.** Re-measured over **500,000** values: the leak rate is
+~14.8%, and the **worst observed leak left 26 of the token's 32 hex characters** — only 6 unknown,
+so **24 bits**, not the ~32 first stated. The longest unbroken hex run is 12; the guard's own needle
+(runs of 6+) counts up to 20. The original "up to 18 hex characters" was the residue length of the
+worked example above, not a maximum, and it understated the bug. Still not brute-forceable behind
+the rate limiter, and traces sample at 0.1 — but the figure is now accurate.
 
 This is a partial credential reaching a third-party processor, and it contradicts the D9 test's
 stated guarantee. Not practically brute-forceable (~32 bits left, behind the rate limiter), and
@@ -206,14 +213,19 @@ minimum-notice check, and that fix is correct. Line 84 is a separate, pre-existi
 same family, identical in the pre-apply file (lines 120/122). It fails **closed** — it refuses
 bookings, never accepts bad ones.
 
-### 4.4 The price parity test guards 5 of 28 price literals in `packagePages.ts`
+### 4.4 The price parity test guards 5 of 25 price literals in `packagePages.ts`
 
 The test reads `packagePages.map(pkg => pkg.price)` — the top-level field only. Counted in the file:
 
+⚠️ **Counts corrected after independent review.** `grep -c "price:"` returns 28, but **3 of those
+are `price: string;` interface field declarations** (lines 10, 30, 74), so there are **25** literals,
+not 28. The first pass also mis-attributed the `summary.price` entries to `relatedPackages[]`.
+
 - **5** top-level prices — guarded
-- **18** inside `relatedPackages[]` — **unguarded, and rendered** at
-  `src/components/package-pages/RelatedPackages.tsx:26` (`{related.price}`) on all five package pages
-- 5 prose/meta mentions — unguarded, rendered
+- **15** inside `relatedPackages[]` — **unguarded, and rendered** at
+  `src/components/package-pages/RelatedPackages.tsx:25` (`{related.price}`) on all five package pages
+- **5** `summary.price` — unguarded, but **not rendered anywhere**, so no customer risk
+- 5 prose/meta `£` mentions — unguarded, rendered
 
 Mutation-tested by an agent in a scratchpad copy (repo untouched, `git status` empty after):
 changing a top-level price fails the suite; changing a `relatedPackages[]` price leaves
