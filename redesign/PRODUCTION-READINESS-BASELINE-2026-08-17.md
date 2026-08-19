@@ -221,6 +221,12 @@ From the SEO/AEO/GEO release verification, measured against production 2026-08-1
 
 ## 8 — ⛔ Known open defects. Tests SHOULD find these. They are not regressions.
 
+⛔ **11 further defects were verified 2026-08-17 and have their own remediation plan:**
+`redesign/plans/PRODUCTION-FIXES-2026-08-17-plan.md` — booking over-acceptance, unenforced pause/notice,
+Coordinators reading health notes, new staff unable to sign in, unbounded input, duplicated prices,
+e2e running nothing, migration drift the repo cannot rebuild from, and unscrubbed Sentry traces.
+That file also records three claims that were **refuted**, so they are not re-raised.
+
 **14 deferrals re-verified as still open in today's code** (`redesign/per-page-deferrals/`):
 
 - `AdminErrorBoundary` fallback lacks `role="alert"`

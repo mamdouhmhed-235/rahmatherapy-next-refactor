@@ -1,0 +1,330 @@
+# Production fixes — verified defects and their surgical remedies
+
+**Written 2026-08-17 at `6288b0b`.** ⛔ **AWAITING OWNER REVIEW. Nothing fixed yet.**
+
+Origin: another agent produced a list of suspected issues. **Every item below was independently
+verified against this codebase** — file, line and command recorded. Three of its claims were
+**refuted** and two **overstated**; those are in §14 so nobody re-raises them.
+
+⛔ **Count correction:** an earlier chat summary said "9 worth fixing". The accurate figure is
+**11 confirmed real**, of which 9 are defects and 2 are hygiene. All 11 are here.
+
+---
+
+## 1 — ⛔ Read before touching anything
+
+| Constraint | Consequence |
+|---|---|
+| ⛔ **Every commit descends from `3eb2939` (Phase 12)** | Nothing here can be pushed without opening live bookings. All fixes are **local-only** until the Owner ships Phase 12 |
+| ⛔ **Production Supabase is live** | Every DB migration needs the Owner's explicit per-action approval before it runs |
+| ⛔ **No CI, no staging** | The seven gates plus a cold `pnpm build` are the only safety net |
+| **Gate baselines** | tsc 0 · vitest **0 failed / 2501 / 242 files** · lint 4E+1W in three files · scripts 47 · contrast 110 (46/64) · verify 0 · `git status` on `src/`+`supabase/` EMPTY |
+| ⚠️ **Check the test COUNT, not the colour** | gotcha 118 — a green run with a lower count is a silent failure |
+
+**One fix per commit.** Two exceptions are called out below where splitting would itself cause a bug.
+
+---
+
+## 2 — Recommended order, and why
+
+| # | Fix | Why here |
+|---|---|---|
+| **1** | **F8 — migration drift** | ⛔ **First.** Every DB fix below adds a migration on top of a baseline the repo cannot reproduce. Repair the record before stacking on it. Repo-only change; touches no database |
+| **2** | **F1 + F2 together** | ⛔ **Same function, one migration.** Both rewrite `create_booking_request`. Two migrations would mean the second rewrites the first |
+| **3** | **F3 — health notes** | Highest user-facing severity. ⛔ Its cache-key step is not optional |
+| **4** | **F9, F5, F11** | Small, independent, low risk |
+| **5** | **F7 — e2e** | Needed before the rest can be meaningfully regression-tested |
+| **6** | **F4, F6** | ⛔ Need an Owner decision first — see each |
+| **7** | **F10** | Hygiene, non-exploitable |
+
+---
+
+## F1 — ⛔ The booking API accepts more bookings than you have therapists
+
+**Verified.** `supabase/migrations/20260811210000_item8_phase2_remove_service_area_gate.sql:290-302`
+
+The busy-check **INNER JOINs `booking_assignments`** on `ba.assigned_staff_id = v_staff.id`. Every
+website booking is created with `assigned_staff_id = null` (same file, line 561-571), so **an
+unassigned booking makes nobody busy and consumes zero capacity.**
+
+The read engine gets this right: `src/lib/booking/availability.ts:328` `unassignedReservationCounts()`
+counts assignments with a null staff id and subtracts them at line 772
+(`Math.max(0, availableStaffByGender.male - unassignedCounts.male)`).
+
+**Plain English:** you have 2 therapists; the API will accept 5 bookings for the same slot. The
+customer calendar won't offer it, so it needs a direct POST or a race — and the assignment screen
+still refuses to double-book, so nobody turns up twice. **The damage is over-accepting and having to
+ring people back.**
+
+**Fix — one `CREATE OR REPLACE`.** Make the write path count unassigned reservations exactly as the
+read engine does: alongside the existing assigned-overlap check, subtract assignment rows where
+`assigned_staff_id IS NULL`, `status IN ('unassigned','assigned')`, matching
+`required_therapist_gender`, whose booking overlaps the requested window.
+
+⛔ **Mirror the read engine's semantics, do not invent new ones** — including its buffer handling, so
+the two surfaces cannot drift apart again.
+
+---
+
+## F2 — ⛔ Pause, notice and buffer are not enforced on writes
+
+**Verified.** Zero occurrences of `booking_window_settings`, `is_paused`, `minimum_notice`,
+`buffer_time_mins` or `lead_time` anywhere in the write RPC. The read engine enforces notice and
+buffer, and returns *"Online booking is currently paused."* at `availability.ts:813`.
+
+**Plain English:** pausing intake closes the booking page, but a hand-crafted POST still gets in. It
+lands as **pending**, so you would see it — this is not silent.
+
+**Fix — in the same migration as F1.** Read `booking_window_settings` and reject when paused or
+inside the notice window.
+
+⛔ **Do not restore the old checks verbatim** — they would block your own same-day phone bookings.
+The RPC already takes `p_override_availability`; **admin-created bookings must bypass these checks,
+public ones must not.** Gate on that flag.
+
+---
+
+## F3 — ⛔ Coordinators can read client health notes
+
+**Verified.** `src/app/admin/bookings/[bookingId]/page.tsx:758-767` renders `participant.health_notes`
+with **zero** permission checks — a `grep` for every sensitive-notes guard in that file returns **0**.
+The only condition is `!claimableOnly`. The permission exists and is unused here:
+`rbac.ts:23` `VIEW_CLIENT_HEALTH_NOTES_ASSIGNED`, `rbac.ts:167` `canManageSensitiveClientNotes()`.
+
+**Plain English:** anyone who can open a booking sees the client's health notes.
+
+**Fix — three steps, and the third is mandatory.**
+
+1. Compute the viewer's entitlement via the existing `canManageSensitiveClientNotes(profile)`.
+2. Strip `health_notes` **in the data layer**, not the JSX — `booking-detail-data.ts`. Never ship the
+   value to a client that must not see it.
+3. ⛔ **Add that boolean to the `unstable_cache` key.** `booking-detail-data.ts:340` caches with
+   `revalidate: 60` (line 455). The file's own header states RBAC scope *"forms part of the cache key,
+   so a claimable-only viewer can never be served the full record"* — it already passes `canViewAll`
+   and `canClaim` as explicit booleans. **Filter without extending the key and the 60-second cache
+   serves an Owner's notes to a Coordinator — strictly worse than today.**
+
+⚠️ Also decide whether an assigned therapist should see them. `VIEW_CLIENT_HEALTH_NOTES_ASSIGNED`
+exists, implying yes — that is an Owner call.
+
+---
+
+## F4 — ⛔ New staff can never sign in, and the screen says otherwise. Twice.
+
+**Verified.** No `inviteUserByEmail`, `auth.admin.createUser` or `generateLink` anywhere in
+`src/app/admin/staff/`. Repo-wide, auth accounts are created **only** in two scripts:
+`scripts/reset-live-auth-owner.mjs:158` and `scripts/seed-e2e-staff.mjs:70`. Meanwhile
+`NewStaffForm.tsx:126` and `:169` both promise *"They'll receive a sign-in invitation."*
+
+**Plain English:** every therapist you add is locked out, and the UI tells you it worked.
+
+⛔ **Owner decision required — two honest options:**
+
+| Option | What it means |
+|---|---|
+| **A — make it true** | Call `auth.admin.inviteUserByEmail` on creation and link the returned user to the staff row. Real fix; touches auth and needs an email path that works |
+| **B — make it honest** | Remove both invitation promises and document that sign-in is provisioned separately (as `bootstrap-owner-admin.mjs` already does) |
+
+**Recommendation: B now, A later.** B is minutes and stops the lie today; A is a real feature and
+should not be rushed into an auth surface on a live site.
+
+---
+
+## F5 — Booking form accepts unlimited text
+
+**Verified.** `src/features/booking/schemas/booking-schema.ts:97` — `notes: z.string()` with no
+`.max()`. The schema has exactly **one** `.max()` and it is on `numberOfPeople` (line 100).
+`src/app/api/bookings/route.ts:61` does `await request.json()` with no size check.
+
+**Plain English:** someone can paste a novel into the notes field and it lands in your database.
+
+**Fix.** Add `.max()` to every free-text field in the schema (notes, names, address lines) at limits
+matching the DB columns, and reject oversized bodies at the route via `content-length` before parsing.
+
+⚠️ **Check the DB column types first** — if a column is `text`, the cap is a product decision, not a
+technical one. Pick a generous limit; the goal is preventing abuse, not constraining customers.
+
+---
+
+## F6 — Prices exist in five hand-maintained copies
+
+**Verified.** Price literals in `content/pages/packagePages.ts` (30), `content/pages/services.ts` (10),
+`features/booking/data/booking-packages.ts` (5), `content/pages/home.ts` (5),
+`app/admin/bookings/new/ManualBookingForm.tsx` (5). ⚠️ **Five files, not the three reported.**
+They all match today.
+
+**Plain English:** nobody is being mis-quoted right now. It breaks the first time you change a price
+in one place and not the other four.
+
+⛔ **Owner decision required.** A true single source of truth is a real refactor. The proportionate
+options, given ~15 bookings and one engineer:
+
+| Option | Cost |
+|---|---|
+| **A — one shared constant** the five import | Moderate. Genuine fix |
+| **B — a test that asserts all five agree** | Small. Does not prevent drift, but makes it impossible to ship unnoticed |
+
+**Recommendation: B.** It converts a silent business risk into a failing test for a fraction of the
+effort, and A stays available later.
+
+---
+
+## F7 — `pnpm test:e2e` runs nothing and reports success
+
+**Verified.** Measured with booleans only, no value read:
+`node -e 'Boolean(process.env.E2E_OWNER_EMAIL)'` → **false**;
+`node --env-file=.env -e '…'` → **true**. `playwright.config.ts` imports only `@playwright/test`,
+has no `globalSetup`, and `dotenv` is not installed (0 references). Every role-gated spec is
+`test.skip(!requireCredentials([...]))`.
+
+**Plain English:** your end-to-end tests look like they pass. They are skipping almost everything.
+
+**Fix.** Add a script that passes the env file explicitly — Node 24 supports it natively:
+`node --env-file=.env node_modules/@playwright/test/cli.js test`. ⛔ **Do not install `dotenv`**
+(`.env.example` forbids it). `E2E_BASE_URL` must also be set or specs skip for a second reason.
+
+⚠️ `E2E_REPORTING_EMAIL` is absent from `.env` — that role still skips until it is added.
+
+⛔ **Before running these:** they authenticate against the **live production database**. There is no
+test/staging project configured anywhere. `booking-claiming.spec.ts` mutates bookings. **Settle the
+database question before wiring the credentials in** — otherwise this fix upgrades "tests nothing"
+to "tests write to production".
+
+---
+
+## F8 — ⛔ The repo cannot rebuild the production database
+
+**Verified against the live project** (read-only `list_migrations`). Production has **72** applied;
+the repo has **66** files.
+
+**7 migrations exist in production with no file in the repo:**
+
+```
+phase9_account_password_requests                    ← the account-password-requests TABLE
+phase8_staff_avatars_bucket                         ← avatar storage bucket
+phase18_storage_avatars_canonical_perm              ← its permissions
+restore_phase8_service_role_read_grants             ← service-role grants
+restore_phase8_service_role_permissions_read_grant  ← service-role grants
+phase9_payload_text
+add_override_availability_and_area_to_booking_rpc   ← a booking RPC change
+```
+
+**And one the report missed, in the other direction:** `20260502183000_restore_api_role_grants.sql`
+is in the repo and was **never applied to production**.
+
+⚠️ `grant_manage_account_requests_to_owner_admin` appears to differ but does not — production
+recorded it with a doubled timestamp prefix. Not a gap.
+
+**Timestamp drift confirmed:** 9 of 11 sampled migrations have a repo filename timestamp that differs
+from the production version (e.g. `c06_client_crud_hardening` repo `20260727120000` vs prod
+`20260727202424`). Supabase keys on the version, so a fresh `db push` treats them as unapplied.
+
+**Plain English:** rebuilding this database from the repo gives you a broken one — no
+password-requests table, no avatar storage. This likely explains why "staff avatars unsupported" was
+logged as a deferral.
+
+**Fix — repo-only, no database change.**
+1. Pull the 7 missing migrations out of production into `supabase/migrations/` with their **production
+   version numbers** as filenames.
+2. Decide `restore_api_role_grants`: apply it, or delete it and record why.
+3. ⛔ **Do not rename the 66 existing files to match production.** Renaming changes nothing in the
+   database and risks confusing a future `db push`. Record the drift in a README instead.
+
+⛔ **Owner approval needed before any `supabase db pull`.**
+
+---
+
+## F9 — Sentry traces leak the manage-booking token
+
+**Verified.** `scrubSentryEvent` is wired to `beforeSend` in all three configs — that handles
+**errors**. A dedicated `addEventProcessor` handles `replay_event`. ⛔ **There is no
+`beforeSendTransaction`**, and `tracesSampleRate` is **0.1 in production** (all three configs).
+
+**Plain English:** the URL `/booking/manage?token=…` can reach Sentry inside performance traces.
+Errors and session replays are already protected — traces were missed.
+
+**Fix — one line per config.** Add `beforeSendTransaction: scrubSentryEvent` to
+`sentry.client.config.ts`, `sentry.server.config.ts` and `sentry.edge.config.ts`.
+
+✅ The existing scrubber already handles it once invoked: the token is a `randomUUID()` (36 chars) and
+`LONG_TOKEN_PATTERN` redacts any 24+ run of `[A-Za-z0-9_-]`, hyphens included — plus `manage.*token`
+and `token` match by key name.
+
+---
+
+## F10 — Recurring-series function lost its grants (hygiene, not exploitable)
+
+**Verified.** `20260812010100_item8_phase4_series_fn_travel_fee.sql:92` **drops** the function to
+change its signature, and the migration contains **zero** GRANT/REVOKE statements. Postgres discards
+grants on drop, and a new function defaults to **EXECUTE for PUBLIC** — so
+`REVOKE … FROM PUBLIC, anon, authenticated` from `20260802122636:939` is gone.
+
+✅ **Not exploitable.** That migration rewrites the live function's source in place, so the body keeps
+its original `service_role` guard and raises `42501` for anyone else. The outer lock is gone; the
+inner one holds.
+
+**Fix.** A migration re-applying the two lines. Will also clear the Supabase advisor findings it
+currently generates.
+
+---
+
+## F11 — Rate limiter fails open silently
+
+**Verified.** `src/lib/rate-limit.ts:94-102` returns `null` when the Cloudflare binding is absent.
+⛔ **This is deliberate and correct** — the comment reads *"which is exactly the fail-open path we
+want"*, because the binding does not exist under `next dev` or in tests. There are **0** log calls in
+that catch.
+
+**Fix — logging only. Do not change the behaviour.** Emit a one-time warning when the namespace is
+unavailable in production, so a Worker misconfiguration is visible rather than silent.
+
+---
+
+## 13 — Partly real: fix only the stated half
+
+**Failed emails.** ✅ Alerting **exists** — `nav-notifications.ts:18` surfaces
+`email_failed: "Email delivery failed"` from `email_delivery_events`. **Only automatic retry is
+missing.** Do not build an alerting system that already exists.
+
+**Double submit.** ✅ A same-tab guard exists (`BookingExperience.tsx:111,579`). **Two tabs is the
+real gap** and needs a server-side idempotency key, not another client flag.
+
+---
+
+## 14 — ⛔ REFUTED. Do not re-raise these.
+
+| Claim | Verdict |
+|---|---|
+| **Honeypot shows a fake success screen** | ⛔ **By design, and well built.** The fake success is the correct pattern — a bot must learn nothing. The autofill worry is actively mitigated: `autoComplete="off"`, `tabIndex={-1}`, `aria-hidden="true"`, positioned off-screen rather than `display:none` (deliberate — the comment notes some bots skip hidden fields). It also logs the trip. **Leave it alone** |
+| **Deleted clients show in search** | ⛔ **False.** `clients-list-data.ts:553,788` apply `deleted_at IS NULL` unless `includeDeleted` is explicitly set |
+| **Three actions refuse silently** | ⛔ **Not defects.** Those `return null` sites are internal helper lookups, not user-facing actions. The reporting agent itself concluded no permission gate is missing |
+
+---
+
+## 15 — ⛔ Noted, not a code fix: four cron triggers
+
+`wrangler.jsonc:71` — `["0 8 * * *", "* * * * *", "*/15 * * * *", "0 3 * * *"]`. **One fires every
+minute.** They run today and will begin acting on real customer bookings the moment Phase 12 ships,
+along paths that have never executed against a real booking.
+
+**This is a testing requirement, not a defect.** It belongs in the production-readiness test plan.
+
+---
+
+## 16 — Verification for every fix
+
+After each one: the seven gates identical to baseline (⛔ **check the vitest count**, gotcha 118),
+plus `pnpm build`. `git status --porcelain -- src/ supabase/` will be non-empty while working — that
+is expected here, unlike during the declutter.
+
+**Per-fix proof, beyond the gates:**
+
+| Fix | Proof it worked |
+|---|---|
+| F1 | A test asserting the write path refuses booking N+1 when N therapists are free and N unassigned bookings overlap |
+| F2 | A test that a paused window rejects a public create and still allows an override create |
+| F3 | A test that a Coordinator's payload contains **no** `health_notes` key — assert on the data layer, not the DOM — **and** that two viewers with different entitlements get different cache entries |
+| F5 | A schema test rejecting an over-length note |
+| F7 | Run it and **count executed tests** — the report said 15 of 18 run once wired correctly |
+| F8 | `supabase db diff` clean, or a documented explanation of any remainder |
+| F9 | A scrubbing test covering a transaction-shaped event, not just an error |

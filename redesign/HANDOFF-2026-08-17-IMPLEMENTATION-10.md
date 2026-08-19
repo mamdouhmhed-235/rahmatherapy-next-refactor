@@ -212,6 +212,10 @@ protections in its non-negotiables sentence were preserved verbatim.**
 
 ### ⛔ 7.0 — THE OWNER'S NEXT STATED TASK: full production-readiness testing
 
+⛔ **11 verified defects now have a remediation plan:** `redesign/plans/PRODUCTION-FIXES-2026-08-17-plan.md`.
+Awaiting Owner review; nothing fixed yet. F1+F2 must share one migration, and F3's cache-key step is
+not optional.
+
 The Owner will plan and implement the test suites **themselves, with another agent.** This session
 established the baseline only — `redesign/PRODUCTION-READINESS-BASELINE-2026-08-17.md`.
 
