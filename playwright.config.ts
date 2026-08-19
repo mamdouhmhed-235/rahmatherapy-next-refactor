@@ -2,6 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  // P-3: refuses an unconfigured run instead of skipping every spec and
+  // reporting success. Also enforces the production-database boundary that was
+  // previously only a comment. See e2e/global-setup.ts.
+  globalSetup: "./e2e/global-setup.ts",
   timeout: 60_000,
   expect: {
     timeout: 10_000,
