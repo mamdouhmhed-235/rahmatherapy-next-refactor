@@ -5,10 +5,11 @@
 
 Production has **72** applied migrations. This directory has **66** files.
 
-> ⚠️ **UPDATED 2026-08-19.** Production now has **75** applied; this directory has **68** files.
+> ⚠️ **UPDATED 2026-08-19.** Production now has **76** applied; this directory has **69** files.
 > The gap is now **purely the 7 missing files in §1** — as of 2026-08-19 there are **NO unapplied
-> migrations left in this directory** (§2). The three applied since are `20260819072517`,
-> `20260819072756` and `20260819134224`; all three carry the version production recorded.
+> migrations left in this directory** (§2). The four applied since are `20260819072517`,
+> `20260819072756`, `20260819134224` and `20260819150206`; all four carry the version production
+> recorded.
 
 ---
 
@@ -225,3 +226,42 @@ comments+whitespace stripped, BOTH sides: md5 adf3343a43187b8545bfc1164b01c868, 
 different** — the repo carries fuller comments. Proven, not asserted: strip comments
 and whitespace and both hash `adf3343a…`. If byte-identity ever matters,
 `supabase db pull` is the authority, not the repo file.
+
+---
+
+## 6.4 — ✅ APPLIED 2026-08-19 — the buffer midnight-wrap fix (A2)
+
+| Version applied | Name | Repo filename |
+|---|---|---|
+| `20260819150206` | `fix_booking_buffer_midnight_wrap` | **renamed to match** |
+
+Both padded-overlap predicates in `create_booking_request` did `time` arithmetic,
+which **wraps**: `time '00:10' - interval '30 min'` → `23:40`. `OVERLAPS` then
+normalises the inverted pair, so the padded window covered nearly the whole day and
+**one late booking broke ordinary midday bookings for that date**.
+
+Replaced with minutes-since-midnight comparison, mirroring `availability.ts:226`.
+
+⛔ **The obvious `greatest`/`least` clamp does NOT fix this** — measured before
+writing the migration: `least(time '23:59:59', (time '23:59' + interval '30 min'))`
+returns `00:29`, because `least()` compares the already-wrapped value. The pair stays
+inverted. Recorded so nobody "simplifies" it back.
+
+Applied as an md5-guarded patch, predicted by a read-only dry run first:
+
+```
+pre-apply  prosrc : md5 7bea3df6fdaf25bc8825c824b6b03967, length 20078
+predicted           md5 c0d74f2454bff1778e692e54a1817e80, length 20185
+post-apply prosrc : md5 c0d74f2454bff1778e692e54a1817e80, length 20185   ✅ exact
+overlaps predicates remaining: 0   (each of the two asserted to occur once first)
+```
+
+Verified after: ACL `{postgres=X, service_role=X}` — `anon` and `authenticated` both
+`false`, `service_role` `true`; `SECURITY DEFINER`; `search_path = public, app_private`;
+the `auth.role()` guard, the date-only advisory lock key, the unassigned-reservation
+subtraction and its `ba.status`/`b.status` filters all intact.
+
+✅ **This file's body matches the live function exactly** — both hash
+`502292ac279dcfc393f392c84c770489` (12734 chars) with comments and whitespace
+stripped, so §6's "logically identical, textually different" position continues to
+hold and was independently re-derived rather than assumed.
