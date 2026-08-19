@@ -42,6 +42,29 @@ Everything else in the brief matches git exactly: HEAD, origin/master, 20 unpush
 The three lint files are `BookingExperience.tsx`, `BookingExperienceLoader.tsx`,
 `utils/returning-customer.ts` — the documented baseline. Not touched.
 
+### 1.3 — ⚠️ The code→doc citation baseline is **2**, not 1. The handoff figure is stale.
+
+`bash extract-doc-citations.sh | awk -F'\t' 'NR>1 && $4=="DANGLING"'` returns **2**:
+
+| Dangling | Status |
+|---|---|
+| `supabase/migrations/20260521160000_create_notification_state.sql:7` → `lets-start-with-r4-lazy-stroustrup.md` | the known pre-existing external one |
+| `e2e/helpers.ts:18` → `redesign/PRODUCTION-READINESS-BASELINE-2026-08-17` | ⚠️ **new, and NOT introduced by this session** |
+
+The second was introduced by **`5aab8d6`** (`git log -S` on that path confirms it), so it was already
+dangling when the handoff recorded "baseline 1". **The cited document exists** —
+`redesign/PRODUCTION-READINESS-BASELINE-2026-08-17.md` is present. The comment simply wraps the path
+across two lines, stranding `.md` on the next line, so the extractor cannot resolve it:
+
+```
+// … See redesign/PRODUCTION-READINESS-BASELINE-2026-08-17
+// .md section 3.1.
+```
+
+**Not fixed here** — it is outside this session's scope and is a one-line comment rewrap. Recorded so
+the next session either rewraps it or updates the stated baseline to 2, rather than hunting a
+regression that is not one.
+
 ---
 
 ## 2 — The two applied migrations: verified against the live database
@@ -126,7 +149,7 @@ Production **74** applied · repo **68** `.sql` files.
 | README claim | Verdict |
 |---|---|
 | 7 migrations in prod with no repo file | ✅ **exactly those 7**, still missing |
-| 1 repo migration never applied (`restore_api_role_grants`) | ✅ confirmed, 0 occurrences in prod |
+| 1 repo migration never applied (`restore_api_role_grants`) | ✅ confirmed, 0 occurrences in prod. ⚠️ **RESOLVED 2026-08-19: verified superseded and DELETED** — all 14 of its grants already exist in production as *direct* ACL entries, so it was a no-op. See README §2.1 |
 | `grant_manage_account_requests_to_owner_admin` **looks** like an 8th gap and is not | ✅ **the warning is correct** — prod recorded it with a doubled `20260521090000_` prefix. My own first matcher fell into this trap and reported a false 8th. The README saved it. |
 | "Most filenames disagree" (sampled 11, 9 differed) | ✅ confirmed and now quantified: **48 of 66 matched files drift, 18 agree** |
 | The two new files were renamed to match prod versions | ✅ both filenames equal their prod version exactly |
@@ -183,7 +206,20 @@ transaction URLs through this path.
 Related: the D9 test uses **one** hard-coded UUID, so it passes ~85% of the time by luck. A loop
 over 50 UUIDs would have caught this immediately.
 
-### 4.3 A pre-existing DST bug in the live booking function, one the fixes did not claim
+### 4.3 ✅ FIXED AND APPLIED 2026-08-19 — a pre-existing DST bug in the live booking function
+
+> **Resolved.** Applied to production as `20260819134224_fix_booking_future_check_dst`, with the
+> Owner's explicit approval, via an md5-guarded patch whose outcome a read-only dry run predicted
+> exactly (`7bea3df6…`, 20078 bytes). Behaviour re-tested live: 6 of 6 correct across BST and GMT.
+> Full record: `redesign/plans/PRODUCTION-FIXES-2026-08-17-plan.md` §18.
+>
+> ⚠️ Two corrections to what is written below, found by the independent review that preceded the fix:
+> the "masked by a 4-hour notice check" mechanism is **wrong** (the broken guard runs *first*; what
+> protects customers is that the slot list never offers such a time), and BST returns on
+> **28 March 2027**, not the 29th. The original text is kept unedited below as the record of what
+> was found at the time.
+
+**Original finding, as written:**
 
 Live `create_booking_request` line 84:
 

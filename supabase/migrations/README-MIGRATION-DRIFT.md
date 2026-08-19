@@ -5,6 +5,11 @@
 
 Production has **72** applied migrations. This directory has **66** files.
 
+> ⚠️ **UPDATED 2026-08-19.** Production now has **75** applied; this directory has **68** files.
+> The gap is now **purely the 7 missing files in §1** — as of 2026-08-19 there are **NO unapplied
+> migrations left in this directory** (§2). The three applied since are `20260819072517`,
+> `20260819072756` and `20260819134224`; all three carry the version production recorded.
+
 ---
 
 ## 1 — Seven migrations exist in production with no file here
@@ -26,32 +31,34 @@ and no avatar storage. That very likely explains why *"staff avatar photos unsup
 Verified absent under any filename: `ls supabase/migrations/ | grep -c "<name>"` returns **0** for
 all seven.
 
-## 2 — Migrations here that were never applied to production
+## 2 — ✅ CLOSED 2026-08-19 — nothing in this directory is unapplied any more
 
-**There are TWO. One is an open question; the other is deliberate and scheduled.**
+**Both open items were resolved on 2026-08-19 with the Owner's explicit approval. Do not re-raise
+either. A future census should find ZERO unapplied files here.**
 
-### 2.1 — `20260502183000_restore_api_role_grants.sql` — ⛔ undecided
+### 2.1 — `20260502183000_restore_api_role_grants.sql` — ✅ DELETED, verified superseded
 
-Exists in this directory and does **not** appear in production's applied list. Either it was
-superseded and should be deleted with a note, or it was missed and should be applied.
-**Someone has to decide which.**
+It granted `usage` on schema `public` and `select` on 14 tables to `service_role`. **Every one of
+those grants already existed in production**, so applying it would have been a no-op. Measured
+before deleting, two ways:
 
-### 2.2 — `20260819160000_fix_booking_future_check_dst.sql` — ✅ deliberate, not yet applied
+- `has_table_privilege('service_role', …, 'SELECT')` → **true for all 14**
+- the stronger check — a **direct** `service_role=…r…` entry in each table's `relacl`, not merely
+  inherited → **true for all 14**
+- `has_schema_privilege('service_role','public','USAGE')` → **true**
+  (control: `has_schema_privilege('anon','information_schema','CREATE')` → false, so the test does
+  discriminate)
 
-Written 2026-08-19. ⛔ **This is NOT drift — do not "reconcile" it, and do not flag it as an
-eighth/ninth gap in a future census.** It is queued to ship **with Phase 12**, by the Owner's
-explicit decision on 2026-08-19.
+Almost certainly superseded by `restore_phase8_service_role_read_grants` (`20260502165759`) and
+`restore_phase8_service_role_permissions_read_grant` (`20260502170527`), which ran in production
+earlier the same afternoon — and which are themselves two of the 7 files missing from §1.
 
-It changes exactly one line of `create_booking_request`, fixing a guard that is one hour wrong
-throughout British Summer Time. Full reasoning is in the file's own header and in
-`redesign/plans/PRODUCTION-FIXES-2026-08-17-plan.md` §17.5 row A.
+⛔ **Recoverable from git history** (last present in `46e7732`); nothing was rewritten. No code
+referenced it — the only mentions were documentation about this very decision.
 
-⛔ **Applying it needs the Owner's per-action approval, like every DB write here.** It carries an
-md5 pre-condition (`8e455336428b4376fdffb7744eb8ae9c`) so it aborts untouched if the live body has
-drifted since. **Rename it to the version production records once applied**, per §4 rule 1.
+### 2.2 — `20260819134224_fix_booking_future_check_dst.sql` — ✅ APPLIED 2026-08-19
 
-⚠️ Applying it also **closes the §6 fidelity gap**: the live body would become byte-identical to the
-repo file again, rather than merely equivalent.
+Owner approved and it is **live**. See §6.3.
 
 ## 3 — Most filenames disagree with production's recorded versions
 
@@ -94,7 +101,8 @@ generate a large diff.
 
 1. Keep the generated filenames (production's timestamps) — do **not** rename them to match the
    tidy local convention. The version is the identity.
-2. Decide `restore_api_role_grants`: apply it, or delete it and record why here.
+2. ~~Decide `restore_api_role_grants`: apply it, or delete it and record why here.~~
+   ✅ **DECIDED 2026-08-19: deleted, verified superseded. See §2.1.**
 3. ⛔ **Do not rename the 66 existing files** to match production. Renaming changes nothing in the
    database and risks a future `db push` re-running them. The drift is recorded here instead.
 
@@ -158,3 +166,62 @@ Re-apply `20260811210000_item8_phase2_remove_service_area_gate.sql`, whose body
 is byte-identical to the pre-apply live function (md5 `6b5fb9de…`, verified
 before the change). The grant fixes should NOT be rolled back — they restore an
 intended lock that a signature change silently dropped.
+
+---
+
+## 6.3 — ✅ APPLIED 2026-08-19 — the BST future-check fix
+
+| Version applied | Name | Repo filename |
+|---|---|---|
+| `20260819134224` | `fix_booking_future_check_dst` | **renamed to match** |
+
+Owner approved explicitly. One line of `create_booking_request` changed:
+
+```sql
+-  if v_requested_at < timezone('Europe/London', now()) then
++  if v_requested_at < now() then
+```
+
+The old form compared a `timestamptz` against a **naive** timestamp, which Postgres
+coerced at the session TimeZone (UTC here), so throughout BST the "must be in the
+future" threshold sat **one hour ahead** and any booking starting within the next
+~60 minutes was refused. Full reasoning: `redesign/plans/PRODUCTION-FIXES-2026-08-17-plan.md` §18.
+
+**Applied as an md5-guarded patch of the live source, not by re-transmitting the
+file** (gotcha 126). Measured, with the whole thing predicted by a read-only dry
+run *before* anything was written:
+
+```
+pre-apply  prosrc : md5 8e455336428b4376fdffb7744eb8ae9c, length 20105
+predicted           md5 7bea3df6fdaf25bc8825c824b6b03967, length 20078
+post-apply prosrc : md5 7bea3df6fdaf25bc8825c824b6b03967, length 20078   ✅ exact
+bytes removed     : 27   (the 59-char guard line became 32 chars)
+guard occurrences : 1    (asserted before replacing)
+```
+
+The migration carried **both** an md5 pre-condition and an md5 **post-condition**,
+so any deviation would have aborted inside the transaction. Verified after:
+`proacl` unchanged (`service_role` keeps EXECUTE — `CREATE OR REPLACE` does not
+discard grants, gotcha 124), `prosecdef` still true, the old form **gone**, the new
+form **present**, and ⛔ **`v_today` (line 9) and the `v_requested_at` assignment
+(line 82) both deliberately UNTOUCHED** — those `timezone()` calls are correct and
+"fixing" them would introduce a real bug.
+
+Behaviour re-tested live across BST and GMT, past and future: **6 of 6 correct**.
+
+### ⚠️ The §6 fidelity note still applies — it was NOT closed
+
+An earlier draft of this file claimed applying the fix would make the live body
+byte-identical to the repo file. **That was wrong, because the patch route was
+chosen over re-transmitting the file.** The position is unchanged in kind:
+
+```
+live prosrc            : md5 7bea3df6fdaf25bc8825c824b6b03967, length 20078
+repo file body         : md5 80375eefbe40bf20a60042568552cfee, length 22627
+comments+whitespace stripped, BOTH sides: md5 adf3343a43187b8545bfc1164b01c868, 12668
+```
+
+⛔ **The repo file and the live function are logically IDENTICAL and textually
+different** — the repo carries fuller comments. Proven, not asserted: strip comments
+and whitespace and both hash `adf3343a…`. If byte-identity ever matters,
+`supabase db pull` is the authority, not the repo file.
