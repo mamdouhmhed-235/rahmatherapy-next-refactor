@@ -26,11 +26,32 @@ and no avatar storage. That very likely explains why *"staff avatar photos unsup
 Verified absent under any filename: `ls supabase/migrations/ | grep -c "<name>"` returns **0** for
 all seven.
 
-## 2 — One migration here was never applied to production
+## 2 — Migrations here that were never applied to production
 
-`20260502183000_restore_api_role_grants.sql` exists in this directory and does **not** appear in
-production's applied list. Either it was superseded and should be deleted with a note, or it was
-missed and should be applied. **Someone has to decide which.**
+**There are TWO. One is an open question; the other is deliberate and scheduled.**
+
+### 2.1 — `20260502183000_restore_api_role_grants.sql` — ⛔ undecided
+
+Exists in this directory and does **not** appear in production's applied list. Either it was
+superseded and should be deleted with a note, or it was missed and should be applied.
+**Someone has to decide which.**
+
+### 2.2 — `20260819160000_fix_booking_future_check_dst.sql` — ✅ deliberate, not yet applied
+
+Written 2026-08-19. ⛔ **This is NOT drift — do not "reconcile" it, and do not flag it as an
+eighth/ninth gap in a future census.** It is queued to ship **with Phase 12**, by the Owner's
+explicit decision on 2026-08-19.
+
+It changes exactly one line of `create_booking_request`, fixing a guard that is one hour wrong
+throughout British Summer Time. Full reasoning is in the file's own header and in
+`redesign/plans/PRODUCTION-FIXES-2026-08-17-plan.md` §17.5 row A.
+
+⛔ **Applying it needs the Owner's per-action approval, like every DB write here.** It carries an
+md5 pre-condition (`8e455336428b4376fdffb7744eb8ae9c`) so it aborts untouched if the live body has
+drifted since. **Rename it to the version production records once applied**, per §4 rule 1.
+
+⚠️ Applying it also **closes the §6 fidelity gap**: the live body would become byte-identical to the
+repo file again, rather than merely equivalent.
 
 ## 3 — Most filenames disagree with production's recorded versions
 

@@ -497,7 +497,7 @@ original D9 test still passed. Exactly the blind spot it was written to close.
 
 | # | Issue | Why not fixed |
 |---|---|---|
-| **A** | **BST bug in the live booking RPC.** `create_booking_request` line 84 compares a `timestamptz` against `timezone('Europe/London', now())`, a **naive** timestamp. Postgres coerces it at the session TimeZone (UTC), so during BST the "must be in the future" threshold sits **one hour ahead**. Measured live across 5 dates: skew `+01:00` on 2026-08-19 and 2026-10-24, `00:00` on 2026-01-15, 2026-03-28 and 2026-10-26. **During BST a booking starting in the next ~60 min is refused.** Website bookings are masked by the 4h notice check; **phone/admin bookings are not** | ⛔ **Requires a migration applied to production — needs the Owner's explicit per-action approval.** Not a repo-only change. ⚠️ **NOT a failure of D4** — D4's claim was scoped to the minimum-notice check and that fix is correct. Line 84 is a separate pre-existing instance, identical in the pre-apply file (lines 120/122). It fails **closed**: it refuses bookings, never accepts bad ones |
+| **A** | ✅ **MIGRATION WRITTEN 2026-08-19, NOT APPLIED — ships with Phase 12.** See §18. **BST bug in the live booking RPC.** `create_booking_request` line 84 compares a `timestamptz` against `timezone('Europe/London', now())`, a **naive** timestamp. Postgres coerces it at the session TimeZone (UTC), so during BST the "must be in the future" threshold sits **one hour ahead**. Measured live across 5 dates: skew `+01:00` on 2026-08-19 and 2026-10-24, `00:00` on 2026-01-15, 2026-03-28 and 2026-10-26. **During BST a booking starting in the next ~60 min is refused.** Website bookings are masked by the 4h notice check; **phone/admin bookings are not** | ⛔ **Requires a migration applied to production — needs the Owner's explicit per-action approval.** Not a repo-only change. ⚠️ **NOT a failure of D4** — D4's claim was scoped to the minimum-notice check and that fix is correct. Line 84 is a separate pre-existing instance, identical in the pre-apply file (lines 120/122). It fails **closed**: it refuses bookings, never accepts bad ones |
 | **B** | **The price parity test guards 5 of 25 price literals in `packagePages.ts`** (⚠️ corrected after review — `grep -c "price:"` returns 28, but **3 are `price: string;` interface declarations** at lines 10/30/74). Exact shape: **5 top-level (guarded) + 15 in `relatedPackages[]` + 5 `summary.price`**. The 15 are **rendered** at `RelatedPackages.tsx:25` on all five package pages; the 5 `summary.price` are **not rendered anywhere** and carry no customer risk. Mutation test: changing a cross-sell price leaves **240 files / 2467 tests green**. `packagePages.ts` is also the one mirror left out of the per-id join, so two *swapped* prices there also ship green | Nothing is mis-quoted today — all cross-sell prices currently match, so the exposure is future. Widening the accessor is a real change, not a one-liner, and F6 chose option B deliberately. ⚠️ **The test header's claim that it "makes shipping a divergence impossible" is not true of this file** |
 | **C** | **`phone` and `email` are uncapped** on the public booking route (`route.ts:34-35`). Bounded only by the 256 KB body cap | Pre-existing and untouched: `git diff 58c22ad^ 1d179a5 -- src/app/api/bookings/route.ts` shows **0** changed lines mentioning either. F5 made this file strictly better. A gap in F5's *stated* scope, not a regression |
 | **D** | **`20260812010100` asserts an md5 (`3f5424d…`) no repo file can produce** — `c02` is the only repo definer of the series function and its body hashes `5eb7d49f…`. A second rebuild blocker | Real, but **not the first** failure: a rebuild dies far earlier on the missing `account_password_requests` table, which **F8 / README §1 already records**. Worth one line in the README, nothing more. Subsumed by F8 |
@@ -508,3 +508,79 @@ original D9 test still passed. Exactly the blind spot it was written to close.
 contrast **110 (46/64)** · verify **0** · `pnpm build` succeeds.
 ⛔ The vitest **count rose** — new guard tests only, nothing removed. Counted, not eyeballed
 (gotcha 118).
+
+---
+
+## 18 — ⛔ THE BST FIX: written, NOT applied. Ships with Phase 12.
+
+`supabase/migrations/20260819160000_fix_booking_future_check_dst.sql` — **Owner decision
+2026-08-19: Option A, surgical.** Repo-only. **Nothing has been applied to the database.**
+
+### What it changes
+
+One line of `create_booking_request`, and nothing else:
+
+```sql
+-  if v_requested_at < timezone('Europe/London', now()) then
++  if v_requested_at < now() then
+```
+
+`v_requested_at` is `timestamptz`. `timezone('Europe/London', now())` is a **naive** timestamp, which
+Postgres coerces at the session TimeZone — UTC on this project — so throughout BST the threshold sat
+**one hour in the future** and any booking starting within the next ~60 minutes was refused as "in
+the past". Both sides are absolute instants now.
+
+### Independently verified before writing it — six agents, three angles, none refuted
+
+- **The mechanism is real.** Proven beyond the original analysis: a live REST request returns a BST
+  timestamp as `+00:00`, so PostgREST connections genuinely run on UTC. No role, database default or
+  `db_pre_request` hook overrides it.
+- **Reachable through one screen only** — the admin **"Override availability"** branch, the sole
+  surface with a free-typed time input. The public site and the ordinary admin slot picker are both
+  filtered by `isOutsideMinimumNotice` in `availability.ts`, so neither is ever offered a slot inside
+  the window. ⛔ The guard sits **before** the `if not p_override_availability` block, so ticking
+  override does **not** bypass it.
+- **Never once fired.** Across all 15 bookings the shortest positive lead time is **263 minutes**
+  against a 60-minute window. It fails **closed** — it can only over-refuse.
+- **The fix is strictly relaxing.** Over 61,488 probes covering every hour of 2026 it disagrees with
+  the old form *only* where the old form was wrong, is never more permissive, and still refuses every
+  genuinely past time in both seasons. That is the safest possible shape for a live change.
+
+### Corrections to §17.5 row A, which this supersedes
+
+1. ⚠️ **The masking mechanism was stated wrongly.** Website bookings are **not** protected by the
+   4-hour notice check "running later" — the broken guard runs **first**. They are protected by the
+   slot list never offering such a time. Same outcome, wrong reason.
+2. ⚠️ **BST returns 28 March 2027**, not 29 March.
+3. ⚠️ **"Public bookings are closed" is not a mitigation.** `booking_status_enabled` is `true` in the
+   database; the banner is front-end only. It is irrelevant anyway — the exposed path is the admin
+   override branch, which is live right now.
+
+### How it is built, and why that way
+
+Byte-concatenated from `20260819072756_f1_f2_booking_capacity_and_window.sql`, whose body is
+**logically identical to the live function** (both hash `d55a0da2bbf448a26e50a94e27bbdd29` with
+comments and whitespace stripped). `diff` of the two SQL bodies shows **exactly one** change.
+Stripped body: **12694 → 12668** characters, i.e. 26 removed — 25 for `timezone('Europe/London',`
+plus its closing paren. Nothing else moved.
+
+⚠️ **This deliberately reverses gotcha 126's advice for this case.** Patching live `prosrc` by regex
+was right when the repo file was unproven; now that the file is *proven* equivalent, re-issuing it is
+strictly safer — a readable diff beats string surgery on production source.
+
+It carries an **md5 pre-condition** (`8e455336428b4376fdffb7744eb8ae9c`) that aborts the migration
+untouched if the live body has drifted (gotcha 122/126). `CREATE OR REPLACE` preserves grants —
+only `DROP` discards them (gotcha 124) — and the signature is unchanged.
+
+⚠️ **Applying it also closes the README §6 fidelity gap**: the live body becomes byte-identical to
+the repo file rather than merely equivalent.
+
+### ⛔ Left undone, deliberately — and it needs an Owner decision one day
+
+The check immediately above blocks **any** past-dated booking for **every** caller, staff included,
+so yesterday's walk-in cannot be logged through the app. Evidence: four bookings carry a
+`booking_date` earlier than their `created_at`, so they were inserted directly, bypassing the RPC.
+
+Gating **both** guards on `p_booking_source = 'website'` — the pattern the function already uses for
+the notice check — would fix that and this together. **The Owner was offered this (Option B) on
+2026-08-19 and chose the surgical fix instead.** Recorded so it is not re-raised as an oversight.
