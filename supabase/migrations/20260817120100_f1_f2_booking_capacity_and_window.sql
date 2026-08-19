@@ -4,39 +4,53 @@
 -- Split across two files, the second would silently discard the first.
 --
 -- F1 -- the API accepted more bookings than there are therapists.
---   The capacity loop marks a therapist busy only when an existing booking
---   NAMES them (booking_assignments.assigned_staff_id = staff.id). Every website
+--   The capacity loop marked a therapist busy only when an existing booking
+--   NAMED them (booking_assignments.assigned_staff_id = staff.id). Every website
 --   booking is created with assigned_staff_id = null, so it made nobody busy and
---   consumed zero capacity. With 2 therapists the API would accept a 5th booking
---   for the same slot.
+--   consumed zero capacity.
 --   The customer calendar was always correct -- availability.ts subtracts
---   unassigned reservations. Only the write path disagreed, so reaching this
---   needed a direct POST or a race, and the assignment screen independently
---   refuses to double-book. The damage was over-acceptance and having to ring
---   people back, not two therapists at one door.
+--   unassigned reservations. Only the write path disagreed.
 --
--- F2 -- pause, minimum notice and buffer were unenforced on writes.
---   Zero references to business_settings existed in this function. The site
---   obeyed the settings; the API underneath did not.
---   The checks are gated on p_override_availability so ADMIN bookings still work
---   when intake is paused -- restoring them unconditionally would block the
---   Owner's own same-day phone bookings, which is why the old checks were not
---   simply reinstated verbatim.
+-- F2 -- pause and minimum notice were unenforced on writes.
+--   Zero references to the booking-window settings existed in this function.
+--   The site obeyed them; the API underneath did not.
 --
--- SIGNATURE IS UNCHANGED, so CREATE OR REPLACE is correct and GRANTs are
--- preserved. Contrast 20260812010100, which changed a signature, had to DROP,
--- and silently lost its grants -- see 20260817120000_f10_restore_series_fn_grants.
+-- REVISION 2 -- an independent review found five defects in revision 1. All are
+-- fixed here, and every one would have shipped silently because no gate in this
+-- repo can see SQL:
+--   D4  the notice check did wall-clock arithmetic and was ONE HOUR WRONG across
+--       every BST transition (next: 25 Oct 2026). Now uses v_requested_at, the
+--       absolute timestamptz the function already computes.
+--   D5  the buffer was missing from BOTH overlap checks, so the write path
+--       accepted back-to-back slots the calendar refuses. Now mirrors the read
+--       engine on both.
+--   D6  the checks were gated on p_override_availability, which is an
+--       availability-override CHECKBOX, not "is an admin booking" -- so a paused
+--       intake would have blocked the Owner's own phone bookings. Now gated on
+--       p_booking_source = 'website'.
+--   D11 a second redundant read of business_settings; v_settings was in scope.
+--   D12 the status set diverged from the read engine (completed vs pending and
+--       confirmed only).
+--   D13 the advisory lock keyed on date AND time, so two overlapping requests at
+--       different start times took different locks and both passed. Now keyed on
+--       the date, which is what makes the capacity check race-safe.
 --
--- The body below is the live definition from 20260811210000 with exactly three
--- inserted blocks, applied programmatically with a uniqueness assertion on every
--- anchor. It was not retyped.
+-- SIGNATURE IS UNCHANGED, so CREATE OR REPLACE is correct and existing grants
+-- survive. See the REVOKE at the foot of this file for why "grants survive" is
+-- not purely good news here.
+--
+-- The body below is the live definition from 20260811210000 -- byte-identical to
+-- production, confirmed by md5(prosrc) -- with inserted blocks applied
+-- programmatically under a uniqueness assertion per anchor. It was not retyped.
 --
 -- VERIFY AFTER APPLYING
---   1. With N therapists free and N unassigned bookings overlapping a slot, the
---      N+1th create must raise 'Not enough ... therapists available'.
---   2. With booking_status_enabled = false a public create must raise
---      'Online booking is currently paused.'; an override create must succeed.
---   3. An admin create inside the notice window must still succeed.
+--   1. N therapists free, N unassigned bookings overlapping a slot: the N+1th
+--      create must raise 'Not enough ... therapists available'.
+--   2. booking_status_enabled = false: a 'website' create must raise
+--      'Online booking is currently paused.'; a 'phone' create must SUCCEED.
+--   3. A 'phone' create inside the notice window must SUCCEED.
+--   4. With buffer_time_mins = 30 and a 10:00-11:00 booking on the only
+--      therapist, an 11:00 create must be refused.
 
 CREATE OR REPLACE FUNCTION public.create_booking_request(p_service_slugs text[], p_contact_full_name text, p_contact_email text, p_contact_phone text, p_customer_notes text, p_health_notes text, p_consent_acknowledged boolean, p_service_address_line1 text, p_service_city text, p_service_postcode text, p_access_notes text, p_booking_date date, p_start_time time without time zone, p_participant_genders staff_gender_type[], p_participant_display_names text[] DEFAULT ARRAY[]::text[], p_participant_notes text[] DEFAULT ARRAY[]::text[], p_booking_source text DEFAULT 'website'::text, p_participant_service_slugs text[] DEFAULT NULL::text[], p_override_availability boolean DEFAULT false, p_area text DEFAULT NULL::text, p_client_id uuid DEFAULT NULL::uuid, p_confirm_duplicate boolean DEFAULT false, p_raise_on_duplicate boolean DEFAULT false)
  RETURNS jsonb
@@ -87,9 +101,6 @@ declare
   -- F1 (2026-08-17): unassigned reservations, subtracted from live capacity.
   v_unassigned_male integer := 0;
   v_unassigned_female integer := 0;
-  -- F2 (2026-08-17): the booking-window settings the READ engine already obeys.
-  v_booking_enabled boolean;
-  v_minimum_notice_hours integer;
 begin
   if v_actor_role is distinct from 'service_role' then
     raise exception 'create_booking_request may only be called with the service role'
@@ -177,36 +188,52 @@ begin
 
   -- Skip availability checks entirely when override is active
   if not p_override_availability then
-    -- --- F2 (2026-08-17): enforce the booking window on WRITES --------------
+
+    -- --- F2 (2026-08-17): enforce the booking window on WRITES ---------------
     -- booking_status_enabled and minimum_notice_hours were honoured by the read
-    -- engine (src/lib/booking/availability.ts) but had ZERO references in this
-    -- function, so a hand-crafted POST bypassed both.
+    -- engine (src/lib/booking/availability.ts) but had ZERO references here, so
+    -- a hand-crafted POST bypassed both.
     --
-    -- Deliberately INSIDE `if not p_override_availability`. Admin-created
-    -- bookings pass that flag and must keep working when intake is paused or
-    -- inside the notice window -- that is exactly the same-day phone booking the
-    -- Owner takes. Public submissions do not set it and are held to the rules.
-    select booking_status_enabled, minimum_notice_hours
-      into v_booking_enabled, v_minimum_notice_hours
-      from public.business_settings
-      limit 1;
+    -- D6 (2026-08-17): gated on p_booking_source, NOT p_override_availability.
+    -- The first version used the override flag believing it meant "admin
+    -- booking". It does not -- it is a checkbox the admin ticks to override
+    -- AVAILABILITY (ManualBookingForm useState(false), absent by default). So
+    -- pausing intake would have blocked the Owner's own same-day phone booking
+    -- unless they happened to tick an unrelated box: precisely the workflow this
+    -- was supposed to protect. booking_source distinguishes them properly --
+    -- 'website' is the public form, everything else is staff-entered.
+    --
+    -- D11: reads v_settings, already loaded above. The first version issued a
+    -- second, redundant `select ... from business_settings limit 1`.
+    if p_booking_source = 'website' then
+      if coalesce(v_settings.booking_status_enabled, true) = false then
+        raise exception 'Online booking is currently paused.'
+          using errcode = 'P0001';
+      end if;
 
-    if coalesce(v_booking_enabled, true) = false then
-      raise exception 'Online booking is currently paused.'
-        using errcode = 'P0001';
-    end if;
-
-    if coalesce(v_minimum_notice_hours, 0) > 0
-       and (p_booking_date + p_start_time)
-             < (now() at time zone 'Europe/London')
-               + make_interval(hours => v_minimum_notice_hours) then
-      raise exception 'This time is inside the minimum notice window.'
-        using errcode = 'P0001';
+      -- D4 (2026-08-17): uses v_requested_at, the absolute timestamptz already
+      -- computed above. The first version did wall-clock arithmetic
+      -- (`(now() at time zone 'Europe/London') + interval`), which is CALENDAR
+      -- arithmetic on a naive timestamp and is one hour wrong across every BST
+      -- transition -- next on 25 Oct 2026. verify:london-time cannot catch it:
+      -- it only exercises the TypeScript helpers.
+      if coalesce(v_settings.minimum_notice_hours, 0) > 0
+         and v_requested_at
+               < now() + make_interval(hours => v_settings.minimum_notice_hours) then
+        raise exception 'This time is inside the minimum notice window.'
+          using errcode = 'P0001';
+      end if;
     end if;
 
     perform pg_advisory_xact_lock(
       hashtextextended(
-        'create_booking_request:' || p_booking_date::text || ':' || p_start_time::text,
+        -- D13 (2026-08-17): was keyed on date AND start_time, so a 10:00 and a
+        -- 10:30 request for a 60-minute service overlapped but took DIFFERENT
+        -- locks and both passed the capacity check. Keyed on the date alone,
+        -- concurrent creates for the same day serialise, which is what the
+        -- capacity check needs to be sound. At this volume (~15 bookings) the
+        -- contention cost is nil.
+        'create_booking_request:' || p_booking_date::text,
         0
       )
     );
@@ -325,6 +352,12 @@ begin
         continue;
       end if;
 
+      -- D5 (2026-08-17): the busy window is widened by buffer_time_mins on
+      -- both sides, matching overlaps() in src/lib/booking/availability.ts
+      -- (start < busyEnd + buffer && end > busyStart - buffer). Without it the
+      -- write path accepted an 11:00 slot straight after a 10:00-11:00 booking
+      -- that the customer calendar refuses -- zero travel gap, which is the
+      -- entire purpose of the buffer.
       select exists (
         select 1
         from public.bookings b
@@ -333,7 +366,10 @@ begin
           and b.booking_date = p_booking_date
           and b.status not in ('cancelled', 'no_show')
           and (
-            (b.start_time, b.end_time) overlaps (p_start_time, v_end_time)
+            (p_start_time, v_end_time) overlaps (
+              b.start_time - make_interval(mins => coalesce(v_settings.buffer_time_mins, 0)),
+              b.end_time   + make_interval(mins => coalesce(v_settings.buffer_time_mins, 0))
+            )
           )
       )
       into v_has_busy_overlap;
@@ -355,9 +391,9 @@ begin
     -- with assigned_staff_id = null, so it consumed ZERO capacity and N bookings
     -- could be accepted against far fewer therapists.
     --
-    -- The read engine already does this: unassignedReservationCounts() in
-    -- src/lib/booking/availability.ts subtracts them before offering a slot.
-    -- This makes the write path agree with the calendar the customer saw.
+    -- Mirrors unassignedReservationCounts() in src/lib/booking/availability.ts,
+    -- including its buffer (D5) and its status set (D12: the read engine counts
+    -- pending and confirmed only, not completed).
     select
       coalesce(count(*) filter (where ba.required_therapist_gender = 'male'), 0),
       coalesce(count(*) filter (where ba.required_therapist_gender = 'female'), 0)
@@ -367,8 +403,11 @@ begin
      where ba.assigned_staff_id is null
        and ba.status in ('unassigned', 'assigned')
        and b.booking_date = p_booking_date
-       and b.status not in ('cancelled', 'no_show')
-       and (b.start_time, b.end_time) overlaps (p_start_time, v_end_time);
+       and b.status in ('pending', 'confirmed')
+       and (p_start_time, v_end_time) overlaps (
+             b.start_time - make_interval(mins => coalesce(v_settings.buffer_time_mins, 0)),
+             b.end_time   + make_interval(mins => coalesce(v_settings.buffer_time_mins, 0))
+           );
 
     v_available_male := greatest(0, v_available_male - v_unassigned_male);
     v_available_female := greatest(0, v_available_female - v_unassigned_female);
@@ -645,3 +684,28 @@ begin
   );
 end;
 $function$;
+
+
+-- ─── D8 (2026-08-17): this function also holds PUBLIC EXECUTE ────────────────
+-- Found by the same review that produced F10. `20260727120000_c06_client_crud_
+-- hardening.sql:671-693` granted EXECUTE to service_role after a signature
+-- change WITHOUT the paired REVOKE, so PUBLIC has held EXECUTE ever since --
+-- confirmed live: proacl showed `=X/postgres` on this function.
+--
+-- Identical root cause and identical severity to F10: not exploitable, because
+-- the body raises 42501 for any caller that is not the service role, but the
+-- outer lock has been missing and it generates advisor findings. Restored here
+-- while the file is open rather than left for a third migration.
+--
+-- Idempotent: REVOKE from a role holding nothing is a no-op.
+REVOKE ALL ON FUNCTION public.create_booking_request(
+  text[], text, text, text, text, text, boolean, text, text, text, text, date,
+  time without time zone, staff_gender_type[], text[], text[], text, text[],
+  boolean, text, uuid, boolean, boolean
+) FROM PUBLIC, anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION public.create_booking_request(
+  text[], text, text, text, text, text, boolean, text, text, text, text, date,
+  time without time zone, staff_gender_type[], text[], text[], text, text[],
+  boolean, text, uuid, boolean, boolean
+) TO service_role;

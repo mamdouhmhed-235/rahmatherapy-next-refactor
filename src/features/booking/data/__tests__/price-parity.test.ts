@@ -21,6 +21,11 @@ import { describe, expect, it } from "vitest";
 import { BOOKING_PACKAGES } from "../booking-packages";
 import { servicePackages } from "@/content/pages/services";
 import { homePackages } from "@/content/pages/home";
+// D7 (2026-08-17): packagePages.ts was MISSING from the first version of
+// this test — the file the plan lists first, with 30 price literals, the most
+// of any source. A price changed there alone kept the suite green while the
+// public package landing pages quoted the old number.
+import { packagePages } from "@/content/pages/packagePages";
 import {
   PACKAGE_OPTIONS,
   MASSAGE_OPTIONS,
@@ -65,6 +70,13 @@ describe("price parity across the five hand-maintained sources", () => {
   it("home.ts matches the booking prices", () => {
     const prices = sortedPrices(
       homePackages.map((pkg) => poundsToNumber(pkg.price))
+    );
+    expect(prices).toEqual(CANONICAL);
+  });
+
+  it("packagePages.ts matches the booking prices", () => {
+    const prices = sortedPrices(
+      packagePages.map((pkg) => poundsToNumber(pkg.price))
     );
     expect(prices).toEqual(CANONICAL);
   });

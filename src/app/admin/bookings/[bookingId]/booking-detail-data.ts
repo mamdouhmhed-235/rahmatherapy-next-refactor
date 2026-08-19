@@ -56,7 +56,10 @@ import {
 } from "../access";
 // F3 (2026-08-17): health notes were rendered on the booking page with no
 // permission check at all — any viewer who could open a booking saw them.
-import { canManageSensitiveClientNotes } from "@/lib/auth/rbac";
+import {
+  canManageSensitiveClientNotes,
+  canViewAssignedHealthNotes,
+} from "@/lib/auth/rbac";
 import type { BookingRecord } from "../types";
 import type { RestoreContext } from "./NextActionButton";
 
@@ -371,7 +374,21 @@ export async function getBookingDetailData(
   // canClaim — `profile` carries a permissions Set and must never enter the
   // cache key (SHARED-NOTES §15). What varies per caller is captured by these
   // explicit booleans instead.
-  const canViewHealthNotes = canManageSensitiveClientNotes(profile);
+  //
+  // ⛔ D3 (2026-08-17): the first version used canManageSensitiveClientNotes
+  // ALONE. Therapists hold only VIEW_CLIENT_HEALTH_NOTES_ASSIGNED, so that
+  // denied health notes to the therapist about to treat the client — and
+  // contradicted /admin/clients/[id], which already grants them. This mirrors
+  // the established rule in src/app/admin/clients/access.ts:
+  //   canManageSensitive || canManagePrivacy || (assigned && canViewAssigned)
+  // canManageSensitiveClientNotes() already covers the first two.
+  //
+  // `claimableOnly` is the inverse of "assigned to this booking": a viewer who
+  // is neither an all-bookings manager nor assigned can only ever reach this
+  // page in claimable-only mode, where health notes are nulled regardless.
+  const canViewHealthNotes =
+    canManageSensitiveClientNotes(profile) ||
+    canViewAssignedHealthNotes(profile);
 
   const cached = unstable_cache(
     async (): Promise<BookingDetailData> => {
