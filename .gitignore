@@ -81,3 +81,12 @@ photos-rahma-therapy/
 # duplicate 284 KB. It was untracked AND unignored until 2026-08-17, i.e. one
 # `git add .` away from a public repo.
 .claude/skills/impeccable.zip
+
+# Production-readiness audit workspace (local only)
+.production-readiness/
+
+# Supabase CLI scratch state — written by any `supabase`/MCP call (e.g. the
+# read-only list_migrations used in the 2026-08-17 audit). Regenerable, and it
+# otherwise breaks the documented `git status --porcelain -- src/ supabase/`
+# gate, which must stay EMPTY.
+supabase/.temp/
