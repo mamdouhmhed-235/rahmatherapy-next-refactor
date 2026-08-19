@@ -1,11 +1,11 @@
 // ⛔ THESE TESTS WRITE TO THE PRODUCTION DATABASE. Read before running them.
 //
 // There is exactly ONE Supabase project configured in this repo -- no test,
-// staging or branch database exists anywhere in .env.example, playwright.config
-// .ts, e2e/ or scripts/. E2E_BASE_URL defaults to localhost, so the APP is
-// local, but it authenticates against and writes to the live production
-// database holding real customer bookings. booking-claiming.spec.ts mutates
-// bookings.
+// staging or branch database exists anywhere in .env.example,
+// playwright.config.ts, e2e/ or scripts/. E2E_BASE_URL defaults to localhost,
+// so the APP is local, but it authenticates against and writes to the live
+// production database holding real customer bookings. booking-claiming.spec.ts
+// mutates bookings.
 //
 // `pnpm test:e2e` alone is harmless today for a different reason: Playwright
 // never loads .env, so no credentials reach the process and every role-gated
@@ -15,8 +15,12 @@
 //
 // Settle the database question before running the auth variant: a Supabase
 // branch/preview database, a namespaced test tenant, or keep destructive e2e
-// manual and Owner-driven. See redesign/PRODUCTION-READINESS-BASELINE-2026-08-17
-// .md section 3.1.
+// manual and Owner-driven.
+//
+// ⛔ Keep the path below on ONE line. Wrapping it stranded the ".md" on the
+// next line, which the code->doc citation gate reads as a DANGLING citation to
+// a document that actually exists.
+// See redesign/PRODUCTION-READINESS-BASELINE-2026-08-17.md section 3.1.
 //
 import fs from "node:fs";
 import { expect, type Page } from "@playwright/test";

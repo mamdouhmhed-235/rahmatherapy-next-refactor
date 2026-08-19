@@ -42,7 +42,16 @@ Everything else in the brief matches git exactly: HEAD, origin/master, 20 unpush
 The three lint files are `BookingExperience.tsx`, `BookingExperienceLoader.tsx`,
 `utils/returning-customer.ts` — the documented baseline. Not touched.
 
-### 1.3 — ⚠️ The code→doc citation baseline is **2**, not 1. The handoff figure is stale.
+### 1.3 — ✅ FIXED. The code→doc citation gate is back to its documented baseline of **1**.
+
+> **Resolved 2026-08-19.** The wrapped path in `e2e/helpers.ts` was rewrapped so the full filename
+> stays on one line. That citation now reports **`RESOLVES`**, and the gate returns **1** dangling —
+> the known pre-existing external one — so the handoff's stated baseline is true again. A `⛔` note
+> was added above the line telling the next person not to re-wrap it. The identical split in
+> `playwright.config.ts` two lines up was fixed at the same time; it was never flagged, because the
+> gate only tracks document citations, but it was the same mistake.
+>
+> **The finding as originally recorded:**
 
 `bash extract-doc-citations.sh | awk -F'\t' 'NR>1 && $4=="DANGLING"'` returns **2**:
 
@@ -61,9 +70,8 @@ across two lines, stranding `.md` on the next line, so the extractor cannot reso
 // .md section 3.1.
 ```
 
-**Not fixed here** — it is outside this session's scope and is a one-line comment rewrap. Recorded so
-the next session either rewraps it or updates the stated baseline to 2, rather than hunting a
-regression that is not one.
+~~**Not fixed here** — it is outside this session's scope and is a one-line comment rewrap.~~
+✅ **Fixed on the Owner's instruction, same session.** See the note at the head of this section.
 
 ---
 
