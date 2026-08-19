@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { scrubSentryEvent } from "./sentry-scrubbing";
 
@@ -72,6 +73,63 @@ describe("scrubSentryEvent", () => {
     expect(trace.trace_id).toBe("a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6");
     expect(trace.span_id).toBe("1234567890abcdef");
     expect(scrubbed.type).toBe("transaction");
+  });
+
+  // D14 (2026-08-19) — the D9 test above pins ONE hard-coded UUID, which is a
+  // single sample of a probabilistic property. PHONE_PATTERN ran BEFORE
+  // LONG_TOKEN_PATTERN and ate digit runs inside the token, breaking the 24+
+  // character run the token pattern needs, so the remainder survived. Measured
+  // over 20,000 real randomUUID() values: 15.06% leaked a partial token, up to
+  // 18 hex characters. The pinned UUID happened to be one of the ~85% that
+  // scrubbed cleanly, so the suite stayed green while the guarantee was false.
+  it("redacts EVERY manage token, not just a lucky sample", () => {
+    const leaked: string[] = [];
+
+    for (let index = 0; index < 200; index += 1) {
+      const token = randomUUID();
+      const scrubbed = scrubSentryEvent({
+        request: { url: `https://example.test/booking/manage?token=${token}` },
+      } as never);
+
+      // Nothing else in this event carries a run of 6+ hex characters (asserted
+      // by the control below), so any survivor came from the token.
+      const residue = JSON.stringify(scrubbed).match(/[0-9a-f]{6,}/g);
+      if (residue) leaked.push(`${token} -> ${residue.join(",")}`);
+    }
+
+    expect(leaked).toEqual([]);
+  });
+
+  it("control: the scaffolding around the token carries no hex run of its own", () => {
+    // Without this, the test above could pass because its needle can never
+    // match rather than because the scrubber works (gotcha 109).
+    const scrubbed = scrubSentryEvent({
+      request: { url: "https://example.test/booking/manage?token=" },
+    } as never);
+    expect(JSON.stringify(scrubbed).match(/[0-9a-f]{6,}/g)).toBeNull();
+
+    // ...and the same assertion MUST fire on an unscrubbed token, or it proves
+    // nothing about the scrubbed case.
+    const raw = `https://example.test/booking/manage?token=${randomUUID()}`;
+    expect(raw.match(/[0-9a-f]{6,}/g)).not.toBeNull();
+  });
+
+  it("still redacts phone numbers after the token/phone order swap", () => {
+    // The swap is only free if PHONE_PATTERN still fires. Verified identical
+    // output under both orders for these shapes before the change was made.
+    for (const note of [
+      "call 07700 900123 about it",
+      "+44 7700 900123",
+      "01582 123456",
+    ]) {
+      const scrubbed = scrubSentryEvent({ extra: { note } } as never) as Record<
+        string,
+        Record<string, string>
+      >;
+      expect(scrubbed.extra.note).toContain("[Filtered]");
+      expect(scrubbed.extra.note).not.toContain("900123");
+      expect(scrubbed.extra.note).not.toContain("123456");
+    }
   });
 
   it("redacts a bare 36-char UUID by value, not only by key name", () => {
