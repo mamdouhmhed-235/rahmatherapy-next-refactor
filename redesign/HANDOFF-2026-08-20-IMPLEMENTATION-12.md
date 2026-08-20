@@ -1,28 +1,29 @@
-# HANDOFF — 2026-08-20 (thirteenth session · PRODUCTION-READINESS FIXES, ROUNDS 1–2)
+# HANDOFF — 2026-08-20 (thirteenth session · PRODUCTION-READINESS FIXES, ROUNDS 1–3)
 
 **⛔ THIS IS THE LIVE DOCUMENT. Read it end to end before touching anything.**
 It replaces `HANDOFF-2026-08-19-IMPLEMENTATION-11.md`, whose **§1 position, §3 baselines and §7 open
 items are now stale by 21 commits**. Everything else in `-11` still stands, including its gotchas
 119–127. The twelve earlier handoffs keep gotchas 1–118 and are **not** superseded.
 
-**This file adds gotchas 128–136 (§6).**
+**This file adds gotchas 128–139 (§6).**
 
 ---
 
 ## 1 — ⛔ POSITION
 
 ```
-HEAD           008e938   on master
+HEAD           953d7df   on master
 origin/master  0f8ab9d
-UNPUSHED       38 commits
-tracked files  2017
-working tree   2 modified — package.json + pnpm-lock.yaml ONLY
+UNPUSHED       41 commits
+tracked files  2020
+working tree   CLEAN
 ```
 
 ⛔ **Compute it, never trust it:** `git rev-list --count origin/master..HEAD`
 
-The two modified files are the `@vitest/coverage-v8` devDependency added during gate 02 and left
-uncommitted deliberately. **`src/` and `supabase/` are clean.**
+✅ **The working tree is fully clean.** The `@vitest/coverage-v8` devDependency that sat uncommitted
+across several sessions was landed in `ccd141a` on the Owner's instruction, together with the
+`verify:migrations` script entry.
 
 ### 1.1 — ⛔⛔ THE MOST IMPORTANT FACT, UNCHANGED ACROSS FOUR SESSIONS
 
@@ -78,20 +79,25 @@ database** — only `HEAD` can.
 
 ---
 
-## 3 — ⛔ GATE BASELINES — all measured at `008e938`, 2026-08-20
+## 3 — ⛔ GATE BASELINES — all measured at `953d7df`, 2026-08-20
 
 ```
 npx tsc --noEmit                              0 errors
-npx vitest run                                245 files / 2523 tests / 0 failed
-npx vitest run scripts/                       47 passed
+npx vitest run                                247 files / 2559 tests / 0 failed
+npx vitest run scripts/                       68 passed
 npx eslint src scripts                        4 errors / 1 warning, THREE files
-node scripts/verify-migration-coverage.mjs    142 checked / 38 implicit / 0 missing
+pnpm verify:migrations                        142 checked / 38 implicit / 0 missing
+pnpm test:security:secrets                    passes, 13 keys checked
 node scripts/verify-system-integrity.mjs      PASS (exit 0)
 node scripts/measure-admin-contrast.mjs       110 total (46 dark / 64 light)
 node scripts/verify-admin-token-contrast.mjs  0 failures
-git status --porcelain -- src/ supabase/      EMPTY
+git status --porcelain                        EMPTY
 npx next build                                SUCCEEDS (exit 0)
 ```
+
+⚠️ **The test totals moved on 2026-08-20 and that is expected.** 245→247 files and 2523→2559 tests
+is exactly Round 3's five guards (`953d7df`); scripts 47→68 is the scanner's first test. A LOWER
+number than these is a regression.
 
 ⛔ **CHECK THE TEST COUNT, NOT THE COLOUR.** A green exit with a LOWER count is a real, observed,
 silent failure mode here (gotcha 118).
@@ -102,7 +108,9 @@ silent failure mode here (gotcha 118).
 
 ### 3.1 — `npx next build`
 
-Run at `008e938` on 2026-08-20: **succeeds, exit 0**, all routes prerendered as expected. ⛔ `pnpm
+Run at `008e938` on 2026-08-20: **succeeds, exit 0**, all routes prerendered as expected. Not
+re-run at `953d7df` — Round 3 added only test files, which `next build` does not compile. Re-run it
+before any release verdict rather than trusting that reasoning. ⛔ `pnpm
 cf:build` remains **deferred and closed** (D-012) — it cannot run on this host, and the site is
 built by Cloudflare's own Linux builders, where OpenNext packaging is proven because the site is
 live.
@@ -187,9 +195,32 @@ Every change was measured before and after, with a **control arm** each time, an
   `README-MIGRATION-DRIFT.md` §8: 162 tracked files would have started pointing at filenames that no
   longer exist, to buy protection for a CLI this host does not have. §4 rule 3 stands.
 
+### 5.4 — Round 3: five guards that nothing was holding (`953d7df`)
+
+Gate 02 proved seven “protections” were placebos. Five now fail loudly, **each mutation-verified** —
+apply the deletion, confirm the suite goes RED naming the right test, restore, confirm green:
+
+| Guard | Mutation result |
+|---|---|
+| Health-notes redaction at the **call site** (3 cases) | 1 failed / 16 passed |
+| Package prices — 25 literals, not 5 | nested change **and** a price SWAP both caught |
+| Permission lists — 5 helpers, 14 members, one table | removing a member caught |
+| Browser-secret scanner + its first ever test | 2 mutations caught (6 failed, then 2 failed) |
+| Sentry `beforeSendTransaction` on all three runtimes | 7 failed across both files |
+
+⛔ **Removing the scanner's blanket `NEXT_PUBLIC_` exemption surfaced a real case** and briefly turned
+that gate red: `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is in the bundles and matches via `API_KEY`. It is
+genuinely publishable — Maps browser keys cannot work otherwise — so it is allow-listed **with its
+reason**. ⚠️ Its safety rests on HTTP-referrer restrictions being configured in Google Cloud, which
+no scanner here can verify.
+
+**Deliberately not covered:** the free-text server bound. Its dangerous half — the silent dead-end on
+the booking form — is already guarded and mutation-tested by `free-text-caps.test.tsx` (`8a90dc3`).
+Only the server `.max()` remains, behind a 256 KB body cap.
+
 ---
 
-## 6 — NEW GOTCHAS (128–136)
+## 6 — NEW GOTCHAS (128–139)
 
 128. **⛔ TEST WHAT YOU WROTE, NOT A NARROWER VERSION.** A rolled-back probe revoked only `TRUNCATE`
      while the migration being validated revoked `truncate, references, trigger`. The probe passed and
@@ -230,6 +261,25 @@ Every change was measured before and after, with a **control arm** each time, an
      in it. It records hand-run measurements; nothing re-runs them. "C2 is closed by tests" is
      weaker than it sounds — re-running is a manual job.
 
+137. **⛔ `git checkout --` WIPED UNCOMMITTED WORK, AGAIN.** It was used to undo a mutation in
+     `scan-browser-secrets.mjs` while new, uncommitted changes sat in the **same file**. Everything
+     went. This is already rule 8 in §2 and it still happened, because undoing a mutation *feels*
+     like a different act from discarding work. **Copy the file to the scratchpad first and restore
+     from that copy** — that is what every later mutation in Round 3 did.
+
+138. **⛔ VITE CANNOT STRIP A CRLF SHEBANG.** Importing a `.mjs` whose `#!/usr/bin/env node` ends in
+     `\r\n` fails with `Invalid Character !` — rolldown hoists the node: import shim onto the same
+     line. `measure-admin-contrast.mjs` works only because its shebang happens to end in `\n`. With
+     `core.autocrlf=true` and no `.gitattributes`, writing LF is not durable: the next checkout
+     converts it back. **Drop the shebang** if the file is invoked as `node scripts/…` — which every
+     script here is.
+
+139. **⚠️ REMOVING A BLANKET EXEMPTION SURFACES REAL CASES. BUDGET FOR IT.** Narrowing the secret
+     scanner immediately turned a green gate red on a key that was genuinely publishable. That is the
+     exemption doing its job in reverse — it had been hiding everything, correct and incorrect alike.
+     Expect the first run after any such change to fail, and resolve each case **on its merits with a
+     written reason**, never by widening the exemption again.
+
 136. **⛔ MEASURE BLAST RADIUS BEFORE A MASS RENAME.** Renaming 48 migration files to match the
      ledger looked like tidy-up. Measured: **162 tracked files** reference the old names, 5 of them
      in `src/`. The benefit needed a CLI this host does not have. Abandoned.
@@ -238,7 +288,14 @@ Every change was measured before and after, with a **control arm** each time, an
 
 ## 7 — ⛔ OPEN ITEMS
 
-### 7.1 — The remaining fix-plan work (Round 3), all test-only, no production risk
+### 7.1 — ✅ ROUND 3 IS DONE (`953d7df`). Nothing outstanding here.
+
+All five guards landed and are mutation-verified — see §5.4. The list below is kept only so the
+reasoning behind each is findable; **do not redo them.**
+
+<details>
+<summary>What they were</summary>
+
 
 Live plan: `.production-readiness/runs/2026-08-18_baseline/00-control/FIX-PLAN-2026-08-19.md`.
 
@@ -258,17 +315,24 @@ Live plan: `.production-readiness/runs/2026-08-18_baseline/00-control/FIX-PLAN-2
 
 ⛔ **Every test must be validated by re-applying its mutation and confirming it goes RED.**
 
+</details>
+
 ### 7.2 — Needs the Owner
 
-- **Whether to wire `verify:migrations` into `package.json`.** Not done, because that file also
-  carries the uncommitted `@vitest/coverage-v8` devDependency and committing it would sweep that in.
-- **Whether to push.** 38 commits. See §1.1.
+- ✅ ~~Wiring `verify:migrations` into `package.json`~~ — **DONE** in `ccd141a`, together with the
+  `@vitest/coverage-v8` devDependency, on the Owner's explicit instruction.
+- ⛔ **Whether to push. 41 commits. See §1.1 — this is the only thing still waiting on a decision,
+  and it is the one with real consequences.**
 
 ### 7.3 — Not done, deliberately
 
 - The 48-file migration rename (§5.3, gotcha 136).
 - The middleware inactive-staff redirect test — three tested layers already deny inactive staff
   (`admin-access.test.ts:166`, `rbac-client-permissions.test.ts:35`). It is a redirect, not a gate.
+- The free-text server bound (§5.4).
+- `/admin/clients/[clientId]` health-note mutation testing — it computes the same permission as the
+  booking page and has **never** been mutation-tested. Round 3 covered the booking surface only.
+  ⚠️ This is the one genuinely unfinished thread from the fix plan.
 - Any rebuild rehearsal (D-014).
 
 ---
