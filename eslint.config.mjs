@@ -23,6 +23,10 @@ const eslintConfig = defineConfig([
     ".claude/**",
     // Recipe documentation tree — markdown + transcripts + handoff artifacts.
     "redesign/**",
+    // Production-readiness audit workspace: evidence files, one-off analysis
+    // helpers and generated coverage reports. Gitignored, not app source, and
+    // linting it put 11 phantom problems on top of the accepted 4E/1W baseline.
+    ".production-readiness/**",
   ]),
 ]);
 
