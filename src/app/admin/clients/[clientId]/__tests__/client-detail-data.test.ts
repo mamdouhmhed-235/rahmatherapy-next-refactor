@@ -1064,3 +1064,100 @@ describe("resolveClientNotesBannerState", () => {
     expect(result.kind).toBe("viewingAll");
   });
 });
+
+// ─── F3 (client detail) — health data is withheld AT THE QUERY ───────────────
+//
+// ⛔ WHY THIS EXISTS. /admin/bookings/[bookingId] fetches everything and then
+// redacts (F3, booking-detail-data.ts:493). THIS page is built the better way:
+// it picks a narrower SELECT and skips the client_notes reads entirely, so an
+// unentitled viewer's health data never leaves Postgres. That is a stronger
+// design — and until this block, nothing tested it.
+//
+// Measured 2026-08-20, three separate mutations, each leaving all 2,559 tests
+// GREEN:
+//   1. getBookingSelect ignoring canViewHealthNotes  → health columns fetched
+//                                                      for everyone
+//   2. the client_notes gate replaced with `if (true)` → sensitive notes read
+//                                                        for everyone
+//   3. getClientSelect always appending `, notes`     → the client's own notes
+//                                                       column always read
+// All three would put health data into the RSC payload of a viewer with no
+// permission to it, exactly the leak F3 exists to prevent — and the whole file
+// stayed green. One test per mutation below, plus a positive control.
+//
+// ⛔ THE POSITIVE CONTROL IS LOAD-BEARING. Without it, all three negatives can
+// be satisfied by never fetching health data for anyone, which would silently
+// break the therapist who needs it.
+const NO_HEALTH_FLAGS = {
+  canViewClient: true,
+  canViewContactDetails: true,
+  canViewHealthNotes: false,
+  canCreateClientNote: false,
+  canViewSensitiveNoteQueue: false,
+  canManagePrivacyOperations: false,
+};
+
+describe("getClientDetailData — health data is withheld at the query, not at render", () => {
+  let recording: ReturnType<typeof createRecordingAdminClient>;
+
+  function useRecording() {
+    recording = recordingClientWith(makeBookings(3));
+    createSupabaseAdminClient.mockImplementation(() => recording.client);
+  }
+
+  function paramsFor(flags: typeof FULL_FLAGS) {
+    return {
+      ...OWNER_PARAMS,
+      accessWithoutAssignment: flags,
+      accessWithAssignment: flags,
+    };
+  }
+
+  function clientsQuery() {
+    const found = recording.queries.find((query) => query.table === "clients");
+    if (!found) throw new Error("no clients query was issued");
+    return found;
+  }
+
+  const notesQueries = () =>
+    recording.queries.filter((query) => query.table === "client_notes");
+
+  it("kills mutation 1 — no health_notes column for a viewer without the permission", async () => {
+    useRecording();
+    await getClientDetailData(paramsFor(NO_HEALTH_FLAGS));
+
+    const rail = railQuery(recording.queries);
+    // Non-vacuity: an empty select would satisfy `not.toContain` trivially.
+    expect(rail.select.length).toBeGreaterThan(0);
+    expect(rail.select).not.toContain("health_notes");
+  });
+
+  it("kills mutation 2 — client_notes is not read AT ALL without the permission", async () => {
+    useRecording();
+    await getClientDetailData(paramsFor(NO_HEALTH_FLAGS));
+
+    // Not "read and discarded" — never issued. That is the property worth having.
+    expect(notesQueries()).toHaveLength(0);
+  });
+
+  it("kills mutation 3 — the client's own notes column is not selected either", async () => {
+    useRecording();
+    await getClientDetailData(paramsFor(NO_HEALTH_FLAGS));
+
+    const query = clientsQuery();
+    expect(query.select.length).toBeGreaterThan(0);
+    // Neither CLIENT_SELECT nor CLIENT_SAFE_SELECT contains the substring
+    // "notes", so this is unambiguous — `, notes` is only ever appended by
+    // getClientSelect when the viewer is entitled.
+    expect(query.select).not.toContain("notes");
+  });
+
+  it("POSITIVE CONTROL — an entitled viewer still gets all three", async () => {
+    useRecording();
+    await getClientDetailData(OWNER_PARAMS);
+
+    expect(railQuery(recording.queries).select).toContain("health_notes");
+    expect(notesQueries().length).toBeGreaterThan(0);
+    expect(clientsQuery().select).toContain("notes");
+  });
+});
