@@ -344,80 +344,139 @@ describe("searchAdminCommand — each half refuses for its own reason", () => {
 });
 
 // ---------------------------------------------------------------------------
-// GATE 07 CASE 27 - FIND-07-B: the command palette ignores
-// `view_client_contact_details`.
+// GATE 07 CASE 27 - FIND-07-B, raised and then FIXED.
 //
-// Two surfaces read the same client contact data and disagree about who may see
-// it.
+// The defect: this surface gated on "may you see clients at all" and then
+// emitted the email, phone and postcode straight into the visible result line,
+// while the clients LIST page - over the same data - switches its entire column
+// list on `view_client_contact_details` (clients-list-data.ts:754, CLIENT_SELECT
+// vs CLIENT_SAFE_SELECT). Two surfaces, same data, opposite answers. The booking
+// half of the same search box had the same gap on contact_email / contact_phone.
 //
-//   The clients LIST switches its SQL column list on the permission:
-//   clients-list-data.ts:754 selects CLIENT_SELECT or CLIENT_SAFE_SELECT
-//   depending on `canViewContactDetails`, so a viewer without it is never sent
-//   the columns at all.
+// Reachability, measured rather than assumed: no role reaches it today, because
+// all three roles holding view_clients_all also hold view_client_contact_details.
+// It was reachable through a per-person permission override - a supported
+// feature, exercised in src/lib/auth/permission-resolution.test.ts.
 //
-//   The command palette SEARCH does not. searchClients gates only on
-//   manage_clients_all OR view_clients_all, then selects
-//   "id, full_name, email, phone, postcode" unconditionally and joins the email,
-//   phone and postcode straight into the visible result line.
+// The fix mirrors the list exactly: the contact columns are not SELECTED without
+// the permission, so the values never leave the database; and the search arms
+// narrow to the name, so a phone number cannot be used to confirm whose it is.
 //
-// Reachability, measured rather than assumed. All three roles that hold
-// view_clients_all - Owner, Admin and Booking Coordinator - also hold
-// view_client_contact_details, so NO ROLE reaches this today. It is reachable
-// through a per-person permission override, which is a supported feature and is
-// exercised in src/lib/auth/permission-resolution.test.ts: revoking
-// view_client_contact_details from one individual leaves view_clients_all in
-// place, the list obeys the revocation, and the command palette does not.
-//
-// These specs assert the CURRENT behaviour, deliberately. They are the record of
-// what the system does today, and they are what will turn red the moment someone
-// fixes it - at which point the fix is the change, and these expectations move
-// with it in the same commit.
+// `service_postcode` on a BOOKING stays ungated deliberately. The list's own
+// booking-location filter treats city and postcode as operational data and gates
+// only `service_address_line1`, so gating it here would have made the two
+// surfaces disagree in the opposite direction.
 // ---------------------------------------------------------------------------
 
 const CLIENT_ROW = {
   id: "cccccccc-0000-4000-8000-000000000001",
   full_name: "ZZTEST-Contact Leak",
+  client_source: "website",
   email: "zztest.contact@example.test",
   phone: "07000 000000",
   postcode: "LU1 1AA",
 };
 
-describe("FIND-07-B - searchClients does not consult view_client_contact_details", () => {
-  it("emits email, phone and postcode to a viewer who has been denied contact details", async () => {
-    // view_clients_all WITHOUT view_client_contact_details - the shape a
-    // permission override produces.
-    getStaffProfile.mockResolvedValue(makeProfile(["view_clients_all"]));
+const BOOKING_ROW = {
+  id: "bbbbbbbb-0000-4000-8000-000000000001",
+  contact_full_name: "ZZTEST-Booking Contact",
+  contact_email: "zztest.booking@example.test",
+  contact_phone: "07111 111111",
+  service_postcode: "LU2 2BB",
+  booking_date: "2026-09-14",
+  start_time: "10:00:00",
+  status: "pending",
+};
+
+/** view_clients_all WITHOUT view_client_contact_details - the shape a per-person
+ *  permission override produces, and the only way to reach this at all. */
+const CLIENTS_NO_CONTACT = ["view_clients_all"];
+const CLIENTS_WITH_CONTACT = ["view_clients_all", "view_client_contact_details"];
+
+describe("FIND-07-B - the command palette now respects view_client_contact_details", () => {
+  it("does not put a client's email, phone or postcode in the result line", async () => {
+    getStaffProfile.mockResolvedValue(makeProfile(CLIENTS_NO_CONTACT));
     mount({ bookings: { data: [] }, clients: { data: [CLIENT_ROW] } });
 
     const results = await searchAdminCommand("zztest");
 
     expect(results).toHaveLength(1);
-    expect(results[0].detail).toContain(CLIENT_ROW.email);
-    expect(results[0].detail).toContain(CLIENT_ROW.phone);
-    expect(results[0].detail).toContain(CLIENT_ROW.postcode);
+    expect(results[0].title).toBe(CLIENT_ROW.full_name);
+    expect(results[0].detail).not.toContain(CLIENT_ROW.email);
+    expect(results[0].detail).not.toContain(CLIENT_ROW.phone);
+    expect(results[0].detail).not.toContain(CLIENT_ROW.postcode);
   });
 
-  it("selects the contact columns from the database regardless of the permission", async () => {
-    // The stronger half. Even if the result string were later trimmed, the
-    // columns have already left the database and are in the server's memory -
-    // which is exactly the difference between this surface and the list, where
-    // CLIENT_SAFE_SELECT never asks for them.
-    getStaffProfile.mockResolvedValue(makeProfile(["view_clients_all"]));
+  it("does not even SELECT the contact columns without the permission", async () => {
+    // ⛔ The stronger half, and the reason the fix changes the query rather than
+    // trimming the output string: values that are never selected never leave the
+    // database and cannot leak through some later change to how a result renders.
+    getStaffProfile.mockResolvedValue(makeProfile(CLIENTS_NO_CONTACT));
     const client = mount({ bookings: { data: [] }, clients: { data: [CLIENT_ROW] } });
 
     await searchAdminCommand("zztest");
 
     const [clientsQuery] = queriesFor(client, "clients");
+    expect(clientsQuery.select).not.toContain("email");
+    expect(clientsQuery.select).not.toContain("phone");
+    expect(clientsQuery.select).not.toContain("postcode");
+    expect(clientsQuery.select).toContain("full_name");
+  });
+
+  it("does not let a phone number or email be used to search by", async () => {
+    // Searching by a phone number and getting a name back confirms whose number
+    // it is - a disclosure even when the number itself is never displayed. The
+    // list page narrows its arms for the same reason.
+    getStaffProfile.mockResolvedValue(makeProfile(CLIENTS_NO_CONTACT));
+    const client = mount({ bookings: { data: [] }, clients: { data: [CLIENT_ROW] } });
+
+    await searchAdminCommand("07000");
+
+    const [clientsQuery] = queriesFor(client, "clients");
+    const orFilters = clientsQuery.filters
+      .filter(([op]) => op === "or")
+      .map(([, value]) => String(value))
+      .join(" ");
+    expect(orFilters).toContain("full_name.ilike");
+    expect(orFilters).not.toContain("email.ilike");
+    expect(orFilters).not.toContain("phone.ilike");
+    expect(orFilters).not.toContain("postcode.ilike");
+  });
+
+  it("still gives contact details to a viewer who IS permitted", async () => {
+    // ⛔ Non-vacuity, and the half that matters most: the fix must narrow the
+    // surface for one caller without breaking it for everybody. Every role that
+    // exists today lands here.
+    getStaffProfile.mockResolvedValue(makeProfile(CLIENTS_WITH_CONTACT));
+    const client = mount({ bookings: { data: [] }, clients: { data: [CLIENT_ROW] } });
+
+    const results = await searchAdminCommand("zztest");
+
+    expect(results[0].detail).toContain(CLIENT_ROW.email);
+    expect(results[0].detail).toContain(CLIENT_ROW.phone);
+    expect(results[0].detail).toContain(CLIENT_ROW.postcode);
+
+    const [clientsQuery] = queriesFor(client, "clients");
     expect(clientsQuery.select).toContain("email");
-    expect(clientsQuery.select).toContain("phone");
-    expect(clientsQuery.select).toContain("postcode");
+    const orFilters = clientsQuery.filters
+      .filter(([op]) => op === "or")
+      .map(([, value]) => String(value))
+      .join(" ");
+    expect(orFilters).toContain("email.ilike");
+  });
+
+  it("shows a non-identifying source instead of a blank line", async () => {
+    getStaffProfile.mockResolvedValue(makeProfile(CLIENTS_NO_CONTACT));
+    mount({ bookings: { data: [] }, clients: { data: [CLIENT_ROW] } });
+
+    const results = await searchAdminCommand("zztest");
+
+    expect(results[0].detail).toBe("website");
   });
 
   it("still refuses a viewer who cannot see all clients at all", async () => {
-    // Non-vacuity: the gate that DOES exist works, so the two specs above are
-    // about the missing second gate rather than a missing first one. A therapist
-    // holds neither manage_clients_all nor view_clients_all and gets no client
-    // query at all.
+    // The gate that always existed still works, so the specs above are about the
+    // missing SECOND gate rather than a missing first one.
     getStaffProfile.mockResolvedValue(
       makeProfile(["view_bookings_assigned", "view_client_contact_details"])
     );
@@ -428,10 +487,69 @@ describe("FIND-07-B - searchClients does not consult view_client_contact_details
     expect(results.filter((result) => result.type === "client")).toEqual([]);
     expect(queriesFor(client, "clients")).toHaveLength(0);
   });
+});
 
-  it("the clients LIST is the surface that gets this right - contrast, in source", () => {
-    // Structural, and stated as such: it pins the contrast that makes this a
-    // disagreement between two surfaces rather than a single missing check.
+describe("FIND-07-B - the booking half of the same search box", () => {
+  const BOOKINGS_NO_CONTACT = ["view_bookings_all"];
+  const BOOKINGS_WITH_CONTACT = ["view_bookings_all", "view_client_contact_details"];
+
+  it("does not select or search the customer's email and phone without the permission", async () => {
+    getStaffProfile.mockResolvedValue(makeProfile(BOOKINGS_NO_CONTACT));
+    const client = mount({ bookings: { data: [BOOKING_ROW] }, clients: { data: [] } });
+
+    await searchAdminCommand("zztest");
+
+    const [bookingsQuery] = queriesFor(client, "bookings");
+    expect(bookingsQuery.select).not.toContain("contact_email");
+    expect(bookingsQuery.select).not.toContain("contact_phone");
+
+    const orFilters = bookingsQuery.filters
+      .filter(([op]) => op === "or")
+      .map(([, value]) => String(value))
+      .join(" ");
+    expect(orFilters).toContain("contact_full_name.ilike");
+    expect(orFilters).not.toContain("contact_email.ilike");
+    expect(orFilters).not.toContain("contact_phone.ilike");
+  });
+
+  it("keeps service_postcode ungated, matching the clients list's own precedent", async () => {
+    // ⚠️ Deliberate, not an oversight. `clients-list-data.ts`'s booking-location
+    // filter treats service_city and service_postcode as operational data and
+    // gates only service_address_line1. Gating postcode here would make the two
+    // surfaces disagree in the opposite direction.
+    getStaffProfile.mockResolvedValue(makeProfile(BOOKINGS_NO_CONTACT));
+    const client = mount({ bookings: { data: [BOOKING_ROW] }, clients: { data: [] } });
+
+    const results = await searchAdminCommand("zztest");
+
+    const [bookingsQuery] = queriesFor(client, "bookings");
+    expect(bookingsQuery.select).toContain("service_postcode");
+    const orFilters = bookingsQuery.filters
+      .filter(([op]) => op === "or")
+      .map(([, value]) => String(value))
+      .join(" ");
+    expect(orFilters).toContain("service_postcode.ilike");
+    expect(results[0].detail).toContain(BOOKING_ROW.service_postcode);
+  });
+
+  it("still searches contact details for a viewer who IS permitted", async () => {
+    getStaffProfile.mockResolvedValue(makeProfile(BOOKINGS_WITH_CONTACT));
+    const client = mount({ bookings: { data: [BOOKING_ROW] }, clients: { data: [] } });
+
+    await searchAdminCommand("zztest");
+
+    const [bookingsQuery] = queriesFor(client, "bookings");
+    expect(bookingsQuery.select).toContain("contact_email");
+    const orFilters = bookingsQuery.filters
+      .filter(([op]) => op === "or")
+      .map(([, value]) => String(value))
+      .join(" ");
+    expect(orFilters).toContain("contact_email.ilike");
+    expect(orFilters).toContain("contact_phone.ilike");
+  });
+
+  it("the clients LIST is the surface this was aligned to - contrast, in source", () => {
+    // Structural, and stated as such: it pins the precedent the fix followed.
     const listSource = readFileSync(
       "src/app/admin/clients/clients-list-data.ts",
       "utf8"

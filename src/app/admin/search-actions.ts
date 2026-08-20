@@ -9,6 +9,7 @@ import {
   canViewAllBookings,
   canViewAllClients,
   canViewAssignedBookings,
+  canViewClientContactDetails,
   getStaffProfile,
 } from "@/lib/auth/rbac";
 
@@ -20,11 +21,14 @@ export interface AdminSearchResult {
   href: string;
 }
 
+// ⛔ The contact columns are selected ONLY for a caller holding
+// `view_client_contact_details`, so they are optional on the record types. See
+// the FIND-07-B note above `searchClients`.
 interface BookingSearchRecord {
   id: string;
   contact_full_name: string;
-  contact_email: string;
-  contact_phone: string;
+  contact_email?: string | null;
+  contact_phone?: string | null;
   service_postcode: string | null;
   booking_date: string;
   start_time: string;
@@ -34,9 +38,10 @@ interface BookingSearchRecord {
 interface ClientSearchRecord {
   id: string;
   full_name: string;
-  email: string | null;
-  phone: string | null;
-  postcode: string | null;
+  client_source: string | null;
+  email?: string | null;
+  phone?: string | null;
+  postcode?: string | null;
 }
 
 function escapeLike(value: string) {
@@ -125,11 +130,26 @@ async function searchBookings(
 
   if (!canSearchAll && !canSearchOwn) return [];
 
+  // ⛔ FIND-07-B. Being allowed to SEE bookings is not the same as being allowed
+  // to see the customer's contact details. `view_client_contact_details` is a
+  // separate permission, and this surface used to ignore it entirely: it
+  // selected and searched `contact_email` / `contact_phone` for anyone who
+  // could open the bookings list.
+  //
+  // Mirrors `clients-list-data.ts`, which has always done this correctly:
+  // name always, phone and email only with the contact permission.
+  // `service_postcode` deliberately stays ungated on this surface — the list's
+  // own booking-location filter treats city and postcode as operational rather
+  // than contact data, and only gates `service_address_line1`.
+  const canSeeContactDetails = canViewClientContactDetails(profile);
+
   const adminClient = createSupabaseAdminClient();
   let request = adminClient
     .from("bookings")
     .select(
-      "id, contact_full_name, contact_email, contact_phone, service_postcode, booking_date, start_time, status"
+      canSeeContactDetails
+        ? "id, contact_full_name, contact_email, contact_phone, service_postcode, booking_date, start_time, status"
+        : "id, contact_full_name, service_postcode, booking_date, start_time, status"
     )
     // A soft-deleted BOOKING must not surface here. `assertBookingActive`
     // (bookings/access.ts:106) already answers "Booking not found." for one, so
@@ -157,8 +177,9 @@ async function searchBookings(
     request = request.or(
       [
         `contact_full_name.ilike.${likeQuery}`,
-        `contact_email.ilike.${likeQuery}`,
-        `contact_phone.ilike.${likeQuery}`,
+        ...(canSeeContactDetails
+          ? [`contact_email.ilike.${likeQuery}`, `contact_phone.ilike.${likeQuery}`]
+          : []),
         `service_postcode.ilike.${likeQuery}`,
       ].join(",")
     );
@@ -183,10 +204,36 @@ async function searchClients(
 
   if (!canSearchClients) return [];
 
+  // ⛔ FIND-07-B, raised by gate 07 case 27 and fixed here.
+  //
+  // This gated on "may you see clients at all" and then emitted the email,
+  // phone and postcode straight into the visible result line — while the
+  // clients LIST page, over the same data, switches its whole column list on
+  // `view_client_contact_details` (`clients-list-data.ts:754`,
+  // CLIENT_SELECT vs CLIENT_SAFE_SELECT). Two surfaces, same data, opposite
+  // answers.
+  //
+  // No role reaches the gap today: all three roles holding `view_clients_all`
+  // also hold `view_client_contact_details`. It was reachable through a
+  // per-person permission override, which is a supported feature — revoke the
+  // contact permission from one individual and the list obeyed while this
+  // search did not.
+  //
+  // Fixed the way the list does it: the columns are not even SELECTED without
+  // the permission, so the values never leave the database, and the search
+  // arms narrow to the name so a phone number cannot be used to confirm whose
+  // it is. `client_source` fills the result line instead — it is in the list's
+  // own CLIENT_SAFE_SELECT and identifies nobody.
+  const canSeeContactDetails = canViewClientContactDetails(profile);
+
   const likeQuery = `%${escapeLike(query)}%`;
   const { data } = await createSupabaseAdminClient()
     .from("clients")
-    .select("id, full_name, email, phone, postcode")
+    .select(
+      canSeeContactDetails
+        ? "id, full_name, client_source, email, phone, postcode"
+        : "id, full_name, client_source"
+    )
     // Soft-deleted clients must not resurface here. This runs on the service-role
     // client, so RLS does not apply and the filter has to be explicit — the same
     // rule `clients-list-data.ts` applies on every one of its own queries.
@@ -194,9 +241,13 @@ async function searchClients(
     .or(
       [
         `full_name.ilike.${likeQuery}`,
-        `email.ilike.${likeQuery}`,
-        `phone.ilike.${likeQuery}`,
-        `postcode.ilike.${likeQuery}`,
+        ...(canSeeContactDetails
+          ? [
+              `email.ilike.${likeQuery}`,
+              `phone.ilike.${likeQuery}`,
+              `postcode.ilike.${likeQuery}`,
+            ]
+          : []),
       ].join(",")
     )
     .order("full_name")
@@ -207,9 +258,9 @@ async function searchClients(
     id: client.id,
     type: "client",
     title: client.full_name,
-    detail: [client.email, client.phone, client.postcode]
-      .filter(Boolean)
-      .join(" - "),
+    detail: canSeeContactDetails
+      ? [client.email, client.phone, client.postcode].filter(Boolean).join(" - ")
+      : (client.client_source ?? ""),
     href: `/admin/clients/${client.id}`,
   }));
 }
