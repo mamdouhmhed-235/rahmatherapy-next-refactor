@@ -1,0 +1,25 @@
+-- Issue 2 -- saving a per-staff permission override could never work.
+--
+-- src/app/admin/staff/actions.ts:742-750 upserts this table through the
+-- service-role admin client. service_role held only SELECT and DELETE, so every
+-- "grant" and "revoke" failed with 42501 and the UI showed "Failed to save
+-- permission override."; only "reset to inherit" (a DELETE) ever worked.
+--
+-- Evidence it never once succeeded: the table has 0 rows and audit_logs holds 0
+-- `staff_permission_override_updated` events.
+--
+-- Proven by execution before and after, inside a rolled-back transaction:
+--     before : set local role service_role; insert ... -> 42501 permission denied
+--     after  : same upsert (on conflict (staff_id, permission_id) do update)
+--              -> SUCCEEDED
+--
+-- Root cause is the `public` default ACL, which hands out Dxtm (TRUNCATE,
+-- REFERENCES, TRIGGER, MAINTAIN) and withholds INSERT/UPDATE. The companion
+-- migration narrows that default so the next table does not repeat this.
+-- ⛔ That default change affects FUTURE tables only, so this explicit grant is
+-- still required for this existing table.
+--
+-- Scope is exactly the two verbs the calling code needs -- an upsert. SELECT and
+-- DELETE were already present and are untouched; nothing is granted to anon or
+-- authenticated.
+grant insert, update on public.staff_permission_overrides to service_role;
