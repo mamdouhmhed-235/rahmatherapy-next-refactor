@@ -12,9 +12,9 @@ items are now stale by 21 commits**. Everything else in `-11` still stands, incl
 ## 1 — ⛔ POSITION
 
 ```
-HEAD           953d7df   on master
+HEAD           2dfb21c   on master
 origin/master  0f8ab9d
-UNPUSHED       41 commits
+UNPUSHED       43 commits
 tracked files  2020
 working tree   CLEAN
 ```
@@ -79,11 +79,11 @@ database** — only `HEAD` can.
 
 ---
 
-## 3 — ⛔ GATE BASELINES — all measured at `953d7df`, 2026-08-20
+## 3 — ⛔ GATE BASELINES — all measured at `2dfb21c`, 2026-08-20
 
 ```
 npx tsc --noEmit                              0 errors
-npx vitest run                                247 files / 2559 tests / 0 failed
+npx vitest run                                247 files / 2563 tests / 0 failed
 npx vitest run scripts/                       68 passed
 npx eslint src scripts                        4 errors / 1 warning, THREE files
 pnpm verify:migrations                        142 checked / 38 implicit / 0 missing
@@ -96,8 +96,8 @@ npx next build                                SUCCEEDS (exit 0)
 ```
 
 ⚠️ **The test totals moved on 2026-08-20 and that is expected.** 245→247 files and 2523→2559 tests
-is exactly Round 3's five guards (`953d7df`); scripts 47→68 is the scanner's first test. A LOWER
-number than these is a regression.
+is Round 3's five guards (`953d7df`); 2559→2563 is the client-detail block (`2dfb21c`); scripts
+47→68 is the scanner's first test. A LOWER number than these is a regression.
 
 ⛔ **CHECK THE TEST COUNT, NOT THE COLOUR.** A green exit with a LOWER count is a real, observed,
 silent failure mode here (gotcha 118).
@@ -330,9 +330,13 @@ Live plan: `.production-readiness/runs/2026-08-18_baseline/00-control/FIX-PLAN-2
 - The middleware inactive-staff redirect test — three tested layers already deny inactive staff
   (`admin-access.test.ts:166`, `rbac-client-permissions.test.ts:35`). It is a redirect, not a gate.
 - The free-text server bound (§5.4).
-- `/admin/clients/[clientId]` health-note mutation testing — it computes the same permission as the
-  booking page and has **never** been mutation-tested. Round 3 covered the booking surface only.
-  ⚠️ This is the one genuinely unfinished thread from the fix plan.
+- ✅ ~~`/admin/clients/[clientId]` health-note mutation testing~~ — **DONE** in `2dfb21c`. It was a
+  REAL gap: three separate mutations (health columns selected for everyone, the `client_notes` gate
+  removed, the client `notes` column always selected) each left all 2,559 tests green. Four tests now
+  cover it, one per mutation plus a positive control, each verified to fail exactly its own mutation.
+  ⛔ No production code changed — that page's gates were already correct, just undefended. It gates at
+  the QUERY (narrower SELECT, notes reads skipped) rather than redacting after fetch, which is
+  stronger than the booking page's F3 and worth preserving.
 - Any rebuild rehearsal (D-014).
 
 ---
