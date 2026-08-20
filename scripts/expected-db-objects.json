@@ -1,5 +1,5 @@
 {
-  "_comment": "Object names that must appear in supabase/migrations/. Generated from the live catalogue of project twzutkfgqclqurvkmvqz on 2026-08-20. Regenerate deliberately when you add an object, in the same commit as its migration.",
+  "_comment": "Object names that must appear in supabase/migrations/. Generated from the live catalogue of project twzutkfgqclqurvkmvqz on 2026-08-20; the two scale indexes of ruling D-019 were added 2026-08-20 in the same commit as their migration. Regenerate deliberately when you add an object, in the same commit as its migration.",
   "_generated": "2026-08-20",
   "tables": [
     "account_password_requests",
@@ -124,6 +124,7 @@
     "account_password_requests_status_idx",
     "audit_logs_actor_recent_idx",
     "audit_logs_pkey",
+    "audit_logs_target_recent_idx",
     "availability_overrides_pkey",
     "availability_rules_pkey",
     "blocked_dates_blocked_date_key",
@@ -150,6 +151,7 @@
     "clients_email_key",
     "clients_pkey",
     "consent_events_pkey",
+    "email_delivery_events_booking_event_idx",
     "email_delivery_events_delivery_status_created_at_idx",
     "email_delivery_events_pkey",
     "email_delivery_events_staff_id_idx",

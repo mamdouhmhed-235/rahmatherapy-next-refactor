@@ -1,0 +1,96 @@
+-- F-SCALE-01 / F-SCALE-02 — the two indexes the growth findings named
+--
+-- Raised as FINDINGS, not fixes, during the production-readiness run because
+-- adding an index changes the live database and that is the Owner's call.
+-- Owner ruling D-019 (2026-08-20), verbatim: "add both indexes now and add the
+-- testing of it as part of our plans for when relevant."
+--
+-- ── What was actually wrong ────────────────────────────────────────────────
+--
+-- audit_logs had NO index on target_id, and every booking detail page opens
+-- with `.eq("target_id", booking.id) ORDER BY created_at DESC LIMIT n`. Every
+-- one of those reads the whole table.
+--
+-- email_delivery_events had NO index on booking_id, and six call sites look up
+-- a booking's mail with `.eq("booking_id", x)`, five of them also pinning
+-- event_type.
+--
+-- ── ⛔ MEASURED AT VOLUME BEFORE APPLYING, NOT ASSERTED ────────────────────
+--
+-- The precedent migration (20260811190000_add_bookings_indexes.sql) had to say
+-- "measuring them now is meaningless" because the tables were tiny. That is no
+-- longer necessary: pg_statistic is transactional, so a `begin … rollback` can
+-- hold a five-year table, ANALYZE it, EXPLAIN against it and then throw it all
+-- away. Both plans below are real, and both were taken twice — once without the
+-- index and once with the exact definition written here.
+--
+--   audit_logs, 40,206 rows, one booking's 6 rows:
+--     before   Seq Scan, Rows Removed by Filter: 40,196, 549 buffers, 4.44 ms,
+--              plus a separate quicksort for the ORDER BY
+--     after    Index Scan using audit_logs_target_recent_idx,
+--              3 buffers, 0.66 ms, and NO sort node — the index supplies the
+--              ordering as well as the filter
+--
+--   email_delivery_events, 20,038 rows, one booking's mail:
+--     before   Seq Scan, Rows Removed by Filter: 20,028, 581 buffers, 10.84 ms
+--     after    Index Scan using email_delivery_events_booking_event_idx,
+--              Index Cond on BOTH columns, 1 buffer for the lookup itself
+--
+-- ⚠️ The first attempt at the email measurement was thrown away rather than
+-- reported: with `LIMIT 1` the sequential scan stopped after 39 rows because the
+-- matching row happened to sit early in physical order, which looks like a fast
+-- query and proves nothing. The plan above targets the LAST physical booking so
+-- the scan can get no free lunch.
+--
+-- ── Why these column lists ────────────────────────────────────────────────
+--
+-- Both are composites rather than single-column indexes, and both orders come
+-- from the query shapes rather than from taste.
+--
+-- No CONCURRENTLY: it cannot run inside a transaction block, and at 196 and 38
+-- live rows a plain build is instantaneous. Non-concurrent CREATE INDEX takes a
+-- SHARE lock, which blocks writes but not reads — immaterial at this size.
+--
+-- Additive and idempotent. No data is modified. Reversible with:
+--   DROP INDEX IF EXISTS public.audit_logs_target_recent_idx;
+--   DROP INDEX IF EXISTS public.email_delivery_events_booking_event_idx;
+-- Neither backs a constraint, so neither is undroppable.
+--
+-- Premise re-verified live immediately before authoring: audit_logs carried
+-- exactly two indexes (audit_logs_pkey, audit_logs_actor_recent_idx) and
+-- email_delivery_events exactly four (pkey, delivery_status_created_at,
+-- staff_id, idx_..._scheduled_pending); neither name below already existed, so
+-- IF NOT EXISTS cannot silently no-op against a different definition; and every
+-- column named below exists.
+
+-- Serves `.eq("target_id", …) ORDER BY created_at DESC LIMIT n`, which is the
+-- shape at booking-detail-data.ts:294 and :454, client-detail-data.ts:727 (as
+-- an `.in(…)`) and privacy/data-export.ts:100.
+--
+-- Deliberately PARTIAL, mirroring audit_logs_actor_recent_idx on the sibling
+-- column. target_id is nullable and a growing share of rows have none —
+-- `report_exported` writes target_id NULL on every report download — so
+-- excluding them keeps the index proportional to the rows anyone looks up by.
+-- ⚠️ Every call site filters `target_id = x` or `target_id IN (…)`, both of
+-- which imply NOT NULL, so the planner can always prove the partial predicate
+-- is satisfied. Nothing queries audit_logs for a NULL target_id.
+--
+-- created_at DESC matches the ORDER BY exactly, which is what removes the sort
+-- node rather than merely narrowing the scan.
+CREATE INDEX IF NOT EXISTS audit_logs_target_recent_idx
+  ON public.audit_logs (target_id, created_at DESC)
+  WHERE target_id IS NOT NULL;
+
+-- Serves the six booking-scoped mail lookups: bookings/actions.ts:563 and
+-- :1120 (booking_id + event_type + delivery_status), emails/actions.ts:214,
+-- :253 and :495, and cron/booking-reminders/route.ts:131. booking_id leads
+-- because it is the selective column in all six; event_type follows because
+-- five of the six also pin it to a single value, and a leading-column-only
+-- lookup is served just as well by a composite.
+--
+-- ⛔ Deliberately NOT partial, unlike the audit index above. emails/actions.ts
+-- has a real branch that does `.is("booking_id", null)` — mail not tied to any
+-- booking — and a `WHERE booking_id IS NOT NULL` index cannot serve an IS NULL
+-- lookup. A plain btree indexes NULLs, so this one serves both branches.
+CREATE INDEX IF NOT EXISTS email_delivery_events_booking_event_idx
+  ON public.email_delivery_events (booking_id, event_type);
