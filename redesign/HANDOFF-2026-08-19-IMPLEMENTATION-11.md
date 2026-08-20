@@ -1,6 +1,26 @@
 # HANDOFF — 2026-08-19 (twelfth session · PRODUCTION DEFECT REMEDIATION)
 
-**⛔ THIS IS THE LIVE DOCUMENT. Read it end to end before touching anything.**
+> ## ⛔ SUPERSEDED 2026-08-20 — THIS IS NO LONGER THE LIVE DOCUMENT
+>
+> **Read `HANDOFF-2026-08-20-IMPLEMENTATION-12.md` instead.**
+>
+> This file's **§1 position, §3 gate baselines and §7 open items are stale by 21 commits.** Do not
+> act on them. Specifically, everything below that says:
+>
+> | says | actually |
+> |---|---|
+> | `HEAD e7ecdb5` | `HEAD 008e938` |
+> | `UNPUSHED 19 commits` | **38 commits** |
+> | `2514 tests / 244 files` | **2523 tests / 245 files** |
+> | `tracked files 1996` | **2017** |
+> | "two migrations applied to production" | **eight**, and `origin/master` holds 66 migration files against production's 80 |
+> | §7.1 "next task: further decluttering" | **withdrawn** — the Owner moved to production-readiness fixes instead |
+>
+> ⛔ **What is still valid here:** §2 absolute rules, §4 Owner decisions, §6 gotchas 119–127, and
+> §8 standing facts. Those are carried forward, not replaced. Gotchas 1–118 in the eleven earlier
+> handoffs are likewise untouched.
+
+**⛔ THIS WAS THE LIVE DOCUMENT AT THE TIME OF WRITING.**
 It replaces `HANDOFF-2026-08-17-IMPLEMENTATION-10.md`, whose §1 position and §7 open items are
 stale. Everything else in `-10` still stands, including its gotchas 109-118. The eleven earlier
 handoffs keep gotchas 1-108 and are **not** superseded.
