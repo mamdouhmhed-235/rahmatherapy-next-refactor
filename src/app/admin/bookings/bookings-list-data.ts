@@ -990,9 +990,20 @@ export async function getSearchClientIds(search?: string): Promise<string[]> {
       const { data } = await createSupabaseAdminClient()
         .from("clients")
         .select("id")
-        // Soft-deleted clients must not widen a booking search. Service-role
-        // query, so RLS does not apply and the filter has to be explicit.
-        .is("deleted_at", null)
+        // ⛔ NO `deleted_at` filter here, deliberately. Owner ruling 2026-08-20:
+        // deleting a client hides the CLIENT record, but their past bookings
+        // stay findable — a booking is the record of a visit that actually
+        // happened, and business history should not develop holes.
+        //
+        // This also makes the two search branches agree. The therapist branch
+        // filters in memory over already-fetched booking rows and never looks at
+        // `clients.deleted_at`, so filtering here made the SQL branch stricter
+        // than its in-memory twin for the same query (gate 07, A4).
+        //
+        // ⚠️ Findable is not actionable, and that is intended:
+        // `assertBookingActive` (bookings/access.ts:115-121) still refuses every
+        // mutation on a deleted client's booking with "This booking's client has
+        // been deleted." Visible history, frozen records.
         .or(
           [
             `full_name.ilike.${needle}`,

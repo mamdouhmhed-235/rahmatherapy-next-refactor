@@ -266,16 +266,45 @@ describe("searchAdminCommand — soft-deleted clients never surface", () => {
     expect(clients.filters).toContainEqual(["is", "deleted_at", null]);
   });
 
-  it("control: the recorder would see the filter's absence", async () => {
-    // Without this, the assertion above could pass on a recorder that silently
-    // swallows `.is()` rather than because the query really carries it.
+  it("filters deleted_at on the booking search too", async () => {
+    // A soft-deleted BOOKING must not surface. `assertBookingActive`
+    // (bookings/access.ts:106) already answers "Booking not found." for one, so
+    // a searchable-but-unopenable row is a dead end for whoever clicks it.
     getStaffProfile.mockResolvedValue(makeProfile(["manage_bookings_all"]));
     const client = mount({ bookings: { data: [] } });
 
     await searchAdminCommand("smith");
 
     const [bookings] = readsOf(client, "bookings");
-    expect(bookings.filters).not.toContainEqual(["is", "deleted_at", null]);
+    expect(bookings).toBeDefined();
+    expect(bookings.filters).toContainEqual(["is", "deleted_at", null]);
+  });
+
+  it("control: the recorder reports a filter's absence rather than swallowing it", async () => {
+    // ⛔ REWRITTEN 2026-08-20. This control used to assert that the BOOKINGS
+    // chain carried no `deleted_at` filter. It was labelled a recorder
+    // meta-control, but it pinned production behaviour: adding the filter above
+    // turned it red and looked like the fix had broken something. Gate 02's
+    // mutation M10 pre-proved exactly that trap.
+    //
+    // The control's real job is to prove the recorder distinguishes presence
+    // from absence. It now does that against a chain that legitimately carries
+    // no `deleted_at` filter — `booking_assignments`, which is scoped by staff
+    // id and has no soft-delete column at all — so it can never again pin a
+    // product decision by accident.
+    getStaffProfile.mockResolvedValue(makeProfile(["manage_bookings_assigned"]));
+    const client = mount({ booking_assignments: { data: [] }, bookings: { data: [] } });
+
+    await searchAdminCommand("smith");
+
+    const [assignments] = readsOf(client, "booking_assignments");
+    expect(assignments).toBeDefined();
+    expect(assignments.filters).not.toContainEqual(["is", "deleted_at", null]);
+
+    // The positive half — that this same recorder DOES report the filter when a
+    // chain carries one — is the preceding two tests. ⛔ It cannot be asserted
+    // here: with only `manage_bookings_assigned` the scoped branch returns early
+    // when the actor has no assignments, so the `bookings` read never happens.
   });
 });
 

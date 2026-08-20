@@ -131,6 +131,16 @@ async function searchBookings(
     .select(
       "id, contact_full_name, contact_email, contact_phone, service_postcode, booking_date, start_time, status"
     )
+    // A soft-deleted BOOKING must not surface here. `assertBookingActive`
+    // (bookings/access.ts:106) already answers "Booking not found." for one, so
+    // without this filter a staff member could search it up, click it, and be
+    // told it does not exist. Service-role query, so RLS does not apply and the
+    // filter has to be explicit.
+    //
+    // ⛔ This is about the BOOKING's own `deleted_at`, not the client's. A
+    // deleted CLIENT's bookings stay findable on purpose — Owner ruling
+    // 2026-08-20, see `bookings-list-data.ts` `resolveSearchClientIds`.
+    .is("deleted_at", null)
     .order("booking_date", { ascending: false })
     .limit(8);
 
