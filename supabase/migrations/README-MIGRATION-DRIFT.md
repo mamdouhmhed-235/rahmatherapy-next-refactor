@@ -330,6 +330,92 @@ it collapses the drift instead of adding to it.
 
 ---
 
+## 6.6 — ✅ 2026-08-20 — the rebuild now PROVES ITSELF
+
+| Version applied | Name | Repo filename |
+|---|---|---|
+| `20260820075446` | `rebuild_self_check` | **carries the recorded version** |
+
+Owner-approved. There are no Supabase backups on the free tier and no second database (D-013,
+D-014), so these files **are** the backup — and a rebuild has still never been executed anywhere.
+Rather than rehearse one on a database that does not exist, the last migration now asserts the end
+state and **raises** if replaying the files does not reproduce it. The rebuild is checked at the
+moment it actually runs, which is the only moment that matters.
+
+What it asserts, all measured against production immediately before applying: **30** tables, **44**
+policies, **12** functions, **11** triggers, **73** indexes, **10** enum types, the rules seed
+(**5** roles / **40** permissions / **95** role_permissions / **5** services / **1**
+business_settings / **7** availability_rules), and **six grant probes** — service_role can INSERT
+`bookings`; `anon` cannot TRUNCATE `client_notes`; **service_role canNOT SELECT `consent_events`**
+(least privilege must survive a rebuild); `anon` can still SELECT `services` (the public site);
+`create_booking_request` exists and is SECURITY DEFINER; `anon` cannot EXECUTE it.
+
+⛔ **IT IS A POINT-IN-TIME ASSERTION, NOT A RUNNING TOTAL.** It asserts the state as of its own
+position — the 79 migrations up to and including itself. A migration added afterwards legitimately
+changes those numbers and does **not** make this file wrong. **Never edit it to chase them**; add a
+new assertion migration at the later point instead. (Migration `20260820_verify_migration_coverage`
+does not exist — the coverage check is a script, not a migration, precisely so it can be updated.)
+
+**Non-vacuity proven, not assumed.** The same block with one expectation deliberately wrong
+(`tables expected 31`) and one grant probe inverted was run in a rolled-back transaction and
+**raised P0001** naming both failures. A check that cannot fail is worth nothing (gotcha 109).
+
+⚠️ **Two vestigial declarations.** The applied DO block declares `function_placeholder boolean;`,
+which is never used, and a comment reading `-- helper: append a failure line` that describes nothing.
+Both are inert drafting leftovers. The repo file is byte-identical to what was applied and **must
+stay that way** — editing an applied migration is forbidden here, and a cosmetic tidy is not worth a
+second near-identical assertion migration in the rebuild path.
+
+**Companion gate, offline:** `scripts/verify-migration-coverage.mjs` (`node scripts/verify-migration-coverage.mjs` — deliberately NOT wired into package.json yet, see below)
+checks that every object in `scripts/expected-db-objects.json` — a snapshot of the live catalogue —
+appears somewhere in these files. Currently **142 names checked, 38 implicit indexes skipped, 0
+missing**. It is deliberately offline: the repo's only credential reaches PostgREST, which cannot
+read the Postgres catalogs, and exposing them through a function is more API surface than the check
+is worth. ⚠️ So it cannot see drift introduced after the manifest date — regenerate the manifest in
+the same commit as any migration that adds an object. The SQL to regenerate it is at the foot of the
+script.
+
+---
+
+## 8 — ⛔ 2026-08-20 — the 48 drifted filenames STAY. Decision, with the measurement.
+
+§3 records that most filenames here disagree with the versions production recorded. A plan drafted
+on 2026-08-19 proposed renaming them so the repo reconciles with the ledger, on the grounds of §4
+rule 1 (*“the version is the identity”*). **That plan was wrong and is withdrawn.** §4 rule 3 — *do
+not rename* — stands.
+
+Measured before deciding:
+
+```
+repo files 79 | production rows 79
+already matching :  30
+WOULD RENAME     :  48
+no name match    :   1   (the doubled-timestamp oddity, §3)
+collisions       :   0
+
+STALE REFERENCES IF RENAMED
+  renamed files referenced elsewhere : 36 of 48
+  tracked files that would break     : 162
+  of those, in src/ (code comments)  : 5 files
+```
+
+Three reasons the rename loses:
+
+1. **The benefit is unusable.** Renaming protects against `supabase db push` re-running 48 already
+   applied migrations. This machine has **no Supabase CLI** (measured host limit) — `db push` cannot
+   be run here at all.
+2. **A rebuild does not care.** Applying the files to an empty database uses their **order**, not
+   their names, and the order was measured **identical, position for position, across all 79**.
+   Renaming changes nothing about the thing the files exist to do.
+3. **162 files would start lying.** Every stale reference is a pointer to a filename that no longer
+   exists, in a repo where comments are treated as gates. Trading one documented, inert discrepancy
+   for 162 live ones is a bad trade.
+
+⛔ **If someone ever does install the CLI, read §3 and §4 before running `db push`.** That, not a
+mass rename, is the guard.
+
+---
+
 ## 7 — ✅ 2026-08-19 — the seven missing files were BACKFILLED (task P-2)
 
 Owner-approved. **Nothing was applied to the database** — production already had all
