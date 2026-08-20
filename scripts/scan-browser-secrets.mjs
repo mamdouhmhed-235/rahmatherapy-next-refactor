@@ -38,9 +38,12 @@ export const PUBLISHABLE_EXCEPTIONS = new Set([
   // restrictions configured in the Google Cloud console, NOT by secrecy. It
   // matched the pattern only via "API_KEY".
   //
-  // ⚠️ This key's safety therefore depends on those referrer restrictions
-  // actually being set. This scanner cannot check that — it is a console
-  // setting, not a repo fact.
+  // ✅ CONFIRMED BY THE OWNER 2026-08-20: the key IS restricted to the site's
+  // own domain in Google Cloud, so a third party cannot spend against it. That
+  // restriction is what makes this exemption safe — it is a console setting no
+  // scanner here can read, so it is recorded rather than checked. ⛔ If the key
+  // is ever rotated or recreated, re-apply the referrer restriction before
+  // shipping it; this entry assumes it.
   "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
 ]);
 

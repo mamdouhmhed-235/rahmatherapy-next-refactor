@@ -132,6 +132,12 @@ live.
   not raise it as a backup hole again.
 - ✅ **A completed booking must NOT block its time slot** — settled, and now fixed in the database.
 - ✅ **The 95 permission grants are intended.** *"whatever is present on my site now is my doing"*.
+- ✅ **`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is restricted to the site's own domain in Google Cloud.**
+  Confirmed by the Owner 2026-08-20: *"its already solved as i have it restricted to the websites
+  domain."* That referrer restriction is what makes the scanner's allow-list entry safe — the key
+  is public by design (Maps browser keys cannot work otherwise) and cannot be spent against by a
+  third party. ⛔ Do not raise it as a leak. ⚠️ If the key is ever rotated, the restriction must be
+  re-applied before shipping — no check in this repo can see a Google Cloud console setting.
 
 ### 4.2 — ⛔ HOW THE OWNER WANTS TO BE COMMUNICATED WITH
 
