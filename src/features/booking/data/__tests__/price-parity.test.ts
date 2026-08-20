@@ -74,11 +74,62 @@ describe("price parity across the five hand-maintained sources", () => {
     expect(prices).toEqual(CANONICAL);
   });
 
-  it("packagePages.ts matches the booking prices", () => {
-    const prices = sortedPrices(
-      packagePages.map((pkg) => poundsToNumber(pkg.price))
+  it("packagePages.ts matches the booking prices — top level, summary and related", () => {
+    // ⛔ The original version of this case mapped `pkg.price` only, reaching 5 of
+    // this file's 25 price literals. Proven 2026-08-19: setting the
+    // relatedPackages price on line 258 to "£999" left all six cases GREEN. The
+    // other 20 live in `summary` and `relatedPackages`.
+    //
+    // ⛔ A set comparison is NOT sufficient either, and a draft of this test got
+    // it wrong twice over: it compared a DE-DUPLICATED set against CANONICAL,
+    // which contains 40 twice (two packages cost £40), so it would have failed on
+    // correct data. And a set passes when two prices are SWAPPED between
+    // packages, which is the likelier human error.
+    //
+    // So this asserts the real invariant instead: a box that links to a package
+    // must quote THAT package's own price. Every relatedPackages `href` ends in
+    // a slug that exists in this file, which is what makes it checkable.
+    // Explicitly <string, number>: packagePages narrows `slug` to a literal
+    // union, so an inferred Map would reject the plain `string` pulled out of a
+    // relatedPackages href below.
+    const bySlug = new Map<string, number>(
+      packagePages.map((pkg) => [pkg.slug, poundsToNumber(pkg.price)])
     );
-    expect(prices).toEqual(CANONICAL);
+
+    // (a) the five top-level prices are still exactly the canonical set
+    expect(sortedPrices([...bySlug.values()])).toEqual(CANONICAL);
+
+    // (b) each package's own summary quotes its own price
+    for (const pkg of packagePages) {
+      expect(
+        poundsToNumber(pkg.summary.price),
+        `${pkg.slug} summary.price`
+      ).toBe(bySlug.get(pkg.slug));
+    }
+
+    // (c) each related-package box quotes the price of the package it links to
+    let relatedChecked = 0;
+    for (const pkg of packagePages) {
+      for (const related of pkg.relatedPackages ?? []) {
+        const target = related.href.replace(/^\/services\//, "");
+        expect(
+          bySlug.has(target),
+          `${pkg.slug} links to unknown package "${target}"`
+        ).toBe(true);
+        expect(
+          poundsToNumber(related.price),
+          `${pkg.slug} → ${target}`
+        ).toBe(bySlug.get(target));
+        relatedChecked += 1;
+      }
+    }
+
+    // ⛔ Guards the guard. Without these, a refactor that renamed `summary` or
+    // `relatedPackages` would make both loops iterate zero times and this test
+    // would pass while checking nothing — the exact silent-pass mode that put
+    // every other item on this list.
+    expect(bySlug.size, "top-level packages").toBe(5);
+    expect(relatedChecked, "related-package prices checked").toBe(15);
   });
 
   it("the admin manual-booking form matches the booking prices", () => {

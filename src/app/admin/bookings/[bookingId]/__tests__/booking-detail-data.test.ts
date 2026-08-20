@@ -214,3 +214,100 @@ describe("getBookingDetailData cache behaviour", () => {
     expect(JSON.parse(JSON.stringify(data))).toEqual(data);
   });
 });
+
+// ─── F3 — health notes are redacted AT THE CALL SITE ─────────────────────────
+//
+// ⛔ WHY THIS EXISTS AND WHY THE EXISTING HELPER TEST IS NOT ENOUGH.
+// `__tests__/redact-health-notes.test.ts` tests `redactHealthNotes()` directly
+// and passes whatever happens here. Gate 02 measured the consequence: changing
+// `booking: redactHealthNotes(booking, canViewHealthNotes)` to `booking,` at
+// booking-detail-data.ts:493 left all 2,523 tests green. The helper was tested;
+// the WIRING was not, and the wiring is what a future edit removes.
+//
+// ⛔ THERE IS NO DATABASE BACKSTOP. Measured 2026-08-19: `authenticated` holds
+// no SELECT grant on public.client_notes, so the single RLS policy written for
+// that table can never fire, and the app reads through the service-role client
+// which bypasses RLS by design. These assertions are the only thing beneath the
+// permission check.
+//
+// The `SECRET-` sentinel is checked against the WHOLE returned object, not just
+// the two known fields: the risk F3 addresses is a value travelling to the
+// browser inside the RSC payload even when it is not rendered, so any route out
+// must fail, not only the two we thought of.
+function stubClientWithHealthNotes() {
+  return createFakeAdminClient({
+    bookings: {
+      data: {
+        id: "b1",
+        client_id: "c1",
+        booking_date: "2026-01-10",
+        start_time: "10:00",
+        status: "confirmed",
+        health_notes: "SECRET-BOOKING-NOTE",
+        booking_participants: [
+          { id: "p1", health_notes: "SECRET-PARTICIPANT-NOTE" },
+        ],
+        booking_items: [],
+        booking_assignments: [],
+      },
+      error: null,
+    },
+    audit_logs: { data: [], error: null },
+    booking_assignments: { data: [], error: null, count: 1 },
+    enquiries: { data: null, error: null },
+  });
+}
+
+describe("F3 — health notes are redacted in the data layer, not just the helper", () => {
+  it("strips them for a viewer holding neither health permission", async () => {
+    createSupabaseAdminClient.mockImplementation(() => stubClientWithHealthNotes());
+
+    const data = await getBookingDetailData({
+      bookingId: "b1",
+      // opens the booking, carries NO health permission
+      profile: makeProfile("s1", ["manage_bookings_all"]),
+      fullScope: true,
+    });
+
+    expect(data.booking?.health_notes).toBeNull();
+    expect(data.booking?.booking_participants?.[0]?.health_notes).toBeNull();
+    // ⛔ the load-bearing one: nothing anywhere in the payload
+    expect(JSON.stringify(data)).not.toContain("SECRET-");
+  });
+
+  it("keeps them for a viewer holding manage_sensitive_client_notes", async () => {
+    createSupabaseAdminClient.mockImplementation(() => stubClientWithHealthNotes());
+
+    const data = await getBookingDetailData({
+      bookingId: "b2",
+      profile: makeProfile("s2", [
+        "manage_bookings_all",
+        "manage_sensitive_client_notes",
+      ]),
+      fullScope: true,
+    });
+
+    expect(data.booking?.health_notes).toBe("SECRET-BOOKING-NOTE");
+    expect(data.booking?.booking_participants?.[0]?.health_notes).toBe(
+      "SECRET-PARTICIPANT-NOTE"
+    );
+  });
+
+  it("keeps them for an assigned therapist holding only the assigned-scope permission", async () => {
+    // D3 (2026-08-17): the first version of F3 used canManageSensitiveClientNotes
+    // ALONE, which denied health notes to the therapist about to treat the
+    // client. This pins the corrected rule so that regression cannot return.
+    createSupabaseAdminClient.mockImplementation(() => stubClientWithHealthNotes());
+
+    const data = await getBookingDetailData({
+      bookingId: "b3",
+      profile: makeProfile("s3", [
+        "manage_bookings_all",
+        "view_client_health_notes_assigned",
+      ]),
+      fullScope: true,
+    });
+
+    expect(data.booking?.health_notes).toBe("SECRET-BOOKING-NOTE");
+  });
+});

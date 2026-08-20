@@ -117,6 +117,12 @@ describe("Sentry client config", () => {
     const options = sentryMocks.init.mock.calls[0][0];
     expect(options.integrations).toEqual([]);
     expect(typeof options.beforeSend).toBe("function");
+    // ⛔ F9: `beforeSend` only sees ERROR events. Performance transactions carry
+    // the `/booking/manage?token=…` URL and never reach it. Deleting
+    // `beforeSendTransaction` left all 2523 tests green until this line existed.
+    // Server and edge are covered by
+    // src/lib/observability/__tests__/sentry-transaction-scrub.test.ts.
+    expect(typeof options.beforeSendTransaction).toBe("function");
     expect(sentryMocks.replayIntegration).not.toHaveBeenCalled();
   });
 
