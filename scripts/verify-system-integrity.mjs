@@ -5,9 +5,18 @@
 //
 // ⛔ WHAT THIS PROTECTS. Not the data — the data is disposable test data by Owner
 // ruling D-005. It protects "the system": the rules seed (roles, permissions,
-// role_permissions, services, business_settings, availability_rules) and the one
-// real client record, `Badar`. Losing the rules means rebuilding the business
-// logic by hand; losing Badar means losing the clinic's only real customer row.
+// role_permissions, services, business_settings, availability_rules).
+//
+// ⚠️ It used to also protect one real client record, `Badar`. ⛔ **That record was
+// hard-deleted on 2026-08-20 by Owner ruling D-016** — a real customer had been
+// able to book during the build, which is why the site went into maintenance
+// mode, and the Owner asked for the record to be removed surgically.
+//
+// The check is KEPT and INVERTED rather than dropped. It now asserts the record
+// is ABSENT, so it catches the one thing that could still go wrong: the row
+// coming BACK — through a restore from a backup taken before the deletion, a
+// re-import, or a migration replay. A deletion nobody is watching is a deletion
+// that quietly undoes itself.
 //
 // ⛔ HOW TO USE IT. Run it BEFORE and AFTER every write-touching gate and diff
 // the two outputs. A non-zero exit, or any diff outside `counts.volatile`, stops
@@ -28,16 +37,20 @@
 // `.production-readiness/runs/2026-08-18_baseline/03-tests/05-database/evidence/catalog-baseline.json`,
 // which are checked by running the SQL recorded in that file through the
 // Supabase MCP. ⛔ Do not read a green run here as "the schema is unchanged".
-// It means "the rules seed and Badar are unchanged".
+// It means "the rules seed is unchanged and the D-016 deletion has not been undone".
 
 import fs from "node:fs";
 import process from "node:process";
 import { createClient } from "@supabase/supabase-js";
 
-// ⛔ Owner ruling D-005: the one real customer. Never modify, delete, re-book,
-// re-assign, anonymise or email this row.
-const BADAR_CLIENT_ID = "4978ae6d-79d0-4119-a8c0-fd374e8dc75d";
-const BADAR_EXPECTED_BOOKINGS = 1;
+// ⛔ Owner ruling D-016 (2026-08-20): this record was hard-deleted, along with
+// its booking and every child row — 13 rows across 7 tables. It must STAY gone.
+// A recoverable capture was taken first and lives OUTSIDE the repository, at
+// rahma-db-baseline-2026-08-19/badar-deletion-2026-08-20/.
+//
+// ⚠️ Superseded D-005, which had made this the one protected record. The id is
+// retained deliberately: it is the only way to notice the row returning.
+const DELETED_CLIENT_ID = "4978ae6d-79d0-4119-a8c0-fd374e8dc75d";
 
 // The rules seed. These are the system; everything else is data.
 const EXPECTED = {
@@ -126,7 +139,7 @@ async function main() {
     role_names: [],
     role_permission_pairs_md5: null,
     permission_names_md5: null,
-    badar: {},
+    deleted_record: {},
     counts: { volatile: {} },
     failures: [],
   };
@@ -175,38 +188,41 @@ async function main() {
   if (permError) throw new Error(`permissions read failed: ${permError.message}`);
   report.permission_names_md5 = await md5(perms.map((p) => p.name).join("\n"));
 
-  // --- 4. Badar ------------------------------------------------------------
-  const { data: badar, error: badarError } = await client
+  // --- 4. the deleted record must STAY deleted (D-016) ----------------------
+  // ⛔ Inverted on 2026-08-20. This used to assert the row was present; it now
+  // asserts it is gone, and gone completely — the client row AND any booking
+  // still pointing at it. A restore from a pre-deletion backup would bring both
+  // back, and this is the only thing watching for that.
+  const { data: deletedClient, error: deletedError } = await client
     .from("clients")
     .select("id, deleted_at")
-    .eq("id", BADAR_CLIENT_ID)
+    .eq("id", DELETED_CLIENT_ID)
     .maybeSingle();
-  if (badarError) throw new Error(`Badar read failed: ${badarError.message}`);
+  if (deletedError) throw new Error(`deleted-record read failed: ${deletedError.message}`);
 
-  if (!badar) {
-    failures.push(`⛔ PROTECTED RECORD MISSING: clients.id = ${BADAR_CLIENT_ID}`);
-    report.badar = { present: false, deleted: null, bookings: null };
-  } else {
-    const bookings = await client
-      .from("bookings")
-      .select("*", { count: "exact", head: true })
-      .eq("client_id", BADAR_CLIENT_ID);
-    if (bookings.error) throw new Error(`Badar bookings failed: ${bookings.error.message}`);
+  const orphanBookings = await client
+    .from("bookings")
+    .select("*", { count: "exact", head: true })
+    .eq("client_id", DELETED_CLIENT_ID);
+  if (orphanBookings.error) {
+    throw new Error(`deleted-record booking read failed: ${orphanBookings.error.message}`);
+  }
 
-    report.badar = {
-      present: true,
-      deleted: badar.deleted_at !== null,
-      bookings: bookings.count ?? 0,
-    };
+  report.deleted_record = {
+    id: DELETED_CLIENT_ID,
+    client_row_present: Boolean(deletedClient),
+    bookings_present: orphanBookings.count ?? 0,
+  };
 
-    if (badar.deleted_at !== null) {
-      failures.push(`⛔ PROTECTED RECORD SOFT-DELETED: clients.id = ${BADAR_CLIENT_ID}`);
-    }
-    if ((bookings.count ?? 0) !== BADAR_EXPECTED_BOOKINGS) {
-      failures.push(
-        `⛔ PROTECTED RECORD booking count changed: expected ${BADAR_EXPECTED_BOOKINGS}, found ${bookings.count}`
-      );
-    }
+  if (deletedClient) {
+    failures.push(
+      `⛔ DELETED RECORD HAS RETURNED: clients.id = ${DELETED_CLIENT_ID} exists again (D-016 removed it)`
+    );
+  }
+  if ((orphanBookings.count ?? 0) !== 0) {
+    failures.push(
+      `⛔ DELETED RECORD HAS RETURNED: ${orphanBookings.count} booking(s) still reference ${DELETED_CLIENT_ID}`
+    );
   }
 
   // --- 5. volatile counts — recorded, never asserted ------------------------
@@ -233,11 +249,12 @@ async function main() {
     console.log(`  ..   grant pairs md5     ${report.role_permission_pairs_md5} (${report.counts.role_permission_pairs} pairs)`);
     console.log(`  ..   permission md5      ${report.permission_names_md5}`);
     console.log("");
-    const badarOk =
-      report.badar.present &&
-      !report.badar.deleted &&
-      report.badar.bookings === BADAR_EXPECTED_BOOKINGS;
-    console.log(`  ${badarOk ? "ok  " : "FAIL"} protected client     present=${report.badar.present} deleted=${report.badar.deleted} bookings=${report.badar.bookings}`);
+    const deletedOk =
+      !report.deleted_record.client_row_present &&
+      report.deleted_record.bookings_present === 0;
+    console.log(
+      `  ${deletedOk ? "ok  " : "FAIL"} deleted record       stays gone (client_row=${report.deleted_record.client_row_present} bookings=${report.deleted_record.bookings_present})`
+    );
     console.log("");
     console.log("  volatile counts (recorded, not asserted):");
     for (const [table, n] of Object.entries(report.counts.volatile)) {
@@ -245,7 +262,7 @@ async function main() {
     }
     console.log("");
     if (ok) {
-      console.log("PASS — the rules seed and the protected record are unchanged.");
+      console.log("PASS — the rules seed is unchanged and the deleted record has not returned.");
       console.log("⚠️  This says nothing about policies, functions, ACLs or triggers.");
       console.log("    Those are pinned by catalog-baseline.json via the Supabase MCP.");
     } else {

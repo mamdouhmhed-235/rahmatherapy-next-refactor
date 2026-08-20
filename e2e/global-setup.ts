@@ -99,7 +99,11 @@ export default function globalSetup() {
       "",
       "⛔ Do NOT blank the variable to get past this check -- helpers.ts reads",
       "   .env off disk, so the tests would still hit production.",
-      "⛔ The client `Badar` and its booking are REAL. Nothing may modify them.",
+      "⛔ Owner ruling D-015: the site is in maintenance mode and this database is",
+      "   in testing, so the full browser programme is approved to write here.",
+      "⛔ D-016: the one real customer record was hard-deleted on 2026-08-20. There",
+      "   is no protected row left — but `verify-system-integrity.mjs` now asserts",
+      "   that deletion STAYS undone, so do not restore a pre-2026-08-20 backup.",
     ]);
   }
 
