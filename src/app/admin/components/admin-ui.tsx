@@ -912,7 +912,22 @@ export function AdminAccessDenied({
   const ctaLabel = variant === "therapist" ? "Back to My day" : "Back to dashboard";
 
   return (
-    <div className="mx-auto max-w-2xl">
+    <div
+      className="mx-auto max-w-2xl"
+      // ⛔ STABLE TEST MARKER. Access tests must not have to guess at this
+      // component's copy: every page passes its own `title`/`message`, so
+      // matching on wording is a false-positive generator. It generated one —
+      // a browser sweep classified the Coordinator's correctly-refused
+      // /admin/privacy/ as "rendered" because the page says "Ask the owner"
+      // and the test looked for "ask the practice owner", and that nearly
+      // became a reported security finding against working code.
+      //
+      // Presentational only: a data attribute changes no behaviour and no
+      // styling. `inactive` is exposed too, because "refused" and "your account
+      // is switched off" are different answers and a test should not conflate
+      // them.
+      data-admin-access-denied={inactive ? "inactive" : "denied"}
+    >
       <AdminPanel tone={inactive ? "danger" : "restricted"}>
         <div className="grid justify-items-center gap-4 py-10 text-center">
           <span
