@@ -71,6 +71,20 @@ export interface ClientActionState {
   fieldErrors?: Record<string, string>;
   duplicateWarning?: string;
   success?: boolean;
+  /**
+   * ⛔ FIND-08-B. What the operator typed, echoed back so the form can
+   * re-render it.
+   *
+   * React resets an uncontrolled `<form action={fn}>` once the action returns.
+   * Without this the create form came back COMPLETELY BLANK on every
+   * non-success path — and the duplicate-client warning is a non-success path.
+   * So hitting the duplicate check cost the operator the whole record, and the
+   * "create a separate client profile anyway" checkbox was unreachable: ticking
+   * it re-enabled the button, but `full_name` and `client_source` were now
+   * empty and `required`, so the browser silently blocked the submit and no
+   * server action ever fired.
+   */
+  values?: Record<string, string>;
 }
 
 const clientSchema = z.object({
@@ -191,10 +205,30 @@ export async function createClient(
     notes: formData.get("notes"),
   });
 
+  // ⛔ FIND-08-B. Captured BEFORE any early return, so every non-success path
+  // below can hand the operator's typing back to the form instead of blanking
+  // it. Read straight off the FormData rather than off `parsed`, so it survives
+  // a validation failure too.
+  const submitted = Object.fromEntries(
+    [
+      "full_name",
+      "phone",
+      "email",
+      "address",
+      "postcode",
+      "city",
+      "area",
+      "client_source",
+      "source_detail",
+      "notes",
+    ].map((field) => [field, String(formData.get(field) ?? "")]),
+  );
+
   if (!parsed.success) {
     return {
       error: "Check the client details.",
       fieldErrors: toFieldErrors(parsed.error),
+      values: submitted,
     };
   }
 
@@ -220,8 +254,8 @@ export async function createClient(
             .limit(5)
         : Promise.resolve({ data: [], error: null }),
     ]);
-    if (emailMatches.error) return { error: emailMatches.error.message };
-    if (phoneMatches.error) return { error: phoneMatches.error.message };
+    if (emailMatches.error) return { error: emailMatches.error.message, values: submitted };
+    if (phoneMatches.error) return { error: phoneMatches.error.message, values: submitted };
 
     const matchesById = new Map(
       [...(emailMatches.data ?? []), ...(phoneMatches.data ?? [])].map(
@@ -235,6 +269,9 @@ export async function createClient(
         duplicateWarning: matches
           .map((client) => `${client.full_name} (${client.email ?? client.phone ?? "no contact"})`)
           .join(", "),
+        // ⛔ FIND-08-B: without this the operator loses the whole record here,
+        // and the acknowledgement checkbox underneath it can never be acted on.
+        values: submitted,
       };
     }
   }
@@ -258,7 +295,7 @@ export async function createClient(
     .select("id")
     .single();
 
-  if (error) return { error: error.message };
+  if (error) return { error: error.message, values: submitted };
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
@@ -829,7 +866,19 @@ export async function addClientNote(
     action_type: "client_note_added",
     target_type: "client_notes",
     target_id: data.id,
-    after_state: { client_id: clientId, is_sensitive: true },
+    // ⛔ FIND-08-A. This was the literal `true`, while the row two statements
+    // above is written with `access.canCreateSensitiveNote`. The two disagree
+    // for every Therapist: they hold `create_client_session_notes` but neither
+    // `manage_sensitive_client_notes` nor `manage_privacy_operations`, so their
+    // note is correctly stored as NOT sensitive and the audit trail recorded it
+    // as sensitive anyway.
+    //
+    // ⚠️ Not cosmetic. `is_sensitive` decides who can READ the note: the client
+    // detail page issues two separate permission-gated queries, one over
+    // `is_sensitive = false` and one over `is_sensitive = true`. So the audit
+    // log was describing a note as belonging to a category more restricted than
+    // the one it is actually visible in — on the clinic's most sensitive data.
+    after_state: { client_id: clientId, is_sensitive: access.canCreateSensitiveNote },
   });
 
   updateTag(TAGS.CLIENTS);

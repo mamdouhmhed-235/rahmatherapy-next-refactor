@@ -87,6 +87,17 @@ export function ClientCreateForm() {
     setConfirmDuplicate(false);
   }, [state.duplicateWarning]);
 
+  // ⛔ FIND-08-B. `source` is separate React state and decides whether the
+  // conditional "source detail" field is rendered at all. Seed it from the
+  // echoed value, or the dropdown and the field it controls diverge after a
+  // duplicate warning.
+  useEffect(() => {
+    const echoed = state.values?.client_source;
+    if (echoed === undefined) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSource(echoed);
+  }, [state.values?.client_source]);
+
   // clear client-side pre-validation errors whenever the server state changes
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -260,6 +271,7 @@ export function ClientCreateForm() {
           <div className="grid gap-4 md:grid-cols-2">
             <FormField
               name="full_name"
+              defaultValue={state.values?.full_name}
               label="Full name"
               required
               placeholder="As they'd like it on their record"
@@ -277,7 +289,15 @@ export function ClientCreateForm() {
                 <div className="relative">
                   <select
                     {...controlProps}
-                    defaultValue=""
+                    // ⛔ FIND-08-B. CONTROLLED, not defaultValue. React only
+                    // applies defaultValue to a <select> when it MOUNTS, so an
+                    // echoed value never reached this element on re-render: the
+                    // dropdown stayed empty, and because it is `required` the
+                    // browser silently blocked every further submit. Driving it
+                    // from the `source` state — which the effect below seeds
+                    // from the echoed value — is what makes the duplicate
+                    // override actually reachable.
+                    value={source}
                     onChange={(event) =>
                       setSource(event.currentTarget.value)
                     }
@@ -305,6 +325,7 @@ export function ClientCreateForm() {
             <div className="md:col-span-2">
               <FormField
                 name="source_detail"
+              defaultValue={state.values?.source_detail}
                 label="Source detail"
                 optional
                 placeholder="Referral name, campaign, or admin context"
@@ -323,6 +344,7 @@ export function ClientCreateForm() {
           <div className="grid gap-4 md:grid-cols-2">
             <FormField
               name="email"
+              defaultValue={state.values?.email}
               type="email"
               label="Email"
               optional
@@ -333,6 +355,7 @@ export function ClientCreateForm() {
             />
             <FormField
               name="phone"
+              defaultValue={state.values?.phone}
               type="tel"
               label="Phone"
               optional
@@ -351,6 +374,7 @@ export function ClientCreateForm() {
               <div className="md:col-span-2">
                 <FormField
                   name="address"
+              defaultValue={state.values?.address}
                   label="Address"
                   optional
                   placeholder="Street name and number, building or flat"
@@ -360,6 +384,7 @@ export function ClientCreateForm() {
               </div>
               <FormField
                 name="postcode"
+              defaultValue={state.values?.postcode}
                 label="Postcode"
                 optional
                 placeholder="LU1 1AA"
@@ -369,6 +394,7 @@ export function ClientCreateForm() {
               />
               <FormField
                 name="city"
+              defaultValue={state.values?.city}
                 label="City"
                 optional
                 placeholder="Luton"
@@ -379,6 +405,7 @@ export function ClientCreateForm() {
               <div className="md:col-span-2">
                 <FormField
                   name="area"
+              defaultValue={state.values?.area}
                   label="Area"
                   optional
                   placeholder="e.g. Bury Park"
@@ -398,6 +425,7 @@ export function ClientCreateForm() {
           <textarea
             id="client-notes"
             name="notes"
+              defaultValue={state.values?.notes}
             rows={5}
             maxLength={NOTES_MAX}
             aria-label="Internal client notes"
@@ -541,6 +569,13 @@ const NoContactDialog = forwardRef<
 interface FormFieldProps {
   name: string;
   label: string;
+  /**
+   * ⛔ FIND-08-B. React resets an uncontrolled `<form action={fn}>` once the
+   * action returns, so every non-success path used to re-render this form
+   * completely blank. The action now echoes what was typed back in
+   * `state.values`, and this is how each field re-renders it.
+   */
+  defaultValue?: string;
   required?: boolean;
   optional?: boolean;
   type?: string;
@@ -552,6 +587,7 @@ interface FormFieldProps {
   children?: (props: {
     id: string;
     name: string;
+    defaultValue?: string;
     required?: boolean;
     "aria-required": "true" | undefined;
     "aria-invalid": "true" | undefined;
@@ -563,6 +599,7 @@ interface FormFieldProps {
 function FormField({
   name,
   label,
+  defaultValue,
   required,
   optional,
   type = "text",
@@ -584,6 +621,7 @@ function FormField({
   const controlProps = {
     id: fieldId,
     name,
+    defaultValue,
     required,
     "aria-required": required ? ("true" as const) : undefined,
     "aria-invalid": error ? ("true" as const) : undefined,
