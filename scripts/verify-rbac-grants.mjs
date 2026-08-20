@@ -22,8 +22,8 @@
 // production-readiness programme, and the 95 grants below are intentional
 // (Owner ruling: "whatever is present on my site now is my doing and with my
 // permission"). This script pins them; it never questions or changes them.
-// If a grant genuinely changes, update EXPECTED_GRANTS in the same commit and
-// say why in the message.
+// If a grant genuinely changes, update src/lib/auth/role-grants.json in the same
+// commit and say why in the message.
 //
 // Measured live 2026-08-20: 5 roles · 40 permissions · 95 grants.
 
@@ -31,66 +31,24 @@ import fs from "node:fs";
 import process from "node:process";
 import { createClient } from "@supabase/supabase-js";
 
-const EXPECTED_GRANTS = {
-  // Every permission in the system.
-  Owner: [
-    "assign_bookings", "assign_staff_roles", "claim_assignments",
-    "create_client_session_notes", "export_reports_own", "export_reports_revenue",
-    "manage_account_requests", "manage_audit_logs", "manage_availability_global",
-    "manage_availability_own", "manage_bookings_all", "manage_bookings_assigned",
-    "manage_client_destructive_ops", "manage_client_identity_fields", "manage_clients_all",
-    "manage_email_settings", "manage_email_templates", "manage_enquiries",
-    "manage_permission_overrides", "manage_privacy_operations", "manage_role_templates",
-    "manage_sensitive_client_notes", "manage_services", "manage_settings",
-    "manage_staff_profiles", "manage_travel_origin", "resend_booking_emails",
-    "view_bookings_all", "view_bookings_assigned", "view_client_contact_details",
-    "view_client_health_notes_assigned", "view_clients_all", "view_clients_assigned",
-    "view_dashboard", "view_email_logs", "view_reports_business",
-    "view_reports_operational", "view_reports_own", "view_reports_revenue", "view_staff",
-  ],
-  // Owner minus 8: the three Owner-exclusive admin powers (permission overrides,
-  // role templates, travel origin) and the five "own/assigned" personal-scope
-  // permissions that only a practising therapist needs.
-  Admin: [
-    "assign_bookings", "assign_staff_roles", "claim_assignments",
-    "export_reports_revenue", "manage_account_requests", "manage_audit_logs",
-    "manage_availability_global", "manage_availability_own", "manage_bookings_all",
-    "manage_bookings_assigned", "manage_client_destructive_ops",
-    "manage_client_identity_fields", "manage_clients_all", "manage_email_settings",
-    "manage_email_templates", "manage_enquiries", "manage_privacy_operations",
-    "manage_sensitive_client_notes", "manage_services", "manage_settings",
-    "manage_staff_profiles", "resend_booking_emails", "view_bookings_all",
-    "view_bookings_assigned", "view_client_contact_details", "view_clients_all",
-    "view_dashboard", "view_email_logs", "view_reports_business",
-    "view_reports_operational", "view_reports_revenue", "view_staff",
-  ],
-  // Practising therapist: everything scoped to their OWN assignments. ⛔ Holds
-  // view_client_health_notes_assigned — they are the person treating the client.
-  Therapist: [
-    "claim_assignments", "create_client_session_notes", "export_reports_own",
-    "manage_availability_own", "manage_bookings_assigned", "resend_booking_emails",
-    "view_bookings_assigned", "view_client_contact_details",
-    "view_client_health_notes_assigned", "view_clients_assigned", "view_dashboard",
-    "view_reports_own",
-  ],
-  // ⛔ Front-desk scope. Deliberately holds NEITHER health-note permission, which
-  // is what makes the booking-detail redaction observable — see
-  // src/app/admin/bookings/[bookingId]/__tests__/booking-detail-data.test.ts.
-  // Also holds assign_bookings but NOT claim_assignments: they hand work out,
-  // they do not take it.
-  "Booking Coordinator": [
-    "assign_bookings", "manage_bookings_all", "manage_clients_all", "manage_enquiries",
-    "resend_booking_emails", "view_bookings_all", "view_client_contact_details",
-    "view_clients_all", "view_dashboard", "view_email_logs", "view_reports_operational",
-  ],
-  // ⛔ Deliberately empty. The role exists so a deactivated staff member keeps a
-  // role_id rather than a dangling reference. Zero grants is the assertion.
-  Inactive: [],
-};
+// ⛔ SINGLE SOURCE OF TRUTH. The expected grants are NOT written here — they live
+// in src/lib/auth/role-grants.json, which this script checks against the live
+// database (gate 07 case 2) and which src/lib/auth/permission-bundles.test.ts
+// checks the application's permission predicates against (gate 07 case 1).
+//
+// They previously lived in this file. That made the unit tests' role fixtures a
+// SECOND, unchecked copy — precisely the drift this script exists to catch, one
+// layer up. One file, two consumers, no copies.
+const FIXTURE_PATH = "src/lib/auth/role-grants.json";
+const fixture = JSON.parse(fs.readFileSync(FIXTURE_PATH, "utf8"));
 
-const EXPECTED_ROLE_COUNT = 5;
-const EXPECTED_PERMISSION_COUNT = 40;
-const EXPECTED_GRANT_COUNT = 95;
+const EXPECTED_GRANTS = Object.fromEntries(
+  Object.entries(fixture.roles).map(([name, entry]) => [name, entry.grants])
+);
+
+const EXPECTED_ROLE_COUNT = fixture.expectedRoleCount;
+const EXPECTED_PERMISSION_COUNT = fixture.expectedPermissionCount;
+const EXPECTED_GRANT_COUNT = fixture.expectedGrantCount;
 
 function loadEnv() {
   const envText = fs.readFileSync(".env", "utf8");
@@ -213,7 +171,7 @@ async function main() {
       console.log(`FAIL — ${failures.length} problem(s):`);
       for (const f of failures) console.log(`  ${f}`);
       console.log("");
-      console.log("⛔ If this drift is INTENTIONAL, update EXPECTED_GRANTS in this file in the");
+      console.log(`⛔ If this drift is INTENTIONAL, update ${FIXTURE_PATH} in the`);
       console.log("   same commit as the database change, and say why in the commit message.");
     }
   }
