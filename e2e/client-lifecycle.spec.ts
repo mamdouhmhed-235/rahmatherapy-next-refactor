@@ -157,8 +157,26 @@ async function createClientFixture(
   return { clientId, name, bookingIds };
 }
 
-/** Hard-delete everything this run created, child-first, by explicit id. */
+/**
+ * Hard-delete everything this run created, child-first.
+ *
+ * ⛔ SWEEPS BY THIS RUN'S TAG AS WELL AS BY COLLECTED ID, and that is not
+ * belt-and-braces — it closes a real leak. Ids created through the UI are only
+ * pushed onto the cleanup list AFTER the assertion that reads them back, so a
+ * test that failed in between left its client on the production database. One
+ * did: `ZZTEST-Duplicate-37484` survived a failed mutation run and had to be
+ * removed by hand.
+ *
+ * ⚠️ The pattern is anchored to RUN_TAG, so this can only ever remove rows this
+ * process created — never another run's, and never real data.
+ */
 async function destroyByClientIds(db: SupabaseClient, clientIds: string[]) {
+  const { data: strays } = await db
+    .from("clients")
+    .select("id")
+    .like("full_name", `ZZTEST-%-${RUN_TAG}`);
+  clientIds = [...new Set([...clientIds, ...((strays ?? []) as { id: string }[]).map((c) => c.id)])];
+
   if (clientIds.length === 0) return;
   const { data: bookings } = await db.from("bookings").select("id").in("client_id", clientIds);
   const bookingIds = ((bookings ?? []) as { id: string }[]).map((b) => b.id);
@@ -515,12 +533,71 @@ test.describe("gate 08 P2 — the client lifecycle, through the real forms", () 
         "the coordinator should see the client's name",
       ).toBeVisible();
 
+      // ⚠️ MEASURED, and it corrects an assumption this test was first written
+      // on. A Coordinator sees NO client notes at all — not the sensitive ones,
+      // and not the ordinary ones either. The notes fetch is gated on
+      // "canViewHealthNotes OR canCreateClientNote OR canViewSensitiveNoteQueue"
+      // and a Coordinator holds none of the three.
+      //
+      // ⛔ So "the Coordinator cannot see the sensitive note" is true, but on
+      // its own it is nearly vacuous — it would pass on a page that rendered no
+      // notes whatever. The assertion that actually proves REDACTION rather than
+      // absence is the Therapist one below, which has a live control.
+      await expect(
+        page.getByText(`ZZTEST-therapistnote-${RUN_TAG}`, { exact: false }),
+        "measured: a coordinator is shown no client notes at all",
+      ).toHaveCount(0);
+
       // ⛔ The Coordinator holds neither manage_sensitive_client_notes nor
       // manage_privacy_operations, so the Owner's sensitive note must not be in
       // the DOM at all — not merely hidden with CSS.
+      //
+      // ⚠️ Proven able to fail, and the way it fails is worth recording: this
+      // surface has TWO independent gates, and opening either one alone leaves
+      // the note hidden. "canViewSensitiveNoteQueue" decides whether the notes
+      // are FETCHED; "canViewHealthNotes" decides whether the card is RENDERED.
+      // Only forcing both true exposes the note and turns this red — the same
+      // defence-in-depth shape as the booking detail page.
       await expect(
         page.getByText(`ZZTEST-ownernote-${RUN_TAG}`, { exact: false }),
         "a coordinator must not see a sensitive note",
+      ).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("E08-60b — the Therapist sees the ordinary note but NOT the sensitive one", async ({
+    browser,
+  }) => {
+    // ⛔ THIS is the case that proves redaction rather than absence, and the
+    // Therapist is the only role that can prove it: they hold
+    // `create_client_session_notes` (so ordinary notes ARE fetched and shown to
+    // them) but neither `manage_sensitive_client_notes` nor
+    // `manage_privacy_operations` (so sensitive ones are not).
+    //
+    // Both notes sit on the SAME client, were written in the SAME run, and are
+    // read on the SAME page in the SAME session. The only thing separating them
+    // is `client_notes.is_sensitive`. That is exactly the property the whole
+    // group exists to check, and nothing else in the suite checks it.
+    const { context, page } = await sessionFor(browser, "therapist_a");
+    try {
+      expect(
+        await openClient(page, assigned.clientId),
+        "the therapist is assigned to this client and should reach it",
+      ).toBe("rendered");
+
+      // The control: their own session note IS shown.
+      await expect(
+        page.getByText(`ZZTEST-therapistnote-${RUN_TAG}`, { exact: false }).first(),
+        "a therapist should see the ordinary session note they wrote",
+      ).toBeVisible();
+
+      // ⛔ And the Owner's sensitive note, on the very same client and the very
+      // same page, must not be in the DOM.
+      await expect(
+        page.getByText(`ZZTEST-ownernote-${RUN_TAG}`, { exact: false }),
+        "a therapist must not see a sensitive note",
       ).toHaveCount(0);
     } finally {
       await context.close();
