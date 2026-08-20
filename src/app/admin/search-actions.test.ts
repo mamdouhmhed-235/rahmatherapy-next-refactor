@@ -14,6 +14,7 @@
 // the shape of the query, so that is what is pinned here.
 //
 // Written with this file: there was no test of this module anywhere in the repo.
+import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createSupabaseAdminClient = vi.fn();
@@ -339,5 +340,104 @@ describe("searchAdminCommand — each half refuses for its own reason", () => {
     expect(await searchAdminCommand(" a ")).toEqual([]);
     expect(getStaffProfile).not.toHaveBeenCalled();
     expect(createSupabaseAdminClient).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GATE 07 CASE 27 - FIND-07-B: the command palette ignores
+// `view_client_contact_details`.
+//
+// Two surfaces read the same client contact data and disagree about who may see
+// it.
+//
+//   The clients LIST switches its SQL column list on the permission:
+//   clients-list-data.ts:754 selects CLIENT_SELECT or CLIENT_SAFE_SELECT
+//   depending on `canViewContactDetails`, so a viewer without it is never sent
+//   the columns at all.
+//
+//   The command palette SEARCH does not. searchClients gates only on
+//   manage_clients_all OR view_clients_all, then selects
+//   "id, full_name, email, phone, postcode" unconditionally and joins the email,
+//   phone and postcode straight into the visible result line.
+//
+// Reachability, measured rather than assumed. All three roles that hold
+// view_clients_all - Owner, Admin and Booking Coordinator - also hold
+// view_client_contact_details, so NO ROLE reaches this today. It is reachable
+// through a per-person permission override, which is a supported feature and is
+// exercised in src/lib/auth/permission-resolution.test.ts: revoking
+// view_client_contact_details from one individual leaves view_clients_all in
+// place, the list obeys the revocation, and the command palette does not.
+//
+// These specs assert the CURRENT behaviour, deliberately. They are the record of
+// what the system does today, and they are what will turn red the moment someone
+// fixes it - at which point the fix is the change, and these expectations move
+// with it in the same commit.
+// ---------------------------------------------------------------------------
+
+const CLIENT_ROW = {
+  id: "cccccccc-0000-4000-8000-000000000001",
+  full_name: "ZZTEST-Contact Leak",
+  email: "zztest.contact@example.test",
+  phone: "07000 000000",
+  postcode: "LU1 1AA",
+};
+
+describe("FIND-07-B - searchClients does not consult view_client_contact_details", () => {
+  it("emits email, phone and postcode to a viewer who has been denied contact details", async () => {
+    // view_clients_all WITHOUT view_client_contact_details - the shape a
+    // permission override produces.
+    getStaffProfile.mockResolvedValue(makeProfile(["view_clients_all"]));
+    mount({ bookings: { data: [] }, clients: { data: [CLIENT_ROW] } });
+
+    const results = await searchAdminCommand("zztest");
+
+    expect(results).toHaveLength(1);
+    expect(results[0].detail).toContain(CLIENT_ROW.email);
+    expect(results[0].detail).toContain(CLIENT_ROW.phone);
+    expect(results[0].detail).toContain(CLIENT_ROW.postcode);
+  });
+
+  it("selects the contact columns from the database regardless of the permission", async () => {
+    // The stronger half. Even if the result string were later trimmed, the
+    // columns have already left the database and are in the server's memory -
+    // which is exactly the difference between this surface and the list, where
+    // CLIENT_SAFE_SELECT never asks for them.
+    getStaffProfile.mockResolvedValue(makeProfile(["view_clients_all"]));
+    const client = mount({ bookings: { data: [] }, clients: { data: [CLIENT_ROW] } });
+
+    await searchAdminCommand("zztest");
+
+    const [clientsQuery] = queriesFor(client, "clients");
+    expect(clientsQuery.select).toContain("email");
+    expect(clientsQuery.select).toContain("phone");
+    expect(clientsQuery.select).toContain("postcode");
+  });
+
+  it("still refuses a viewer who cannot see all clients at all", async () => {
+    // Non-vacuity: the gate that DOES exist works, so the two specs above are
+    // about the missing second gate rather than a missing first one. A therapist
+    // holds neither manage_clients_all nor view_clients_all and gets no client
+    // query at all.
+    getStaffProfile.mockResolvedValue(
+      makeProfile(["view_bookings_assigned", "view_client_contact_details"])
+    );
+    const client = mount({ bookings: { data: [] }, clients: { data: [CLIENT_ROW] } });
+
+    const results = await searchAdminCommand("zztest");
+
+    expect(results.filter((result) => result.type === "client")).toEqual([]);
+    expect(queriesFor(client, "clients")).toHaveLength(0);
+  });
+
+  it("the clients LIST is the surface that gets this right - contrast, in source", () => {
+    // Structural, and stated as such: it pins the contrast that makes this a
+    // disagreement between two surfaces rather than a single missing check.
+    const listSource = readFileSync(
+      "src/app/admin/clients/clients-list-data.ts",
+      "utf8"
+    );
+    expect(listSource).toContain(
+      "canViewContactDetails ? CLIENT_SELECT : CLIENT_SAFE_SELECT"
+    );
   });
 });

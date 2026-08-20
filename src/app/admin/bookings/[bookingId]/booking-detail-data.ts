@@ -187,7 +187,12 @@ export async function getScopedBookingRelation(
   };
 }
 
-function normalizeClaimableBooking(
+// ⛔ EXPORTED FOR TESTING. This projection is what a therapist sees when a
+// booking is visible to them ONLY because it is claimable, and there are TWO
+// copies of it — this one and its twin in the other module — which can drift
+// apart silently. src/app/admin/bookings/__tests__/claimable-redaction.test.ts
+// asserts both against the same expectations for that reason.
+export function normalizeClaimableBooking(
   booking: Partial<BookingRecordWithClientId>
 ): BookingRecordWithClientId {
   return {
