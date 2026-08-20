@@ -107,6 +107,60 @@ export default function globalSetup() {
     ]);
   }
 
+  // ⛔ REAL-IDENTITY GUARD (added 2026-08-20, gate 08 P0).
+  //
+  // `E2E_OWNER_EMAIL` was pointing at `rahmatherapy@outlook.com` -- the Owner's
+  // OWN login, flagged `bootstrap_owner` in auth.users. Every authenticated
+  // browser run was therefore signing in as the real business owner, creating
+  // real sessions on that account, and any destructive persona case would have
+  // acted as them. Nothing had noticed, because the specs had never run.
+  //
+  // The seeded test identities all end in `example.test` -- either directly
+  // (`phase10.owner@example.test`) or as a subdomain
+  // (`test.admin@rahmatherapy.example.test`). That is the rule: every configured
+  // E2E identity must be one. A real mailbox cannot be one by accident.
+  //
+  // ⚠️ The first version of this pattern required a DOT before "example" and so
+  // rejected the `@example.test` accounts too. It failed CLOSED, which is the
+  // right direction for a guard to be wrong in.
+  //
+  // ⛔ Fails CLOSED and names the offender. Do NOT "fix" a failure here by
+  // relaxing the check -- point the variable at a seeded test account instead
+  // (`pnpm test:e2e:setup` creates them).
+  const IDENTITY_VARS = [
+    "E2E_OWNER_EMAIL",
+    "E2E_ADMIN_EMAIL",
+    "E2E_COORDINATOR_EMAIL",
+    "E2E_THERAPIST_A_EMAIL",
+    "E2E_THERAPIST_B_EMAIL",
+    "E2E_INACTIVE_EMAIL",
+    "E2E_NON_STAFF_EMAIL",
+  ];
+
+  const realIdentities = IDENTITY_VARS.map((name) => ({ name, value: resolveEnvValue(name) }))
+    // An unset identity self-skips its specs, which PRE-1b handles separately.
+    // This guard is only about identities that ARE configured.
+    .filter((entry) => entry.value && entry.value.trim() !== "")
+    .filter((entry) => !/(?:@|\.)example\.test$/i.test(entry.value!.trim()));
+
+  if (realIdentities.length > 0) {
+    fail([
+      "One or more E2E identities is NOT a seeded test account.",
+      "",
+      ...realIdentities.map((entry) => `  ${entry.name} = ${entry.value}`),
+      "",
+      "Every E2E identity must be on a `.example.test` domain. Anything else is",
+      "a real mailbox, and signing in as it creates real sessions on a real",
+      "person's account -- which is exactly what was happening before this guard",
+      "existed: E2E_OWNER_EMAIL pointed at the Owner's own login.",
+      "",
+      "Run `pnpm test:e2e:setup` to create the seeded identities, then point the",
+      "variable at one of them.",
+      "",
+      "⛔ Do NOT relax this check to get past it.",
+    ]);
+  }
+
   // Report the RESOLVED target, never an assumption. Hostname only -- no keys.
   const host = (() => {
     try {
