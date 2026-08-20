@@ -90,3 +90,7 @@ photos-rahma-therapy/
 # otherwise breaks the documented `git status --porcelain -- src/ supabase/`
 # gate, which must stay EMPTY.
 supabase/.temp/
+
+# ⛔ Live Supabase session cookies minted for the browser-test role agents.
+# NEVER commit: each file is a working login for one role identity.
+e2e/.auth/
