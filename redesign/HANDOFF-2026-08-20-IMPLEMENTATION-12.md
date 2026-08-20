@@ -12,9 +12,9 @@ items are now stale by 21 commits**. Everything else in `-11` still stands, incl
 ## 1 — ⛔ POSITION
 
 ```
-HEAD           2dfb21c   on master
+HEAD           7e23f9f   on master
 origin/master  0f8ab9d
-UNPUSHED       43 commits
+UNPUSHED       45 commits
 tracked files  2020
 working tree   CLEAN
 ```
@@ -80,6 +80,9 @@ database** — only `HEAD` can.
 ---
 
 ## 3 — ⛔ GATE BASELINES — all measured at `2dfb21c`, 2026-08-20
+
+*(HEAD has since moved to `7e23f9f` — two documentation commits and one comment-only change to
+`scan-browser-secrets.mjs`. No gate output moves as a result; the numbers below still stand.)*
 
 ```
 npx tsc --noEmit                              0 errors
