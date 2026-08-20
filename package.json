@@ -22,6 +22,7 @@
     "bootstrap:owner-admin": "node scripts/bootstrap-owner-admin.mjs",
     "verify:london-time": "node scripts/verify-london-time.mjs",
     "verify:migrations": "node scripts/verify-migration-coverage.mjs",
+    "verify:rbac": "node scripts/verify-rbac-grants.mjs",
     "cf:build": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
