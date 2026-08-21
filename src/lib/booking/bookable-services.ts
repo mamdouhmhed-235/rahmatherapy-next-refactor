@@ -18,10 +18,17 @@
 // ── Why this file had to exist at all ─────────────────────────────────────
 //
 // ⛔ The customer booking dialog's package list was a HARDCODED array in
-// `src/features/booking/data/booking-packages.ts` and consulted the database
-// not at all. So "Hide from website" — a button that reports *"Hidden from the
-// website."* — removed the service from the ADMIN booking wizard and from
-// nothing else. It stayed on the site and stayed bookable. See FIND-03-B.
+// `src/features/booking/data/booking-packages.ts`, so "Hide from website" — a
+// button reporting *"Hidden from the website."* — still OFFERED the service in
+// the booking form. See FIND-03-B.
+//
+// ⚠️ CORRECTION after an independent audit: an earlier version of this comment
+// added "and stayed bookable", which OVERSTATED it. `src/lib/booking/
+// availability.ts` does read `services` on both flags, on the PUBLIC
+// `/api/availability` path, so a hidden service already returned zero time
+// slots and a customer could not complete a booking through the form. The real
+// exposure was a direct `POST /api/bookings` (which never re-checks
+// availability) and the recurring path, both closed in `da5f91e`.
 //
 // ── ⛔ WHICH WAY THIS FAILS, AND WHY ──────────────────────────────────────
 //
