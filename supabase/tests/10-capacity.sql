@@ -11,7 +11,8 @@
 -- makes it safe. Do not remove a `rollback;`. Do not change `@probe.invalid`
 -- to a real address. Do not change a date without checking its weekday.
 --
--- Last run 2026-08-19 against twzutkfgqclqurvkmvqz. Results in
+-- Last run 2026-08-20 against twzutkfgqclqurvkmvqz (capacity + assigned-path
+-- arms re-measured; see BLOCK 2). Earlier full run 2026-08-19. Results in
 -- .production-readiness/runs/2026-08-18_baseline/03-tests/05-database/RESULT.md
 -- ============================================================================
 
@@ -90,7 +91,27 @@
 --            completed + unassigned → SUCCEEDED      ✅ unchanged
 --        ⚠️ That control is the same SHAPE as B4 but is not B4 — B4 is male
 --        and `pending`; the control arm was female and `confirmed`, so it
---        shares B6b's fixture. B4 itself has NOT been re-run since the fix.
+--        shares B6b's fixture. ~~B4 itself has NOT been re-run since the fix.~~
+--
+--     ✅ RE-RUN 2026-08-20 (gate 08 P2, Owner decision "rules underneath").
+--        The gap above is closed: all three assigned-path arms were measured
+--        together in ONE rolled-back transaction, against a fixture of exactly
+--        one bookable female therapist, on 2026-09-11:
+--
+--            assigned + pending    → THREW P0001 :: Not enough female
+--                                    therapists available          ✅ (B4's shape)
+--            assigned + confirmed  → THREW P0001 :: same           ✅ still blocks
+--            assigned + completed  → LIVED                         ✅ the fix holds
+--
+--        ⛔ And the discrimination control was re-measured in its own
+--        transaction the same day, because "REFUSED" means nothing from a
+--        function that refuses everything:
+--            no existing booking   → LIVED                         ✅ (B3)
+--            slot already taken    → THREW P0001                   ✅ (B1)
+--
+--        ⚠️ Still measured with a FEMALE therapist rather than B4's male one.
+--        The gender arm is exercised by B2, so what remains untested is the
+--        male-and-pending combination specifically, not the pending rule.
 
 
 -- ============================================================================
