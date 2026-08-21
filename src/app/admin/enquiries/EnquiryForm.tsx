@@ -139,12 +139,36 @@ export function EnquiryForm({ staff }: { staff: StaffOption[] }) {
           placeholder="07…"
           hint="Either phone or email helps you reply."
         />
+        {/* Email is OPTIONAL here, deliberately, and this is the one admin form
+            that used to say otherwise.
+
+            Somebody rings up and won't give an email address — routine for a
+            phone enquiry — and staff must still be able to write them down. The
+            server has always agreed: `enquirySchema` types this field as
+            `z.union([z.email(), z.literal("")]).optional()`. The `required`
+            marker was the odd one out, contradicting both the server and the
+            hint under Phone that says "Either phone or email helps you reply."
+
+            ⚠️ It was also INERT, which is why nobody noticed: React drives this
+            form through a server action, so native constraint validation never
+            gates the submit. Measured — the browser reported
+            `validity.valueMissing === true` and the enquiry was created anyway.
+            So the red asterisk told staff email was mandatory while the form
+            cheerfully accepted it empty.
+
+            This matches the admin's other intake surfaces: the manual booking
+            wizard ("Optional. Used for confirmations and reminders when
+            provided.") and both client forms (`optional`).
+
+            ⛔ The CUSTOMER-FACING booking form is NOT this, and must not be
+            changed to match: `booking-schema.ts` requires a real address
+            (`z.email(...)`), because a customer booking themselves online has no
+            receptionist to take a phone number down for them. */}
         <Field
           id={emailId}
           name="email"
           label="Email"
           type="email"
-          required
           placeholder="name@example.com"
           error={state.fieldErrors?.email}
         />

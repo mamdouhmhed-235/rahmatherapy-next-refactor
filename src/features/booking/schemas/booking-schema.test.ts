@@ -34,6 +34,42 @@ const baseLocation = {
 };
 
 describe("booking schema", () => {
+  // ⛔ THE CUSTOMER-FACING FORM REQUIRES AN EMAIL ADDRESS, AND THAT ASYMMETRY IS
+  // DELIBERATE. Owner ruling, 2026-08-21 (D-028): the ADMIN side must accept a
+  // booking or an enquiry with no email — a receptionist takes phone calls, and a
+  // caller who won't give an address must still be written down — but a customer
+  // booking themselves online has no receptionist to take their number down, so
+  // the public form keeps requiring one.
+  //
+  // ⚠️ This was UNGUARDED. Nothing asserted the public rule at all, so a future
+  // tidy-up that "made email optional everywhere for consistency" would have
+  // sailed through green and silently let customers book with no way to send
+  // them a confirmation. That is what these two cases exist to stop.
+  //
+  // The admin side of the same asymmetry is guarded in
+  // e2e/enquiry-lifecycle.spec.ts (E08-101i).
+  describe("email — required for CUSTOMERS, optional for ADMIN (D-028)", () => {
+    it("rejects a customer booking with no email address", () => {
+      const result = bookingDetailsSchema.safeParse({
+        ...baseParticipant,
+        ...baseLocation,
+        email: "",
+      });
+
+      expect(result.success, "a customer must leave a way to be confirmed").toBe(false);
+    });
+
+    it("rejects a customer booking with a malformed email address", () => {
+      const result = bookingDetailsSchema.safeParse({
+        ...baseParticipant,
+        ...baseLocation,
+        email: "aisha-at-example",
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
   it("accepts a supported service area before time selection", () => {
     expect(bookingLocationSchema.safeParse(baseLocation).success).toBe(true);
   });

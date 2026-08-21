@@ -5,10 +5,14 @@
 // booking, any client record, or any money. If that list loses people, the clinic
 // loses work it never knew it had.
 //
-// ── ⛔ WHY THIS SPEC NEVER CREATES AN ENQUIRY THROUGH THE FORM ─────────────
+// ── ⚠️⚠️ THIS SPEC SENDS ONE REAL EMAIL. READ BEFORE RUNNING IT. ───────────
 //
-// ⚠️ CREATING an enquiry EMAILS THE OWNER'S REAL BUSINESS INBOX. That is measured,
-// not assumed, and it contradicts the plan note that said this group sends no mail:
+// ⛔ TWO cases — E08-101h and E08-101i — submit the intake form for real, and that
+// EMAILS THE OWNER'S REAL BUSINESS INBOX (rahmatherapy@outlook.com). The Owner was
+// warned of precisely that and approved it (D-027). ⛔ Do not run this file as a
+// casual "quick check".
+//
+// Why it cannot be avoided, measured rather than assumed:
 //
 //   createEnquiry -> sendEnquiryLoggedEmail -> resolveBusinessNotificationRecipients
 //
@@ -18,18 +22,19 @@
 // actor, and the harness may never sign in as a real person (D-017), so no actor
 // this programme can use will exclude that recipient.
 //
-// ⛔ So the CREATE half is not run here. It is not skipped either — it is covered
-// where it costs nothing:
+// ⚠️ The plan note carried into this group said it emails nobody. ⛔ That was WRONG,
+// and it was caught by reading the code first rather than by mail arriving.
+//
+// ⛔ CHANGING A STATUS SENDS NOTHING. updateEnquiryStatus has no email path at all.
+// That is why every OTHER case here inserts its fixture directly and drives only
+// status changes — one email for the whole group, not eight.
+//
+// The create path is also covered where it costs nothing, and those cover the parts
+// a browser cannot see:
 //   - the permission gate, all four actor states, in
 //     src/app/admin/__tests__/server-enforcement.test.ts (case 101), which mocks
 //     the admin client and sends no mail at all;
 //   - the email hook itself in enquiries/__tests__/createEnquiry.test.ts.
-// The one thing left uncovered is the intake FORM's own rendering and submit, and
-// that needs the Owner's say-so because it costs one real email. Recorded, not
-// quietly dropped.
-//
-// ⛔ CHANGING A STATUS SENDS NOTHING. updateEnquiryStatus has no email path. That
-// is what this spec drives, and it drives it through the real buttons.
 //
 // ── The rule underneath, and it is a real business rule ────────────────────
 //
@@ -55,6 +60,10 @@ import { hasBaseUrl } from "./helpers";
 
 const AUTH_DIR = "e2e/.auth";
 const RUN_TAG = process.env.E2E_FIXTURE_TAG ?? String(process.pid);
+
+/** Measured. The Coordinator the harness signs in as — selected by ID, never by name. */
+const COORDINATOR_STAFF_ID = "998075ff-26fc-4451-9015-fadfbcd9f4df";
+const REAL_BUSINESS_INBOX = "rahmatherapy@outlook.com";
 
 function serviceClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -108,7 +117,15 @@ async function readEnquiry(db: SupabaseClient, id: string): Promise<EnquiryRow> 
   return data as EnquiryRow;
 }
 
-async function destroyFixtures(db: SupabaseClient, ids: string[]) {
+async function destroyFixtures(db: SupabaseClient, ids: string[], emailRowIds: string[]) {
+  // ⛔ The enquiry alert's delivery row carries a NULL booking_id, so nothing
+  // cascades it away when the enquiry goes — it must be removed explicitly.
+  // ⛔ BY COLLECTED ID, not by subject: the subject is a registry default that
+  // may not contain the enquiry name at all, and a filter that silently matches
+  // nothing would leak the row while looking like it worked.
+  if (emailRowIds.length > 0) {
+    await db.from("email_delivery_events").delete().in("id", emailRowIds);
+  }
   // Sweep by this run's tag as well as by collected id — a test that failed
   // before pushing its id would otherwise leak a row (G-25).
   const { data: strays } = await db
@@ -228,6 +245,8 @@ test.describe("gate 08 P2 group 3 — an enquiry through the real buttons (E08-1
   let lifecycle: { id: string; name: string };
   let refused: { id: string; name: string };
   const createdIds: string[] = [];
+  /** Delivery rows this run caused, collected so teardown can remove them by id. */
+  const createdEmailRowIds: string[] = [];
   /** Captured at the first move to `contacted`, then defended for the rest of the run. */
   let firstContactedAt: string | null = null;
 
@@ -246,7 +265,7 @@ test.describe("gate 08 P2 group 3 — an enquiry through the real buttons (E08-1
 
   test.afterAll(async () => {
     // Unconditional — a failed assertion above must not leave rows behind.
-    if (db) await destroyFixtures(db, createdIds);
+    if (db) await destroyFixtures(db, createdIds, createdEmailRowIds);
   });
 
   test("E08-101a — a Coordinator can open Enquiries and the new enquiry is listed", async ({
@@ -415,6 +434,224 @@ test.describe("gate 08 P2 group 3 — an enquiry through the real buttons (E08-1
       // E08-101a. A therapist_a.json that had simply expired would land on
       // /admin/login, which this distinguishes.
       expect(outcome, "refused by permission, not by an expired session").toBe("denied");
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("E08-101h — a Coordinator records a new enquiry on the real intake form", async ({
+    browser,
+  }) => {
+    // ⚠️⚠️ THIS CASE SENDS ONE REAL EMAIL TO THE BUSINESS INBOX. ⚠️⚠️
+    //
+    // ⛔ The Owner was warned of exactly this and approved it (D-027). Do not
+    // run this spec casually — it is the only case here that sends mail, and
+    // the recipient is a real person's inbox, not a test address.
+    //
+    // Everything else in this file inserts its fixtures directly to avoid that.
+    // This one case exists because the intake form is the surface a receptionist
+    // actually types into, and D-023 says prove the FORM once.
+    const name = `ZZTEST-Enq-Intake-${RUN_TAG}`;
+    const runStartedAt = new Date(Date.now() - 60_000).toISOString();
+
+    const { context, page } = await sessionFor(browser, "coordinator");
+    try {
+      expect(await openEnquiries(page)).toBe("rendered");
+
+      // ⛔ The panel is `hidden lg:block` — visible on this desktop viewport
+      // without touching the mobile "Record new enquiry" toggle. Asserting it
+      // is visible first means a layout change cannot make the fills silently
+      // no-op.
+      const form = page.locator("#enquiry-intake-panel");
+      await expect(form, "the intake panel is on the page").toBeVisible();
+
+      // ⛔ These fields DO carry real `name` attributes — unlike the booking
+      // wizard, whose visible controls carry none. Addressed by label anyway,
+      // which is what a receptionist sees.
+      await form.getByLabel(/^Full name/i).fill(name);
+      await form.getByLabel(/^Source/i).selectOption("phone");
+      await form.getByLabel(/^Phone/i).fill("07000000001");
+      await form.getByLabel(/^Email/i).fill(`zztest-intake-${RUN_TAG}@example.test`);
+      await form.getByLabel(/^Service interest/i).fill("ZZTEST Hijama enquiry");
+      await form.getByLabel(/notes/i).fill(`ZZTEST intake for E08-101h, run ${RUN_TAG}`);
+
+      await clickAndAwaitAction(page, () =>
+        form.getByRole("button", { name: /^Record enquiry$/ }).click(),
+      );
+
+      // ⛔ The DATABASE is the fact. The form's own success state is not.
+      const { data: created } = await db
+        .from("enquiries")
+        .select("id, full_name, source, status, phone, service_interest, created_by_staff_id")
+        .eq("full_name", name)
+        .maybeSingle();
+      expect(created, "the receptionist's enquiry was actually recorded").not.toBeNull();
+
+      const row = created as {
+        id: string;
+        source: string;
+        status: string;
+        phone: string | null;
+        service_interest: string | null;
+        created_by_staff_id: string | null;
+      };
+      createdIds.push(row.id);
+
+      expect(row.status, "a new enquiry starts as new").toBe("new");
+      expect(row.source, "the source they chose was kept").toBe("phone");
+      expect(row.phone, "the phone number was kept — it is how the clinic rings back").toBe(
+        "07000000001",
+      );
+      expect(row.service_interest).toBe("ZZTEST Hijama enquiry");
+      // ⛔ Selected by staff ID, never by name (the identity trap).
+      expect(
+        row.created_by_staff_id,
+        "the enquiry is attributed to the member of staff who took it",
+      ).toBe(COORDINATOR_STAFF_ID);
+
+      // The audit trail must record the creation too.
+      const { data: audit } = await db
+        .from("audit_logs")
+        .select("action_type")
+        .eq("target_id", row.id)
+        .eq("action_type", "enquiry_created");
+      expect((audit ?? []).length, "the creation was audited").toBeGreaterThan(0);
+
+      // ⛔ AND THE ALERT ACTUALLY WENT OUT — to the real business inbox.
+      //
+      // ⚠️ Asserting a row EXISTS proves only that the app TRIED: `failed` and
+      // `skipped` live in the same table. So the status is asserted explicitly.
+      // ⛔ Success is `accepted`, NOT `sent`.
+      const { data: emails } = await db
+        .from("email_delivery_events")
+        .select("id, event_type, to_email, recipient_email, delivery_status, subject")
+        .eq("event_type", "enquiry_logged")
+        .gte("created_at", runStartedAt);
+      const all = (emails ?? []) as Array<{
+        id: string;
+        to_email: string | null;
+        recipient_email: string | null;
+        delivery_status: string;
+      }>;
+      // ⛔ Collected BEFORE the assertions below, so a failing one still tears
+      // its rows down (G-25).
+      createdEmailRowIds.push(...all.map((e) => e.id));
+      const sent = all.filter((e) => (e.to_email ?? e.recipient_email ?? "").length > 0);
+
+      expect(sent.length, "an enquiry alert was attempted").toBeGreaterThan(0);
+      expect(
+        sent.every((e) => e.delivery_status === "accepted"),
+        `every enquiry alert was accepted by the provider, not failed or skipped ` +
+          `(saw: ${sent.map((e) => e.delivery_status).join(", ")})`,
+      ).toBe(true);
+      expect(
+        sent.some((e) => (e.to_email ?? e.recipient_email) === REAL_BUSINESS_INBOX),
+        "the business is told about a new enquiry — this is the whole point of the alert",
+      ).toBe(true);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("E08-101i — a phone enquiry with NO email address is still recorded", async ({
+    browser,
+  }) => {
+    // ⚠️⚠️ THIS CASE ALSO SENDS ONE REAL EMAIL — it creates an enquiry. Covered by
+    // the same Owner approval (D-027). Two emails total from this file.
+    //
+    // ── FIND-08-C, and ⛔ A PREDICTION I MADE HERE WAS WRONG ───────────────
+    //
+    // This case was first written to assert the OPPOSITE — that the caller is
+    // LOST — reasoning from the markup: the Email field carried `required` and a
+    // red `*`, while the server schema has email OPTIONAL and the hint under
+    // Phone reads "Either phone or email helps you reply." That looked exactly
+    // like FIND-08-B, where a `required` attribute silently blocked a submit the
+    // server would have accepted.
+    //
+    // ⛔ IT WAS NOT. The database said so — the enquiry WAS created. Asserting
+    // what the DATABASE DID rather than what the markup implied is the only
+    // reason this did not become a false finding, the eighth of this run.
+    //
+    // The `required` marker was **inert**: React drives this form through a
+    // server action, so native constraint validation never gates the submit.
+    // Measured — the browser reported `validity.valueMissing === true` and the
+    // row appeared anyway. So the asterisk told staff email was mandatory while
+    // the form cheerfully accepted it empty.
+    //
+    // ✅ FIND-08-C is now FIXED: the Owner confirmed that admin-side booking and
+    // intake must accept a missing email, so the marker was removed and the
+    // enquiry form matches the manual booking wizard and both client forms.
+    //
+    // ⛔ This case guards BOTH halves — that the field is no longer advertised as
+    // required, AND that a phone-only caller is actually recorded. The second
+    // without the first would let the misleading asterisk come back unnoticed.
+    //
+    // ⛔ The CUSTOMER-FACING booking form still requires a real address
+    // (`booking-schema.ts`, `z.email(...)`) and must NOT be changed to match.
+    const name = `ZZTEST-Enq-NoEmail-${RUN_TAG}`;
+    const runStartedAt = new Date(Date.now() - 60_000).toISOString();
+
+    const { context, page } = await sessionFor(browser, "coordinator");
+    try {
+      expect(await openEnquiries(page)).toBe("rendered");
+      const form = page.locator("#enquiry-intake-panel");
+      await expect(form).toBeVisible();
+
+      await form.getByLabel(/^Full name/i).fill(name);
+      await form.getByLabel(/^Source/i).selectOption("phone");
+      await form.getByLabel(/^Phone/i).fill("07000000002");
+      await form.getByLabel(/^Service interest/i).fill("ZZTEST phone-only enquiry");
+      // Email deliberately left empty — the caller would not give one.
+
+      const emailInput = form.getByLabel(/^Email/i);
+      // ⛔ FIND-08-C's regression guard. Email must NOT be advertised as
+      // mandatory on an admin intake form.
+      expect(
+        await emailInput.evaluate((el) => (el as HTMLInputElement).required),
+        "the admin enquiry form must not mark email as required",
+      ).toBe(false);
+      // ⛔ And the visible half — no red asterisk in the label. The `required`
+      // attribute and the `*` are rendered from the SAME prop, so checking only
+      // the attribute would still pass if the marker were reintroduced by hand.
+      expect(
+        await form
+          .locator(`label[for="${await emailInput.getAttribute("id")}"]`)
+          .textContent(),
+        "and staff are not told it is mandatory",
+      ).toBe("Email");
+
+      await clickAndAwaitAction(page, () =>
+        form.getByRole("button", { name: /^Record enquiry$/ }).click(),
+      );
+
+      // THE BUSINESS OUTCOME:
+      const { data: created } = await db
+        .from("enquiries")
+        .select("id, phone, email, source, status")
+        .eq("full_name", name)
+        .maybeSingle();
+      // ⛔ Collected BEFORE the assertions, so a failure still tears it down.
+      if (created) createdIds.push((created as { id: string }).id);
+
+      expect(
+        created,
+        "a caller who would not give an email address was still written down",
+      ).not.toBeNull();
+      const row = created as { phone: string | null; email: string | null; status: string };
+      expect(row.phone, "the phone number — the only way to reach them — was kept").toBe(
+        "07000000002",
+      );
+      expect(row.email, "and no email was invented").toBeNull();
+      expect(row.status).toBe("new");
+
+      // This create also alerts the business. Collect its delivery rows so
+      // teardown removes them.
+      const { data: emails } = await db
+        .from("email_delivery_events")
+        .select("id")
+        .eq("event_type", "enquiry_logged")
+        .gte("created_at", runStartedAt);
+      createdEmailRowIds.push(...((emails ?? []) as { id: string }[]).map((e) => e.id));
     } finally {
       await context.close();
     }
