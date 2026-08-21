@@ -20,7 +20,7 @@
     "reset:live-auth-owner": "node scripts/reset-live-auth-owner.mjs",
     "test:security:secrets": "node scripts/scan-browser-secrets.mjs",
     "bootstrap:owner-admin": "node scripts/bootstrap-owner-admin.mjs",
-    "verify:london-time": "node scripts/verify-london-time.mjs",
+    "verify:london-time": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-london-time.mjs",
     "verify:migrations": "node scripts/verify-migration-coverage.mjs",
     "verify:rbac": "node scripts/verify-rbac-grants.mjs",
     "cf:build": "opennextjs-cloudflare build",
