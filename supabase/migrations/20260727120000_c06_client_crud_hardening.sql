@@ -1,49 +1,8 @@
--- C-06 - client CRUD hardening (single migration)
---
--- Plan:  redesign/plans/C-phase/C-06-client-crud-hardening-plan.md  §1 Step 12
--- Brief: redesign/briefs/C-06-client-crud-hardening-brief.md        §2.4, §2.5, §6
--- Date:  2026-07-27
---
--- Statements:
---   1   soft-delete columns on clients + bookings
---   1b  bookings.contact_email DROP NOT NULL (admin no-email booking flow)
---   2   two new permissions
---   3   grant both to Owner + Admin only (never Booking Coordinator)
---   4   create_booking_request replacement - kills the destructive overwrite
---
--- The function body in statement 4 is the LIVE 14,686-character definition,
--- captured verbatim before this migration was written and preserved at
---   redesign/evidence/C-06/create_booking_request-BEFORE.sql
---   (md5 b44229fac5da168afb60fbd742565164)
--- with exactly five edits applied to it - every other byte, including all 15
--- validations and the participant / items / assignment loops, is carried over
--- unchanged. redesign/evidence/C-06/migration-diff-summary.md lists the five
--- edits line by line. That same capture is the rollback source (plan §5.1).
-
-begin;
-
--- ---------------------------------------------------------------------------
--- 1. Soft-delete columns.
--- ---------------------------------------------------------------------------
 alter table public.clients add column if not exists deleted_at timestamptz;
 alter table public.bookings add column if not exists deleted_at timestamptz;
 
--- ---------------------------------------------------------------------------
--- 1b. Optional email on the admin booking flow (plan Step 13 / brief §2.5).
---     Permissive: the public flow always supplies a validated email via its own
---     Zod in src/app/api/bookings/route.ts, so this only enables the admin
---     no-email path.
--- ---------------------------------------------------------------------------
 alter table public.bookings alter column contact_email drop not null;
 
--- ---------------------------------------------------------------------------
--- 2. New permissions.
---    category / scope / risk_level are set explicitly so both rows land in the
---    "Clients" group on /admin/roles/[roleId], which groups by category and
---    filters by risk_level. The table's defaults ('system' / 'global' /
---    'medium') would file two client permissions under System. Drop those three
---    columns from the insert to fall back to the plan's name+description form.
--- ---------------------------------------------------------------------------
 insert into public.permissions (name, description, category, scope, risk_level)
 values
   ('manage_client_identity_fields',
@@ -54,9 +13,6 @@ values
    'clients', 'operational', 'high')
 on conflict (name) do nothing;
 
--- ---------------------------------------------------------------------------
--- 3. Grant the new permissions to Owner + Admin (NOT Booking Coordinator).
--- ---------------------------------------------------------------------------
 insert into public.role_permissions (role_id, permission_id)
 select r.id, p.id
 from public.roles r
@@ -65,27 +21,6 @@ where r.name in ('Owner', 'Admin')
   and p.name in ('manage_client_identity_fields', 'manage_client_destructive_ops')
 on conflict (role_id, permission_id) do nothing;
 
--- ---------------------------------------------------------------------------
--- 4. create_booking_request replacement.
---
---    The DROP is REQUIRED and is not decoration. PostgreSQL identifies a
---    function by name + argument types, so `create or replace` with three extra
---    parameters CREATES A SECOND FUNCTION rather than replacing the existing
---    one. Leaving the 20-argument version in place would (a) keep the
---    destructive `on conflict (email) do update` live in production - the exact
---    bug this plan exists to kill - and (b) make any 20-argument call ambiguous
---    between two candidates (42725, "function is not unique"), because both
---    accept 14-20 arguments once defaults are counted. Verified live before
---    writing this file: exactly one overload exists today (20 args, 6 defaults)
---    and pg_depend reports no dependent objects.
---
---    Dropping resets the function's ACL, so the grant below restores it. The
---    live ACL is {=X/postgres,postgres=X/postgres,service_role=X/postgres}:
---    PUBLIC EXECUTE is the built-in default and returns automatically, and the
---    explicit service_role grant is re-issued. The body's own
---    `auth.role() <> 'service_role'` gate (unchanged) is what actually keeps
---    anon and authenticated out.
--- ---------------------------------------------------------------------------
 drop function if exists public.create_booking_request(
   text[],
   text,
@@ -694,5 +629,3 @@ grant execute on function public.create_booking_request(
   boolean,
   boolean
 ) to service_role;
-
-commit;
