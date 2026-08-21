@@ -63,6 +63,12 @@ vi.mock("@/lib/email/notifications", () => ({
   sendBookingCancellationEmails: vi.fn(),
   sendStaffAssignmentEmail: vi.fn(),
   sendBookingRescheduleEmails: vi.fn(),
+  // ⛔ MUST resolve a promise, not undefined. createEnquiry calls this as
+  // `sendEnquiryLoggedEmail(...).catch(...)`, so a bare vi.fn() returning
+  // undefined throws a TypeError on `.catch` — which invoke() would swallow
+  // into `{ threw }` and refusedWith() would read as "not refused", i.e. the
+  // non-vacuity check would pass for the wrong reason.
+  sendEnquiryLoggedEmail: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/booking/manage-token", () => ({ ensureBookingManageUrl: vi.fn() }));
@@ -79,6 +85,7 @@ import {
   bulkDeleteClients,
   updateClient,
 } from "../clients/actions";
+import { createEnquiry, updateEnquiryStatus } from "../enquiries/actions";
 import { updateStaffPermissionOverride, updateStaffProfile } from "../staff/actions";
 import { toggleRolePermission, updateRoleMetadata } from "../roles/actions";
 import { updateBusinessSettings } from "../settings/actions";
@@ -347,6 +354,39 @@ const ACTION_CASES: readonly ActionCase[] = [
         new Request("http://localhost/admin/reports/export?report=client_summary") as never
       ),
   },
+  // ── ⛔ E08-101 (gate 08) — the two enquiry actions ────────────────────────
+  //
+  // ⚠️ These were NOT in this table, and they are mutating admin actions that
+  // reach the service-role client. The meta-test below says in as many words
+  // that such an action is "an unasserted gate"; these two were exactly that.
+  // Found while writing gate 08's enquiries group, closed here.
+  //
+  // ⛔ The caseId 101 is E08-101, a GATE 08 case. Every other row here is a
+  // gate 07 plan case (6-17), and those never reach 101, so the two schemes
+  // cannot collide.
+  {
+    caseId: 101,
+    name: "createEnquiry",
+    capability: "manage_enquiries",
+    // Owner, Admin and Booking Coordinator hold it; the Therapist does not.
+    // Measured against role_permissions in production, not assumed.
+    allowed: "Booking Coordinator",
+    denied: ["Therapist"],
+    // ⛔ A VALID payload on purpose. With an invalid one the action returns
+    // "Check the enquiry details." instead of the refusal string, so the
+    // denial assertions would pass without the permission gate ever being the
+    // thing that stopped it.
+    run: () =>
+      createEnquiry({}, form({ full_name: "ZZTEST-Authz", source: "phone" })),
+  },
+  {
+    caseId: 101,
+    name: "updateEnquiryStatus",
+    capability: "manage_enquiries",
+    allowed: "Booking Coordinator",
+    denied: ["Therapist"],
+    run: () => updateEnquiryStatus(form({ enquiry_id: "e-1", status: "contacted" })),
+  },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -360,12 +400,14 @@ describe("AUTHZ-3 — a denial constructs zero service-role clients", () => {
     adminClientFactory.mockImplementation(() => fakeAdminClient() as never);
   });
 
-  it("covers 12 of the plan's cases across 14 entry points", () => {
+  it("covers gate 07 cases 6-17 plus E08-101, across 16 entry points", () => {
     // ⛔ Guards the guard. A mutating action added to the app and not added here
     // is an unasserted gate, which is the gap this block exists to close.
-    expect(ACTION_CASES.length, "entry points").toBe(14);
-    expect(new Set(ACTION_CASES.map((c) => c.caseId)).size, "plan cases covered").toBe(12);
-    expect(new Set(ACTION_CASES.map((c) => c.name)).size, "names unique").toBe(14);
+    // ⚠️ 14 -> 16 on 2026-08-21: createEnquiry and updateEnquiryStatus were
+    // missing, and this counter is what should have caught them.
+    expect(ACTION_CASES.length, "entry points").toBe(16);
+    expect(new Set(ACTION_CASES.map((c) => c.caseId)).size, "cases covered").toBe(13);
+    expect(new Set(ACTION_CASES.map((c) => c.name)).size, "names unique").toBe(16);
   });
 
   describe.each(ACTION_CASES)("case $caseId — $name", (testCase) => {
