@@ -87,12 +87,24 @@ export interface BookingExperienceProps {
    * Empty when the read failed, which renders the notice without a town list.
    */
   freeTravelCities?: string[];
+  /**
+   * D-033 — the slugs a customer may actually book, read from `services` by
+   * the public layout. A hidden service keeps its marketing page but must not
+   * appear here.
+   *
+   * ⛔ `undefined`/`null` means the lookup FAILED, not "none are bookable":
+   * every package is then offered, exactly as before this existed, so a
+   * database blip cannot take the booking form down. The real refusal is
+   * server-side in `assertServicesBookable`.
+   */
+  bookableSlugs?: string[] | null;
 }
 
 export function BookingExperience({
   bookingWindowDays,
   minimumNoticeHours,
   freeTravelCities,
+  bookableSlugs,
 }: BookingExperienceProps = {}) {
   // This component is client-only (ssr: false), so the URL is readable at
   // first render. Initializing synchronously keeps the URL-sync effect from
@@ -670,6 +682,7 @@ export function BookingExperience({
           <MotionStep key="service" direction={navDirection}>
             <PackageSelectionStep
               selectedPackageIds={selectedPackageIds}
+              bookableSlugs={bookableSlugs}
               error={packageError}
               onToggle={handlePackageToggle}
               onClear={() => {

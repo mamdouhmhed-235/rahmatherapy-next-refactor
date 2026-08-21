@@ -20,6 +20,9 @@ export const TAGS = {
   SETTINGS: "settings",
   AUDIT: "audit",
   EMAILS: "emails",
+  // D-033 — the public booking dialog reads which services may be booked, so
+  // hiding one has to invalidate that read as well as the admin pages.
+  SERVICES: "services",
 } as const;
 
 export type ResourceTag = (typeof TAGS)[keyof typeof TAGS];

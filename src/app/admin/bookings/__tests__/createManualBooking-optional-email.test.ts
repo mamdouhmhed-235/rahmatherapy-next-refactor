@@ -4,6 +4,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendBookingCreatedEmails } from "@/lib/email/notifications";
 import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
 import { createManualBooking } from "../actions";
+import { withBookableServices } from "@/lib/booking/bookable-services.test-stub";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -100,7 +101,11 @@ describe("createManualBooking with no email (C-06 Phase F)", () => {
     vi.mocked(sendBookingCreatedEmails).mockResolvedValue({ manageUrl: null });
     vi.mocked(createSupabaseAdminClient).mockReturnValue({
       rpc,
-      from: () => ({ insert: vi.fn().mockResolvedValue({ error: null }) }),
+      // D-033 — the service-visibility check reads `services` before the RPC;
+      // every other table keeps the original insert stub.
+      from: withBookableServices(() => ({
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      })),
     } as unknown as ReturnType<typeof createSupabaseAdminClient>);
   });
 

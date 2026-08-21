@@ -1,6 +1,7 @@
 import { BookingExperienceLoader } from "@/features/booking/BookingExperienceLoader";
 import { getPublicBookingWindow } from "@/lib/booking/booking-window-settings";
 import { getFreeTravelCities } from "@/lib/booking/free-travel-cities";
+import { getBookableServiceSlugs } from "@/lib/booking/bookable-services";
 import { PublicScrollbar } from "@/components/layout/PublicScrollbar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SiteHeader } from "@/components/layout/SiteHeader";
@@ -18,9 +19,14 @@ export default async function PublicLayout({
   // src/lib/booking/booking-window-settings.ts.
   // Item 8 Phase 2 — the free-travel town list enters the same way, for display
   // only.
-  const [bookingWindow, freeTravelCities] = await Promise.all([
+  // D-033 — `bookableSlugs` decides which packages the dialog offers. `null`
+  // means the lookup failed, and the dialog then shows them all, exactly as it
+  // did before this existed. ⛔ The real guard is server-side in
+  // assertServicesBookable; this list is presentation only.
+  const [bookingWindow, freeTravelCities, bookableSlugs] = await Promise.all([
     getPublicBookingWindow(),
     getFreeTravelCities(),
+    getBookableServiceSlugs(),
   ]);
 
   return (
@@ -43,6 +49,7 @@ export default async function PublicLayout({
         bookingWindowDays={bookingWindow?.bookingWindowDays}
         minimumNoticeHours={bookingWindow?.minimumNoticeHours}
         freeTravelCities={freeTravelCities}
+        bookableSlugs={bookableSlugs}
       />
       <PublicScrollbar />
       {/* Last in the tree: being late in the DOM keeps the consent question

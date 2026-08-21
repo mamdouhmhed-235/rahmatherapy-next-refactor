@@ -138,6 +138,9 @@ describe("services/actions.ts — cache tag invalidation", () => {
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "bookings",
       "audit",
+      // D-033 — the public booking dialog's list of bookable services is
+      // cached on this tag, so hiding a service has to invalidate it too.
+      "services",
     ]);
   });
 
@@ -153,6 +156,9 @@ describe("services/actions.ts — cache tag invalidation", () => {
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "bookings",
       "audit",
+      // D-033 — the public booking dialog's list of bookable services is
+      // cached on this tag, so hiding a service has to invalidate it too.
+      "services",
     ]);
   });
 
@@ -168,6 +174,9 @@ describe("services/actions.ts — cache tag invalidation", () => {
     expect(vi.mocked(updateTag).mock.calls.map(([tag]) => tag)).toEqual([
       "bookings",
       "audit",
+      // D-033 — the public booking dialog's list of bookable services is
+      // cached on this tag, so hiding a service has to invalidate it too.
+      "services",
     ]);
   });
 

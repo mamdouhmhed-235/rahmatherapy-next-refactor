@@ -13,6 +13,15 @@ import styles from "../BookingExperience.module.css";
 
 interface PackageSelectionStepProps {
   selectedPackageIds: BookingPackageId[];
+  /**
+   * D-033 — the slugs the database says may be booked right now.
+   *
+   * ⛔ `undefined`/`null` means the lookup FAILED and every package is shown,
+   * which is the behaviour that existed before this prop. It does NOT mean
+   * "nothing is bookable" — collapsing those two would take the booking form
+   * down on a transient database error.
+   */
+  bookableSlugs?: string[] | null;
   error?: string;
   onToggle: (id: BookingPackageId) => void;
   onClear: () => void;
@@ -72,10 +81,20 @@ function PackageCard({
 
 export function PackageSelectionStep({
   selectedPackageIds,
+  bookableSlugs,
   error,
   onToggle,
   onClear,
 }: PackageSelectionStepProps) {
+  // ⛔ `== null` on purpose — it catches BOTH undefined (prop not passed, e.g.
+  // an older caller or a test) and null (the database lookup failed). Either
+  // way the full list is shown, which is the pre-D-033 behaviour. Only a real
+  // array filters anything, so this can never blank the form by accident.
+  const bookablePackages =
+    bookableSlugs == null
+      ? BOOKING_PACKAGES
+      : BOOKING_PACKAGES.filter((item) => bookableSlugs.includes(item.id));
+
   return (
     <section className={styles.stepSection} aria-labelledby="service-heading">
       <div className={styles.stepHeaderRow}>
@@ -94,23 +113,28 @@ export function PackageSelectionStep({
         </button>
       </div>
 
-      {GROUP_ORDER.map((group) => (
-        <div key={group} className={styles.stepBlock}>
-          <p className={styles.groupHeading}>{PACKAGE_GROUPS[group]}</p>
-          <div className={styles.packageGrid}>
-            {BOOKING_PACKAGES.filter((item) => item.group === group).map(
-              (item) => (
+      {GROUP_ORDER.map((group) => {
+        const groupPackages = bookablePackages.filter(
+          (item) => item.group === group
+        );
+        // A group with nothing bookable left in it renders no empty heading.
+        if (groupPackages.length === 0) return null;
+        return (
+          <div key={group} className={styles.stepBlock}>
+            <p className={styles.groupHeading}>{PACKAGE_GROUPS[group]}</p>
+            <div className={styles.packageGrid}>
+              {groupPackages.map((item) => (
                 <PackageCard
                   key={item.id}
                   item={item}
                   selected={selectedPackageIds.includes(item.id)}
                   onToggle={onToggle}
                 />
-              )
-            )}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {error && (
         <p className={styles.fieldError} role="alert" aria-live="polite">

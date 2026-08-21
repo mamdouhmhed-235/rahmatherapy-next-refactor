@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { contactLinks } from "@/content/site/contact";
+import { bookableServicesQueryStub } from "@/lib/booking/bookable-services.test-stub";
 import {
   BookingCreationError,
   DuplicateClientError,
@@ -45,6 +46,8 @@ const baseInput: CreateBookingTransactionInput = {
 function supabaseWithRpcError(error: unknown): SupabaseClient {
   return {
     rpc: async () => ({ data: null, error }),
+    // D-033 — the service-visibility check runs before the RPC.
+    from: () => bookableServicesQueryStub(),
   } as unknown as SupabaseClient;
 }
 

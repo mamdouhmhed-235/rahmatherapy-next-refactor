@@ -6,6 +6,7 @@ import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
 import { sendBookingCreatedEmails } from "@/lib/email/notifications";
 import { RATE_LIMITED_BOOKING_MESSAGE } from "@/lib/rate-limit";
 import { POST } from "./route";
+import { bookableServicesQueryStub } from "@/lib/booking/bookable-services.test-stub";
 
 vi.mock("@opennextjs/cloudflare", () => ({
   getCloudflareContext: vi.fn(),
@@ -86,6 +87,8 @@ describe("POST /api/bookings honeypot", () => {
     });
     vi.mocked(createSupabaseAdminClient).mockReturnValue({
       rpc,
+      // D-033 — the service-visibility check runs before the RPC.
+      from: () => bookableServicesQueryStub(),
     } as unknown as ReturnType<typeof createSupabaseAdminClient>);
     vi.mocked(ensureBookingManageUrl).mockResolvedValue(
       "https://booking.example.test/booking/manage?token=abc"
@@ -188,6 +191,8 @@ describe("POST /api/bookings keeps email required (C-06 isolation)", () => {
     });
     vi.mocked(createSupabaseAdminClient).mockReturnValue({
       rpc,
+      // D-033 — the service-visibility check runs before the RPC.
+      from: () => bookableServicesQueryStub(),
     } as unknown as ReturnType<typeof createSupabaseAdminClient>);
   });
 
@@ -263,6 +268,8 @@ describe("POST /api/bookings rate limiting", () => {
     });
     vi.mocked(createSupabaseAdminClient).mockReturnValue({
       rpc,
+      // D-033 — the service-visibility check runs before the RPC.
+      from: () => bookableServicesQueryStub(),
     } as unknown as ReturnType<typeof createSupabaseAdminClient>);
     vi.mocked(ensureBookingManageUrl).mockResolvedValue(
       "https://booking.example.test/booking/manage?token=abc"

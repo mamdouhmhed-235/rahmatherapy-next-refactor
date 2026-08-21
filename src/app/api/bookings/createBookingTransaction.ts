@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { contactLinks } from "@/content/site/contact";
+import {
+  ServiceNotBookableError,
+  assertServicesBookable,
+} from "@/lib/booking/bookable-services";
 
 type ParticipantGender = "male" | "female";
 export type BookingSource =
@@ -136,6 +140,33 @@ export async function createBookingTransaction(
   const participantGenders = getParticipantGenders(input.details);
   const participantNames = getParticipantNames(input.details);
   const participantNotes = getParticipantNotes(input.details);
+
+  // ⛔ D-033 — a service hidden in the admin must not be bookable by ANY route,
+  // including a POST straight at this endpoint that never saw the dialog. The
+  // package list the dialog renders is presentation; THIS is the refusal.
+  //
+  // ⛔ Placed BEFORE the RPC call deliberately. `create_booking_request` sums
+  // price and duration filtering on `is_active` alone, while its `booking_items`
+  // insert also requires `is_visible_on_frontend` — so letting a hidden slug
+  // reach it produces a booking that CHARGES the customer and records no line
+  // item at all (PR-011, proven in supabase/tests/11-service-visibility.sql).
+  // Refusing here stops that combination arising.
+  //
+  // ⛔ Fails CLOSED: assertServicesBookable throws if it cannot verify.
+  try {
+    await assertServicesBookable(
+      [
+        ...input.selectedPackageIds,
+        ...(input.participantServiceSlugs?.flat() ?? []),
+      ],
+      supabase
+    );
+  } catch (bookableError) {
+    if (bookableError instanceof ServiceNotBookableError) {
+      throw new BookingCreationError(bookableError.message);
+    }
+    throw bookableError;
+  }
 
   const { data, error } = await supabase.rpc("create_booking_request", {
     p_service_slugs: input.selectedPackageIds,

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getStaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createManualBooking } from "./actions";
+import { withBookableServices } from "@/lib/booking/bookable-services.test-stub";
 
 vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
@@ -91,7 +92,11 @@ describe("createManualBooking", () => {
     vi.mocked(getStaffProfile).mockResolvedValue(bookingManager);
     vi.mocked(createSupabaseAdminClient).mockReturnValue({
       rpc,
-      from: () => ({ insert: vi.fn().mockResolvedValue({ error: null }) }),
+      // D-033 — the service-visibility check reads `services` before the RPC;
+      // every other table keeps the original insert stub.
+      from: withBookableServices(() => ({
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      })),
     } as unknown as ReturnType<typeof createSupabaseAdminClient>);
   });
 

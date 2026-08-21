@@ -140,7 +140,13 @@ export async function createService(
   // stale there for up to ~60s.
   updateTag(TAGS.BOOKINGS);
   updateTag(TAGS.AUDIT);
+  // ⛔ D-033 — the PUBLIC booking dialog reads which services may be booked
+  // (getBookableServiceSlugs, cached on this tag). Without this, "Hide from
+  // website" would not take effect for up to 60 seconds, and the customer form
+  // would keep offering a service the admin had just hidden.
+  updateTag(TAGS.SERVICES);
   revalidatePath("/admin/services");
+  revalidatePath("/", "layout");
 
   return { success: true };
 }
@@ -191,7 +197,13 @@ export async function updateService(
   // getBookingsChromeData staleness rationale.
   updateTag(TAGS.BOOKINGS);
   updateTag(TAGS.AUDIT);
+  // ⛔ D-033 — the PUBLIC booking dialog reads which services may be booked
+  // (getBookableServiceSlugs, cached on this tag). Without this, "Hide from
+  // website" would not take effect for up to 60 seconds, and the customer form
+  // would keep offering a service the admin had just hidden.
+  updateTag(TAGS.SERVICES);
   revalidatePath("/admin/services");
+  revalidatePath("/", "layout");
 
   return { success: true };
 }
@@ -246,7 +258,13 @@ export async function deleteService(serviceId: string): Promise<{ error?: string
   // getBookingsChromeData staleness rationale.
   updateTag(TAGS.BOOKINGS);
   updateTag(TAGS.AUDIT);
+  // ⛔ D-033 — the PUBLIC booking dialog reads which services may be booked
+  // (getBookableServiceSlugs, cached on this tag). Without this, "Hide from
+  // website" would not take effect for up to 60 seconds, and the customer form
+  // would keep offering a service the admin had just hidden.
+  updateTag(TAGS.SERVICES);
   revalidatePath("/admin/services");
+  revalidatePath("/", "layout");
 
   return {};
 }
