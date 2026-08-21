@@ -10,14 +10,23 @@ vi.mock("../actions", () => ({
   createManualBooking: vi.fn(),
 }));
 
+// ⛔ D-033 — this fixture is now LOAD-BEARING and must reflect reality.
+//
+// It used to list one service, which was harmless because the component ignored
+// the `services` prop entirely and rendered the hardcoded PACKAGE_OPTIONS. That
+// was the bug: page.tsx filtered on is_active AND is_visible_on_frontend and the
+// form threw the result away. Now the prop decides what is offered, so a
+// one-item fixture would hide the other four from every spec in this file.
+//
+// All five, matching production, where every service is active and visible.
+// ⚠️ The hidden-service behaviour is asserted deliberately in its own spec at
+// the bottom of this file rather than by an accidentally-short fixture.
 const services = [
-  {
-    slug: "hijama-package",
-    name: "Hijama package",
-    price: 65,
-    duration_mins: 60,
-    gender_restrictions: "any",
-  },
+  { slug: "supreme-combo", name: "Supreme Combo Package", price: 55, duration_mins: 90, gender_restrictions: "any" },
+  { slug: "hijama-package", name: "Hijama package", price: 65, duration_mins: 60, gender_restrictions: "any" },
+  { slug: "fire-package", name: "Fire Package", price: 40, duration_mins: 45, gender_restrictions: "any" },
+  { slug: "massage-30", name: "30-Min Massage Therapy", price: 40, duration_mins: 30, gender_restrictions: "any" },
+  { slug: "massage-60", name: "1-Hour Massage Therapy", price: 60, duration_mins: 60, gender_restrictions: "any" },
 ];
 
 const prefillClient = {
@@ -1237,4 +1246,66 @@ describe("ManualBookingForm address autocomplete (C-20 Phase D)", () => {
     expect(hidden(container, "area")?.value).toBe("Hertfordshire");
     expect(hidden(container, "postcode")?.value).toBe("AL3 4AA");
   });
+
+  // ⛔ D-033 — staff must not be offered a service the Owner has hidden.
+  //
+  // ⚠️ This spec exists because an independent review found the gap AFTER the
+  // first pass: page.tsx has always filtered `services` on is_active AND
+  // is_visible_on_frontend, and this component ignored the prop and rendered the
+  // hardcoded PACKAGE_OPTIONS / MASSAGE_OPTIONS instead. The database was
+  // consulted for nothing — the same defect as on the customer side.
+  describe("D-033 — hidden services are not offered", () => {
+    // continueToStep2 lives in a sibling describe's scope, so this block has its
+    // own copy rather than reaching across it.
+    async function toStep2(
+      user: ReturnType<typeof userEvent.setup>,
+      container: HTMLElement
+    ) {
+      await user.type(screen.getByLabelText(/Full name/i), "Aisha Khan");
+      await user.type(screen.getByLabelText(/Phone number/i), "07123456789");
+      const continueButton = () =>
+        screen.getAllByRole("button", { name: /Continue/i })[0] as HTMLButtonElement;
+      await waitFor(() => expect(continueButton().disabled).toBe(false));
+      await user.click(continueButton());
+      await waitFor(() =>
+        expect(container.querySelector('[title="Step 2: current"]')).not.toBeNull()
+      );
+    }
+
+    it("⛔ omits a hidden package from the picker", async () => {
+      const user = userEvent.setup();
+      // Hijama hidden: page.tsx would simply not return it.
+      const visible = services.filter((s) => s.slug !== "hijama-package");
+      const { container } = render(
+        <ManualBookingForm services={visible} prefillClient={null} enquiry={null} />
+      );
+      await toStep2(user, container);
+
+      expect(
+        screen.queryByRole("radio", { name: /Hijama Package/i }),
+        "a hidden package must not be offered to staff"
+      ).toBeNull();
+
+      // ⛔ Non-vacuity: the picker really did render, and the rest is intact.
+      expect(
+        screen.queryByRole("radio", { name: /Fire Package/i }),
+        "while the remaining packages still are"
+      ).not.toBeNull();
+    });
+
+    it("⛔ FAILS OPEN — offers everything when the list could not be fetched", async () => {
+      const user = userEvent.setup();
+      // An empty array means the read failed. Blanking every service would take
+      // manual booking down entirely, which is far worse than briefly offering
+      // one that was just hidden — and the server still refuses it on submit.
+      const { container } = render(
+        <ManualBookingForm services={[]} prefillClient={null} enquiry={null} />
+      );
+      await toStep2(user, container);
+
+      expect(screen.queryByRole("radio", { name: /Hijama Package/i })).not.toBeNull();
+      expect(screen.queryByRole("radio", { name: /Fire Package/i })).not.toBeNull();
+    });
+  });
+
 });

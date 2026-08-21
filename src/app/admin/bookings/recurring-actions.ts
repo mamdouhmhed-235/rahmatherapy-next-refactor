@@ -18,6 +18,10 @@ import {
   parseTravelFee,
   toPence,
 } from "@/lib/booking/travel-fee";
+import {
+  ServiceNotBookableError,
+  assertServicesBookable,
+} from "@/lib/booking/bookable-services";
 
 /**
  * C-02 Phase C — recurring/standing bookings. Kept in their own module rather
@@ -152,6 +156,31 @@ export async function createRecurringSeries(
 
   if (!service?.allow_recurrence) {
     return { error: `Recurring not available for ${service?.name ?? "this service"}.` };
+  }
+
+  // ⛔ D-033 — A HIDDEN SERVICE MAY NOT START A NEW STANDING BOOKING.
+  //
+  // ⚠️ This was MISSED on the first pass and found by an independent review.
+  // The one-off booking path was guarded inside `createBookingTransaction`, but
+  // a recurring series does not go through it: it calls
+  // `create_recurring_booking_series` directly, and that RPC filters services on
+  // `is_active` alone — exactly the same half-filter as PR-011. So hiding a
+  // service stopped one-off bookings and left standing ones wide open, which is
+  // the opposite of "once its hidden then it should stay actually hidden".
+  //
+  // ⚠️ Deliberately placed on CREATION only. The nightly horizon cron that
+  // extends an EXISTING series is left alone on purpose — hiding a service must
+  // not silently cancel appointments a client already has in their diary.
+  // Hiding stops new commitments; it does not break old ones.
+  try {
+    await assertServicesBookable([parsed.data.service_slug], adminClient);
+  } catch (bookableError) {
+    if (bookableError instanceof ServiceNotBookableError) {
+      return {
+        error: `${service.name} is hidden and cannot be booked. Make it visible again first.`,
+      };
+    }
+    throw bookableError;
   }
 
   // Monthly cadence + first-date day-of-month check. `anchor_day_of_month` is

@@ -529,8 +529,9 @@ export function ManualBookingForm({
   currentUserIsBookable = false,
   allowRecurrenceMap = {},
   allowedCities = [],
+  services = [],
 }: {
-  services: ServiceOption[];
+  services?: ServiceOption[];
   prefillClient: PrefillClient | null;
   enquiry: EnquiryPrefill | null;
   /** C-03 Phase B/C — fuzzy-matched service slug from the enquiry's
@@ -1164,6 +1165,32 @@ export function ManualBookingForm({
     return parts.length > 0 ? parts.join(", ") : "available";
   }
 
+  // ⛔ D-033 — DO NOT OFFER STAFF A SERVICE THE OWNER HAS HIDDEN.
+  //
+  // ⚠️ Found by an independent review AFTER the first pass, and it is the exact
+  // FIND-03-B pattern repeating in a sibling file: `page.tsx` carefully fetches
+  // `services` filtered on `is_active` AND `is_visible_on_frontend`, passes it in
+  // — and this component never read it, rendering the hardcoded
+  // PACKAGE_OPTIONS / MASSAGE_OPTIONS instead. The database was consulted for
+  // nothing, exactly as on the customer side.
+  //
+  // ⚠️ The hardcoded lists stay as the source of the COPY (descriptions, prices
+  // as displayed, massage labels); the database decides only which of them may
+  // be offered. `services` is what page.tsx already filtered.
+  //
+  // ⛔ FAILS OPEN, deliberately and for the same reason as the customer form: an
+  // empty list means the fetch failed, and blanking every service would take
+  // manual booking down completely. The real refusal is server-side —
+  // `assertServicesBookable` inside `createBookingTransaction` — so a stale or
+  // failed list can only ever be a cosmetic problem, never a booked one.
+  const bookableSlugs = services.length > 0 ? new Set(services.map((s) => s.slug)) : null;
+  const bookablePackageOptions = bookableSlugs
+    ? PACKAGE_OPTIONS.filter((o) => bookableSlugs.has(o.slug))
+    : PACKAGE_OPTIONS;
+  const bookableMassageOptions = bookableSlugs
+    ? MASSAGE_OPTIONS.filter((o) => bookableSlugs.has(o.slug))
+    : MASSAGE_OPTIONS;
+
   // An empty email is a supported admin state, not an omission: it suppresses
   // the confirmation offer, and it switches the RPC's dedup key from email to
   // phone — which changes what acknowledging a duplicate actually does.
@@ -1547,7 +1574,7 @@ export function ManualBookingForm({
               {/* Package subsection */}
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--admin-text-muted)]">Package</p>
               <div className="grid gap-2 sm:grid-cols-3">
-                {PACKAGE_OPTIONS.map((pkg) => {
+                {bookablePackageOptions.map((pkg) => {
                   const selected = participant.packageSlug === pkg.slug;
                   return (
                     <label
@@ -1593,7 +1620,7 @@ export function ManualBookingForm({
                 </label>
                 {participant.massageEnabled && (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {MASSAGE_OPTIONS.map((m) => {
+                    {bookableMassageOptions.map((m) => {
                       const mSelected = participant.massageSlug === m.slug;
                       return (
                         <label

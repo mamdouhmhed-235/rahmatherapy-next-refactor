@@ -93,21 +93,45 @@ const rpc = vi.fn();
  * `audit_logs` is deliberately reachable so the specs can prove the action does
  * NOT write a second audit row over the one the RPC writes internally.
  */
-function stubAdminClient(service: Record<string, unknown> | null) {
+/**
+ * @param service        the `services` row the single()-style lookup returns
+ * @param serviceVisible ⛔ D-033 — whether that service passes the
+ *   `is_visible_on_frontend` check. `assertServicesBookable` reads `services`
+ *   with `.in(...).eq(...).eq(...).returns()`, which resolves to an ARRAY, not
+ *   the single row the allow_recurrence lookup uses — so the stub has to model
+ *   BOTH shapes off the same table. `false` returns an empty array, which is
+ *   exactly what a hidden service looks like to that query.
+ */
+function stubAdminClient(
+  service: Record<string, unknown> | null,
+  serviceVisible = true
+) {
   const ops: RecordedOp[] = [];
 
   function startOp(table: string, op: RecordedOp["op"]) {
     const entry: RecordedOp = { table, op };
     ops.push(entry);
+    let requestedSlugs: string[] | null = null;
     const settle = () =>
       Promise.resolve(
         table === "services"
-          ? { data: service, error: service ? null : { message: "No rows" } }
+          ? requestedSlugs
+            // the visibility guard's array-shaped read
+            ? {
+                data: serviceVisible ? requestedSlugs.map((slug) => ({ slug })) : [],
+                error: null,
+              }
+            : { data: service, error: service ? null : { message: "No rows" } }
           : { data: null, error: null }
       );
     const chain = {
       eq: () => chain,
       select: () => chain,
+      in: (_column: string, values: string[]) => {
+        requestedSlugs = values;
+        return chain;
+      },
+      returns: () => chain,
       single: settle,
       maybeSingle: settle,
       then: (resolve: (value: unknown) => unknown) => settle().then(resolve),
@@ -336,6 +360,46 @@ describe("createRecurringSeries — service opt-out", () => {
       error: "Recurring not available for this service.",
     });
     expect(rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe("createRecurringSeries — D-033 hidden services", () => {
+  // ⛔ THIS IS THE CASE THAT WAS MISSING, and an independent review is what
+  // found it. The one-off booking path was guarded inside
+  // createBookingTransaction, but a recurring series never goes through it — it
+  // calls create_recurring_booking_series directly, and that RPC filters
+  // services on `is_active` alone. So hiding a service blocked single bookings
+  // and left STANDING ones wide open: a staff member could start a weekly
+  // commitment against a service the Owner had just hidden.
+  it("⛔ refuses to start a standing booking for a HIDDEN service", async () => {
+    const stub = stubAdminClient(RECURRABLE_SERVICE, false);
+
+    expect(await createRecurringSeries({}, recurringFormData())).toEqual({
+      error: "Hijama Package is hidden and cannot be booked. Make it visible again first.",
+    });
+
+    // ⛔ The half that matters: nothing was created. A refusal that still wrote
+    // the first occurrence would be no refusal at all.
+    expect(rpc, "no series may be created for a hidden service").not.toHaveBeenCalled();
+    expect(stub.writes(), "and nothing else was written either").toHaveLength(0);
+  });
+
+  it("still allows a standing booking for a VISIBLE service", async () => {
+    // ⛔ Non-vacuity. Without this the assertion above would also pass against a
+    // guard that refused every service outright — which would silently kill
+    // recurring bookings altogether.
+    stubAdminClient(RECURRABLE_SERVICE, true);
+    rpc.mockResolvedValue({ data: { series_id: "series-1" }, error: null });
+
+    const result = await createRecurringSeries({}, recurringFormData());
+
+    expect(result, "a visible service is unaffected").not.toEqual(
+      expect.objectContaining({ error: expect.stringMatching(/hidden/i) })
+    );
+    expect(rpc).toHaveBeenCalledWith(
+      "create_recurring_booking_series",
+      expect.anything()
+    );
   });
 });
 
