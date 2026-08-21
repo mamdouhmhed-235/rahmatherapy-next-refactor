@@ -138,6 +138,43 @@ async function destroyFixtures(db: SupabaseClient, ids: string[], emailRowIds: s
   await db.from("enquiries").delete().in("id", all);
 }
 
+/**
+ * ⛔ The ids of `enquiry_logged` delivery rows that already existed.
+ *
+ * ⛔ WHY THIS EXISTS. Teardown first collected these rows with
+ * `event_type = 'enquiry_logged' AND created_at >= (now - 60s)`, and then
+ * DELETED them. An independent review pointed out the obvious hazard: if a
+ * GENUINE customer enquiry arrived while this spec was running, its delivery
+ * row fell inside that window and the test would have deleted a real business
+ * record from production.
+ *
+ * ⚠️ That is exactly the class of mistake this run keeps warning about —
+ * "never 'the recent rows', always by explicit id". Snapshotting first and
+ * deleting only ids that were NOT present before makes the sweep incapable of
+ * touching anything this spec did not cause.
+ */
+async function existingEnquiryEmailIds(db: SupabaseClient): Promise<Set<string>> {
+  const { data } = await db
+    .from("email_delivery_events")
+    .select("id")
+    .eq("event_type", "enquiry_logged");
+  return new Set(((data ?? []) as { id: string }[]).map((row) => row.id));
+}
+
+/** Delivery rows created since the snapshot — this run's, and only this run's. */
+async function newEnquiryEmailRows(db: SupabaseClient, before: Set<string>) {
+  const { data } = await db
+    .from("email_delivery_events")
+    .select("id, to_email, recipient_email, delivery_status")
+    .eq("event_type", "enquiry_logged");
+  return ((data ?? []) as Array<{
+    id: string;
+    to_email: string | null;
+    recipient_email: string | null;
+    delivery_status: string;
+  }>).filter((row) => !before.has(row.id));
+}
+
 async function sessionFor(browser: import("@playwright/test").Browser, role: string) {
   const statePath = `${AUTH_DIR}/${role}.json`;
   // ⛔ THROW, never skip. A signed-out browser is refused everywhere, which
@@ -452,7 +489,9 @@ test.describe("gate 08 P2 group 3 — an enquiry through the real buttons (E08-1
     // This one case exists because the intake form is the surface a receptionist
     // actually types into, and D-023 says prove the FORM once.
     const name = `ZZTEST-Enq-Intake-${RUN_TAG}`;
-    const runStartedAt = new Date(Date.now() - 60_000).toISOString();
+    // ⛔ Snapshot BEFORE creating anything, so teardown can never remove a real
+    // enquiry alert that happened to arrive mid-run.
+    const emailsBefore = await existingEnquiryEmailIds(db);
 
     const { context, page } = await sessionFor(browser, "coordinator");
     try {
@@ -522,17 +561,7 @@ test.describe("gate 08 P2 group 3 — an enquiry through the real buttons (E08-1
       // ⚠️ Asserting a row EXISTS proves only that the app TRIED: `failed` and
       // `skipped` live in the same table. So the status is asserted explicitly.
       // ⛔ Success is `accepted`, NOT `sent`.
-      const { data: emails } = await db
-        .from("email_delivery_events")
-        .select("id, event_type, to_email, recipient_email, delivery_status, subject")
-        .eq("event_type", "enquiry_logged")
-        .gte("created_at", runStartedAt);
-      const all = (emails ?? []) as Array<{
-        id: string;
-        to_email: string | null;
-        recipient_email: string | null;
-        delivery_status: string;
-      }>;
+      const all = await newEnquiryEmailRows(db, emailsBefore);
       // ⛔ Collected BEFORE the assertions below, so a failing one still tears
       // its rows down (G-25).
       createdEmailRowIds.push(...all.map((e) => e.id));
@@ -589,7 +618,7 @@ test.describe("gate 08 P2 group 3 — an enquiry through the real buttons (E08-1
     // ⛔ The CUSTOMER-FACING booking form still requires a real address
     // (`booking-schema.ts`, `z.email(...)`) and must NOT be changed to match.
     const name = `ZZTEST-Enq-NoEmail-${RUN_TAG}`;
-    const runStartedAt = new Date(Date.now() - 60_000).toISOString();
+    const emailsBefore = await existingEnquiryEmailIds(db);
 
     const { context, page } = await sessionFor(browser, "coordinator");
     try {
@@ -646,12 +675,9 @@ test.describe("gate 08 P2 group 3 — an enquiry through the real buttons (E08-1
 
       // This create also alerts the business. Collect its delivery rows so
       // teardown removes them.
-      const { data: emails } = await db
-        .from("email_delivery_events")
-        .select("id")
-        .eq("event_type", "enquiry_logged")
-        .gte("created_at", runStartedAt);
-      createdEmailRowIds.push(...((emails ?? []) as { id: string }[]).map((e) => e.id));
+      createdEmailRowIds.push(
+        ...(await newEnquiryEmailRows(db, emailsBefore)).map((row) => row.id)
+      );
     } finally {
       await context.close();
     }

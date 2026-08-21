@@ -20,12 +20,31 @@
 --
 -- MEASURED 2026-08-21 against twzutkfgqclqurvkmvqz — see BLOCK 1.
 --
--- ⚠️ NOT REACHABLE FROM THE ADMIN BOOKING SCREEN. `src/app/admin/bookings/new/
--- page.tsx` filters on BOTH flags, so staff are never offered a hidden service.
--- ⛔ It IS reachable from the PUBLIC booking form, because that form's package
--- list is a hardcoded TypeScript file (`src/features/booking/data/
--- booking-packages.ts`) and does not consult the services table at all.
--- See FIND-03-B in FINDINGS-LEDGER.md.
+-- ⛔⛔ CORRECTION 2026-08-21, AFTER AN INDEPENDENT AUDIT. The paragraph that
+-- stood here OVERSTATED how reachable this is, and one sentence of it was
+-- simply FALSE. Both are corrected rather than quietly edited away:
+--
+--   FALSE was: "the public booking form … does not consult the services table
+--   at all."  ⛔ `src/lib/booking/availability.ts:440-444` DOES read `services`
+--   filtering on BOTH `is_active` AND `is_visible_on_frontend`, and it is a
+--   PUBLIC path — `/api/availability` and `/api/availability/month`, which the
+--   customer's ScheduleStep calls to draw the time slots.
+--
+--   OVERSTATED was: "customers can still book it." ⛔ They could not, through
+--   the real UI. A hidden service makes that read return fewer rows than were
+--   asked for, so availability answers "Selected service is unavailable." with
+--   ZERO slots and the customer cannot reach a submit at all.
+--
+-- ⚠️ WHAT REMAINS TRUE, and it is why this file still matters: `POST
+-- /api/bookings` does NOT re-check availability — it validates and calls
+-- createBookingTransaction directly. So the defect below was reachable by a
+-- hand-crafted request that skipped the booking form, and by any future caller
+-- that likewise bypasses the availability step.
+--
+-- ⚠️ NOT REACHABLE FROM THE ADMIN BOOKING SCREEN'S QUERY: `src/app/admin/
+-- bookings/new/page.tsx` filters on BOTH flags. ⛔ But the FORM ignored that
+-- prop and rendered a hardcoded list until `da5f91e` — and standing/recurring
+-- bookings had no visibility check at all until the same commit. See FIND-03-B.
 --
 -- ⚠️ Latent today: all 5 services are active AND visible, so no live booking is
 -- affected. It arms the moment somebody uses "Hide from website".
@@ -104,8 +123,10 @@ rollback;
 --     MEASURED 2026-08-21: charged 45.00 · line_items 1 · itemised 45.00      ✅
 --
 -- ⛔ Read P1 and P3 together: identical inputs, identical charge, and the line
---    item present or absent purely on a flag that the customer-facing site does
---    not even consult.
+--    item present or absent purely on the visibility flag.
+--    ⚠️ An earlier version of this line added "a flag the customer-facing site
+--    does not even consult". ⛔ That was FALSE — see the correction at the top:
+--    `src/lib/booking/availability.ts` consults it on a public path.
 -- ============================================================================
 
 begin;
