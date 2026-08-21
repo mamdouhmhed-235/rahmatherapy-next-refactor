@@ -60,28 +60,13 @@ create table if not exists public.enquiries (
   updated_at timestamptz not null default now()
 );
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_trigger
-    where tgname = 'client_privacy_requests_updated_at'
-  ) then
-    create trigger client_privacy_requests_updated_at
-    before update on public.client_privacy_requests
-    for each row execute function public.update_updated_at_column();
-  end if;
+create trigger client_privacy_requests_updated_at
+before update on public.client_privacy_requests
+for each row execute function public.update_updated_at_column();
 
-  if not exists (
-    select 1
-    from pg_trigger
-    where tgname = 'enquiries_updated_at'
-  ) then
-    create trigger enquiries_updated_at
-    before update on public.enquiries
-    for each row execute function public.update_updated_at_column();
-  end if;
-end $$;
+create trigger enquiries_updated_at
+before update on public.enquiries
+for each row execute function public.update_updated_at_column();
 
 create index if not exists client_notes_client_created_idx
   on public.client_notes (client_id, created_at desc);

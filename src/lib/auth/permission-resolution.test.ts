@@ -314,13 +314,24 @@ describe("what this resolution deliberately does NOT do", () => {
       )
     );
 
-    const table = sql.slice(
-      sql.indexOf("create table public.staff_permission_overrides"),
-      sql.indexOf("create table public.staff_permission_overrides") + 400
-    );
+    // ⚠️ Match on MEANING, not on one spelling. D-022 realigned this file to the
+    // SQL production actually recorded, which writes `CREATE TABLE
+    // staff_permission_overrides` — upper case, and with no `public.` prefix.
+    // The constraint is unchanged; only its casing is. Anchoring on the literal
+    // lower-case, schema-qualified string made this test fail for a rewording
+    // while still passing if the primary key itself were dropped, because a
+    // missing table header silently yielded an empty slice.
+    const header = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?staff_permission_overrides/i;
+    const start = sql.search(header);
 
-    expect(table, "the primary key is what makes the conflict unreachable").toContain(
-      "primary key (staff_id, permission_id)"
+    // ⛔ Assert the anchor was found. Without this, a renamed table would slice
+    // '' and the toContain below would fail for the wrong reason.
+    expect(start, "the staff_permission_overrides table must be declared here").toBeGreaterThan(-1);
+
+    const table = sql.slice(start, start + 400);
+
+    expect(table, "the primary key is what makes the conflict unreachable").toMatch(
+      /primary\s+key\s*\(\s*staff_id\s*,\s*permission_id\s*\)/i
     );
   });
 });

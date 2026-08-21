@@ -74,7 +74,3 @@ to service_role;
 grant select, update
 on public.operational_events
 to authenticated;
-
-grant select
-on public.audit_logs
-to service_role;
