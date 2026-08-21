@@ -48,6 +48,17 @@
 --
 -- ⚠️ Latent today: all 5 services are active AND visible, so no live booking is
 -- affected. It arms the moment somebody uses "Hide from website".
+--
+-- ✅✅ FIXED 2026-08-21 (D-034) by migration
+-- `20260821212857_pr011_align_booking_item_service_filter.sql`, which removed the
+-- extra `and services.is_visible_on_frontend = true` from the `booking_items`
+-- insert so BOTH filters are now `is_active` alone. Price and record can no
+-- longer disagree.
+--
+-- ⛔ THE EXPECTATIONS BELOW ARE THE PRE-FIX MEASUREMENTS. They are kept as the
+-- record of what the defect looked like. ⛔ RE-RUNNING BLOCK 1 TODAY GIVES
+-- `line_items 1 / itemised 45.00` FOR P1 — see BLOCK 3, which is the live
+-- regression test and the one to run.
 -- ============================================================================
 
 
@@ -149,5 +160,67 @@ select b.contact_full_name,
          as itemised
 from public.bookings b
 where b.contact_full_name like 'ZZTEST-PR011-Visible';
+
+rollback;
+
+
+-- ============================================================================
+-- BLOCK 3 — ⛔ THE LIVE REGRESSION TEST (post-fix, D-034). RUN THIS ONE.
+--
+-- Blocks 1 and 2 are the historical record of the defect. This block is what
+-- must stay true from now on: whatever the engine CHARGES for, it RECORDS.
+--
+-- P4  'hijama-package' hidden, is_active untouched
+--     → charged 45.00 AND line_items 1 AND itemised 45.00
+--     MEASURED 2026-08-21 after the fix: 45.00 · 1 · 45.00                    ✅
+--
+-- P5  'massage-30' visible (CONTROL — unchanged behaviour)
+--     → charged 40.00 AND line_items 1 AND itemised 40.00
+--     MEASURED 2026-08-21 after the fix: 40.00 · 1 · 40.00                    ✅
+--
+-- ⛔ THE ASSERTION THAT MATTERS: for BOTH rows, `charged` = `itemised`. If those
+--    two ever differ again, the defect is back.
+--
+-- ⚠️ This does NOT make a hidden service bookable — it never was via this
+-- function's price path either, which has always accepted `is_active` alone.
+-- Hidden services are refused in the APPLICATION (assertServicesBookable, both
+-- booking entry points and createRecurringSeries) per D-033.
+-- ============================================================================
+
+begin;
+set local request.jwt.claims = '{"role":"service_role"}';
+
+update public.services set is_visible_on_frontend = false where slug = 'hijama-package';
+
+select public.create_booking_request(
+  array['hijama-package'], 'ZZTEST-PR011-Post-Hidden', 'zztest-pr011-post-hidden@probe.invalid', '07999000004',
+  null, null, true, '4 ZZTEST Street', 'Luton', 'LU1 1AA', null,
+  (current_date + 14), '11:00'::time, array['female']::staff_gender_type[],
+  array['ZZTEST PostHidden'], array[null]::text[], 'admin', null, true
+);
+
+update public.services set is_visible_on_frontend = true where slug = 'hijama-package';
+
+select public.create_booking_request(
+  array['massage-30'], 'ZZTEST-PR011-Post-Control', 'zztest-pr011-post-control@probe.invalid', '07999000005',
+  null, null, true, '5 ZZTEST Street', 'Luton', 'LU1 1AA', null,
+  (current_date + 14), '13:00'::time, array['female']::staff_gender_type[],
+  array['ZZTEST PostControl'], array[null]::text[], 'admin', null, true
+);
+
+-- ⛔ Expect BOTH rows to show charged = itemised, and agrees = true.
+select b.contact_full_name,
+       b.total_price          as charged,
+       (select count(*) from public.booking_items bi where bi.booking_id = b.id)
+         as line_items,
+       (select coalesce(sum(bi.service_price_snapshot), 0)
+          from public.booking_items bi where bi.booking_id = b.id)
+         as itemised,
+       (b.total_price = (select coalesce(sum(bi.service_price_snapshot), 0)
+                           from public.booking_items bi where bi.booking_id = b.id))
+         as agrees
+from public.bookings b
+where b.contact_full_name like 'ZZTEST-PR011-Post-%'
+order by b.contact_full_name;
 
 rollback;
