@@ -1455,13 +1455,38 @@ export async function updateOwnAssignmentStatus(formData: FormData) {
 const RESCHEDULE_DECISIONS = ["reviewed", "declined"] as const;
 type RescheduleDecision = (typeof RESCHEDULE_DECISIONS)[number];
 
-export async function respondToCustomerReschedule(formData: FormData): Promise<void> {
+/**
+ * ⛔ G-08-02 — THIS USED TO RETURN `void` AND SWALLOW EVERY FAILURE.
+ *
+ * All five refusal paths below were bare `return`s, so `RescheduleResponseButtons`
+ * — which fires `toast.success("Reschedule request accepted.")` the moment the
+ * promise resolves — told staff it had worked when nothing had been written. No
+ * audit row, no operational event, and the customer's request sat unanswered
+ * forever with nobody aware. The component's error `catch` was unreachable.
+ *
+ * ⛔ It now returns a RESULT rather than throwing, which is deliberate and not
+ * stylistic: Next.js redacts thrown server-action messages in production, so a
+ * throw would reach staff as an opaque digest. Returning `{ error }` is also the
+ * idiom `quickUpdateBooking` and `restoreBooking` already use in this file, so
+ * the caller shape is the familiar one.
+ *
+ * ⚠️ "Already answered" is deliberately its own message: two coordinators
+ * answering the same request is an ordinary race, not a fault, and telling them
+ * to "try again" would be wrong.
+ */
+export async function respondToCustomerReschedule(
+  formData: FormData
+): Promise<{ success?: true; error?: string }> {
   const actor = await requireBookingManager();
-  if (!actor || !canManageAllBookings(actor)) return;
+  if (!actor || !canManageAllBookings(actor)) {
+    return { error: "Insufficient permissions." };
+  }
 
   const bookingId = String(formData.get("booking_id") ?? "").trim();
   const decisionRaw = String(formData.get("decision") ?? "") as RescheduleDecision;
-  if (!bookingId || !RESCHEDULE_DECISIONS.includes(decisionRaw)) return;
+  if (!bookingId || !RESCHEDULE_DECISIONS.includes(decisionRaw)) {
+    return { error: "Choose accept or decline." };
+  }
 
   const adminClient = createSupabaseAdminClient();
   const { data: beforeState } = await adminClient
@@ -1471,7 +1496,12 @@ export async function respondToCustomerReschedule(formData: FormData): Promise<v
     )
     .eq("id", bookingId)
     .single();
-  if (!beforeState || beforeState.reschedule_status !== "requested") return;
+  if (!beforeState) return { error: "Booking not found." };
+  if (beforeState.reschedule_status !== "requested") {
+    return {
+      error: "This reschedule request has already been answered. Refresh to see the latest.",
+    };
+  }
 
   const { data: updated, error } = await adminClient
     .from("bookings")
@@ -1479,7 +1509,7 @@ export async function respondToCustomerReschedule(formData: FormData): Promise<v
     .eq("id", bookingId)
     .select("id, reschedule_status")
     .single();
-  if (error) return;
+  if (error) return { error: error.message };
 
   await adminClient.from("audit_logs").insert({
     actor_staff_id: actor.id,
@@ -1501,6 +1531,8 @@ export async function respondToCustomerReschedule(formData: FormData): Promise<v
   revalidatePath(`/admin/bookings/${bookingId}`);
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/calendar");
+
+  return { success: true };
 }
 
 export interface ManualBookingState {
