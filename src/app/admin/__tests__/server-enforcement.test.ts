@@ -89,6 +89,7 @@ import { createEnquiry, updateEnquiryStatus } from "../enquiries/actions";
 import { updateStaffPermissionOverride, updateStaffProfile } from "../staff/actions";
 import { toggleRolePermission, updateRoleMetadata } from "../roles/actions";
 import { updateBusinessSettings } from "../settings/actions";
+import { createService } from "../services/actions";
 import { GET as reportsExport } from "../reports/export/route";
 
 // ─── actors, built from the live role grants ─────────────────────────────────
@@ -341,6 +342,27 @@ const ACTION_CASES: readonly ActionCase[] = [
     run: () => updateBusinessSettings({}, form({ company_name: "ZZTEST" })),
   },
   {
+    // ⛔ GATE 07 CASE 18 — and the reason that case exists.
+    //
+    // ⚠️ `createService` was the ONE action of case 18's six with no
+    // server-enforcement coverage anywhere. Measured, not assumed: it appeared
+    // zero times in this file, and the only test that drives it
+    // (`services/__tests__/actions.test.ts`) MOCKS `requirePermission`
+    // outright — so nothing in the repo proved that a real Coordinator or
+    // Therapist profile is actually refused, nor that the refusal happens
+    // before the RLS-bypassing admin client exists.
+    //
+    // ⛔ The counter below is what should have caught this and did not: it is a
+    // hand-maintained number, so it only notices an action somebody remembered
+    // to add. That is worth knowing about the guard.
+    caseId: 18,
+    name: "createService",
+    capability: "manage_services",
+    allowed: "Admin",
+    denied: ["Booking Coordinator", "Therapist"],
+    run: () => createService({}, form({ name: "ZZTEST Service" })),
+  },
+  {
     caseId: 17,
     name: "GET /admin/reports/export",
     capability: "canOpenReports AND (export_reports_own OR export_reports_revenue)",
@@ -400,14 +422,16 @@ describe("AUTHZ-3 — a denial constructs zero service-role clients", () => {
     adminClientFactory.mockImplementation(() => fakeAdminClient() as never);
   });
 
-  it("covers gate 07 cases 6-17 plus E08-101, across 16 entry points", () => {
+  it("covers gate 07 cases 6-18 plus E08-101, across 17 entry points", () => {
     // ⛔ Guards the guard. A mutating action added to the app and not added here
     // is an unasserted gate, which is the gap this block exists to close.
     // ⚠️ 14 -> 16 on 2026-08-21: createEnquiry and updateEnquiryStatus were
     // missing, and this counter is what should have caught them.
-    expect(ACTION_CASES.length, "entry points").toBe(16);
-    expect(new Set(ACTION_CASES.map((c) => c.caseId)).size, "cases covered").toBe(13);
-    expect(new Set(ACTION_CASES.map((c) => c.name)).size, "names unique").toBe(16);
+    // ⚠️ 16 -> 17 on 2026-08-22: `createService` (gate 07 case 18) was missing,
+    // and the only other test touching it mocks the permission check away.
+    expect(ACTION_CASES.length, "entry points").toBe(17);
+    expect(new Set(ACTION_CASES.map((c) => c.caseId)).size, "cases covered").toBe(14);
+    expect(new Set(ACTION_CASES.map((c) => c.name)).size, "names unique").toBe(17);
   });
 
   describe.each(ACTION_CASES)("case $caseId — $name", (testCase) => {
