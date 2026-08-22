@@ -368,6 +368,57 @@ export interface SetSeriesTravelFeeState {
 }
 
 /**
+ * The one place a series repricing is written to the audit log.
+ *
+ * ⛔ D-043 — extracted so the SUCCESS path and both FAILURE paths cannot drift
+ * apart. Before this, only the success path wrote a row at all, which is how a
+ * half-repriced series came to leave no trace whatsoever.
+ *
+ * ⛔ Deliberately keeps the EXISTING `recurring_series_travel_fee_updated`
+ * action type rather than inventing a second one. `audit_logs.action_type` has
+ * no CHECK constraint (measured), so a new value would have been accepted — and
+ * been invisible to every report and query that already filters on this name. A
+ * `partial_failure` key inside `after_state` says what happened without hiding
+ * the event from the readers that exist.
+ */
+async function recordTravelFeeAudit(
+  adminClient: ReturnType<typeof createSupabaseAdminClient>,
+  input: {
+    actorStaffId: string;
+    templateId: string;
+    previousFee: number;
+    nextFee: number;
+    updated: number;
+    skipped: number;
+    attempted: number;
+    partialFailure?: string;
+  }
+) {
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: input.actorStaffId,
+    action_type: "recurring_series_travel_fee_updated",
+    target_type: "recurring_booking_templates",
+    target_id: input.templateId,
+    before_state: { travel_fee: input.previousFee },
+    after_state: {
+      travel_fee: input.nextFee,
+      updated_occurrence_count: input.updated,
+      skipped_occurrence_count: input.skipped,
+      ...(input.partialFailure
+        ? {
+            partial_failure: input.partialFailure,
+            attempted_occurrence_count: input.attempted,
+            // ⛔ States plainly, in the log, that the series-level figure did not
+            // move — otherwise a reader would assume `travel_fee` above is what
+            // the template now holds.
+            template_fee_applied: false,
+          }
+        : { template_fee_applied: true }),
+    },
+  });
+}
+
+/**
  * Set the standing travel charge on a series.
  *
  * Deliberately NOT an extension of the disabled "Edit series" button, whose own
@@ -432,12 +483,40 @@ export async function setSeriesTravelFee(
     return { ok: true, updated: 0, skipped: 0 };
   }
 
-  const { error: writeError } = await adminClient
-    .from("recurring_booking_templates")
-    .update({ travel_fee: nextFee })
-    .eq("id", templateId);
-
-  if (writeError) return { ok: false, error: writeError.message };
+  // ⛔ D-043 — THE TEMPLATE'S OWN FEE IS WRITTEN LAST, NOT FIRST.
+  //
+  // It used to be written here, before the occurrence loop, and that turned an
+  // ordinary mid-loop database failure into a state the operator could not get
+  // out of. Found by independent review (D-035) and confirmed by reading the
+  // control flow, not assumed:
+  //
+  //   1. the template's fee was committed up front;
+  //   2. an occurrence update failed, and the `return` inside the loop below
+  //      exits BEFORE the audit insert — so ⛔ NO audit row was written at all,
+  //      and half the visits carried the new charge while half did not;
+  //   3. the operator saw an error and retried with the same number;
+  //   4. `previousFee` was now the NEW fee, so the no-op guard above matched and
+  //      returned `{ ok: true, updated: 0 }`, and the screen said
+  //      ⛔ "Travel charge saved. 0 upcoming visits updated."
+  //
+  // The half-priced visits could never be corrected through the UI. That is a
+  // money defect the person at the desk cannot see, and cannot undo.
+  //
+  // ⛔ WHY MOVING THE WRITE FIXES IT, rather than merely hiding it. With the
+  // template untouched until the end, a failed run leaves `previousFee` as it
+  // was, so the retry does NOT hit the no-op guard — it re-runs and finishes the
+  // job. And the retry is safe to repeat because `applyTravelFeeDelta` computes
+  // each occurrence's delta from ITS OWN current fee: a visit already moved to
+  // the new figure yields a delta of zero and is rewritten to the same values.
+  // ⛔ The operation is idempotent, so "run it again" is now the correct and
+  // sufficient recovery.
+  //
+  // ⚠️ The cost of this ordering, stated rather than glossed: if the loop
+  // succeeds and the template write then fails, every occurrence carries the new
+  // charge while the template still shows the old one — and the nightly
+  // extend-recurring-horizons cron would create FUTURE visits at the old figure.
+  // That is why the template write is checked below and reported as a failure
+  // with an audit row, instead of being allowed to fall through quietly.
 
   // Step 1 of the two-step: fetch the candidates.
   const today = getTodayIsoDate();
@@ -459,6 +538,11 @@ export async function setSeriesTravelFee(
   });
 
   // Step 3: each occurrence moves by its own delta.
+  //
+  // ⛔ D-043 — a failure part-way through must leave a TRACE. The bare `return`
+  // that used to sit here exited before the audit insert, so a half-repriced
+  // series had no record of the repricing at all.
+  const movedIds: string[] = [];
   for (const booking of toUpdate) {
     const folded = applyTravelFeeDelta({
       totalPrice: booking.total_price,
@@ -476,23 +560,69 @@ export async function setSeriesTravelFee(
       })
       .eq("id", booking.id);
 
-    if (occurrenceError) return { ok: false, error: occurrenceError.message };
+    if (occurrenceError) {
+      await recordTravelFeeAudit(adminClient, {
+        actorStaffId: actor.id,
+        templateId,
+        previousFee,
+        nextFee,
+        updated: movedIds.length,
+        skipped: candidates.length - toUpdate.length,
+        // ⛔ The template still holds `previousFee` at this point, so the series
+        // is NOT half-changed at the template level and re-running finishes the
+        // job. Recorded so a human reading the log knows the run stopped early
+        // and how far it got.
+        partialFailure: occurrenceError.message,
+        attempted: toUpdate.length,
+      });
+      updateTag(TAGS.AUDIT);
+      return {
+        ok: false,
+        error:
+          `${occurrenceError.message} — ${movedIds.length} of ${toUpdate.length} visits were ` +
+          `updated. Save the same amount again to finish the rest.`,
+      };
+    }
+    movedIds.push(booking.id as string);
   }
 
-  const updated = toUpdate.length;
-  const skipped = candidates.length - updated;
+  const updated = movedIds.length;
+  const skipped = candidates.length - toUpdate.length;
 
-  await adminClient.from("audit_logs").insert({
-    actor_staff_id: actor.id,
-    action_type: "recurring_series_travel_fee_updated",
-    target_type: "recurring_booking_templates",
-    target_id: templateId,
-    before_state: { travel_fee: previousFee },
-    after_state: {
-      travel_fee: nextFee,
-      updated_occurrence_count: updated,
-      skipped_occurrence_count: skipped,
-    },
+  // ⛔ THE TEMPLATE'S FEE, LAST. See the note above the candidate fetch.
+  const { error: writeError } = await adminClient
+    .from("recurring_booking_templates")
+    .update({ travel_fee: nextFee })
+    .eq("id", templateId);
+
+  if (writeError) {
+    await recordTravelFeeAudit(adminClient, {
+      actorStaffId: actor.id,
+      templateId,
+      previousFee,
+      nextFee,
+      updated,
+      skipped,
+      partialFailure: `occurrences updated but the series itself was not: ${writeError.message}`,
+      attempted: toUpdate.length,
+    });
+    updateTag(TAGS.AUDIT);
+    return {
+      ok: false,
+      error:
+        `${writeError.message} — the ${updated} upcoming visit(s) were updated, but the series ` +
+        `itself still carries the old charge. Save the same amount again.`,
+    };
+  }
+
+  await recordTravelFeeAudit(adminClient, {
+    actorStaffId: actor.id,
+    templateId,
+    previousFee,
+    nextFee,
+    updated,
+    skipped,
+    attempted: toUpdate.length,
   });
 
   updateTag("report-data");

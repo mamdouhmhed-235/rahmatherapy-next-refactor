@@ -86,10 +86,25 @@ const CANDIDATES = [
   },
 ];
 
+/** ⛔ D-043 — three UNPAID visits. The default CANDIDATES pair only ever yields
+ *  ONE updatable visit (the other is fully paid), so a "failed part-way through"
+ *  cannot even be expressed against it — there is no "part way". */
+const THREE_UNPAID = [
+  { id: "b1", total_price: 60, amount_due: 60, amount_paid: 0, travel_fee: 0 },
+  { id: "b2", total_price: 60, amount_due: 60, amount_paid: 0, travel_fee: 0 },
+  { id: "b3", total_price: 60, amount_due: 60, amount_paid: 0, travel_fee: 0 },
+];
+
 function stubAdminClient(
   options: {
     template?: Record<string, unknown> | null;
     candidates?: Record<string, unknown>[];
+    /** ⛔ D-043 — fail the Nth (0-based) occurrence UPDATE, so the part-way
+     *  failure path can be driven. Without it that path is untestable, which is
+     *  how the money defect below survived eight passing tests. */
+    failBookingUpdateAt?: number;
+    /** ⛔ D-043 — fail the template's own fee write, the cost of writing it last. */
+    failTemplateUpdate?: boolean;
   } = {}
 ) {
   const {
@@ -100,15 +115,40 @@ function stubAdminClient(
       cancelled_at: null,
     },
     candidates = CANDIDATES,
+    failBookingUpdateAt,
+    failTemplateUpdate = false,
   } = options;
   const ops: RecordedOp[] = [];
+  let bookingUpdateIndex = 0;
+  let failAt = failBookingUpdateAt;
+  // ⛔ D-043 — the stubbed template is MUTABLE and a successful update is
+  // APPLIED to it. Without that, a second call re-reads the original fee and the
+  // retry test cannot see the defect at all: the whole bug is that attempt 1
+  // committed the new fee, so attempt 2 matched the unchanged-fee guard.
+  // ⛔ Measured: with a frozen template the retry test stayed GREEN against the
+  // ORIGINAL buggy code — a case that could not fail.
+  const templateState = template ? { ...template } : template;
 
   function resolve(entry: RecordedOp) {
     if (entry.table === "recurring_booking_templates") {
-      return { data: template, error: null };
+      if (entry.op === "update") {
+        if (failTemplateUpdate) {
+          return { data: null, error: { message: "template write failed" } };
+        }
+        if (templateState && entry.payload) Object.assign(templateState, entry.payload);
+        return { data: null, error: null };
+      }
+      return { data: templateState, error: null };
     }
     if (entry.table === "bookings" && entry.op === "select") {
       return { data: candidates, error: null };
+    }
+    if (entry.table === "bookings" && entry.op === "update") {
+      const index = bookingUpdateIndex++;
+      if (failAt === index) {
+        return { data: null, error: { message: "occurrence write failed" } };
+      }
+      return { data: null, error: null };
     }
     return { data: null, error: null };
   }
@@ -155,6 +195,13 @@ function stubAdminClient(
 
   return {
     ops,
+    /** ⛔ Lets ONE stub serve a failed attempt and the retry that follows it —
+     *  which is the only way the retry sees the state attempt 1 left behind. */
+    clearFailure: () => {
+      failAt = undefined;
+      bookingUpdateIndex = 0;
+    },
+    template: () => templateState,
     bookingUpdates: () =>
       ops.filter((o) => o.table === "bookings" && o.op === "update"),
     candidateSelect: () =>
@@ -316,5 +363,128 @@ describe("setSeriesTravelFee", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/permission/i);
     expect(stub.bookingUpdates()).toHaveLength(0);
+  });
+
+  // ── ⛔ D-043 — THE MONEY DEFECT, AND THE THREE THINGS THAT NOW PIN IT ─────
+  //
+  // Found by independent review (D-035). Before the fix, `setSeriesTravelFee`
+  // wrote the TEMPLATE's fee first and each occurrence afterwards. A database
+  // failure part-way through the occurrence loop therefore left:
+  //   * half the visits carrying the new charge and half the old one,
+  //   * ⛔ NO audit row at all — the `return` inside the loop exited before the
+  //     insert,
+  //   * and a template already holding the new figure, so the operator's
+  //     natural retry with the SAME amount hit the unchanged-fee guard and
+  //     reported ⛔ "Travel charge saved. 0 upcoming visits updated."
+  // The half-priced visits could not be corrected from any screen.
+  //
+  // ⚠️ ALL EIGHT PRE-EXISTING TESTS PASSED BOTH BEFORE AND AFTER THE FIX —
+  // nothing pinned the ordering or the failure path, which is exactly why the
+  // defect survived. These three are the ones that would have caught it.
+
+  it("writes the series' own fee only AFTER every occurrence has moved", async () => {
+    const stub = stubAdminClient();
+
+    const result = await setSeriesTravelFee(null, formData("5.00"));
+    expect(result.ok).toBe(true);
+
+    // ⛔ Ordering is the whole fix, so it is asserted on the recorded ops rather
+    // than inferred from the outcome.
+    const order = stub.ops
+      .filter(
+        (o) =>
+          o.op === "update" &&
+          (o.table === "bookings" || o.table === "recurring_booking_templates")
+      )
+      .map((o) => o.table);
+    expect(order.length).toBeGreaterThan(1);
+    expect(
+      order[order.length - 1],
+      "the template's own fee must be the LAST write — writing it first is what made a " +
+        "part-way failure unrecoverable"
+    ).toBe("recurring_booking_templates");
+    expect(order.slice(0, -1).every((t) => t === "bookings")).toBe(true);
+  });
+
+  it("a failure part-way through records what it managed to change, and says so", async () => {
+    const stub = stubAdminClient({ candidates: THREE_UNPAID, failBookingUpdateAt: 1 });
+
+    const result = await setSeriesTravelFee(null, formData("5.00"));
+
+    expect(result.ok, "the operator must be told it failed").toBe(false);
+    expect(result.error).toMatch(/1 of 3 visits were updated/i);
+    expect(result.error, "and told what to do about it").toMatch(/save the same amount again/i);
+
+    // ⛔ The row that used to be missing entirely.
+    const audit = stub.audit();
+    expect(audit, "a part-way failure must still leave a trace").toBeTruthy();
+    expect(audit).toMatchObject({
+      action_type: "recurring_series_travel_fee_updated",
+      target_id: TEMPLATE_ID,
+    });
+    const after = (audit as { after_state: Record<string, unknown> }).after_state;
+    expect(after.updated_occurrence_count).toBe(1);
+    expect(after.attempted_occurrence_count).toBe(3);
+    expect(after.partial_failure).toBeTruthy();
+    // ⛔ Says plainly that the SERIES figure did not move, so a reader does not
+    // mistake `travel_fee` in the same object for the template's current value.
+    expect(after.template_fee_applied).toBe(false);
+
+    // ⛔ AND THE TEMPLATE WAS NEVER TOUCHED. This is what makes the retry work.
+    expect(
+      stub.ops.filter(
+        (o) => o.table === "recurring_booking_templates" && o.op === "update"
+      ),
+      "the series' own fee must be untouched after a failed run"
+    ).toHaveLength(0);
+  });
+
+  it("⛔ a retry after a part-way failure FINISHES the job, instead of reporting success having done nothing", async () => {
+    // ⛔ ONE stub across BOTH attempts. Two separate stubs would each start
+    // from a fresh template, and the retry would never see what attempt 1 left
+    // behind — measured: with two stubs this test stayed GREEN against the
+    // original buggy code, proving nothing.
+    const stub = stubAdminClient({ candidates: THREE_UNPAID, failBookingUpdateAt: 1 });
+
+    // Attempt 1 — dies on the second occurrence.
+    const failed = await setSeriesTravelFee(null, formData("5.00"));
+    expect(failed.ok).toBe(false);
+    expect(stub.bookingUpdates()).toHaveLength(2); // one applied, the second refused
+
+    // Attempt 2 — same amount, same operator, nothing else changed. Whatever
+    // attempt 1 committed is still there.
+    stub.clearFailure();
+    const retry = await setSeriesTravelFee(null, formData("5.00"));
+
+    expect(retry.ok, "the retry must succeed").toBe(true);
+    expect(
+      retry.updated,
+      "⛔ the retry must actually reprice the visits. Reporting `updated: 0` here is the " +
+        "exact defect: the screen said 'Travel charge saved. 0 upcoming visits updated.' " +
+        "while half the series stayed on the old price with no way to fix it."
+    ).toBe(3);
+    expect(stub.audit()).toBeTruthy();
+    expect(
+      stub.ops.filter(
+        (o) => o.table === "recurring_booking_templates" && o.op === "update"
+      ),
+      "and the series itself is finally moved"
+    ).toHaveLength(1);
+  });
+
+  it("reports the failure when the occurrences moved but the series itself did not", async () => {
+    const stub = stubAdminClient({ candidates: THREE_UNPAID, failTemplateUpdate: true });
+
+    const result = await setSeriesTravelFee(null, formData("5.00"));
+
+    expect(result.ok).toBe(false);
+    expect(
+      result.error,
+      "⚠️ the stated cost of writing the template last — the operator must hear about it, " +
+        "because the nightly horizon cron would create future visits at the OLD figure"
+    ).toMatch(/still carries the old charge/i);
+    const after = (stub.audit() as { after_state: Record<string, unknown> }).after_state;
+    expect(after.template_fee_applied).toBe(false);
+    expect(after.updated_occurrence_count).toBe(3);
   });
 });
