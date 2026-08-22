@@ -1,0 +1,26 @@
+{
+  "_what": "Expected output of scripts/db-fingerprint.sql. Compare BOTH the md5 and the count.",
+  "_why": "The migration files are the clinic's only route back from a lost database (no automated backups on this plan). verify-migration-coverage.mjs and rebuild_self_check.sql check NAMES and COUNTS; nothing checked DEFINITIONS until this. A hand-altered constraint, policy predicate, function body, column default or grant used to pass every gate.",
+  "_how": "Supabase dashboard -> SQL Editor -> paste scripts/db-fingerprint.sql -> Run. Eight rows out; compare against `parts` below.",
+  "_when_a_hash_differs": "Not automatically bad. A migration you applied on purpose moves them too. If it was intended, update this file in the SAME commit as that migration. If it was NOT intended, somebody edited production by hand: find out what, then either write a migration recording it or revert it.",
+  "_scope": "Says the migrations still DESCRIBE the live database. It cannot RECOVER one.",
+  "captured_at": "2026-08-22",
+  "captured_against": {
+    "project_id": "twzutkfgqclqurvkmvqz",
+    "head_commit": "49ee1a0",
+    "migration_files": 84,
+    "last_applied_migration": "20260822113519_g0803_scope_recurring_template_reads"
+  },
+  "parts": {
+    "columns": { "md5": "041b8c2cf3f3d03e1feec8ddcb9ec10a", "count": 320 },
+    "constraints": { "md5": "fb0ba4a159689d077235fd4b93d6e3ed", "count": 122 },
+    "functions": { "md5": "9c88da1508002e88a6bcbf6d52bfcaa0", "count": 12 },
+    "indexes": { "md5": "11c95e1ea9a33fd7e2bdd24f398266ee", "count": 75 },
+    "policies": { "md5": "75d4b51e7d38b06453191ec3646d6908", "count": 44 },
+    "seed_rows": { "md5": "d59740d9ff4e4b63d23c9c91181ea425", "count": 0 },
+    "table_acls_and_rls": { "md5": "7d364a08cd82d569ff9acb7ae96cffe3", "count": 30 },
+    "triggers": { "md5": "0806dcaeca75ce3ce63b229a94bb6c68", "count": 11 }
+  },
+  "_counts_cross_check": "These counts agree with the other gates: 30 tables, 44 policies, 12 functions, 75 indexes, 11 triggers (verify-migration-coverage.mjs) and 5 roles / 40 permissions / 95 grants folded into seed_rows (verify-rbac-grants.mjs). seed_rows has count 0 because it is a single digest over rows, not an object census.",
+  "_proven_to_detect": "Not assumed. Inside a rolled-back transaction, a hand-added Therapist grant moved seed_rows d59740d9ff4e4b63d23c9c91181ea425 -> 64b791bc00c4a08431065760f3307ec0, and a hand-added policy moved policies 75d4b51e7d38b06453191ec3646d6908 -> 0c8fb63391522aa095480e315f9875b0. Both reverted on rollback."
+}
