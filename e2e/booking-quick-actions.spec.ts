@@ -5,12 +5,19 @@
 // the booking group is rarer than these.
 //
 // ⛔ E08-45 (NO-SHOW) IS **NOT** IN THIS FILE, and that is deliberate rather
-// than an omission. No-show is not a row quick action at all — it is an option
-// on the booking DETAIL page's status form
-// (`BookingManagementForm.tsx`, `<option value="no_show">`). Measured, after
-// looking for it in the row menu and finding only confirm / complete / cancel /
-// restore / mark-paid / send-reminder. It belongs with the detail-page cases and
-// is still OUTSTANDING.
+// than an omission. No-show is not a row quick action: this row menu offers only
+// confirm / complete / cancel / restore / mark-paid / send-reminder, measured by
+// reading every branch of `BookingRowActions.tsx`.
+//
+// ⛔ CORRECTED — this block previously went on to say no-show "is an option on
+// the booking DETAIL page's status form", singular. That was FALSE, caught by an
+// independent review. There are **TWO** controls, both on the detail page: a
+// one-click **"Mark no-show"** button in the next-action strip
+// (`[bookingId]/NextActionButton.tsx` → `quickUpdateBooking`, the day-of
+// shortcut staff will actually use) and the Status dropdown
+// (`BookingManagementForm.tsx` → `updateBookingManagement`). They write
+// DIFFERENT audit actions. ✅ Both are covered by
+// `e2e/booking-detail-status.spec.ts` (E08-45a/b/c/d).
 //
 // ── ⚠️⚠️ THIS SPEC SENDS REAL EMAIL TO THE BUSINESS INBOX ─────────────────
 //

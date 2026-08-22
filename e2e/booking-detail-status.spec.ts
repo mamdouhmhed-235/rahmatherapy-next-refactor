@@ -5,32 +5,50 @@
 // either disappears, or sits on the list as "confirmed" forever and keeps
 // showing up as work still to do.
 //
-// ── ⛔ WHERE NO-SHOW ACTUALLY LIVES, AND WHERE IT DOES NOT ────────────────
+// ── ⛔ WHERE NO-SHOW ACTUALLY LIVES — THERE ARE **TWO** CONTROLS ──────────
 //
-// ⛔ NO-SHOW IS NOT A ROW QUICK ACTION. The bookings list row menu offers only
+// ⛔ CORRECTED AFTER AN INDEPENDENT REVIEW. The first version of this file
+// asserted, in a ⛔ block, that the Status dropdown was "the ONE control a human
+// can press". ⛔ THAT WAS FALSE, and it was false about the very screen this
+// file drives. Both controls live on the booking DETAIL page:
+//
+//   1. ⛔ **"Mark no-show"** — a ONE-CLICK button in the page's next-action
+//      strip (`[bookingId]/NextActionButton.tsx`, `MarkNoShowButton`), which
+//      posts `quickUpdateBooking` with `action=no_show`. Its own source calls it
+//      "the day-of shortcut … the admin should not have to open the full Status
+//      & payment form to record it". ⛔ THIS IS THE PATH STAFF WILL ACTUALLY
+//      USE, and it had no browser coverage at all until E08-45d below.
+//      ⚠️ It renders only once the booking's day has arrived
+//      (`deriveNextAction`, gated on `!isBookingDateFutureLondon`).
+//
+//   2. The **Status dropdown** on the same page —
+//      `<option value="no_show">No-show</option>`, saved with
+//      "Save status & payment" (`updateBookingManagement`). The long way round,
+//      and the only way to change several things at once.
+//
+// ⚠️ THE TWO WRITE DIFFERENT AUDIT ACTIONS — `booking_quick_no_show` vs
+// `booking_management_updated` — so a check that keys on one is blind to the
+// other. That is why both are driven here.
+//
+// ⛔ NO-SHOW IS NOT A ROW QUICK ACTION. The bookings LIST row menu offers only
 // confirm / mark-paid / mark-complete / cancel / restore / send-reminder
-// (`BookingRowActions.tsx`) — measured by reading every branch, after an earlier
-// session went looking for it there and found nothing.
+// (`BookingRowActions.tsx`) — measured by reading every branch.
 //
 // ⚠️ `BookingRowActions` DOES carry `"no_show"` in its `BookingRowAction` union
-// and a success toast for it, but **nothing renders a control that fires it**.
-// That is dead code, not a hidden affordance — noted here so the next person
-// does not read the type and conclude the menu has the button.
+// and a success toast for it, but nothing in THAT file renders a control that
+// fires it. Dead code there — noted so the next person does not read the type
+// and conclude the row menu has the button. ⛔ The server action it names is NOT
+// dead: `MarkNoShowButton` calls it.
 //
-// It also is NOT one of the detail page's one-click chips: `QUICK_ACTIONS` in
-// `BookingManagementForm.tsx` is confirm / mark_paid / complete / cancel only.
+// It is also not one of the detail page's `QUICK_ACTIONS` chips, which are
+// confirm / mark_paid / complete / cancel only (`BookingManagementForm.tsx`).
 //
-// ⛔ The ONE control a human can press is the Status dropdown on the booking
-// DETAIL page — `<option value="no_show">No-show</option>` — saved with
-// "Save status & payment". That is what this file drives.
-//
-// ⚠️ And it is the only way the booking ever reaches `no_show` in normal use.
-// A therapist marking their OWN assignment as a no-show
-// (`updateOwnAssignmentStatus`) does **not** move the booking there:
-// `autoPromoteBookingFromAssignments` only ever promotes to `completed`, and it
-// refuses outright when every assignment was a no-show, deliberately leaving
-// "a visit nobody attended" for a human to classify. So this dropdown is not a
-// convenience — it is the whole feature.
+// ⚠️ NOTHING AUTOMATIC EVER REACHES `no_show`. A therapist marking their OWN
+// assignment as a no-show (`updateOwnAssignmentStatus`) does not move the
+// booking there: `autoPromoteBookingFromAssignments` only ever promotes to
+// `completed`, and refuses outright when every assignment was a no-show,
+// deliberately leaving "a visit nobody attended" for a human to classify. So
+// these two controls are the whole feature.
 //
 // ── ⚠️ EMAIL — WHAT THIS FILE COSTS ──────────────────────────────────────
 //
@@ -257,12 +275,18 @@ async function sessionFor(browser: import("@playwright/test").Browser, role: str
 /**
  * ⛔ Open the booking DETAIL page and prove the status form is really there.
  *
- * ⚠️ Unlike the bookings LIST, this page is **not** wrapped in
- * `unstable_cache` — it reads the booking directly — so a fixture inserted
- * straight into the database is visible immediately and no reload-poll is
- * needed. Measured by reading `[bookingId]/page.tsx`, which imports nothing
- * from `next/cache`. ⛔ Do not copy this shape to a list page: the list is
- * cached and the lesson has already been learned twice there.
+ * ⛔ CORRECTED AFTER AN INDEPENDENT REVIEW. This comment previously claimed the
+ * detail page is "not wrapped in `unstable_cache`", on the strength of
+ * `[bookingId]/page.tsx` importing nothing from `next/cache`. ⛔ THAT WAS THE
+ * FILE, NOT THE PATH: the page calls `getBookingDetailData`, and
+ * `[bookingId]/booking-detail-data.ts` wraps it in `unstable_cache` with
+ * `revalidate: 60`. THIS PAGE IS CACHED, exactly like the list.
+ *
+ * ⚠️ These cases pass without a reload-poll for a reason that is luck, not
+ * design: each fixture is a brand-new UUID, so its first read is a cache MISS.
+ * ⛔ A case that mutates an EXISTING booking out-of-band and re-reads it inside
+ * 60 seconds would be served the stale render — the same trap the enquiries and
+ * bookings lists both sprang. Poll if you ever do that.
  *
  * The three failure modes are separated because they mean completely different
  * things, and confusing them cost an earlier session a debugging pass.
@@ -357,6 +381,7 @@ test.describe("gate 08 P2 — recording a no-show, on the booking detail page", 
   const db = hasBaseUrl() ? serviceClient() : (null as unknown as SupabaseClient);
 
   let missed: BookingFixture;
+  let missedQuick: BookingFixture;
   let future: BookingFixture;
   const createdClientIds: string[] = [];
 
@@ -375,6 +400,19 @@ test.describe("gate 08 P2 — recording a no-show, on the booking detail page", 
       assign: true,
       dayOffset: -2,
     });
+    // ⛔ The FAST path needs its own booking — E08-45d cannot reuse `missed`,
+    // which E08-45a has already driven to `no_show`, and `quickUpdateBooking`
+    // correctly refuses every move out of a no-show.
+    //
+    // ⚠️ `confirmed` + ASSIGNED + past is not a free choice either:
+    // `deriveNextAction` only reaches the "Mark no-show" branch once the earlier
+    // branches decline, and an unassigned booking is diverted to
+    // "A therapist still needs assigning" instead.
+    missedQuick = await createBookingFixture(db, "QuickNoShow", {
+      status: "confirmed",
+      assign: true,
+      dayOffset: -3,
+    });
     // The mirror image, for the guard. ⚠️ Unassigned on purpose: a refused save
     // must send nothing, and the cleanest way to be sure of that is to leave
     // nobody to send to.
@@ -383,10 +421,11 @@ test.describe("gate 08 P2 — recording a no-show, on the booking detail page", 
       assign: false,
       dayOffset: 11,
     });
-    createdClientIds.push(missed.clientId, future.clientId);
+    createdClientIds.push(missed.clientId, missedQuick.clientId, future.clientId);
 
     // ⛔ Prove the fixtures are what the tests assume BEFORE any of them run.
     expect((await readBooking(db, missed.bookingId)).status).toBe("confirmed");
+    expect((await readBooking(db, missedQuick.bookingId)).status).toBe("confirmed");
     expect((await readBooking(db, future.bookingId)).status).toBe("confirmed");
   });
 
@@ -408,13 +447,28 @@ test.describe("gate 08 P2 — recording a no-show, on the booking detail page", 
         "the appointment nobody attended is recorded as a no-show",
       ).toBe("no_show");
 
-      // ⛔ A no-show is NOT a completed visit. `bookings_set_completed_at` is a
-      // BEFORE UPDATE trigger on this column, so this asserts the database's own
-      // behaviour, not the action's — and it is what keeps a visit that never
-      // happened out of the revenue reports.
+      // ⛔ A no-show is not stamped as a completed visit. `bookings_set_completed_at`
+      // is a BEFORE UPDATE trigger on this column, so this asserts the database's
+      // own behaviour, not the action's.
+      //
+      // ⛔ SCOPED DELIBERATELY, AFTER AN INDEPENDENT REVIEW. The first version
+      // of this comment said "a no-show must NEVER be stamped as completed —
+      // the reports read that column". ⛔ Both halves were overstated:
+      //   - The trigger's `ELSIF` PRESERVES an existing `completed_at` on any
+      //     move out of `completed`, by design ("preserve historical
+      //     completed_at so audit forensics stay consistent"). So a
+      //     `completed → no_show` row — reachable through the Status form's
+      //     reopen modal — legitimately keeps its stamp.
+      //   - Nothing reads `completed_at` on its own. Both consumers, the
+      //     review-request cron and the admin's review-candidates list, ALSO
+      //     filter `status = 'completed'`; the reports key on `status` and never
+      //     touch `completed_at`. So a stale stamp is inert, not a leak into the
+      //     revenue figures. ⛔ Checked before writing this, rather than
+      //     reported as a finding on the strength of the trigger alone.
+      // What IS asserted, and is true: coming from `confirmed`, no stamp appears.
       expect(
         after.completed_at,
-        "a no-show must never be stamped as completed — the reports read that column",
+        "a booking that goes straight from confirmed to no-show is never stamped completed",
       ).toBeNull();
       expect(
         after.cancelled_at,
@@ -482,6 +536,85 @@ test.describe("gate 08 P2 — recording a no-show, on the booking detail page", 
     ).toEqual([]);
   });
 
+  test("E08-45d — the one-click 'Mark no-show' button on the next-action strip", async ({
+    browser,
+  }) => {
+    // ⛔ THE PATH STAFF WILL ACTUALLY USE, and it had NO browser coverage until
+    // an independent review pointed out that this file's own header wrongly
+    // called the Status dropdown "the ONE control a human can press".
+    //
+    // ⚠️ It is a DIFFERENT server action from E08-45a — `quickUpdateBooking`,
+    // writing a `booking_quick_no_show` audit row rather than
+    // `booking_management_updated`. A check keyed on one is blind to the other,
+    // which is exactly why both are driven.
+    const { context, page } = await sessionFor(browser, "coordinator");
+    try {
+      await openBookingDetail(page, missedQuick.bookingId, missedQuick.name);
+
+      // ⛔ SCOPE THE CLICKS. The strip's trigger and the modal's confirm button
+      // share the accessible name "Mark no-show" — the same collision that made
+      // `.first()` click the trigger twice on the cancel/restore cases and
+      // assert nothing. The trigger is taken from OUTSIDE the dialog, the
+      // confirm from INSIDE it.
+      const trigger = page
+        .getByRole("button", { name: /^Mark no-show$/ })
+        .filter({ visible: true });
+      await expect(
+        trigger,
+        "the day-of shortcut should be offered once the booking's day has arrived",
+      ).toHaveCount(1);
+      await trigger.click();
+
+      const dialog = page.getByRole("dialog");
+      await expect(dialog, "the confirmation dialog should open").toBeVisible();
+      await awaitAction(page, () =>
+        dialog.getByRole("button", { name: /^Mark no-show$/ }).click(),
+      );
+
+      const after = await readBooking(db, missedQuick.bookingId);
+      expect(
+        after.status,
+        "one click from the strip records the no-show",
+      ).toBe("no_show");
+      expect(
+        after.completed_at,
+        "and it is not recorded as a completed visit",
+      ).toBeNull();
+
+      // ⛔ The audit action here is `booking_quick_no_show` — a template literal
+      // `booking_quick_${action}`, NOT `booking_no_show`. Measured, because the
+      // obvious guess is wrong and would fail this case for the wrong reason.
+      const audits = await auditRows(db, missedQuick.bookingId);
+      expect(
+        audits.map((r) => r.action_type),
+        "the quick action leaves its own distinct audit trail",
+      ).toContain("booking_quick_no_show");
+
+      // ⛔ The dialog promises the operator, in words: "Assigned staff are
+      // notified. The client is not emailed." This asserts the database agrees
+      // with what the screen told them.
+      const { data } = await db
+        .from("email_delivery_events")
+        .select("event_type, recipient_email, delivery_status")
+        .eq("booking_id", missedQuick.bookingId);
+      const rows = (data ?? []) as {
+        event_type: string;
+        recipient_email: string;
+        delivery_status: string;
+      }[];
+      expect(
+        rows.map((r) => r.event_type),
+        `the dialog promises assigned staff are notified (rows seen: ${JSON.stringify(rows)})`,
+      ).toEqual(["staff_booking_change"]);
+      expect(
+        rows[0].recipient_email,
+        "and the dialog promises the client is NOT emailed",
+      ).toBe(THERAPIST_A_EMAIL);
+    } finally {
+      await context.close();
+    }
+  });
+
   test("E08-45c — an appointment that has not happened yet cannot be marked a no-show", async ({
     browser,
   }) => {
@@ -492,6 +625,17 @@ test.describe("gate 08 P2 — recording a no-show, on the booking detail page", 
     const { context, page } = await sessionFor(browser, "coordinator");
     try {
       const form = await openBookingDetail(page, future.bookingId, future.name);
+
+      // ⛔ FIRST, THE AFFORDANCE. `deriveNextAction` only offers the one-click
+      // "Mark no-show" once the booking's day has arrived, deliberately matching
+      // `quickUpdateBooking`'s server guard — "the button never offers a call the
+      // action would refuse". This proves the screen keeps that promise, so the
+      // fast path is shut here and only the slow one remains to be refused.
+      await expect(
+        page.getByRole("button", { name: /^Mark no-show$/ }).filter({ visible: true }),
+        "the day-of shortcut must not be offered on an appointment that has not happened",
+      ).toHaveCount(0);
+
       await selectNoShowAndSave(page, form);
 
       // ⛔ THE DATABASE FIRST, and the order is deliberate (G-27). When the
