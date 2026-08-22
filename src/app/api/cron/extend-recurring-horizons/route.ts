@@ -125,6 +125,15 @@ interface TemplateOutcome {
   created: number;
   skipped: number;
   failures: string[];
+  /**
+   * ⛔ Dates the clinic genuinely cannot staff (D-042). Kept OUT of `failures`
+   * on purpose: these are expected, permanent and REPEAT EVERY NIGHT — the walk
+   * replays from the anchor, so an uncoverable date stays a candidate until it
+   * passes into the past, which for one bank holiday eight weeks out is ~56
+   * consecutive runs. `failures` means "something went wrong"; mixing routine
+   * skips into it is how it stops being read.
+   */
+  unstaffable: string[];
 }
 
 /** Pure UTC date arithmetic — no timezone can shift a plain calendar date here. */
@@ -160,14 +169,14 @@ export async function POST(request: Request): Promise<Response> {
     const err = new Error("CRON_SECRET not configured.");
     Sentry.captureException(err);
     return NextResponse.json(
-      { error: "Server misconfigured.", ...emptySummary(), failures: [] },
+      { error: "Server misconfigured.", ...emptySummary(), failures: [], unstaffable: [] },
       { status: 500 }
     );
   }
   const headerSecret = request.headers.get("X-Cron-Secret");
   if (headerSecret !== expectedSecret) {
     return NextResponse.json(
-      { error: "Unauthorized.", ...emptySummary(), failures: [] },
+      { error: "Unauthorized.", ...emptySummary(), failures: [], unstaffable: [] },
       { status: 401 }
     );
   }
@@ -190,7 +199,7 @@ export async function POST(request: Request): Promise<Response> {
   if (templatesError) {
     Sentry.captureException(templatesError);
     return NextResponse.json(
-      { error: templatesError.message, ...emptySummary(), failures: [] },
+      { error: templatesError.message, ...emptySummary(), failures: [], unstaffable: [] },
       { status: 500 }
     );
   }
@@ -202,6 +211,8 @@ export async function POST(request: Request): Promise<Response> {
   // A summary of three zeroes has exactly that failure mode, so the reasons
   // travel with it.
   const failures: string[] = [];
+  // ⛔ Reported separately from `failures` — see TemplateOutcome.unstaffable.
+  const unstaffable: string[] = [];
 
   for (const template of (templates ?? []) as TemplateRow[]) {
     const outcome = await extendTemplate(
@@ -214,9 +225,10 @@ export async function POST(request: Request): Promise<Response> {
     summary.occurrencesCreated += outcome.created;
     summary.skipped += outcome.skipped;
     failures.push(...outcome.failures);
+    unstaffable.push(...outcome.unstaffable);
   }
 
-  return NextResponse.json({ ...summary, failures }, { status: 200 });
+  return NextResponse.json({ ...summary, failures, unstaffable }, { status: 200 });
 }
 
 async function extendTemplate(
@@ -230,6 +242,7 @@ async function extendTemplate(
     created: 0,
     skipped: 0,
     failures: [],
+    unstaffable: [],
   };
   const fail = (reason: string, error?: unknown) => {
     if (error) Sentry.captureException(error);
@@ -441,15 +454,68 @@ async function extendTemplate(
     );
 
     if (availability.reason) {
-      // ⛔ Fails CLOSED and LOUDLY. Not being able to check is not the same as
-      // being free, and a silent skip here would look identical to a quiet night.
-      return fail(`availability check failed: ${availability.reason}`);
+      // ⛔ FAILS CLOSED. Not being able to check is not the same as being free.
+      //
+      // ⚠️ An independent review (D-035) refuted the first version of this,
+      // which claimed to fail "loudly" and did not: `fail(reason)` with no
+      // second argument never reaches `Sentry.captureException` (see its
+      // definition above), and the job answers 200 with the reason buried in
+      // `failures[]`, which the worker logs at the same level as a healthy
+      // night. An `Error` is passed now so it is a real signal, and a
+      // `console.error` alongside it because ⛔ Sentry is on the free tier and
+      // is REJECTING events (D-018) — the console is the channel that works.
+      return fail(
+        `availability check failed: ${availability.reason}`,
+        new Error(
+          `extend-recurring-horizons: template ${template.id} could not be checked — ` +
+            `${availability.reason}. The horizon was NOT advanced; it will retry tonight.`
+        )
+      );
     }
 
     const verdictByDate = new Map(availability.verdicts.map((v) => [v.date, v]));
     const coverable = candidates.filter((date) => verdictByDate.get(date)?.available);
-    outcome.skipped += candidates.length - coverable.length;
+    const uncoverable = candidates.filter((date) => !verdictByDate.get(date)?.available);
+    outcome.skipped += uncoverable.length;
     candidates = coverable;
+
+    // ⛔ A SKIPPED DATE IS NAMED, NOT SWALLOWED.
+    //
+    // ⚠️ Also from the D-035 review, and it is the worst of the three: when
+    // EVERY candidate was uncoverable, `candidates` became empty, the insert
+    // loop did nothing, the horizon still advanced, `outcome.extended` stayed
+    // true and `failures` stayed empty. The only trace was `summary.skipped` —
+    // aggregated across every template and indistinguishable from the ordinary
+    // "this date already exists" skips counted earlier. ⛔ A client's Tuesday
+    // 2pm would quietly stop appearing twelve weeks out and NOBODY WOULD BE
+    // TOLD. That is precisely the harm D-033 exists to prevent, arriving by a
+    // route D-033 never considered.
+    if (uncoverable.length > 0) {
+      // ⛔ ITS OWN CHANNEL, NOT `failures`.
+      //
+      // ⚠️ Caught by a second D-035 pass: this walk REPLAYS FROM THE ANCHOR, so
+      // a date that cannot be staffed stays a candidate every night until it
+      // passes into the past. One bank holiday eight weeks out would therefore
+      // write the same entry on ~56 consecutive nights. `failures` is this
+      // job's health signal — the header above says every database error lands
+      // there rather than being swallowed — and burying a routine, expected,
+      // permanent skip in it is exactly how a health signal stops being read.
+      outcome.unstaffable.push(
+        `${template.id}: ${uncoverable.length} of ${uncoverable.length + coverable.length} ` +
+          `upcoming date(s) could not be staffed and were NOT created ` +
+          `(${uncoverable.slice(0, 5).join(", ")}${uncoverable.length > 5 ? ", …" : ""}). ` +
+          `Reason: ${verdictByDate.get(uncoverable[0])?.reason ?? "no availability"}.`
+      );
+      if (coverable.length === 0) {
+        // ⛔ Nothing at all could be created for this series tonight. Loud,
+        // because it is indistinguishable from a quiet night in every other
+        // signal this job produces.
+        console.error(
+          `extend-recurring-horizons: template ${template.id} produced NO bookable dates ` +
+            `this run — the client's standing booking has stopped being extended.`
+        );
+      }
+    }
 
     // ⛔ THE DOUBLE-BOOK GUARD. If the bound therapist is busy on any remaining
     // date, the visit is still created — but UNASSIGNED, which is the

@@ -218,9 +218,11 @@ describe("checkSeriesSlots — what it must REFUSE", () => {
 
 describe("checkSeriesSlots — the four deliberate differences from the public path", () => {
   it("ignores the PUBLIC booking pause — staff are not the public", async () => {
-    // ⛔ `booking_status_enabled` is the website's maintenance flag, and today it
-    // is exactly what keeps live bookings closed. Honouring it here would refuse
-    // every series for a reason that has nothing to do with the clinic's diary.
+    // ⛔ `booking_status_enabled` is the WEBSITE's own pause switch. Honouring it
+    // here would refuse every series for a reason that has nothing to do with
+    // the clinic's diary. ⚠️ It is NOT what keeps live bookings closed today —
+    // production has it `true`, and the maintenance banner is in the deployed
+    // code. Corrected after a D-035 review found the earlier claim false.
     const result = await check([TUE], "10:00", {}, { bookingStatusEnabled: false });
     expect(result.verdicts[0].available).toBe(true);
   });
@@ -251,15 +253,19 @@ describe("checkSeriesSlots — the four deliberate differences from the public p
 });
 
 describe("checkSeriesSlots — the bound therapist is reported separately", () => {
-  it("⛔ says the clinic CAN cover it while the locked therapist cannot", async () => {
-    // The one female therapist is booked 10:00-11:00 on the Wednesday, and she
-    // is also the bound therapist.
+  it("reports the locked therapist as busy when she is the one who is booked", async () => {
+    // ⚠️ RENAMED after a D-035 review. It used to be called "says the clinic CAN
+    // cover it while the locked therapist cannot" — which this fixture cannot
+    // show, because she is the ONLY therapist, so `available` is false as well.
+    // The title promised a separation the assertion never made. The genuine
+    // separation is the "not eligible at all" case below, where the clinic can
+    // cover the visit and the bound therapist still cannot.
     const result = await check([WED], "10:00", { boundStaffId: "staff-female-1" });
 
-    // ⛔ Here `available` is false too, because she is the ONLY therapist — so
-    // this fixture cannot separate the two. The separation is asserted on the
-    // Tuesday below, where she is free.
     expect(result.verdicts[0].boundStaffFree).toBe(false);
+    expect(result.verdicts[0].available, "and here the clinic cannot cover it either").toBe(
+      false
+    );
   });
 
   it("reports boundStaffFree true when the locked therapist is genuinely free", async () => {

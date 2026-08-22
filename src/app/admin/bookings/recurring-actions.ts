@@ -79,6 +79,24 @@ const recurringSchema = z.object({
   // `sendConfirmationEmail` in ./actions.ts — same wire name ("on"/""), same
   // truthiness gate below.
   send_confirmation_email: z.boolean(),
+  // ⛔ D-042 FOLLOW-UP — THE OPERATOR'S OWN OVERRIDE, which this schema used to
+  // drop on the floor.
+  //
+  // ⚠️ Found by independent review (D-035) immediately after the availability
+  // check shipped, and it is the one refusal with no workaround inside the
+  // feature. `ManualBookingForm.tsx:1274-1276` emits `override_availability`
+  // from the SHARED hidden-input block — the single <form> that both actions
+  // post, with only the action swapped — and `createManualBooking` reads it
+  // (`actions.ts:1602`) and passes it to `create_booking_request`'s
+  // `p_override_availability`.
+  //
+  // So before this line: "Mrs X, every Tuesday 8pm, the therapist has agreed to
+  // stay late" could be booked as twelve separate visits with the override
+  // ticked, and NOT as a series — the tick was in the FormData, silently
+  // ignored, and the operator was told to pick a different time. ⛔ For a
+  // two-therapist clinic that runs on late finishes and favours, that is the
+  // change most likely to produce a "the system won't let me" call.
+  override_availability: z.boolean(),
 });
 
 export interface RecurringActionState {
@@ -137,6 +155,8 @@ export async function createRecurringSeries(
     consent_acknowledged: formData.get("consent_acknowledged") === "on",
     // Same for the confirmation-email checkbox — one tick, shared form.
     send_confirmation_email: formData.get("send_confirmation_email") === "on",
+    // Same wire name and same truthiness gate as actions.ts:1602.
+    override_availability: formData.get("override_availability") === "on",
   });
 
   if (!parsed.success) {
@@ -280,16 +300,33 @@ export async function createRecurringSeries(
   // The cron treats the second case differently — see SeriesSlotVerdict.
   const anchorVerdict = availability.verdicts[0];
   const anchorBlocked =
-    anchorVerdict &&
-    (!anchorVerdict.available || anchorVerdict.boundStaffFree === false);
-  if (anchorVerdict && anchorBlocked) {
+    !anchorVerdict ||
+    !anchorVerdict.available ||
+    anchorVerdict.boundStaffFree === false;
+
+  // ⛔ FAILS CLOSED: a MISSING verdict blocks too. `verdicts` is always the same
+  // length as `dates` today — both the failure path and the normal path map over
+  // `input.dates` — but the previous shape treated "no verdict" as "go ahead",
+  // which is the wrong default for a check whose whole job is to refuse.
+  //
+  // ⚠️ …UNLESS the operator explicitly overrode availability. That tick is a
+  // human saying "I know, the therapist has agreed" — the same authority
+  // `createManualBooking` already grants it for a one-off booking. Refusing it
+  // here would make the series path stricter than the path staff already use,
+  // for no safety gain: nothing is auto-assigned at creation
+  // (`assigned_staff_id` is NULL on every occurrence), so an overridden series
+  // creates work a human must still pick up, exactly like an overridden
+  // one-off.
+  if (anchorBlocked && !parsed.data.override_availability) {
+    // ⛔ OPTIONAL CHAINING, not `anchorVerdict.reason`. With no verdict at all
+    // that member access THROWS — and ⛔ Next.js REDACTS a thrown server-action
+    // message in production, so the operator would meet an opaque digest instead
+    // of a refusal. Caught by the missing-verdict case in this action's own
+    // suite, which failed on the crash rather than the message.
+    const reason = anchorVerdict?.reason ?? "That time is not available.";
     return {
-      error:
-        `${anchorVerdict.reason ?? "That time is not available."} ` +
-        `Pick a different day or time for the repeat visits.`,
-      fieldErrors: {
-        anchor_start_time: anchorVerdict.reason ?? "That time is not available.",
-      },
+      error: `${reason} Pick a different day or time for the repeat visits.`,
+      fieldErrors: { anchor_start_time: reason },
     };
   }
 
@@ -574,9 +611,6 @@ export async function setSeriesTravelFee(
   }
 
   const previousFee = Number(template.travel_fee ?? 0);
-  if (toPence(previousFee) === toPence(nextFee)) {
-    return { ok: true, updated: 0, skipped: 0 };
-  }
 
   // ⛔ D-043 — THE TEMPLATE'S OWN FEE IS WRITTEN LAST, NOT FIRST.
   //
@@ -626,11 +660,55 @@ export async function setSeriesTravelFee(
 
   // Step 2: partition here, because the database cannot.
   const candidates = candidateRows ?? [];
+
+  // ⛔ THE UNCHANGED-FEE SHORT-CIRCUIT, AND WHY IT NOW LOOKS AT THE VISITS.
+  //
+  // It used to sit above the fetch and compare the template's fee alone. ⚠️ An
+  // independent review (D-035) caught that moving the template write last —
+  // the D-043 fix — had turned that guard into a NEW version of the very defect
+  // D-043 removed, reached from the other side:
+  //
+  //   template £0 → operator sets £5 → visit 1 moves, visit 2 FAILS → the
+  //   template is still £0 (that is the D-043 fix working) → the operator
+  //   decides to UNDO rather than retry and types 0 → previousFee 0 === nextFee
+  //   0 → "saved", nothing done → ⛔ VISIT 1 IS STILL CARRYING £5, invisibly,
+  //   and typing the number that should clear it is the one number that cannot.
+  //
+  // ⛔ Measured, not reasoned about: `setSeriesTravelFee.test.ts` covers this
+  // exact sequence and it FAILS against the guard's previous position.
+  //
+  // The template's figure alone was never a safe proxy for "the work is done".
+  // The visits are. The short-circuit now fires only when the series fee is
+  // unchanged AND every future visit already carries it — which is the real
+  // question, and which also still costs nothing in the ordinary no-op case.
   const toUpdate = candidates.filter((booking) => {
     const due = Number(booking.amount_due ?? booking.total_price ?? 0);
     const paid = Number(booking.amount_paid ?? 0);
     return !(due > 0 && paid >= due);
   });
+
+  // ⛔ THE PARTITION COMES FIRST, AND THE GUARD ASKS ABOUT `toUpdate`, NOT
+  // `candidates`.
+  //
+  // ⚠️ A second D-035 pass caught this within the hour, and it was mine: the
+  // first version tested `candidates.every(...)`, which INCLUDES fully-paid
+  // visits. Those are deliberately never repriced, so they keep the old fee for
+  // ever — meaning that for any series holding one fully-paid future visit the
+  // short-circuit could never fire again. Every no-op re-save would then fall
+  // through, rewrite the unpaid visits to the values they already had, rewrite
+  // the template to its own value, and insert an audit row whose `before_state`
+  // and `after_state` are identical. ⛔ AN AUDIT ROW RECORDING A CHANGE THAT DID
+  // NOT HAPPEN is worse than no row: it is the log lying.
+  //
+  // `toUpdate` is the set the action would actually move, so "is the work
+  // already done?" is exactly the question it answers.
+  const feeUnchanged = toPence(previousFee) === toPence(nextFee);
+  const everyTargetAlreadyAtFee = toUpdate.every(
+    (booking) => toPence(Number(booking.travel_fee ?? 0)) === toPence(nextFee)
+  );
+  if (feeUnchanged && everyTargetAlreadyAtFee) {
+    return { ok: true, updated: 0, skipped: 0 };
+  }
 
   // Step 3: each occurrence moves by its own delta.
   //

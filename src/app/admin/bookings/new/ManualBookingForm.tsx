@@ -2336,6 +2336,10 @@ export function ManualBookingForm({
             startTime={startTime}
             serviceAddress={{ line1: address, postcode, city, area }}
             notes={customerNotes}
+            // ⛔ The SAME three-tick expression that decides the hidden
+            // `override_availability` input below, so the notice cannot say one
+            // thing while the form posts another.
+            availabilityOverridden={overrideAvailability || femaleOverride || maleOverride}
           />
         </div>
       </div>

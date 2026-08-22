@@ -295,7 +295,11 @@ describe("setSeriesTravelFee", () => {
     });
   });
 
-  it("does nothing when the fee is unchanged", async () => {
+  it("does nothing when the fee is unchanged AND every visit already carries it", async () => {
+    // ⚠️ The fixture gained `travel_fee: 14` on the visits. It used to leave
+    // them at 0 while the template said 14 — which is not "unchanged", it is
+    // the series and its visits DISAGREEING, and the case below now proves that
+    // state gets repaired rather than short-circuited.
     const stub = stubAdminClient({
       template: {
         id: TEMPLATE_ID,
@@ -303,12 +307,82 @@ describe("setSeriesTravelFee", () => {
         travel_fee: 14,
         cancelled_at: null,
       },
+      candidates: [
+        { id: "b1", total_price: 74, amount_due: 74, amount_paid: 0, travel_fee: 14 },
+        { id: "b2", total_price: 74, amount_due: 74, amount_paid: 0, travel_fee: 14 },
+      ],
     });
 
     const result = await setSeriesTravelFee(null, formData("14"));
 
     expect(result).toEqual({ ok: true, updated: 0, skipped: 0 });
     expect(stub.bookingUpdates()).toHaveLength(0);
+  });
+
+  it("⛔ a fully-paid visit must not stop the no-op short-circuit, or the audit log starts lying", async () => {
+    // ⚠️ A second D-035 pass caught this in my own fix. The short-circuit first
+    // asked whether EVERY candidate already carried the fee — but fully-paid
+    // visits are deliberately never repriced, so they keep the old figure for
+    // ever. For any series holding one, the short-circuit could never fire
+    // again: each no-op re-save rewrote the unpaid visits to the values they
+    // already had, rewrote the template to its own value, and inserted an audit
+    // row whose before_state and after_state were IDENTICAL.
+    // ⛔ An audit row recording a change that did not happen is worse than no
+    // row — it is the log lying about the money.
+    const stub = stubAdminClient({
+      template: { id: TEMPLATE_ID, client_id: CLIENT_ID, travel_fee: 5, cancelled_at: null },
+      candidates: [
+        // Unpaid, already moved to the current fee.
+        { id: "b1", total_price: 65, amount_due: 65, amount_paid: 0, travel_fee: 5 },
+        // ⛔ Fully paid, so it was skipped when the fee changed and still carries 0.
+        { id: "b2", total_price: 60, amount_due: 60, amount_paid: 60, travel_fee: 0 },
+      ],
+    });
+
+    const result = await setSeriesTravelFee(null, formData("5"));
+
+    expect(result).toEqual({ ok: true, updated: 0, skipped: 0 });
+    expect(stub.bookingUpdates(), "nothing to do, so nothing written").toHaveLength(0);
+    expect(stub.audit(), "⛔ and NO audit row for a change that did not happen").toBeUndefined();
+  });
+
+  it("⛔ re-saving the SAME amount repairs visits the series has drifted away from", async () => {
+    // ⛔ THE HOLE THE D-043 FIX OPENED, found by independent review (D-035).
+    //
+    //   template £0 → operator sets £5 → visit 1 moves, visit 2 FAILS → the
+    //   template is still £0 (the D-043 fix working as intended) → the operator
+    //   decides to UNDO rather than retry, and types 0.
+    //
+    // With the old guard — template fee alone, checked before the visits were
+    // even fetched — that returned "Travel charge saved. 0 visits updated" and
+    // ⛔ LEFT VISIT 1 CARRYING £5, invisibly. Typing the number that should
+    // clear it was the one number that could not.
+    const stub = stubAdminClient({
+      template: {
+        id: TEMPLATE_ID,
+        client_id: CLIENT_ID,
+        travel_fee: 0,
+        cancelled_at: null,
+      },
+      candidates: [
+        // Stranded by a part-failed earlier run.
+        { id: "b1", total_price: 65, amount_due: 65, amount_paid: 0, travel_fee: 5 },
+        // Never moved.
+        { id: "b2", total_price: 60, amount_due: 60, amount_paid: 0, travel_fee: 0 },
+      ],
+    });
+
+    const result = await setSeriesTravelFee(null, formData("0"));
+
+    expect(result.ok).toBe(true);
+    expect(
+      stub.bookingUpdates().length,
+      "⛔ the stranded visit must be brought back, not reported as already fine"
+    ).toBeGreaterThan(0);
+    const cleared = stub
+      .bookingUpdates()
+      .find((op) => op.eq.some(([column, value]) => column === "id" && value === "b1"));
+    expect(cleared?.payload).toMatchObject({ travel_fee: 0 });
   });
 
   it("records the change in the audit trail with both counts", async () => {

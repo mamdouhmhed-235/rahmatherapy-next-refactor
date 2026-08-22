@@ -771,6 +771,77 @@ describe("createRecurringSeries — D-042 availability pre-check", () => {
     ).toHaveLength(1);
   });
 
+  it("⛔ HONOURS the operator's availability override, the same as a one-off booking", async () => {
+    // ⚠️ Found by independent review (D-035) straight after D-042 shipped, and
+    // it was the one refusal with no workaround inside the feature.
+    //
+    // `ManualBookingForm.tsx:1274-1276` emits `override_availability` from the
+    // SHARED hidden-input block — one <form>, two actions, only the action
+    // swapped — and `createManualBooking` reads it (`actions.ts:1602`). The
+    // recurring schema did not, so the tick was present in the FormData and
+    // silently dropped.
+    //
+    // ⛔ In the Owner's terms: "Mrs X, every Tuesday 8pm, the therapist has
+    // agreed to stay late" could be booked as twelve separate visits with the
+    // override ticked, and NOT as a series. The operator was told to pick a
+    // different day or time, with no way to say "I know".
+    stubAdminClient(RECURRABLE_SERVICE);
+    vi.mocked(checkSeriesSlots).mockResolvedValue({
+      verdicts: OCCURRENCE_DATES.map((date) => ({
+        date,
+        available: false,
+        reason: "No therapist of the right gender is free at that time.",
+      })),
+      durationMins: 60,
+    });
+
+    await createRecurringSeries(
+      {},
+      recurringFormData({ override_availability: "on" })
+    );
+
+    expect(
+      rpc.mock.calls.filter(([name]) => name === "create_recurring_booking_series"),
+      "the operator overrode it, so the series must be created"
+    ).toHaveLength(1);
+  });
+
+  it("still refuses the SAME case when the override is not ticked", async () => {
+    // ⛔ THE CONTROL. Without it the case above would pass even if the guard had
+    // simply been deleted.
+    stubAdminClient(RECURRABLE_SERVICE);
+    vi.mocked(checkSeriesSlots).mockResolvedValue({
+      verdicts: OCCURRENCE_DATES.map((date) => ({
+        date,
+        available: false,
+        reason: "No therapist of the right gender is free at that time.",
+      })),
+      durationMins: 60,
+    });
+
+    const result = await createRecurringSeries({}, recurringFormData());
+
+    expect(result.error).toMatch(/no therapist of the right gender is free/i);
+    expect(
+      rpc.mock.calls.filter(([name]) => name === "create_recurring_booking_series")
+    ).toHaveLength(0);
+  });
+
+  it("⛔ refuses when the availability check returns NO verdict for the first visit", async () => {
+    // Fails CLOSED on a missing verdict. `verdicts` is always the same length as
+    // `dates` today, but the earlier shape treated "no verdict" as "go ahead",
+    // which is the wrong default for a check whose whole job is to refuse.
+    stubAdminClient(RECURRABLE_SERVICE);
+    vi.mocked(checkSeriesSlots).mockResolvedValue({ verdicts: [], durationMins: 60 });
+
+    const result = await createRecurringSeries({}, recurringFormData());
+
+    expect(result.error).toBeTruthy();
+    expect(
+      rpc.mock.calls.filter(([name]) => name === "create_recurring_booking_series")
+    ).toHaveLength(0);
+  });
+
   it("⛔ fails CLOSED when the availability engine cannot answer", async () => {
     stubAdminClient(RECURRABLE_SERVICE);
     vi.mocked(checkSeriesSlots).mockResolvedValue({

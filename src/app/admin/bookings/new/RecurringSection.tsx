@@ -55,6 +55,19 @@ export interface RecurringSectionProps {
   startTime: string;
   serviceAddress: { line1: string; postcode: string; city: string; area: string };
   notes: string;
+  /**
+   * ⛔ D-042 follow-up — true when the operator has ticked ANY of the three
+   * override boxes for this form (availability, or either gender override).
+   *
+   * ⚠️ Found by a second D-035 pass: `ManualBookingForm` emits ONE
+   * `override_availability="on"` for all three ticks, and BOTH actions post the
+   * same form. So an operator who ticked a GENDER override for the single
+   * booking they were composing, then switched on repeat visits, would silently
+   * turn the whole availability check off for the series and see nothing about
+   * it. Honouring the override is right; hiding it is not — the previous state
+   * was "too strict but visible", and an invisible bypass is worse.
+   */
+  availabilityOverridden: boolean;
 }
 
 export function RecurringSection({
@@ -71,6 +84,7 @@ export function RecurringSection({
   startTime,
   serviceAddress,
   notes,
+  availabilityOverridden,
 }: RecurringSectionProps) {
   const [cadence, setCadence] = useState<Cadence>("weekly");
   const [endType, setEndType] = useState<EndType>("until_cancelled");
@@ -294,6 +308,18 @@ export function RecurringSection({
               We&apos;ll create the next 12 weeks of visits now and extend the schedule
               automatically after that.
             </p>
+
+            {/* ⛔ D-042 — the bypass must be a DECISION, not a leftover tick. */}
+            {availabilityOverridden && (
+              <p
+                role="status"
+                className="rounded-[var(--admin-radius-control)] bg-[var(--admin-status-attention-bg)] px-3 py-2 text-xs text-[var(--admin-status-attention-text)]"
+              >
+                An override is ticked, so these repeat visits will be created{" "}
+                <strong>without checking whether anyone is free</strong>. Untick it above
+                if you want the usual availability check.
+              </p>
+            )}
 
             {/* ── Hidden inputs for createRecurringSeries ── */}
             <input type="hidden" name="service_slug" value={serviceSlug} />

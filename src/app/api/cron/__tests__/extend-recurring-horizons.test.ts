@@ -490,6 +490,10 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       occurrencesCreated: 0,
       skipped: 0,
       failures: [],
+      // ⛔ D-042 — dates the clinic cannot staff are reported HERE, not in
+      // `failures`. They repeat every night until the date passes, so mixing them
+      // into the health signal would drown it.
+      unstaffable: [],
     });
     expect(stub.inserts).toEqual([]);
   });
@@ -506,6 +510,10 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       // 12 computed dates already exist (or are in the past) and are not redone.
       skipped: 12,
       failures: [],
+      // ⛔ D-042 — dates the clinic cannot staff are reported HERE, not in
+      // `failures`. They repeat every night until the date passes, so mixing them
+      // into the health signal would drown it.
+      unstaffable: [],
     });
     expect(stub.createdDates()).toEqual([
       "2026-11-27", "2026-12-04", "2026-12-11", "2026-12-18",
@@ -651,6 +659,10 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       occurrencesCreated: 0,
       skipped: 6,
       failures: [],
+      // ⛔ D-042 — dates the clinic cannot staff are reported HERE, not in
+      // `failures`. They repeat every night until the date passes, so mixing them
+      // into the health signal would drown it.
+      unstaffable: [],
     });
     expect(stub.insertsInto("bookings")).toEqual([]);
     // Nothing happened, so no audit row claims something did.
@@ -674,6 +686,10 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       occurrencesCreated: 0,
       skipped: 12,
       failures: [],
+      // ⛔ D-042 — dates the clinic cannot staff are reported HERE, not in
+      // `failures`. They repeat every night until the date passes, so mixing them
+      // into the health signal would drown it.
+      unstaffable: [],
     });
     expect(stub.insertsInto("bookings")).toEqual([]);
   });
@@ -705,6 +721,10 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       occurrencesCreated: 0,
       skipped: 0,
       failures: [],
+      // ⛔ D-042 — dates the clinic cannot staff are reported HERE, not in
+      // `failures`. They repeat every night until the date passes, so mixing them
+      // into the health signal would drown it.
+      unstaffable: [],
     });
     expect(stub.inserts).toEqual([]);
     expect(stub.updates).toEqual([]);
@@ -720,6 +740,10 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       occurrencesCreated: 0,
       skipped: 0,
       failures: [],
+      // ⛔ D-042 — dates the clinic cannot staff are reported HERE, not in
+      // `failures`. They repeat every night until the date passes, so mixing them
+      // into the health signal would drown it.
+      unstaffable: [],
     });
     expect(stub.inserts).toEqual([]);
     expect(stub.rpcCalls).toEqual([]);
@@ -982,6 +1006,10 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       occurrencesCreated: 0,
       skipped: 0,
       failures: [],
+      // ⛔ D-042 — dates the clinic cannot staff are reported HERE, not in
+      // `failures`. They repeat every night until the date passes, so mixing them
+      // into the health signal would drown it.
+      unstaffable: [],
     });
     expect(stub.inserts).toEqual([]);
   });
@@ -1106,7 +1134,7 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       });
     });
 
-    it("⛔ D-033 — keeps extending a series whose service is hidden from the website", async () => {
+    it("⛔ D-033 — asks the engine to IGNORE website visibility (argument, not outcome)", async () => {
       stubAdminClient({
         tables: {
           recurring_booking_templates: [template()],
@@ -1123,9 +1151,82 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       // freeze a client's standing booking the moment the Owner hid a service —
       // the exact outcome D-033 forbids: "hiding a service must not silently
       // cancel appointments a client already has in their diary."
+      //
+      // ⚠️ SCOPE, stated after a D-035 review pointed out the original title
+      // claimed more than this proves: `checkSeriesSlots` is MOCKED here, so
+      // this asserts the ARGUMENT is passed, not that a hidden service is then
+      // actually found. The argument-to-behaviour link is the engine's job and
+      // is not covered anywhere today — `createFakeAdminClient` makes `.eq()` a
+      // no-op, so no unit fixture can express "hidden" at all. Recorded as a
+      // known coverage limit rather than papered over with a green tick.
       expect(vi.mocked(checkSeriesSlots).mock.calls[0][2]).toMatchObject({
         includeHiddenServices: true,
       });
+    });
+
+    it("⛔ NAMES the dates it could not staff instead of burying them in a count", async () => {
+      stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+      vi.mocked(checkSeriesSlots).mockImplementation(async (input) => ({
+        verdicts: input.dates.map((date, index) => ({
+          date,
+          available: index >= 2,
+          reason: index < 2 ? "No therapist of the right gender is free at that time." : undefined,
+        })),
+        durationMins: 60,
+      }));
+
+      const body = await (await post()).json();
+
+      // ⛔ `skipped` is aggregated across every template and is
+      // indistinguishable from the ordinary "this date already exists" skips.
+      // A named entry is the only thing a human can act on.
+      // ⛔ Reported in `unstaffable`, NOT `failures` — these repeat nightly until
+      // the date passes, and `failures` has to keep meaning "something broke".
+      expect(JSON.stringify(body.unstaffable)).toMatch(/could not be staffed/i);
+      expect(JSON.stringify(body.unstaffable)).toMatch(/no therapist of the right gender/i);
+      expect(body.failures, "a date nobody can work is not a fault").toEqual([]);
+    });
+
+    it("⛔ shouts when a series produced NO bookable dates at all", async () => {
+      stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+      // Nothing can be covered.
+      vi.mocked(checkSeriesSlots).mockImplementation(async (input) => ({
+        verdicts: input.dates.map((date) => ({
+          date,
+          available: false,
+          reason: "No therapist of the right gender is free at that time.",
+        })),
+        durationMins: 60,
+      }));
+      const shouted = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const body = await (await post()).json();
+
+      // ⛔ THE WORST CASE, and it used to be completely silent: every date
+      // uncoverable meant an empty insert loop, an advanced horizon, no
+      // failures, and `extended: true`. A client's standing booking stops being
+      // created twelve weeks out and nobody is told.
+      expect(body.occurrencesCreated).toBe(0);
+      expect(JSON.stringify(body.unstaffable)).toMatch(/could not be staffed/i);
+      expect(
+        shouted.mock.calls.flat().join(" "),
+        "and it must reach a channel a human actually watches"
+      ).toMatch(/stopped being extended/i);
+      shouted.mockRestore();
     });
 
     it("⛔ fails LOUDLY when availability cannot be determined at all", async () => {

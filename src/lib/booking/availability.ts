@@ -1050,9 +1050,13 @@ export interface SeriesSlotCheckResult {
  * ── ⛔ THE FOUR DELIBERATE DIFFERENCES FROM THE PUBLIC PATH ────────────────
  *
  * 1. **The public booking pause is ignored.** `booking_status_enabled` is the
- *    maintenance flag for the WEBSITE. Staff booking a regular over the phone
- *    are not the public, and today that flag is exactly what is keeping live
- *    bookings closed — honouring it would refuse every series.
+ *    WEBSITE's own pause switch, and staff booking a regular over the phone are
+ *    not the public. ⚠️ CORRECTED after an independent review (D-035): an
+ *    earlier version of this note claimed that flag is what currently keeps
+ *    live bookings closed. It is not — production has
+ *    `booking_status_enabled = true` (measured), and the maintenance banner
+ *    lives in the DEPLOYED CODE, not the database. The reason to ignore it here
+ *    is the one above, not that one.
  * 2. **The booking window is ignored.** A series materialises 12 weeks out by
  *    design; the public window is far shorter. Honouring it would refuse every
  *    series for the boring reason.
