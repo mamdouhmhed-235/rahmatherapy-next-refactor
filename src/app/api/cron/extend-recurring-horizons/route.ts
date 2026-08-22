@@ -59,6 +59,7 @@ import * as Sentry from "@sentry/nextjs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getTodayIsoDate } from "@/app/admin/bookings/_helpers";
 import { fromPence, toPence } from "@/lib/booking/travel-fee";
+import { checkSeriesSlots } from "@/lib/booking/availability";
 
 /**
  * Weeks of visibility every active series should carry. Matches
@@ -335,7 +336,9 @@ async function extendTemplate(
 
   const { data: service, error: serviceError } = await supabase
     .from("services")
-    .select("id, name, price, duration_mins")
+    // ⛔ `slug` added for D-042: the availability engine identifies services
+    // by slug, the same handle the public calendar uses.
+    .select("id, slug, name, price, duration_mins")
     .eq("id", template.service_id)
     .maybeSingle();
 
@@ -401,6 +404,67 @@ async function extendTemplate(
     const before = candidates.length;
     candidates = candidates.filter((date) => !conflicting.has(date));
     outcome.skipped += before - candidates.length;
+  }
+
+  // 5b. ⛔ D-042 — CAN THE CLINIC ACTUALLY COVER THESE DATES?
+  //
+  // Owner ruling D-042 (2026-08-22): "fix it properly". Until now this job
+  // created visits weeks ahead with NO availability check of any kind — not
+  // opening hours, not blocked days, not whether anybody was free. Worse than
+  // the create path, because ⛔ THIS is the half that pre-assigns: the create
+  // RPC always writes `assigned_staff_id = NULL` (verified in the live function
+  // body), while step 4 above names the bound therapist. So the double-booking
+  // risk lived HERE, and only here.
+  //
+  // ⛔ Same engine as the public calendar and as `createRecurringSeries` — no
+  // third set of rules. See `checkSeriesSlots`.
+  if (candidates.length > 0) {
+    const availability = await checkSeriesSlots(
+      {
+        dates: candidates,
+        startTime: template.anchor_start_time,
+        serviceIds: [service.slug],
+        participantGenders: [template.participant_gender as "male" | "female"],
+        city: template.service_city ?? "",
+        boundStaffId: assignedStaffId,
+      },
+      supabase,
+      {
+        // ⛔ D-033 — hiding a service must stop NEW standing bookings, which
+        // `createRecurringSeries` already enforces, but must NOT freeze one a
+        // client already has: "hiding a service must not silently cancel
+        // appointments a client already has in their diary." Without this the
+        // engine's `is_visible_on_frontend` filter would report every date
+        // unavailable and this job would quietly stop extending the series.
+        includeHiddenServices: true,
+      }
+    );
+
+    if (availability.reason) {
+      // ⛔ Fails CLOSED and LOUDLY. Not being able to check is not the same as
+      // being free, and a silent skip here would look identical to a quiet night.
+      return fail(`availability check failed: ${availability.reason}`);
+    }
+
+    const verdictByDate = new Map(availability.verdicts.map((v) => [v.date, v]));
+    const coverable = candidates.filter((date) => verdictByDate.get(date)?.available);
+    outcome.skipped += candidates.length - coverable.length;
+    candidates = coverable;
+
+    // ⛔ THE DOUBLE-BOOK GUARD. If the bound therapist is busy on any remaining
+    // date, the visit is still created — but UNASSIGNED, which is the
+    // documented degradation (§5.5, step 4 above) rather than a refusal. It is
+    // all-or-nothing across the batch on purpose: `assignedStaffId` is resolved
+    // once per template and every insert below reads it, so a per-date decision
+    // would mean restructuring the loop. ⚠️ Stated rather than hidden — the cost
+    // is that one busy date unassigns the whole night's batch for this series,
+    // which is the safe direction: a human assigns them, nobody is double-booked.
+    if (
+      assignedStaffId &&
+      candidates.some((date) => verdictByDate.get(date)?.boundStaffFree === false)
+    ) {
+      assignedStaffId = null;
+    }
   }
 
   // 6. Materialise. Column lists mirror `create_recurring_booking_series`'s own

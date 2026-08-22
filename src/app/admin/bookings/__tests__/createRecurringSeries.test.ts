@@ -4,6 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { getStaffProfile, PERMISSIONS, type StaffProfile } from "@/lib/auth/rbac";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { sendRecurringSeriesCreatedEmail } from "@/lib/email/notifications";
+import { checkSeriesSlots } from "@/lib/booking/availability";
 import { createRecurringSeries } from "../recurring-actions";
 
 /**
@@ -40,6 +41,15 @@ vi.mock("@/lib/supabase/server", () => ({
 // network) — only that the action calls it with the new template id.
 vi.mock("@/lib/email/notifications", () => ({
   sendRecurringSeriesCreatedEmail: vi.fn(),
+}));
+
+// ⛔ D-042 — the availability pre-check. Stubbed so THESE cases stay about the
+// action's own argument-passing and refusals; the engine has its own suite, and
+// the pre-check's own behaviour is pinned by the D-042 block at the end of this
+// file. ⚠️ The default verdict is "every date is coverable" — every case below
+// predates the check and must not start failing for a reason it was never about.
+vi.mock("@/lib/booking/availability", () => ({
+  checkSeriesSlots: vi.fn(),
 }));
 
 // Only the profile lookup is stubbed — the permission helpers stay real so the
@@ -87,6 +97,22 @@ interface RecordedOp {
 }
 
 const rpc = vi.fn();
+
+/** ⛔ Selects the CREATE call BY NAME. Indexing `rpc.mock.calls[0]` worked while
+ *  there was only one rpc call; the D-042 availability pre-check now calls
+ *  `compute_occurrence_dates` FIRST, so position is no longer a safe handle.
+ *  Two cases failed on exactly that, and are fixed properly here rather than
+ *  papered over by bumping the index to [1]. */
+function createSeriesArgs(): Record<string, unknown> {
+  const call = rpc.mock.calls.find(
+    ([name]) => name === "create_recurring_booking_series"
+  ) as [string, Record<string, unknown>] | undefined;
+  if (!call) throw new Error("create_recurring_booking_series was never called");
+  return call[1];
+}
+
+/** What the stubbed `compute_occurrence_dates` hands back. */
+const OCCURRENCE_DATES = ["2026-09-15", "2026-09-22", "2026-09-29"];
 
 /**
  * Admin-client stand-in. `services` is the only table the happy path reads;
@@ -187,7 +213,20 @@ function recurringFormData(overrides: Record<string, string> = {}): FormData {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getStaffProfile).mockResolvedValue(owner);
-  rpc.mockResolvedValue({ data: RPC_RESULT, error: null });
+  // ⛔ The action now makes TWO rpc calls: `compute_occurrence_dates` FIRST —
+  // it asks the database for the exact occurrence dates rather than
+  // re-deriving the cadence walk in TypeScript — and
+  // `create_recurring_booking_series` after it. Dispatch on the NAME so the
+  // call order is not baked into the stub.
+  rpc.mockImplementation((fn: string) =>
+    fn === "compute_occurrence_dates"
+      ? Promise.resolve({ data: OCCURRENCE_DATES, error: null })
+      : Promise.resolve({ data: RPC_RESULT, error: null })
+  );
+  vi.mocked(checkSeriesSlots).mockResolvedValue({
+    verdicts: OCCURRENCE_DATES.map((date) => ({ date, available: true })),
+    durationMins: 60,
+  });
   vi.mocked(sendRecurringSeriesCreatedEmail).mockResolvedValue(undefined);
 });
 
@@ -481,7 +520,7 @@ describe("createRecurringSeries — happy path", () => {
 
     await createRecurringSeries({}, recurringFormData({ participant_gender: "male" }));
 
-    const [, args] = rpc.mock.calls[0] as [string, Record<string, unknown>];
+    const args = createSeriesArgs();
     expect(args.p_participant_gender).toBe("male");
     expect(args.p_required_therapist_gender).toBe("male");
   });
@@ -494,7 +533,7 @@ describe("createRecurringSeries — happy path", () => {
       recurringFormData({ open_to_any_therapist: "on", participant_gender: "male" })
     );
 
-    const [, args] = rpc.mock.calls[0] as [string, Record<string, unknown>];
+    const args = createSeriesArgs();
     expect(args.p_open_to_any_therapist).toBe(true);
     expect(args.p_required_therapist_gender).toBe("male");
   });
@@ -607,5 +646,149 @@ describe("createRecurringSeries — RPC failure", () => {
     expect(redirect).not.toHaveBeenCalled();
     expect(updateTag).not.toHaveBeenCalled();
     expect(sendRecurringSeriesCreatedEmail).not.toHaveBeenCalled();
+  });
+});
+
+// ── ⛔ D-042 — A STANDING BOOKING IS NO LONGER PLACED BLIND ──────────────────
+//
+// Owner ruling D-042 (2026-08-22), chosen from three options: "fix it properly".
+//
+// Before this, `create_recurring_booking_series` checked NOTHING about
+// availability — measured against the live function body, it contains zero
+// occurrences of `availability_rules`, `booking_status_enabled` or
+// `p_override_availability`. Its only test was "does this same client already
+// hold a booking at this date and time".
+describe("createRecurringSeries — D-042 availability pre-check", () => {
+  it("asks the DATABASE for the occurrence dates rather than re-deriving them", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+
+    await createRecurringSeries({}, recurringFormData());
+
+    // ⛔ `compute_occurrence_dates` is the very function the create RPC uses to
+    // lay the series out, and it is EXECUTE-granted to service_role. Calling it
+    // means the dates checked are the dates that will exist, by construction —
+    // re-walking the cadence in TypeScript would have been a second date engine.
+    const call = rpc.mock.calls.find(([name]) => name === "compute_occurrence_dates");
+    expect(call, "the dates must be asked for, not guessed").toBeTruthy();
+    const args = call![1] as Record<string, unknown>;
+    expect(args.p_first_date).toBe("2026-09-04");
+    expect(args.p_cadence).toBe("weekly");
+    // 12 weeks inclusive of the first day — the same constant the create call
+    // is given, so the two cannot drift apart.
+    expect(args.p_horizon_end).toBe("2026-11-26");
+  });
+
+  it("checks every occurrence date, at the anchor time, for the right gender", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+
+    await createRecurringSeries({}, recurringFormData());
+
+    expect(checkSeriesSlots).toHaveBeenCalledTimes(1);
+    const [input] = vi.mocked(checkSeriesSlots).mock.calls[0];
+    expect(input.dates, "every date, not just the first").toEqual(OCCURRENCE_DATES);
+    expect(input.startTime).toBe("14:00");
+    expect(input.serviceIds).toEqual(["hijama-package"]);
+    expect(input.participantGenders).toEqual(["female"]);
+  });
+
+  it("⛔ refuses, and never creates anything, when the FIRST visit cannot be covered", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+    vi.mocked(checkSeriesSlots).mockResolvedValue({
+      verdicts: [
+        {
+          date: OCCURRENCE_DATES[0],
+          available: false,
+          reason: "No therapist of the right gender is free at that time.",
+        },
+        ...OCCURRENCE_DATES.slice(1).map((date) => ({ date, available: true })),
+      ],
+      durationMins: 60,
+    });
+
+    const result = await createRecurringSeries({}, recurringFormData());
+
+    expect(result.error).toMatch(/no therapist of the right gender is free/i);
+    expect(result.error, "and it must say what to do next").toMatch(/pick a different day or time/i);
+    // ⛔ THE POINT OF THE WHOLE RULING: nothing is written.
+    expect(
+      rpc.mock.calls.filter(([name]) => name === "create_recurring_booking_series"),
+      "a series whose very first visit cannot be staffed must not be created at all"
+    ).toHaveLength(0);
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("names the BOUND therapist as the reason when the series is locked to one person", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+    vi.mocked(checkSeriesSlots).mockResolvedValue({
+      // ⛔ available: TRUE on every date. The clinic CAN cover the visit — just
+      // not with the person the series is locked to. If this case set
+      // available:false it would pass for the wrong reason, and would not
+      // distinguish the bound-therapist refusal from a plain capacity refusal
+      // at all.
+      verdicts: OCCURRENCE_DATES.map((date, index) => ({
+        date,
+        available: true,
+        boundStaffFree: index !== 0,
+        reason:
+          index === 0
+            ? "The therapist this series is locked to is not free at that time."
+            : undefined,
+      })),
+      durationMins: 60,
+    });
+
+    const result = await createRecurringSeries({}, recurringFormData({ bound_therapist_id: THERAPIST_ID }));
+
+    expect(result.error).toMatch(/locked to is not free/i);
+    // ⛔ The bound therapist must actually reach the check, or it could never
+    // have returned that verdict for a real reason.
+    const [input] = vi.mocked(checkSeriesSlots).mock.calls[0];
+    expect(input.boundStaffId).toBe(THERAPIST_ID);
+  });
+
+  it("⚠️ still creates the series when only a LATER date cannot be covered", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+    vi.mocked(checkSeriesSlots).mockResolvedValue({
+      verdicts: OCCURRENCE_DATES.map((date, index) => ({
+        date,
+        available: index === 0,
+        reason: index === 0 ? undefined : "No therapist of the right gender is free at that time.",
+      })),
+      durationMins: 60,
+    });
+
+    await createRecurringSeries({}, recurringFormData());
+
+    // ⛔ DELIBERATE, AND THE OPPOSITE OF AN OVERSIGHT. One bank holiday, or one
+    // clash in week seven, must not throw away an arrangement the client wants
+    // for the rest of the year. Those visits are created `pending` and
+    // `unassigned` — the state the bookings list's "attention" view exists to
+    // surface — and the nightly horizon cron refuses to materialise uncoverable
+    // dates beyond the first horizon.
+    expect(
+      rpc.mock.calls.filter(([name]) => name === "create_recurring_booking_series"),
+      "only the FIRST visit is fatal"
+    ).toHaveLength(1);
+  });
+
+  it("⛔ fails CLOSED when the availability engine cannot answer", async () => {
+    stubAdminClient(RECURRABLE_SERVICE);
+    vi.mocked(checkSeriesSlots).mockResolvedValue({
+      verdicts: OCCURRENCE_DATES.map((date) => ({
+        date,
+        available: false,
+        reason: "Booking settings unavailable.",
+      })),
+      durationMins: 0,
+      reason: "Booking settings unavailable.",
+    });
+
+    const result = await createRecurringSeries({}, recurringFormData());
+
+    // ⛔ Not being able to check is not the same as being free.
+    expect(result.error).toMatch(/booking settings unavailable/i);
+    expect(
+      rpc.mock.calls.filter(([name]) => name === "create_recurring_booking_series")
+    ).toHaveLength(0);
   });
 });

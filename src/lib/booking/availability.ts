@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
+import {
+
   getBusinessDayOfWeek,
   isDateInBusinessWindow,
   isOutsideMinimumNotice,
@@ -429,20 +430,29 @@ async function loadSettings(supabase: SupabaseClient) {
 async function loadContextRest(
   supabase: SupabaseClient,
   settings: BusinessSettingsRecord,
-  input: { serviceIds: string[]; participantGenders: TherapistGender[]; city: string }
+  input: { serviceIds: string[]; participantGenders: TherapistGender[]; city: string },
+  // ⛔ D-042/D-033 — DEFAULTS TO THE PUBLIC BEHAVIOUR. Only the nightly horizon
+  // cron passes `includeHiddenServices`, so that hiding a service stops NEW
+  // standing bookings without freezing ones a client already has. Every public
+  // caller omits it and keeps the `is_visible_on_frontend` filter below.
+  contextOptions: { includeHiddenServices?: boolean } = {}
 ): Promise<AvailabilityContext | ContextFailure> {
   // Item 8 Phase 2 — no city gate. An address outside the free-travel areas
   // still gets slots; the travel charge is an admin decision after the request
   // arrives, not a reason to show an empty calendar. `input.city` is retained
   // on the input type because callers still pass it and later phases will want
   // it for a non-blocking free-travel hint.
-  const serviceResult = await supabase
+  const serviceQuery = supabase
     .from("services")
     .select("slug, duration_mins, gender_restrictions")
     .in("slug", input.serviceIds)
-    .eq("is_active", true)
-    .eq("is_visible_on_frontend", true)
-    .returns<ServiceRecord[]>();
+    .eq("is_active", true);
+  // ⛔ `is_active` is NEVER relaxed — an inactive service is unbookable by
+  // every path. Only WEBSITE VISIBILITY is, and only for the horizon cron.
+  if (!contextOptions.includeHiddenServices) {
+    serviceQuery.eq("is_visible_on_frontend", true);
+  }
+  const serviceResult = await serviceQuery.returns<ServiceRecord[]>();
 
   const services = serviceResult.data ?? [];
   if (serviceResult.error || services.length !== input.serviceIds.length) {
@@ -940,4 +950,276 @@ export async function calculateAvailableDays(
     durationMins: contextResult.durationMins,
     requiredStaffByGender,
   };
+}
+
+// ─── D-042 — STANDING BOOKINGS ARE NO LONGER PLACED BLIND ────────────────────
+
+export interface SeriesSlotCheckInput {
+  /** Every occurrence date to test, YYYY-MM-DD. */
+  dates: string[];
+  /** The series' anchor start time, "HH:MM". */
+  startTime: string;
+  /** Service slugs — the same shape `calculateAvailableSlots` takes. */
+  serviceIds: string[];
+  participantGenders: TherapistGender[];
+  city: string;
+  /**
+   * The bound therapist, when the series is locked to one person.
+   *
+   * ⛔ This is the half that can genuinely DOUBLE-BOOK. The create RPC always
+   * writes `assigned_staff_id = NULL` (verified in the live function body), so
+   * creating a series cannot collide anyone. The nightly horizon cron DOES
+   * pre-assign the bound therapist, with no busy check at all — so it is the
+   * cron, not the form, that could put one person in two places.
+   */
+  boundStaffId?: string | null;
+}
+
+export interface SeriesSlotVerdict {
+  date: string;
+  /**
+   * Is there capacity for the required gender at this date and time?
+   *
+   * ⛔ This deliberately does NOT account for the bound therapist — see
+   * `boundStaffFree`. The two questions have different answers and, more
+   * importantly, different consequences, so they are reported separately
+   * rather than collapsed into one boolean the callers would have to guess at.
+   */
+  available: boolean;
+  /**
+   * Is the therapist the series is locked to free at this date and time?
+   *
+   * `undefined` when no `boundStaffId` was supplied.
+   *
+   * ⛔ WHY THIS IS SPLIT OUT. The two callers must do different things:
+   *   * `createRecurringSeries` refuses — the operator explicitly locked this
+   *     series to this person, so "they are busy" is a real answer to give.
+   *   * the horizon cron creates the visit UNASSIGNED instead. That is the
+   *     documented degradation (brief §5.5): a bound therapist who is
+   *     unavailable must never stop a client's standing booking existing.
+   * Collapsing both into `available: false` would have made the cron skip the
+   * date entirely, silently dropping visits the clinic could actually cover.
+   */
+  boundStaffFree?: boolean;
+  /** Plain-English, operator-facing. Absent when nothing is wrong. */
+  reason?: string;
+}
+
+export interface SeriesSlotCheckResult {
+  verdicts: SeriesSlotVerdict[];
+  durationMins: number;
+  /** Set when the check could not run at all; every verdict is then false. */
+  reason?: string;
+}
+
+/**
+ * Can the clinic actually cover this standing booking, date by date?
+ *
+ * ── ⛔ WHY THIS EXISTS (Owner ruling D-042, 2026-08-22: "fix it properly") ───
+ *
+ * A one-off booking runs through `create_booking_request`, which checks opening
+ * hours, date overrides, therapist working patterns, existing bookings and the
+ * travel buffer. ⛔ A RECURRING booking checked NONE of that. Measured against
+ * the live function bodies, not inferred from migration files:
+ *
+ *     create_recurring_booking_series: 'availability_rules' → 0 occurrences,
+ *     'booking_status_enabled' → 0, 'p_override_availability' → 0
+ *
+ * Its only test was "does this same client already hold a booking at this date
+ * and time", and the nightly cron repeats exactly that narrow check. So a
+ * standing booking could be placed — and re-placed every night for years — on
+ * days the clinic is shut, outside working hours, and with nobody free.
+ *
+ * ── ⛔ WHY IT IS HERE AND NOT IN SQL ────────────────────────────────────────
+ *
+ * The obvious fix is to copy `create_booking_request`'s availability block into
+ * the recurring RPC. ⛔ That would create a THIRD capacity engine — and this
+ * repo has already been bitten by exactly that: fix-list B5 / G-05-06, where
+ * the named-therapist and unassigned paths disagreed about whether a
+ * `completed` booking blocks a slot, and the customer calendar offered slots
+ * the write path then refused.
+ *
+ * Both writers are TypeScript — `createRecurringSeries` calls the RPC, and the
+ * cron materialises rows itself — so one shared check covers both, and it is
+ * THE SAME ENGINE the public calendar uses: `loadContextRest`,
+ * `loadDayRecords`, `resolveStaffWindows`, `bookingBusyIntervals`,
+ * `containsWindow`, `overlaps` and `unassignedReservationCounts` are all reused
+ * verbatim below. ⛔ No new rules are written here; if the calendar's answer
+ * changes, this changes with it.
+ *
+ * ── ⛔ THE FOUR DELIBERATE DIFFERENCES FROM THE PUBLIC PATH ────────────────
+ *
+ * 1. **The public booking pause is ignored.** `booking_status_enabled` is the
+ *    maintenance flag for the WEBSITE. Staff booking a regular over the phone
+ *    are not the public, and today that flag is exactly what is keeping live
+ *    bookings closed — honouring it would refuse every series.
+ * 2. **The booking window is ignored.** A series materialises 12 weeks out by
+ *    design; the public window is far shorter. Honouring it would refuse every
+ *    series for the boring reason.
+ * 3. **Minimum notice is ignored.** It exists so a customer cannot book in
+ *    twenty minutes' time. Every date here is at least today, and staff setting
+ *    up a standing booking are making an arrangement, not a same-day request.
+ * 4. **An exact TIME is tested, not the slot list.** `computeDaySlots` walks in
+ *    `SLOT_STEP_MINS` steps; a series anchored off that grid would never match
+ *    a listed slot. The windows and busy intervals are evaluated at the anchor
+ *    directly, so the answer does not depend on the step size.
+ *
+ * ⚠️ What is NOT ignored, and must not be: opening hours, blocked days, date
+ * overrides, each therapist's own working pattern, existing bookings, the
+ * travel buffer, and unassigned reservations already holding capacity.
+ */
+export async function checkSeriesSlots(
+  input: SeriesSlotCheckInput,
+  supabase: SupabaseClient,
+  options: {
+    /**
+     * ⛔ D-033 — the cron sets this. Hiding a service from the website must
+     * stop NEW standing bookings (which `createRecurringSeries` already
+     * enforces via `assertServicesBookable`) but must NOT stop an EXISTING
+     * series rolling forward: "hiding a service must not silently cancel
+     * appointments a client already has in their diary."
+     *
+     * ⛔ Without this flag the cron would inherit `loadContextRest`'s
+     * `is_visible_on_frontend = true` filter, every date would come back
+     * "service unavailable", and hiding a service would quietly freeze every
+     * standing booking that uses it — the exact outcome D-033 forbids.
+     *
+     * Defaults to FALSE, so the public engine's behaviour is untouched.
+     */
+    includeHiddenServices?: boolean;
+  } = {}
+): Promise<SeriesSlotCheckResult> {
+  const allUnavailable = (reason: string, durationMins = 0): SeriesSlotCheckResult => ({
+    verdicts: input.dates.map((date) => ({ date, available: false, reason })),
+    durationMins,
+    reason,
+  });
+
+  if (!TIME_PATTERN.test(input.startTime)) {
+    return allUnavailable("Invalid start time.");
+  }
+
+  const settings = await loadSettings(supabase);
+  if (!settings) {
+    // ⛔ Fails CLOSED. Not being able to check is not the same as being free.
+    return allUnavailable("Booking settings unavailable.");
+  }
+
+  const context = await loadContextRest(supabase, settings, input, {
+    includeHiddenServices: options.includeHiddenServices,
+  });
+  if ("reason" in context) {
+    return allUnavailable(context.reason, context.durationMins);
+  }
+
+  const validDates = input.dates.filter((date) => DATE_PATTERN.test(date));
+  if (validDates.length === 0) {
+    return {
+      verdicts: input.dates.map((date) => ({
+        date,
+        available: false,
+        reason: "Invalid date.",
+      })),
+      durationMins: context.durationMins,
+    };
+  }
+
+  const dayRecords = await loadDayRecords(supabase, validDates, context.eligibleStaffIds);
+  if ("reason" in dayRecords) {
+    return allUnavailable(dayRecords.reason, context.durationMins);
+  }
+
+  const requiredStaffByGender = countRequiredStaff(input.participantGenders);
+  const start = timeToMinutes(input.startTime);
+  // ⛔ TIME_PATTERN was checked at the top, so this cannot be null. Handled
+  // rather than cast: a later change to either the pattern or this parser
+  // would otherwise turn every comparison below into silent NaN arithmetic,
+  // and NaN comparisons are false — which reads as "nobody is free" and
+  // would refuse every series for a reason nobody could see.
+  if (start === null) {
+    return allUnavailable("Invalid start time.", context.durationMins);
+  }
+  const end = start + context.durationMins;
+
+  const verdicts = input.dates.map<SeriesSlotVerdict>((date) => {
+    if (!DATE_PATTERN.test(date)) {
+      return { date, available: false, reason: "Invalid date." };
+    }
+    const day = dayRecords.get(date);
+    if (!day) {
+      return { date, available: false, reason: "No availability information for that day." };
+    }
+
+    const dayOfWeek = getBusinessDayOfWeek(date);
+    let freeMale = 0;
+    let freeFemale = 0;
+    let boundIsFree = false;
+
+    for (const member of context.eligibleStaff) {
+      const windows = resolveStaffWindows({
+        staff: member,
+        dayOfWeek,
+        globalBlocked: day.globalBlocked,
+        globalRules: context.globalRules,
+        globalOverrides: day.globalOverrides,
+        staffRulesByStaffId: context.staffRulesByStaffId,
+        staffBlockedIds: day.staffBlockedIds,
+        staffOverridesByStaffId: day.staffOverridesByStaffId,
+      });
+      const busy = bookingBusyIntervals(day.bookings, day.assignments, member.id);
+      const free =
+        containsWindow(windows, start, end) &&
+        !busy.some((interval) =>
+          overlaps(start, end, interval.start, interval.end, settings.buffer_time_mins)
+        );
+
+      if (!free) continue;
+      if (member.gender === "male") freeMale += 1;
+      else freeFemale += 1;
+      if (input.boundStaffId && member.id === input.boundStaffId) boundIsFree = true;
+    }
+
+    // ⛔ Reservations that name nobody still consume capacity. Every website
+    // booking is created unassigned, so leaving this out would count the same
+    // therapist as free for several bookings at once — the F1 defect.
+    const reserved = unassignedReservationCounts(
+      day.bookings,
+      day.assignments,
+      start,
+      end,
+      settings.buffer_time_mins
+    );
+    const netMale = Math.max(0, freeMale - reserved.male);
+    const netFemale = Math.max(0, freeFemale - reserved.female);
+
+    const hasCapacity =
+      netMale >= requiredStaffByGender.male && netFemale >= requiredStaffByGender.female;
+    const boundStaffFree = input.boundStaffId ? boundIsFree : undefined;
+
+    if (!hasCapacity) {
+      return {
+        date,
+        available: false,
+        boundStaffFree,
+        reason: "No therapist of the right gender is free at that time.",
+      };
+    }
+
+    if (input.boundStaffId && !boundIsFree) {
+      return {
+        date,
+        // ⛔ TRUE on purpose. The clinic CAN cover this visit — just not with the
+        // person the series is locked to. The cron uses that to create it
+        // unassigned rather than drop it; the create action treats it as a
+        // refusal. See the field docs on SeriesSlotVerdict.
+        available: true,
+        boundStaffFree: false,
+        reason: "The therapist this series is locked to is not free at that time.",
+      };
+    }
+
+    return { date, available: true, boundStaffFree };
+  });
+
+  return { verdicts, durationMins: context.durationMins };
 }

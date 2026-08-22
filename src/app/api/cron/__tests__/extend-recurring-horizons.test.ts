@@ -4,9 +4,21 @@ import { join } from "node:path";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { POST } from "../extend-recurring-horizons/route";
 
+import { checkSeriesSlots } from "@/lib/booking/availability";
+
 vi.mock("@sentry/nextjs", () => ({
   captureException: vi.fn(),
   captureMessage: vi.fn(),
+}));
+
+// ⛔ D-042 — the shared availability check. Mocked here so these cases stay
+// about the job's own walk, ordering and inserts; the engine has its own suite,
+// and the gate's behaviour is pinned by the D-042 block at the end of this file.
+// ⚠️ The default verdict is "every date is coverable, bound therapist free" —
+// every case below predates the gate and must not start failing for a reason it
+// was never about.
+vi.mock("@/lib/booking/availability", () => ({
+  checkSeriesSlots: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -82,6 +94,9 @@ const CLIENT = {
 
 const SERVICE = {
   id: "service-1",
+  // ⛔ D-042 — the availability engine identifies services by SLUG, the same
+  // handle the public calendar uses, so the job now selects it too.
+  slug: "massage-60",
   name: "Deep tissue massage",
   price: 60,
   duration_mins: 60,
@@ -426,6 +441,15 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     process.env.CRON_SECRET = SECRET;
+    // Coverable by default — see the mock factory's note above.
+    vi.mocked(checkSeriesSlots).mockImplementation(async (input) => ({
+      verdicts: input.dates.map((date) => ({
+        date,
+        available: true,
+        boundStaffFree: input.boundStaffId ? true : undefined,
+      })),
+      durationMins: 60,
+    }));
   });
 
   it("rejects a request whose X-Cron-Secret does not match", async () => {
@@ -980,5 +1004,152 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
     expect(body.occurrencesCreated).toBe(0);
     expect(body.failures[0]).toContain("no phone number");
     expect(stub.insertsInto("bookings")).toEqual([]);
+  });
+
+  // ── ⛔ D-042 — THE NIGHTLY JOB NO LONGER BOOKS BLIND ───────────────────────
+  //
+  // Owner ruling D-042 (2026-08-22): "fix it properly".
+  //
+  // ⛔ This job was the DANGEROUS half. `create_recurring_booking_series` always
+  // writes `assigned_staff_id = NULL` — verified in the live function body — so
+  // creating a series through the form could never collide anybody. This job
+  // PRE-ASSIGNS the bound therapist, and did so with no busy check at all, every
+  // night, weeks ahead. That is where a double-booking could actually happen.
+  describe("D-042 — availability", () => {
+    it("skips dates the clinic cannot cover, and counts them as skipped", async () => {
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+      // The first two candidate dates cannot be staffed; the rest can.
+      vi.mocked(checkSeriesSlots).mockImplementation(async (input) => ({
+        verdicts: input.dates.map((date, index) => ({
+          date,
+          available: index >= 2,
+          reason:
+            index < 2 ? "No therapist of the right gender is free at that time." : undefined,
+        })),
+        durationMins: 60,
+      }));
+
+      const res = await post();
+      const body = await res.json();
+
+      expect(body.occurrencesCreated).toBe(6);
+      expect(body.skipped).toBeGreaterThanOrEqual(2);
+      // ⛔ And it really did not write them — a count is not proof on its own.
+      expect(stub.insertsInto("bookings")).toHaveLength(6);
+    });
+
+    it("⛔ creates the visit UNASSIGNED rather than double-booking the bound therapist", async () => {
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template({ bound_therapist_id: "staff-1" })],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+          staff_profiles: [
+            { id: "staff-1", active: true, can_take_bookings: true, gender: "female" },
+          ],
+        },
+      });
+      // Eligible in every way the old code checked — active, taking bookings,
+      // right gender — but BUSY. ⛔ That is precisely the case that used to
+      // sail through and put one person in two places.
+      vi.mocked(checkSeriesSlots).mockImplementation(async (input) => ({
+        verdicts: input.dates.map((date, index) => ({
+          date,
+          available: true,
+          boundStaffFree: index !== 0,
+        })),
+        durationMins: 60,
+      }));
+
+      const res = await post();
+
+      // ⛔ The visits are still CREATED — a busy bound therapist must never stop
+      // a client's standing booking existing (the documented degradation, §5.5).
+      expect(await res.json()).toMatchObject({ occurrencesCreated: 8 });
+      expect(stub.insertsInto("bookings")[0]).toMatchObject({
+        assignment_status: "unassigned",
+      });
+      expect(
+        stub.insertsInto("booking_assignments")[0],
+        "⛔ the busy therapist must NOT be named on the visit"
+      ).toMatchObject({ assigned_staff_id: null, status: "unassigned" });
+    });
+
+    it("still pre-assigns the bound therapist when they ARE free", async () => {
+      // ⛔ THE CONTROL. Without it, the case above would pass even if the code
+      // had simply stopped assigning anybody, ever.
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template({ bound_therapist_id: "staff-1" })],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+          staff_profiles: [
+            { id: "staff-1", active: true, can_take_bookings: true, gender: "female" },
+          ],
+        },
+      });
+
+      await post();
+
+      expect(stub.insertsInto("booking_assignments")[0]).toMatchObject({
+        assigned_staff_id: "staff-1",
+        status: "assigned",
+      });
+    });
+
+    it("⛔ D-033 — keeps extending a series whose service is hidden from the website", async () => {
+      stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+
+      await post();
+
+      // ⛔ The engine filters `is_visible_on_frontend` for the public calendar.
+      // Inheriting that here would report every date unavailable and silently
+      // freeze a client's standing booking the moment the Owner hid a service —
+      // the exact outcome D-033 forbids: "hiding a service must not silently
+      // cancel appointments a client already has in their diary."
+      expect(vi.mocked(checkSeriesSlots).mock.calls[0][2]).toMatchObject({
+        includeHiddenServices: true,
+      });
+    });
+
+    it("⛔ fails LOUDLY when availability cannot be determined at all", async () => {
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+      vi.mocked(checkSeriesSlots).mockResolvedValue({
+        verdicts: [],
+        durationMins: 0,
+        reason: "Booking settings unavailable.",
+      });
+
+      const res = await post();
+      const body = await res.json();
+
+      // ⛔ Not being able to check is not the same as being free, and a silent
+      // skip would look exactly like a quiet night.
+      expect(JSON.stringify(body)).toMatch(/availability check failed/i);
+      expect(stub.insertsInto("bookings"), "nothing may be written").toHaveLength(0);
+    });
   });
 });

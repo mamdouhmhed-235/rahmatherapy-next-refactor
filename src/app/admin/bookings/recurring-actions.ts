@@ -22,6 +22,12 @@ import {
   ServiceNotBookableError,
   assertServicesBookable,
 } from "@/lib/booking/bookable-services";
+import { checkSeriesSlots } from "@/lib/booking/availability";
+
+/** ⛔ The RPC is called with  below; the availability
+ *  pre-check derives its horizon from this same constant so the two cannot
+ *  drift apart. */
+const RECURRING_HORIZON_WEEKS = 12;
 
 /**
  * C-02 Phase C — recurring/standing bookings. Kept in their own module rather
@@ -198,6 +204,95 @@ export async function createRecurringSeries(
     }
   }
 
+  // ⛔ D-042 — DO NOT PROMISE A SLOT THE CLINIC CANNOT COVER.
+  //
+  // Owner ruling D-042 (2026-08-22), chosen from three options: "fix it
+  // properly". Until now a standing booking was placed BLIND: measured against
+  // the live function body, `create_recurring_booking_series` contains zero
+  // occurrences of `availability_rules`, `booking_status_enabled` or
+  // `p_override_availability`. Its only test was "does this same client already
+  // hold a booking at this date and time".
+  //
+  // ⛔ THE DATES ARE ASKED FOR, NOT GUESSED. `compute_occurrence_dates` is the
+  // very function the create RPC uses to lay the series out, and it is
+  // EXECUTE-granted to service_role — so the answer here is the same list the
+  // RPC will materialise, by construction. Re-deriving the cadence walk in
+  // TypeScript would have been a second date engine, and this repo has already
+  // been bitten by two engines disagreeing (fix-list B5 / G-05-06).
+  //
+  // Both this horizon and the RPC argument come from RECURRING_HORIZON_WEEKS,
+  // so the dates checked here are exactly the dates the RPC will lay out.
+  const horizonThrough = new Date(`${parsed.data.first_occurrence_date}T00:00:00Z`);
+  horizonThrough.setUTCDate(horizonThrough.getUTCDate() + RECURRING_HORIZON_WEEKS * 7 - 1);
+
+  const { data: occurrenceDates, error: datesError } = await adminClient.rpc(
+    "compute_occurrence_dates",
+    {
+      p_first_date: parsed.data.first_occurrence_date,
+      p_cadence: parsed.data.cadence,
+      p_horizon_end: horizonThrough.toISOString().slice(0, 10),
+      p_end_type: parsed.data.end_type,
+      p_end_count: parsed.data.end_count ?? null,
+      p_end_date: parsed.data.end_date ?? null,
+    }
+  );
+
+  if (datesError) return { error: datesError.message };
+
+  const dates = (occurrenceDates as string[] | null) ?? [];
+  if (dates.length === 0) {
+    return { error: "That cadence and end condition produce no visits." };
+  }
+
+  const availability = await checkSeriesSlots(
+    {
+      dates,
+      startTime: parsed.data.anchor_start_time,
+      serviceIds: [parsed.data.service_slug],
+      participantGenders: [parsed.data.participant_gender],
+      // The engine keeps `city` on its input type but does not gate on it
+      // (item 8 Phase 2 — a city outside the free-travel areas still gets
+      // slots; the travel charge is an admin decision afterwards).
+      city: parsed.data.service_city ?? "",
+      boundStaffId: parsed.data.bound_therapist_id ?? null,
+    },
+    adminClient
+  );
+
+  // ⛔ THE FIRST VISIT IS THE FATAL ONE, AND THE REST DELIBERATELY ARE NOT.
+  //
+  // If the anchor cannot be covered, the whole ARRANGEMENT is wrong — nobody
+  // works Tuesdays at 2pm, or the therapist the series is locked to does not.
+  // Refusing is the only useful answer, and it is the systematic error worth
+  // catching.
+  //
+  // ⚠️ A LATER date failing is a different thing: one bank holiday, or one
+  // clash in week seven, must NOT throw away an arrangement the client wants
+  // for the rest of the year. Those occurrences are created `pending` and
+  // `unassigned`, which is exactly the state the bookings list's "attention"
+  // view exists to surface, and the nightly horizon cron now refuses to
+  // materialise uncoverable dates at all (D-042, same ruling).
+  // ⛔ STATED PLAINLY SO NOBODY MISTAKES THIS FOR FULL COVERAGE: creating a
+  // series still writes visits on later dates the clinic may not be able to
+  // staff. They are visible and unassigned, not hidden.
+  // ⛔ BOTH halves are fatal here, and for different reasons: no capacity at
+  // all, OR the therapist this series was deliberately locked to being busy.
+  // The cron treats the second case differently — see SeriesSlotVerdict.
+  const anchorVerdict = availability.verdicts[0];
+  const anchorBlocked =
+    anchorVerdict &&
+    (!anchorVerdict.available || anchorVerdict.boundStaffFree === false);
+  if (anchorVerdict && anchorBlocked) {
+    return {
+      error:
+        `${anchorVerdict.reason ?? "That time is not available."} ` +
+        `Pick a different day or time for the repeat visits.`,
+      fieldErrors: {
+        anchor_start_time: anchorVerdict.reason ?? "That time is not available.",
+      },
+    };
+  }
+
   const { data: rpcResult, error: rpcError } = await adminClient.rpc(
     "create_recurring_booking_series",
     {
@@ -224,7 +319,7 @@ export async function createRecurringSeries(
       p_service_area: parsed.data.service_area ?? null,
       p_notes: parsed.data.notes ?? null,
       p_consent_acknowledged: parsed.data.consent_acknowledged,
-      p_horizon_weeks: 12,
+      p_horizon_weeks: RECURRING_HORIZON_WEEKS,
     }
   );
 
