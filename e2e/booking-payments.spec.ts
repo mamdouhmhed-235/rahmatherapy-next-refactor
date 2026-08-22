@@ -387,15 +387,26 @@ test.describe("gate 08 P2 — taking payment, and locking it once it is taken", 
     // taken in advance — so the date is not what is under test here.
     payable = await createBookingFixture(db, "Form", { status: "confirmed", dayOffset: -2 });
     // ⛔ A DIFFERENT DAY FROM `payable`, AND THAT IS LOAD-BEARING, NOT TIDINESS.
-    // Two fixtures on one day made this spec FLAKY, and chasing it down found a
-    // real defect in the product: an inert row (cancelled, no-show, or ANY
-    // past-dated booking) carries `opacity-75`, which creates a CSS stacking
-    // context that paints OVER the previous row's absolutely-positioned actions
-    // menu. Measured on real production rows with `document.elementFromPoint`:
-    // 2 of 3 menu items unclickable, 0 of 3 with the following row forced to
-    // opacity 1, 2 of 3 again when restored. Recorded as a finding.
+    // Two fixtures on one day made this spec FLAKY, and chasing that down found
+    // a real defect in the product — recorded in FINDINGS-LEDGER.md as G-08-01.
+    //
+    // ⛔ THE CONDITION IS BOTH ROWS, NOT JUST THE ONE BELOW. An inert row
+    // (cancelled, no-show, or ANY past-dated booking) carries `opacity-75`.
+    // Opacity < 1 makes THAT row a stacking context, which TRAPS its own menu's
+    // `z-30` inside it and demotes the whole row to a z-0 group; the next inert
+    // row is another z-0 group and, being later in the DOM, paints over it.
+    //
+    // ⚠️ My first explanation — "the following dimmed row paints over the
+    // earlier row's z-30 menu" — was WRONG, and an independent reviewer caught
+    // it: a z-0 group can never beat a z-30 sibling in a shared context.
+    // ⛔ Settled by experiment, not argument: an UNDIMMED row with a dimmed row
+    // directly beneath it had 0 of 3 items blocked, while dimmed-above-dimmed
+    // had 2 of 3 on real production rows.
+    //
     // ⚠️ One fixture per day keeps this spec measuring PAYMENT rather than that
-    // defect — and it is why the quick-actions spec never caught it either.
+    // defect — and it is why the quick-actions spec never caught it either
+    // (E08-43 does click a dimmed row's menu, but its fixture is alone on its
+    // own day, so no row follows it).
     quickPayable = await createBookingFixture(db, "Quick", {
       status: "confirmed",
       dayOffset: -6,
