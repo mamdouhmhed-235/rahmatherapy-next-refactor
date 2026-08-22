@@ -453,7 +453,32 @@ async function extendTemplate(
       }
     );
 
-    if (availability.reason) {
+    // ⛔ D-045 — AN ADMIN CHANGE MUST NOT QUIETLY END A CLIENT'S STANDING
+    // BOOKING.
+    //
+    // Owner ruling D-045 (2026-08-22), chosen from three options: **"keep
+    // extending, ignore the deactivation"**. Their reasoning, and it is the same
+    // principle as D-033: deactivating a service should stop NEW commitments,
+    // not existing ones.
+    //
+    // So a DETERMINATE negative — the service was deactivated, or no eligible
+    // staff exist at all — no longer stalls the series. The visits are created
+    // exactly as they were before D-042, with one deliberate difference:
+    // ⛔ UNASSIGNED. If the engine could not evaluate the series at all then it
+    // could not tell us whether the bound therapist is free either, and
+    // pre-assigning into an unchecked slot is the one thing D-042 exists to
+    // prevent. A human picks them up — the documented §5.5 degradation.
+    //
+    // ⚠️ An INDETERMINATE failure still fails closed and retries. "I could not
+    // find out" is not "I found out and it is fine", and tomorrow we may know.
+    if (availability.reason && availability.reasonKind === "not-bookable") {
+      outcome.unstaffable.push(
+        `${template.id}: availability could not be evaluated (${availability.reason}) — ` +
+          `the visits were created UNASSIGNED and were NOT checked against the diary. ` +
+          `Owner ruling D-045: an admin change must not stop an existing series.`
+      );
+      assignedStaffId = null;
+    } else if (availability.reason) {
       // ⛔ FAILS CLOSED. Not being able to check is not the same as being free.
       //
       // ⚠️ An independent review (D-035) refuted the first version of this,
@@ -471,13 +496,14 @@ async function extendTemplate(
             `${availability.reason}. The horizon was NOT advanced; it will retry tonight.`
         )
       );
-    }
-
-    const verdictByDate = new Map(availability.verdicts.map((v) => [v.date, v]));
-    const coverable = candidates.filter((date) => verdictByDate.get(date)?.available);
-    const uncoverable = candidates.filter((date) => !verdictByDate.get(date)?.available);
-    outcome.skipped += uncoverable.length;
-    candidates = coverable;
+    } else {
+      const verdictByDate = new Map(availability.verdicts.map((v) => [v.date, v]));
+      const coverable = candidates.filter((date) => verdictByDate.get(date)?.available);
+      const uncoverable = candidates.filter(
+        (date) => !verdictByDate.get(date)?.available
+      );
+      outcome.skipped += uncoverable.length;
+      candidates = coverable;
 
     // ⛔ A SKIPPED DATE IS NAMED, NOT SWALLOWED.
     //
@@ -529,7 +555,8 @@ async function extendTemplate(
       assignedStaffId &&
       candidates.some((date) => verdictByDate.get(date)?.boundStaffFree === false)
     ) {
-      assignedStaffId = null;
+        assignedStaffId = null;
+      }
     }
   }
 

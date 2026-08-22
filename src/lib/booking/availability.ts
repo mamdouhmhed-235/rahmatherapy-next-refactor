@@ -152,9 +152,27 @@ interface AvailabilityContext {
   staffRulesByStaffId: Map<string, StaffAvailabilityRuleRecord[]>;
 }
 
+/**
+ * ⛔ D-045 — WHY THE FAILURE IS TYPED AND NOT JUST WORDED.
+ *
+ * These reasons fall into two groups that call for OPPOSITE handling, and the
+ * prose cannot tell them apart: "Selected service is unavailable." and
+ * "Availability data unavailable." both end in the same word while meaning
+ * completely different things.
+ *
+ *   "indeterminate"  a read failed. We do NOT know. Try again later.
+ *   "not-bookable"   we found out, and the answer is never — the service is
+ *                    deactivated, or no eligible staff exist at all.
+ *
+ * ⚠️ String-matching a human-facing message to decide behaviour is exactly the
+ * brittleness that produces the next defect, so callers get a field instead.
+ */
+type ContextFailureKind = "indeterminate" | "not-bookable";
+
 interface ContextFailure {
   reason: string;
   durationMins: number;
+  kind: ContextFailureKind;
 }
 
 interface DayRecords {
@@ -456,12 +474,18 @@ async function loadContextRest(
 
   const services = serviceResult.data ?? [];
   if (serviceResult.error || services.length !== input.serviceIds.length) {
-    return { reason: "Selected service is unavailable.", durationMins: 0 };
+    return {
+      reason: "Selected service is unavailable.",
+      durationMins: 0,
+      // The service row is missing, inactive, or (for public callers) hidden.
+      kind: "not-bookable",
+    };
   }
 
   if (!servicesAllowParticipants(services, input.participantGenders)) {
     return {
       reason: "Selected service is not suitable for every participant.",
+      kind: "not-bookable" as const,
       durationMins: 0,
     };
   }
@@ -482,7 +506,11 @@ async function loadContextRest(
 
   const staff = staffResult.data ?? [];
   if (staffResult.error || staff.length === 0) {
-    return { reason: "No eligible staff are available.", durationMins };
+    return {
+      reason: "No eligible staff are available.",
+      durationMins,
+      kind: "not-bookable",
+    };
   }
 
   const roleIds = Array.from(new Set(staff.map((member) => member.role_id)));
@@ -501,7 +529,11 @@ async function loadContextRest(
   ]);
 
   if (rolePermissionsResult.error || staffOverridesResult.error) {
-    return { reason: "Staff permission data unavailable.", durationMins };
+    return {
+      reason: "Staff permission data unavailable.",
+      durationMins,
+      kind: "indeterminate",
+    };
   }
 
   const eligibleStaff = filterStaffWithBookingPermissions(
@@ -510,7 +542,11 @@ async function loadContextRest(
     staffOverridesResult.data ?? []
   );
   if (eligibleStaff.length === 0) {
-    return { reason: "No eligible staff are available.", durationMins };
+    return {
+      reason: "No eligible staff are available.",
+      durationMins,
+      kind: "not-bookable",
+    };
   }
 
   const eligibleStaffIds = eligibleStaff.map((member) => member.id);
@@ -528,7 +564,11 @@ async function loadContextRest(
   ]);
 
   if (globalRulesResult.error || staffRulesResult.error) {
-    return { reason: "Availability data unavailable.", durationMins };
+    return {
+      reason: "Availability data unavailable.",
+      durationMins,
+      kind: "indeterminate",
+    };
   }
 
   const staffRulesByStaffId = new Map<string, StaffAvailabilityRuleRecord[]>();
@@ -551,6 +591,9 @@ async function loadContextRest(
 
 interface DayRecordsFailure {
   reason: string;
+  /** ⛔ D-045 — every day-record failure is a failed READ, so it is always
+   *  indeterminate. Carried explicitly so callers never have to infer it. */
+  kind: "indeterminate";
 }
 
 /**
@@ -614,7 +657,7 @@ async function loadDayRecords(
     staffOverrideResult.error ||
     bookingsResult.error
   ) {
-    return { reason: "Availability data unavailable." };
+    return { reason: "Availability data unavailable.", kind: "indeterminate" as const };
   }
 
   const bookings = bookingsResult.data ?? [];
@@ -630,7 +673,10 @@ async function loadDayRecords(
       : { data: [] as BookingAssignmentRecord[], error: null };
 
   if (assignmentsResult.error) {
-    return { reason: "Booking assignment data unavailable." };
+    return {
+      reason: "Booking assignment data unavailable.",
+      kind: "indeterminate" as const,
+    };
   }
 
   const bookingDateById = new Map(
@@ -1010,6 +1056,19 @@ export interface SeriesSlotCheckResult {
   durationMins: number;
   /** Set when the check could not run at all; every verdict is then false. */
   reason?: string;
+  /**
+   * ⛔ D-045 — WHICH KIND of "could not run", because the two need opposite
+   * handling and the wording cannot distinguish them:
+   *
+   *   "indeterminate"  a read failed. We do not know. ⛔ Fail closed and retry.
+   *   "not-bookable"   we found out and the answer is never — the service was
+   *                    deactivated, or no eligible staff exist at all.
+   *
+   * ⚠️ Owner ruling D-045 (2026-08-22) governs the second one for the nightly
+   * job: **keep extending**. A client's standing booking must not quietly stop
+   * because of an admin change, which is the same principle as D-033.
+   */
+  reasonKind?: "indeterminate" | "not-bookable";
 }
 
 /**
@@ -1093,10 +1152,15 @@ export async function checkSeriesSlots(
     includeHiddenServices?: boolean;
   } = {}
 ): Promise<SeriesSlotCheckResult> {
-  const allUnavailable = (reason: string, durationMins = 0): SeriesSlotCheckResult => ({
+  const allUnavailable = (
+    reason: string,
+    durationMins = 0,
+    reasonKind: "indeterminate" | "not-bookable" = "indeterminate"
+  ): SeriesSlotCheckResult => ({
     verdicts: input.dates.map((date) => ({ date, available: false, reason })),
     durationMins,
     reason,
+    reasonKind,
   });
 
   if (!TIME_PATTERN.test(input.startTime)) {
@@ -1113,7 +1177,7 @@ export async function checkSeriesSlots(
     includeHiddenServices: options.includeHiddenServices,
   });
   if ("reason" in context) {
-    return allUnavailable(context.reason, context.durationMins);
+    return allUnavailable(context.reason, context.durationMins, context.kind);
   }
 
   const validDates = input.dates.filter((date) => DATE_PATTERN.test(date));
@@ -1130,7 +1194,7 @@ export async function checkSeriesSlots(
 
   const dayRecords = await loadDayRecords(supabase, validDates, context.eligibleStaffIds);
   if ("reason" in dayRecords) {
-    return allUnavailable(dayRecords.reason, context.durationMins);
+    return allUnavailable(dayRecords.reason, context.durationMins, dayRecords.kind);
   }
 
   const requiredStaffByGender = countRequiredStaff(input.participantGenders);

@@ -1229,6 +1229,77 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       shouted.mockRestore();
     });
 
+    it("⛔ D-045 — a DEACTIVATED service does not stop an existing series being extended", async () => {
+      // Owner ruling D-045 (2026-08-22), chosen from three options: "keep
+      // extending, ignore the deactivation". Their reasoning, and it is D-033's:
+      // ⛔ deactivating a service must stop NEW commitments, not existing ones.
+      // A client's Tuesday 2pm must not quietly end because of an admin change.
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template({ bound_therapist_id: "staff-1" })],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+          staff_profiles: [
+            { id: "staff-1", active: true, can_take_bookings: true, gender: "female" },
+          ],
+        },
+      });
+      // What the engine returns when the service row is no longer bookable: it
+      // cannot evaluate the series AT ALL, and says so as a determinate answer.
+      vi.mocked(checkSeriesSlots).mockResolvedValue({
+        verdicts: [],
+        durationMins: 0,
+        reason: "Selected service is unavailable.",
+        reasonKind: "not-bookable",
+      });
+      const shouted = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const body = await (await post()).json();
+
+      // ⛔ THE RULING: the visits still get made.
+      expect(body.occurrencesCreated).toBe(8);
+      expect(stub.insertsInto("bookings")).toHaveLength(8);
+      // ⛔ …but UNASSIGNED. The engine could not tell us whether the bound
+      // therapist is free, and pre-assigning into an unchecked slot is the one
+      // thing D-042 exists to prevent.
+      expect(stub.insertsInto("booking_assignments")[0]).toMatchObject({
+        assigned_staff_id: null,
+        status: "unassigned",
+      });
+      // Recorded so a human knows the diary was not consulted…
+      expect(JSON.stringify(body.unstaffable)).toMatch(/could not be evaluated/i);
+      // …and NOT as a fault, because it is a deliberate ruling.
+      expect(body.failures).toEqual([]);
+      shouted.mockRestore();
+    });
+
+    it("⛔ but an INDETERMINATE failure still fails closed and creates nothing", async () => {
+      // ⛔ THE CONTROL for D-045, and the line the ruling does NOT cross:
+      // "I could not find out" is not "I found out and it is fine". A failed
+      // read must not be treated as permission to book blind — tomorrow the
+      // read may succeed.
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: FIRST_BATCH.map((date) => occurrence(date)),
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+      vi.mocked(checkSeriesSlots).mockResolvedValue({
+        verdicts: [],
+        durationMins: 0,
+        reason: "Availability data unavailable.",
+        reasonKind: "indeterminate",
+      });
+
+      const body = await (await post()).json();
+
+      expect(stub.insertsInto("bookings"), "nothing may be written").toHaveLength(0);
+      expect(JSON.stringify(body.failures)).toMatch(/availability check failed/i);
+    });
+
     it("⛔ fails LOUDLY when availability cannot be determined at all", async () => {
       const stub = stubAdminClient({
         tables: {
