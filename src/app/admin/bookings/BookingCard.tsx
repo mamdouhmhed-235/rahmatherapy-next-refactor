@@ -120,7 +120,7 @@ export function BookingCard({
     <article
       style={{ animationDelay: `${animationDelay}ms` }}
       className={cn(
-        "rahma-row-enter grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] hover:shadow-[var(--admin-shadow-subtle)] sm:p-5",
+        "rahma-row-enter relative [&:has([role=menu])]:z-40 grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel)] p-4 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] hover:shadow-[var(--admin-shadow-subtle)] sm:p-5",
         rowClass
       )}
     >
@@ -343,7 +343,7 @@ function GroupBookingCard({
     <article
       style={{ animationDelay: `${animationDelay}ms` }}
       className={cn(
-        "rahma-row-enter grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-5 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] hover:shadow-[var(--admin-shadow-subtle)] sm:p-6",
+        "rahma-row-enter relative [&:has([role=menu])]:z-40 grid gap-3 rounded-[var(--admin-radius-card)] border border-[var(--admin-border)] bg-[var(--admin-panel-muted)] p-5 transition-shadow duration-200 ease-[cubic-bezier(0.25,1,0.5,1)] hover:shadow-[var(--admin-shadow-subtle)] sm:p-6",
         rowClass
       )}
       data-group-booking="true"
