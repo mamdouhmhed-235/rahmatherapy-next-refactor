@@ -23,6 +23,7 @@
     "verify:london-time": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-london-time.mjs",
     "verify:migrations": "node scripts/verify-migration-coverage.mjs",
     "verify:rbac": "node scripts/verify-rbac-grants.mjs",
+    "verify:prices": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-service-prices.mjs",
     "cf:build": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
