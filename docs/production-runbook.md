@@ -148,6 +148,12 @@ Before launch:
 
 ## Rollback Notes
 
+⛔ **A deploy cannot be un-deployed by deleting rows.** Rolling the Worker back
+restores the previous CODE; it does not undo bookings, cancellations or emails
+that the newer code already caused. Emails in particular are gone the moment
+they are accepted by the provider — there is no recall. Treat "roll back" as
+"stop the bleeding", never as "undo".
+
 - Keep each phase in small PRs where possible.
 - Database rollback should be a reviewed forward migration unless the environment is explicitly non-production and disposable.
 - Do not rename or edit already-applied production migrations.
@@ -166,11 +172,52 @@ Before launch:
 Run these before production launch:
 
 ```bash
+pnpm exec vitest run
+npx tsc --noEmit
 pnpm lint
+pnpm verify:migrations
+pnpm verify:rbac
+pnpm verify:prices
+pnpm verify:london-time
+node scripts/verify-system-integrity.mjs
 pnpm build
 pnpm cf:build
 git diff --check
 ```
+
+### What each of those is actually protecting, and what "passing" means
+
+⛔ **ASSERT THE COUNTS, NEVER THE EXIT CODE.** A green exit at a *lower* count is
+a documented silent failure mode in this repo — a check that silently stopped
+checking looks exactly like a check that passed. Expected figures, measured
+2026-08-22:
+
+| Command | What it would catch | Expect |
+|---|---|---|
+| `pnpm exec vitest run` | Everything the unit suite covers | **255 files / 3047 tests / 0 failed** |
+| `npx tsc --noEmit` | Type errors | **0 errors** |
+| `pnpm lint` | ⚠️ **4 errors + 1 warning in exactly 3 files is the ACCEPTED baseline** — `BookingExperience.tsx` (3), `BookingExperienceLoader.tsx` (1), `returning-customer.ts` (1 warning). Do **not** "fix" them | 4E / 1W |
+| `pnpm verify:migrations` | A schema object no migration creates — i.e. the repo could not rebuild the database | **84 files · 144 names · 0 missing** |
+| `pnpm verify:rbac` | Someone's permissions having drifted from what the app's tests assume | **5 roles / 40 permissions / 95 grants** |
+| `pnpm verify:prices` | ⛔ The website quoting one price while the booking charges another. The site's prices are hand-written in code; the booking is priced from `services.price` | **5 packages, all matching** |
+| `pnpm verify:london-time` | British Summer Time arithmetic, including both clock changes | **44 assertions** |
+| `verify-system-integrity.mjs` | The availability seed changing, or a deleted client returning | **PASS** |
+
+⚠️ `verify:migrations` is an OFFLINE check — it says nothing about drift since
+the manifest date. For that, run `scripts/db-fingerprint.sql` in the Supabase SQL
+editor and compare against `scripts/db-fingerprint-baseline.json`. ⛔ A differing
+hash is not automatically bad: an intended migration moves them too. Update the
+baseline in the same commit as that migration.
+
+⛔ **Before `pnpm build`, unset `SENTRY_AUTH_TOKEN` for the session.**
+`next.config.ts` passes it to `withSentryConfig`, so an unguarded build writes a
+real release to the live Sentry project. Unset it in the shell — never by editing
+`.env`.
+
+⚠️ `pnpm build` regenerates `src/lib/media/image-manifest.ts`, which sits inside
+the tree `git diff --check` watches. A diff there is **not** noise: a stale
+manifest once shipped every content photo as a placeholder. Commit the
+regenerated file.
 
 Also verify:
 
