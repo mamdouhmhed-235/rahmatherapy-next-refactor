@@ -37,11 +37,33 @@
 //
 // ── ⚠️ EMAIL ─────────────────────────────────────────────────────────────
 //
-// ⛔ NOTHING IN THIS FILE SENDS ANY EMAIL, and that is the point: every case is
-// a REFUSED restore. `restoreBooking` returns before its update, so no client
-// email, no assigned-staff email and no business-inbox email is reachable. Each
-// case asserts that the booking's `email_delivery_events` are empty afterwards,
-// so the claim is measured rather than asserted.
+// ⛔ NOTHING IN THIS FILE SENDS ANY EMAIL, because every case is a REFUSED
+// restore and `restoreBooking` returns before its UPDATE on every refusal path —
+// the audit insert, the queued-email sweep and both sends are all downstream of
+// it. E08-48d asserts that, rather than leaving it as reasoning.
+//
+// ⛔⛔ BUT DO NOT GENERALISE THAT TO "RESTORE IS SAFE". A SUCCESSFUL restore
+// CAN EMAIL THE OWNER'S REAL BUSINESS INBOX, and an earlier version of this
+// header said it could not. Corrected after an independent review, and measured
+// against the live database:
+//
+//   `restoreBooking` -> `sendAssignedStaffBookingChangeEmails`
+//                    -> `getAssignedStaffEmails`  (booking_assignments
+//                                                  -> staff_profiles.email)
+//
+// ⛔ The Owner's own `staff_profiles.email` IS `rahmatherapy@outlook.com`, they
+// are ACTIVE, and they currently hold an ASSIGNMENT. So restoring — or changing
+// the status of — a booking THE OWNER IS ASSIGNED TO mails their real inbox,
+// ⛔ **without ever calling `resolveBusinessNotificationRecipients`**. Tracing
+// that resolver and concluding "the inbox is not reachable" is exactly the
+// file-not-path mistake this run keeps making.
+//
+// ⚠️ It is CORRECT behaviour — they are the therapist on that visit — and the
+// notification-settings copy is honest about it ("Business alerts (new bookings,
+// enquiries, cancellations) are sent to this address"), which is a narrower
+// promise than assigned-staff work mail. ⛔ **It is a TEST-SAFETY rule, not a
+// defect: never assign the Owner's staff id in a fixture, and never touch a
+// booking they are assigned to.** Every fixture here uses the test therapist.
 //
 // ── ⛔ THE FIXTURES ARE BUILT TO MATCH WHAT THE APP ACTUALLY PRODUCES ─────
 //
@@ -66,6 +88,11 @@ import { hasBaseUrl } from "./helpers";
 
 const AUTH_DIR = "e2e/.auth";
 const RUN_TAG = process.env.E2E_FIXTURE_TAG ?? String(process.pid);
+
+/** ⛔ Measured. Selected by id, never by name — the identity trap (handoff §8).
+ *  ⛔ NEVER substitute the Owner's staff id here: their staff_profiles.email is
+ *  the real business inbox. See the header. */
+const THERAPIST_A_STAFF_ID = "884311b1-e9d0-44b9-91f3-14188a3baf59";
 
 const SERVICE = {
   id: "9e70c3fd-b551-465e-9d7b-822398b431d7",
@@ -120,6 +147,14 @@ async function createCancelledFixture(
     cancelledAt: string;
     /** ⛔ The `adminDeleteClient` cascade shape — see the header. */
     clientDeleted?: boolean;
+    /**
+     * ⛔ Assign the TEST THERAPIST — never the Owner, whose `staff_profiles.email`
+     * is the real business inbox (see the header). This exists so E08-48d can
+     * actually SEE the assigned-staff email leg: without an assignee, a
+     * successful restore produces no delivery row at all, and "no email" would
+     * be true no matter how broken the guard was.
+     */
+    assign?: boolean;
   },
 ): Promise<BookingFixture> {
   const name = `ZZTEST-RG-${label}-${RUN_TAG}`;
@@ -174,6 +209,16 @@ async function createCancelledFixture(
     service_price_snapshot: SERVICE.price,
     service_duration_snapshot: SERVICE.durationMins,
   });
+
+  if (opts.assign) {
+    await insertRow(db, "booking_assignments", {
+      booking_id: bookingId,
+      participant_id: participantId,
+      assigned_staff_id: THERAPIST_A_STAFF_ID,
+      required_therapist_gender: "female",
+      status: "assigned",
+    });
+  }
 
   return { bookingId, clientId, name, date };
 }
@@ -372,10 +417,16 @@ test.describe("gate 08 P2 — when a cancelled booking must NOT be restorable", 
     // so S6 and S7 both pass and the deleted client is the only guard left —
     // which is exactly the reachable state, since the cascade cancels OPEN
     // bookings and stamps `cancelled_at` with the deletion moment.
+    // ⛔ ASSIGNED (to the TEST THERAPIST, never the Owner). This is what makes
+    // E08-48d able to fail: `sendAssignedStaffBookingChangeEmails` produces a
+    // delivery row only when somebody is assigned, so without this a successful
+    // restore would send nothing and "no email" would be true however broken the
+    // guard was. Caught by an independent review.
     deletedClient = await createCancelledFixture(db, "DelClient", {
       dayOffset: 10,
       cancelledAt: new Date().toISOString(),
       clientDeleted: true,
+      assign: true,
     });
     createdClientIds.push(gone.clientId, stale.clientId, deletedClient.clientId);
 
@@ -501,17 +552,40 @@ test.describe("gate 08 P2 — when a cancelled booking must NOT be restorable", 
 
   test("E08-48d — none of the three refusals emailed anybody", async () => {
     // ⛔ No browser: the question is what the SERVER did, and the answer is in
-    // the database. `restoreBooking` returns before its UPDATE on every one of
-    // these paths, so no client email, no assigned-staff email and — the one
-    // that matters to the Owner — nothing to the real business inbox.
+    // the database.
     //
-    // ⚠️ Asserted rather than reasoned: the file's header makes this claim, and
-    // a claim in a ⛔ block that nothing checks is exactly how this run has
-    // shipped false statements before.
-    for (const f of [gone, stale, deletedClient]) {
+    // ⛔ WHAT EACH LEG IS WORTH — corrected after an independent review pointed
+    // out that the first version of this case could not have failed:
+    //
+    //   `deletedClient`  ⛔ THE LOAD-BEARING ONE. A restore WAS attempted, and
+    //                    this fixture IS assigned, so a send on the refusal path
+    //                    leaves a `staff_booking_change` row right here.
+    //   `gone`, `stale`  ⚠️ WEAKER, AND SAID SO PLAINLY. No restore was ever
+    //                    attempted on these two: the button was absent, nothing
+    //                    was clicked. They guard against a STRAY send from
+    //                    merely opening the list, not a proof about restore.
+    //
+    // ⛔ WHAT THIS CASE CATCHES THAT E08-48c DOES NOT, proven by mutation rather
+    // than argued: moving `sendAssignedStaffBookingChangeEmails` ABOVE the
+    // deleted-client guard — an ordinary refactoring slip — leaves E08-48c
+    // GREEN (the refusal still holds, the booking stays cancelled) while THIS
+    // case goes RED with 7 delivery rows. ⚠️ Deleting the guard outright is
+    // caught by E08-48c first, so that mutation cannot demonstrate this case;
+    // the leaked-send mutation is the one that can, and is the one that was run.
+    //
+    // ⚠️ The first version asserted all three identically and claimed more than
+    // it checked — with no assignee anywhere, no send could have produced a row
+    // however broken the code was. ⛔ Exactly the "a claim nothing checks"
+    // failure this run keeps repeating; caught by an independent review.
+    expect(
+      await emailEvents(db, deletedClient.bookingId),
+      "a refused restore on an ASSIGNED booking must still send nothing",
+    ).toEqual([]);
+
+    for (const f of [gone, stale]) {
       expect(
         await emailEvents(db, f.bookingId),
-        `a refused restore must send nothing (${f.name})`,
+        `merely listing a locked booking must send nothing (${f.name})`,
       ).toEqual([]);
     }
   });
