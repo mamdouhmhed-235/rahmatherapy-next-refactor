@@ -522,7 +522,12 @@ export async function readBooking(db: SupabaseClient, id: string) {
       // as 0 and blames the app. That happened to A5's duration check.
       "id, status, assignment_status, payment_status, payment_method, amount_paid, amount_due, " +
         "paid_at, travel_fee, total_price, total_duration_mins, booking_source, client_id, " +
-        "contact_email, contact_full_name, booking_date, start_time, end_time, group_booking",
+        "contact_email, contact_full_name, booking_date, start_time, end_time, group_booking, " +
+        // ⚠️ Added after this exact trap bit TWICE: A5 read a missing
+        // `total_duration_mins` as 0, and A2 read a missing
+        // `customer_cancelled_at` as null and nearly reported that the clinic
+        // is never told a customer cancelled.
+        "customer_cancelled_at, customer_cancellation_note, reschedule_status, cancelled_at",
     )
     .eq("id", id)
     .single();
