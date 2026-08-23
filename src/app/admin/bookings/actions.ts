@@ -9,13 +9,23 @@ import {
   sendAssignedStaffBookingChangeEmails,
   sendBookingCancellationEmails,
   sendBookingConfirmedClientEmail,
+  sendBookingMovedClientEmail,
   sendBookingRestoredClientEmail,
   sendClaimNotificationEmail,
   sendClientAssignedTherapistEmail,
   sendStaffAssignmentEmail,
   sendStaffUnassignmentEmail,
 } from "@/lib/email/notifications";
-import { ensureBookingManageUrl } from "@/lib/booking/manage-token";
+import {
+  ensureBookingManageUrl,
+  // D-051 - the manage link's expiry is derived from the booking date, so
+  // moving a booking has to move the expiry with it.
+  getManageTokenExpiry,
+} from "@/lib/booking/manage-token";
+// D-051 - the SAME availability engine the recurring-series path uses, so the
+// two cannot give different answers about the same slot.
+import { checkSeriesSlots } from "@/lib/booking/availability";
+import { addMinutesToTime } from "@/lib/time/london";
 import {
   applyTravelFeeDelta,
   parseTravelFee,
@@ -49,6 +59,7 @@ import {
   isCompletedReversal,
   isRestoreWindowExpired,
   isTerminalBookingStatus,
+  getTodayIsoDate,
 } from "./_helpers";
 import type { AssignmentStatus, BookingStatus, PaymentMethod, PaymentStatus } from "./types";
 
@@ -1868,4 +1879,438 @@ export async function createManualBooking(
 
     throw error;
   }
+}
+
+// ─── D-051 — move a booking to a new date and time ──────────────────────────
+//
+// ⛔ OWNER RULING, 2026-08-23: *"its an important feature and one i thought we
+// already had, so we will have to build this. go ahead and do so surgically
+// without effecting or conflicting with anything else."*
+//
+// Until now NOTHING in this application could change `booking_date`. It was
+// written once at creation and read everywhere else, so "accept the customer's
+// reschedule request" recorded an answer and moved nothing — the front desk's
+// only route to an actually-moved appointment was cancel-and-rebook, which
+// emails the customer a cancellation and starts a new booking reference.
+//
+// ── ⛔ WHAT THIS DELIBERATELY DOES NOT DO ────────────────────────────────
+//
+// It changes the DATE and TIME, and nothing else. Not the service, not the
+// participants, not the price, not the therapist. ⛔ Every one of those has its
+// own established path, and widening this action to touch them would make it a
+// second, competing booking editor. `end_time` is the one derived value it
+// recomputes, because leaving it stale would under-book the diary and let the
+// next customer be booked on top of this one.
+//
+// ── ⛔ THE FAILURE MODE THIS ACTION'S OWN FIX HAD TO AVOID ───────────────
+//
+// A booking being moved ALREADY OCCUPIES A SLOT. Checking the new slot naively
+// makes the booking block itself the moment the new window overlaps the old —
+// nudging 10:00 to 10:30 would be refused as "no capacity", and the reason
+// shown would name a conflict that is the booking itself. ⛔ Hence
+// `excludeBookingId`, threaded into the availability engine as an OPTIONAL
+// parameter that no existing caller passes.
+
+/**
+ * D-051 - the columns `rescheduleBooking` reads and writes back.
+ *
+ * Deliberately loose: the action SELECTs `*` so the audit trail records the
+ * whole row before and after, and a narrowed type here would only invite the
+ * "column not selected reads as undefined" mistake in the opposite direction.
+ */
+type BookingRescheduleRecord = {
+  id: string;
+  status: string;
+  booking_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  total_duration_mins: number | null;
+  reschedule_status: string | null;
+  manage_token_hash: string | null;
+  service_city: string | null;
+  recurring_template_id: string | null;
+} & Record<string, unknown>;
+
+const RESCHEDULE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const RESCHEDULE_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export async function rescheduleBooking(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const actor = await getStaffProfile(supabase);
+
+  // ⛔ Same gate as the Status & payment form: moving somebody's appointment is
+  // a whole-booking decision. A therapist managing their OWN assignment must
+  // not be able to move the visit out from under a colleague.
+  if (!actor || !actor.active || !canManageAllBookings(actor)) {
+    return { error: "Insufficient permissions." };
+  }
+
+  const bookingId = String(formData.get("booking_id") ?? "").trim();
+  const nextDate = String(formData.get("booking_date") ?? "").trim();
+  const nextTime = String(formData.get("start_time") ?? "")
+    .trim()
+    .slice(0, 5);
+  const overrideAvailability = formData.get("override_availability") === "on";
+
+  if (!bookingId) return { error: "Booking is required." };
+  if (!RESCHEDULE_DATE_PATTERN.test(nextDate)) {
+    return { fieldErrors: { booking_date: "Choose a date." } };
+  }
+  if (!RESCHEDULE_TIME_PATTERN.test(nextTime)) {
+    return { fieldErrors: { start_time: "Choose a start time." } };
+  }
+
+  const adminClient = createSupabaseAdminClient();
+
+  const { data: beforeState } = await adminClient
+    .from("bookings")
+    .select("*")
+    .eq("id", bookingId)
+    .maybeSingle<BookingRescheduleRecord>();
+
+  if (!beforeState) return { error: "Booking not found." };
+
+  // ⛔ A finished or cancelled visit is not moved, it is re-created. Same
+  // predicate the complete/no-show chips and the auto-promoter read, so the
+  // three cannot drift.
+  if (isTerminalBookingStatus(beforeState.status)) {
+    return {
+      error:
+        "This booking is " +
+        String(beforeState.status).replace("_", "-") +
+        " and cannot be moved. Restore it first if it should be live again.",
+    };
+  }
+
+  // ⛔ W03-E-2's sibling: an appointment cannot be moved into the past. Date
+  // only, matching every other guard in this file — a visit can still be moved
+  // to earlier TODAY, which is the ordinary "they are coming this afternoon
+  // instead" case.
+  if (nextDate < getTodayIsoDate()) {
+    return {
+      fieldErrors: { booking_date: "Pick today or a date in the future." },
+    };
+  }
+
+  // ⛔ AND NOT A TIME THAT HAS ALREADY GONE. The date check alone let an
+  // operator move a booking to 09:00 at four in the afternoon, and email the
+  // customer a time that was already past. ⚠️ Same-day moves stay allowed and
+  // are the ordinary case ("they are coming this afternoon instead") - it is
+  // the MOMENT that must be in the future, not the day.
+  if (isBookingMomentPastLondon({ booking_date: nextDate, start_time: nextTime })) {
+    return {
+      fieldErrors: { start_time: "That time has already passed. Pick a later one." },
+    };
+  }
+
+  // ⛔ BLOCKER A, found by independent review. A SERIES OCCURRENCE MUST NOT
+  // BE MOVED HERE.
+  //
+  // There is no occurrence table: "does this visit exist" IS its
+  // booking_date. extend-recurring-horizons builds its existingDates set from
+  // the visits' dates and re-creates any cadence date it does not find - so
+  // moving a visit off date A makes tonight's cron insert a BRAND NEW visit on
+  // A. The client ends up with the appointment they asked to move off, plus
+  // the one it was moved to.
+  //
+  // ⛔ Worse: that cron takes its anchor from the EARLIEST visit. Move the
+  // first occurrence of a Friday series to a Wednesday and every future date
+  // is recomputed on Wednesdays, none of them match, and it materialises a
+  // whole parallel series alongside the live one. Silently - the dates
+  // genuinely differ, so its duplicate guard cannot see it.
+  //
+  // ⚠️ Measured: zero recurring bookings exist in production today, so this
+  // is latent rather than live. Refused outright rather than patched around,
+  // because making that cron move-aware is a real change to a job that
+  // already has no transaction - and that is not this feature.
+  if (beforeState.recurring_template_id) {
+    return {
+      error:
+        "This visit is part of a repeat booking, so it cannot be moved on its own. " +
+        "Cancel this visit and add a one-off booking for the new time instead.",
+    };
+  }
+
+  const currentTime = String(beforeState.start_time ?? "").slice(0, 5);
+  if (beforeState.booking_date === nextDate && currentTime === nextTime) {
+    return {
+      error: "That is already when this booking is. Pick a different date or time.",
+    };
+  }
+
+  // ── ⛔ CAN THE CLINIC ACTUALLY COVER THE NEW SLOT? ──────────────────────
+  //
+  // Reuses the SAME engine the recurring-series path uses (D-042), rather than
+  // a second opinion written for this action. `excludeBookingId` keeps the
+  // booking from blocking itself.
+  if (!overrideAvailability) {
+    const { data: itemRows } = await adminClient
+      .from("booking_items")
+      .select("services(slug)")
+      .eq("booking_id", bookingId);
+
+    const serviceSlugs = [
+      ...new Set(
+        ((itemRows ?? []) as unknown as { services: { slug: string } | null }[])
+          .map((row) => row.services?.slug)
+          .filter((slug): slug is string => Boolean(slug))
+      ),
+    ];
+
+    const { data: participantRows } = await adminClient
+      .from("booking_participants")
+      .select("required_therapist_gender")
+      .eq("booking_id", bookingId);
+
+    const participantGenders = (
+      (participantRows ?? []) as { required_therapist_gender: string | null }[]
+    )
+      .map((row) => row.required_therapist_gender)
+      .filter((gender): gender is "male" | "female" => gender === "male" || gender === "female");
+
+    // ⛔ Fail CLOSED. Not being able to describe the booking is not the same as
+    // the slot being free — and an empty `participantGenders` would make the
+    // engine ask for nobody, which every slot satisfies.
+    if (serviceSlugs.length === 0 || participantGenders.length === 0) {
+      return {
+        error:
+          "Could not read what this booking needs, so its new time cannot be checked. Try again.",
+      };
+    }
+
+    // The therapist already on the job, if there is one. Moving a booking on
+    // top of their own other work is the collision an operator would least
+    // expect the system to allow.
+    // ⛔ EVERY therapist on the job, not just the first one found.
+    //
+    // The first version took [0] of an unordered result, so on a GROUP booking
+    // with two therapists only ONE diary was checked - capacity could pass on
+    // the strength of a THIRD free therapist who is not on this booking at
+    // all, and the unchecked colleague was double-booked.
+    //
+    // ⚠️ Filtered to live assignment statuses too: a cancelled row can retain
+    // a stale assigned_staff_id, and refusing a move because of a therapist
+    // who is no longer on the job is its own kind of wrong.
+    const { data: assignmentRows } = await adminClient
+      .from("booking_assignments")
+      .select("assigned_staff_id, status")
+      .eq("booking_id", bookingId)
+      .in("status", ["unassigned", "assigned"])
+      .not("assigned_staff_id", "is", null);
+    const boundStaffIds = [
+      ...new Set(
+        ((assignmentRows ?? []) as { assigned_staff_id: string | null }[])
+          .map((row) => row.assigned_staff_id)
+          .filter((id): id is string => Boolean(id))
+      ),
+    ];
+
+    const runCheck = (boundStaffId: string | null) =>
+      checkSeriesSlots(
+        {
+          dates: [nextDate],
+          startTime: nextTime,
+          serviceIds: serviceSlugs,
+          participantGenders,
+          city: String(beforeState.service_city ?? "Luton"),
+          boundStaffId,
+          // ⛔ THE LINE THAT STOPS THE BOOKING BLOCKING ITSELF.
+          excludeBookingId: bookingId,
+        },
+        adminClient,
+        // ⛔ D-033's principle: hiding a service from the website must not
+        // strand a booking a client already has. Moving an existing visit is
+        // exactly that case, so a hidden service must not make it immovable.
+        { includeHiddenServices: true }
+      );
+
+    const check = await runCheck(boundStaffIds[0] ?? null);
+
+    const verdict = check.verdicts[0];
+    if (!verdict || !verdict.available) {
+      return {
+        fieldErrors: {
+          start_time:
+            verdict?.reason ??
+            check.reason ??
+            "Nobody is free then. Pick another time, or tick the override.",
+        },
+      };
+    }
+    if (boundStaffIds[0] && verdict.boundStaffFree === false) {
+      return {
+        fieldErrors: {
+          start_time:
+            "The therapist on this booking is already busy then. Pick another time, reassign them, or tick the override.",
+        },
+      };
+    }
+
+    // Any FURTHER therapists on a group booking, each asked about their own
+    // diary. One extra call per extra therapist, and none at all for the
+    // ordinary single-therapist booking - correctness beats a round trip.
+    for (const staffId of boundStaffIds.slice(1)) {
+      const extra = await runCheck(staffId);
+      if (extra.verdicts[0]?.boundStaffFree === false) {
+        return {
+          fieldErrors: {
+            start_time:
+              "One of the therapists on this booking is already busy then. Pick another time, reassign them, or tick the override.",
+          },
+        };
+      }
+    }
+  }
+
+  // ── The write ──────────────────────────────────────────────────────────
+  const durationMins = Number(beforeState.total_duration_mins ?? 0);
+
+  // ⛔ FAIL CLOSED on a booking whose length is unknown. The first version
+  // simply skipped the end_time write, leaving the OLD end time against the
+  // new start - either a wrong diary window, or an end_time <= start_time that
+  // Postgres rejects as a raw driver error in the operator's face.
+  if (!Number.isFinite(durationMins) || durationMins <= 0) {
+    return {
+      error:
+        "This booking has no recorded length, so it cannot be moved safely. " +
+        "Check the booking’s service first.",
+    };
+  }
+
+  const nextEndTime = addMinutesToTime(nextTime, durationMins);
+
+  // ⛔ A visit has to finish on the day it starts. addMinutesToTime does NOT
+  // guard midnight - 23:00 + 90 gives "24:30", which Postgres refuses for a
+  // time column. The create RPC carries the same rule, and the horizon cron
+  // keeps its own guarded copy of this helper for exactly this reason.
+  // ⚠️ Only reachable with the override ticked, because availability refuses
+  // out-of-hours otherwise - and the override path has no other backstop,
+  // which is precisely why it needs one.
+  const [nextEndHour] = nextEndTime.split(":").map(Number);
+  if (nextEndHour >= 24) {
+    return {
+      fieldErrors: {
+        start_time: "A visit has to finish on the same day it starts. Pick an earlier time.",
+      },
+    };
+  }
+
+  const updatePayload: Record<string, unknown> = {
+    booking_date: nextDate,
+    start_time: nextTime + ":00",
+    end_time: nextEndTime + ":00",
+  };
+
+  // ⛔ If this move answers a customer's outstanding request, close the request
+  // too — otherwise it sits "requested" for ever and the booking keeps showing
+  // in the attention queue after the very thing it asked for has happened.
+  // ⚠️ reviewed as well as requested: pressing "Accept request" first sets the
+  // status to reviewed, and the natural flow is accept-then-move. Without this
+  // the request would sit at reviewed for ever, never reaching completed,
+  // after the very move it asked for had happened.
+  if (
+    beforeState.reschedule_status === "requested" ||
+    beforeState.reschedule_status === "reviewed"
+  ) {
+    updatePayload.reschedule_status = "completed";
+  }
+
+  // ⛔ THE MANAGE LINK'S EXPIRY IS DERIVED FROM THE BOOKING DATE.
+  // `getManageTokenExpiry` sets it to <booking_date>T23:59:59Z, so moving a
+  // booking LATER would leave the customer's existing link expiring against the
+  // OLD date — their "manage my booking" link would die before the appointment
+  // it belongs to. ⚠️ Only the EXPIRY is touched: re-minting the token would
+  // invalidate the link already sitting in their inbox.
+  if (beforeState.manage_token_hash) {
+    updatePayload.manage_token_expires_at = getManageTokenExpiry(nextDate);
+  }
+
+  const { data: updated, error } = await adminClient
+    .from("bookings")
+    .update(updatePayload)
+    .eq("id", bookingId)
+    // ⛔ Race guard: refuse if somebody cancelled or completed the booking
+    // between the check above and this write.
+    .not("status", "in", TERMINAL_BOOKING_STATUS_FILTER)
+    .select("*")
+    .maybeSingle<BookingRescheduleRecord>();
+
+  if (error) return { error: error.message };
+  if (!updated) {
+    return {
+      error: "This booking changed while you were moving it. Reload and try again.",
+    };
+  }
+
+  // ⛔ BLOCKER B, found by independent review. THE OLD REMINDER MUST STOP
+  // COUNTING.
+  //
+  // booking-reminders dedupes on (booking_id, event_type) with NO date
+  // component. So: booking on Tuesday, reminder goes out Monday, the customer
+  // rings Monday afternoon and is moved to Thursday - Wednesday night the cron
+  // finds the Thursday booking, finds Monday's reminder row, and SKIPS. The
+  // customer got a reminder naming Tuesday and gets nothing for Thursday.
+  // Silent: it just increments skipped_already_sent.
+  //
+  // ⚠️ The rows are MARKED, not deleted. /admin/emails is the clinic's record
+  // of what it actually sent, and a reminder that really did go out must stay
+  // visible. cancelled_manual is an existing allowed delivery_status, and the
+  // cron now ignores rows carrying it.
+  const { error: reminderSweepError } = await adminClient
+    .from("email_delivery_events")
+    .update({ delivery_status: "cancelled_manual" })
+    .eq("booking_id", bookingId)
+    .eq("event_type", "booking_reminder")
+    .in("delivery_status", ["accepted", "sent", "queued", "failed"]);
+  if (reminderSweepError) {
+    // Non-fatal: the move has already happened. ⛔ But LOUD - the consequence
+    // is a customer who never gets a reminder for their new time.
+    console.error(
+      "[D-051] moved a booking but could not clear its old reminder. The customer may not get a reminder for the new time.",
+      { bookingId, reminderSweepError }
+    );
+  }
+
+  await adminClient.from("audit_logs").insert({
+    actor_staff_id: actor.id,
+    action_type: "booking_rescheduled",
+    target_type: "bookings",
+    target_id: bookingId,
+    before_state: beforeState,
+    after_state: updated,
+  });
+
+  // ⛔ TELL THE CUSTOMER. The gap the Owner described was that a customer asks
+  // to move and hears nothing back.
+  //
+  // ⚠️ Reuses `booking_confirmed_client` deliberately rather than inventing a
+  // new template: that email states the booking's date and time, which is
+  // exactly what has changed, and it reads its manage link with
+  // `getExistingBookingManageUrl` — which never MINTS, so it cannot invalidate
+  // the link already in the customer's inbox. A new template would mean a new
+  // event type, a new renderer and new override surface for no extra meaning.
+  //
+  // Failure is non-fatal and LOGGED: the move has already happened and is what
+  // the operator asked for. ⛔ `console.error` rather than relying on Sentry —
+  // its free tier is rate-limited and drops events (D-018).
+  await sendBookingMovedClientEmail(bookingId, adminClient).catch((emailError) => {
+    console.error("[D-051] booking moved but the customer could not be told.", {
+      bookingId,
+      emailError,
+    });
+  });
+
+  updateTag("report-data");
+  updateTag("dashboard-data");
+  updateTag(TAGS.BOOKINGS);
+  updateTag(TAGS.AUDIT);
+  // This action sends an email, so /admin/emails and the nav failure counter
+  // go stale without this. Every other email-sending action here does it.
+  updateTag(TAGS.EMAILS);
+  revalidatePath("/admin/bookings");
+  revalidatePath("/admin/bookings/" + bookingId);
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/admin/calendar");
+
+  return { success: true as const, bookingDate: nextDate, startTime: nextTime };
 }

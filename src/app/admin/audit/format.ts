@@ -30,6 +30,15 @@ const ACTIONS: Record<string, ActionEntry> = {
   booking_quick_confirm: { phrase: "confirmed booking", family: "bookings_and_assignments", chip: "confirmed" },
   booking_quick_mark_paid: { phrase: "marked booking paid", family: "bookings_and_assignments", chip: "pending" },
   booking_quick_cancel: { phrase: "cancelled booking", family: "bookings_and_assignments", chip: "cancelled" },
+  // D-051 - MUST be registered here, not left to the fallback.
+  // describeAction files an unknown action_type under operations_and_email,
+  // and ACTION_TYPES_BY_FAMILY is built from THIS map and expanded into the
+  // audit query's action_type IN (...) filter. So an unregistered move would
+  // render as grey text under "Operations & email" and be INVISIBLE to
+  // anyone filtering to "Bookings & assignments" - the one filter you would
+  // use to investigate a disputed move, and the audit row is the only record
+  // that the booking moved at all. Same defect review_email_sent had.
+  booking_rescheduled: { phrase: "moved booking to a new date/time", family: "bookings_and_assignments", chip: "pending" },
   booking_quick_complete: { phrase: "completed booking", family: "bookings_and_assignments", chip: "pending" },
   booking_assignment_claimed: { phrase: "claimed assignment for booking", family: "bookings_and_assignments", chip: "confirmed" },
   booking_assignment_unassigned: { phrase: "unassigned therapist from booking", family: "bookings_and_assignments", chip: "cancelled" },

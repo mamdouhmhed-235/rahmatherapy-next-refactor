@@ -23,18 +23,26 @@
 // ⚠️ **This is DISCLOSED, not hidden.** The panel says, in the product's own
 // words: *"Accepting or declining records the response in the audit trail. Move
 // the booking to a new date / time separately if you've agreed one with the
-// customer."* ⛔ So this is SCOPE, in the same category as "Edit series is
-// permanently disabled" — ⛔ **not a defect, and NOT something to fix.** The
-// Owner's constraint governs: *"only within whats present now, i dont mean that
-// more features or functions are added."*
+// customer."*
 //
-// ⚠️ What is worth the Owner knowing is the practical consequence: the only way
-// to actually move an appointment is to cancel it and book a new one, which
-// emails the customer a cancellation and starts a fresh booking reference.
+// ⛔ UPDATE — D-051, LATER THE SAME DAY. When this was reported, the Owner's
+// answer was: *"its an important feature and one i thought we already had, so
+// we will have to build this."* **There is now a "Move appointment" panel** on
+// the booking detail page (`MoveBookingPanel`, action `rescheduleBooking`,
+// covered by `e2e/booking-move.spec.ts` and
+// `src/app/admin/bookings/__tests__/rescheduleBooking.test.ts`).
 //
-// ⛔ SO THIS SPEC ASSERTS WHAT THE SYSTEM REALLY DOES, and pins it — if a future
-// change ever does start moving the date, this test goes red and somebody has
-// to think about it.
+// ⛔ WHAT B1 ASSERTS IS STILL TRUE, AND STILL WORTH ASSERTING: **accepting a
+// request is not the same as moving the booking.** "Accept" records the
+// answer; moving is a separate, deliberate act with its own availability
+// check. Those are two decisions and the product keeps them apart — an
+// operator can agree a change in principle and move it when they have
+// arranged cover.
+//
+// ⚠️ So this spec is no longer recording a gap. It is pinning the BOUNDARY
+// between the two actions. If accepting ever silently started moving the
+// booking, this goes red — and it should, because the availability check
+// lives in the move, not in the accept.
 //
 // ── ⛔ EMAIL COST: ONE message to the real business inbox ────────────────
 // The customer's request goes through `resolveBusinessNotificationRecipients`
@@ -179,10 +187,10 @@ test.describe("B1 — the change of plan: can I move an appointment?", () => {
 
     // ── ⛔ THE ASSERTION THAT DOCUMENTS THE REAL BEHAVIOUR ──────────────
     //
-    // ⛔ Accepting does NOT move the appointment, and no admin screen can.
-    // The panel says so in its own copy. If this ever starts failing because
-    // the date DID move, that is a genuine product change and this comment is
-    // the place to start reading.
+    // ⛔ Accepting records the answer. It does NOT move the appointment — that
+    // is the separate "Move appointment" panel (D-051), which runs its own
+    // availability check. Keeping them apart is deliberate: agreeing to a
+    // change and having somebody free to cover it are different questions.
     expect(
       after.booking_date,
       `⛔ accepting a reschedule does NOT move the booking. It is still on ${before.booking_date}, ` +
@@ -206,7 +214,7 @@ test.describe("B1 — the change of plan: can I move an appointment?", () => {
     ).toBe(THERAPIST_A_STAFF_ID);
   });
 
-  test("step 4 — answering the request emailed nobody", async () => {
+  test("step 4 — answering the request, on its own, emailed nobody", async () => {
     expect(booking?.bookingId).toBeTruthy();
     const db = serviceClient();
 
@@ -224,8 +232,9 @@ test.describe("B1 — the change of plan: can I move an appointment?", () => {
     const toCustomer = events.filter((e) => e.recipient_role === "customer");
     expect(
       toCustomer.some((e) => /reschedul/i.test(e.event_type)),
-      "⛔ MEASURED, and worth the Owner knowing: accepting a reschedule sends the CUSTOMER nothing. " +
-        "Whoever accepts has to tell them by phone or the customer never learns the answer.",
+      "⚠️ MEASURED: ACCEPTING on its own sends the customer nothing. ✅ Since D-051 the " +
+        "MOVE does email them (`booking_moved_client`), so the customer is told once the " +
+        "appointment actually changes — which is the moment that matters to them.",
     ).toBe(false);
 
     console.log(

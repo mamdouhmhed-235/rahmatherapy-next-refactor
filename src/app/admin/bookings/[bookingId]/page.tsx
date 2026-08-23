@@ -71,6 +71,7 @@ import {
   isBookingDateFutureLondon,
   isBookingMomentPastLondon,
   isRestoreWindowExpired,
+  isTerminalBookingStatus,
 } from "../_helpers";
 import {
   MarkNoShowButton,
@@ -82,6 +83,7 @@ import {
   BookingNotesScopedForm,
 } from "../BookingManagementForm";
 import { ClaimAssignmentButton } from "../ClaimAssignmentButton";
+import { MoveBookingPanel } from "./MoveBookingPanel";
 import { formatDate, formatLabel, formatMoney, formatTime } from "../format";
 import { formatRelative } from "../../audit/format";
 import type {
@@ -513,6 +515,38 @@ export default async function BookingDetailPage({
         >
           {fullScope && booking.reschedule_status === "requested" ? (
             <RescheduleRequestPanel booking={booking} />
+          ) : null}
+
+          {/* D-051 - the only place in the product that can change a booking's
+              date and time. Gated on `fullScope`, exactly like the Status form:
+              moving somebody's appointment is a whole-booking decision, not
+              something a practitioner does to their own assignment.
+
+              Hidden once the booking is terminal - a cancelled or finished
+              visit is re-created, not moved, and the action refuses it anyway.
+              The panel never offers a call the server would refuse. */}
+          {fullScope &&
+          !isTerminalBookingStatus(booking.status) &&
+          // D-051 - a visit inside a repeat booking is NOT movable on its own:
+          // the nightly horizon cron would re-create the date it was moved off,
+          // and moving the earliest one shifts the whole cadence. The action
+          // refuses it, and the panel must not offer a call the server refuses.
+          !booking.recurring_template_id ? (
+            <MoveBookingPanel
+              bookingId={booking.id}
+              currentDate={booking.booking_date}
+              currentTime={String(booking.start_time ?? "")}
+              requestedDate={
+                booking.reschedule_status === "requested"
+                  ? booking.reschedule_preferred_date
+                  : null
+              }
+              requestedTime={
+                booking.reschedule_status === "requested"
+                  ? booking.reschedule_preferred_time
+                  : null
+              }
+            />
           ) : null}
 
           {fullScope ? (

@@ -76,6 +76,7 @@ vi.mock("@/lib/booking/manage-token", () => ({ ensureBookingManageUrl: vi.fn() }
 import { updateBookingManagement } from "../bookings/actions";
 import {
   claimBookingAssignment,
+  rescheduleBooking,
   updateBookingAssignment,
   updateOwnAssignmentStatus,
 } from "../bookings/actions";
@@ -241,6 +242,26 @@ const ACTION_CASES: readonly ActionCase[] = [
     allowed: "Booking Coordinator",
     denied: ["Therapist"],
     run: () => updateBookingAssignment(form({ assignment_id: "a-1", action: "unassign" })),
+  },
+  {
+    // D-051 - moving a booking to a new date and time. Added with the
+    // feature rather than after it: this table is HAND-MAINTAINED and its
+    // counter reads the array rather than the app, so a missing action makes
+    // the suite pass while proving nothing - exactly how createService went
+    // unguarded until gate 07 case 18.
+    //
+    // Its unique value over rescheduleBooking.test.ts is AUTHZ-3: this asserts
+    // the admin client is never even CONSTRUCTED for a denied actor, so a
+    // refusal cannot have read or written anything on the way to saying no.
+    caseId: 7,
+    name: "rescheduleBooking",
+    capability: "manage_bookings_all",
+    allowed: "Booking Coordinator",
+    denied: ["Therapist"],
+    run: () =>
+      rescheduleBooking(
+        form({ booking_id: "b-1", booking_date: "2030-01-01", start_time: "10:00" })
+      ),
   },
   {
     caseId: 8,
@@ -429,9 +450,12 @@ describe("AUTHZ-3 — a denial constructs zero service-role clients", () => {
     // missing, and this counter is what should have caught them.
     // ⚠️ 16 -> 17 on 2026-08-22: `createService` (gate 07 case 18) was missing,
     // and the only other test touching it mocks the permission check away.
-    expect(ACTION_CASES.length, "entry points").toBe(17);
+    // ⚠️ 17 -> 18 on 2026-08-23: `rescheduleBooking` (D-051), added WITH the
+    // feature. An independent review pointed out it was missing and that this
+    // counter would not have noticed, because it counts the array.
+    expect(ACTION_CASES.length, "entry points").toBe(18);
     expect(new Set(ACTION_CASES.map((c) => c.caseId)).size, "cases covered").toBe(14);
-    expect(new Set(ACTION_CASES.map((c) => c.name)).size, "names unique").toBe(17);
+    expect(new Set(ACTION_CASES.map((c) => c.name)).size, "names unique").toBe(18);
   });
 
   describe.each(ACTION_CASES)("case $caseId — $name", (testCase) => {

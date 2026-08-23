@@ -611,7 +611,20 @@ interface DayRecordsFailure {
 async function loadDayRecords(
   supabase: SupabaseClient,
   dates: string[],
-  eligibleStaffIds: string[]
+  eligibleStaffIds: string[],
+  /**
+   * D-051 - one booking to leave OUT of the capacity picture.
+   *
+   * Only the RESCHEDULE path passes this. A booking being moved already
+   * occupies a slot, and when the new slot overlaps the old one (nudging 10:00
+   * to 10:30, or moving to a different time on the same day) that reservation
+   * would block the move as though somebody else held it - the booking
+   * refusing to move because of itself.
+   *
+   * Undefined for every other caller, which is every existing one, so the
+   * public availability engine's behaviour is untouched.
+   */
+  excludeBookingId?: string | null
 ): Promise<Map<string, DayRecords> | DayRecordsFailure> {
   const [
     blockedDatesResult,
@@ -660,7 +673,13 @@ async function loadDayRecords(
     return { reason: "Availability data unavailable.", kind: "indeterminate" as const };
   }
 
-  const bookings = bookingsResult.data ?? [];
+  // D-051 - drop the booking being moved before anything downstream sees it.
+  // Filtering HERE covers both halves in one place: the capacity count, and the
+  // per-staff busy intervals, because `bookingIds` (and therefore the
+  // assignment fetch below) is derived from this list.
+  const bookings = (bookingsResult.data ?? []).filter(
+    (booking) => !excludeBookingId || booking.id !== excludeBookingId
+  );
   const bookingIds = bookings.map((booking) => booking.id);
   const assignmentsResult =
     bookingIds.length > 0
@@ -1019,6 +1038,11 @@ export interface SeriesSlotCheckInput {
    * cron, not the form, that could put one person in two places.
    */
   boundStaffId?: string | null;
+  /**
+   * D-051 - exclude ONE booking from the capacity picture, for the reschedule
+   * path only. See `loadDayRecords`. Absent for every other caller.
+   */
+  excludeBookingId?: string | null;
 }
 
 export interface SeriesSlotVerdict {
@@ -1192,7 +1216,12 @@ export async function checkSeriesSlots(
     };
   }
 
-  const dayRecords = await loadDayRecords(supabase, validDates, context.eligibleStaffIds);
+  const dayRecords = await loadDayRecords(
+    supabase,
+    validDates,
+    context.eligibleStaffIds,
+    input.excludeBookingId
+  );
   if ("reason" in dayRecords) {
     return allUnavailable(dayRecords.reason, context.durationMins, dayRecords.kind);
   }

@@ -18,6 +18,8 @@ import {
   renderBookingConfirmationEmail,
   renderBookingConfirmedClientEmail,
   renderBookingConfirmedClientPlainText,
+  renderBookingMovedClientEmail,
+  renderBookingMovedClientPlainText,
   renderBookingPlainText,
   renderBookingReminderEmail,
   renderBookingRestoredEmail,
@@ -1678,4 +1680,52 @@ async function deriveGroupCategoryForBooking(
   }
   // Mixed or unknown → null (variant picker falls back to massage pool).
   return null;
+}
+
+/**
+ * D-051 — tell the customer their appointment has moved.
+ *
+ * ⛔ Its own email rather than a reused `booking_confirmed_client`: that one's
+ * `<h1>` is hard-coded "Your booking is confirmed" and fires everywhere else
+ * only on `pending → confirmed`, so reusing it would tell a customer with a
+ * still-pending booking that it was confirmed. See the template's own note.
+ *
+ * ⚠️ `includeExistingManageUrl` — NEVER `includeManageUrl`. Minting rotates the
+ * single live manage token and kills the link in whatever email the customer
+ * already has. Same reasoning as `sendBookingConfirmedClientEmail`.
+ */
+export async function sendBookingMovedClientEmail(
+  bookingId: string,
+  supabase: SupabaseClient
+): Promise<void> {
+  const { booking, input } = await getBookingTemplateInput(bookingId, supabase, {
+    includeExistingManageUrl: true,
+  });
+
+  const customerEmail = booking.contact_email || booking.clients?.email;
+  if (!customerEmail) {
+    // ⛔ Not an error. A phone-only booking has nobody to email, which is the
+    // intended state — the operator rings them. `sendTrackedEmail` records a
+    // `skipped` row so the absence is still visible on /admin/emails.
+    await sendTrackedEmail(supabase, {
+      bookingId,
+      eventType: "booking_moved_client",
+      recipientRole: "customer",
+      to: null,
+      subject: "Your appointment has been moved",
+      html: "",
+      text: "",
+    });
+    return;
+  }
+
+  await sendTrackedEmail(supabase, {
+    bookingId,
+    eventType: "booking_moved_client",
+    recipientRole: "customer",
+    to: customerEmail,
+    subject: "Your appointment has been moved",
+    html: renderBookingMovedClientEmail(input),
+    text: renderBookingMovedClientPlainText(input),
+  });
 }

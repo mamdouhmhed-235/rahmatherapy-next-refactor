@@ -44,12 +44,10 @@ import {
   gotoAdmin,
   isoDaysFromToday,
   pageAs,
-  readBooking,
   REAL_OWNER_INBOX,
   RUN_TAG,
   serviceClient,
   testInbox,
-  THERAPIST_A_STAFF_ID,
 } from "./scenario-helpers";
 import { hasBaseUrl } from "./helpers";
 

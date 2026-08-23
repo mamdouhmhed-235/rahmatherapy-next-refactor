@@ -1646,3 +1646,51 @@ Submit a new request: ${input.retryUrl}
 
 ${input.companyName} staff portal.`;
 }
+
+// ─── D-051 — "your appointment has moved" ────────────────────────────────
+//
+// ⛔ WHY THIS EXISTS RATHER THAN REUSING `booking_confirmed_client`.
+//
+// The first version of the move feature reused that email, on the reasoning
+// that it states the booking's date and time — which is exactly what changed.
+// An independent review refuted it, correctly, on two counts:
+//
+//   1. Its `<h1>` is HARD-CODED "Your booking is confirmed" and is NOT one of
+//      the overridable fields, so the customer is never actually told their
+//      appointment MOVED. They have to notice the date changed.
+//   2. ⛔ Everywhere else that email fires only on `pending → confirmed`.
+//      A move can happen to a booking that is still `pending`, so reusing it
+//      would tell a customer their booking is confirmed when it is not.
+//      That is a factual falsehood, not a wording nit.
+//
+// ⚠️ Deliberately takes NO template overrides. Registering a new overridable
+// template id would mean a new row in the template registry, and this feature
+// is meant to be surgical. The wording is fixed for now; the summary block,
+// footer and layout are the shared ones, so it looks like every other email
+// the clinic sends.
+export function renderBookingMovedClientEmail(input: BookingEmailTemplateInput): string {
+  return renderLayout(
+    "Your appointment has been moved",
+    `<h1 style="margin:0;font-size:24px;line-height:1.2;color:#1f2f2b;">Your appointment has been moved</h1>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.6;color:#53615d;">We have moved your appointment. The new date and time are below — please check them, and let us know if they do not suit you.</p>
+    ${renderSummary(input)}${renderGroupParticipantsListHtml(input)}
+    <p style="white-space:pre-line;margin:18px 0 0;font-size:14px;line-height:1.5;color:#53615d;">Thank you,\nRahma Therapy</p>
+    ${renderFooter(input, {})}`
+  );
+}
+
+/** Plain-text twin of `renderBookingMovedClientEmail`. */
+export function renderBookingMovedClientPlainText(input: BookingEmailTemplateInput): string {
+  const footerLine = `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${
+    input.contactPhone ? ` ${input.contactPhone}` : ""
+  }`;
+
+  return `Your appointment has been moved
+
+We have moved your appointment. The new date and time are below - please check them, and let us know if they do not suit you.
+${renderGroupParticipantsListText(input)}
+Thank you,
+Rahma Therapy
+
+${footerLine}`;
+}

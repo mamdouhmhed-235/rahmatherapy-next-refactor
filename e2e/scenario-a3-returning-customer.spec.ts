@@ -32,7 +32,6 @@
 import { expect, test } from "@playwright/test";
 import {
   destroyScenarioFixtures,
-  emailEvents,
   isoDaysFromToday,
   readBooking,
   REAL_OWNER_INBOX,

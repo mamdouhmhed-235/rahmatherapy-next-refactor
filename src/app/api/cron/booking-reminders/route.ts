@@ -127,11 +127,23 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     // Idempotency check — has a reminder already been logged for this booking?
+    //
+    // ⛔ D-051: the key is (booking_id, event_type) with NO date component,
+    // which was fine while a booking's date could never change. It can now.
+    // Without the status filter below: booking on Tuesday, reminder sent
+    // Monday, customer moved to Thursday - and this check finds Monday's row
+    // and SKIPS, so the customer gets a reminder naming the OLD day and
+    // nothing for the new one. Silently, via skipped_already_sent.
+    //
+    // rescheduleBooking marks the superseded rows cancelled_manual; they stay
+    // on /admin/emails as the record of what really went out, and stop
+    // counting as "already reminded".
     const { data: existing } = await supabase
       .from("email_delivery_events")
       .select("id")
       .eq("booking_id", candidate.id)
       .eq("event_type", "booking_reminder")
+      .not("delivery_status", "in", "(cancelled_manual,cancelled_by_restore)")
       .limit(1)
       .maybeSingle();
     if (existing) {
