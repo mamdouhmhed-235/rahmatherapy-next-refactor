@@ -388,6 +388,27 @@ export async function destroyScenarioFixtures(
     await step("email_delivery_events (by booking)", () =>
       db.from("email_delivery_events").delete().in("booking_id", bookingIds),
     );
+
+    // ⛔ THE FOURTH DISTINCT LEAK THIS RUN, and it was caught by READING the
+    // code rather than by a failing teardown. A failed email does not only
+    // write an `email_delivery_events` row — `recordEmailDeliveryEvent` also
+    // calls `recordOperationalEvent`, which writes a SEPARATE
+    // `operational_events` row carrying the booking id.
+    //
+    // ⚠️ Nothing above swept that table, so any scenario that produces a failed
+    // send would leave an "error" sitting on the Owner's operations page for
+    // ever — a permanent fake alarm about a booking that no longer exists.
+    //
+    // ⛔ THE ORDERING HERE IS LOAD-BEARING, NOT COSMETIC.
+    // `operational_events_booking_id_fkey` is ON DELETE SET NULL. So deleting
+    // the booking does NOT delete these rows — it NULLS their `booking_id` and
+    // leaves them behind, permanently untraceable to the fixture that made
+    // them. ⚠️ MEASURED: 27 such rows were found orphaned this way, every one
+    // with `booking_id` null, before this step existed. They must be deleted
+    // WHILE the booking still exists or they can never be found again.
+    await step("operational_events", () =>
+      db.from("operational_events").delete().in("booking_id", bookingIds),
+    );
   }
 
   // ⛔ Recurring-series emails carry `booking_id: null` — they are addressable
@@ -417,9 +438,17 @@ export async function destroyScenarioFixtures(
   const { data: survivingTemplates } = templateIds.length
     ? await db.from("recurring_booking_templates").select("id").in("id", templateIds)
     : { data: [] };
+  const { data: survivingOps } = bookingIds.length
+    ? await db.from("operational_events").select("id").in("booking_id", bookingIds)
+    : { data: [] };
 
   if ((survivingClients ?? []).length) problems.push(`${(survivingClients ?? []).length} client rows survived`);
   if ((survivingBookings ?? []).length) problems.push(`${(survivingBookings ?? []).length} booking rows survived`);
+  if ((survivingOps ?? []).length)
+    problems.push(
+      `${(survivingOps ?? []).length} operational_events rows survived — ` +
+        `they would sit on the Owner's operations page as permanent errors about bookings that no longer exist`,
+    );
   if ((survivingTemplates ?? []).length)
     problems.push(
       `${(survivingTemplates ?? []).length} recurring_booking_templates rows survived — ` +
