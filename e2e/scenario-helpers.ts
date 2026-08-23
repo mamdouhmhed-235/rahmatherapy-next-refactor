@@ -547,9 +547,15 @@ export async function readBooking(db: SupabaseClient, id: string) {
 export async function readAssignments(db: SupabaseClient, bookingId: string) {
   const { data } = await db
     .from("booking_assignments")
-    .select("id, participant_id, assigned_staff_id, status")
+    .select("id, participant_id, assigned_staff_id, status, required_therapist_gender")
     .eq("booking_id", bookingId);
-  return (data ?? []) as { id: string; participant_id: string; assigned_staff_id: string | null; status: string }[];
+  return (data ?? []) as {
+    id: string;
+    participant_id: string;
+    assigned_staff_id: string | null;
+    status: string;
+    required_therapist_gender: string | null;
+  }[];
 }
 
 export async function auditActions(db: SupabaseClient, targetId: string): Promise<string[]> {
