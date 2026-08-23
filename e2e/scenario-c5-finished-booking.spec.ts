@@ -217,30 +217,47 @@ test.describe("C5 — the finished booking: is staff offered anything that canno
     console.log(`\n[C5] COMPLETE. Nothing closed could be re-opened or re-cancelled.\n`);
   });
 
-  test("\u26d4 a CANCELLED visit can still be marked PAID \u2014 recorded, not endorsed", async ({
+  test("\u2705 a CANCELLED visit can still be marked PAID \u2014 deliberate, and recorded", async ({
     browser,
   }) => {
-    // \u26d4 FIND-08-C5-01. This case PINS BEHAVIOUR THAT LOOKS WRONG, rather than
-    // asserting what I think it should be. It was found by ENUMERATING the
-    // enabled controls above rather than by checking the two or three I thought
-    // of \u2014 which is the whole reason this file enumerates.
+    // \u2705 RECORDING DELIBERATE BEHAVIOUR \u2014 NOT A DEFECT.
     //
-    // What happens today, driven and measured:
-    //   - a CANCELLED booking still shows a LIVE "Mark paid" chip on the detail
-    //     page (the bookings LIST correctly hides it \u2014 the two surfaces
-    //     disagree, `BookingRowActions.tsx` excludes cancelled/no_show);
-    //   - one click, no confirmation, toast says "Marked paid.";
-    //   - `quickUpdateBooking`'s mark_paid branch has NO status guard, unlike
-    //     `complete` and `no_show` beside it, which refuse a future-dated visit;
-    //   - `reporting.ts` adds `amount_paid` to COLLECTED REVENUE for every
-    //     booking regardless of status, while OUTSTANDING explicitly excludes
-    //     cancelled and no_show.
+    // \u26d4 I RAISED THIS AS A FINDING AND AN INDEPENDENT REVIEW REFUTED THE
+    // FRAMING. The refutation is kept in full, because it is the useful part.
     //
-    // \u26a0\ufe0f So a mis-tap puts money for a visit that never happened into the
-    // Owner's income figure. Whether that is a defect depends on whether the
-    // clinic ever takes money on a cancelled booking \u2014 an independent review is
-    // settling that, and the Owner decides. \u26d4 Until then this test records the
-    // CURRENT behaviour so a change in either direction is noticed.
+    // What I claimed: "Mark paid" is live on a cancelled booking with no status
+    // guard, so a mis-tap puts money for a visit that never happened into the
+    // Owner's Collected revenue.
+    //
+    // \u26d4 WHY THAT WAS WRONG, verified line by line:
+    //
+    //  1. It is NOT an omission, it is the stated rule. The comment above the
+    //     guards in `actions.ts` says the guard "reads the status the write
+    //     would set rather than the action name ... `mark_paid` sets no status
+    //     and is therefore untouched."  \u26d4 And `quickUpdateBookingNoShow.test.ts`
+    //     pins it: `it.each(["completed","no_show"])("still marks a %s booking
+    //     paid")`, commented "must stay reachable from every terminal status".
+    //     Blocking the chip would break green tests written to prevent exactly
+    //     the change I was proposing.
+    //
+    //  2. The cancelled-and-paid state does NOT mainly arrive through this chip.
+    //     `quickUpdateBooking`'s cancel payload is
+    //     `{ status: "cancelled", ...cancelledAtStamp }` \u2014 it never touches the
+    //     payment fields. \u26d4 So a customer who PAYS and then CANCELS lands in
+    //     exactly this state with the chip uninvolved. Removing the chip would
+    //     not take a penny out of the figure.
+    //
+    //  3. "Collected revenue" does not claim to be earnings. Its own definition
+    //     in `reporting.ts` is "Actual amount paid in the selected period" \u2014 a
+    //     till figure. Money genuinely handed over HAS been collected.
+    //     `completed_revenue` is the services-rendered view and excludes this.
+    //
+    // \u26a0\ufe0f WHAT SURVIVES is small, and worth keeping visible: the bookings LIST
+    // hides this control on cancelled and no-show rows (`BookingRowActions.tsx`)
+    // while the DETAIL page offers it. The two surfaces disagree \u2014 and on the
+    // evidence above it is the LIST that is out of step, not the detail page.
+    //
+    // \u26d4 SO THIS TEST RECORDS THE BEHAVIOUR AND DOES NOT JUDGE IT.
     const db = serviceClient();
     const booking = await seedWebsiteBooking(db, "C5-PAIDCANX", {
       dayOffset: -4,
@@ -291,7 +308,7 @@ test.describe("C5 — the finished booking: is staff offered anything that canno
     // visit, and that is a decision the Owner should be making deliberately.
     expect(
       { offered, paid: after.payment_status },
-      "\u26d4 FIND-08-C5-01 CHANGED. Today a cancelled booking CAN be marked paid from the detail page, and that money reaches Collected revenue. If this assertion fails, the behaviour has moved \u2014 check it was on purpose.",
+      "\u26a0\ufe0f DELIBERATE, UNIT-TESTED BEHAVIOUR \u2014 not a defect, see the note above. Today a cancelled booking CAN be marked paid from the detail page. If this assertion fails the behaviour has moved, which may well be right, but it must have been DECIDED rather than drifted.",
     ).toEqual({ offered: true, paid: "paid" });
   });
 });
