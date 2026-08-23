@@ -54,9 +54,17 @@
 // written STRAIGHT INTO THE DATABASE, which invalidates nothing. Measured, on a
 // freshly seeded failure:
 //
-//   /admin/emails/                     → ⛔ not shown ("Showing 1 of 1 events")
-//   /admin/emails/?deliveryStatus=failed → ✅ shown ("Showing 2 of 2 events")
-//   /admin/emails/?range=today          → ✅ shown
+//   /admin/emails/                        → ⛔ not shown ("Showing 1 of 1 events")
+//   /admin/emails/?delivery_status=failed → ✅ shown
+//   /admin/emails/?range=today            → ✅ shown
+//
+// ⚠️ CORRECTION, RECORDED RATHER THAN QUIETLY FIXED. The first run of this file
+// used `?deliveryStatus=failed` — camelCase. The page accepts `delivery_status`,
+// so that filter was IGNORED. The failure still appeared, because any distinct
+// URL is a distinct cache key and therefore a fresh fetch, so the FINDING stands
+// — but the original wording claimed it "survived the failed-only filter", which
+// it never met. The URL is corrected above and the claim below is narrowed to
+// what is actually demonstrated: the failure is visible in the delivery log.
 //
 // ⛔ THE STALE DEFAULT IS MY ARTIFACT, NOT A DEFECT, and it must not be reported
 // as one. A real failure occurs inside a server action, which calls `updateTag`
@@ -165,7 +173,7 @@ test.describe("G4 — when a message fails: would the Owner ever know?", () => {
     // ⛔ THE VIEW THAT MATTERS: what somebody chasing a missing message clicks.
     await gotoAdmin(
       page,
-      "/admin/emails/?deliveryStatus=failed",
+      "/admin/emails/?delivery_status=failed",
       "the failed-only view",
     );
     await page.waitForTimeout(2_500);
@@ -186,12 +194,12 @@ test.describe("G4 — when a message fails: would the Owner ever know?", () => {
       `⛔ A FAILED MESSAGE IS INVISIBLE IN THE FAILED-ONLY VIEW. The Owner would have no way of learning that a customer never received their reminder. It said: "${onlyFailed.slice(0, 400)}"`,
     ).toBe(true);
 
-    // ⛔ AND THE SUCCESSFUL MESSAGE IS NOT DRESSED UP AS A FAILURE. A "failed"
-    // filter that simply lists everything would be worse than useless: it would
-    // look like a report while telling you nothing.
+    // ⛔ AND THE LOG SAYS SOMETHING FAILED. ⚠️ Narrowed deliberately: this proves
+    // the failure is VISIBLE and LABELLED, not that the filter excluded the
+    // successful message — see the correction in the header.
     expect(
       /failed/i.test(onlyFailed),
-      "⛔ the failed view must actually say something failed",
+      "⛔ the delivery log must actually say the message failed, not list it as if it went",
     ).toBe(true);
 
     console.log(
