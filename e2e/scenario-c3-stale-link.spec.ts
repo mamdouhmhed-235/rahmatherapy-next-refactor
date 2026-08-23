@@ -32,7 +32,7 @@
 // Every case here is a refusal, and refusals send nothing. ⚠️ Which matters
 // today: the Owner's Resend daily quota is exhausted (D-053).
 
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import {
   destroyScenarioFixtures,

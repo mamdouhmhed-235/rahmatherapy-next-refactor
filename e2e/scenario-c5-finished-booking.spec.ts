@@ -43,7 +43,6 @@ import {
   seedWebsiteBooking,
   serviceClient,
   THERAPIST_A_STAFF_ID,
-  type SeededBooking,
 } from "./scenario-helpers";
 import { hasBaseUrl } from "./helpers";
 
