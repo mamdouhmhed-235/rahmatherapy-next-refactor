@@ -1043,6 +1043,25 @@ export interface SeriesSlotCheckInput {
    * path only. See `loadDayRecords`. Absent for every other caller.
    */
   excludeBookingId?: string | null;
+  /**
+   * D-051 - check the slot for THIS many minutes instead of the sum of the
+   * services' CURRENT durations.
+   *
+   * ⛔ A booking stores the length it was scheduled for
+   * (`bookings.total_duration_mins`), snapshotted at creation. This engine
+   * re-derives length from the services table as it stands TODAY, and the two
+   * diverge whenever a service's duration is edited after a booking is taken
+   * - measured live: 5 of 14 bookings, 60 stored against 90 current.
+   *
+   * ⚠️ Today that direction is merely over-strict. Reverse it - a service
+   * SHORTENED after booking - and the reschedule path would verify a short
+   * window free and then write a longer one, which is exactly the
+   * over-booking the feature exists to prevent. The window checked must be
+   * the window written.
+   *
+   * Absent for every other caller, so the public engine is untouched.
+   */
+  durationMinsOverride?: number | null;
 }
 
 export interface SeriesSlotVerdict {
@@ -1226,6 +1245,12 @@ export async function checkSeriesSlots(
     return allUnavailable(dayRecords.reason, context.durationMins, dayRecords.kind);
   }
 
+  // D-051 - the caller may pin the length; see `durationMinsOverride`.
+  const effectiveDurationMins =
+    typeof input.durationMinsOverride === "number" && input.durationMinsOverride > 0
+      ? input.durationMinsOverride
+      : context.durationMins;
+
   const requiredStaffByGender = countRequiredStaff(input.participantGenders);
   const start = timeToMinutes(input.startTime);
   // ⛔ TIME_PATTERN was checked at the top, so this cannot be null. Handled
@@ -1236,7 +1261,7 @@ export async function checkSeriesSlots(
   if (start === null) {
     return allUnavailable("Invalid start time.", context.durationMins);
   }
-  const end = start + context.durationMins;
+  const end = start + effectiveDurationMins;
 
   const verdicts = input.dates.map<SeriesSlotVerdict>((date) => {
     if (!DATE_PATTERN.test(date)) {

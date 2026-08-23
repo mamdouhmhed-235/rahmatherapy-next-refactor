@@ -2038,6 +2038,23 @@ export async function rescheduleBooking(formData: FormData) {
     };
   }
 
+  // ⛔ THE LENGTH OF THE VISIT, read BEFORE the availability check so the
+  // window that gets VERIFIED is the window that gets WRITTEN. See
+  // `durationMinsOverride`.
+  const durationMins = Number(beforeState.total_duration_mins ?? 0);
+
+  // ⛔ FAIL CLOSED on a booking whose length is unknown. Skipping the
+  // end_time write would leave the OLD end against the new start - either a
+  // wrong diary window, or an end_time <= start_time that Postgres rejects as
+  // a raw driver error in the operator's face.
+  if (!Number.isFinite(durationMins) || durationMins <= 0) {
+    return {
+      error:
+        "This booking has no recorded length, so it cannot be moved safely. " +
+        "Check the booking’s service first.",
+    };
+  }
+
   // ── ⛔ CAN THE CLINIC ACTUALLY COVER THE NEW SLOT? ──────────────────────
   //
   // Reuses the SAME engine the recurring-series path uses (D-042), rather than
@@ -2116,6 +2133,10 @@ export async function rescheduleBooking(formData: FormData) {
           boundStaffId,
           // ⛔ THE LINE THAT STOPS THE BOOKING BLOCKING ITSELF.
           excludeBookingId: bookingId,
+          // ⛔ And check the length this visit is ACTUALLY scheduled for, not
+          // the sum of the services' current durations. The two diverge once a
+          // service's duration is edited after a booking is taken.
+          durationMinsOverride: durationMins,
         },
         adminClient,
         // ⛔ D-033's principle: hiding a service from the website must not
@@ -2163,20 +2184,6 @@ export async function rescheduleBooking(formData: FormData) {
   }
 
   // ── The write ──────────────────────────────────────────────────────────
-  const durationMins = Number(beforeState.total_duration_mins ?? 0);
-
-  // ⛔ FAIL CLOSED on a booking whose length is unknown. The first version
-  // simply skipped the end_time write, leaving the OLD end time against the
-  // new start - either a wrong diary window, or an end_time <= start_time that
-  // Postgres rejects as a raw driver error in the operator's face.
-  if (!Number.isFinite(durationMins) || durationMins <= 0) {
-    return {
-      error:
-        "This booking has no recorded length, so it cannot be moved safely. " +
-        "Check the booking’s service first.",
-    };
-  }
-
   const nextEndTime = addMinutesToTime(nextTime, durationMins);
 
   // ⛔ A visit has to finish on the day it starts. addMinutesToTime does NOT
@@ -2283,22 +2290,24 @@ export async function rescheduleBooking(formData: FormData) {
   // ⛔ TELL THE CUSTOMER. The gap the Owner described was that a customer asks
   // to move and hears nothing back.
   //
-  // ⚠️ Reuses `booking_confirmed_client` deliberately rather than inventing a
-  // new template: that email states the booking's date and time, which is
-  // exactly what has changed, and it reads its manage link with
-  // `getExistingBookingManageUrl` — which never MINTS, so it cannot invalidate
-  // the link already in the customer's inbox. A new template would mean a new
-  // event type, a new renderer and new override surface for no extra meaning.
+  // ⚠️ It has its OWN email rather than a reused `booking_confirmed_client`.
+  // That one's <h1> is hard-coded "Your booking is confirmed" and everywhere
+  // else it fires only on pending -> confirmed, so reusing it would have told
+  // a customer with a still-pending booking that it was confirmed. An
+  // independent review caught that before it shipped.
   //
   // Failure is non-fatal and LOGGED: the move has already happened and is what
   // the operator asked for. ⛔ `console.error` rather than relying on Sentry —
   // its free tier is rate-limited and drops events (D-018).
-  await sendBookingMovedClientEmail(bookingId, adminClient).catch((emailError) => {
-    console.error("[D-051] booking moved but the customer could not be told.", {
-      bookingId,
-      emailError,
-    });
-  });
+  const emailOutcome = await sendBookingMovedClientEmail(bookingId, adminClient).catch(
+    (emailError) => {
+      console.error("[D-051] booking moved but the customer could not be told.", {
+        bookingId,
+        emailError,
+      });
+      return { sent: false };
+    }
+  );
 
   updateTag("report-data");
   updateTag("dashboard-data");
@@ -2312,5 +2321,13 @@ export async function rescheduleBooking(formData: FormData) {
   revalidatePath("/admin/dashboard");
   revalidatePath("/admin/calendar");
 
-  return { success: true as const, bookingDate: nextDate, startTime: nextTime };
+  return {
+    success: true as const,
+    bookingDate: nextDate,
+    startTime: nextTime,
+    // ⛔ Reported so the UI does not CLAIM the client was emailed when they
+    // were not. A phone-only booking has no address to write to, which is a
+    // legitimate state - but the operator has to know to ring them.
+    emailed: emailOutcome.sent,
+  };
 }

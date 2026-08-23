@@ -49,7 +49,7 @@ vi.mock("@/lib/email/notifications", () => ({
   sendAssignedStaffBookingChangeEmails: vi.fn(),
   sendBookingCancellationEmails: vi.fn(),
   sendBookingConfirmedClientEmail: vi.fn().mockResolvedValue(undefined),
-  sendBookingMovedClientEmail: vi.fn().mockResolvedValue(undefined),
+  sendBookingMovedClientEmail: vi.fn().mockResolvedValue({ sent: true }),
   sendBookingRestoredClientEmail: vi.fn(),
   sendClaimNotificationEmail: vi.fn(),
   sendClientAssignedTherapistEmail: vi.fn(),

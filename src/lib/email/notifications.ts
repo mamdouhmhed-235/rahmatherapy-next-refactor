@@ -1697,7 +1697,7 @@ async function deriveGroupCategoryForBooking(
 export async function sendBookingMovedClientEmail(
   bookingId: string,
   supabase: SupabaseClient
-): Promise<void> {
+): Promise<{ sent: boolean }> {
   const { booking, input } = await getBookingTemplateInput(bookingId, supabase, {
     includeExistingManageUrl: true,
   });
@@ -1716,7 +1716,7 @@ export async function sendBookingMovedClientEmail(
       html: "",
       text: "",
     });
-    return;
+    return { sent: false };
   }
 
   await sendTrackedEmail(supabase, {
@@ -1728,4 +1728,6 @@ export async function sendBookingMovedClientEmail(
     html: renderBookingMovedClientEmail(input),
     text: renderBookingMovedClientPlainText(input),
   });
+
+  return { sent: true };
 }

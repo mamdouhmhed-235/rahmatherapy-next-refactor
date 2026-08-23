@@ -1679,16 +1679,29 @@ export function renderBookingMovedClientEmail(input: BookingEmailTemplateInput):
   );
 }
 
-/** Plain-text twin of `renderBookingMovedClientEmail`. */
+/**
+ * Plain-text twin of `renderBookingMovedClientEmail`.
+ *
+ * ⛔ IT MUST STATE THE NEW DATE AND TIME ITSELF. The HTML version gets them
+ * from `renderSummary`, which has no plain-text equivalent - so the first
+ * version of this said "the new date and time are below" and then rendered
+ * the group-participants block, which is an EMPTY STRING for an ordinary
+ * single-person booking. A plain-text reader got an email whose entire
+ * purpose was missing. Found by independent review.
+ */
 export function renderBookingMovedClientPlainText(input: BookingEmailTemplateInput): string {
   const footerLine = `${input.contactEmail ? `Contact: ${input.contactEmail}` : ""}${
     input.contactPhone ? ` ${input.contactPhone}` : ""
   }`;
+  const where = (input.addressLines ?? []).join(", ");
 
   return `Your appointment has been moved
 
-We have moved your appointment. The new date and time are below - please check them, and let us know if they do not suit you.
-${renderGroupParticipantsListText(input)}
+We have moved your appointment. Please check the new details below, and let us know if they do not suit you.
+
+New date: ${formatBusinessDateLong(input.bookingDate)}
+New time: ${input.startTime}${input.endTime ? ` - ${input.endTime}` : ""}
+${where ? `Where: ${where}\n` : ""}${renderGroupParticipantsListText(input)}
 Thank you,
 Rahma Therapy
 

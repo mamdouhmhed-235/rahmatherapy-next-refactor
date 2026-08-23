@@ -76,7 +76,14 @@ export function MoveBookingPanel({
           return;
         }
 
-        toast.success("Appointment moved. The client has been emailed the new time.");
+        // ⛔ Only claim the email when one actually went. A phone-only booking
+        // has nobody to write to, and telling the operator otherwise means a
+        // customer turns up at the old time.
+        toast.success(
+          result?.emailed
+            ? "Appointment moved. The client has been emailed the new time."
+            : "Appointment moved. ⚠️ This client has no email address — let them know yourself."
+        );
         router.refresh();
       } catch {
         // Reachable only for a transport-level failure, which no result object
@@ -157,8 +164,8 @@ export function MoveBookingPanel({
       </div>
 
       <p className="mt-3 text-xs text-[var(--admin-text-muted)]">
-        The client is emailed the new date and time. The move is recorded in the
-        audit trail.
+        The client is emailed the new date and time, if we hold an address for
+        them. The move is recorded in the audit trail.
       </p>
     </AdminPanel>
   );

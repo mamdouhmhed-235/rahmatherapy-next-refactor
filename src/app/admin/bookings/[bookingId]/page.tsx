@@ -536,13 +536,21 @@ export default async function BookingDetailPage({
               bookingId={booking.id}
               currentDate={booking.booking_date}
               currentTime={String(booking.start_time ?? "")}
+              // D-051 - `reviewed` as well as `requested`. Pressing "Accept
+              // request" sets the status to `reviewed`, and accept-then-move is
+              // the natural flow - so gating the prefill on `requested` alone
+              // made the panel forget the date at the exact moment the operator
+              // needed it, while the request panel showing that date disappeared
+              // at the same time. Found by independent review.
               requestedDate={
-                booking.reschedule_status === "requested"
+                booking.reschedule_status === "requested" ||
+                booking.reschedule_status === "reviewed"
                   ? booking.reschedule_preferred_date
                   : null
               }
               requestedTime={
-                booking.reschedule_status === "requested"
+                booking.reschedule_status === "requested" ||
+                booking.reschedule_status === "reviewed"
                   ? booking.reschedule_preferred_time
                   : null
               }
