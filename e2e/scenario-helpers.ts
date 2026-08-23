@@ -517,8 +517,12 @@ export async function readBooking(db: SupabaseClient, id: string) {
   const { data, error } = await db
     .from("bookings")
     .select(
+      // ⛔ KEEP THIS LIST COMPLETE. A column that is not selected comes back
+      // `undefined`, and an assertion written as `Number(x ?? 0)` then reads it
+      // as 0 and blames the app. That happened to A5's duration check.
       "id, status, assignment_status, payment_status, payment_method, amount_paid, amount_due, " +
-        "paid_at, travel_fee, total_price, booking_source, client_id, contact_email, booking_date, start_time",
+        "paid_at, travel_fee, total_price, total_duration_mins, booking_source, client_id, " +
+        "contact_email, contact_full_name, booking_date, start_time, end_time, group_booking",
     )
     .eq("id", id)
     .single();
@@ -584,4 +588,245 @@ export async function expectVisibleOrExplain(page: Page, locator: ReturnType<Pag
     throw new Error(`Expected ${what}, found nothing. The page said: "${text}"`);
   }
   await expect(locator.first()).toBeVisible();
+}
+
+/**
+ * ⛔ Drive the PUBLIC booking dialog to submission, as a customer would.
+ *
+ * ⚠️ Scenario A1 deliberately does NOT use this: it keeps the form spelled out
+ * step by step, with an assertion at each one, as the reference description of
+ * what a customer actually goes through. This helper exists so A3-A5 can get to
+ * the part they are actually about without re-deriving the form.
+ *
+ * ⛔ SENDS REAL EMAIL — three messages per call, one of them to the Owner's real
+ * business inbox. There is no actor to exclude them from a customer-initiated
+ * booking. Never call this in a loop.
+ *
+ * ── Facts this encodes, all measured 2026-08-23 ──────────────────────────
+ * - ⛔ Packages are ONE PER CATEGORY, not one in total. `togglePackage`
+ *   (`booking-store.ts:44`) drops any selection sharing the new package's
+ *   `group`, so Fire REPLACES Hijama (both cupping) while a massage ADDS to
+ *   either. Hijama £45 + 1-Hour Massage £60 = £105.
+ * - ⛔ Day cells' accessible name is the full date, not the digit.
+ * - ⛔ The calendar pre-selects a day and the enabled set CHANGES as
+ *   availability lands — wait for the time slots before choosing.
+ * - ⛔ In GROUP mode the single "Your gender" pair is replaced by one
+ *   Male/Female pair PER PARTICIPANT, in participant order.
+ */
+export async function submitPublicBooking(
+  page: Page,
+  opts: {
+    name: string;
+    email: string;
+    phone: string;
+    /** Label fragments, e.g. ["Hijama Package", "1-Hour Massage Therapy"]. */
+    packages: string[];
+    /** One entry per participant. More than one switches the form to GROUP mode. */
+    participants: { gender: "male" | "female"; name?: string }[];
+  },
+): Promise<{ bookingId: string; chosenDay: string; chosenTime: string }> {
+  // ⛔ Open the dialog by its own URL rather than by clicking the homepage
+  // link. The link is a real navigation to `/home/?booking=1`, and clicking it
+  // before the page has hydrated leaves the URL changed but the dialog never
+  // mounted — measured, as an intermittent failure. ✅ Scenario A1 clicks the
+  // homepage button and asserts the dialog opens, so that path IS covered;
+  // repeating it in every scenario only buys flake.
+  await page.goto("/home/?booking=1", { waitUntil: "domcontentloaded" });
+  const dialog = page.getByRole("dialog");
+  await expect(dialog, "the booking dialog should open").toBeVisible({ timeout: 30_000 });
+
+  // ── Step 1 — service ────────────────────────────────────────────────
+  for (const label of opts.packages) {
+    await dialog.getByRole("button", { name: new RegExp(label, "i") }).first().click();
+  }
+  await dialog.getByRole("button", { name: /^Continue$/ }).click();
+
+  // ── Step 2 — about you ──────────────────────────────────────────────
+  await expect(dialog.getByRole("heading", { name: /^About you$/i }).first()).toBeVisible({
+    timeout: 20_000,
+  });
+
+  const isGroup = opts.participants.length > 1;
+  await dialog.getByRole("button", { name: isGroup ? /^For a group/ : /^For myself/ }).click();
+
+  if (isGroup) {
+    await dialog.getByLabel(/Participant count/i).selectOption(String(opts.participants.length));
+  }
+
+  await dialog.getByLabel(/Main contact name/i).fill(opts.name);
+  await dialog.getByLabel(/Phone \/ WhatsApp number/i).fill(opts.phone);
+  await dialog.getByLabel(/Email address/i).fill(opts.email);
+
+  // ⛔ One Male/Female pair per participant, in order. `.nth(i)` is the only
+  // way to address them — they carry no per-participant accessible name.
+  for (const [index, participant] of opts.participants.entries()) {
+    const pair = participant.gender === "male" ? /^Male$/ : /^Female$/;
+    await dialog.getByRole("button", { name: pair }).nth(index).click();
+    if (isGroup) {
+      await dialog
+        .getByLabel(new RegExp(`Participant ${index + 1} name or label`, "i"))
+        .fill(participant.name ?? `${opts.name}-P${index + 1}`);
+    }
+  }
+
+  await dialog.getByRole("button", { name: /^Luton$/ }).click();
+  await dialog.getByLabel(/Area \/ County/i).fill("Bedfordshire");
+  await dialog.getByLabel(/Postcode/i).fill("LU1 1AA");
+  await dialog.getByLabel(/Home visit address/i).fill("1 ZZTEST Street");
+  await dialog.getByRole("button", { name: /^Continue$/ }).click();
+
+  // ── Step 3 — time ───────────────────────────────────────────────────
+  await expect(
+    dialog.getByRole("heading", { name: /Choose a matched time/i }),
+    "the booking dialog should reach its Time step",
+  ).toBeVisible({ timeout: 30_000 });
+
+  const slots = dialog.getByRole("button", { name: /^([01]\d|2[0-3]):[0-5]\d$/ });
+  await expect(
+    slots.first(),
+    "⛔ the clinic offered NO appointment times for this request — nothing could be booked",
+  ).toBeVisible({ timeout: 30_000 });
+
+  const days = dialog.locator('button[aria-label*="day,"]');
+  const dayCount = await days.count();
+  let chosenDay = "";
+  for (let index = 0; index < dayCount; index += 1) {
+    if (await days.nth(index).isEnabled()) {
+      chosenDay = (await days.nth(index).getAttribute("aria-label")) ?? "";
+      await days.nth(index).click();
+      break;
+    }
+  }
+  expect(chosenDay, "⛔ the calendar offered NO bookable day at all").not.toBe("");
+
+  await expect(slots.first(), `no times were offered on ${chosenDay}`).toBeVisible({
+    timeout: 30_000,
+  });
+  const chosenTime = ((await slots.first().textContent()) ?? "").trim();
+  await slots.first().click();
+  await dialog.getByRole("button", { name: /^Continue$/ }).click();
+
+  // ── Step 4 — confirm ────────────────────────────────────────────────
+  await expect(dialog.getByRole("heading", { name: /Review your request/i })).toBeVisible();
+  await dialog.getByLabel(/I consent to treatment/i).check();
+  await dialog.getByLabel(/I understand payment is taken in person/i).check();
+  await dialog.getByLabel(/I understand this is a booking request/i).check();
+
+  const created = page.waitForResponse(
+    (r) => r.url().includes("/api/bookings") && r.request().method() === "POST",
+    { timeout: 60_000 },
+  );
+  await dialog.getByRole("button", { name: /Submit booking request/i }).click();
+  const response = await created;
+
+  const body = (await response.json()) as { bookingId?: string; error?: string };
+  expect(response.status(), `the booking was refused: ${body.error ?? "(no message)"}`).toBe(200);
+  expect(body.bookingId, "the server should return the new booking's id").toBeTruthy();
+
+  return { bookingId: body.bookingId!, chosenDay, chosenTime };
+}
+
+export async function readBookingItems(db: SupabaseClient, bookingId: string) {
+  const { data } = await db
+    .from("booking_items")
+    .select("service_name_snapshot, service_price_snapshot, service_duration_snapshot")
+    .eq("booking_id", bookingId);
+  return (data ?? []) as {
+    service_name_snapshot: string;
+    service_price_snapshot: number;
+    service_duration_snapshot: number;
+  }[];
+}
+
+export async function readParticipants(db: SupabaseClient, bookingId: string) {
+  const { data } = await db
+    .from("booking_participants")
+    .select("id, display_name, participant_gender, required_therapist_gender, is_main_contact")
+    .eq("booking_id", bookingId);
+  return (data ?? []) as {
+    id: string;
+    display_name: string;
+    participant_gender: string;
+    required_therapist_gender: string;
+    is_main_contact: boolean;
+  }[];
+}
+
+/**
+ * ⛔ The real Owner's display name, as the assignment chooser renders it.
+ *
+ * ⚠️ MEASURED 2026-08-23, AND IT BIT: only TWO male staff can take bookings —
+ * `Test Admin` and ⛔ **the real Owner, `Minhaj rahman`**. The chooser lists
+ * them alphabetically, so "just take the first candidate offered" picks the
+ * OWNER for any male participant. Scenario A4 did exactly that and sent a
+ * `staff_assignment` email to `rahmatherapy@outlook.com`, because their
+ * `staff_profiles.email` IS the real business inbox.
+ */
+export const REAL_OWNER_NAME = "Minhaj rahman";
+
+/**
+ * Put a therapist on the first participant who still needs one.
+ *
+ * ⛔ THE OWNER IS HARD-EXCLUDED HERE, not merely de-preferred. Standing rule:
+ * never assign staff id `01582c5d-…` in a fixture and never act on a booking
+ * they are assigned to. ⛔ Use this instead of hand-rolling a chooser click.
+ *
+ * ⛔ Candidates are addressed by POSITION because the assign controls carry no
+ * per-participant accessible name, and — measured — their DOM order does NOT
+ * follow the order participants were created in. Taking "the first control
+ * still offering to assign" is also what an admin actually does.
+ */
+export async function assignFirstUnstaffedParticipant(page: Page) {
+  const trigger = page.getByRole("button", { name: /^Assign therapist$/i }).first();
+  await expect(trigger, "someone still needs a therapist").toBeVisible({ timeout: 15_000 });
+  await trigger.click();
+
+  const chooser = page.getByRole("dialog");
+  await expect(chooser.getByText(/Assign a therapist/i)).toBeVisible({ timeout: 15_000 });
+
+  // The list is already filtered to this person's gender requirement, so
+  // choosing from it IS the gender match.
+  const offered = chooser
+    .getByRole("button")
+    .filter({ hasNotText: /^Close$|^Show all staff$|^Show eligible only$/ });
+  expect(
+    await offered.count(),
+    "⛔ nobody was offered for this person — a booking the clinic cannot staff at all",
+  ).toBeGreaterThan(0);
+
+  const safe = offered.filter({ hasNotText: new RegExp(REAL_OWNER_NAME) });
+  expect(
+    await safe.count(),
+    `⛔ the ONLY staff member offered was ${REAL_OWNER_NAME}, whose staff email is the real ` +
+      `business inbox. Refusing to assign them. This scenario needs a different gender mix, ` +
+      `or the clinic genuinely has nobody else who can take this person.`,
+  ).toBeGreaterThan(0);
+
+  // Prefer the therapist this harness can sign in as, so steps that act AS a
+  // therapist afterwards have something to act on.
+  const preferred = safe.filter({ hasText: /Test Therapist(?! Fresh)/ });
+  const pick = (await preferred.count()) > 0 ? preferred.first() : safe.first();
+
+  await awaitAction(page, async () => {
+    await pick.click();
+  });
+}
+
+/**
+ * ⛔ Assert the real Owner was never put on this booking.
+ *
+ * Any status change on a booking they are assigned to emails the real business
+ * inbox via `getAssignedStaffEmails`, which never touches
+ * `resolveBusinessNotificationRecipients` — so an email-cost assertion written
+ * only against the resolver would not notice.
+ */
+export async function expectOwnerNeverAssigned(db: SupabaseClient, bookingId: string) {
+  const assignments = await readAssignments(db, bookingId);
+  const ownerRows = assignments.filter((a) => a.assigned_staff_id === REAL_OWNER_STAFF_ID);
+  expect(
+    ownerRows,
+    `⛔ the real Owner (${REAL_OWNER_STAFF_ID}) was assigned to booking ${bookingId}. ` +
+      `Their staff_profiles.email is ${REAL_OWNER_INBOX}, so every later status change on this ` +
+      `booking mails the real business inbox.`,
+  ).toHaveLength(0);
 }
