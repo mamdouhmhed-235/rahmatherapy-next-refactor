@@ -525,13 +525,11 @@ export default async function BookingDetailPage({
               Hidden once the booking is terminal - a cancelled or finished
               visit is re-created, not moved, and the action refuses it anyway.
               The panel never offers a call the server would refuse. */}
-          {fullScope &&
-          !isTerminalBookingStatus(booking.status) &&
-          // D-051 - a visit inside a repeat booking is NOT movable on its own:
-          // the nightly horizon cron would re-create the date it was moved off,
-          // and moving the earliest one shifts the whole cadence. The action
-          // refuses it, and the panel must not offer a call the server refuses.
-          !booking.recurring_template_id ? (
+          {/* D-052 - repeat bookings are movable again. D-051 hid this panel
+              for them because the nightly job would have re-created the date
+              they were moved off; occurrences now carry a stable slot, so it
+              cannot. */}
+          {fullScope && !isTerminalBookingStatus(booking.status) ? (
             <MoveBookingPanel
               bookingId={booking.id}
               currentDate={booking.booking_date}

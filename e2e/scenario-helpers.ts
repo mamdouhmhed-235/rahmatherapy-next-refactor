@@ -564,7 +564,9 @@ export async function auditActions(db: SupabaseClient, targetId: string): Promis
 export async function emailEvents(db: SupabaseClient, bookingId: string) {
   const { data } = await db
     .from("email_delivery_events")
-    .select("event_type, recipient_email, recipient_role, delivery_status, to_email")
+    // ⚠️ `error_message` included on purpose: a `failed` row without its reason
+    // tells you an email did not go and nothing about why.
+    .select("event_type, recipient_email, recipient_role, delivery_status, to_email, error_message")
     .eq("booking_id", bookingId);
   return (data ?? []) as {
     event_type: string;
@@ -572,6 +574,7 @@ export async function emailEvents(db: SupabaseClient, bookingId: string) {
     recipient_role: string | null;
     delivery_status: string;
     to_email: string | null;
+    error_message: string | null;
   }[];
 }
 

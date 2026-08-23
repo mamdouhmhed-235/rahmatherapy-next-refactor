@@ -1719,7 +1719,7 @@ export async function sendBookingMovedClientEmail(
     return { sent: false };
   }
 
-  await sendTrackedEmail(supabase, {
+  const result = await sendTrackedEmail(supabase, {
     bookingId,
     eventType: "booking_moved_client",
     recipientRole: "customer",
@@ -1729,5 +1729,12 @@ export async function sendBookingMovedClientEmail(
     text: renderBookingMovedClientPlainText(input),
   });
 
-  return { sent: true };
+  // ⛔ REPORT WHAT THE PROVIDER SAID, not merely that we tried.
+  //
+  // ⚠️ Caught in a live run: the panel told the operator "the client has been
+  // emailed the new time" while the send had come back
+  // `failed: "You have reached your daily email sending quota."` A toast that
+  // claims a customer was told, when they were not, is how somebody turns up at
+  // the old time.
+  return { sent: result.status === "accepted" };
 }

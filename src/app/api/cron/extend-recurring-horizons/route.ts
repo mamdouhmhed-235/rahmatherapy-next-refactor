@@ -124,6 +124,13 @@ interface TemplateOutcome {
   extended: boolean;
   created: number;
   skipped: number;
+  /**
+   * D-052 - occurrences a PREVIOUS run left half-written and this one cleared
+   * up. Reported rather than silent: a non-zero value here means the job was
+   * interrupted mid-write at some point, which is worth somebody noticing even
+   * though it has now been repaired.
+   */
+  repaired?: number;
   failures: string[];
   /**
    * ⛔ Dates the clinic genuinely cannot staff (D-042). Kept OUT of `failures`
@@ -250,12 +257,25 @@ async function extendTemplate(
     return outcome;
   };
 
+  // 0. D-052 - clear up anything a previous run left half-written, BEFORE the
+  //    history is read. An orphaned booking row still claims its slot, so
+  //    reading first would treat the broken visit as a real one and never
+  //    re-create it.
+  const repaired = await repairHalfWrittenOccurrences(supabase, template.id);
+  if (repaired > 0) {
+    outcome.repaired = repaired;
+  }
+
   // 1. The series' own history. `booking_date` ascending gives the anchor as its
   //    first row, and the full set is what "already exists" means — cancelled
   //    occurrences included, so a visit the client cancelled is never recreated.
   const { data: seriesBookings, error: seriesError } = await supabase
     .from("bookings")
-    .select("booking_date, consent_acknowledged")
+    // D-052 - `recurring_occurrence_date` is the CADENCE SLOT this visit was
+    // created for. It is stamped once on INSERT and never changes, so it
+    // survives a visit being moved. `booking_date` is where the visit now
+    // happens, which is NOT the same question.
+    .select("booking_date, recurring_occurrence_date, consent_acknowledged")
     .eq("recurring_template_id", template.id)
     .order("booking_date", { ascending: true })
     .limit(SERIES_BOOKING_LIMIT);
@@ -275,14 +295,42 @@ async function extendTemplate(
 
   const rows = seriesBookings as {
     booking_date: string;
+    recurring_occurrence_date: string | null;
     consent_acknowledged: boolean | null;
   }[];
-  const anchorDate = rows[0].booking_date;
+
+  // D-052 - the slot a visit was created for, falling back to where it sits.
+  // ⚠️ The fallback is not decoration: rows written before the column existed
+  // carry NULL, and the migration backfills them, but a replay of the
+  // migrations against a database mid-flight could still produce one.
+  // Treating a missing slot as "where it is now" is the pre-D-052 behaviour,
+  // which is exactly right for a visit that has never been moved.
+  const slotOf = (row: { booking_date: string; recurring_occurrence_date: string | null }) =>
+    row.recurring_occurrence_date ?? row.booking_date;
+  // ⛔ D-052 - THE ANCHOR IS THE EARLIEST SLOT, NOT THE EARLIEST DATE.
+  //
+  // The rows are ordered by `booking_date`, so before D-052 moving the first
+  // visit of a Friday series to a Wednesday changed the anchor - and the
+  // whole cadence was recomputed on Wednesdays, matched nothing, and this job
+  // materialised a PARALLEL SERIES alongside the live one. Silently, because
+  // the dates genuinely differed and the duplicate guard could not see it.
+  //
+  // Sorting by slot makes the anchor immovable: it is the slot the series
+  // STARTED on, which no move can change.
+  const anchorDate = rows
+    .map(slotOf)
+    .reduce((earliest, slot) => (slot < earliest ? slot : earliest), slotOf(rows[0]));
   // Carried from the series' own first visit rather than assumed: the template
   // does not store consent, and inventing `true` here would give the extended
   // visits a stronger claim than the series was created under.
   const consentAcknowledged = rows[0].consent_acknowledged === true;
-  const existingDates = new Set(rows.map((row) => row.booking_date));
+  // ⛔ D-052 - WHICH SLOTS ARE FILLED, not which dates are occupied.
+  //
+  // Before this, moving a visit off a date made this job believe the slot was
+  // empty and materialise a brand new visit on the old date - so the client
+  // ended up with the appointment they asked to move off AND the one it was
+  // moved to. Keying on the slot means a moved visit still claims its slot.
+  const existingDates = new Set(rows.map(slotOf));
 
   // 2. Replay the sequence from the ANCHOR — see this file's header. Calling the
   //    deployed function rather than re-implementing the walk in TypeScript is
@@ -581,6 +629,11 @@ async function extendTemplate(
         contact_phone: contactPhone,
         booking_source: "recurring",
         booking_date: date,
+        // D-052 - stated explicitly rather than left to the trigger. At
+        // creation the slot and the date are the same value, so this changes
+        // nothing today; it means this job keeps saying which slot it is
+        // filling even if it ever creates a visit on a different date.
+        recurring_occurrence_date: date,
         start_time: template.anchor_start_time,
         end_time: endTime,
         total_duration_mins: service.duration_mins,
@@ -731,6 +784,95 @@ async function advanceHorizon(
 
   if (error) return { matched: false, error: error.message, raw: error };
   return { matched: Boolean(data?.length) };
+}
+
+/**
+ * D-052 - clear up occurrences that a PREVIOUS run left half-written.
+ *
+ * ⛔ THE GAP THIS CLOSES. Materialising one occurrence is four inserts with
+ * no transaction around them. Every in-run failure is already undone by
+ * `rollbackOccurrence` below - but if the REQUEST ITSELF dies between the
+ * booking insert and its children (a timeout, a redeploy, the platform
+ * reclaiming the function), that cleanup never runs. What survives is a
+ * booking row with no participant, no service line and nobody to send:
+ * ⛔ it reads as a real appointment, and it is never retried, because the
+ * slot it claims looks filled.
+ *
+ * ⚠️ D-052 made that WORSE, not better: the slot is now claimed by
+ * `recurring_occurrence_date`, which the half-written row still carries.
+ * Fixing the duplicate-visit bug without this would have traded one silent
+ * failure for another.
+ *
+ * ⛔ THE GUARDS ARE THE POINT. This DELETES production rows, so it only ever
+ * touches a booking that is:
+ *   - in THIS series;
+ *   - still `pending` (never a confirmed, completed or cancelled visit);
+ *   - carrying ZERO participants.
+ * A booking in that state is broken by definition - there is no one on it
+ * and nothing to treat - and no creation path in the app can produce one.
+ */
+async function repairHalfWrittenOccurrences(
+  supabase: AdminClient,
+  templateId: string
+): Promise<number> {
+  const { data: rows, error } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("recurring_template_id", templateId)
+    .eq("status", "pending")
+    .is("deleted_at", null);
+
+  // ⛔ Fails CLOSED: if the read fails we do not know what is broken, so we
+  // touch nothing. A repair pass that guesses is worse than none.
+  if (error || !rows || rows.length === 0) return 0;
+
+  const ids = (rows as { id: string }[]).map((row) => row.id);
+  const { data: participants, error: participantError } = await supabase
+    .from("booking_participants")
+    .select("booking_id")
+    .in("booking_id", ids);
+  if (participantError) return 0;
+
+  const withParticipants = new Set(
+    ((participants ?? []) as { booking_id: string }[]).map((row) => row.booking_id)
+  );
+  const orphans = ids.filter((id) => !withParticipants.has(id));
+
+  if (orphans.length === 0) return 0;
+
+  // ⛔ FAIL CLOSED WHEN EVERYTHING LOOKS BROKEN.
+  //
+  // ⚠️ Caught by its own test run: the first version treated "no participant
+  // rows came back" as "every visit is half-written" and deleted the lot. An
+  // empty read is not evidence of an empty table - it is equally consistent
+  // with a filter that did not match, a permission change, or a schema
+  // rename. ⛔ This function DELETES production bookings, so the destructive
+  // direction must be the one it refuses to take on ambiguous evidence.
+  //
+  // A whole series cannot legitimately be half-written: the create RPC makes
+  // each visit and its participant in ONE transaction, and this job repairs
+  // as it goes. So "all of them" means the READ is wrong, not the data.
+  if (orphans.length === ids.length) {
+    console.error(
+      `extend-recurring-horizons: EVERY occurrence in series ${templateId} looks half-written ` +
+        `(${orphans.length} of ${ids.length}). That is far more likely to be a bad read than a ` +
+        `genuinely broken series, so nothing has been deleted. ⛔ NEEDS A HUMAN.`
+    );
+    return 0;
+  }
+
+  for (const id of orphans) {
+    // ⛔ console.error as well as Sentry: Sentry's free tier is rate-limited
+    // and DROPS events (D-018), and this is a write to production nobody
+    // asked for at the time it happens.
+    console.error(
+      `extend-recurring-horizons: repairing half-written occurrence ${id} in series ${templateId} - ` +
+        `booking row with no participants, left behind by an interrupted run. Removing it so the slot can be re-created.`
+    );
+    await rollbackOccurrence(supabase, id);
+  }
+
+  return orphans.length;
 }
 
 /** Best-effort undo of a half-written occurrence. Children first, then the row. */

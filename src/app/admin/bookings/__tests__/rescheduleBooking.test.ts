@@ -111,6 +111,7 @@ function baseBooking(overrides: Record<string, unknown> = {}) {
     manage_token_hash: null,
     service_city: "Luton",
     recurring_template_id: null,
+    recurring_occurrence_date: null,
     ...overrides,
   };
 }
@@ -395,16 +396,34 @@ describe("rescheduleBooking — what it refuses", () => {
 });
 
 describe("rescheduleBooking — the holes an independent review found", () => {
-  it("⛔ refuses a visit that belongs to a repeat booking", async () => {
-    const stub = stubAdminClient(baseBooking({ recurring_template_id: "template-1" }));
+  it("moves a visit inside a repeat booking, and NEVER touches its slot", async () => {
+    const stub = stubAdminClient(
+      baseBooking({ recurring_template_id: "template-1", recurring_occurrence_date: FUTURE }),
+    );
 
     const result = await rescheduleBooking(moveForm());
 
+    // ⚠️ D-051 REFUSED this, and had to: a repeat booking had no list of its
+    // occurrences, so "does a visit exist for this slot?" was answered entirely
+    // from `booking_date`. Moving one made the nightly job materialise a
+    // duplicate on the old date.
+    //
+    // ✅ D-052 gave every occurrence a stable slot —
+    // `recurring_occurrence_date`, stamped once on INSERT by a trigger and
+    // never touched by an UPDATE — and the job now keys on the slot.
+    expect(result, "a repeat booking's visit is movable since D-052").toMatchObject({
+      success: true,
+    });
+
+    const payload = stub.bookingUpdates()[0].payload as Record<string, unknown>;
     expect(
-      result,
-      "⛔ there is no occurrence table - a visit's DATE is what says it exists. Move one and the nightly horizon cron re-creates the date it was moved off, so the client ends up with both.",
-    ).toMatchObject({ error: expect.stringContaining("repeat booking") });
-    expect(stub.bookingUpdates()).toHaveLength(0);
+      payload,
+      "⛔ THE WHOLE FIX RESTS ON THIS. If this action ever writes recurring_occurrence_date, the slot moves with the visit, the nightly job sees an empty slot on the old date, and it materialises a duplicate the client never asked for.",
+    ).not.toHaveProperty("recurring_occurrence_date");
+
+    // And it really did move the visit.
+    expect(payload.booking_date).toBe(FURTHER);
+    expect(payload.start_time).toBe("14:00:00");
   });
 
   it("⛔ refuses a booking with no recorded length rather than leaving a stale end time", async () => {

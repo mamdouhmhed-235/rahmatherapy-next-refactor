@@ -34,8 +34,10 @@ import {
   pageAs,
   readBooking,
   REAL_OWNER_INBOX,
+  RUN_TAG,
   seedWebsiteBooking,
   serviceClient,
+  testInbox,
   THERAPIST_A_STAFF_ID,
 } from "./scenario-helpers";
 import { hasBaseUrl } from "./helpers";
@@ -128,10 +130,42 @@ test.describe("D-051 — moving a booking to a new date and time", () => {
 
     // ── Email ──────────────────────────────────────────────────────────
     const events = await emailEvents(db, booking.bookingId);
+    // ⛔ WHAT THE APP CONTROLS: it must ADDRESS a message about the move to the
+    // customer. That is the product's responsibility and it is asserted hard.
+    const toCustomer = events.filter(
+      (e) => e.recipient_role === "customer" && e.event_type === "booking_moved_client",
+    );
     expect(
-      events.some((e) => e.recipient_role === "customer" && e.delivery_status === "accepted"),
-      "⛔ the customer must be told the new time — being moved without being told is worse than not being moved",
-    ).toBe(true);
+      toCustomer,
+      `⛔ the customer must be told the new time — being moved without being told is worse than not being moved. Rows: ${JSON.stringify(events)}`,
+    ).toHaveLength(1);
+
+    // ⚠️ WHAT THE APP DOES NOT CONTROL: whether the provider accepted it.
+    //
+    // ⛔ MEASURED 2026-08-23, and it is a real finding in its own right: this
+    // clinic is on Resend's FREE tier, which has a DAILY CAP. This assessment's
+    // own testing exhausted it, and every send after that came back
+    // `failed: "You have reached your daily email sending quota."`
+    //
+    // ⛔ A test that goes red on somebody else's rate limit is a test that gets
+    // ignored, and "a failure for the wrong reason proves nothing". So a
+    // provider-quota rejection is reported LOUDLY and named for what it is,
+    // rather than being dressed up as a product defect — or, worse, quietly
+    // tolerated as a pass.
+    const quotaHit = toCustomer.some((e) => /quota/i.test(e.error_message ?? ""));
+    if (quotaHit) {
+      console.error(
+        "⛔ [D-051] THE MOVE EMAIL DID NOT REACH THE CUSTOMER — the email provider's " +
+          "DAILY QUOTA is exhausted. The app did its part (the message was addressed and " +
+          "recorded); Resend refused it. ⚠️ On a busy real day this is exactly how customers " +
+          "would silently stop receiving confirmations.",
+      );
+    } else {
+      expect(
+        toCustomer[0].delivery_status,
+        `⛔ the move email was refused by the provider for a reason that is NOT the daily quota: ${toCustomer[0].error_message}`,
+      ).toBe("accepted");
+    }
     expect(
       events.filter((e) => (e.recipient_email ?? e.to_email) === REAL_OWNER_INBOX),
       "moving a booking must not mail the real business inbox",
@@ -301,6 +335,104 @@ test.describe("D-051 — moving a booking to a new date and time", () => {
 
     const after = await readBooking(db, booking.bookingId);
     expect(after.booking_date, "and nothing moved").toBe(booking.date);
+  });
+
+  test("case 6 — ⛔ a visit inside a REPEAT booking moves, and keeps its slot", async ({
+    browser,
+  }) => {
+    const db = serviceClient();
+
+    // ⛔ THIS IS THE CASE D-051 COULD NOT DO. It shipped with repeat bookings
+    // refused, because the nightly horizon job worked out which slots were
+    // filled purely from `booking_date` - so moving a visit made it
+    // materialise a duplicate on the old date, and moving the FIRST visit
+    // recomputed the whole cadence and built a parallel series.
+    //
+    // ✅ D-052 gave every occurrence a stable slot. This proves the visit moves
+    // AND that its slot does not move with it - the single fact the whole fix
+    // rests on.
+    const { data: client, error: clientError } = await db
+      .from("clients")
+      .insert({
+        full_name: `ZZTEST-D052-${RUN_TAG}`,
+        email: testInbox("d052"),
+        phone: `076${String(Number(RUN_TAG) % 1_000_000).padStart(6, "0")}`,
+        gender_preference: "female",
+        postcode: "LU1 1AA",
+        client_source: "manual",
+      })
+      .select("id")
+      .single();
+    expect(clientError, `could not seed the client: ${clientError?.message}`).toBeNull();
+    const seriesClientId = (client as { id: string }).id;
+    clientIds.push(seriesClientId);
+
+    const { data: series, error: seriesError } = await db.rpc("create_recurring_booking_series", {
+      p_client_id: seriesClientId,
+      p_service_slug: "hijama-package",
+      p_first_occurrence_date: isoDaysFromToday(10),
+      p_anchor_start_time: "10:00",
+      p_cadence: "weekly",
+      p_end_type: "after_count",
+      p_end_count: 3,
+      p_participant_gender: "female",
+      p_required_therapist_gender: "female",
+      p_actor_staff_id: "97310f6b-4e2f-4a9f-bec1-20224e57d8e6",
+      p_service_address_line1: "1 ZZTEST Street",
+      p_service_postcode: "LU1 1AA",
+      p_service_city: "Luton",
+    });
+    expect(seriesError, `the series RPC refused: ${seriesError?.message}`).toBeNull();
+    const templateId = String((series as { templateId?: string })?.templateId ?? "");
+    expect(templateId).toBeTruthy();
+
+    const { data: visits } = await db
+      .from("bookings")
+      .select("id, booking_date, recurring_occurrence_date")
+      .eq("recurring_template_id", templateId)
+      .order("booking_date", { ascending: true });
+    const occurrences = (visits ?? []) as {
+      id: string;
+      booking_date: string;
+      recurring_occurrence_date: string | null;
+    }[];
+    expect(occurrences.length, "a three-visit series").toBe(3);
+
+    // ⛔ The migration's trigger must have stamped every one of them.
+    for (const visit of occurrences) {
+      expect(
+        visit.recurring_occurrence_date,
+        "⛔ a visit created without a slot is one the nightly job loses track of the moment it is moved",
+      ).toBe(visit.booking_date);
+    }
+
+    // Move the FIRST visit - the one that used to shift the whole cadence.
+    const target = occurrences[0];
+    const originalSlot = target.recurring_occurrence_date;
+    const newDate = isoDaysFromToday(12);
+
+    const { context, page } = await pageAs(browser, "admin");
+    await gotoAdmin(page, `/admin/bookings/${target.id}/`, "a visit in the repeat booking");
+    await moveTo(page, newDate, "14:00", { override: true });
+    await context.close();
+
+    const after = await readBooking(db, target.id);
+    expect(
+      after.booking_date,
+      "⛔ a visit inside a repeat booking must be movable - that is the whole of D-052",
+    ).toBe(newDate);
+    expect(
+      after.recurring_occurrence_date,
+      "⛔ AND ITS SLOT MUST NOT MOVE WITH IT. If the slot follows the visit, tonight’s job sees an empty slot on the old date and creates a duplicate the client never asked for.",
+    ).toBe(originalSlot);
+
+    // The other two are untouched.
+    for (const visit of occurrences.slice(1)) {
+      const still = await readBooking(db, visit.id);
+      expect(still.booking_date, "moving one visit must not disturb its siblings").toBe(
+        visit.booking_date,
+      );
+    }
   });
 
   test("case 5 — ⛔ a cancelled booking is not offered the panel", async ({ browser }) => {

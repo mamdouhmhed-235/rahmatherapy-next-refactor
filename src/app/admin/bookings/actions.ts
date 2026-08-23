@@ -2003,33 +2003,25 @@ export async function rescheduleBooking(formData: FormData) {
     };
   }
 
-  // ⛔ BLOCKER A, found by independent review. A SERIES OCCURRENCE MUST NOT
-  // BE MOVED HERE.
+  // ⛔ A VISIT INSIDE A REPEAT BOOKING CAN BE MOVED - since D-052, and ONLY
+  // since D-052.
   //
-  // There is no occurrence table: "does this visit exist" IS its
-  // booking_date. extend-recurring-horizons builds its existingDates set from
-  // the visits' dates and re-creates any cadence date it does not find - so
-  // moving a visit off date A makes tonight's cron insert a BRAND NEW visit on
-  // A. The client ends up with the appointment they asked to move off, plus
-  // the one it was moved to.
+  // D-051 refused it, and had to. A repeat booking has no list of its
+  // occurrences: "does a visit exist for this slot?" was answered entirely
+  // from `booking_date`. So moving a visit made the nightly horizon job
+  // believe the slot was empty and materialise a BRAND NEW visit on the old
+  // date - and because the job took its anchor from the earliest visit,
+  // moving the FIRST one recomputed the whole cadence and built a parallel
+  // series. Silently, because the dates genuinely differed.
   //
-  // ⛔ Worse: that cron takes its anchor from the EARLIEST visit. Move the
-  // first occurrence of a Friday series to a Wednesday and every future date
-  // is recomputed on Wednesdays, none of them match, and it materialises a
-  // whole parallel series alongside the live one. Silently - the dates
-  // genuinely differ, so its duplicate guard cannot see it.
+  // ✅ D-052 gave every occurrence a stable slot -
+  // `bookings.recurring_occurrence_date`, stamped once on INSERT by a trigger
+  // and never touched by an UPDATE - and the job now keys on the slot. A
+  // moved visit still claims the slot it was created for.
   //
-  // ⚠️ Measured: zero recurring bookings exist in production today, so this
-  // is latent rather than live. Refused outright rather than patched around,
-  // because making that cron move-aware is a real change to a job that
-  // already has no transaction - and that is not this feature.
-  if (beforeState.recurring_template_id) {
-    return {
-      error:
-        "This visit is part of a repeat booking, so it cannot be moved on its own. " +
-        "Cancel this visit and add a one-off booking for the new time instead.",
-    };
-  }
+  // ⛔ DO NOT reinstate a refusal here without also reverting the job, and do
+  // NOT change `recurring_occurrence_date` below. The whole fix rests on this
+  // action changing WHERE a visit happens and never WHICH slot it fills.
 
   const currentTime = String(beforeState.start_time ?? "").slice(0, 5);
   if (beforeState.booking_date === nextDate && currentTime === nextTime) {

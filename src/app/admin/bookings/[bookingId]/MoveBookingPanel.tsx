@@ -82,7 +82,7 @@ export function MoveBookingPanel({
         toast.success(
           result?.emailed
             ? "Appointment moved. The client has been emailed the new time."
-            : "Appointment moved. ⚠️ This client has no email address — let them know yourself."
+            : "Appointment moved. ⚠️ The client was NOT emailed — let them know yourself."
         );
         router.refresh();
       } catch {

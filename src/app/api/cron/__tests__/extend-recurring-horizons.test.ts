@@ -76,6 +76,10 @@ function occurrence(date: string, overrides: Row = {}): Row {
     client_id: "client-1",
     recurring_template_id: "tmpl-1",
     booking_date: date,
+    // D-052 - the cadence SLOT this visit was created for. Equal to
+    // booking_date for a visit that has never been moved, which is every
+    // visit unless a test says otherwise.
+    recurring_occurrence_date: date,
     start_time: "09:00:00",
     status: "pending",
     deleted_at: null,
@@ -1322,6 +1326,181 @@ describe("POST /api/cron/extend-recurring-horizons", () => {
       // skip would look exactly like a quiet night.
       expect(JSON.stringify(body)).toMatch(/availability check failed/i);
       expect(stub.insertsInto("bookings"), "nothing may be written").toHaveLength(0);
+    });
+  });
+
+  describe("D-052 - a visit that has been MOVED", () => {
+    // ⛔ THE DEFECT THESE EXIST TO STOP, and it is why D-051 shipped with
+    // repeat bookings refused by the move panel.
+    //
+    // A repeat booking has no list of its occurrences. Before D-052 this job
+    // answered "does a visit exist for this slot?" entirely from
+    // `booking_date` - so the moment a visit was moved, the slot looked empty
+    // and the job materialised a BRAND NEW visit on the old date. The client
+    // ended up with the appointment they asked to move off AND the one it was
+    // moved to.
+
+    it("⛔ does not re-create the slot a visit was moved OFF", async () => {
+      // The 2026-11-20 visit was moved to the 21st. Its SLOT is still the
+      // 20th, which is what stops it being re-created.
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: [
+            occurrence("2026-11-06"),
+            occurrence("2026-11-13"),
+            occurrence("2026-11-20", { booking_date: "2026-11-21" }),
+          ],
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+
+      await post();
+
+      expect(
+        stub.createdDates(),
+        "⛔ the 20th is FILLED - by a visit that now happens on the 21st. Re-creating it gives the client two appointments and nobody is told.",
+      ).not.toContain("2026-11-20");
+    });
+
+    it("⛔ keeps the cadence anchored on the FIRST SLOT, not the first date", async () => {
+      // The series starts on Friday 2026-11-06. Its first visit has been moved
+      // to Wednesday the 4th - EARLIER, so it now sorts first by date.
+      //
+      // ⛔ Before D-052 the anchor was `rows[0].booking_date`, so this made the
+      // job recompute the whole cadence on WEDNESDAYS. None matched any
+      // existing visit, so it materialised a complete parallel series beside
+      // the live one - silently, because the dates genuinely differed.
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: [
+            occurrence("2026-11-06", { booking_date: "2026-11-04" }),
+            occurrence("2026-11-13"),
+            occurrence("2026-11-20"),
+          ],
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+
+      await post();
+
+      const created = stub.createdDates();
+      // Every new visit must still land on the series' own weekday (Friday),
+      // continuing 11-06 / 11-13 / 11-20 - never on a Wednesday cadence
+      // invented from where one visit happens to have been moved to.
+      for (const date of created) {
+        expect(
+          new Date(`${date}T12:00:00Z`).getUTCDay(),
+          `⛔ ${date} is not on the series\u2019 own weekday. Moving one visit has shifted the whole cadence, which is how a parallel series gets built.`,
+        ).toBe(5);
+      }
+      expect(created.length, "the series should still extend").toBeGreaterThan(0);
+    });
+
+    it("stamps the slot on every visit it creates", async () => {
+      const stub = dueWeeklySeries();
+
+      await post();
+
+      for (const payload of stub.insertsInto("bookings")) {
+        expect(
+          payload.recurring_occurrence_date,
+          "⛔ a visit created without a slot is one this job can lose track of the moment it is moved",
+        ).toBe(payload.booking_date);
+      }
+    });
+
+    it("⛔ clears up an occurrence a previous run left half-written", async () => {
+      // A booking row with NO participants: what survives when the request
+      // dies between the booking insert and its children. It reads as a real
+      // appointment, has nobody on it and nothing to treat, and - because it
+      // claims its slot - is never retried.
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: [
+            occurrence("2026-11-06"),
+            occurrence("2026-11-13"),
+            occurrence("2026-11-20"),
+          ],
+          // Two of the three are whole. The 20th is the casualty.
+          booking_participants: [
+            { id: "p-1", booking_id: "booking-2026-11-06" },
+            { id: "p-2", booking_id: "booking-2026-11-13" },
+          ],
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+
+      await post();
+
+      expect(
+        stub.deletes.map((entry) => entry.table),
+        "⛔ the broken row must be removed, or its slot stays claimed for ever and the client silently loses that visit",
+      ).toContain("bookings");
+    });
+
+    it("⛔ deletes NOTHING when every occurrence looks half-written", async () => {
+      // ⚠️ THE FAIL-CLOSED CASE, and it is not hypothetical: the first version
+      // of the repair pass read "no participant rows came back" as "every
+      // visit is broken" and deleted the whole series. Its own test run
+      // caught it.
+      //
+      // An empty read is equally consistent with a filter that did not match,
+      // a permission change or a rename. ⛔ This code DELETES production
+      // bookings, so ambiguous evidence must produce inaction.
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: [
+            occurrence("2026-11-06"),
+            occurrence("2026-11-13"),
+            occurrence("2026-11-20"),
+          ],
+          booking_participants: [],
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+
+      await post();
+
+      const bookingDeletes = stub.deletes.filter((entry) => entry.table === "bookings");
+      expect(
+        bookingDeletes,
+        "⛔ a whole series cannot legitimately be half-written - the create RPC makes each visit and its participant in one transaction. \"All of them\" means the READ is wrong, not the data.",
+      ).toHaveLength(0);
+    });
+
+    it("falls back to the date for a visit written before the slot existed", async () => {
+      // ⚠️ The migration backfills these, but a replay mid-flight could still
+      // produce one. Treating a missing slot as "where it is now" IS the
+      // pre-D-052 behaviour, which is exactly right for a visit never moved.
+      const stub = stubAdminClient({
+        tables: {
+          recurring_booking_templates: [template()],
+          bookings: [
+            occurrence("2026-11-06", { recurring_occurrence_date: null }),
+            occurrence("2026-11-13", { recurring_occurrence_date: null }),
+            occurrence("2026-11-20", { recurring_occurrence_date: null }),
+          ],
+          clients: [{ ...CLIENT }],
+          services: [{ ...SERVICE }],
+        },
+      });
+
+      await post();
+
+      const created = stub.createdDates();
+      expect(
+        created,
+        "⛔ a NULL slot must not make the job re-create dates that already have visits",
+      ).not.toContain("2026-11-13");
+      expect(created).not.toContain("2026-11-20");
     });
   });
 });
