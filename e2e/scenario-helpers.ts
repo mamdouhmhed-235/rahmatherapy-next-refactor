@@ -599,11 +599,16 @@ export async function auditActions(db: SupabaseClient, targetId: string): Promis
 export async function emailEvents(db: SupabaseClient, bookingId: string) {
   const { data } = await db
     .from("email_delivery_events")
-    // ⚠️ `error_message` included on purpose: a `failed` row without its reason
-    // tells you an email did not go and nothing about why.
-    .select("event_type, recipient_email, recipient_role, delivery_status, to_email, error_message")
+    // ⚠️ `error_message` matters: a `failed` row without its reason tells you an
+    // email did not go and nothing about why. ⛔ And this is `*` rather than a
+    // hand-written list because a column list that names a column which does
+    // not exist comes back as NO ROWS, not as an error — that shape has cost
+    // this run four separate false conclusions. `id` in particular is needed to
+    // tell a RESENT message apart from the original.
+    .select("*")
     .eq("booking_id", bookingId);
   return (data ?? []) as {
+    id: string;
     event_type: string;
     recipient_email: string | null;
     recipient_role: string | null;
